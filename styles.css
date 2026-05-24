@@ -4931,6 +4931,75 @@ input.input-readonly {
     border-color: #b45309;
 }
 
+.team-lock-debug-toggle {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    min-height: auto;
+    opacity: 0.85;
+}
+
+.team-lock-debug-panel {
+    width: 100%;
+    max-width: 100%;
+    margin: 0.35rem 0 0.5rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px dashed #94a3b8;
+    border-radius: 8px;
+    background: #f8fafc;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    box-sizing: border-box;
+}
+
+.team-lock-debug-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.team-lock-debug-hint {
+    color: #64748b;
+    font-weight: normal;
+    font-size: 0.68rem;
+}
+
+.team-lock-debug-actions {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.team-lock-debug-state,
+.team-lock-debug-log {
+    margin: 0.25rem 0 0;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    background: #0f172a;
+    color: #e2e8f0;
+    overflow: auto;
+    max-height: 9rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.68rem;
+}
+
+.team-lock-debug-log {
+    max-height: 11rem;
+}
+
+[data-theme="dark"] .team-lock-debug-panel {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+[data-theme="dark"] .team-lock-debug-hint {
+    color: #94a3b8;
+}
+
 [data-theme="dark"] .team-lock-status--pending .team-lock-status-btn:hover {
     background: #78350f;
     border-color: #d97706;

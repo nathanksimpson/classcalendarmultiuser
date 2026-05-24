@@ -7594,6 +7594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     repairCorruptedLangToggleButton();
     setupTeamLockButtons();
     setupTeamLockPendingButtons();
+    setupTeamLockDebugPanel();
     loadLanguage();
     loadTheme();
     warnIfOpenedFromNetworkFile();
@@ -11848,8 +11849,174 @@ function setTeamLockBarVisible(visible) {
     }
 }
 
-function notifyLockStateChange(_lockState) {
-    lastLockNotifySignature = '';
+function getTeamLockUiMode() {
+    const statusBar = document.getElementById('teamLockStatus');
+    if (!statusBar) {
+        return 'unknown';
+    }
+    const modes = ['free', 'held', 'blocked', 'pending', 'waiting'];
+    for (let i = 0; i < modes.length; i++) {
+        if (statusBar.classList.contains('team-lock-status--' + modes[i])) {
+            return modes[i];
+        }
+    }
+    return 'none';
+}
+
+function isTeamLockDebugEnabled() {
+    return typeof CalendarSync !== 'undefined' && CalendarSync.isLockDebugEnabled && CalendarSync.isLockDebugEnabled();
+}
+
+function refreshTeamLockDebugPanel(extra) {
+    if (!isTeamLockDebugEnabled()) {
+        return;
+    }
+    const panel = document.getElementById('teamLockDebugPanel');
+    const stateEl = document.getElementById('teamLockDebugState');
+    const logEl = document.getElementById('teamLockDebugLog');
+    const hintEl = document.getElementById('teamLockDebugHint');
+    const toggleBtn = document.getElementById('teamLockDebugToggle');
+    if (!panel || !stateEl || !logEl) {
+        return;
+    }
+    panel.hidden = false;
+    if (toggleBtn) {
+        toggleBtn.hidden = false;
+        toggleBtn.setAttribute('aria-pressed', 'true');
+    }
+    if (hintEl) {
+        hintEl.textContent = 'Add ?lockDebug=1 to URL or CalendarSync.setLockDebugEnabled(true)';
+    }
+    const snap = CalendarSync.getLockDebugSnapshot(
+        Object.assign(
+            {
+                teamSyncEnabled,
+                uiMode: getTeamLockUiMode(),
+                teamLockPreviousCalendarId,
+                pollIntervalMs: 5000
+            },
+            extra || {}
+        )
+    );
+    stateEl.textContent = JSON.stringify(snap, null, 2);
+    const lines = CalendarSync.getLockDebugLog();
+    logEl.textContent = lines
+        .slice(-40)
+        .map((e) => {
+            const t = e.at ? e.at.slice(11, 23) : '';
+            const d = e.detail != null ? ' ' + JSON.stringify(e.detail) : '';
+            return t + ' [' + e.kind + '] ' + e.message + d;
+        })
+        .join('\n');
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setupTeamLockDebugPanel() {
+    const toggleBtn = document.getElementById('teamLockDebugToggle');
+    const panel = document.getElementById('teamLockDebugPanel');
+    if (!toggleBtn || !panel || toggleBtn.dataset.bound === '1') {
+        return;
+    }
+    toggleBtn.dataset.bound = '1';
+
+    const showDebugUi = isTeamLockDebugEnabled();
+    toggleBtn.hidden = !showDebugUi;
+    if (!showDebugUi) {
+        panel.hidden = true;
+        return;
+    }
+
+    toggleBtn.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        toggleBtn.setAttribute('aria-pressed', panel.hidden ? 'false' : 'true');
+        if (!panel.hidden) {
+            refreshTeamLockDebugPanel({ action: 'panel-opened' });
+        }
+    });
+
+    document.getElementById('teamLockDebugCloseBtn')?.addEventListener('click', () => {
+        panel.hidden = true;
+        toggleBtn.setAttribute('aria-pressed', 'false');
+    });
+
+    document.getElementById('teamLockDebugClearBtn')?.addEventListener('click', () => {
+        if (typeof CalendarSync !== 'undefined') {
+            CalendarSync.clearLockDebugLog();
+            refreshTeamLockDebugPanel({ action: 'log-cleared' });
+        }
+    });
+
+    document.getElementById('teamLockDebugCopyBtn')?.addEventListener('click', async () => {
+        if (typeof CalendarSync === 'undefined') {
+            return;
+        }
+        const payload = {
+            snapshot: CalendarSync.getLockDebugSnapshot({
+                teamSyncEnabled,
+                uiMode: getTeamLockUiMode(),
+                teamLockPreviousCalendarId
+            }),
+            log: CalendarSync.getLockDebugLog()
+        };
+        const text = JSON.stringify(payload, null, 2);
+        try {
+            await navigator.clipboard.writeText(text);
+            showLockFlash('Lock debug copied to clipboard.', false);
+        } catch (_) {
+            window.prompt('Copy lock debug:', text);
+        }
+    });
+
+    document.getElementById('teamLockDebugRefreshBtn')?.addEventListener('click', async () => {
+        if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+            return;
+        }
+        const id = CalendarSync.getActiveCalendarId();
+        if (!id) {
+            return;
+        }
+        try {
+            await CalendarSync.refreshLockMeta(id);
+            applyTeamLockAccessState({
+                readOnly: CalendarSync.state.readOnly,
+                lock: CalendarSync.state.lock,
+                holdsLock: CalendarSync.state.holdsLock,
+                pendingEditRequest: CalendarSync.state.pendingEditRequest
+            });
+            refreshTeamLockDebugPanel({ action: 'manual-poll' });
+        } catch (err) {
+            refreshTeamLockDebugPanel({ action: 'manual-poll-failed', error: err.message });
+        }
+    });
+
+    refreshTeamLockDebugPanel({ action: 'panel-init' });
+}
+
+function notifyLockStateChange(lockState) {
+    const uiMode = getTeamLockUiMode();
+    const sig =
+        uiMode +
+        '|' +
+        Boolean(lockState && lockState.readOnly) +
+        '|' +
+        Boolean(lockState && lockState.holdsLock) +
+        '|' +
+        Boolean(lockState && lockState.pendingEditRequest);
+    if (sig !== lastLockNotifySignature) {
+        lastLockNotifySignature = sig;
+        if (
+            typeof CalendarSync !== 'undefined' &&
+            CalendarSync.logLockDebug &&
+            CalendarSync.isLockDebugEnabled()
+        ) {
+            CalendarSync.logLockDebug('ui', 'Lock bar mode → ' + uiMode, {
+                readOnly: lockState && lockState.readOnly,
+                holdsLock: lockState && lockState.holdsLock,
+                pendingEditRequest: lockState && lockState.pendingEditRequest
+            });
+        }
+    }
+    refreshTeamLockDebugPanel({ uiMode });
 }
 
 function applyTeamLockAccessState(lockState) {
@@ -11962,10 +12129,19 @@ async function maybeAutoReloadTeamCalendar(meta, lockState) {
     const lockCleared = !(meta && meta.lock);
     const hadRemoteNewer = CalendarSync.state.remoteNewer;
     if (unlocked || lockCleared || hadRemoteNewer) {
+        refreshTeamLockDebugPanel({
+            autoReload: true,
+            unlocked,
+            lockCleared,
+            hadRemoteNewer,
+            serverRev,
+            clientRev: CalendarSync.state.revision
+        });
         try {
             await reloadActiveCalendarFromServer();
         } catch (err) {
             console.error('Auto-reload failed:', err);
+            refreshTeamLockDebugPanel({ autoReloadFailed: err.message });
         }
     }
 }
@@ -12978,6 +13154,9 @@ async function initTeamSync() {
         onLockChange(lockState) {
             applyTeamLockAccessState(lockState);
         },
+        onLockDebugChange() {
+            refreshTeamLockDebugPanel();
+        },
         async onLockOrRevisionChange(meta, lockState) {
             await maybeAutoReloadTeamCalendar(meta, lockState);
         },
@@ -13023,7 +13202,7 @@ async function initTeamSync() {
     setupTeamUserBar();
     setupTeamLockButtons();
     setupTeamLockPendingButtons();
-    setupTeamLockPendingButtons();
+    setupTeamLockDebugPanel();
 
     await setupHostEnginePanel();
 

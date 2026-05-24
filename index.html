@@ -48,6 +48,21 @@
                     <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn">Allow</button>
                     <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn">Dismiss</button>
                 </span>
+                <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden title="Lock sync debug">Debug</button>
+            </div>
+            <div id="teamLockDebugPanel" class="team-lock-debug-panel" hidden>
+                <div class="team-lock-debug-header">
+                    <strong>Lock sync debug</strong>
+                    <span id="teamLockDebugHint" class="team-lock-debug-hint"></span>
+                    <span class="team-lock-debug-actions">
+                        <button type="button" id="teamLockDebugRefreshBtn" class="btn btn-outline btn-small">Poll now</button>
+                        <button type="button" id="teamLockDebugCopyBtn" class="btn btn-outline btn-small">Copy</button>
+                        <button type="button" id="teamLockDebugClearBtn" class="btn btn-outline btn-small">Clear</button>
+                        <button type="button" id="teamLockDebugCloseBtn" class="btn btn-outline btn-small">Hide</button>
+                    </span>
+                </div>
+                <pre id="teamLockDebugState" class="team-lock-debug-state"></pre>
+                <pre id="teamLockDebugLog" class="team-lock-debug-log"></pre>
             </div>
 
             <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
@@ -1079,8 +1094,8 @@
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
     <script src="js/team-auth.js"></script>
-    <script src="js/calendar-sync.js?v=20260525-lock-poll-fix"></script>
-    <script src="app.js?v=20260525-lock-poll-fix"></script>
+    <script src="js/calendar-sync.js?v=20260525-lock-debug"></script>
+    <script src="app.js?v=20260525-lock-debug"></script>
     <script src="howto.js"></script>
 </body>
 </html>

@@ -6,6 +6,8 @@
     const STORAGE_ACTIVE = 'teamCalendarActiveId';
     const SAVE_DEBOUNCE_MS = 1500;
     const POLL_INTERVAL_MS = 5000;
+    const LOCK_DEBUG_STORAGE = 'teamLockDebug';
+    const LOCK_DEBUG_LOG_MAX = 100;
 
     const state = {
         revision: 0,
@@ -28,8 +30,126 @@
         onConflict: null,
         onLockChange: null,
         onLockOrRevisionChange: null,
+        onLockDebugChange: null,
         onSaved: null
     };
+
+    const lockDebug = {
+        enabled: false,
+        log: []
+    };
+
+    function initLockDebugFromUrl() {
+        try {
+            const params = new URLSearchParams(location.search);
+            if (params.get('lockDebug') === '1' || params.get('lockDebug') === 'true') {
+                localStorage.setItem(LOCK_DEBUG_STORAGE, '1');
+            }
+            lockDebug.enabled = localStorage.getItem(LOCK_DEBUG_STORAGE) === '1';
+        } catch (_) {
+            lockDebug.enabled = false;
+        }
+    }
+
+    initLockDebugFromUrl();
+
+    function lockDebugEnabled() {
+        return lockDebug.enabled;
+    }
+
+    function setLockDebugEnabled(on) {
+        lockDebug.enabled = Boolean(on);
+        try {
+            if (lockDebug.enabled) {
+                localStorage.setItem(LOCK_DEBUG_STORAGE, '1');
+            } else {
+                localStorage.removeItem(LOCK_DEBUG_STORAGE);
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        debugLog('debug', lockDebug.enabled ? 'Lock debug enabled' : 'Lock debug disabled');
+        notifyLockDebugChange();
+    }
+
+    function clearLockDebugLog() {
+        lockDebug.log = [];
+        notifyLockDebugChange();
+    }
+
+    function notifyLockDebugChange() {
+        if (typeof handlers.onLockDebugChange === 'function') {
+            handlers.onLockDebugChange();
+        }
+    }
+
+    function debugLog(kind, message, detail) {
+        if (!lockDebug.enabled) {
+            return;
+        }
+        const entry = {
+            at: new Date().toISOString(),
+            kind: kind || 'info',
+            message: message || '',
+            detail: detail != null ? detail : undefined
+        };
+        lockDebug.log.push(entry);
+        if (lockDebug.log.length > LOCK_DEBUG_LOG_MAX) {
+            lockDebug.log.splice(0, lockDebug.log.length - LOCK_DEBUG_LOG_MAX);
+        }
+        const line = '[LockSync] ' + entry.kind + ': ' + entry.message;
+        if (detail !== undefined) {
+            console.log(line, detail);
+        } else {
+            console.log(line);
+        }
+        notifyLockDebugChange();
+    }
+
+    function lockSnapshot(extra) {
+        const me =
+            typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser()
+                ? TeamAuth.getUser()
+                : null;
+        const snap = {
+            at: new Date().toISOString(),
+            calendarId: state.activeCalendarId || (function () {
+                try {
+                    return localStorage.getItem(STORAGE_ACTIVE);
+                } catch (_) {
+                    return null;
+                }
+            })(),
+            userId: me && me.id,
+            userEmail: me && me.email,
+            userRole: me && me.role,
+            revision: state.revision,
+            remoteNewer: state.remoteNewer,
+            saving: state.saving,
+            readOnly: state.readOnly,
+            holdsLock: state.holdsLock,
+            pendingEditRequest: state.pendingEditRequest,
+            lockStaleMinutes: state.lockStaleMinutes,
+            lock: state.lock
+                ? {
+                      holderUserId: state.lock.holderUserId,
+                      holderName: state.lock.holderName,
+                      holderEmail: state.lock.holderEmail,
+                      updatedAt: state.lock.updatedAt,
+                      pendingRequester: state.lock.pendingRequester
+                          ? {
+                                userId: state.lock.pendingRequester.userId,
+                                displayName: state.lock.pendingRequester.displayName
+                            }
+                          : null
+                  }
+                : null
+        };
+        if (extra) {
+            Object.assign(snap, extra);
+        }
+        return snap;
+    }
 
     function redirectToLogin() {
         const ret = encodeURIComponent(location.pathname + location.search);
@@ -96,7 +216,26 @@
         if (typeof handlers.onLockChange === 'function') {
             handlers.onLockChange(lockState);
         }
+        debugLog('apply', 'Lock state from server', {
+            source: (json && json._lockDebugSource) || 'response',
+            wasReadOnly,
+            wasHoldsLock,
+            now: {
+                readOnly: state.readOnly,
+                holdsLock: state.holdsLock,
+                pendingEditRequest: state.pendingEditRequest
+            },
+            serverLock: json && json.lock ? json.lock.holderUserId : null
+        });
         return lockState;
+    }
+
+    function tagLockDebugSource(json, source) {
+        if (!json || typeof json !== 'object') {
+            return json;
+        }
+        json._lockDebugSource = source;
+        return json;
     }
 
     function setStatus(status, detail) {
@@ -223,17 +362,23 @@
             if (!calId) {
                 return null;
             }
+            debugLog('api', 'GET /meta (refreshLockMeta)', { calendarId: calId });
             const meta = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/meta');
-            applyLockFromResponse(meta);
+            applyLockFromResponse(tagLockDebugSource(meta, 'refreshLockMeta'));
             return meta;
         },
 
         async acquireLock(id) {
+            debugLog('api', 'POST /lock (acquire)', { calendarId: id });
             const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
                 method: 'POST',
                 body: {}
             });
-            applyLockFromResponse(result);
+            applyLockFromResponse(tagLockDebugSource(result, 'acquireLock'));
+            debugLog('api', 'POST /lock result', {
+                editRequestRecorded: result && result.editRequestRecorded,
+                acquired: result && result.acquired
+            });
             return result;
         },
 
@@ -243,11 +388,12 @@
                 throw new Error('No active team calendar');
             }
             await CalendarSync.flushPendingSave();
+            debugLog('api', 'POST /lock/grant', { calendarId: calId });
             const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/grant', {
                 method: 'POST',
                 body: {}
             });
-            applyLockFromResponse(result);
+            applyLockFromResponse(tagLockDebugSource(result, 'grantLock'));
             return result;
         },
 
@@ -256,11 +402,12 @@
             if (!calId) {
                 throw new Error('No active team calendar');
             }
+            debugLog('api', 'POST /lock/dismiss', { calendarId: calId });
             const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/dismiss', {
                 method: 'POST',
                 body: {}
             });
-            applyLockFromResponse(result);
+            applyLockFromResponse(tagLockDebugSource(result, 'dismissLock'));
             return result;
         },
 
@@ -289,18 +436,21 @@
             if (!calId) {
                 return { released: false };
             }
+            debugLog('api', 'DELETE /lock (release)', { calendarId: calId });
             const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock', {
                 method: 'DELETE'
             });
+            debugLog('api', 'DELETE /lock result', result);
             await CalendarSync.refreshLockMeta(calId);
             return result;
         },
 
         async loadCalendar(id) {
+            debugLog('api', 'GET /calendars/:id (load)', { calendarId: id });
             const doc = await apiFetch('/calendars/' + encodeURIComponent(id));
             state.revision = doc.revision || 0;
             state.remoteNewer = false;
-            applyLockFromResponse(doc);
+            applyLockFromResponse(tagLockDebugSource(doc, 'loadCalendar'));
             return doc;
         },
 
@@ -362,7 +512,10 @@
                     throw err;
                 }
                 if (err.status === 423) {
-                    applyLockFromResponse(err.body || { readOnly: true, lock: err.body && err.body.lock });
+                    debugLog('error', 'Save rejected (423 locked)', err.body);
+                    applyLockFromResponse(
+                        tagLockDebugSource(err.body || { readOnly: true, lock: err.body && err.body.lock }, 'save423')
+                    );
                     setStatus('error', err.message);
                 } else {
                     setStatus('error', err.message);
@@ -433,7 +586,15 @@
                 }
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
-                    const lockState = applyLockFromResponse(meta);
+                    const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
+                    debugLog('poll', 'Meta poll', {
+                        revision: meta.revision,
+                        clientRevision: state.revision,
+                        saving: state.saving,
+                        readOnly: state.readOnly,
+                        holdsLock: state.holdsLock,
+                        holderUserId: meta.lock && meta.lock.holderUserId
+                    });
                     if (!state.saving) {
                         if (meta.revision > state.revision) {
                             state.remoteNewer = true;
@@ -444,9 +605,11 @@
                         if (typeof handlers.onLockOrRevisionChange === 'function') {
                             await handlers.onLockOrRevisionChange(meta, lockState);
                         }
+                    } else {
+                        debugLog('poll', 'Skipped revision/reload handlers (saving=true)');
                     }
-                } catch (_) {
-                    /* ignore poll errors */
+                } catch (pollErr) {
+                    debugLog('error', 'Poll failed', { message: pollErr && pollErr.message });
                 }
             }, POLL_INTERVAL_MS);
         },
@@ -456,6 +619,17 @@
                 clearInterval(state.pollTimer);
                 state.pollTimer = null;
             }
+        },
+
+        isLockDebugEnabled: lockDebugEnabled,
+        setLockDebugEnabled,
+        logLockDebug: debugLog,
+        clearLockDebugLog,
+        getLockDebugLog() {
+            return lockDebug.log.slice();
+        },
+        getLockDebugSnapshot(extra) {
+            return lockSnapshot(extra);
         }
     };
 
