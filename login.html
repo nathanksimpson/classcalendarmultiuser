@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in — Class Calendar</title>
+    <link rel="stylesheet" href="styles.css?v=20260523-login">
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: var(--bg-primary, #f8fafc);
+        }
+        .login-card {
+            max-width: 420px;
+            width: 100%;
+            background: var(--bg-secondary, #fff);
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+        }
+        .login-card h1 { margin: 0 0 0.5rem; font-size: 1.35rem; }
+        .login-card p { margin: 0 0 1.25rem; color: var(--text-muted, #64748b); font-size: 0.95rem; }
+        .login-kakao {
+            display: block;
+            width: 100%;
+            padding: 0.85rem 1rem;
+            border: none;
+            border-radius: 8px;
+            background: #fee500;
+            color: #191600;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+        }
+        .login-kakao:hover { filter: brightness(0.97); }
+        .login-denied {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .login-denied code { font-size: 0.85rem; word-break: break-all; }
+        .login-fallback { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color, #e2e8f0); }
+        .login-fallback label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; }
+        .login-fallback input {
+            width: 100%;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem 0.65rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color, #cbd5e1);
+        }
+        .login-error { color: #b91c1c; font-size: 0.9rem; margin-top: 0.75rem; }
+        .login-admin-link { margin-top: 1rem; font-size: 0.85rem; }
+        .login-admin-link a { color: var(--accent, #2563eb); }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <h1>Class Calendar — Team</h1>
+            <p>Sign in with your school Kakao account. Your lead teacher must add your email first.</p>
+
+            <div id="deniedBox" class="login-denied" style="display: none;">
+                <strong>Access not granted yet</strong>
+                <p>Send this to your calendar admin so they can add you:</p>
+                <p>Email: <code id="deniedEmail">—</code></p>
+                <p>Kakao ID (for admin only): <code id="deniedKakaoId">—</code></p>
+            </div>
+
+            <a id="kakaoLoginBtn" class="login-kakao" href="/api/auth/kakao">Login with Kakao</a>
+
+            <div class="login-fallback">
+                <p><strong>Password fallback</strong> (only if your admin gave you one)</p>
+                <form id="passwordForm">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" name="email" autocomplete="username" required>
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" name="password" autocomplete="current-password">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Sign in</button>
+                </form>
+                <p id="loginError" class="login-error" style="display: none;"></p>
+            </div>
+
+            <p class="login-admin-link"><a href="admin.html">Admin — manage teachers</a></p>
+        </div>
+    </div>
+    <script>
+        (function () {
+            const params = new URLSearchParams(location.search);
+            const returnTo = params.get('return') || '/';
+            const kakaoBtn = document.getElementById('kakaoLoginBtn');
+            kakaoBtn.href = '/api/auth/kakao?return=' + encodeURIComponent(returnTo);
+
+            if (params.get('denied') === '1') {
+                document.getElementById('deniedBox').style.display = 'block';
+                document.getElementById('deniedEmail').textContent = params.get('email') || '(not shared by Kakao)';
+                document.getElementById('deniedKakaoId').textContent = params.get('kakaoId') || '—';
+            }
+
+            const err = params.get('error');
+            if (err) {
+                const el = document.getElementById('loginError');
+                el.style.display = 'block';
+                el.textContent =
+                    err === 'oauth_failed'
+                        ? 'Kakao sign-in failed. Try again or contact your admin.'
+                        : 'Sign-in problem: ' + err;
+            }
+
+            document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const errEl = document.getElementById('loginError');
+                errEl.style.display = 'none';
+                try {
+                    const res = await fetch('/api/auth/password', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: document.getElementById('loginEmail').value,
+                            password: document.getElementById('loginPassword').value
+                        })
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        throw new Error(json.error || 'Sign in failed');
+                    }
+                    location.href = returnTo.startsWith('/') ? returnTo : '/';
+                } catch (ex) {
+                    errEl.style.display = 'block';
+                    errEl.textContent = ex.message;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

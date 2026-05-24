@@ -1,0 +1,564 @@
+=====
+/** Built-in class type ids (stable for saves and imports). */
+const CLASS_TYPE_DEBATE_ID = 'builtin-debate';
+const CLASS_TYPE_KOREAN_MULTI_ID = 'builtin-korean-multiweekly';
+
+/** Weekly debate: lesson "days" repeat each month with optional Day 2+3 merges. */
+const SCHEDULE_MODEL_DEBATE_MONTHLY = 'debateMonthly';
+/** Multi-day classes: lessons 1…N in order across the full term (no day-pair compression). */
+const SCHEDULE_MODEL_SEQUENTIAL_TERM = 'sequentialTerm';
+
+function getBuiltinClassTypes() {
+    return [
+        {
+            id: CLASS_TYPE_DEBATE_ID,
+            nameKey: 'classTypeDebate',
+            fallbackName: 'Debate (once a week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_DEBATE_MONTHLY,
+            defaultTotalLessons: 4,
+            defaultMeetingDays: [],
+            defaultCompressionMode: 'manualPerMonth'
+        },
+        {
+            id: CLASS_TYPE_KOREAN_MULTI_ID,
+            nameKey: 'classTypeKoreanMulti',
+            fallbackName: 'Korean / multi-day (2× per week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 16,
+            defaultMeetingDays: [1, 3],
+            defaultCompressionMode: 'sequentialTerm'
+        }
+    ];
+}
+
+function inferScheduleModelFromClassFields(classData) {
+    if (!classData) {
+        return SCHEDULE_MODEL_SEQUENTIAL_TERM;
+    }
+    const typeId = classData.classTypeId || '';
+    if (typeId === CLASS_TYPE_DEBATE_ID) {
+        return SCHEDULE_MODEL_DEBATE_MONTHLY;
+    }
+    const def = getClassTypeDefinitionById(typeId);
+    if (def && def.scheduleModel) {
+        return def.scheduleModel;
+    }
+    const meetingDays = getMeetingDaysFromClass(classData);
+    const total = sanitizeTotalLessons(classData.totalLessons || 4);
+    if (meetingDays.length <= 1 && total <= 4) {
+        return SCHEDULE_MODEL_DEBATE_MONTHLY;
+    }
+    return SCHEDULE_MODEL_SEQUENTIAL_TERM;
+}
+
+function getScheduleModelForClass(classData) {
+    if (classData && (classData.scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY
+        || classData.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM)) {
+        return classData.scheduleModel;
+    }
+    return inferScheduleModelFromClassFields(classData);
+}
+
+function classUsesDebateCompression(classData) {
+    return getScheduleModelForClass(classData) === SCHEDULE_MODEL_DEBATE_MONTHLY;
+}
+
+function getScheduleModelFromForm() {
+    const typeId = elements.classTypeSelect ? (elements.classTypeSelect.value || '') : '';
+    const def = getClassTypeDefinitionById(typeId);
+    const meetingDays = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
+    const total = getTotalLessonsValue();
+    const draft = {
+        classTypeId: typeId,
+        meetingDays: meetingDays,
+        totalLessons: total
+    };
+    if (def && def.scheduleModel) {
+        return def.scheduleModel;
+    }
+    return inferScheduleModelFromClassFields(draft);
+}
+
+function classUsesDebateCompressionFromForm() {
+    return getScheduleModelFromForm() === SCHEDULE_MODEL_DEBATE_MONTHLY;
+}
+=====
+        scheduleModel: days.length <= 1
+            ? SCHEDULE_MODEL_DEBATE_MONTHLY
+            : SCHEDULE_MODEL_SEQUENTIAL_TERM,
+        defaultCompressionMode: days.length <= 1 ? 'manualPerMonth' : 'sequentialTerm'
+    };
+    getCustomClassTypes().push(def);
+=====
+    const mode = def.defaultCompressionMode === 'manual'
+        ? 'manual'
+        : def.defaultCompressionMode === 'manualPerMonth'
+            ? 'manualPerMonth'
+            : 'autoWhenNeeded';
+    if (def.scheduleModel !== SCHEDULE_MODEL_SEQUENTIAL_TERM
+        && def.defaultCompressionMode !== 'sequentialTerm') {
+        setCompressionModeInForm(mode);
+    }
+=====
+function calculateSequentialTermLessonDates(classData) {
+    const meetingDays = getMeetingDaysFromClass(classData);
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+
+    if (meetingDays.length === 0) {
+        return {
+            lessons: [],
+            compressed: false,
+            availableCount: 0,
+            isCustom: false,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            groups: [],
+            totalGroups: totalLessons,
+            scheduledCount: 0,
+            selectedMerges: [],
+            monthlyDetails: []
+        };
+    }
+
+    const classStart = parseISODateLocal(classData.startDate);
+    const classEnd = parseISODateLocal(classData.endDate);
+    if (Number.isNaN(classStart.getTime()) || Number.isNaN(classEnd.getTime())) {
+        return {
+            lessons: [],
+            compressed: false,
+            availableCount: 0,
+            isCustom: false,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            groups: [],
+            totalGroups: totalLessons,
+            scheduledCount: 0,
+            selectedMerges: [],
+            monthlyDetails: []
+        };
+    }
+
+    const allEligible = collectEligibleMeetingDatesInMonth(
+        classStart,
+        classEnd,
+        meetingDays,
+        classData
+    );
+    const monthKeys = enumerateMonthKeysBetween(classData.startDate, classData.endDate);
+    const monthlyDetails = monthKeys.map(monthKey => ({
+        monthKey,
+        eligibleCount: 0,
+        mergesUsed: [],
+        autoAdjusted: false,
+        manualPerMonth: false,
+        scheduledInMonth: 0,
+        totalGroups: 0
+    }));
+    const monthIndex = {};
+    monthlyDetails.forEach(d => {
+        monthIndex[d.monthKey] = d;
+    });
+
+    const lessons = [];
+    const scheduleCount = Math.min(totalLessons, allEligible.length);
+    for (let i = 0; i < scheduleCount; i += 1) {
+        const d = allEligible[i];
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const lessonNum = i + 1;
+        const group = {
+            start: lessonNum,
+            end: lessonNum,
+            days: [lessonNum],
+            label: formatSequentialLessonLabel(lessonNum),
+            compressed: false
+        };
+        lessons.push({
+            date: d,
+            label: group.label,
+            compressed: false,
+            group,
+            monthKey,
+            book: getBookForMonthKey(classData, monthKey)
+        });
+        if (monthIndex[monthKey]) {
+            monthIndex[monthKey].scheduledInMonth += 1;
+        }
+    }
+
+    monthKeys.forEach(monthKey => {
+        const y = parseInt(monthKey.slice(0, 4), 10);
+        const m = parseInt(monthKey.slice(5, 7), 10);
+        const firstOfMonth = new Date(y, m - 1, 1);
+        const lastOfMonth = new Date(y, m, 0);
+        const rangeStart = maxDate(firstOfMonth, classStart);
+        const rangeEnd = minDate(lastOfMonth, classEnd);
+        if (rangeStart > rangeEnd) {
+            return;
+        }
+        const eligible = collectEligibleMeetingDatesInMonth(
+            rangeStart,
+            rangeEnd,
+            meetingDays,
+            classData
+        );
+        if (monthIndex[monthKey]) {
+            monthIndex[monthKey].eligibleCount = eligible.length;
+        }
+    });
+
+    const groups = [];
+    for (let n = 1; n <= totalLessons; n += 1) {
+        groups.push({
+            start: n,
+            end: n,
+            days: [n],
+            label: formatSequentialLessonLabel(n),
+            compressed: false
+        });
+    }
+
+    return {
+        lessons,
+        compressed: false,
+        availableCount: allEligible.length,
+        isCustom: false,
+        scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+        groups,
+        totalGroups: totalLessons,
+        scheduledCount: lessons.length,
+        selectedMerges: [],
+        monthlyDetails
+    };
+}
+
+function calculateDebateMonthlyLessonDates(classData) {
+    const meetingDays = getMeetingDaysFromClass(classData);
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 4);
+    const userMerges = getCompressionMergesFromClass(classData, totalLessons);
+    const mode = classData.compressionMode === 'manual'
+        ? 'manual'
+        : classData.compressionMode === 'manualPerMonth'
+            ? 'manualPerMonth'
+            : 'autoWhenNeeded';
+
+    if (meetingDays.length === 0) {
+=====
+        return {
+            lessons: [],
+            compressed: false,
+            availableCount: 0,
+            isCustom: false,
+            scheduleModel: SCHEDULE_MODEL_DEBATE_MONTHLY,
+            groups: emptyGroups,
+            totalGroups: emptyGroups.length,
+            scheduledCount: 0,
+            selectedMerges: userMerges,
+            monthlyDetails: []
+        };
+    }
+
+    const classStart = parseISODateLocal(classData.startDate);
+    const classEnd = parseISODateLocal(classData.endDate);
+    if (Number.isNaN(classStart.getTime()) || Number.isNaN(classEnd.getTime())) {
+        const emptyGroups = buildLessonGroups(totalLessons, userMerges).groups;
+        return {
+            lessons: [],
+            compressed: false,
+            availableCount: 0,
+            isCustom: false,
+            scheduleModel: SCHEDULE_MODEL_DEBATE_MONTHLY,
+            groups: emptyGroups,
+            totalGroups: emptyGroups.length,
+            scheduledCount: 0,
+            selectedMerges: userMerges,
+            monthlyDetails: []
+        };
+    }
+
+    const monthKeys = enumerateMonthKeysBetween(classData.startDate, classData.endDate);
+=====
+    return {
+        lessons,
+        compressed: lessons.some(l => l.compressed),
+        availableCount: monthlyDetails.reduce((sum, d) => sum + d.eligibleCount, 0),
+        isCustom: false,
+        scheduleModel: SCHEDULE_MODEL_DEBATE_MONTHLY,
+        groups: templateGroups,
+        totalGroups: templateGroups.length,
+        scheduledCount: lessons.length,
+        selectedMerges: userMerges,
+        monthlyDetails
+    };
+}
+
+function calculateAutoLessonDates(classData) {
+    if (!classUsesDebateCompression(classData)) {
+        return calculateSequentialTermLessonDates(classData);
+    }
+    return calculateDebateMonthlyLessonDates(classData);
+}
+
+// Check if a date is a holiday for a specific class
+=====
+    const scheduleModel = getScheduleModelFromForm();
+    const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
+    const compressionMode = isDebateSchedule ? getCompressionModeFromForm() : 'sequentialTerm';
+    let compressionMergesByMonth = {};
+=====
+        if (schedule.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {
+            if (scheduledCount < totalGroups) {
+                const li = document.createElement('li');
+                li.textContent = t('termLessonsIncompleteHint')
+                    .replace('{name}', classData.name)
+                    .replace('{scheduled}', scheduledCount)
+                    .replace('{total}', totalGroups);
+                elements.compressionNotes.appendChild(li);
+            }
+            return;
+        }
+
+        if (!isCustom && monthlyDetails && monthlyDetails.length > 0 && classUsesDebateCompression(classData)) {
+            const monthLines = [];
+            monthlyDetails.forEach(d => {
+                if (d.autoAdjusted) {
+=====
+            if (!classData.scheduleModel) {
+                classData.scheduleModel = inferScheduleModelFromClassFields(classData);
+                migrated = true;
+            }
+            if (classData.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {
+                if (classData.compressionMode === 'manualPerMonth'
+                    || classData.compressionMode === 'manual'
+                    || classData.compressionMode === 'autoWhenNeeded') {
+                    classData.compressionMode = 'sequentialTerm';
+                    migrated = true;
+                }
+            } else if (!classData.compressionMode) {
+                classData.compressionMode = 'manualPerMonth';
+                migrated = true;
+            }
+
+            const spanKeys = enumerateMonthKeysBetween(classData.startDate || '', classData.endDate || '');
+=====
+        {
+            id: CLASS_TYPE_KOREAN_MULTI_ID,
+            nameKey: 'classTypeKoreanMulti',
+            fallbackName: 'Korean / multi-day (2× per week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 16,
+            defaultMeetingDays: [1, 3],
+            defaultCompressionMode: 'sequentialTerm'
+        },
+        {
+            id: CLASS_TYPE_EARLY_WRITER_ID,
+            nameKey: 'classTypeEarlyWriter',
+            fallbackName: 'Early Writer (once per week, 26 weeks)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 26,
+            defaultMeetingDays: [],
+            defaultCompressionMode: 'sequentialTerm',
+            defaultBook: 'Early Writer 3'
+        }
+    ];
+}
+
+function getEarlyWriter26WeekSyllabusUnits() {
+    return EARLY_WRITER_26W_LESSON_PLAN.map((entry, index) => ({
+        id: `builtin-ew26-${index + 1}`,
+        title: entry.title,
+        notes: entry.notes || ''
+    }));
+}
+
+function renderSyllabusUnitsFromPlan(plan, replaceExisting) {
+    if (!elements.syllabusUnitsRows || !Array.isArray(plan) || plan.length === 0) {
+        return;
+    }
+    if (!replaceExisting) {
+        const existing = collectSyllabusUnitsFromForm();
+        if (existing.length > 0) {
+            return;
+        }
+    }
+    elements.syllabusUnitsRows.innerHTML = '';
+    plan.forEach(unit => addSyllabusUnitRow(unit.title, unit.notes, unit.id));
+}
+=====
+    const groups = [];
+    for (let n = 1; n <= totalLessons; n += 1) {
+        groups.push({
+            start: n,
+            end: n,
+            days: [n],
+            label: getSequentialLessonLabel(classData, n),
+            compressed: false
+        });
+    }
+
+    return {
+        lessons,
+        compressed: false,
+        availableCount: allEligible.length,
+        isCustom: false,
+        scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+        groups,
+        totalGroups: totalLessons,
+        scheduledCount: lessons.length,
+        selectedMerges: [],
+        monthlyDetails
+    };
+}
+
+function calculateDebateMonthlyLessonDates(classData) {
+=====
+        {
+            id: CLASS_TYPE_EARLY_WRITER_ID,
+            nameKey: 'classTypeEarlyWriter',
+            fallbackName: 'Early Writer (2× per week, 1 unit/week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 16,
+            defaultMeetingDays: [1, 3],
+            defaultCompressionMode: 'sequentialTerm',
+            defaultBook: 'Early Writer 3',
+            usesUnitPairLabels: true
+        }
+    ];
+}
+
+function classUsesUnitPairLessonLabels(classData) {
+    if (!classData) {
+        return false;
+    }
+    const def = getClassTypeDefinitionById(classData.classTypeId);
+    if (def && def.usesUnitPairLabels) {
+        return true;
+    }
+    return classData.classTypeId === CLASS_TYPE_EARLY_WRITER_ID
+        || classData.classTypeId === CLASS_TYPE_KOREAN_MULTI_ID;
+}
+
+function getUnitPairLessonLabel(lessonNum) {
+    const unit = Math.ceil(lessonNum / 2);
+    if (lessonNum % 2 === 1) {
+        return t('unitLessonSpeaking').replace('{u}', unit);
+    }
+    return t('unitLessonWriting').replace('{u}', unit);
+}
+
+function inferScheduleModelFromClassFields(classData) {
+=====
+        {
+            id: CLASS_TYPE_KOREAN_MULTI_ID,
+            nameKey: 'classTypeKoreanMulti',
+            fallbackName: 'Korean / multi-day (2× per week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 16,
+            defaultMeetingDays: [1, 3],
+            defaultCompressionMode: 'sequentialTerm',
+            usesUnitPairLabels: true
+        },
+=====
+const CLASS_TYPE_DEBATE_ID = 'builtin-debate';
+const CLASS_TYPE_KOREAN_MULTI_ID = 'builtin-korean-multiweekly';
+/** @deprecated Saved calendars may still reference this id; resolved to WR+SP. */
+const CLASS_TYPE_EARLY_WRITER_ID = 'builtin-early-writer-weekly';
+const CLASS_TYPE_WR_SP_ID = 'builtin-wr-sp';
+
+/** Default class type when adding a new class. */
+const DEFAULT_CLASS_TYPE_ID = CLASS_TYPE_WR_SP_ID;
+=====
+function getBuiltinClassTypes() {
+    return [
+        {
+            id: CLASS_TYPE_WR_SP_ID,
+            nameKey: 'classTypeWrSp',
+            fallbackName: 'WR+SP (2× per week, 1 unit/week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 16,
+            defaultMeetingDays: [1, 3],
+            defaultCompressionMode: 'sequentialTerm',
+            usesUnitPairLabels: true
+        },
+        {
+            id: CLASS_TYPE_DEBATE_ID,
+            nameKey: 'classTypeDebate',
+            fallbackName: 'Debate (once a week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_DEBATE_MONTHLY,
+            defaultTotalLessons: 4,
+            defaultMeetingDays: [],
+            defaultCompressionMode: 'manualPerMonth'
+        },
+        {
+            id: CLASS_TYPE_KOREAN_MULTI_ID,
+            nameKey: 'classTypeKoreanMulti',
+            fallbackName: 'Korean / multi-day (2× per week)',
+            isBuiltin: true,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
+            defaultTotalLessons: 16,
+            defaultMeetingDays: [1, 3],
+            defaultCompressionMode: 'sequentialTerm',
+            usesUnitPairLabels: true
+        }
+    ];
+}
+=====
+    return classData.classTypeId === CLASS_TYPE_WR_SP_ID
+        || classData.classTypeId === CLASS_TYPE_EARLY_WRITER_ID
+        || classData.classTypeId === CLASS_TYPE_KOREAN_MULTI_ID;
+}
+=====
+function getClassTypeDefinitionById(id) {
+    if (!id) {
+        return null;
+    }
+    if (id === CLASS_TYPE_EARLY_WRITER_ID) {
+        return getClassTypeDefinitionById(CLASS_TYPE_WR_SP_ID);
+    }
+    return getAllClassTypeDefinitions().find(d => d.id === id) || null;
+}
+
+function applyDefaultClassTypeToNewClassForm() {
+    if (!elements.classTypeSelect) {
+        return;
+    }
+    elements.classTypeSelect.value = DEFAULT_CLASS_TYPE_ID;
+    applyClassTypeDefinitionToForm(getClassTypeDefinitionById(DEFAULT_CLASS_TYPE_ID));
+}
+=====
+        if (def.id === CLASS_TYPE_WR_SP_ID || def.usesUnitPairLabels) {
+            hint.textContent = t('wrSpTypeHint');
+        } else if (hint.getAttribute('data-i18n')) {
+=====
+function handleClassSubmit(e) {
+    e.preventDefault();
+
+    const scheduleModel = getScheduleModelFromForm();
+    const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
+    const isCustomSchedule = elements.customScheduleEnabled.checked;
+    const totalLessons = getTotalLessonsValue();
+    const compressionMerges = isDebateSchedule ? getSelectedCompressionMerges() : [];
+    const levelPreset = elements.classLevel.value;
+    const levelCustom = (elements.classLevelCustom.value || '').trim();
+    if (!levelPreset && !levelCustom) {
+        alert(t('levelRequired'));
+        return;
+    }
+=====
+    getClassesInDisplayOrder().forEach(classData => {
+        const schedule = calculateLessonDates(classData);
+        const {
+            groups,
+            scheduledCount,
+            totalGroups,
+            availableCount,
+            isCustom,
+            monthlyDetails
+        } = schedule;
+
+        if (schedule.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {

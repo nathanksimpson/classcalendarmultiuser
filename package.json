@@ -1,0 +1,17 @@
+{
+  "name": "calendar-app-multi-user",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Class Calendar Planner — team cloud sync",
+  "scripts": {
+    "start": "node server/index.js",
+    "sync-from-main": "node scripts/sync-from-main.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.21.2"
+  }
+}

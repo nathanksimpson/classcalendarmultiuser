@@ -1,0 +1,159 @@
+{
+  "spec_version": "1.0.0",
+  "target_app": "Class Calendar Planner - Teacher Homework Organizer",
+  "purpose": "Transform raw homework copy-paste text into parser-compatible import text for non-debate and debate template imports.",
+  "global_rules": {
+    "line_endings": "Use LF or CRLF. App normalizes line endings.",
+    "trim_behavior": "Leading/trailing whitespace is trimmed by parser.",
+    "minimum_block_length": 12,
+    "blank_line_rule": "Use one empty line between non-debate blocks for reliable splitting.",
+    "no_preamble_text": "Do not include text before the first recognized heading/day marker."
+  },
+  "non_debate": {
+    "import_button": "Build Book Templates (Non-Debate)",
+    "recognized_book_headings": [
+      {
+        "canonical": "IPE",
+        "aliases": ["IPE", "IPE- Purple, 샘물, 여울"]
+      },
+      {
+        "canonical": "Subject Link",
+        "aliases": ["Subject Link", "Subject Link- 샘물, 여울"]
+      },
+      {
+        "canonical": "150 Word Reading 2",
+        "aliases": ["150 Word Reading 2", "150 Word Reading 2 (Purple)"]
+      },
+      {
+        "canonical": "Simson Reading",
+        "aliases": ["Simson Reading", "Simson Reading- Purple, 샘물, 여울"]
+      },
+      {
+        "canonical": "Write Now",
+        "aliases": ["Write Now"]
+      },
+      {
+        "canonical": "The Best Writing Starter",
+        "aliases": [
+          "The Best Writing Starter",
+          "The Best Writing Starter 1",
+          "The Best Writing Starter 2",
+          "The Best Writing Starter 3"
+        ]
+      },
+      {
+        "canonical": "Write Right: Beginner",
+        "aliases": ["Write Right: Beginner", "Write Right", "Write Right 1", "Write Right 2", "Write Right 3"]
+      },
+      {
+        "canonical": "Early Writers",
+        "aliases": ["Early Writers", "Early Writers 1", "Early Writers 2", "Early Writers 3"]
+      },
+      {
+        "canonical": "Hand in Hand",
+        "aliases": ["Hand in Hand"]
+      }
+    ],
+    "section_rule": "A line matching a recognized heading starts a new book section.",
+    "entry_rule": "Within each book section, each blank-line-separated block becomes one template entry.",
+    "organization_rule": "Use unit-part naming for non-debate blocks (Unit N Part 1 / Unit N Part 2).",
+    "ui_filter_extraction": {
+      "segment_type": "unit_part",
+      "recognized_patterns": [
+        "Unit <number> Part <number>",
+        "Unit <number> - Part <number>",
+        "Unit <number> pt <number>"
+      ]
+    },
+    "title_rule": "Entry title becomes first line of block (up to 70 chars).",
+    "required_output_shape": [
+      "<BOOK HEADING>",
+      "<BLOCK 1: Unit N Part 1 content>",
+      "",
+      "<BLOCK 2: Unit N Part 2 content>",
+      "",
+      "<NEXT BOOK HEADING>",
+      "<BLOCK 1: Unit M Part 1>",
+      "",
+      "<BLOCK 2: Unit M Part 2>"
+    ],
+    "example": "IPE\\nUnit 1 Part 1\\nCovered in class: ...\\nHomework: ...\\n\\nUnit 1 Part 2\\nCovered in class: ...\\nHomework: ...\\n\\nSubject Link\\nUnit 3 Part 1\\nCovered in class: ...\\nHomework: ..."
+  },
+  "debate": {
+    "import_button": "Build Debate Templates",
+    "recognized_day_markers": [
+      {
+        "variant_type": "day1",
+        "accepted_markers": ["Day 1"]
+      },
+      {
+        "variant_type": "day2",
+        "accepted_markers": ["Day 2"]
+      },
+      {
+        "variant_type": "day3",
+        "accepted_markers": ["Day 3"]
+      },
+      {
+        "variant_type": "altDay3",
+        "accepted_markers": ["Alt Day 3"]
+      },
+      {
+        "variant_type": "day2and3Combined",
+        "accepted_markers": ["Day 2 & 3 Combined"]
+      },
+      {
+        "variant_type": "day4Preview",
+        "accepted_markers": ["Day 4 / Preview", "Day4 / Preview", "Day 4/Preview"]
+      }
+    ],
+    "section_rule": "Each recognized day marker starts a new debate block.",
+    "entry_rule": "All lines after a marker belong to that day until the next marker.",
+    "required_output_shape": [
+      "Day 1",
+      "<content>",
+      "",
+      "Day 2",
+      "<content>",
+      "",
+      "Day 3",
+      "<content>",
+      "",
+      "Alt Day 3",
+      "<content>",
+      "",
+      "Day 2 & 3 Combined",
+      "<content>",
+      "",
+      "Day 4 / Preview",
+      "<content>"
+    ],
+    "example": "Day 1\\nCovered in class: ...\\nHomework: ...\\n\\nDay 2\\nCovered in class: ...\\nHomework: ...\\n\\nDay 4 / Preview\\nCovered in class: ...\\nHomework: ..."
+  },
+  "llm_transformation_contract": {
+    "objective": "Rewrite messy source text into parser-compatible import text without changing educational meaning.",
+    "must_preserve": [
+      "All substantive homework instructions",
+      "Book assignment intent",
+      "Day/unit boundaries present in source"
+    ],
+    "must_enforce": [
+      "Exact recognized headings for non-debate book sections",
+      "Exact recognized day markers for debate sections",
+      "Blank-line separation between non-debate entries"
+    ],
+    "must_not": [
+      "Invent new homework tasks",
+      "Add unknown book headings",
+      "Add preface text before first heading/day marker"
+    ],
+    "output_mode": "Return plain text only, no markdown fences, no commentary."
+  },
+  "validation_checklist": [
+    "Starts immediately with a valid heading/day marker",
+    "Each non-debate book section has at least one content block",
+    "Each debate day marker used has non-empty content",
+    "No block shorter than 12 characters",
+    "No accidental duplicate day headers unless intentionally separate blocks"
+  ]
+}

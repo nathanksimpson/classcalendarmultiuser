@@ -1,0 +1,26 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.cursor/
+
+# Dependencies (if added later)
+node_modules/
+
+# Local recovery / duplicate artifacts
+app.js.recovered-from-multi
+styles (1).css
+scripts/recover-log.txt
+scripts/check-backup-out.txt
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Team calendar database (created at runtime)
+data/
+
+# Cloudflare Wrangler local state
+.wrangler/
+.dev.vars

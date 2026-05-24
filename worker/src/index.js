@@ -1,0 +1,495 @@
+/**
+ * Cloudflare Worker API — production deploy (Pages static + /api/* routed here).
+ */
+const SESSION_COOKIE = 'cal_session';
+const SESSION_DAYS = 14;
+const LOCK_STALE_MS = 20 * 60 * 1000;
+
+function json(data, status = 200, extraHeaders = {}) {
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: Object.assign({ 'Content-Type': 'application/json' }, extraHeaders)
+    });
+}
+
+function redirectTo(location, headers = {}) {
+    return new Response(null, { status: 302, headers: Object.assign({ Location: location }, headers) });
+}
+
+function parseCookies(request) {
+    const out = {};
+    const raw = request.headers.get('Cookie') || '';
+    raw.split(';').forEach((part) => {
+        const idx = part.indexOf('=');
+        if (idx < 0) {
+            return;
+        }
+        out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+    });
+    return out;
+}
+
+function sessionCookie(token, secure) {
+    const parts = [
+        `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+        'Path=/',
+        'HttpOnly',
+        'SameSite=Lax',
+        `Max-Age=${SESSION_DAYS * 86400}`
+    ];
+    if (secure) {
+        parts.push('Secure');
+    }
+    return parts.join('; ');
+}
+
+function clearSessionCookie(secure) {
+    const parts = [`${SESSION_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0'];
+    if (secure) {
+        parts.push('Secure');
+    }
+    return parts.join('; ');
+}
+
+function uuid() {
+    return crypto.randomUUID();
+}
+
+function nowIso() {
+    return new Date().toISOString();
+}
+
+function normalizeEmail(email) {
+    if (!email) {
+        return null;
+    }
+    const t = String(email).trim().toLowerCase();
+    return t || null;
+}
+
+function rowToUser(row) {
+    if (!row) {
+        return null;
+    }
+    return {
+        id: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        kakaoUserId: row.kakao_user_id,
+        role: row.role,
+        active: Boolean(row.active)
+    };
+}
+
+async function dbOne(env, sql, ...params) {
+    const stmt = env.DB.prepare(sql);
+    return params.length ? stmt.bind(...params).first() : stmt.first();
+}
+
+async function dbAll(env, sql, ...params) {
+    const stmt = env.DB.prepare(sql);
+    const r = params.length ? stmt.bind(...params).all() : stmt.all();
+    return (await r).results || [];
+}
+
+async function dbRun(env, sql, ...params) {
+    return env.DB.prepare(sql).bind(...params).run();
+}
+
+async function getSessionUser(env, token) {
+    if (!token) {
+        return null;
+    }
+    const row = await dbOne(
+        env,
+        `SELECT s.expires_at, u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.active = 1`,
+        token
+    );
+    if (!row) {
+        return null;
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+        await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+        return null;
+    }
+    return rowToUser(row);
+}
+
+async function createSession(env, userId) {
+    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+    const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+    await dbRun(env, 'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)', token, userId, expires);
+    return token;
+}
+
+function isLockStale(lock) {
+    return !lock || Date.now() - new Date(lock.updated_at).getTime() > LOCK_STALE_MS;
+}
+
+async function getLock(env, calendarId) {
+    return dbOne(env, 'SELECT * FROM calendar_locks WHERE calendar_id = ?', calendarId);
+}
+
+async function lockStatus(env, calendarId, userId) {
+    const lock = await getLock(env, calendarId);
+    if (!lock || isLockStale(lock)) {
+        return { held: false, readOnly: false, lock: null };
+    }
+    const heldByMe = lock.holder_user_id === userId;
+    return {
+        held: true,
+        readOnly: !heldByMe,
+        lock: { holderUserId: lock.holder_user_id, holderName: lock.holder_name, updatedAt: lock.updated_at }
+    };
+}
+
+async function findUserForKakao(env, kakaoUserId, email) {
+    const kid = kakaoUserId ? String(kakaoUserId) : null;
+    const em = normalizeEmail(email);
+    if (kid) {
+        const byKid = await dbOne(env, 'SELECT * FROM users WHERE kakao_user_id = ? AND active = 1', kid);
+        if (byKid) {
+            return rowToUser(byKid);
+        }
+    }
+    if (em) {
+        const byEmail = await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em);
+        if (byEmail) {
+            if (kid && !byEmail.kakao_user_id) {
+                await dbRun(env, 'UPDATE users SET kakao_user_id = ? WHERE id = ?', kid, byEmail.id);
+            }
+            return rowToUser(byEmail);
+        }
+    }
+    return null;
+}
+
+async function kakaoToken(code, redirectUri, clientId, clientSecret) {
+    const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        code
+    });
+    if (clientSecret) {
+        body.set('client_secret', clientSecret);
+    }
+    const res = await fetch('https://kauth.kakao.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+        body: body.toString()
+    });
+    const json = await res.json();
+    if (!res.ok) {
+        throw new Error(json.error_description || 'token failed');
+    }
+    return json;
+}
+
+async function kakaoMe(accessToken) {
+    const res = await fetch('https://kapi.kakao.com/v2/user/me', {
+        headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const json = await res.json();
+    if (!res.ok) {
+        throw new Error('profile failed');
+    }
+    const account = json.kakao_account || {};
+    return {
+        kakaoUserId: String(json.id),
+        email: account.email || null,
+        nickname: (account.profile && account.profile.nickname) || ''
+    };
+}
+
+function publicUrl(env, request) {
+    return (env.PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '');
+}
+
+function kakaoRedirectUri(env, request) {
+    return env.KAKAO_REDIRECT_URI || publicUrl(env, request) + '/api/auth/kakao/callback';
+}
+
+async function requireUser(request, env) {
+    const token = parseCookies(request)[SESSION_COOKIE];
+    const user = await getSessionUser(env, token);
+    if (user) {
+        return user;
+    }
+    return null;
+}
+
+async function readJson(request) {
+    try {
+        return await request.json();
+    } catch (_) {
+        return {};
+    }
+}
+
+export default {
+    async fetch(request, env) {
+        const url = new URL(request.url);
+        const path = url.pathname;
+        const secure = publicUrl(env, request).startsWith('https://');
+        const kakaoId = env.KAKAO_CLIENT_ID || '';
+
+        if (path === '/api/health') {
+            return json({
+                ok: true,
+                time: nowIso(),
+                auth: Boolean(kakaoId),
+                kakaoConfigured: Boolean(kakaoId),
+                openAccess: false
+            });
+        }
+
+        if (path === '/api/host-info') {
+            return json({
+                primaryTeamUrl: publicUrl(env, request),
+                localhostUrl: publicUrl(env, request),
+                authMode: kakaoId ? 'kakao' : 'open'
+            });
+        }
+
+        if (path === '/api/auth/me' && request.method === 'GET') {
+            const user = await requireUser(request, env);
+            if (!user) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            return json({
+                id: user.id,
+                email: user.email,
+                displayName: user.displayName,
+                role: user.role
+            });
+        }
+
+        if (path === '/api/auth/logout' && request.method === 'POST') {
+            const token = parseCookies(request)[SESSION_COOKIE];
+            if (token) {
+                await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+            }
+            return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie(secure) });
+        }
+
+        if (path === '/api/auth/kakao' && request.method === 'GET') {
+            if (!kakaoId) {
+                return new Response('Kakao not configured', { status: 503 });
+            }
+            const returnTo = url.searchParams.get('return') || '/';
+            const state =
+                crypto.randomUUID().replace(/-/g, '') +
+                '.' +
+                btoa(returnTo).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            const params = new URLSearchParams({
+                client_id: kakaoId,
+                redirect_uri: kakaoRedirectUri(env, request),
+                response_type: 'code',
+                state
+            });
+            return redirectTo('https://kauth.kakao.com/oauth/authorize?' + params.toString());
+        }
+
+        if (path === '/api/auth/kakao/callback' && request.method === 'GET') {
+            const code = url.searchParams.get('code');
+            const state = url.searchParams.get('state') || '';
+            let returnTo = '/';
+            if (state.includes('.')) {
+                try {
+                    const b64 = state.split('.').slice(1).join('.');
+                    returnTo = atob(b64.replace(/-/g, '+').replace(/_/g, '/')) || '/';
+                } catch (_) {
+                    returnTo = '/';
+                }
+            }
+            if (!code || !kakaoId) {
+                return redirectTo('/login.html?error=missing_code');
+            }
+            try {
+                const tokens = await kakaoToken(code, kakaoRedirectUri(env, request), kakaoId, env.KAKAO_CLIENT_SECRET || '');
+                const profile = await kakaoMe(tokens.access_token);
+                const matched = await findUserForKakao(env, profile.kakaoUserId, profile.email);
+                if (!matched) {
+                    const q = new URLSearchParams({
+                        denied: '1',
+                        email: profile.email || '',
+                        kakaoId: profile.kakaoUserId,
+                        nickname: profile.nickname || ''
+                    });
+                    return redirectTo('/login.html?' + q.toString());
+                }
+                const sessionToken = await createSession(env, matched.id);
+                const safeReturn = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+                return redirectTo(safeReturn, { 'Set-Cookie': sessionCookie(sessionToken, secure) });
+            } catch (err) {
+                return redirectTo('/login.html?error=oauth_failed');
+            }
+        }
+
+        const user = await requireUser(request, env);
+        if (!user) {
+            return json({ error: 'Not signed in' }, 401);
+        }
+
+        if (path === '/api/calendars' && request.method === 'GET') {
+            const rows = await dbAll(
+                env,
+                'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
+            );
+            return json(rows);
+        }
+
+        const calMatch = path.match(/^\/api\/calendars\/([^/]+)(\/meta|\/lock)?$/);
+        if (calMatch) {
+            const calId = calMatch[1];
+            const sub = calMatch[2];
+
+            if (sub === '/meta' && request.method === 'GET') {
+                const meta = await dbOne(
+                    env,
+                    'SELECT id, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    calId
+                );
+                if (!meta) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
+                const lock = await lockStatus(env, calId, user.id);
+                return json(Object.assign({}, meta, { lock: lock.lock, readOnly: lock.readOnly }));
+            }
+
+            if (sub === '/lock' && request.method === 'POST') {
+                const body = await readJson(request);
+                const existing = await getLock(env, calId);
+                const force = Boolean(body.force);
+                if (!existing || isLockStale(existing) || existing.holder_user_id === user.id || force) {
+                    const name = user.displayName || user.email || 'Teacher';
+                    await dbRun(
+                        env,
+                        `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at)
+                         VALUES (?, ?, ?, ?)
+                         ON CONFLICT(calendar_id) DO UPDATE SET holder_user_id=excluded.holder_user_id, holder_name=excluded.holder_name, updated_at=excluded.updated_at`,
+                        calId,
+                        user.id,
+                        name,
+                        nowIso()
+                    );
+                }
+                const status = await lockStatus(env, calId, user.id);
+                return json({ acquired: !status.readOnly, lock: status.lock, readOnly: status.readOnly });
+            }
+
+            if (sub === '/lock' && request.method === 'DELETE') {
+                const lock = await getLock(env, calId);
+                if (lock && lock.holder_user_id === user.id) {
+                    await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
+                }
+                return json({ ok: true });
+            }
+
+            if (!sub && request.method === 'GET') {
+                const row = await dbOne(
+                    env,
+                    'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    calId
+                );
+                if (!row) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
+                const lock = await lockStatus(env, calId, user.id);
+                return json(
+                    Object.assign({}, row, {
+                        data: JSON.parse(row.data),
+                        lock: lock.lock,
+                        readOnly: lock.readOnly
+                    })
+                );
+            }
+
+            if (!sub && request.method === 'PUT') {
+                const body = await readJson(request);
+                if (!body.data) {
+                    return json({ error: 'data is required' }, 400);
+                }
+                const existing = await dbOne(env, 'SELECT revision, name FROM calendars WHERE id = ?', calId);
+                if (!existing) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
+                const lock = await lockStatus(env, calId, user.id);
+                if (lock.readOnly && !body.force) {
+                    return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
+                }
+                if (!body.force && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
+                    const doc = await dbOne(
+                        env,
+                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        calId
+                    );
+                    return json({ conflict: true, document: Object.assign({}, doc, { data: JSON.parse(doc.data) }) }, 409);
+                }
+                const nextRev = Number(existing.revision) + 1;
+                const label = user.displayName || user.email || 'Teacher';
+                const displayName = body.name != null ? String(body.name).trim() : existing.name;
+                await dbRun(
+                    env,
+                    'UPDATE calendars SET name=?, data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                    displayName,
+                    JSON.stringify(body.data),
+                    nextRev,
+                    nowIso(),
+                    label,
+                    calId
+                );
+                const doc = await dbOne(
+                    env,
+                    'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    calId
+                );
+                return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }));
+            }
+
+            if (!sub && request.method === 'DELETE') {
+                if (user.role !== 'admin') {
+                    return json({ error: 'Only admins can delete team calendars' }, 403);
+                }
+                await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
+                await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
+                return json({ ok: true });
+            }
+        }
+
+        if (path === '/api/calendars' && request.method === 'POST') {
+            const body = await readJson(request);
+            if (!body.name || !body.data) {
+                return json({ error: 'name and data are required' }, 400);
+            }
+            const id = uuid();
+            const label = user.displayName || user.email || 'Teacher';
+            await dbRun(
+                env,
+                'INSERT INTO calendars (id, name, data, revision, updated_at, updated_by) VALUES (?, ?, ?, 1, ?, ?)',
+                id,
+                String(body.name).trim(),
+                JSON.stringify(body.data),
+                nowIso(),
+                label
+            );
+            const doc = await dbOne(
+                env,
+                'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                id
+            );
+            return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }), 201);
+        }
+
+        if (path === '/api/admin/users' && request.method === 'GET' && user.role === 'admin') {
+            const rows = await dbAll(
+                env,
+                'SELECT id, email, display_name, kakao_user_id, role, active, created_at FROM users ORDER BY display_name'
+            );
+            return json(rows.map(rowToUser));
+        }
+
+        return json({ error: 'Not found' }, 404);
+    }
+};
