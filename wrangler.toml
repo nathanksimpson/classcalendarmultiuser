@@ -8,11 +8,11 @@ directory = "."
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
-# REQUIRED: create D1 in Cloudflare, then paste its Database ID here (see CLOUDFLARE-DEPLOY.md).
+# D1: calendar-team (Cloudflare dashboard)
 [[d1_databases]]
 binding = "DB"
 database_name = "calendar-team"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "002a1ed6-f90b-425e-a4a7-518d07c4040d"
 migrations_dir = "worker/migrations"
 
 [vars]
