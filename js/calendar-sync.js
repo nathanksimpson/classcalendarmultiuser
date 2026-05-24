@@ -5,7 +5,7 @@
     const API = '/api';
     const STORAGE_ACTIVE = 'teamCalendarActiveId';
     const SAVE_DEBOUNCE_MS = 1500;
-    const POLL_INTERVAL_MS = 5000;
+    const POLL_INTERVAL_MS = 3000;
     const LOCK_DEBUG_STORAGE = 'teamLockDebug';
     const LOCK_DEBUG_LOG_MAX = 100;
 
@@ -194,7 +194,9 @@
         const wasHoldsLock = state.holdsLock;
         state.readOnly = Boolean(json && json.readOnly);
         state.lock = (json && json.lock) || null;
-        if (json && json.lock && json.lock.holderUserId && typeof TeamAuth !== 'undefined' && TeamAuth.getUser()) {
+        if (json && typeof json.holdsLock === 'boolean') {
+            state.holdsLock = json.holdsLock;
+        } else if (json && json.lock && json.lock.holderUserId && typeof TeamAuth !== 'undefined' && TeamAuth.getUser()) {
             const me = TeamAuth.getUser();
             state.holdsLock = json.lock.holderUserId === me.id && !state.readOnly;
         } else {
@@ -431,6 +433,24 @@
             await CalendarSync.saveCalendar(data);
         },
 
+        async touchLock(id) {
+            const calId = id || CalendarSync.getActiveCalendarId();
+            if (!calId || !state.holdsLock) {
+                return { touched: false };
+            }
+            try {
+                const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/touch', {
+                    method: 'POST',
+                    body: {}
+                });
+                applyLockFromResponse(tagLockDebugSource(result, 'touchLock'));
+                return result;
+            } catch (err) {
+                debugLog('error', 'POST /lock/touch failed', { message: err && err.message });
+                return { touched: false };
+            }
+        },
+
         async releaseLock(id) {
             const calId = id || CalendarSync.getActiveCalendarId();
             if (!calId) {
@@ -587,6 +607,9 @@
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
                     const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
+                    if (state.holdsLock) {
+                        await CalendarSync.touchLock(id);
+                    }
                     debugLog('poll', 'Meta poll', {
                         revision: meta.revision,
                         clientRevision: state.revision,

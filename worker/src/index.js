@@ -207,6 +207,18 @@ async function grantLockToPending(env, calendarId, holderUserId) {
     return { ok: true };
 }
 
+async function touchLockHolder(env, calendarId, userId) {
+    const lock = await getLock(env, calendarId);
+    if (!lock || (await isLockStale(env, lock))) {
+        return false;
+    }
+    if (lock.holder_user_id !== userId) {
+        return false;
+    }
+    await dbRun(env, 'UPDATE calendar_locks SET updated_at = ? WHERE calendar_id = ?', nowIso(), calendarId);
+    return true;
+}
+
 async function dismissLockRequest(env, calendarId, holderUserId) {
     const lock = await getLock(env, calendarId);
     if (!lock || (await isLockStale(env, lock))) {
@@ -254,12 +266,20 @@ async function lockStatus(env, calendarId, userId) {
     const lockStaleMinutes = await AppSettings.getLockStaleMinutes(env);
     const lock = await getLock(env, calendarId);
     if (!lock || (await isLockStale(env, lock))) {
-        return { held: false, readOnly: false, lock: null, pendingEditRequest: false, lockStaleMinutes };
+        return {
+            held: false,
+            holdsLock: false,
+            readOnly: false,
+            lock: null,
+            pendingEditRequest: false,
+            lockStaleMinutes
+        };
     }
     const heldByMe = lock.holder_user_id === userId;
     const pendingEditRequest = Boolean(lock.pending_requester_id && lock.pending_requester_id === userId);
     return {
         held: true,
+        holdsLock: heldByMe,
         readOnly: !heldByMe,
         lock: await lockToClient(env, lock),
         pendingEditRequest,
@@ -271,9 +291,10 @@ async function lockPayloadForClient(env, calendarId, userId, extra = {}) {
     const status = await lockStatus(env, calendarId, userId);
     return Object.assign(
         {
-            acquired: status.held && !status.readOnly,
+            acquired: Boolean(status.holdsLock),
             lock: status.lock,
             readOnly: status.readOnly,
+            holdsLock: Boolean(status.holdsLock),
             pendingEditRequest: status.pendingEditRequest,
             lockStaleMinutes: status.lockStaleMinutes,
             editRequestRecorded: false
@@ -746,7 +767,9 @@ export default {
             return json(groups);
         }
 
-        const calMatch = path.match(/^\/api\/calendars\/([^/]+)(\/meta|\/lock\/grant|\/lock\/dismiss|\/lock)?$/);
+        const calMatch = path.match(
+            /^\/api\/calendars\/([^/]+)(\/meta|\/lock\/grant|\/lock\/dismiss|\/lock\/touch|\/lock)?$/
+        );
         if (calMatch) {
             const calId = calMatch[1];
             const sub = calMatch[2];
@@ -770,10 +793,19 @@ export default {
                     Object.assign({}, meta, {
                         lock: lock.lock,
                         readOnly: lock.readOnly,
+                        holdsLock: Boolean(lock.holdsLock),
                         pendingEditRequest: lock.pendingEditRequest,
                         lockStaleMinutes: lock.lockStaleMinutes
                     })
                 );
+            }
+
+            if (sub === '/lock/touch' && request.method === 'POST') {
+                const touched = await touchLockHolder(env, calId, user.id);
+                if (!touched) {
+                    return json({ error: 'Only the current editor can refresh the lock', touched: false }, 403);
+                }
+                return json(await lockPayloadForClient(env, calId, user.id, { touched: true }));
             }
 
             if (sub === '/lock/grant' && request.method === 'POST') {
@@ -834,6 +866,7 @@ export default {
                         data: JSON.parse(row.data),
                         lock: lock.lock,
                         readOnly: lock.readOnly,
+                        holdsLock: Boolean(lock.holdsLock),
                         pendingEditRequest: lock.pendingEditRequest,
                         lockStaleMinutes: lock.lockStaleMinutes
                     })
@@ -852,6 +885,25 @@ export default {
                 const lock = await lockStatus(env, calId, user.id);
                 if (lock.readOnly && !body.force) {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
+                }
+                const lockRow = await getLock(env, calId);
+                const lockStale = !lockRow || (await isLockStale(env, lockRow));
+                if (
+                    !body.force &&
+                    !lockStale &&
+                    lockRow &&
+                    lockRow.holder_user_id !== user.id
+                ) {
+                    return json(
+                        {
+                            error: 'Calendar is locked by another user',
+                            lock: lock.lock
+                        },
+                        423
+                    );
+                }
+                if (!lockStale && lockRow && lockRow.holder_user_id === user.id) {
+                    await touchLockHolder(env, calId, user.id);
                 }
                 if (!body.force && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
                     const doc = await dbOne(

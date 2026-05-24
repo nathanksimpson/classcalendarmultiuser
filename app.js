@@ -11893,7 +11893,7 @@ function refreshTeamLockDebugPanel(extra) {
                 teamSyncEnabled,
                 uiMode: getTeamLockUiMode(),
                 teamLockPreviousCalendarId,
-                pollIntervalMs: 5000
+                pollIntervalMs: 3000
             },
             extra || {}
         )

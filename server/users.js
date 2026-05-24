@@ -408,6 +408,10 @@ function dismissLockRequest(calendarId, holderUserId) {
     return getLock(calendarId);
 }
 
+function touchLock(calendarId, userId) {
+    return refreshLock(calendarId, userId);
+}
+
 function refreshLock(calendarId, userId) {
     const lock = getLock(calendarId);
     if (!lock || lock.holder_user_id !== userId) {
@@ -435,12 +439,20 @@ function lockStatusForClient(calendarId, userId) {
     const lock = getLock(calendarId);
     const lockStaleMinutes = appSettings.getLockStaleMinutes();
     if (!lock || isLockStale(lock)) {
-        return { held: false, readOnly: false, lock: null, pendingEditRequest: false, lockStaleMinutes };
+        return {
+            held: false,
+            holdsLock: false,
+            readOnly: false,
+            lock: null,
+            pendingEditRequest: false,
+            lockStaleMinutes
+        };
     }
     const heldByMe = lock.holder_user_id === userId;
     const pendingEditRequest = Boolean(lock.pending_requester_id && lock.pending_requester_id === userId);
     return {
         held: true,
+        holdsLock: heldByMe,
         readOnly: !heldByMe,
         lock: lockToClient(lock),
         pendingEditRequest,
@@ -451,9 +463,10 @@ function lockStatusForClient(calendarId, userId) {
 function lockPayloadForClient(calendarId, userId) {
     const status = lockStatusForClient(calendarId, userId);
     return {
-        acquired: !status.readOnly && status.held,
+        acquired: Boolean(status.holdsLock),
         lock: status.lock,
         readOnly: status.readOnly,
+        holdsLock: Boolean(status.holdsLock),
         pendingEditRequest: status.pendingEditRequest,
         lockStaleMinutes: status.lockStaleMinutes,
         editRequestRecorded: false
@@ -499,6 +512,7 @@ module.exports = {
     assignLockHolder,
     grantLockToPending,
     dismissLockRequest,
+    touchLock,
     refreshLock,
     releaseLock,
     lockStatusForClient,

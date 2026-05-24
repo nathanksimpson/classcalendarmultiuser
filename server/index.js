@@ -499,6 +499,7 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
         Object.assign({}, meta, {
             lock: lock.lock,
             readOnly: lock.readOnly,
+            holdsLock: Boolean(lock.holdsLock),
             pendingEditRequest: lock.pendingEditRequest,
             lockStaleMinutes: lock.lockStaleMinutes
         })
@@ -520,10 +521,23 @@ app.get('/api/calendars/:id', requireUser, (req, res) => {
         Object.assign({}, doc, {
             lock: lock.lock,
             readOnly: lock.readOnly,
+            holdsLock: Boolean(lock.holdsLock),
             pendingEditRequest: lock.pendingEditRequest,
             lockStaleMinutes: lock.lockStaleMinutes
         })
     );
+});
+
+app.post('/api/calendars/:id/lock/touch', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    if (!users.touchLock(req.params.id, req.user.id)) {
+        res.status(403).json({ error: 'Only the current editor can refresh the lock', touched: false });
+        return;
+    }
+    res.json(Object.assign(users.lockPayloadForClient(req.params.id, req.user.id), { touched: true }));
 });
 
 app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
