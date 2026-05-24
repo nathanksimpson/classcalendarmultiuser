@@ -1,5 +1,7 @@
 # Class Calendar — Multi User (Team + Cloud)
 
+GitHub: [nathanksimpson/classcalendarmultiuser](https://github.com/nathanksimpson/classcalendarmultiuser)
+
 Teachers open **one bookmark**, sign in with **Kakao**, and edit shared calendars. No school PC running 24/7.
 
 ## Quick start (local test)
