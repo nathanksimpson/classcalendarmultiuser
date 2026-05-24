@@ -4638,18 +4638,88 @@ input.input-readonly {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.2rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 2.5rem;
+    padding: 0;
     margin: 0;
-    border: none;
-    background: transparent;
+    border: 1px solid var(--border-color, #cbd5e1);
+    background: #ffffff;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     color: inherit;
     flex-shrink: 0;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.1s ease;
 }
 
 .team-lock-status-btn:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--bg-hover, #f1f5f9);
+    border-color: var(--text-secondary, #94a3b8);
+    box-shadow:
+        0 2px 4px rgba(15, 23, 42, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.team-lock-status-btn:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow:
+        0 0 1px rgba(15, 23, 42, 0.12),
+        inset 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.team-lock-status--free .team-lock-status-btn {
+    color: #64748b;
+    border-color: #cbd5e1;
+    background: #ffffff;
+}
+
+.team-lock-status--held .team-lock-status-btn {
+    color: #047857;
+    border-color: #6ee7b7;
+    background: #ffffff;
+    box-shadow:
+        0 1px 3px rgba(4, 120, 87, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.team-lock-status--held .team-lock-status-btn:hover {
+    background: #ecfdf5;
+    border-color: #34d399;
+}
+
+.team-lock-status--blocked .team-lock-status-btn {
+    color: #b91c1c;
+    border-color: #fca5a5;
+    background: #ffffff;
+    box-shadow:
+        0 1px 3px rgba(185, 28, 28, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.team-lock-status--blocked .team-lock-status-btn:hover {
+    background: #fef2f2;
+    border-color: #f87171;
+}
+
+.team-lock-status--pending .team-lock-status-btn {
+    color: #b45309;
+    border-color: #fcd34d;
+    background: #ffffff;
+    box-shadow:
+        0 1px 3px rgba(180, 83, 9, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.team-lock-status--pending .team-lock-status-btn:hover {
+    background: #fffbeb;
+    border-color: #fbbf24;
 }
 
 .team-lock-status-btn:focus-visible {
@@ -4727,8 +4797,60 @@ input.input-readonly {
     background: #422006;
 }
 
+[data-theme="dark"] .team-lock-status-btn {
+    background: #334155;
+    border-color: #475569;
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 [data-theme="dark"] .team-lock-status-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: #3f4f63;
+    border-color: #64748b;
+}
+
+[data-theme="dark"] .team-lock-status--free .team-lock-status-btn {
+    color: #94a3b8;
+    background: #334155;
+    border-color: #475569;
+}
+
+[data-theme="dark"] .team-lock-status--held .team-lock-status-btn {
+    color: #6ee7b7;
+    background: #1e3a32;
+    border-color: #059669;
+}
+
+[data-theme="dark"] .team-lock-status--held .team-lock-status-btn:hover {
+    background: #064e3b;
+    border-color: #34d399;
+}
+
+[data-theme="dark"] .team-lock-status--blocked .team-lock-status-btn {
+    color: #fca5a5;
+    background: #3f1d1d;
+    border-color: #991b1b;
+}
+
+[data-theme="dark"] .team-lock-status--blocked .team-lock-status-btn:hover {
+    background: #450a0a;
+    border-color: #dc2626;
+}
+
+[data-theme="dark"] .team-lock-status--pending .team-lock-status-btn {
+    color: #fde68a;
+    background: #422006;
+    border-color: #b45309;
+}
+
+[data-theme="dark"] .team-lock-status--pending .team-lock-status-btn:hover {
+    background: #78350f;
+    border-color: #d97706;
+}
+
+[data-theme="dark"] .team-lock-status-btn:active:not(:disabled) {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-width: 640px) {
