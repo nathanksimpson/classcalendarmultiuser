@@ -511,6 +511,7 @@ async function loadCalendarAccessForSelected() {
 }
 
 async function refreshAll() {
+    await loadLockSettings();
     await loadUsers();
     await loadTeachersCache();
     await loadGroups();
@@ -555,7 +556,7 @@ function setupAdminNav(signedIn) {
 }
 
 function showAdminSections(visible) {
-    ['usersSection', 'groupsSection', 'calendarAccessSection'].forEach((id) => {
+    ['lockSettingsSection', 'usersSection', 'groupsSection', 'calendarAccessSection'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
             el.hidden = !visible;
@@ -563,8 +564,43 @@ function showAdminSections(visible) {
     });
 }
 
+async function loadLockSettings() {
+    const settings = await api('/admin/settings');
+    const input = document.getElementById('lockStaleMinutesInput');
+    if (input && settings.lockStaleMinutes != null) {
+        input.value = String(settings.lockStaleMinutes);
+    }
+}
+
+function setupLockSettingsForm() {
+    const form = document.getElementById('lockSettingsForm');
+    if (!form || form.dataset.bound === '1') {
+        return;
+    }
+    form.dataset.bound = '1';
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('lockStaleMinutesInput');
+        const minutes = Number(input && input.value);
+        try {
+            const saved = await api('/admin/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lockStaleMinutes: minutes })
+            });
+            if (input && saved.lockStaleMinutes != null) {
+                input.value = String(saved.lockStaleMinutes);
+            }
+            showAdminSaveNotice('Saved: lock expires after ' + saved.lockStaleMinutes + ' minutes.', false);
+        } catch (err) {
+            showAdminSaveNotice(err.message || 'Could not save lock settings.', true);
+        }
+    });
+}
+
 async function init() {
     setupResetPasswordModal();
+    setupLockSettingsForm();
     try {
         const me = await api('/auth/me');
         currentAdminId = me.id;

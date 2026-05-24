@@ -1,8 +1,8 @@
 const crypto = require('crypto');
 const { getDb, newId, nowIso } = require('./schema');
+const appSettings = require('./app-settings');
 
 const SESSION_DAYS = 14;
-const LOCK_STALE_MS = 20 * 60 * 1000;
 const MIN_PASSWORD_LENGTH = 8;
 
 function normalizeEmail(email) {
@@ -301,7 +301,7 @@ function isLockStale(lock) {
     if (!lock) {
         return true;
     }
-    return Date.now() - new Date(lock.updated_at).getTime() > LOCK_STALE_MS;
+    return Date.now() - new Date(lock.updated_at).getTime() > appSettings.getLockStaleMs();
 }
 
 function recordLockEditRequest(calendarId, userId, displayName) {
@@ -336,14 +336,10 @@ function lockToClient(lock) {
     };
 }
 
-function acquireLock(calendarId, userId, displayName, force) {
-    const db = getDb();
-    const existing = getLock(calendarId);
-    const stale = !existing || isLockStale(existing);
-    const heldByMe = existing && existing.holder_user_id === userId;
-    if (stale || heldByMe || force) {
-        const at = nowIso();
-        db.prepare(
+function assignLockHolder(calendarId, userId, displayName) {
+    const at = nowIso();
+    getDb()
+        .prepare(
             `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at, pending_requester_id, pending_requester_name, pending_requested_at)
              VALUES (?, ?, ?, ?, NULL, NULL, NULL)
              ON CONFLICT(calendar_id) DO UPDATE SET
@@ -353,11 +349,63 @@ function acquireLock(calendarId, userId, displayName, force) {
                pending_requester_id = NULL,
                pending_requester_name = NULL,
                pending_requested_at = NULL`
-        ).run(calendarId, userId, displayName, at);
+        )
+        .run(calendarId, userId, displayName, at);
+}
+
+function acquireLock(calendarId, userId, displayName) {
+    const existing = getLock(calendarId);
+    const stale = !existing || isLockStale(existing);
+    const heldByMe = existing && existing.holder_user_id === userId;
+    if (stale || heldByMe) {
+        assignLockHolder(calendarId, userId, displayName);
         return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false };
     }
     recordLockEditRequest(calendarId, userId, displayName);
-    return { acquired: false, lock: existing, editRequestRecorded: true };
+    return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true };
+}
+
+function grantLockToPending(calendarId, holderUserId) {
+    const lock = getLock(calendarId);
+    if (!lock || isLockStale(lock)) {
+        const err = new Error('No active lock on this calendar');
+        err.status = 400;
+        throw err;
+    }
+    if (lock.holder_user_id !== holderUserId) {
+        const err = new Error('Only the current editor can allow another user');
+        err.status = 403;
+        throw err;
+    }
+    if (!lock.pending_requester_id) {
+        const err = new Error('No edit request is pending');
+        err.status = 400;
+        throw err;
+    }
+    const pendingId = lock.pending_requester_id;
+    const label = lock.pending_requester_name || 'Teacher';
+    assignLockHolder(calendarId, pendingId, label);
+    return getLock(calendarId);
+}
+
+function dismissLockRequest(calendarId, holderUserId) {
+    const lock = getLock(calendarId);
+    if (!lock || isLockStale(lock)) {
+        const err = new Error('No active lock on this calendar');
+        err.status = 400;
+        throw err;
+    }
+    if (lock.holder_user_id !== holderUserId) {
+        const err = new Error('Only the current editor can dismiss a request');
+        err.status = 403;
+        throw err;
+    }
+    getDb()
+        .prepare(
+            `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL WHERE calendar_id = ?`
+        )
+        .run(calendarId);
+    return getLock(calendarId);
 }
 
 function refreshLock(calendarId, userId) {
@@ -385,14 +433,30 @@ function releaseLock(calendarId, userId) {
 
 function lockStatusForClient(calendarId, userId) {
     const lock = getLock(calendarId);
+    const lockStaleMinutes = appSettings.getLockStaleMinutes();
     if (!lock || isLockStale(lock)) {
-        return { held: false, readOnly: false, lock: null };
+        return { held: false, readOnly: false, lock: null, pendingEditRequest: false, lockStaleMinutes };
     }
     const heldByMe = lock.holder_user_id === userId;
+    const pendingEditRequest = Boolean(lock.pending_requester_id && lock.pending_requester_id === userId);
     return {
         held: true,
         readOnly: !heldByMe,
-        lock: lockToClient(lock)
+        lock: lockToClient(lock),
+        pendingEditRequest,
+        lockStaleMinutes
+    };
+}
+
+function lockPayloadForClient(calendarId, userId) {
+    const status = lockStatusForClient(calendarId, userId);
+    return {
+        acquired: !status.readOnly && status.held,
+        lock: status.lock,
+        readOnly: status.readOnly,
+        pendingEditRequest: status.pendingEditRequest,
+        lockStaleMinutes: status.lockStaleMinutes,
+        editRequestRecorded: false
     };
 }
 
@@ -432,9 +496,12 @@ module.exports = {
     permanentlyDeleteUser,
     getLock,
     acquireLock,
+    assignLockHolder,
+    grantLockToPending,
+    dismissLockRequest,
     refreshLock,
     releaseLock,
     lockStatusForClient,
-    appendHistory,
-    LOCK_STALE_MS
+    lockPayloadForClient,
+    appendHistory
 };

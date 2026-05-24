@@ -4819,6 +4819,41 @@ input.input-readonly {
     background: #fffbeb;
 }
 
+.team-lock-status--waiting {
+    color: #1e40af;
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.team-lock-pending-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.35rem;
+}
+
+.team-lock-pending-actions[hidden] {
+    display: none !important;
+}
+
+.team-lock-pending-btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    min-height: auto;
+}
+
+.team-lock-status--waiting .team-lock-status-btn {
+    color: #1e40af;
+    border-color: #93c5fd;
+    background: #ffffff;
+}
+
+.team-lock-status--waiting .team-lock-status-btn:hover {
+    background: #eff6ff;
+    border-color: #60a5fa;
+}
+
 [data-theme="dark"] .team-lock-status--free {
     color: #94a3b8;
     border-color: #334155;
@@ -4841,6 +4876,12 @@ input.input-readonly {
     color: #fde68a;
     border-color: #b45309;
     background: #422006;
+}
+
+[data-theme="dark"] .team-lock-status--waiting {
+    color: #bfdbfe;
+    border-color: #3b82f6;
+    background: #1e3a5f;
 }
 
 [data-theme="dark"] .team-lock-status-btn {

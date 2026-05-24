@@ -44,6 +44,10 @@
                     </span>
                 </button>
                 <span id="teamLockStatusLabel" class="team-lock-status-label"></span>
+                <span id="teamLockPendingActions" class="team-lock-pending-actions" hidden>
+                    <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn">Allow</button>
+                    <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn">Dismiss</button>
+                </span>
             </div>
 
             <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
@@ -1075,8 +1079,8 @@
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
     <script src="js/team-auth.js"></script>
-    <script src="js/calendar-sync.js"></script>
-    <script src="app.js?v=20260526-lock-no-steal"></script>
+    <script src="js/calendar-sync.js?v=20260525-collab-lock"></script>
+    <script src="app.js?v=20260525-collab-lock"></script>
     <script src="howto.js"></script>
 </body>
 </html>

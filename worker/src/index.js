@@ -2,12 +2,12 @@
  * Cloudflare Worker API — production deploy (Pages static + /api/* routed here).
  */
 import * as CalAccess from './calendar-access.js';
+import * as AppSettings from './app-settings.js';
 
 const SESSION_COOKIE = 'cal_session';
 const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 14;
 const MIN_PASSWORD_LENGTH = 8;
-const LOCK_STALE_MS = 20 * 60 * 1000;
 
 function json(data, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(data), {
@@ -162,8 +162,61 @@ async function createSession(env, userId) {
     return token;
 }
 
-function isLockStale(lock) {
-    return !lock || Date.now() - new Date(lock.updated_at).getTime() > LOCK_STALE_MS;
+async function isLockStale(env, lock) {
+    if (!lock) {
+        return true;
+    }
+    const staleMs = await AppSettings.getLockStaleMs(env);
+    return Date.now() - new Date(lock.updated_at).getTime() > staleMs;
+}
+
+async function assignLockHolder(env, calendarId, userId, displayName) {
+    const at = nowIso();
+    await dbRun(
+        env,
+        `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at, pending_requester_id, pending_requester_name, pending_requested_at)
+         VALUES (?, ?, ?, ?, NULL, NULL, NULL)
+         ON CONFLICT(calendar_id) DO UPDATE SET
+           holder_user_id = excluded.holder_user_id,
+           holder_name = excluded.holder_name,
+           updated_at = excluded.updated_at,
+           pending_requester_id = NULL,
+           pending_requester_name = NULL,
+           pending_requested_at = NULL`,
+        calendarId,
+        userId,
+        displayName,
+        at
+    );
+}
+
+async function grantLockToPending(env, calendarId, holderUserId) {
+    const lock = await getLock(env, calendarId);
+    if (!lock || (await isLockStale(env, lock))) {
+        return { error: 'No active lock on this calendar', status: 400 };
+    }
+    if (lock.holder_user_id !== holderUserId) {
+        return { error: 'Only the current editor can allow another user', status: 403 };
+    }
+    if (!lock.pending_requester_id) {
+        return { error: 'No edit request is pending', status: 400 };
+    }
+    const pendingId = lock.pending_requester_id;
+    const label = lock.pending_requester_name || 'Teacher';
+    await assignLockHolder(env, calendarId, pendingId, label);
+    return { ok: true };
+}
+
+async function dismissLockRequest(env, calendarId, holderUserId) {
+    const lock = await getLock(env, calendarId);
+    if (!lock || (await isLockStale(env, lock))) {
+        return { error: 'No active lock on this calendar', status: 400 };
+    }
+    if (lock.holder_user_id !== holderUserId) {
+        return { error: 'Only the current editor can dismiss a request', status: 403 };
+    }
+    await clearLockEditRequest(env, calendarId);
+    return { ok: true };
 }
 
 async function getLock(env, calendarId) {
@@ -198,16 +251,35 @@ async function lockToClient(env, lock) {
 }
 
 async function lockStatus(env, calendarId, userId) {
+    const lockStaleMinutes = await AppSettings.getLockStaleMinutes(env);
     const lock = await getLock(env, calendarId);
-    if (!lock || isLockStale(lock)) {
-        return { held: false, readOnly: false, lock: null };
+    if (!lock || (await isLockStale(env, lock))) {
+        return { held: false, readOnly: false, lock: null, pendingEditRequest: false, lockStaleMinutes };
     }
     const heldByMe = lock.holder_user_id === userId;
+    const pendingEditRequest = Boolean(lock.pending_requester_id && lock.pending_requester_id === userId);
     return {
         held: true,
         readOnly: !heldByMe,
-        lock: await lockToClient(env, lock)
+        lock: await lockToClient(env, lock),
+        pendingEditRequest,
+        lockStaleMinutes
     };
+}
+
+async function lockPayloadForClient(env, calendarId, userId, extra = {}) {
+    const status = await lockStatus(env, calendarId, userId);
+    return Object.assign(
+        {
+            acquired: status.held && !status.readOnly,
+            lock: status.lock,
+            readOnly: status.readOnly,
+            pendingEditRequest: status.pendingEditRequest,
+            lockStaleMinutes: status.lockStaleMinutes,
+            editRequestRecorded: false
+        },
+        extra
+    );
 }
 
 async function recordLockEditRequest(env, calendarId, user) {
@@ -674,7 +746,7 @@ export default {
             return json(groups);
         }
 
-        const calMatch = path.match(/^\/api\/calendars\/([^/]+)(\/meta|\/lock)?$/);
+        const calMatch = path.match(/^\/api\/calendars\/([^/]+)(\/meta|\/lock\/grant|\/lock\/dismiss|\/lock)?$/);
         if (calMatch) {
             const calId = calMatch[1];
             const sub = calMatch[2];
@@ -694,43 +766,45 @@ export default {
                     return json({ error: 'Calendar not found' }, 404);
                 }
                 const lock = await lockStatus(env, calId, user.id);
-                return json(Object.assign({}, meta, { lock: lock.lock, readOnly: lock.readOnly }));
+                return json(
+                    Object.assign({}, meta, {
+                        lock: lock.lock,
+                        readOnly: lock.readOnly,
+                        pendingEditRequest: lock.pendingEditRequest,
+                        lockStaleMinutes: lock.lockStaleMinutes
+                    })
+                );
+            }
+
+            if (sub === '/lock/grant' && request.method === 'POST') {
+                const result = await grantLockToPending(env, calId, user.id);
+                if (result.error) {
+                    return json({ error: result.error }, result.status || 400);
+                }
+                return json(await lockPayloadForClient(env, calId, user.id));
+            }
+
+            if (sub === '/lock/dismiss' && request.method === 'POST') {
+                const result = await dismissLockRequest(env, calId, user.id);
+                if (result.error) {
+                    return json({ error: result.error }, result.status || 400);
+                }
+                return json(await lockPayloadForClient(env, calId, user.id));
             }
 
             if (sub === '/lock' && request.method === 'POST') {
-                const body = await readJson(request);
                 const existing = await getLock(env, calId);
-                const force = Boolean(body.force);
-                const stale = !existing || isLockStale(existing);
+                const stale = !existing || (await isLockStale(env, existing));
                 const heldByMe = existing && existing.holder_user_id === user.id;
-                if (stale || heldByMe || force) {
+                let editRequestRecorded = false;
+                if (stale || heldByMe) {
                     const name = user.displayName || user.email || 'Teacher';
-                    await dbRun(
-                        env,
-                        `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at, pending_requester_id, pending_requester_name, pending_requested_at)
-                         VALUES (?, ?, ?, ?, NULL, NULL, NULL)
-                         ON CONFLICT(calendar_id) DO UPDATE SET
-                           holder_user_id = excluded.holder_user_id,
-                           holder_name = excluded.holder_name,
-                           updated_at = excluded.updated_at,
-                           pending_requester_id = NULL,
-                           pending_requester_name = NULL,
-                           pending_requested_at = NULL`,
-                        calId,
-                        user.id,
-                        name,
-                        nowIso()
-                    );
+                    await assignLockHolder(env, calId, user.id, name);
                 } else if (existing && existing.holder_user_id !== user.id) {
                     await recordLockEditRequest(env, calId, user);
+                    editRequestRecorded = true;
                 }
-                const status = await lockStatus(env, calId, user.id);
-                return json({
-                    acquired: !status.readOnly,
-                    lock: status.lock,
-                    readOnly: status.readOnly,
-                    editRequestRecorded: Boolean(existing && !stale && !heldByMe && !force)
-                });
+                return json(await lockPayloadForClient(env, calId, user.id, { editRequestRecorded }));
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
@@ -759,7 +833,9 @@ export default {
                     Object.assign({}, row, {
                         data: JSON.parse(row.data),
                         lock: lock.lock,
-                        readOnly: lock.readOnly
+                        readOnly: lock.readOnly,
+                        pendingEditRequest: lock.pendingEditRequest,
+                        lockStaleMinutes: lock.lockStaleMinutes
                     })
                 );
             }
@@ -839,12 +915,26 @@ export default {
             }
             const groupIds = Array.isArray(body.groupIds) ? body.groupIds.map(String) : [];
             await CalAccess.setCalendarAccess(env, id, memberIds, groupIds, user.id);
+            await assignLockHolder(env, id, user.id, label);
             const doc = await dbOne(
                 env,
                 'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
                 id
             );
             return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }), 201);
+        }
+
+        if (path === '/api/admin/settings' && user.role === 'admin') {
+            if (request.method === 'GET') {
+                return json(await AppSettings.getAdminSettings(env));
+            }
+            if (request.method === 'PATCH') {
+                const body = await readJson(request);
+                if (body.lockStaleMinutes === undefined) {
+                    return json(await AppSettings.getAdminSettings(env));
+                }
+                return json(await AppSettings.setLockStaleMinutes(env, body.lockStaleMinutes));
+            }
         }
 
         if (path === '/api/admin/groups' && request.method === 'GET' && user.role === 'admin') {

@@ -17,7 +17,9 @@
         pendingGetData: null,
         readOnly: false,
         lock: null,
-        holdsLock: false
+        holdsLock: false,
+        pendingEditRequest: false,
+        lockStaleMinutes: 20
     };
 
     let handlers = {
@@ -25,6 +27,7 @@
         onRemoteNewer: null,
         onConflict: null,
         onLockChange: null,
+        onLockOrRevisionChange: null,
         onSaved: null
     };
 
@@ -67,16 +70,28 @@
     }
 
     function applyLockFromResponse(json) {
+        const wasReadOnly = state.readOnly;
+        const wasHoldsLock = state.holdsLock;
         state.readOnly = Boolean(json && json.readOnly);
         state.lock = (json && json.lock) || null;
         state.holdsLock = Boolean(state.lock && !state.readOnly);
-        if (typeof handlers.onLockChange === 'function') {
-            handlers.onLockChange({
-                readOnly: state.readOnly,
-                lock: state.lock,
-                holdsLock: state.holdsLock
-            });
+        state.pendingEditRequest = Boolean(json && json.pendingEditRequest);
+        if (json && json.lockStaleMinutes != null) {
+            state.lockStaleMinutes = json.lockStaleMinutes;
         }
+        const lockState = {
+            readOnly: state.readOnly,
+            lock: state.lock,
+            holdsLock: state.holdsLock,
+            pendingEditRequest: state.pendingEditRequest,
+            lockStaleMinutes: state.lockStaleMinutes,
+            wasReadOnly,
+            wasHoldsLock
+        };
+        if (typeof handlers.onLockChange === 'function') {
+            handlers.onLockChange(lockState);
+        }
+        return lockState;
     }
 
     function setStatus(status, detail) {
@@ -208,13 +223,60 @@
             return meta;
         },
 
-        async acquireLock(id, force) {
+        async acquireLock(id) {
             const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
                 method: 'POST',
-                body: { force: Boolean(force) }
+                body: {}
             });
             applyLockFromResponse(result);
             return result;
+        },
+
+        async grantLockToPending(id) {
+            const calId = id || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                throw new Error('No active team calendar');
+            }
+            await CalendarSync.flushPendingSave();
+            const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/grant', {
+                method: 'POST',
+                body: {}
+            });
+            applyLockFromResponse(result);
+            return result;
+        },
+
+        async dismissLockRequest(id) {
+            const calId = id || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                throw new Error('No active team calendar');
+            }
+            const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/dismiss', {
+                method: 'POST',
+                body: {}
+            });
+            applyLockFromResponse(result);
+            return result;
+        },
+
+        async flushPendingSave() {
+            if (state.saveTimer) {
+                clearTimeout(state.saveTimer);
+                state.saveTimer = null;
+            }
+            const fn = state.pendingGetData;
+            state.pendingGetData = null;
+            if (!fn || state.readOnly || !CalendarSync.getActiveCalendarId()) {
+                return;
+            }
+            let data;
+            try {
+                data = fn();
+            } catch (e) {
+                setStatus('error', e.message);
+                throw e;
+            }
+            await CalendarSync.saveCalendar(data);
         },
 
         async releaseLock(id) {
@@ -251,7 +313,7 @@
                 body
             });
             state.revision = doc.revision || 1;
-            await CalendarSync.acquireLock(doc.id, true);
+            await CalendarSync.refreshLockMeta(doc.id);
             return doc;
         },
 
@@ -372,7 +434,10 @@
                             handlers.onRemoteNewer(meta);
                         }
                     }
-                    applyLockFromResponse(meta);
+                    const lockState = applyLockFromResponse(meta);
+                    if (typeof handlers.onLockOrRevisionChange === 'function') {
+                        await handlers.onLockOrRevisionChange(meta, lockState);
+                    }
                 } catch (_) {
                     /* ignore poll errors */
                 }

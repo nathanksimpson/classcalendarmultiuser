@@ -82,19 +82,26 @@ const translations = {
         teamLockStatusPending: '{name} wants to edit',
         teamLockActionAcquire: 'Start editing',
         teamLockActionRelease: 'Release lock',
-        teamLockActionTakeOver: 'Take over editing',
-        teamLockActionRequestEdit: 'Request to edit',
-        teamLockRequestSent: 'Edit request sent. {name} is still editing this calendar.',
-        teamLockBlockedNoSteal: '{name} is editing. You cannot take the lock from here.',
+        teamLockActionRequest: 'Request to edit',
+        teamLockActionWaiting: 'Request sent',
+        teamLockStatusWaiting: 'Waiting for {name} to allow editing',
+        teamLockAllow: 'Allow',
+        teamLockDismiss: 'Dismiss',
+        teamLockWaitingFlash: 'Waiting for {name} to allow you to edit.',
+        teamLockRequestSentFlash: 'Edit request sent. Waiting for {name}.',
+        teamLockGrantedFlash: 'You can edit now.',
+        teamLockAllowedOtherFlash: '{name} can edit now.',
+        teamLockDismissedFlash: 'Edit request dismissed.',
         teamLockedBy: '{name} is editing this calendar.',
-        teamLockedByFlash: '{name} is editing this calendar. Use Take over editing below to edit.',
+        teamLockedByFlash: '{name} is editing this calendar. Click the lock to request editing.',
         teamLockHeld: 'You have the edit lock for this calendar.',
         teamLockHeldFlash: 'You are editing this calendar.',
         teamEditRequestedFlash: '{name} wants to edit this calendar.',
-        teamLockTakenFlash: 'You took over editing from {name}.',
         teamLockReleasedFlash: 'Edit lock released. Others can edit now.',
         teamLockReleaseFailed: 'Could not release the lock. Only the current editor can release it.',
-        teamLockTakeFailed: 'Could not take over editing. Try again.',
+        teamLockRequestFailed: 'Could not send edit request. Try again.',
+        teamLockGrantFailed: 'Could not allow editing. Try again.',
+        teamLockDismissFailed: 'Could not dismiss the request. Try again.',
         teamLockUnknownUser: 'Another user',
         teamTakeLock: 'Take over editing',
         teamReleaseLock: 'Release lock',
@@ -642,19 +649,26 @@ const translations = {
         teamLockStatusPending: '{name}님이 편집 요청',
         teamLockActionAcquire: '편집 시작',
         teamLockActionRelease: '잠금 해제',
-        teamLockActionTakeOver: '편집 인수',
-        teamLockActionRequestEdit: '편집 요청',
-        teamLockRequestSent: '편집 요청을 보냈습니다. {name}님이 아직 이 캘린더를 편집 중입니다.',
-        teamLockBlockedNoSteal: '{name}님이 편집 중입니다. 여기서 잠금을 가져올 수 없습니다.',
+        teamLockActionRequest: '편집 요청',
+        teamLockActionWaiting: '요청 전송됨',
+        teamLockStatusWaiting: '{name}님의 허용을 기다리는 중',
+        teamLockAllow: '허용',
+        teamLockDismiss: '거절',
+        teamLockWaitingFlash: '{name}님이 편집을 허용할 때까지 기다리는 중입니다.',
+        teamLockRequestSentFlash: '편집 요청을 보냈습니다. {name}님을 기다리는 중입니다.',
+        teamLockGrantedFlash: '이제 편집할 수 있습니다.',
+        teamLockAllowedOtherFlash: '{name}님이 편집할 수 있습니다.',
+        teamLockDismissedFlash: '편집 요청이 거절되었습니다.',
         teamLockedBy: '{name}님이 이 캘린더를 편집 중입니다.',
-        teamLockedByFlash: '{name}님이 편집 중입니다. 아래 「편집 인수」로 편집할 수 있습니다.',
+        teamLockedByFlash: '{name}님이 편집 중입니다. 자물쇠를 눌러 편집을 요청하세요.',
         teamLockHeld: '이 캘린더의 편집 잠금을 보유 중입니다.',
         teamLockHeldFlash: '이 캘린더를 편집 중입니다.',
         teamEditRequestedFlash: '{name}님이 편집을 요청했습니다.',
-        teamLockTakenFlash: '{name}님에게서 편집 권한을 인수했습니다.',
         teamLockReleasedFlash: '편집 잠금을 해제했습니다. 다른 선생님도 편집할 수 있습니다.',
         teamLockReleaseFailed: '잠금을 해제할 수 없습니다. 현재 편집 중인 사람만 해제할 수 있습니다.',
-        teamLockTakeFailed: '편집을 인수할 수 없습니다. 다시 시도하세요.',
+        teamLockRequestFailed: '편집 요청을 보낼 수 없습니다. 다시 시도하세요.',
+        teamLockGrantFailed: '편집을 허용할 수 없습니다. 다시 시도하세요.',
+        teamLockDismissFailed: '요청을 거절할 수 없습니다. 다시 시도하세요.',
         teamLockUnknownUser: '다른 사용자',
         teamTakeLock: '편집 인수',
         teamReleaseLock: '잠금 해제',
@@ -7579,6 +7593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ensureClassFormExtendedMarkup();
     repairCorruptedLangToggleButton();
     setupTeamLockButtons();
+    setupTeamLockPendingButtons();
     loadLanguage();
     loadTheme();
     warnIfOpenedFromNetworkFile();
@@ -11841,10 +11856,18 @@ function applyTeamLockAccessState(lockState) {
     const readOnly = Boolean(lockState && lockState.readOnly);
     const lock = lockState && lockState.lock;
     const holdsLock = Boolean(lockState && lockState.holdsLock);
+    const pendingEditRequest = Boolean(
+        lockState && lockState.pendingEditRequest != null
+            ? lockState.pendingEditRequest
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state.pendingEditRequest
+    );
     const main = document.getElementById('appMain');
     const statusBar = document.getElementById('teamLockStatus');
     const labelEl = document.getElementById('teamLockStatusLabel');
     const btn = document.getElementById('teamLockStatusBtn');
+    const pendingActions = document.getElementById('teamLockPendingActions');
+    const allowBtn = document.getElementById('teamLockAllowBtn');
+    const dismissBtn = document.getElementById('teamLockDismissBtn');
     const iconOpen = statusBar && statusBar.querySelector('.team-lock-icon--open');
     const iconClosed = statusBar && statusBar.querySelector('.team-lock-icon--closed');
 
@@ -11868,18 +11891,25 @@ function applyTeamLockAccessState(lockState) {
         'team-lock-status--free',
         'team-lock-status--held',
         'team-lock-status--blocked',
-        'team-lock-status--pending'
+        'team-lock-status--pending',
+        'team-lock-status--waiting'
     );
 
     const pending = holdsLock && lock && lock.pendingRequester;
     let mode = 'free';
     let labelText = t('teamLockStatusFree');
     let actionLabel = t('teamLockActionAcquire');
+    let lockBtnDisabled = false;
 
-    if (readOnly && lock) {
+    if (pendingEditRequest && readOnly && lock) {
+        mode = 'waiting';
+        labelText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
+        actionLabel = t('teamLockActionWaiting');
+        lockBtnDisabled = true;
+    } else if (readOnly && lock) {
         mode = 'blocked';
         labelText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
-        actionLabel = t('teamLockActionRequestEdit');
+        actionLabel = t('teamLockActionRequest');
     } else if (holdsLock) {
         if (pending) {
             mode = 'pending';
@@ -11895,6 +11925,17 @@ function applyTeamLockAccessState(lockState) {
     labelEl.textContent = labelText;
     btn.title = actionLabel;
     btn.setAttribute('aria-label', labelText + '. ' + actionLabel);
+    btn.disabled = lockBtnDisabled;
+
+    if (allowBtn) {
+        allowBtn.textContent = t('teamLockAllow');
+    }
+    if (dismissBtn) {
+        dismissBtn.textContent = t('teamLockDismiss');
+    }
+    if (pendingActions) {
+        pendingActions.hidden = mode !== 'pending';
+    }
 
     if (iconOpen && iconClosed) {
         const showOpen = mode === 'free';
@@ -11903,6 +11944,30 @@ function applyTeamLockAccessState(lockState) {
     }
 
     notifyLockStateChange(lockState);
+}
+
+async function maybeAutoReloadTeamCalendar(meta, lockState) {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return;
+    }
+    if (CalendarSync.state.holdsLock || CalendarSync.state.saving) {
+        return;
+    }
+    const serverRev = meta && meta.revision;
+    if (!serverRev || serverRev <= CalendarSync.state.revision) {
+        return;
+    }
+    const wasReadOnly = lockState && lockState.wasReadOnly;
+    const unlocked = wasReadOnly && !CalendarSync.state.readOnly;
+    const lockCleared = !(meta && meta.lock);
+    const hadRemoteNewer = CalendarSync.state.remoteNewer;
+    if (unlocked || lockCleared || hadRemoteNewer) {
+        try {
+            await reloadActiveCalendarFromServer();
+        } catch (err) {
+            console.error('Auto-reload failed:', err);
+        }
+    }
 }
 
 function setupTeamLockButtons() {
@@ -11927,42 +11992,57 @@ function setupTeamLockButtons() {
 
         const statusBar = document.getElementById('teamLockStatus');
         const mode = statusBar
-            ? statusBar.classList.contains('team-lock-status--held') ||
-              statusBar.classList.contains('team-lock-status--pending')
-                ? 'held'
-                : statusBar.classList.contains('team-lock-status--blocked')
-                  ? 'blocked'
-                  : 'free'
+            ? statusBar.classList.contains('team-lock-status--waiting')
+                ? 'waiting'
+                : statusBar.classList.contains('team-lock-status--held') ||
+                    statusBar.classList.contains('team-lock-status--pending')
+                  ? 'held'
+                  : statusBar.classList.contains('team-lock-status--blocked')
+                    ? 'blocked'
+                    : 'free'
             : 'free';
+
+        if (mode === 'waiting') {
+            return;
+        }
 
         btn.disabled = true;
 
         try {
             if (mode === 'held') {
+                await CalendarSync.flushPendingSave().catch(() => {});
                 await CalendarSync.releaseLock(id);
                 teamLockPreviousCalendarId = null;
+                showLockFlash(t('teamLockReleasedFlash'), false);
             } else if (mode === 'blocked') {
-                const lock = CalendarSync.state.lock;
-                const holder = formatLockParty(lock);
-                const result = await CalendarSync.acquireLock(id, false);
+                const holder = CalendarSync.state.lock;
+                const result = await CalendarSync.acquireLock(id);
                 applyTeamLockAccessState({
                     readOnly: CalendarSync.state.readOnly,
                     lock: CalendarSync.state.lock,
-                    holdsLock: CalendarSync.state.holdsLock
+                    holdsLock: CalendarSync.state.holdsLock,
+                    pendingEditRequest: CalendarSync.state.pendingEditRequest
                 });
                 if (result && result.editRequestRecorded) {
-                    showLockFlash(t('teamLockRequestSent').replace('{name}', holder), false);
-                } else {
-                    showLockFlash(t('teamLockBlockedNoSteal').replace('{name}', holder), true);
+                    showLockFlash(
+                        t('teamLockRequestSentFlash').replace('{name}', formatLockParty(holder)),
+                        false
+                    );
+                } else if (CalendarSync.state.holdsLock) {
+                    showLockFlash(t('teamLockHeldFlash'), false);
                 }
                 return;
             } else {
-                await CalendarSync.acquireLock(id, false);
+                await CalendarSync.acquireLock(id);
+                if (CalendarSync.state.holdsLock) {
+                    showLockFlash(t('teamLockHeldFlash'), false);
+                }
             }
             applyTeamLockAccessState({
                 readOnly: CalendarSync.state.readOnly,
                 lock: CalendarSync.state.lock,
-                holdsLock: CalendarSync.state.holdsLock
+                holdsLock: CalendarSync.state.holdsLock,
+                pendingEditRequest: CalendarSync.state.pendingEditRequest
             });
         } catch (err) {
             try {
@@ -11970,7 +12050,8 @@ function setupTeamLockButtons() {
                 applyTeamLockAccessState({
                     readOnly: CalendarSync.state.readOnly,
                     lock: CalendarSync.state.lock,
-                    holdsLock: CalendarSync.state.holdsLock
+                    holdsLock: CalendarSync.state.holdsLock,
+                    pendingEditRequest: CalendarSync.state.pendingEditRequest
                 });
             } catch (_) {
                 /* ignore */
@@ -11981,13 +12062,90 @@ function setupTeamLockButtons() {
                     : mode === 'blocked'
                       ? err && err.message
                           ? err.message
-                          : t('teamLockTakeFailed')
-                      : t('teamLockTakeFailed');
+                          : t('teamLockRequestFailed')
+                      : t('teamLockRequestFailed');
             showLockFlash(msg, true);
         } finally {
-            btn.disabled = false;
+            const statusBarAfter = document.getElementById('teamLockStatus');
+            const stillWaiting =
+                statusBarAfter && statusBarAfter.classList.contains('team-lock-status--waiting');
+            btn.disabled = stillWaiting;
         }
     });
+}
+
+function setupTeamLockPendingButtons() {
+    const allowBtn = document.getElementById('teamLockAllowBtn');
+    const dismissBtn = document.getElementById('teamLockDismissBtn');
+    if (!allowBtn || !dismissBtn) {
+        return;
+    }
+    if (allowBtn.dataset.teamLockBound !== '1') {
+        allowBtn.dataset.teamLockBound = '1';
+        allowBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+                return;
+            }
+            const id = CalendarSync.getActiveCalendarId();
+            if (!id) {
+                return;
+            }
+            const pending = CalendarSync.state.lock && CalendarSync.state.lock.pendingRequester;
+            allowBtn.disabled = true;
+            dismissBtn.disabled = true;
+            try {
+                await CalendarSync.grantLockToPending(id);
+                applyTeamLockAccessState({
+                    readOnly: CalendarSync.state.readOnly,
+                    lock: CalendarSync.state.lock,
+                    holdsLock: CalendarSync.state.holdsLock,
+                    pendingEditRequest: CalendarSync.state.pendingEditRequest
+                });
+                showLockFlash(
+                    t('teamLockAllowedOtherFlash').replace('{name}', formatLockParty(pending)),
+                    false
+                );
+            } catch (err) {
+                showLockFlash(err.message || t('teamLockGrantFailed'), true);
+            } finally {
+                allowBtn.disabled = false;
+                dismissBtn.disabled = false;
+            }
+        });
+    }
+    if (dismissBtn.dataset.teamLockBound !== '1') {
+        dismissBtn.dataset.teamLockBound = '1';
+        dismissBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+                return;
+            }
+            const id = CalendarSync.getActiveCalendarId();
+            if (!id) {
+                return;
+            }
+            allowBtn.disabled = true;
+            dismissBtn.disabled = true;
+            try {
+                await CalendarSync.dismissLockRequest(id);
+                applyTeamLockAccessState({
+                    readOnly: CalendarSync.state.readOnly,
+                    lock: CalendarSync.state.lock,
+                    holdsLock: CalendarSync.state.holdsLock,
+                    pendingEditRequest: CalendarSync.state.pendingEditRequest
+                });
+                showLockFlash(t('teamLockDismissedFlash'), false);
+            } catch (err) {
+                showLockFlash(err.message || t('teamLockDismissFailed'), true);
+            } finally {
+                allowBtn.disabled = false;
+                dismissBtn.disabled = false;
+            }
+        });
+    }
 }
 
 function setupChangePasswordModal() {
@@ -12365,21 +12523,24 @@ async function switchToTeamCalendar(id, calendarsOptional) {
     CalendarSync.setActiveCalendarId(id);
     try {
         const doc = await CalendarSync.loadCalendar(id);
-        if (CalendarSync.state.readOnly) {
-            teamLockPreviousCalendarId = null;
-        } else {
-            await CalendarSync.acquireLock(id, false);
-            teamLockPreviousCalendarId = CalendarSync.state.readOnly ? null : id;
-        }
+        await CalendarSync.acquireLock(id);
+        teamLockPreviousCalendarId = id;
         applyTeamLockAccessState({
             readOnly: CalendarSync.state.readOnly,
             lock: CalendarSync.state.lock,
-            holdsLock: CalendarSync.state.holdsLock
+            holdsLock: CalendarSync.state.holdsLock,
+            pendingEditRequest: CalendarSync.state.pendingEditRequest
         });
         applyServerDocument(doc);
         initializeTermStart();
         renderCalendar();
         updateTeamSyncStatus('saved');
+        if (CalendarSync.state.pendingEditRequest && CalendarSync.state.readOnly) {
+            showLockFlash(
+                t('teamLockWaitingFlash').replace('{name}', formatLockParty(CalendarSync.state.lock)),
+                false
+            );
+        }
     } catch (err) {
         if (err.status === 404) {
             showSyncToast(t('teamCalendarAccessLost'), true);
@@ -12813,6 +12974,9 @@ async function initTeamSync() {
         onLockChange(lockState) {
             applyTeamLockAccessState(lockState);
         },
+        async onLockOrRevisionChange(meta, lockState) {
+            await maybeAutoReloadTeamCalendar(meta, lockState);
+        },
         onRemoteNewer(meta) {
             document.getElementById('remoteNewerBanner').style.display = 'flex';
             document.getElementById('teamReloadBtn').style.display = 'inline-flex';
@@ -12854,6 +13018,8 @@ async function initTeamSync() {
     updateTeamSyncStatus('connected');
     setupTeamUserBar();
     setupTeamLockButtons();
+    setupTeamLockPendingButtons();
+    setupTeamLockPendingButtons();
 
     await setupHostEnginePanel();
 

@@ -61,6 +61,19 @@
         <div id="adminNotice" class="admin-notice" role="status" aria-live="polite" hidden></div>
         <p id="adminStatus" class="admin-hint"></p>
 
+        <section class="admin-section" id="lockSettingsSection" hidden>
+            <h2>Lock settings</h2>
+            <p class="admin-hint">If a teacher closes the browser without releasing the edit lock, others can start editing after this many minutes of no lock activity.</p>
+            <form class="admin-form" id="lockSettingsForm" style="max-width: 28rem;">
+                <label>
+                    Lock expires after
+                    <input type="number" id="lockStaleMinutesInput" min="5" max="120" step="1" value="20" required>
+                    minutes of no activity
+                </label>
+                <button type="submit" class="btn btn-primary">Save lock settings</button>
+            </form>
+        </section>
+
         <section class="admin-section" id="usersSection" hidden>
             <h2>Teachers &amp; admins</h2>
             <p class="admin-hint">Add teachers by <strong>email</strong>. They sign in with Kakao or a password you set. Use <strong>Reset password</strong> anytime to set a new temp password (they must sign in again).</p>

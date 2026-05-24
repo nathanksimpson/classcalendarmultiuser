@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const express = require('express');
 const calendars = require('./calendars');
 const users = require('./users');
+const appSettings = require('./app-settings');
 const kakao = require('./kakao');
 const CalAccess = require('./calendar-access');
 const { getDb } = require('./schema');
@@ -357,6 +358,18 @@ app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
     res.json(users.getUserById(targetId));
 });
 
+app.get('/api/admin/settings', requireUser, requireAdmin, (_req, res) => {
+    res.json(appSettings.getAdminSettings());
+});
+
+app.patch('/api/admin/settings', requireUser, requireAdmin, (req, res) => {
+    if (req.body.lockStaleMinutes === undefined) {
+        res.json(appSettings.getAdminSettings());
+        return;
+    }
+    res.json(appSettings.setLockStaleMinutes(req.body.lockStaleMinutes));
+});
+
 app.get('/api/teachers', requireUser, (req, res) => {
     const teachers = CalAccess.listTeachers();
     if (!CalAccess.isAdmin(req.user)) {
@@ -482,7 +495,14 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
         return;
     }
     const lock = users.lockStatusForClient(req.params.id, req.user.id);
-    res.json(Object.assign({}, meta, { lock: lock.lock, readOnly: lock.readOnly }));
+    res.json(
+        Object.assign({}, meta, {
+            lock: lock.lock,
+            readOnly: lock.readOnly,
+            pendingEditRequest: lock.pendingEditRequest,
+            lockStaleMinutes: lock.lockStaleMinutes
+        })
+    );
 });
 
 app.get('/api/calendars/:id', requireUser, (req, res) => {
@@ -496,7 +516,14 @@ app.get('/api/calendars/:id', requireUser, (req, res) => {
         return;
     }
     const lock = users.lockStatusForClient(req.params.id, req.user.id);
-    res.json(Object.assign({}, doc, { lock: lock.lock, readOnly: lock.readOnly }));
+    res.json(
+        Object.assign({}, doc, {
+            lock: lock.lock,
+            readOnly: lock.readOnly,
+            pendingEditRequest: lock.pendingEditRequest,
+            lockStaleMinutes: lock.lockStaleMinutes
+        })
+    );
 });
 
 app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
@@ -509,15 +536,40 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    const force = Boolean(req.body && req.body.force);
     const name = req.user.displayName || req.user.email || 'Teacher';
-    users.acquireLock(req.params.id, req.user.id, name, force);
-    const status = users.lockStatusForClient(req.params.id, req.user.id);
-    res.json({
-        acquired: !status.readOnly,
-        lock: status.lock,
-        readOnly: status.readOnly
-    });
+    const result = users.acquireLock(req.params.id, req.user.id, name);
+    const payload = users.lockPayloadForClient(req.params.id, req.user.id);
+    payload.editRequestRecorded = Boolean(result.editRequestRecorded);
+    if (result.acquired) {
+        payload.acquired = true;
+    }
+    res.json(payload);
+});
+
+app.post('/api/calendars/:id/lock/grant', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    try {
+        users.grantLockToPending(req.params.id, req.user.id);
+        res.json(users.lockPayloadForClient(req.params.id, req.user.id));
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Grant failed' });
+    }
+});
+
+app.post('/api/calendars/:id/lock/dismiss', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    try {
+        users.dismissLockRequest(req.params.id, req.user.id);
+        res.json(users.lockPayloadForClient(req.params.id, req.user.id));
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Dismiss failed' });
+    }
 });
 
 app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
@@ -549,7 +601,7 @@ app.post('/api/calendars', requireUser, (req, res) => {
     }
     const gids = Array.isArray(groupIds) ? groupIds.map(String) : [];
     CalAccess.setCalendarAccess(id, memberIds, gids, req.user.id);
-    users.acquireLock(id, req.user.id, label, true);
+    users.assignLockHolder(id, req.user.id, label);
     res.status(201).json(doc);
 });
 
