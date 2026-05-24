@@ -210,7 +210,7 @@ async function verifyPassword(password, stored) {
             keyMaterial,
             256
         );
-        return safeEqualHex(bytesToHex(new Uint8Array(bits)), parsed.hashHex);
+        return safeEqualHex(bytesToHex(new Uint8Array(bits)).toLowerCase(), parsed.hashHex.toLowerCase());
     }
     const [salt, hash] = stored.split(':');
     if (!salt || !hash) {
@@ -379,7 +379,8 @@ export default {
     async fetch(request, env) {
         const url = new URL(request.url);
         const path = url.pathname;
-        const secure = publicUrl(env, request).startsWith('https://');
+        // Use the actual request scheme — PUBLIC_URL is https even on wrangler dev (http://localhost).
+        const secure = url.protocol === 'https:';
         const kakaoId = env.KAKAO_CLIENT_ID || '';
 
         if (!path.startsWith('/api/')) {

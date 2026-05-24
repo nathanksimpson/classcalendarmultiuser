@@ -24,7 +24,8 @@
         onStatusChange: null,
         onRemoteNewer: null,
         onConflict: null,
-        onLockChange: null
+        onLockChange: null,
+        onSaved: null
     };
 
     function redirectToLogin() {
@@ -263,6 +264,9 @@
                 });
                 state.revision = doc.revision || state.revision;
                 setStatus('saved');
+                if (typeof handlers.onSaved === 'function') {
+                    handlers.onSaved(doc);
+                }
                 return doc;
             } catch (err) {
                 if (err.status === 409 && err.body && err.body.document) {

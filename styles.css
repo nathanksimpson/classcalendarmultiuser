@@ -4566,22 +4566,21 @@ input.input-readonly {
     color: #111;
 }
 
-/* Team sync (multi-user cloud) */
-.team-sync-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 0.75rem;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0.5rem;
-    background: var(--surface-elevated, #f4f6f8);
-    border: 1px solid var(--border-color, #dde3ea);
-    border-radius: 8px;
+/* Team sync (multi-user cloud) — uses .term-selector layout in calendar options */
+.team-calendar-row .team-calendar-select {
+    min-width: 10rem;
+    max-width: 16rem;
+    flex: 1 1 10rem;
 }
 
-.team-sync-label {
+.team-calendar-row .team-sync-status {
+    font-size: 0.8125rem;
     font-weight: 600;
-    font-size: 0.875rem;
+    color: var(--text-secondary);
+    padding: 6px 10px;
+    border-radius: var(--border-radius);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
 }
 
 .team-user-label {
@@ -4610,49 +4609,36 @@ input.input-readonly {
     border-color: #fcd34d;
 }
 
-.team-sync-select {
-    min-width: 10rem;
-    max-width: 18rem;
-    flex: 1 1 10rem;
-}
-
-.team-sync-select--highlight {
+.team-calendar-select.team-sync-select--highlight {
     outline: 2px solid var(--accent, #2563eb);
     outline-offset: 2px;
 }
 
-.team-sync-status {
-    font-size: 0.8125rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-}
-
-.team-sync-status.status-connected,
-.team-sync-status.status-saved {
+.team-calendar-row .team-sync-status.status-connected,
+.team-calendar-row .team-sync-status.status-saved {
     color: #047857;
-    background: #d1fae5;
+    border-color: #a7f3d0;
+    background: #ecfdf5;
 }
 
-.team-sync-status.status-connecting,
-.team-sync-status.status-saving {
+.team-calendar-row .team-sync-status.status-connecting,
+.team-calendar-row .team-sync-status.status-saving {
     color: #92400e;
-    background: #fef3c7;
+    border-color: #fde68a;
+    background: #fffbeb;
 }
 
-.team-sync-status.status-offline {
+.team-calendar-row .team-sync-status.status-offline {
     color: #4b5563;
-    background: #e5e7eb;
+    border-color: var(--border-color);
+    background: var(--bg-main);
 }
 
-.team-sync-status.status-error,
-.team-sync-status.status-conflict {
+.team-calendar-row .team-sync-status.status-error,
+.team-calendar-row .team-sync-status.status-conflict {
     color: #b91c1c;
-    background: #fee2e2;
-}
-
-.team-calendar-hint {
-    margin: 0 0 0.75rem;
-    font-size: 0.8125rem;
+    border-color: #fecaca;
+    background: #fef2f2;
 }
 
 .remote-newer-banner,
@@ -4743,10 +4729,6 @@ input.input-readonly {
 
 .delete-calendar-message {
     margin: 0 0 1rem;
-}
-
-[data-theme="dark"] .team-sync-bar {
-    background: var(--surface-elevated);
 }
 
 [data-theme="dark"] .host-engine-panel {

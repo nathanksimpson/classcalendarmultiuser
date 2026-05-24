@@ -50,7 +50,8 @@ const translations = {
         newCalendarNamePrompt: 'Name for the new team calendar:',
         newCalendarFailed: 'Could not create calendar',
         teamDeleteCalendar: 'Remove',
-        teamCalendarHint: 'Pick a calendar from the list, or click + New to add one. It will appear in the dropdown right away.',
+        teamCalendarHint: 'Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.',
+        teamCalendarNameLabel: 'Calendar name (saved):',
         teamCalendarEmpty: '— No calendars yet — click + New',
         newCalendarTitle: 'Add team calendar',
         newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team folder and selected in the dropdown above.',
@@ -562,7 +563,8 @@ const translations = {
         newCalendarNamePrompt: '새 팀 캘린더 이름:',
         newCalendarFailed: '캘린더를 만들지 못했습니다',
         teamDeleteCalendar: '삭제',
-        teamCalendarHint: '목록에서 캘린더를 선택하거나 + 새로 만들기를 누르세요. 바로 드롭다운에 표시됩니다.',
+        teamCalendarHint: '목록에서 캘린더를 선택하거나 + 새로 만들기를 누르세요. 아래 캘린더 이름을 바꾸면 저장된 이름도 바뀝니다.',
+        teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
         newCalendarTitle: '팀 캘린더 추가',
         newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀 폴더에 저장되고 위 목록에서 선택됩니다.',
@@ -1138,7 +1140,16 @@ function applyLanguage() {
         updatePrintSummary();
     }
     applyTopBarCollapsedState();
+    refreshCalendarNameLabel();
     document.dispatchEvent(new CustomEvent('calendarLanguageChanged', { detail: { lang: currentLanguage } }));
+}
+
+function refreshCalendarNameLabel() {
+    const nameLabel = document.getElementById('calendarNameLabel');
+    if (!nameLabel) {
+        return;
+    }
+    nameLabel.textContent = teamSyncEnabled ? t('teamCalendarNameLabel') : t('calendarName');
 }
 
 function updateCalendarTitle() {
@@ -7514,9 +7525,10 @@ function setupEventListeners() {
     // Calendar Name Change
     elements.calendarName.addEventListener('input', (e) => {
         appData.calendarName = e.target.value;
-        saveData();
+        updateActiveTeamCalendarOptionLabel();
         updateCalendarTitle();
         updateTopBarCalendarLabel();
+        saveData();
     });
     
     // Term Start Change
@@ -11813,10 +11825,41 @@ function applyServerDocument(doc) {
     if (!doc || !doc.data) {
         return;
     }
-    applyLoadedAppData(doc.data);
+    const data = Object.assign({}, doc.data);
+    const serverName = doc.name && String(doc.name).trim();
+    if (serverName) {
+        data.calendarName = serverName;
+    }
+    applyLoadedAppData(data);
+    if (elements.calendarName) {
+        elements.calendarName.value = appData.calendarName || '';
+    }
     if (typeof CalendarSync !== 'undefined') {
         CalendarSync.state.revision = doc.revision;
     }
+    updateActiveTeamCalendarOptionLabel();
+    updateCalendarTitle();
+    updateTopBarCalendarLabel();
+}
+
+function updateActiveTeamCalendarOptionLabel() {
+    const sel = document.getElementById('teamCalendarSelect');
+    if (!sel || !sel.value) {
+        return;
+    }
+    const label = (appData.calendarName && appData.calendarName.trim()) || sel.selectedOptions[0]?.textContent || '';
+    const opt = sel.querySelector('option[value="' + CSS.escape(sel.value) + '"]');
+    if (opt && label) {
+        opt.textContent = label;
+    }
+}
+
+function setTeamCalendarRowVisible(visible) {
+    const row = document.getElementById('teamCalendarRow');
+    if (row) {
+        row.hidden = !visible;
+    }
+    refreshCalendarNameLabel();
 }
 
 // ============================================
@@ -12166,6 +12209,17 @@ async function initTeamSync() {
 
     CalendarSync.setHandlers({
         onStatusChange: updateTeamSyncStatus,
+        onSaved(doc) {
+            if (doc && doc.name && String(doc.name).trim()) {
+                appData.calendarName = String(doc.name).trim();
+                if (elements.calendarName) {
+                    elements.calendarName.value = appData.calendarName;
+                }
+            }
+            updateActiveTeamCalendarOptionLabel();
+            updateCalendarTitle();
+            updateTopBarCalendarLabel();
+        },
         onLockChange(lockState) {
             applyTeamLockAccessState(lockState);
         },
@@ -12195,22 +12249,17 @@ async function initTeamSync() {
         }
     });
 
-    const bar = document.getElementById('teamSyncBar');
     const connected = await CalendarSync.checkHealth();
 
     if (!connected) {
         teamSyncEnabled = false;
-        if (bar) {
-            bar.style.display = 'none';
-        }
+        setTeamCalendarRowVisible(false);
         updateTeamSyncStatus('offline');
         return;
     }
 
     teamSyncEnabled = true;
-    if (bar) {
-        bar.style.display = 'flex';
-    }
+    setTeamCalendarRowVisible(true);
     updateTeamSyncStatus('connected');
     setupTeamUserBar();
 

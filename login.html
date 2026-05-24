@@ -85,7 +85,7 @@
                     <label for="loginEmail">Email</label>
                     <input type="email" id="loginEmail" name="email" autocomplete="username" required>
                     <label for="loginPassword">Password</label>
-                    <input type="password" id="loginPassword" name="password" autocomplete="current-password">
+                    <input type="password" id="loginPassword" name="password" autocomplete="current-password" required>
                     <button type="submit" class="btn btn-primary" style="width: 100%;">Sign in</button>
                 </form>
                 <p id="loginError" class="login-error" style="display: none;"></p>
@@ -119,25 +119,44 @@
             document.getElementById('passwordForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const errEl = document.getElementById('loginError');
+                const submitBtn = e.target.querySelector('button[type="submit"]');
                 errEl.style.display = 'none';
+                const email = document.getElementById('loginEmail').value.trim();
+                const password = document.getElementById('loginPassword').value;
+                if (!email || !password) {
+                    errEl.style.display = 'block';
+                    errEl.textContent = 'Enter your email and password.';
+                    return;
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                }
                 try {
                     const res = await fetch('/api/auth/password', {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            email: document.getElementById('loginEmail').value,
-                            password: document.getElementById('loginPassword').value
-                        })
+                        body: JSON.stringify({ email, password })
                     });
                     const json = await res.json().catch(() => ({}));
                     if (!res.ok) {
                         throw new Error(json.error || 'Sign in failed');
                     }
-                    location.href = returnTo.startsWith('/') ? returnTo : '/';
+                    const dest = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+                    location.replace(dest);
                 } catch (ex) {
                     errEl.style.display = 'block';
-                    errEl.textContent = ex.message;
+                    const msg = ex && ex.message ? ex.message : 'Sign in failed';
+                    if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
+                        errEl.textContent =
+                            'Cannot reach the server. Open the team URL from your browser (https://…workers.dev), not a file on your PC.';
+                    } else {
+                        errEl.textContent = msg;
+                    }
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                    }
                 }
             });
         })();
