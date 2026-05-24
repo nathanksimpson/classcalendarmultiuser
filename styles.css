@@ -4578,7 +4578,24 @@ input.input-readonly {
     color: #111;
 }
 
-/* Team sync (multi-user cloud) — uses .term-selector layout in calendar options */
+/* Team sync (multi-user cloud) */
+.team-calendar-row--header {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin: 0 0 0.65rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--surface-muted, #f8fafc);
+    max-width: 100%;
+}
+
+.team-calendar-row--header .team-calendar-hint {
+    flex: 1 1 100%;
+    margin: 0.15rem 0 0;
+}
+
 .team-calendar-row .team-calendar-select {
     min-width: 10rem;
     max-width: 16rem;
@@ -4866,6 +4883,15 @@ input.input-readonly {
 
 .app-main--team-readonly {
     opacity: 0.92;
+}
+
+.app-main--team-readonly .app-tab-panel {
+    pointer-events: none;
+    user-select: none;
+}
+
+.app-main--team-readonly .calendar-panel-toolbar {
+    pointer-events: none;
 }
 
 .team-calendar-select.team-sync-select--highlight {

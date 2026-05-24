@@ -46,6 +46,17 @@
                 <span id="teamLockStatusLabel" class="team-lock-status-label"></span>
             </div>
 
+            <div id="teamCalendarRow" class="term-selector team-calendar-row team-calendar-row--header" hidden>
+                <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
+                <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar"></select>
+                <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
+                <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
+                <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
+                <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
+                <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
+                <p class="team-calendar-hint kr-holidays-source-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
+            </div>
+
             <div id="openFromDriveBanner" class="open-from-drive-banner" style="display: none;" role="alert">
                 <strong data-i18n="openFromDriveTitle">Use the team link, not this file</strong>
                 <p data-i18n="openFromDriveHint">Open the app from your team URL in the browser — do not double-click index.html from a folder.</p>
@@ -119,16 +130,6 @@
                 </button>
 
             <div id="topBarDetails" class="app-top-bar-details calendar-options-details">
-                <div id="teamCalendarRow" class="term-selector team-calendar-row" hidden>
-                    <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
-                    <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar"></select>
-                    <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
-                    <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
-                    <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
-                    <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
-                    <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
-                    <p class="team-calendar-hint kr-holidays-source-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
-                </div>
                 <div class="term-selector">
                     <label for="calendarName" id="calendarNameLabel">Calendar Name:</label>
                     <input type="text" id="calendarName" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
@@ -717,7 +718,7 @@
                 <h2 id="newCalendarModalTitle" data-i18n="newCalendarTitle">Add team calendar</h2>
                 <button type="button" class="modal-close" id="closeNewCalendarModal" aria-label="Close">&times;</button>
             </div>
-            <p class="section-hint" data-i18n="newCalendarHint">Enter a name (e.g. Spring 2026). It will be saved to the team folder and selected in the dropdown above.</p>
+            <p class="section-hint" data-i18n="newCalendarHint">Enter a name (e.g. Spring 2026). It will be saved to the team and selected in the dropdown above.</p>
             <form id="newCalendarForm">
                 <div class="form-group">
                     <label for="newCalendarNameInput" data-i18n="calendarName">Calendar Name:</label>
@@ -727,6 +728,7 @@
                     <label data-i18n="newCalendarAccessTeachers">Who can access this calendar?</label>
                     <p class="section-hint" data-i18n="newCalendarAccessHint">Check teachers and/or groups. You are always included. Admins can see all calendars.</p>
                     <div id="newCalendarTeachersList" class="access-checkbox-list" role="group" aria-label="Teachers"></div>
+                    <p class="access-groups-label section-hint" data-i18n="newCalendarAccessGroupsLabel" hidden>Groups</p>
                     <div id="newCalendarGroupsList" class="access-checkbox-list access-checkbox-list--groups" role="group" aria-label="Groups"></div>
                 </div>
                 <div class="form-actions">

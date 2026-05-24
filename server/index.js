@@ -273,6 +273,10 @@ app.post('/api/admin/users', requireUser, requireAdmin, (req, res) => {
     res.status(201).json(user);
 });
 
+app.delete('/api/admin/users/:id', requireUser, requireAdmin, (_req, res) => {
+    res.status(403).json({ error: 'Users cannot be deleted. Deactivate the account instead.' });
+});
+
 app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
     const targetId = req.params.id;
     const targetRow = getDb().prepare('SELECT * FROM users WHERE id = ?').get(targetId);
@@ -282,6 +286,10 @@ app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
     }
     const nextRole = req.body.role !== undefined ? req.body.role : targetRow.role;
     const nextActive = req.body.active !== undefined ? (req.body.active ? 1 : 0) : targetRow.active;
+    if (targetId === req.user.id && nextActive === 0) {
+        res.status(403).json({ error: 'You cannot deactivate your own account' });
+        return;
+    }
     if (targetRow.role === 'admin' && nextActive === 0 && users.countAdmins() <= 1) {
         res.status(403).json({ error: 'Cannot deactivate the last admin' });
         return;
@@ -300,6 +308,9 @@ app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
     if (!updated) {
         res.status(404).json({ error: 'User not found' });
         return;
+    }
+    if (targetRow.active === 1 && nextActive === 0) {
+        users.deleteAllSessionsForUser(targetId);
     }
     res.json(updated);
 });

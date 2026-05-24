@@ -23,6 +23,11 @@ function escapeHtml(s) {
 let cachedTeachers = [];
 let cachedGroups = [];
 let cachedAdminCalendars = [];
+let currentAdminId = null;
+
+function countActiveAdmins(users) {
+    return (users || []).filter((u) => u.active && u.role === 'admin').length;
+}
 
 function renderCheckboxGrid(container, items, name, selectedIds, labelKey) {
     container.innerHTML = '';
@@ -60,10 +65,32 @@ async function loadTeachersCache() {
     return cachedTeachers;
 }
 
+async function deactivateUser(u) {
+    const label = u.email || u.displayName || u.id;
+    if (
+        !confirm(
+            'Deactivate ' +
+                label +
+                '?\n\nThey will not be able to sign in until you Reactivate them. Accounts are never permanently deleted.'
+        )
+    ) {
+        return;
+    }
+    await api('/admin/users/' + encodeURIComponent(u.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: false })
+    });
+    await refreshAll();
+    setStatus('Deactivated ' + label + '.');
+}
+
 async function loadUsers() {
     const users = await api('/admin/users');
     const body = document.getElementById('usersBody');
     body.innerHTML = '';
+    const activeAdminCount = countActiveAdmins(users);
+
     users.forEach((u) => {
         const tr = document.createElement('tr');
         tr.innerHTML =
@@ -74,26 +101,25 @@ async function loadUsers() {
             '</td><td>' +
             escapeHtml(u.role) +
             '</td><td>' +
-            (u.active ? 'Active' : '<span class="badge-inactive">Off</span>') +
+            (u.active ? 'Active' : '<span class="badge-inactive">Deactivated</span>') +
             '</td><td class="admin-actions"></td>';
         const actions = tr.querySelector('.admin-actions');
+        const isSelf = currentAdminId && u.id === currentAdminId;
+
         if (u.active) {
-            const deact = document.createElement('button');
-            deact.type = 'button';
-            deact.className = 'btn btn-outline btn-small';
-            deact.textContent = 'Deactivate';
-            deact.onclick = async () => {
-                if (!confirm('Deactivate ' + (u.email || u.displayName) + '?')) {
-                    return;
+            if (!isSelf) {
+                const deact = document.createElement('button');
+                deact.type = 'button';
+                deact.className = 'btn btn-outline btn-small';
+                deact.textContent = 'Deactivate';
+                deact.title = 'Block sign-in (account is kept; use Reactivate later)';
+                deact.onclick = () => deactivateUser(u).catch((ex) => setStatus(ex.message, true));
+                if (u.role === 'admin' && activeAdminCount <= 1) {
+                    deact.disabled = true;
+                    deact.title = 'Cannot deactivate the only admin';
                 }
-                await api('/admin/users/' + encodeURIComponent(u.id), {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ active: false })
-                });
-                await refreshAll();
-            };
-            actions.appendChild(deact);
+                actions.appendChild(deact);
+            }
             if (u.role === 'teacher') {
                 const promote = document.createElement('button');
                 promote.type = 'button';
@@ -109,9 +135,10 @@ async function loadUsers() {
                         body: JSON.stringify({ role: 'admin' })
                     });
                     await refreshAll();
+                    setStatus('User is now an admin.');
                 };
                 actions.appendChild(promote);
-            } else if (users.filter((x) => x.role === 'admin' && x.active).length > 1) {
+            } else if (activeAdminCount > 1 && !isSelf) {
                 const demote = document.createElement('button');
                 demote.type = 'button';
                 demote.className = 'btn btn-outline btn-small';
@@ -126,6 +153,7 @@ async function loadUsers() {
                         body: JSON.stringify({ role: 'teacher' })
                     });
                     await refreshAll();
+                    setStatus('User is now a teacher.');
                 };
                 actions.appendChild(demote);
             }
@@ -134,6 +162,7 @@ async function loadUsers() {
             react.type = 'button';
             react.className = 'btn btn-outline btn-small';
             react.textContent = 'Reactivate';
+            react.title = 'Allow sign-in again';
             react.onclick = async () => {
                 await api('/admin/users/' + encodeURIComponent(u.id), {
                     method: 'PATCH',
@@ -141,6 +170,7 @@ async function loadUsers() {
                     body: JSON.stringify({ active: true })
                 });
                 await refreshAll();
+                setStatus('Reactivated ' + (u.email || u.displayName) + '.');
             };
             actions.appendChild(react);
         }
@@ -326,6 +356,7 @@ function showAdminSections(visible) {
 async function init() {
     try {
         const me = await api('/auth/me');
+        currentAdminId = me.id;
         if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
             await TeamAuth.refresh();
         }

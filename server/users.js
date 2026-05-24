@@ -208,6 +208,13 @@ function deleteSession(token) {
     getDb().prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
+function deleteAllSessionsForUser(userId) {
+    if (!userId) {
+        return;
+    }
+    getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+}
+
 function getLock(calendarId) {
     const db = getDb();
     return db.prepare('SELECT * FROM calendar_locks WHERE calendar_id = ?').get(calendarId);
@@ -341,6 +348,7 @@ module.exports = {
     createSession,
     getSessionUser,
     deleteSession,
+    deleteAllSessionsForUser,
     getLock,
     acquireLock,
     refreshLock,

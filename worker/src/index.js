@@ -118,6 +118,12 @@ async function getSessionUser(env, token) {
     return rowToUser(row);
 }
 
+async function deleteAllSessionsForUser(env, userId) {
+    if (userId) {
+        await dbRun(env, 'DELETE FROM sessions WHERE user_id = ?', userId);
+    }
+}
+
 async function createSession(env, userId) {
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
@@ -887,6 +893,12 @@ export default {
         }
 
         const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
+        if (adminUserMatch && user.role === 'admin') {
+            const targetId = adminUserMatch[1];
+            if (request.method === 'DELETE') {
+                return json({ error: 'Users cannot be deleted. Deactivate the account instead.' }, 403);
+            }
+        }
         if (adminUserMatch && request.method === 'PATCH' && user.role === 'admin') {
             const patchBody = await readJson(request);
             const targetId = adminUserMatch[1];
@@ -896,6 +908,9 @@ export default {
             }
             const nextRole = patchBody.role !== undefined ? patchBody.role : targetRow.role;
             const nextActive = patchBody.active !== undefined ? (patchBody.active ? 1 : 0) : targetRow.active;
+            if (targetId === user.id && nextActive === 0) {
+                return json({ error: 'You cannot deactivate your own account' }, 403);
+            }
             if (targetRow.role === 'admin' && nextActive === 0 && (await countAdmins(env)) <= 1) {
                 return json({ error: 'Cannot deactivate the last admin' }, 403);
             }
@@ -911,6 +926,9 @@ export default {
             });
             if (!updated) {
                 return json({ error: 'User not found' }, 404);
+            }
+            if (targetRow.active === 1 && nextActive === 0) {
+                await deleteAllSessionsForUser(env, targetId);
             }
             return json(updated);
         }

@@ -50,11 +50,13 @@ const translations = {
         newCalendarNamePrompt: 'Name for the new team calendar:',
         newCalendarFailed: 'Could not create calendar',
         teamDeleteCalendar: 'Remove',
-        teamCalendarHint: 'Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.',
+        teamCalendarHint: 'Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved team calendar.',
+        newCalendarCreating: 'Creating…',
+        deleteCalendarRemoving: 'Removing…',
         teamCalendarNameLabel: 'Calendar name (saved):',
         teamCalendarEmpty: '— No calendars yet — click + New',
         newCalendarTitle: 'Add team calendar',
-        newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team folder and selected in the dropdown above.',
+        newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team and selected in the dropdown above.',
         newCalendarCreate: 'Create calendar',
         newCalendarCreated: 'Created "{name}" — now selected in Team calendar ↑',
         newCalendarAccessTeachers: 'Who can access this calendar?',
@@ -64,7 +66,7 @@ const translations = {
         teamCalendarAccessLost: 'You no longer have access to that calendar. Switched to another calendar.',
         deleteCalendarTitle: 'Remove team calendar',
         deleteCalendarConfirm: 'Remove permanently',
-        deleteCalendarPrompt: 'Remove "{name}" from the team folder? This cannot be undone.',
+        deleteCalendarPrompt: 'Remove "{name}" from the team? This cannot be undone.',
         deleteCalendarDone: 'Removed "{name}".',
         cancel: 'Cancel',
         openFromDriveTitle: 'Use the team link, not this file',
@@ -587,7 +589,9 @@ const translations = {
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
         newCalendarTitle: '팀 캘린더 추가',
-        newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀 폴더에 저장되고 위 목록에서 선택됩니다.',
+        newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀에 저장되고 위 목록에서 선택됩니다.',
+        newCalendarCreating: '만드는 중…',
+        deleteCalendarRemoving: '삭제 중…',
         newCalendarCreate: '캘린더 만들기',
         newCalendarCreated: '"{name}" 생성됨 — 팀 캘린더 ↑ 에서 선택됨',
         newCalendarAccessTeachers: '이 캘린더에 접근할 수 있는 사람',
@@ -597,7 +601,7 @@ const translations = {
         teamCalendarAccessLost: '해당 캘린더에 더 이상 접근할 수 없습니다. 다른 캘린더로 전환했습니다.',
         deleteCalendarTitle: '팀 캘린더 삭제',
         deleteCalendarConfirm: '영구 삭제',
-        deleteCalendarPrompt: '팀 폴더에서 "{name}"을(를) 삭제할까요? 되돌릴 수 없습니다.',
+        deleteCalendarPrompt: '팀에서 "{name}"을(를) 삭제할까요? 되돌릴 수 없습니다.',
         deleteCalendarDone: '"{name}" 삭제됨.',
         cancel: '취소',
         openFromDriveTitle: '팀 링크를 사용하세요 (이 파일 말고)',
@@ -11769,11 +11773,7 @@ function applyTeamLockAccessState(lockState) {
 
     if (main) {
         main.classList.toggle('app-main--team-readonly', readOnly);
-        if (readOnly) {
-            main.setAttribute('inert', '');
-        } else {
-            main.removeAttribute('inert');
-        }
+        main.removeAttribute('inert');
     }
 
     const calId =
@@ -12333,14 +12333,19 @@ async function createTeamCalendarFromName(name, accessOptions) {
     return created;
 }
 
-function openNewCalendarModal() {
+async function openNewCalendarModal() {
     const modal = document.getElementById('newCalendarModal');
     const input = document.getElementById('newCalendarNameInput');
     if (!modal || !input) {
         return;
     }
     input.value = '';
-    populateNewCalendarAccessPicker();
+    const submitBtn = document.getElementById('submitNewCalendarBtn');
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = t('newCalendarCreate');
+    }
+    await populateNewCalendarAccessPicker();
     openModal(modal);
     setTimeout(() => input.focus(), 100);
 }
@@ -12368,9 +12373,15 @@ async function confirmDeleteTeamCalendar() {
     if (!id) {
         return;
     }
+    const confirmBtn = document.getElementById('confirmDeleteCalendarBtn');
     const label =
         document.getElementById('teamCalendarSelect')?.selectedOptions?.[0]?.textContent || id;
+    const prevConfirmText = confirmBtn ? confirmBtn.textContent : '';
     try {
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = t('deleteCalendarRemoving');
+        }
         CalendarSync.cancelPendingSave();
         await CalendarSync.deleteCalendar(id);
         pendingDeleteCalendarId = null;
@@ -12389,15 +12400,29 @@ async function confirmDeleteTeamCalendar() {
         showSyncToast(t('deleteCalendarDone').replace('{name}', label), false);
     } catch (err) {
         showSyncToast(t('syncError') + ': ' + err.message, true);
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = prevConfirmText || t('deleteCalendarConfirm');
+        }
     }
 }
 
 function setupTeamCalendarModals() {
+    const newForm = document.getElementById('newCalendarForm');
+    if (newForm && newForm.dataset.teamCalBound === '1') {
+        return;
+    }
+    if (newForm) {
+        newForm.dataset.teamCalBound = '1';
+    }
+
     const newModal = document.getElementById('newCalendarModal');
     const delModal = document.getElementById('deleteCalendarModal');
-    const newForm = document.getElementById('newCalendarForm');
 
-    document.getElementById('teamNewCalendarBtn')?.addEventListener('click', () => openNewCalendarModal());
+    document.getElementById('teamNewCalendarBtn')?.addEventListener('click', () => {
+        openNewCalendarModal().catch((err) => showSyncToast(t('newCalendarFailed') + ': ' + err.message, true));
+    });
     document.getElementById('teamDeleteCalendarBtn')?.addEventListener('click', () => openDeleteCalendarModal());
 
     document.getElementById('closeNewCalendarModal')?.addEventListener('click', () => closeModal(newModal));
@@ -12421,9 +12446,11 @@ function setupTeamCalendarModals() {
             input?.focus();
             return;
         }
+        const prevSubmitText = submitBtn ? submitBtn.textContent : '';
         try {
             if (submitBtn) {
                 submitBtn.disabled = true;
+                submitBtn.textContent = t('newCalendarCreating');
             }
             await createTeamCalendarFromName(input.value);
             closeModal(newModal);
@@ -12432,6 +12459,7 @@ function setupTeamCalendarModals() {
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
+                submitBtn.textContent = prevSubmitText || t('newCalendarCreate');
             }
         }
     });
@@ -12591,7 +12619,9 @@ async function initTeamSync() {
             populateCalendarSelect([], null);
             setTeamLockBarVisible(false);
             showSyncToast(t('teamCalendarEmpty'), false);
-            openNewCalendarModal();
+            openNewCalendarModal().catch((err) =>
+                showSyncToast(t('newCalendarFailed') + ': ' + err.message, true)
+            );
         }
     }
 
