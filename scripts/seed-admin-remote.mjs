@@ -6,6 +6,7 @@
  *   node scripts/seed-admin-remote.mjs
  */
 import crypto from 'crypto';
+import { writeFileSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -40,41 +41,35 @@ function sqlQuote(value) {
     return String(value).replace(/'/g, "''");
 }
 
+function wranglerSqlFile(sql) {
+    const file = path.join(root, 'scripts', '.seed-admin-temp.sql');
+    writeFileSync(file, sql, 'utf8');
+    try {
+        execSync(`npx wrangler d1 execute calendar-team --remote --file="${file}"`, {
+            cwd: root,
+            stdio: 'inherit',
+            shell: true
+        });
+    } finally {
+        try {
+            unlinkSync(file);
+        } catch (_) {
+            /* ignore */
+        }
+    }
+}
+
 const em = email.trim().toLowerCase();
 const hash = await hashPassword(password);
 const created = new Date().toISOString();
+const id = crypto.randomUUID();
 
-function wranglerSql(command) {
-    execSync(`npx wrangler d1 execute calendar-team --remote --command "${command.replace(/"/g, '\\"')}"`, {
-        cwd: root,
-        stdio: 'inherit'
-    });
-}
-
-const existing = execSync(
-    `npx wrangler d1 execute calendar-team --remote --command "SELECT id FROM users WHERE email = '${sqlQuote(em)}' LIMIT 1" --json`,
-    { cwd: root, encoding: 'utf8' }
+console.log('Upserting admin user', em);
+wranglerSqlFile(
+    `UPDATE users SET password_hash = '${sqlQuote(hash)}', role = 'admin', active = 1, display_name = '${sqlQuote(displayName)}' WHERE email = '${sqlQuote(em)}';
+INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, active, created_at)
+SELECT '${sqlQuote(id)}', '${sqlQuote(em)}', '${sqlQuote(displayName)}', NULL, '${sqlQuote(hash)}', 'admin', 1, '${sqlQuote(created)}'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = '${sqlQuote(em)}');`
 );
-let rows = [];
-try {
-    const parsed = JSON.parse(existing);
-    rows = parsed[0]?.results || [];
-} catch (_) {
-    rows = [];
-}
-
-if (rows.length > 0) {
-    const id = rows[0].id;
-    console.log('Updating existing user', em, '→ admin with new password hash.');
-    wranglerSql(
-        `UPDATE users SET password_hash = '${sqlQuote(hash)}', role = 'admin', active = 1, display_name = '${sqlQuote(displayName)}' WHERE id = '${sqlQuote(id)}'`
-    );
-} else {
-    const id = crypto.randomUUID();
-    console.log('Creating admin user', em);
-    wranglerSql(
-        `INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, active, created_at) VALUES ('${sqlQuote(id)}', '${sqlQuote(em)}', '${sqlQuote(displayName)}', NULL, '${sqlQuote(hash)}', 'admin', 1, '${sqlQuote(created)}')`
-    );
-}
 
 console.log('Done. Sign in at /login.html with email + password.');
