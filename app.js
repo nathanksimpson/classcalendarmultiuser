@@ -83,6 +83,9 @@ const translations = {
         teamLockActionAcquire: 'Start editing',
         teamLockActionRelease: 'Release lock',
         teamLockActionTakeOver: 'Take over editing',
+        teamLockActionRequestEdit: 'Request to edit',
+        teamLockRequestSent: 'Edit request sent. {name} is still editing this calendar.',
+        teamLockBlockedNoSteal: '{name} is editing. You cannot take the lock from here.',
         teamLockedBy: '{name} is editing this calendar.',
         teamLockedByFlash: '{name} is editing this calendar. Use Take over editing below to edit.',
         teamLockHeld: 'You have the edit lock for this calendar.',
@@ -640,6 +643,9 @@ const translations = {
         teamLockActionAcquire: '편집 시작',
         teamLockActionRelease: '잠금 해제',
         teamLockActionTakeOver: '편집 인수',
+        teamLockActionRequestEdit: '편집 요청',
+        teamLockRequestSent: '편집 요청을 보냈습니다. {name}님이 아직 이 캘린더를 편집 중입니다.',
+        teamLockBlockedNoSteal: '{name}님이 편집 중입니다. 여기서 잠금을 가져올 수 없습니다.',
         teamLockedBy: '{name}님이 이 캘린더를 편집 중입니다.',
         teamLockedByFlash: '{name}님이 편집 중입니다. 아래 「편집 인수」로 편집할 수 있습니다.',
         teamLockHeld: '이 캘린더의 편집 잠금을 보유 중입니다.',
@@ -11873,7 +11879,7 @@ function applyTeamLockAccessState(lockState) {
     if (readOnly && lock) {
         mode = 'blocked';
         labelText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
-        actionLabel = t('teamLockActionTakeOver');
+        actionLabel = t('teamLockActionRequestEdit');
     } else if (holdsLock) {
         if (pending) {
             mode = 'pending';
@@ -11936,15 +11942,20 @@ function setupTeamLockButtons() {
                 await CalendarSync.releaseLock(id);
                 teamLockPreviousCalendarId = null;
             } else if (mode === 'blocked') {
-                const wasReadOnly = CalendarSync.state.readOnly;
-                if (wasReadOnly) {
-                    try {
-                        await CalendarSync.acquireLock(id, false);
-                    } catch (_) {
-                        /* record attempt if possible */
-                    }
+                const lock = CalendarSync.state.lock;
+                const holder = formatLockParty(lock);
+                const result = await CalendarSync.acquireLock(id, false);
+                applyTeamLockAccessState({
+                    readOnly: CalendarSync.state.readOnly,
+                    lock: CalendarSync.state.lock,
+                    holdsLock: CalendarSync.state.holdsLock
+                });
+                if (result && result.editRequestRecorded) {
+                    showLockFlash(t('teamLockRequestSent').replace('{name}', holder), false);
+                } else {
+                    showLockFlash(t('teamLockBlockedNoSteal').replace('{name}', holder), true);
                 }
-                await CalendarSync.acquireLock(id, true);
+                return;
             } else {
                 await CalendarSync.acquireLock(id, false);
             }
@@ -12354,8 +12365,12 @@ async function switchToTeamCalendar(id, calendarsOptional) {
     CalendarSync.setActiveCalendarId(id);
     try {
         const doc = await CalendarSync.loadCalendar(id);
-        await CalendarSync.acquireLock(id);
-        teamLockPreviousCalendarId = id;
+        if (CalendarSync.state.readOnly) {
+            teamLockPreviousCalendarId = null;
+        } else {
+            await CalendarSync.acquireLock(id, false);
+            teamLockPreviousCalendarId = CalendarSync.state.readOnly ? null : id;
+        }
         applyTeamLockAccessState({
             readOnly: CalendarSync.state.readOnly,
             lock: CalendarSync.state.lock,
