@@ -74,7 +74,12 @@
         const wasHoldsLock = state.holdsLock;
         state.readOnly = Boolean(json && json.readOnly);
         state.lock = (json && json.lock) || null;
-        state.holdsLock = Boolean(state.lock && !state.readOnly);
+        if (json && json.lock && json.lock.holderUserId && typeof TeamAuth !== 'undefined' && TeamAuth.getUser()) {
+            const me = TeamAuth.getUser();
+            state.holdsLock = json.lock.holderUserId === me.id && !state.readOnly;
+        } else {
+            state.holdsLock = Boolean(state.lock && !state.readOnly);
+        }
         state.pendingEditRequest = Boolean(json && json.pendingEditRequest);
         if (json && json.lockStaleMinutes != null) {
             state.lockStaleMinutes = json.lockStaleMinutes;
@@ -423,20 +428,22 @@
             }
             state.pollTimer = setInterval(async () => {
                 const id = CalendarSync.getActiveCalendarId();
-                if (!id || state.saving) {
+                if (!id) {
                     return;
                 }
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
-                    if (meta.revision > state.revision) {
-                        state.remoteNewer = true;
-                        if (typeof handlers.onRemoteNewer === 'function') {
-                            handlers.onRemoteNewer(meta);
-                        }
-                    }
                     const lockState = applyLockFromResponse(meta);
-                    if (typeof handlers.onLockOrRevisionChange === 'function') {
-                        await handlers.onLockOrRevisionChange(meta, lockState);
+                    if (!state.saving) {
+                        if (meta.revision > state.revision) {
+                            state.remoteNewer = true;
+                            if (typeof handlers.onRemoteNewer === 'function') {
+                                handlers.onRemoteNewer(meta);
+                            }
+                        }
+                        if (typeof handlers.onLockOrRevisionChange === 'function') {
+                            await handlers.onLockOrRevisionChange(meta, lockState);
+                        }
                     }
                 } catch (_) {
                     /* ignore poll errors */

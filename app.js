@@ -12523,8 +12523,12 @@ async function switchToTeamCalendar(id, calendarsOptional) {
     CalendarSync.setActiveCalendarId(id);
     try {
         const doc = await CalendarSync.loadCalendar(id);
-        await CalendarSync.acquireLock(id);
-        teamLockPreviousCalendarId = id;
+        if (CalendarSync.state.readOnly) {
+            teamLockPreviousCalendarId = null;
+        } else {
+            await CalendarSync.acquireLock(id);
+            teamLockPreviousCalendarId = CalendarSync.state.holdsLock ? id : null;
+        }
         applyTeamLockAccessState({
             readOnly: CalendarSync.state.readOnly,
             lock: CalendarSync.state.lock,
