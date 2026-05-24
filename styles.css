@@ -68,6 +68,28 @@
 
     --badge-warn-bg: #fef3c7;
     --badge-warn-color: #b45309;
+
+    --lock-btn-bg: #ffffff;
+    --lock-btn-border: #cbd5e1;
+    --lock-btn-hover-bg: #f1f5f9;
+    --lock-status-free-bg: #f8fafc;
+    --lock-status-free-border: #e2e8f0;
+    --lock-status-held-bg: #ecfdf5;
+    --lock-status-held-border: #a7f3d0;
+    --lock-status-blocked-bg: #fef2f2;
+    --lock-status-blocked-border: #fecaca;
+    --lock-status-pending-bg: #fffbeb;
+    --lock-status-pending-border: #fcd34d;
+    --lock-status-waiting-bg: #eff6ff;
+    --lock-status-waiting-border: #93c5fd;
+    --banner-warn-bg: #fef3c7;
+    --banner-warn-border: #f59e0b;
+    --banner-warn-color: #78350f;
+    --banner-error-bg: #fee2e2;
+    --banner-error-border: #f87171;
+    --banner-error-color: #7f1d1d;
+    --banner-info-bg: #eff6ff;
+    --banner-info-border: #93c5fd;
     
     --font-main: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
@@ -381,9 +403,10 @@ body {
 
 .modal-howto {
     max-width: 640px;
-    max-height: min(85vh, 720px);
+    max-height: min(85vh, 100dvh - 2rem, 720px);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .how-to-body {
@@ -845,7 +868,7 @@ body {
 #defaultClassEditorModal .modal-content {
     max-width: min(960px, 94vw);
     width: min(960px, 94vw);
-    max-height: 92vh;
+    max-height: min(92vh, 100dvh - 2rem);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1524,9 +1547,27 @@ body:has(#panel-calendar:not([hidden])) {
     box-shadow: var(--shadow-lg);
     width: 100%;
     max-width: 500px;
-    max-height: 90vh;
+    max-height: min(90vh, 100dvh - 2rem);
     overflow-y: auto;
+    overscroll-behavior: contain;
     animation: modalSlideIn 0.2s ease;
+}
+
+.modal-content--scrollable {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-body-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.modal-content--scrollable > .modal-header {
+    flex-shrink: 0;
 }
 
 .modal-small {
@@ -2013,6 +2054,18 @@ form {
     margin-bottom: 8px;
     border-radius: 0 var(--border-radius) var(--border-radius) 0;
     font-size: 0.875rem;
+}
+
+#compressionNotes li.compression-note-empty {
+    background: var(--status-success-bg);
+    border-left-color: var(--status-success-border);
+    color: var(--status-success-color);
+}
+
+[data-theme="dark"] #compressionNotes li:not(.compression-note-empty) {
+    background: #422006;
+    border-left-color: #d97706;
+    color: #fde68a;
 }
 
 /* ============================================
@@ -2688,7 +2741,7 @@ body.hide-summary-print .print-summary {
     max-width: 720px;
     display: flex;
     flex-direction: column;
-    max-height: 90vh;
+    max-height: min(90vh, 100dvh - 2rem);
     overflow: hidden;
 }
 
@@ -3031,6 +3084,88 @@ input.input-readonly {
 
 .app-header-tool-group--locale {
     padding-right: 6px;
+}
+
+.app-header-tool-group--overflow {
+    position: relative;
+    padding-left: 6px;
+}
+
+.app-header-overflow-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 11rem;
+    padding: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+}
+
+.app-header-overflow-menu[hidden] {
+    display: none !important;
+}
+
+.app-header-overflow-menu .btn {
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.app-banner-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+
+.app-banner-stack > * {
+    margin-bottom: 0 !important;
+}
+
+.team-calendar-row--header .team-calendar-help {
+    flex: 1 1 100%;
+    font-size: 0.8rem;
+}
+
+.team-calendar-row--header .team-calendar-help summary {
+    cursor: pointer;
+    color: var(--primary);
+    font-weight: 600;
+    list-style: none;
+}
+
+.team-calendar-row--header .team-calendar-help summary::-webkit-details-marker {
+    display: none;
+}
+
+.team-calendar-row--header .team-calendar-hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.team-calendar-row--header .team-sync-status {
+    margin-left: auto;
+}
+
+@media (max-width: 900px) {
+    .app-tab-nav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-top-bar-title-block h1 {
+        font-size: 1.05rem;
+    }
 }
 
 @media (max-width: 720px) {
@@ -3820,7 +3955,10 @@ input.input-readonly {
 
 #booksEditorModal .modal-content {
     max-width: min(960px, 96vw);
-    max-height: 90vh;
+    max-height: min(90vh, 100dvh - 2rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .books-editor-body {
@@ -3998,9 +4136,41 @@ input.input-readonly {
 .modal.calendar-popout .calendar-popout-content {
     max-width: min(720px, 96vw);
     width: min(720px, 96vw);
-    max-height: calc(100vh - 32px);
+    max-height: min(calc(100vh - 32px), calc(100dvh - 2rem));
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     animation: popoutSlideIn 0.22s ease;
+}
+
+.modal.calendar-popout .class-form-mount,
+.modal.calendar-popout .event-form-mount--popout {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.event-form-mount--popout .event-editor-header {
+    flex-shrink: 0;
+    background: var(--bg-card);
+}
+
+.event-form-mount--popout .event-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.event-form-mount--popout #holidayForm {
+    padding: 16px 24px 24px;
+}
+
+.print-options-modal-content.modal-content--scrollable .print-form-mount {
+    padding: 0 20px 20px;
 }
 
 @keyframes popoutSlideIn {
@@ -4436,6 +4606,28 @@ input.input-readonly {
 
     --badge-warn-bg: #422006;
     --badge-warn-color: #fcd34d;
+
+    --lock-btn-bg: #1e293b;
+    --lock-btn-border: #475569;
+    --lock-btn-hover-bg: #334155;
+    --lock-status-free-bg: #1e293b;
+    --lock-status-free-border: #334155;
+    --lock-status-held-bg: #064e3b;
+    --lock-status-held-border: #065f46;
+    --lock-status-blocked-bg: #450a0a;
+    --lock-status-blocked-border: #7f1d1d;
+    --lock-status-pending-bg: #422006;
+    --lock-status-pending-border: #b45309;
+    --lock-status-waiting-bg: #1e3a5f;
+    --lock-status-waiting-border: #3b82f6;
+    --banner-warn-bg: #422006;
+    --banner-warn-border: #b45309;
+    --banner-warn-color: #fde68a;
+    --banner-error-bg: #450a0a;
+    --banner-error-border: #dc2626;
+    --banner-error-color: #fecaca;
+    --banner-info-bg: #1e3a5f;
+    --banner-info-border: #3b82f6;
 }
 
 [data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
@@ -4591,11 +4783,6 @@ input.input-readonly {
     max-width: 100%;
 }
 
-.team-calendar-row--header .team-calendar-hint {
-    flex: 1 1 100%;
-    margin: 0.15rem 0 0;
-}
-
 .team-calendar-row .team-calendar-select {
     min-width: 10rem;
     max-width: 16rem;
@@ -4689,8 +4876,8 @@ input.input-readonly {
     min-width: 2.5rem;
     padding: 0;
     margin: 0;
-    border: 1px solid var(--border-color, #cbd5e1);
-    background: #ffffff;
+    border: 1px solid var(--lock-btn-border);
+    background: var(--lock-btn-bg);
     cursor: pointer;
     border-radius: 8px;
     color: inherit;
@@ -4722,49 +4909,49 @@ input.input-readonly {
 
 .team-lock-status--free .team-lock-status-btn {
     color: #64748b;
-    border-color: #cbd5e1;
-    background: #ffffff;
+    border-color: var(--lock-btn-border);
+    background: var(--lock-btn-bg);
 }
 
 .team-lock-status--held .team-lock-status-btn {
     color: #047857;
     border-color: #6ee7b7;
-    background: #ffffff;
+    background: var(--lock-btn-bg);
     box-shadow:
         0 1px 3px rgba(4, 120, 87, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .team-lock-status--held .team-lock-status-btn:hover {
-    background: #ecfdf5;
+    background: var(--lock-status-held-bg);
     border-color: #34d399;
 }
 
 .team-lock-status--blocked .team-lock-status-btn {
     color: #b91c1c;
     border-color: #fca5a5;
-    background: #ffffff;
+    background: var(--lock-btn-bg);
     box-shadow:
         0 1px 3px rgba(185, 28, 28, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .team-lock-status--blocked .team-lock-status-btn:hover {
-    background: #fef2f2;
+    background: var(--lock-status-blocked-bg);
     border-color: #f87171;
 }
 
 .team-lock-status--pending .team-lock-status-btn {
     color: #b45309;
     border-color: #fcd34d;
-    background: #ffffff;
+    background: var(--lock-btn-bg);
     box-shadow:
         0 1px 3px rgba(180, 83, 9, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .team-lock-status--pending .team-lock-status-btn:hover {
-    background: #fffbeb;
+    background: var(--lock-status-pending-bg);
     border-color: #fbbf24;
 }
 
@@ -4797,32 +4984,32 @@ input.input-readonly {
 
 .team-lock-status--free {
     color: #64748b;
-    border-color: #e2e8f0;
-    background: #f8fafc;
+    border-color: var(--lock-status-free-border);
+    background: var(--lock-status-free-bg);
 }
 
 .team-lock-status--held {
     color: #047857;
-    border-color: #a7f3d0;
-    background: #ecfdf5;
+    border-color: var(--lock-status-held-border);
+    background: var(--lock-status-held-bg);
 }
 
 .team-lock-status--blocked {
     color: #b91c1c;
-    border-color: #fecaca;
-    background: #fef2f2;
+    border-color: var(--lock-status-blocked-border);
+    background: var(--lock-status-blocked-bg);
 }
 
 .team-lock-status--pending {
     color: #b45309;
-    border-color: #fcd34d;
-    background: #fffbeb;
+    border-color: var(--lock-status-pending-border);
+    background: var(--lock-status-pending-bg);
 }
 
 .team-lock-status--waiting {
     color: #1e40af;
-    border-color: #93c5fd;
-    background: #eff6ff;
+    border-color: var(--lock-status-waiting-border);
+    background: var(--lock-status-waiting-bg);
 }
 
 .team-lock-pending-actions {
@@ -4846,11 +5033,11 @@ input.input-readonly {
 .team-lock-status--waiting .team-lock-status-btn {
     color: #1e40af;
     border-color: #93c5fd;
-    background: #ffffff;
+    background: var(--lock-btn-bg);
 }
 
 .team-lock-status--waiting .team-lock-status-btn:hover {
-    background: #eff6ff;
+    background: var(--lock-status-waiting-bg);
     border-color: #60a5fa;
 }
 
@@ -5077,15 +5264,15 @@ input.input-readonly {
 }
 
 .remote-newer-banner {
-    background: #fef3c7;
-    border: 1px solid #f59e0b;
-    color: #78350f;
+    background: var(--banner-warn-bg);
+    border: 1px solid var(--banner-warn-border);
+    color: var(--banner-warn-color);
 }
 
 .open-from-drive-banner {
-    background: #fee2e2;
-    border: 1px solid #f87171;
-    color: #7f1d1d;
+    background: var(--banner-error-bg);
+    border: 1px solid var(--banner-error-border);
+    color: var(--banner-error-color);
 }
 
 .open-from-drive-banner p {
@@ -5097,8 +5284,8 @@ input.input-readonly {
 .host-engine-panel {
     padding: 0.6rem 0.75rem;
     margin-bottom: 0.5rem;
-    background: #eff6ff;
-    border: 1px solid #93c5fd;
+    background: var(--banner-info-bg);
+    border: 1px solid var(--banner-info-border);
     border-radius: 8px;
 }
 
@@ -5164,6 +5351,12 @@ input.input-readonly {
     background: #422006;
     border-color: #b45309;
     color: #fde68a;
+}
+
+[data-theme="dark"] .open-from-drive-banner {
+    background: #450a0a;
+    border-color: #dc2626;
+    color: #fecaca;
 }
 
 .access-checkbox-list {

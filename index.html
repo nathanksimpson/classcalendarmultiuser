@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260523-sticky-gap">
+    <link rel="stylesheet" href="styles.css?v=20260526-ui-review">
     <script>
         (function () {
             try {
@@ -67,34 +67,39 @@
 
             <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
                 <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
-                <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar"></select>
+                <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
                 <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
                 <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
                 <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
                 <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
                 <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
-                <p class="team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
+                <details class="team-calendar-help">
+                    <summary data-i18n="teamCalendarHelp">Team help</summary>
+                    <p class="team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
+                </details>
             </div>
 
-            <div id="openFromDriveBanner" class="open-from-drive-banner" style="display: none;" role="alert">
-                <strong data-i18n="openFromDriveTitle">Use the team link, not this file</strong>
-                <p data-i18n="openFromDriveHint">Open the app from your team URL in the browser — do not double-click index.html from a folder.</p>
-            </div>
-
-            <div id="hostEnginePanel" class="host-engine-panel" style="display: none;">
-                <strong data-i18n="hostEngineTitle">Share this link with your team</strong>
-                <p class="section-hint" data-i18n="hostEngineHint">Teachers open this URL in the browser to edit the same calendars. Keep the server running during school hours.</p>
-                <label for="hostTeamUrlInput" data-i18n="hostTeamLinkLabel">Team link:</label>
-                <div class="host-engine-link-row">
-                    <input type="text" id="hostTeamUrlInput" class="host-team-url-input" readonly>
-                    <button type="button" id="hostCopyTeamUrlBtn" class="btn btn-outline btn-small" data-i18n="hostCopyLink">Copy link</button>
+            <div class="app-banner-stack">
+                <div id="openFromDriveBanner" class="open-from-drive-banner" style="display: none;" role="alert">
+                    <strong data-i18n="openFromDriveTitle">Use the team link, not this file</strong>
+                    <p data-i18n="openFromDriveHint">Open the app from your team URL in the browser — do not double-click index.html from a folder.</p>
                 </div>
-            </div>
 
-            <div id="remoteNewerBanner" class="remote-newer-banner" style="display: none;" role="alert">
-                <span data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
-                <button type="button" id="remoteNewerReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
-                <button type="button" id="remoteNewerDismissBtn" class="btn btn-outline btn-small" data-i18n="syncDismiss">Keep editing</button>
+                <div id="hostEnginePanel" class="host-engine-panel" style="display: none;">
+                    <strong data-i18n="hostEngineTitle">Share this link with your team</strong>
+                    <p class="section-hint" data-i18n="hostEngineHint">Teachers open this URL in the browser to edit the same calendars. Keep the server running during school hours.</p>
+                    <label for="hostTeamUrlInput" data-i18n="hostTeamLinkLabel">Team link:</label>
+                    <div class="host-engine-link-row">
+                        <input type="text" id="hostTeamUrlInput" class="host-team-url-input" readonly>
+                        <button type="button" id="hostCopyTeamUrlBtn" class="btn btn-outline btn-small" data-i18n="hostCopyLink">Copy link</button>
+                    </div>
+                </div>
+
+                <div id="remoteNewerBanner" class="remote-newer-banner" style="display: none;" role="alert">
+                    <span data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
+                    <button type="button" id="remoteNewerReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
+                    <button type="button" id="remoteNewerDismissBtn" class="btn btn-outline btn-small" data-i18n="syncDismiss">Keep editing</button>
+                </div>
             </div>
 
             <div class="app-top-bar-compact">
@@ -111,16 +116,17 @@
                     <button type="button" class="app-tab-btn app-tab-btn--print-data" role="tab" id="tabBtn-print" aria-selected="false" aria-controls="panel-print" data-tab="print" data-i18n="tabPrint">Print &amp; data</button>
                 </nav>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
-                    <div class="app-header-tool-group app-header-tool-group--print">
-                        <button type="button" id="topBarPrintCalendarBtn" class="btn btn-header-print btn-small" data-i18n="printCalendarBtn">Print calendar</button>
-                        <button type="button" id="topBarPrintSummaryBtn" class="btn btn-outline btn-small btn-header-print-secondary" data-i18n="printSummaryBtn">Print summary</button>
-                        <button type="button" id="howToBtn" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help?</button>
+                    <div class="app-header-tool-group app-header-tool-group--overflow">
+                        <button type="button" id="headerToolsMenuBtn" class="btn btn-outline btn-small" aria-expanded="false" aria-controls="headerToolsMenu" aria-haspopup="true" data-i18n="headerToolsMenu">Tools ▾</button>
+                        <div id="headerToolsMenu" class="app-header-overflow-menu" hidden>
+                            <button type="button" id="topBarPrintCalendarBtn" class="btn btn-header-print btn-small" data-i18n="printCalendarBtn">Print calendar</button>
+                            <button type="button" id="topBarPrintSummaryBtn" class="btn btn-outline btn-small btn-header-print-secondary" data-i18n="printSummaryBtn">Print summary</button>
+                            <button type="button" id="howToBtn" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help?</button>
+                            <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="export">Export</button>
+                            <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="import">Import</button>
+                        </div>
                     </div>
-                    <div class="app-header-tool-group app-header-tool-group--data">
-                        <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="export">Export</button>
-                        <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="import">Import</button>
-                        <input type="file" id="importFile" accept=".json" hidden>
-                    </div>
+                    <input type="file" id="importFile" accept=".json" hidden>
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
                         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
@@ -140,7 +146,6 @@
                 <div class="calendar-panel-toolbar module-toolbar">
                     <button id="addClassBtn" class="btn btn-primary btn-compact" data-i18n="addClass">+ Add Class</button>
                     <button id="addHolidayBtn" class="btn btn-secondary btn-compact" data-i18n="addEvent">+ Add Event</button>
-                    <button type="button" id="printCalendarBtn" class="btn btn-header-print btn-compact" data-i18n="printCalendarBtn">Print calendar</button>
                 </div>
 
                 <div id="calendarOptions" class="calendar-options">
@@ -837,12 +842,14 @@
     </div>
 
     <div id="printOptionsModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="printOptionsModalTitle">
-        <div class="modal-content modal-wide print-options-modal-content">
+        <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
             <div class="modal-header">
                 <h2 id="printOptionsModalTitle" data-i18n="printOptions">Print Options</h2>
                 <button type="button" class="modal-close" id="closePrintOptionsModal" aria-label="Close">&times;</button>
             </div>
-            <div id="printFormMountModal" class="print-form-mount"></div>
+            <div class="modal-body-scroll">
+                <div id="printFormMountModal" class="print-form-mount"></div>
+            </div>
         </div>
     </div>
 
@@ -1093,9 +1100,9 @@
     <script src="js/homework-import.js"></script>
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
-    <script src="js/team-auth.js?v=20260526-logout-lock"></script>
-    <script src="js/calendar-sync.js?v=20260526-delete-refresh"></script>
-    <script src="app.js?v=20260526-delete-refresh"></script>
+    <script src="js/team-auth.js?v=20260526-ui-review"></script>
+    <script src="js/calendar-sync.js?v=20260526-ui-review"></script>
+    <script src="app.js?v=20260526-ui-review"></script>
     <script src="howto.js"></script>
 </body>
 </html>

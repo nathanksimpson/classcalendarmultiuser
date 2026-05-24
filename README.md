@@ -10,6 +10,8 @@ Teachers open **one bookmark**, sign in with **Kakao**, and edit shared calendar
 2. Run `npm install` then `npm start` (or double-click **START TEAM CALENDAR.bat**).
 3. Open http://localhost:8080
 
+**Editing or deploying code?** See **[DEVELOPER.md](DEVELOPER.md)** (dual-backend checklist, deploy steps, file map). AI agents: also read **[AGENTS.md](AGENTS.md)**.
+
 ## Production (Cloudflare + Kakao)
 
 ### 1. Kakao Developers

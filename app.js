@@ -126,6 +126,8 @@ const translations = {
         themeToggleTitle: 'Switch light/dark theme',
         howToBtn: 'Help?',
         howToBtnTitle: 'How to use this app',
+        headerToolsMenu: 'Tools ▾',
+        teamCalendarHelp: 'Team help',
         
         // Term Selector
         calendarName: 'Calendar Name:',
@@ -694,6 +696,8 @@ const translations = {
         themeToggleTitle: '라이트/다크 테마 전환',
         howToBtn: '도움말?',
         howToBtnTitle: '앱 사용 방법',
+        headerToolsMenu: '도구 ▾',
+        teamCalendarHelp: '팀 도움말',
         
         // Term Selector
         calendarName: '캘린더 이름:',
@@ -3004,7 +3008,7 @@ function ensureClassModalLayout() {
 
     const modalContent = modal.querySelector('.modal-content');
     if (modalContent) {
-        modalContent.classList.add('class-modal-content');
+        modalContent.classList.add('class-modal-content', 'modal-content--scrollable');
     }
 
     const hiddenId = form.querySelector('#classId');
@@ -3706,6 +3710,44 @@ function initTopBarToggle() {
         setTopBarCollapsed(!appData.ui.topBarCollapsed);
     });
     applyTopBarCollapsedState();
+}
+
+function setupHeaderToolsMenu() {
+    const btn = document.getElementById('headerToolsMenuBtn');
+    const menu = document.getElementById('headerToolsMenu');
+    if (!btn || !menu || btn.dataset.bound === '1') {
+        return;
+    }
+    btn.dataset.bound = '1';
+    const closeMenu = () => {
+        menu.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+    };
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const willOpen = menu.hidden;
+        if (willOpen) {
+            menu.hidden = false;
+            btn.setAttribute('aria-expanded', 'true');
+        } else {
+            closeMenu();
+        }
+    });
+    menu.addEventListener('click', (e) => {
+        if (e.target.closest('button')) {
+            closeMenu();
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!menu.hidden && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+            closeMenu();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !menu.hidden) {
+            closeMenu();
+        }
+    });
 }
 
 function normalizeEventType(type) {
@@ -6258,6 +6300,50 @@ function mountPrintForm(target) {
     printFormMountTarget = target;
 }
 
+function resetHolidayPopoutLayout(mount) {
+    if (!mount) {
+        return;
+    }
+    mount.classList.remove('event-form-mount--popout');
+    const body = mount.querySelector('.event-modal-body');
+    const form = document.getElementById('holidayForm');
+    const header = mount.querySelector('.event-editor-header');
+    if (body && form && body.contains(form)) {
+        if (header && header.nextSibling !== form) {
+            header.insertAdjacentElement('afterend', form);
+        } else if (!header) {
+            mount.insertBefore(form, body);
+        }
+        body.remove();
+    }
+}
+
+function ensureHolidayPopoutLayout(mount) {
+    if (!mount) {
+        return;
+    }
+    const header = mount.querySelector('.event-editor-header');
+    const form = document.getElementById('holidayForm');
+    if (!header || !form) {
+        return;
+    }
+    mount.classList.add('event-form-mount--popout');
+    let body = mount.querySelector('.event-modal-body');
+    if (!body) {
+        body = document.createElement('div');
+        body.className = 'event-modal-body modal-body-scroll';
+        if (form.parentElement === mount) {
+            mount.insertBefore(body, form);
+            body.appendChild(form);
+        } else {
+            header.insertAdjacentElement('afterend', body);
+            body.appendChild(form);
+        }
+    } else if (!body.contains(form)) {
+        body.appendChild(form);
+    }
+}
+
 function mountHolidayForm(target) {
     const header = document.querySelector('#holidayFormMountModal .event-editor-header, #holidayFormMountTab .event-editor-header')
         || document.querySelector('.event-editor-header');
@@ -6268,11 +6354,22 @@ function mountHolidayForm(target) {
     if (!mount) {
         return;
     }
+    if (target === 'tab') {
+        resetHolidayPopoutLayout(modalMount);
+    } else {
+        resetHolidayPopoutLayout(tabMount);
+    }
     if (header && header.parentElement !== mount) {
         mount.appendChild(header);
     }
-    if (form && form.parentElement !== mount) {
-        mount.appendChild(form);
+    if (form) {
+        const formParent = form.parentElement;
+        if (formParent !== mount && formParent !== mount.querySelector('.event-modal-body')) {
+            mount.appendChild(form);
+        }
+    }
+    if (target === 'modal') {
+        ensureHolidayPopoutLayout(modalMount);
     }
     eventEditorMount = target;
     updateEventEditorEmptyState();
@@ -7721,10 +7818,7 @@ function setupEventListeners() {
     setupChangePasswordModal();
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importData);
-    const printCalendarBtn = document.getElementById('printCalendarBtn');
-    if (printCalendarBtn) {
-        printCalendarBtn.addEventListener('click', openPrintCalendarDialog);
-    }
+    setupHeaderToolsMenu();
     const printCalVisSelectAll = document.getElementById('printCalVisSelectAllBtn');
     const printCalVisClearAll = document.getElementById('printCalVisClearAllBtn');
     if (printCalVisSelectAll && !printCalVisSelectAll.dataset.bound) {
@@ -11806,8 +11900,7 @@ function updatePrintSummary() {
     if (elements.compressionNotes.children.length === 0) {
         const li = document.createElement('li');
         li.textContent = t('noCompressedDays');
-        li.style.background = '#d1fae5';
-        li.style.borderLeftColor = '#10b981';
+        li.className = 'compression-note-empty';
         elements.compressionNotes.appendChild(li);
     }
 
