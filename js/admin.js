@@ -61,17 +61,60 @@ function escapeHtml(s) {
         .replace(/>/g, '&gt;');
 }
 
+function setupAdminNav(signedIn) {
+    const nav = document.getElementById('adminNav');
+    const signInLink = document.getElementById('adminSignInLink');
+    if (!nav) {
+        return;
+    }
+    let logoutBtn = document.getElementById('adminLogoutBtn');
+    if (signedIn) {
+        if (signInLink) {
+            signInLink.hidden = true;
+        }
+        if (!logoutBtn) {
+            logoutBtn = document.createElement('button');
+            logoutBtn.type = 'button';
+            logoutBtn.id = 'adminLogoutBtn';
+            logoutBtn.className = 'btn btn-outline btn-small';
+            logoutBtn.textContent = 'Sign out';
+            logoutBtn.style.marginLeft = '0.35rem';
+            logoutBtn.onclick = () => {
+                if (typeof TeamAuth !== 'undefined') {
+                    TeamAuth.logout();
+                }
+            };
+            nav.appendChild(document.createTextNode(' '));
+            nav.appendChild(logoutBtn);
+        }
+        logoutBtn.hidden = false;
+    } else {
+        if (signInLink) {
+            signInLink.hidden = false;
+        }
+        if (logoutBtn) {
+            logoutBtn.hidden = true;
+        }
+    }
+}
+
 async function init() {
     try {
         const me = await api('/auth/me');
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
+            await TeamAuth.refresh();
+        }
         if (me.role !== 'admin') {
+            setupAdminNav(false);
             setStatus('You must sign in as an admin.', true);
             return;
         }
+        setupAdminNav(true);
         setStatus('Signed in as ' + (me.displayName || me.email));
         document.getElementById('bootstrapBox').style.display = 'none';
         await loadUsers();
     } catch (err) {
+        setupAdminNav(false);
         if (err.message.includes('Not signed in') || err.message.includes('401')) {
             setStatus('Sign in first, then return here.', true);
             document.getElementById('bootstrapBox').style.display = 'block';

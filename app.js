@@ -62,9 +62,9 @@ const translations = {
         deleteCalendarDone: 'Removed "{name}".',
         cancel: 'Cancel',
         openFromDriveTitle: 'Use the team link, not this file',
-        openFromDriveHint: 'Run START CALENDAR (Host PC).bat on the host computer, then open the Team link in the browser — not index.html from the folder.',
-        hostEngineTitle: 'This PC is running the calendar engine',
-        hostEngineHint: 'Share the Team link below with other teachers. Keep START CALENDAR (Host PC).bat running during school hours.',
+        openFromDriveHint: 'Open the app from your team URL in the browser — do not double-click index.html from a folder.',
+        hostEngineTitle: 'Local team server — share this link',
+        hostEngineHint: 'Other teachers on your school Wi‑Fi use this URL while the calendar server is running on this PC (npm start or START TEAM CALENDAR.bat).',
         hostTeamLinkLabel: 'Team link:',
         hostCopyLink: 'Copy link',
         teamLockedBy: '{name} is editing this calendar.',
@@ -574,9 +574,9 @@ const translations = {
         deleteCalendarDone: '"{name}" 삭제됨.',
         cancel: '취소',
         openFromDriveTitle: '팀 링크를 사용하세요 (이 파일 말고)',
-        openFromDriveHint: '호스트 PC에서 START CALENDAR (Host PC).bat을 실행한 뒤, 브라우저에서 팀 링크로 여세요. 폴더의 index.html은 이 컴퓨터에만 저장됩니다.',
-        hostEngineTitle: '이 PC가 캘린더 엔진을 실행 중입니다',
-        hostEngineHint: '아래 팀 링크를 다른 선생님에게 공유하세요. 수업 시간에는 START CALENDAR (Host PC).bat을 켜 두세요.',
+        openFromDriveHint: '브라우저에서 팀 링크로 여세요. 폴더의 index.html을 더블클릭하지 마세요.',
+        hostEngineTitle: '로컬 팀 서버 — 이 링크를 공유하세요',
+        hostEngineHint: '이 PC에서 서버(npm start 또는 START TEAM CALENDAR.bat)를 켠 뒤, 같은 Wi‑Fi의 선생님이 아래 링크로 접속합니다.',
         hostTeamLinkLabel: '팀 링크:',
         hostCopyLink: '링크 복사',
         teamLockedBy: '{name}님이 이 캘린더를 편집 중입니다.',
@@ -7459,6 +7459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
         try {
             await TeamAuth.ensure();
+            setupTeamUserBar();
         } catch (e) {
             if (e && e.message === 'redirect') {
                 return;
@@ -11664,32 +11665,52 @@ let teamSyncEnabled = false;
 let teamLockPreviousCalendarId = null;
 
 function setupTeamUserBar() {
+    const accountGroup = document.getElementById('teamAccountGroup');
     const label = document.getElementById('teamUserLabel');
     const logoutBtn = document.getElementById('teamLogoutBtn');
     const adminLink = document.getElementById('teamAdminLink');
+    const deleteCalBtn = document.getElementById('teamDeleteCalendarBtn');
     const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+    const isAdmin = Boolean(user && user.role === 'admin');
+
     if (!user) {
+        if (accountGroup) {
+            accountGroup.hidden = true;
+        }
         if (label) {
             label.hidden = true;
         }
         if (logoutBtn) {
-            logoutBtn.style.display = 'none';
+            logoutBtn.hidden = true;
         }
         if (adminLink) {
-            adminLink.style.display = 'none';
+            adminLink.hidden = true;
+        }
+        if (deleteCalBtn) {
+            deleteCalBtn.hidden = true;
         }
         return;
+    }
+
+    if (accountGroup) {
+        accountGroup.hidden = false;
     }
     if (label) {
         label.hidden = false;
         label.textContent = user.displayName || user.email || '';
     }
     if (logoutBtn) {
-        logoutBtn.style.display = 'inline-flex';
+        logoutBtn.hidden = false;
         logoutBtn.onclick = () => TeamAuth.logout();
     }
     if (adminLink) {
-        adminLink.style.display = user.role === 'admin' ? 'inline-flex' : 'none';
+        adminLink.hidden = !isAdmin;
+    }
+    if (deleteCalBtn) {
+        deleteCalBtn.hidden = !isAdmin;
+        if (!isAdmin) {
+            deleteCalBtn.disabled = true;
+        }
     }
 }
 
@@ -11901,6 +11922,8 @@ function populateCalendarSelect(calendars, activeId) {
         sel.appendChild(empty);
         if (delBtn) {
             delBtn.disabled = true;
+            const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+            delBtn.hidden = !(user && user.role === 'admin');
         }
         return;
     }
@@ -11916,7 +11939,10 @@ function populateCalendarSelect(calendars, activeId) {
         sel.value = list[0].id;
     }
     if (delBtn) {
-        delBtn.disabled = false;
+        const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+        const isAdmin = Boolean(user && user.role === 'admin');
+        delBtn.hidden = !isAdmin;
+        delBtn.disabled = !isAdmin;
     }
 }
 
@@ -12060,6 +12086,32 @@ function setupTeamCalendarModals() {
     });
 }
 
+/** True when team server runs on this LAN (not Cloudflare / public HTTPS). */
+function isLocalTeamServerUrl(url) {
+    if (!url) {
+        return false;
+    }
+    try {
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            return false;
+        }
+        if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
+            return true;
+        }
+        if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) {
+            return true;
+        }
+        if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) {
+            return true;
+        }
+        return false;
+    } catch (_) {
+        return false;
+    }
+}
+
 async function setupHostEnginePanel() {
     const panel = document.getElementById('hostEnginePanel');
     const input = document.getElementById('hostTeamUrlInput');
@@ -12070,7 +12122,8 @@ async function setupHostEnginePanel() {
     try {
         const info = await CalendarSync.fetchHostInfo();
         const url = info.primaryTeamUrl || info.localhostUrl;
-        if (!url) {
+        if (!url || !isLocalTeamServerUrl(url)) {
+            panel.style.display = 'none';
             return;
         }
         input.value = url;

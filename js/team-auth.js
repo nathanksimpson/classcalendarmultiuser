@@ -44,10 +44,6 @@
                     checked = true;
                     return null;
                 }
-                if (!healthJson.kakaoConfigured && !healthJson.auth) {
-                    checked = true;
-                    return null;
-                }
             } catch (_) {
                 checked = true;
                 return null;

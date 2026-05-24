@@ -30,7 +30,7 @@
 
             <div id="openFromDriveBanner" class="open-from-drive-banner" style="display: none;" role="alert">
                 <strong data-i18n="openFromDriveTitle">Use the team link, not this file</strong>
-                <p data-i18n="openFromDriveHint">Open the app from your team URL (e.g. after running npm start or your cloud deploy) — not by double-clicking index.html.</p>
+                <p data-i18n="openFromDriveHint">Open the app from your team URL in the browser — do not double-click index.html from a folder.</p>
             </div>
 
             <div id="hostEnginePanel" class="host-engine-panel" style="display: none;">
@@ -51,9 +51,6 @@
                 <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status">Connecting…</span>
                 <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
                 <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup to Drive</button>
-                <span id="teamUserLabel" class="team-user-label" hidden></span>
-                <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small" style="display: none;" data-i18n="teamAdminLink">Admin</a>
-                <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="teamSignOut">Sign out</button>
             </div>
             <p class="team-calendar-hint section-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New to add one.</p>
 
@@ -96,6 +93,11 @@
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
                         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
+                    </div>
+                    <div class="app-header-tool-group app-header-tool-group--account" id="teamAccountGroup" hidden>
+                        <span id="teamUserLabel" class="team-user-label" hidden></span>
+                        <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
+                        <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
                     </div>
                 </div>
             </div>

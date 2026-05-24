@@ -19,7 +19,7 @@
 </head>
 <body>
     <div class="admin-page">
-        <p class="admin-nav"><a href="/">← Back to calendar</a> · <a href="login.html">Sign in</a></p>
+        <p class="admin-nav" id="adminNav"><a href="/">← Back to calendar</a> · <a href="login.html" id="adminSignInLink">Sign in</a></p>
         <h1>Teacher access</h1>
         <p class="admin-hint">Add teachers by <strong>email</strong> (recommended). They sign in with Kakao; you never need to ask them for a Kakao ID.</p>
         <p id="adminStatus" class="admin-hint"></p>
@@ -61,6 +61,7 @@
             <button type="button" class="btn btn-primary" id="bootstrapBtn">Create admin account</button>
         </section>
     </div>
+    <script src="js/team-auth.js"></script>
     <script src="js/admin.js"></script>
 </body>
 </html>
