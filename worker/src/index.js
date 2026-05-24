@@ -145,7 +145,7 @@ async function lockStatus(env, calendarId, userId) {
 }
 
 function bytesToHex(bytes) {
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, 'hex')).join('');
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function hexToBytes(hex) {
@@ -184,29 +184,33 @@ async function hashPassword(password) {
     return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(hash)}`;
 }
 
+function parsePbkdf2Stored(stored) {
+    const match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]{32})\$([a-f0-9]{64})$/i.exec(stored);
+    if (!match) {
+        return null;
+    }
+    return {
+        iterations: Number(match[1]),
+        saltHex: match[2],
+        hashHex: match[3]
+    };
+}
+
 async function verifyPassword(password, stored) {
     if (!stored || !password) {
         return false;
     }
-    if (stored.startsWith('pbkdf2-sha256$')) {
-        const parts = stored.split('$');
-        if (parts.length !== 4) {
-            return false;
-        }
-        const iterations = Number(parts[1]);
-        if (!iterations) {
-            return false;
-        }
-        const salt = hexToBytes(parts[2]);
-        const expected = parts[3];
+    const parsed = parsePbkdf2Stored(stored);
+    if (parsed) {
+        const salt = hexToBytes(parsed.saltHex);
         const enc = new TextEncoder();
         const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
         const bits = await crypto.subtle.deriveBits(
-            { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+            { name: 'PBKDF2', salt, iterations: parsed.iterations, hash: 'SHA-256' },
             keyMaterial,
             256
         );
-        return safeEqualHex(bytesToHex(new Uint8Array(bits)), expected);
+        return safeEqualHex(bytesToHex(new Uint8Array(bits)), parsed.hashHex);
     }
     const [salt, hash] = stored.split(':');
     if (!salt || !hash) {
@@ -391,6 +395,7 @@ export default {
                 time: nowIso(),
                 auth: Boolean(kakaoId),
                 kakaoConfigured: Boolean(kakaoId),
+                passwordAuth: true,
                 openAccess: false
             });
         }
@@ -480,7 +485,13 @@ export default {
 
         if (path === '/api/auth/password' && request.method === 'POST') {
             const body = await readJson(request);
-            const matched = await findUserByEmailPassword(env, body.email, body.password);
+            const em = normalizeEmail(body.email);
+            const row = em
+                ? await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em)
+                : null;
+            const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
+            const matched =
+                row && storedHash && (await verifyPassword(body.password, storedHash)) ? rowToUser(row) : null;
             if (!matched) {
                 return json({ error: 'Invalid email or password' }, 401);
             }
