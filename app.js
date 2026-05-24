@@ -49,6 +49,7 @@ const translations = {
         uploadLocalPrompt: 'Upload your browser calendar to the team folder?',
         newCalendarNamePrompt: 'Name for the new team calendar:',
         newCalendarFailed: 'Could not create calendar',
+        duplicateCalendarName: 'A calendar named "{name}" already exists. Choose a different name.',
         teamDeleteCalendar: 'Remove',
         teamCalendarHint: 'Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved team calendar.',
         newCalendarCreating: 'Creating…',
@@ -616,6 +617,7 @@ const translations = {
         uploadLocalPrompt: '브라우저 캘린더를 팀 폴더에 업로드할까요?',
         newCalendarNamePrompt: '새 팀 캘린더 이름:',
         newCalendarFailed: '캘린더를 만들지 못했습니다',
+        duplicateCalendarName: '"{name}"(이)라는 이름의 캘린더가 이미 있습니다. 다른 이름을 사용하세요.',
         teamDeleteCalendar: '삭제',
         teamCalendarHint: '목록에서 캘린더를 선택하거나 + 새로 만들기를 누르세요. 아래 캘린더 이름을 바꾸면 저장된 이름도 바뀝니다.',
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
@@ -12870,6 +12872,53 @@ function normalizeImportedAppData(imported) {
     return data;
 }
 
+async function assertTeamCalendarNameAvailable(name, excludeCalendarId) {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return;
+    }
+    const trimmed = String(name || '').trim();
+    if (!trimmed) {
+        return;
+    }
+    const list = await CalendarSync.listCalendars();
+    const lower = trimmed.toLowerCase();
+    const exclude = excludeCalendarId ? String(excludeCalendarId) : '';
+    const clash = list.find(
+        (c) =>
+            c.id !== exclude &&
+            String(c.name || '')
+                .trim()
+                .toLowerCase() === lower
+    );
+    if (clash) {
+        const err = new Error(t('duplicateCalendarName').replace('{name}', trimmed));
+        err.code = 'DUPLICATE_NAME';
+        throw err;
+    }
+}
+
+async function revertTeamCalendarNameFromServer() {
+    const id =
+        typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId
+            ? CalendarSync.getActiveCalendarId()
+            : null;
+    if (!id) {
+        return;
+    }
+    const list = await CalendarSync.listCalendars();
+    const row = list.find((c) => c.id === id);
+    if (!row || !row.name) {
+        return;
+    }
+    appData.calendarName = String(row.name).trim();
+    if (elements.calendarName) {
+        elements.calendarName.value = appData.calendarName;
+    }
+    updateCalendarTitle();
+    updateTopBarCalendarLabel();
+    updateActiveTeamCalendarOptionLabel();
+}
+
 async function createTeamCalendarFromName(name, accessOptions) {
     CalendarSync.cancelPendingSave();
     const trimmed = name.trim();
@@ -12890,6 +12939,7 @@ async function createTeamCalendarFromImport(name, importedData, accessOptions, s
     const payload = normalizeImportedAppData(importedData);
     payload.calendarName = trimmed;
     migrateData(payload);
+    await assertTeamCalendarNameAvailable(trimmed);
     const opts = accessOptions || getNewCalendarAccessSelections();
     const created = await CalendarSync.createCalendar(payload, trimmed, {
         memberUserIds: opts.memberUserIds,
@@ -13156,6 +13206,10 @@ async function initTeamSync() {
         },
         onLockDebugChange() {
             refreshTeamLockDebugPanel();
+        },
+        onDuplicateName(message) {
+            showSyncToast(message, true);
+            revertTeamCalendarNameFromServer().catch(() => {});
         },
         async onLockOrRevisionChange(meta, lockState) {
             await maybeAutoReloadTeamCalendar(meta, lockState);

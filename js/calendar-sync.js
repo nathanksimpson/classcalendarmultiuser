@@ -31,6 +31,7 @@
         onLockChange: null,
         onLockOrRevisionChange: null,
         onLockDebugChange: null,
+        onDuplicateName: null,
         onSaved: null
     };
 
@@ -528,6 +529,13 @@
                     setStatus('conflict');
                     if (typeof handlers.onConflict === 'function') {
                         await handlers.onConflict(err.body.document, data);
+                    }
+                    throw err;
+                }
+                if (err.status === 409 && err.body && err.body.code === 'DUPLICATE_NAME') {
+                    setStatus('error', err.message);
+                    if (typeof handlers.onDuplicateName === 'function') {
+                        handlers.onDuplicateName(err.message);
                     }
                     throw err;
                 }

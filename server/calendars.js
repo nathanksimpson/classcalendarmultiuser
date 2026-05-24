@@ -33,26 +33,70 @@ function getCalendar(id) {
 function getCalendarMeta(id) {
     const db = getDb();
     return db
-        .prepare('SELECT id, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?')
+        .prepare('SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?')
         .get(id);
 }
 
-function createCalendar(id, name, data, editorLabel) {
+function normalizeCalendarName(name) {
+    return String(name || '').trim();
+}
+
+function findCalendarByName(name, excludeId) {
+    const normalized = normalizeCalendarName(name);
+    if (!normalized) {
+        return null;
+    }
     const db = getDb();
+    const exclude = excludeId ? String(excludeId) : '';
+    return (
+        db
+            .prepare(
+                `SELECT id, name FROM calendars
+                 WHERE LOWER(TRIM(name)) = LOWER(?) AND id != ? LIMIT 1`
+            )
+            .get(normalized, exclude) || null
+    );
+}
+
+function assertNameAvailable(name, excludeId) {
+    const existing = findCalendarByName(name, excludeId);
+    if (existing) {
+        const err = new Error(
+            'A calendar named "' + normalizeCalendarName(name) + '" already exists'
+        );
+        err.status = 409;
+        err.code = 'DUPLICATE_NAME';
+        throw err;
+    }
+}
+
+function createCalendar(id, name, data, editorLabel) {
+    assertNameAvailable(name);
+    const db = getDb();
+    const trimmed = normalizeCalendarName(name);
     const now = nowIso();
     const dataJson = JSON.stringify(data);
     db.prepare(
         `INSERT INTO calendars (id, name, data, revision, updated_at, updated_by)
          VALUES (?, ?, ?, 1, ?, ?)`
-    ).run(id, name, dataJson, now, editorLabel || '');
+    ).run(id, trimmed, dataJson, now, editorLabel || '');
     return getCalendar(id);
 }
 
 function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     const db = getDb();
-    const existing = db.prepare('SELECT revision FROM calendars WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT revision, name FROM calendars WHERE id = ?').get(id);
     if (!existing) {
         return { ok: false, status: 404, error: 'Calendar not found' };
+    }
+
+    const displayName = name != null ? normalizeCalendarName(name) : existing.name;
+    if (displayName.toLowerCase() !== String(existing.name || '').trim().toLowerCase()) {
+        try {
+            assertNameAvailable(displayName, id);
+        } catch (err) {
+            return { ok: false, status: err.status || 409, error: err.message, code: err.code };
+        }
     }
 
     const lockState = users.lockStatusForClient(id, user.id);
@@ -69,7 +113,7 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     const label = editorLabel || user.displayName || user.email || 'Teacher';
     db.prepare(
         `UPDATE calendars SET name = ?, data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(name, JSON.stringify(data), nextRevision, now, label, id);
+    ).run(displayName, JSON.stringify(data), nextRevision, now, label, id);
 
     users.appendHistory(id, nextRevision, data, user);
     users.refreshLock(id, user.id);
@@ -88,6 +132,8 @@ module.exports = {
     listCalendars,
     getCalendar,
     getCalendarMeta,
+    findCalendarByName,
+    assertNameAvailable,
     createCalendar,
     updateCalendar,
     deleteCalendar,

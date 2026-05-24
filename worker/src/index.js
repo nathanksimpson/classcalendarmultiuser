@@ -220,6 +220,32 @@ async function touchLockHolder(env, calendarId, userId) {
     return true;
 }
 
+async function findCalendarByName(env, name, excludeId) {
+    const normalized = String(name || '').trim();
+    if (!normalized) {
+        return null;
+    }
+    return dbOne(
+        env,
+        `SELECT id, name FROM calendars
+         WHERE LOWER(TRIM(name)) = LOWER(?) AND id != ? LIMIT 1`,
+        normalized,
+        excludeId ? String(excludeId) : ''
+    );
+}
+
+async function assertCalendarNameAvailable(env, name, excludeId) {
+    const existing = await findCalendarByName(env, name, excludeId);
+    if (existing) {
+        return {
+            error: 'A calendar named "' + String(name || '').trim() + '" already exists',
+            status: 409,
+            code: 'DUPLICATE_NAME'
+        };
+    }
+    return null;
+}
+
 async function releaseAllLocksHeldByUser(env, userId) {
     if (!userId) {
         return { released: 0 };
@@ -935,6 +961,12 @@ export default {
                 const nextRev = Number(existing.revision) + 1;
                 const label = user.displayName || user.email || 'Teacher';
                 const displayName = body.name != null ? String(body.name).trim() : existing.name;
+                if (displayName.toLowerCase() !== String(existing.name || '').trim().toLowerCase()) {
+                    const renameClash = await assertCalendarNameAvailable(env, displayName, calId);
+                    if (renameClash) {
+                        return json({ error: renameClash.error, code: renameClash.code }, renameClash.status);
+                    }
+                }
                 await dbRun(
                     env,
                     'UPDATE calendars SET name=?, data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
@@ -969,13 +1001,18 @@ export default {
             if (!body.name || !body.data) {
                 return json({ error: 'name and data are required' }, 400);
             }
+            const trimmedName = String(body.name).trim();
+            const nameClash = await assertCalendarNameAvailable(env, trimmedName);
+            if (nameClash) {
+                return json({ error: nameClash.error, code: nameClash.code }, nameClash.status);
+            }
             const id = uuid();
             const label = user.displayName || user.email || 'Teacher';
             await dbRun(
                 env,
                 'INSERT INTO calendars (id, name, data, revision, updated_at, updated_by) VALUES (?, ?, ?, 1, ?, ?)',
                 id,
-                String(body.name).trim(),
+                trimmedName,
                 JSON.stringify(body.data),
                 nowIso(),
                 label

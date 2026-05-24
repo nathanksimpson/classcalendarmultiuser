@@ -610,9 +610,16 @@ app.post('/api/calendars', requireUser, (req, res) => {
         res.status(400).json({ error: 'name and data are required' });
         return;
     }
+    const trimmed = String(name).trim();
+    try {
+        calendars.assertNameAvailable(trimmed);
+    } catch (err) {
+        res.status(err.status || 409).json({ error: err.message, code: err.code || 'DUPLICATE_NAME' });
+        return;
+    }
     const id = calendars.newId();
     const label = req.user.displayName || req.user.email || 'Teacher';
-    const doc = calendars.createCalendar(id, String(name).trim(), data, label);
+    const doc = calendars.createCalendar(id, trimmed, data, label);
     const memberIds = Array.isArray(memberUserIds) ? memberUserIds.map(String) : [];
     if (!memberIds.includes(req.user.id)) {
         memberIds.push(req.user.id);
@@ -650,6 +657,10 @@ app.put('/api/calendars/:id', requireUser, (req, res) => {
         req.user
     );
     if (!result.ok) {
+        if (result.status === 409 && result.code === 'DUPLICATE_NAME') {
+            res.status(409).json({ error: result.error, code: 'DUPLICATE_NAME' });
+            return;
+        }
         if (result.status === 409) {
             res.status(409).json({ conflict: true, document: result.document });
             return;
