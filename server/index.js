@@ -273,8 +273,17 @@ app.post('/api/admin/users', requireUser, requireAdmin, (req, res) => {
     res.status(201).json(user);
 });
 
-app.delete('/api/admin/users/:id', requireUser, requireAdmin, (_req, res) => {
-    res.status(403).json({ error: 'Users cannot be deleted. Deactivate the account instead.' });
+app.delete('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
+    try {
+        const ok = users.permanentlyDeleteUser(req.params.id, req.user.id);
+        if (!ok) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Delete failed' });
+    }
 });
 
 app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {

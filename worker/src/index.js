@@ -124,6 +124,36 @@ async function deleteAllSessionsForUser(env, userId) {
     }
 }
 
+async function permanentlyDeleteUser(env, targetId, actingAdminId) {
+    const target = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
+    if (!target) {
+        return { error: 'User not found', status: 404 };
+    }
+    if (targetId === actingAdminId) {
+        return { error: 'You cannot delete your own account', status: 403 };
+    }
+    if (target.active !== 0) {
+        return { error: 'Deactivate the account before permanent delete', status: 403 };
+    }
+    if (target.role === 'admin') {
+        const row = await dbOne(env, `SELECT COUNT(*) AS c FROM users WHERE role = 'admin'`);
+        if (Number(row?.c || 0) <= 1) {
+            return { error: 'Cannot delete the only admin account', status: 403 };
+        }
+    }
+    await dbRun(env, 'DELETE FROM sessions WHERE user_id = ?', targetId);
+    await dbRun(env, 'DELETE FROM calendar_members WHERE user_id = ?', targetId);
+    await dbRun(env, 'DELETE FROM group_members WHERE user_id = ?', targetId);
+    await dbRun(env, 'DELETE FROM calendar_locks WHERE holder_user_id = ?', targetId);
+    await dbRun(
+        env,
+        `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL WHERE pending_requester_id = ?`,
+        targetId
+    );
+    await dbRun(env, 'DELETE FROM users WHERE id = ?', targetId);
+    return { ok: true };
+}
+
 async function createSession(env, userId) {
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
@@ -896,7 +926,11 @@ export default {
         if (adminUserMatch && user.role === 'admin') {
             const targetId = adminUserMatch[1];
             if (request.method === 'DELETE') {
-                return json({ error: 'Users cannot be deleted. Deactivate the account instead.' }, 403);
+                const result = await permanentlyDeleteUser(env, targetId, user.id);
+                if (result.error) {
+                    return json({ error: result.error }, result.status || 403);
+                }
+                return json({ ok: true });
             }
         }
         if (adminUserMatch && request.method === 'PATCH' && user.role === 'admin') {

@@ -697,7 +697,7 @@
 
     <div id="syncToast" class="sync-toast" style="display: none;" role="status" aria-live="polite"></div>
 
-    <div id="conflictModal" class="modal" style="display: none;" role="dialog" aria-labelledby="conflictModalTitle" aria-modal="true">
+    <div id="conflictModal" class="modal" role="dialog" aria-labelledby="conflictModalTitle" aria-modal="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h2 id="conflictModalTitle" data-i18n="syncConflictTitle">Save conflict</h2>
@@ -712,7 +712,7 @@
         </div>
     </div>
 
-    <div id="newCalendarModal" class="modal" style="display: none;" role="dialog" aria-labelledby="newCalendarModalTitle" aria-modal="true">
+    <div id="newCalendarModal" class="modal" role="dialog" aria-labelledby="newCalendarModalTitle" aria-modal="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h2 id="newCalendarModalTitle" data-i18n="newCalendarTitle">Add team calendar</h2>
@@ -739,7 +739,7 @@
         </div>
     </div>
 
-    <div id="deleteCalendarModal" class="modal" style="display: none;" role="dialog" aria-labelledby="deleteCalendarModalTitle" aria-modal="true">
+    <div id="deleteCalendarModal" class="modal" role="dialog" aria-labelledby="deleteCalendarModalTitle" aria-modal="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h2 id="deleteCalendarModalTitle" data-i18n="deleteCalendarTitle">Remove team calendar</h2>
@@ -749,6 +749,42 @@
             <div class="form-actions">
                 <button type="button" id="cancelDeleteCalendarBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                 <button type="button" id="confirmDeleteCalendarBtn" class="btn btn-danger" data-i18n="deleteCalendarConfirm">Remove permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="importDestinationModal" class="modal" role="dialog" aria-labelledby="importDestinationModalTitle" aria-modal="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="importDestinationModalTitle" data-i18n="importDestinationTitle">Import calendar data</h2>
+                <button type="button" class="modal-close" id="closeImportDestinationModal" aria-label="Close">&times;</button>
+            </div>
+            <p id="importDestinationFileLabel" class="section-hint"></p>
+            <fieldset class="import-destination-options">
+                <legend class="visually-hidden" data-i18n="importDestinationTitle">Import calendar data</legend>
+                <label class="import-destination-option">
+                    <input type="radio" name="importDestination" id="importDestCurrent" value="current" checked>
+                    <span id="importDestCurrentLabel" data-i18n="importToCurrent">Import into current calendar</span>
+                </label>
+                <p id="importDestCurrentHint" class="section-hint import-destination-hint" data-i18n="importOverwriteWarning">Replaces all data in this calendar. Export a backup first if unsure.</p>
+                <label class="import-destination-option">
+                    <input type="radio" name="importDestination" id="importDestNew" value="new">
+                    <span data-i18n="importToNew">Create new team calendar from file</span>
+                </label>
+            </fieldset>
+            <div id="importNewCalendarSection" class="form-group" hidden>
+                <label for="importNewCalendarNameInput" data-i18n="calendarName">Calendar Name:</label>
+                <input type="text" id="importNewCalendarNameInput" maxlength="120" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
+                <label class="import-access-label" data-i18n="newCalendarAccessTeachers">Who can access this calendar?</label>
+                <p class="section-hint" data-i18n="newCalendarAccessHint">Check teachers and/or groups. You are always included. Admins can see all calendars.</p>
+                <div id="importNewCalendarTeachersList" class="access-checkbox-list" role="group" aria-label="Teachers"></div>
+                <p class="access-groups-label section-hint import-access-groups-label" data-i18n="newCalendarAccessGroupsLabel" hidden>Groups</p>
+                <div id="importNewCalendarGroupsList" class="access-checkbox-list access-checkbox-list--groups" role="group" aria-label="Groups"></div>
+            </div>
+            <p id="importDestReadOnlyHint" class="section-hint import-destination-hint" hidden data-i18n="importReadOnlyHint">This calendar is locked by another teacher. Choose “Create new” or take over the lock first.</p>
+            <div class="form-actions">
+                <button type="button" id="cancelImportDestinationBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="confirmImportDestinationBtn" class="btn btn-primary" data-i18n="importConfirm">Import</button>
             </div>
         </div>
     </div>
@@ -1012,7 +1048,7 @@
     <script src="js/syllabus-templates.js"></script>
     <script src="js/team-auth.js"></script>
     <script src="js/calendar-sync.js"></script>
-    <script src="app.js?v=20260523-team-auth"></script>
+    <script src="app.js?v=20260525-import-modals"></script>
     <script src="howto.js"></script>
 </body>
 </html>

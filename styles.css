@@ -4612,6 +4612,35 @@ input.input-readonly {
     border: 1px solid var(--border-color);
 }
 
+.import-destination-options {
+    border: none;
+    margin: 0 0 1rem;
+    padding: 0;
+}
+
+.import-destination-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.import-destination-option input {
+    margin-top: 0.2rem;
+}
+
+.import-destination-hint {
+    margin: 0.15rem 0 0.75rem 1.5rem;
+}
+
+#importDestinationModal .import-access-label {
+    display: block;
+    margin-top: 0.75rem;
+    font-weight: 600;
+}
+
 .team-user-label {
     font-size: 0.8125rem;
     color: var(--text-muted, #64748b);

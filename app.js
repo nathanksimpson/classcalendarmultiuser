@@ -536,6 +536,17 @@ const translations = {
         confirmClearAllData: 'Are you sure you want to clear all data? This will delete all classes, holidays, and calendar settings. This action cannot be undone.',
         clearDataSuccess: 'All data has been cleared.',
         importSuccess: 'Data imported successfully!',
+        importDestinationTitle: 'Import calendar data',
+        importToCurrent: 'Import into current calendar',
+        importToNew: 'Create new team calendar from file',
+        importOverwriteWarning: 'Replaces all data in this calendar. Export a backup first if unsure.',
+        importOverwriteConfirm: 'Replace all data in "{name}" with the imported file? This cannot be undone.',
+        importReadOnlyHint: 'This calendar is locked by another teacher. Choose “Create new” or take over the lock first.',
+        importConfirm: 'Import',
+        importImporting: 'Importing…',
+        importNoActiveCalendar: 'No team calendar selected. Create a new calendar from the file instead.',
+        importNewCreated: 'Imported into new calendar "{name}".',
+        importToCurrentDone: 'Imported into "{name}".',
         invalidFile: 'Invalid file format. Please select a valid calendar export file.',
         errorReadingFile: 'Error reading file. Please select a valid JSON file.',
         migrationNotice: 'Data migrated to new format:\n- {classes} class(es) updated\n- {holidays} holiday(s) updated\n\nPlease review and update Class Levels (A/B/C) for migrated classes.'
@@ -1072,6 +1083,17 @@ const translations = {
         confirmClearAllData: '모든 데이터를 지우시겠습니까? 모든 수업, 휴일 및 캘린더 설정이 삭제됩니다. 이 작업은 취소할 수 없습니다.',
         clearDataSuccess: '모든 데이터가 지워졌습니다.',
         importSuccess: '데이터를 성공적으로 가져왔습니다!',
+        importDestinationTitle: '캘린더 데이터 가져오기',
+        importToCurrent: '현재 캘린더에 가져오기',
+        importToNew: '파일로 새 팀 캘린더 만들기',
+        importOverwriteWarning: '이 캘린더의 모든 데이터를 대체합니다. 확실하지 않으면 먼저보내기로 백업하세요.',
+        importOverwriteConfirm: '"{name}"의 모든 데이터를 가져온 파일로 바꿀까요? 되돌릴 수 없습니다.',
+        importReadOnlyHint: '다른 선생님이 이 캘린더를 잠갔습니다. “새로 만들기”를 선택하거나 먼저 잠금을 가져오세요.',
+        importConfirm: '가져오기',
+        importImporting: '가져오는 중…',
+        importNoActiveCalendar: '선택된 팀 캘린더가 없습니다. 파일로 새 캘린더를 만드세요.',
+        importNewCreated: '새 캘린더 "{name}"에 가져옴.',
+        importToCurrentDone: '"{name}"에 가져옴.',
         invalidFile: '잘못된 파일 형식입니다. 유효한 캘린더 내보내기 파일을 선택하세요.',
         errorReadingFile: '파일을 읽는 중 오류가 발생했습니다. 유효한 JSON 파일을 선택하세요.',
         migrationNotice: '데이터가 새 형식으로 마이그레이션되었습니다:\n- {classes}개의 수업 업데이트\n- {holidays}개의 휴일 업데이트\n\n마이그레이션된 수업의 반(A/B/C)을 확인하고 업데이트하세요.'
@@ -7651,6 +7673,7 @@ function setupEventListeners() {
     document.getElementById('addClassBtn').addEventListener('click', () => openClassEditor(null, 'calendar-popout'));
     document.getElementById('addHolidayBtn').addEventListener('click', () => openEventEditor(null, 'calendar-popout'));
     document.getElementById('exportBtn').addEventListener('click', exportData);
+    setupImportDestinationModal();
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importData);
     const printCalendarBtn = document.getElementById('printCalendarBtn');
@@ -7855,11 +7878,19 @@ function setupEventListeners() {
 // Modal Functions
 // ============================================
 function openModal(modal) {
+    if (!modal) {
+        return;
+    }
+    modal.style.removeProperty('display');
     modal.classList.add('active');
 }
 
 function closeModal(modal) {
+    if (!modal) {
+        return;
+    }
     modal.classList.remove('active');
+    modal.style.removeProperty('display');
     if (modal === elements.holidayModal) {
         closeEventApplicabilityPopover();
     }
@@ -12293,10 +12324,15 @@ function getNewCalendarAccessSelections() {
     return { memberUserIds, groupIds };
 }
 
-async function populateNewCalendarAccessPicker() {
-    const teachersEl = document.getElementById('newCalendarTeachersList');
-    const groupsEl = document.getElementById('newCalendarGroupsList');
-    const groupsLabel = document.querySelector('.access-groups-label');
+async function populateCalendarAccessPicker(options) {
+    const opts = options || {};
+    const teachersEl = document.getElementById(opts.teachersListId || 'newCalendarTeachersList');
+    const groupsEl = document.getElementById(opts.groupsListId || 'newCalendarGroupsList');
+    const groupsLabel = opts.groupsLabelEl
+        ? document.querySelector(opts.groupsLabelEl)
+        : document.querySelector('.access-groups-label');
+    const teacherInputName = opts.teacherInputName || 'newCalTeacher';
+    const groupInputName = opts.groupInputName || 'newCalGroup';
     const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
     if (!teachersEl) {
         return;
@@ -12310,9 +12346,9 @@ async function populateNewCalendarAccessPicker() {
         teachers = [];
         groups = [];
     }
-    const otherTeachers = (teachers || []).filter((t) => !me || t.id !== me.id);
+    const otherTeachers = (teachers || []).filter((u) => !me || u.id !== me.id);
     const disabledIds = me ? [me.id] : [];
-    renderAccessCheckboxList(teachersEl, otherTeachers, 'newCalTeacher', {
+    renderAccessCheckboxList(teachersEl, otherTeachers, teacherInputName, {
         emptyText: t('newCalendarNoAccessList'),
         disabledIds
     });
@@ -12321,7 +12357,7 @@ async function populateNewCalendarAccessPicker() {
             if (groupsLabel) {
                 groupsLabel.hidden = false;
             }
-            renderAccessCheckboxList(groupsEl, groups, 'newCalGroup', { emptyText: '' });
+            renderAccessCheckboxList(groupsEl, groups, groupInputName, { emptyText: '' });
         } else {
             groupsEl.innerHTML = '';
             if (groupsLabel) {
@@ -12329,6 +12365,44 @@ async function populateNewCalendarAccessPicker() {
             }
         }
     }
+}
+
+async function populateNewCalendarAccessPicker() {
+    return populateCalendarAccessPicker({});
+}
+
+async function populateImportNewCalendarAccessPicker() {
+    return populateCalendarAccessPicker({
+        teachersListId: 'importNewCalendarTeachersList',
+        groupsListId: 'importNewCalendarGroupsList',
+        groupsLabelEl: '#importDestinationModal .import-access-groups-label',
+        teacherInputName: 'importNewCalTeacher',
+        groupInputName: 'importNewCalGroup'
+    });
+}
+
+function getImportCalendarAccessSelections() {
+    const memberUserIds = [];
+    document.querySelectorAll('#importNewCalendarTeachersList input[type="checkbox"]:checked').forEach((el) => {
+        if (el.value && !el.disabled) {
+            memberUserIds.push(el.value);
+        }
+    });
+    const groupIds = [];
+    document.querySelectorAll('#importNewCalendarGroupsList input[type="checkbox"]:checked').forEach((el) => {
+        if (el.value) {
+            groupIds.push(el.value);
+        }
+    });
+    return { memberUserIds, groupIds };
+}
+
+function normalizeImportedAppData(imported) {
+    const data = Object.assign({}, imported);
+    if (!data.events && data.holidays) {
+        data.events = data.holidays.map((h) => Object.assign({}, h, { type: EVENT_TYPES.HOLIDAY }));
+    }
+    return data;
 }
 
 async function createTeamCalendarFromName(name, accessOptions) {
@@ -12339,15 +12413,27 @@ async function createTeamCalendarFromName(name, accessOptions) {
     }
     const freshData = getDefaultAppData();
     freshData.calendarName = trimmed;
+    return createTeamCalendarFromImport(trimmed, freshData, accessOptions);
+}
+
+async function createTeamCalendarFromImport(name, importedData, accessOptions, successToastKey) {
+    CalendarSync.cancelPendingSave();
+    const trimmed = (name || '').trim();
+    if (!trimmed) {
+        throw new Error(t('newCalendarFailed'));
+    }
+    const payload = normalizeImportedAppData(importedData);
+    payload.calendarName = trimmed;
+    migrateData(payload);
     const opts = accessOptions || getNewCalendarAccessSelections();
-    const created = await CalendarSync.createCalendar(freshData, trimmed, {
+    const created = await CalendarSync.createCalendar(payload, trimmed, {
         memberUserIds: opts.memberUserIds,
         groupIds: opts.groupIds
     });
     const list = await CalendarSync.listCalendars();
     const id = created.id;
     await switchToTeamCalendar(id, list);
-    showSyncToast(t('newCalendarCreated').replace('{name}', trimmed), false);
+    showSyncToast(t(successToastKey || 'newCalendarCreated').replace('{name}', trimmed), false);
     highlightCalendarSelect();
     return created;
 }
@@ -13219,55 +13305,242 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
+let pendingImportPayload = null;
+let pendingImportFileName = '';
+
+function isValidCalendarImportPayload(imported) {
+    return Boolean(imported && imported.classes && (imported.holidays || imported.events));
+}
+
+function finishImportUiAfterApply(migrated) {
+    refreshLocalizedEventDisplayNames();
+    syncHolidaysFromEvents();
+    resetCalendarClassVisibilityAfterImport();
+    if (appData.termStart && elements.termStart) {
+        elements.termStart.value = appData.termStart;
+    }
+    if (elements.termMonthCount) {
+        elements.termMonthCount.value = String(getTermMonthCount());
+    }
+    applyVisibilityFiltersToDom();
+    renderCalendar();
+    updateCalendarTitle();
+    updateTopBarCalendarLabel();
+    if (!migrated && !teamSyncEnabled) {
+        alert(t('importSuccess'));
+    }
+}
+
+function applyImportToLocalData(imported) {
+    invalidateScheduleCache();
+    appData = normalizeImportedAppData(imported);
+    const migrated = migrateData(appData);
+    finishImportUiAfterApply(migrated);
+    saveData();
+    return migrated;
+}
+
+async function applyImportToCurrentTeamCalendar(imported) {
+    const calId = CalendarSync.getActiveCalendarId();
+    if (!calId) {
+        showSyncToast(t('importNoActiveCalendar'), true);
+        return;
+    }
+    if (CalendarSync.isReadOnly()) {
+        showSyncToast(t('importReadOnlyHint'), true);
+        return;
+    }
+    const calName =
+        appData.calendarName ||
+        document.getElementById('teamCalendarSelect')?.selectedOptions?.[0]?.textContent ||
+        'Calendar';
+    if (!confirm(t('importOverwriteConfirm').replace('{name}', calName))) {
+        return;
+    }
+    CalendarSync.cancelPendingSave();
+    invalidateScheduleCache();
+    appData = normalizeImportedAppData(imported);
+    appData.calendarName = calName;
+    const migrated = migrateData(appData);
+    finishImportUiAfterApply(migrated);
+    await CalendarSync.saveCalendar(JSON.parse(JSON.stringify(appData)), { force: true });
+    showSyncToast(t('importToCurrentDone').replace('{name}', calName), false);
+    return migrated;
+}
+
+function updateImportDestinationModalState() {
+    const modal = document.getElementById('importDestinationModal');
+    if (!modal) {
+        return;
+    }
+    const currentRadio = document.getElementById('importDestCurrent');
+    const newRadio = document.getElementById('importDestNew');
+    const newSection = document.getElementById('importNewCalendarSection');
+    const readOnlyHint = document.getElementById('importDestReadOnlyHint');
+    const currentLabel = document.getElementById('importDestCurrentLabel');
+    const calId = teamSyncEnabled && typeof CalendarSync !== 'undefined' ? CalendarSync.getActiveCalendarId() : null;
+    const readOnly = teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly();
+    const calName =
+        appData.calendarName ||
+        document.getElementById('teamCalendarSelect')?.selectedOptions?.[0]?.textContent ||
+        t('calendarName');
+    if (currentLabel) {
+        currentLabel.textContent = t('importToCurrent') + ': “' + calName + '”';
+    }
+    const noCurrent = !calId;
+    if (currentRadio) {
+        currentRadio.disabled = noCurrent || readOnly;
+    }
+    if (readOnlyHint) {
+        readOnlyHint.hidden = !readOnly;
+    }
+    if (noCurrent || readOnly) {
+        if (newRadio) {
+            newRadio.checked = true;
+        }
+        if (currentRadio) {
+            currentRadio.checked = false;
+        }
+    } else if (currentRadio && !currentRadio.disabled) {
+        currentRadio.checked = true;
+        if (newRadio) {
+            newRadio.checked = false;
+        }
+    }
+    const showNew = newRadio && newRadio.checked;
+    if (newSection) {
+        newSection.hidden = !showNew;
+    }
+}
+
+async function openImportDestinationModal(imported, fileName) {
+    pendingImportPayload = imported;
+    pendingImportFileName = fileName || '';
+    const modal = document.getElementById('importDestinationModal');
+    const fileLabel = document.getElementById('importDestinationFileLabel');
+    if (fileLabel) {
+        fileLabel.textContent = fileName ? 'File: ' + fileName : '';
+    }
+    const nameInput = document.getElementById('importNewCalendarNameInput');
+    if (nameInput) {
+        const suggested =
+            (imported.calendarName && String(imported.calendarName).trim()) || 'Imported Calendar';
+        nameInput.value = suggested;
+    }
+    await populateImportNewCalendarAccessPicker();
+    updateImportDestinationModalState();
+    const newRadio = document.getElementById('importDestNew');
+    const newSection = document.getElementById('importNewCalendarSection');
+    if (newRadio) {
+        newRadio.onchange = () => {
+            if (newSection) {
+                newSection.hidden = !newRadio.checked;
+            }
+        };
+    }
+    const currentRadio = document.getElementById('importDestCurrent');
+    if (currentRadio) {
+        currentRadio.onchange = updateImportDestinationModalState;
+    }
+    openModal(modal);
+}
+
+function closeImportDestinationModal() {
+    pendingImportPayload = null;
+    pendingImportFileName = '';
+    closeModal(document.getElementById('importDestinationModal'));
+}
+
+async function confirmImportDestination() {
+    const imported = pendingImportPayload;
+    if (!imported) {
+        return;
+    }
+    const btn = document.getElementById('confirmImportDestinationBtn');
+    const prevText = btn ? btn.textContent : '';
+    const useNew = document.getElementById('importDestNew')?.checked;
+    try {
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = t('importImporting');
+        }
+        if (useNew) {
+            const nameInput = document.getElementById('importNewCalendarNameInput');
+            const name = nameInput?.value.trim() || imported.calendarName || 'Imported Calendar';
+            if (!name) {
+                nameInput?.focus();
+                return;
+            }
+            await createTeamCalendarFromImport(
+                name,
+                imported,
+                getImportCalendarAccessSelections(),
+                'importNewCreated'
+            );
+        } else {
+            if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {
+                await applyImportToCurrentTeamCalendar(imported);
+            } else {
+                applyImportToLocalData(imported);
+            }
+        }
+        closeImportDestinationModal();
+    } catch (err) {
+        showSyncToast((err && err.message) || t('errorReadingFile'), true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = prevText || t('importConfirm');
+        }
+    }
+}
+
+function setupImportDestinationModal() {
+    if (document.body.dataset.importDestinationModalBound === '1') {
+        return;
+    }
+    const modal = document.getElementById('importDestinationModal');
+    document.getElementById('closeImportDestinationModal')?.addEventListener('click', closeImportDestinationModal);
+    document.getElementById('cancelImportDestinationBtn')?.addEventListener('click', closeImportDestinationModal);
+    document.getElementById('confirmImportDestinationBtn')?.addEventListener('click', () => {
+        confirmImportDestination();
+    });
+    if (modal) {
+        bindModalBackdropClose(modal);
+    }
+    document.body.dataset.importDestinationModalBound = '1';
+}
+
 function importData(e) {
     const file = e.target.files[0];
-    if (!file) return;
-    
+    if (!file) {
+        return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
         try {
             const imported = JSON.parse(event.target.result);
-            
-            // Validate structure
-            if (imported.classes && (imported.holidays || imported.events)) {
-                appData = imported;
-                if (!appData.events && appData.holidays) {
-                    appData.events = appData.holidays.map(h => ({ ...h, type: EVENT_TYPES.HOLIDAY }));
-                }
-                invalidateScheduleCache();
-                
-                const migrated = migrateData(appData);
-                refreshLocalizedEventDisplayNames();
-                syncHolidaysFromEvents();
-                resetCalendarClassVisibilityAfterImport();
-
-                saveData();
-                
-                if (appData.termStart) {
-                    elements.termStart.value = appData.termStart;
-                }
-                if (elements.termMonthCount) {
-                    elements.termMonthCount.value = String(getTermMonthCount());
-                }
-                applyVisibilityFiltersToDom();
-                
-                renderCalendar();
-                
-                if (!migrated) {
-                    alert(t('importSuccess'));
-                }
-                // If migrated, the migration function already shows an alert
-            } else {
+            if (!isValidCalendarImportPayload(imported)) {
                 alert(t('invalidFile'));
+                return;
             }
+            if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {
+                openImportDestinationModal(imported, file.name).catch((err) => {
+                    showSyncToast((err && err.message) || t('errorReadingFile'), true);
+                });
+                return;
+            }
+            if (!confirm(t('importOverwriteWarning'))) {
+                return;
+            }
+            applyImportToLocalData(imported);
         } catch (err) {
             alert(t('errorReadingFile'));
             console.error('Import error:', err);
         }
     };
     reader.readAsText(file);
-    
-    // Reset file input
     e.target.value = '';
 }
 

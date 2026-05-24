@@ -215,6 +215,43 @@ function deleteAllSessionsForUser(userId) {
     getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
 }
 
+function permanentlyDeleteUser(targetId, actingAdminId) {
+    const db = getDb();
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    if (!target) {
+        const err = new Error('User not found');
+        err.status = 404;
+        throw err;
+    }
+    if (targetId === actingAdminId) {
+        const err = new Error('You cannot delete your own account');
+        err.status = 403;
+        throw err;
+    }
+    if (target.active !== 0) {
+        const err = new Error('Deactivate the account before permanent delete');
+        err.status = 403;
+        throw err;
+    }
+    if (target.role === 'admin') {
+        const adminCount = db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role = 'admin'`).get();
+        if (Number(adminCount?.c || 0) <= 1) {
+            const err = new Error('Cannot delete the only admin account');
+            err.status = 403;
+            throw err;
+        }
+    }
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM calendar_members WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM group_members WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM calendar_locks WHERE holder_user_id = ?').run(targetId);
+    db.prepare(
+        `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL WHERE pending_requester_id = ?`
+    ).run(targetId);
+    const result = db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+    return result.changes > 0;
+}
+
 function getLock(calendarId) {
     const db = getDb();
     return db.prepare('SELECT * FROM calendar_locks WHERE calendar_id = ?').get(calendarId);
@@ -349,6 +386,7 @@ module.exports = {
     getSessionUser,
     deleteSession,
     deleteAllSessionsForUser,
+    permanentlyDeleteUser,
     getLock,
     acquireLock,
     refreshLock,

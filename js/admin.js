@@ -7,10 +7,41 @@ async function api(path, options) {
     return json;
 }
 
+let adminNoticeTimer = null;
+
 function setStatus(msg, isError) {
     const el = document.getElementById('adminStatus');
+    if (!el) {
+        return;
+    }
     el.textContent = msg;
     el.style.color = isError ? '#b91c1c' : '';
+    if (isError && msg) {
+        showAdminSaveNotice(msg, true);
+    }
+}
+
+function showAdminSaveNotice(msg, isError) {
+    const el = document.getElementById('adminNotice');
+    if (!el || !msg) {
+        return;
+    }
+    if (adminNoticeTimer) {
+        clearTimeout(adminNoticeTimer);
+        adminNoticeTimer = null;
+    }
+    el.textContent = msg;
+    el.hidden = false;
+    el.className =
+        'admin-notice admin-notice--visible ' + (isError ? 'admin-notice--error' : 'admin-notice--success');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (!isError) {
+        adminNoticeTimer = setTimeout(() => {
+            el.hidden = true;
+            el.className = 'admin-notice';
+            adminNoticeTimer = null;
+        }, 6000);
+    }
 }
 
 function escapeHtml(s) {
@@ -65,13 +96,29 @@ async function loadTeachersCache() {
     return cachedTeachers;
 }
 
+async function permanentlyDeleteUser(u) {
+    const label = u.email || u.displayName || u.id;
+    if (
+        !confirm(
+            'Permanently delete ' +
+                label +
+                '?\n\nThis removes their account from the database. This cannot be undone.'
+        )
+    ) {
+        return;
+    }
+    await api('/admin/users/' + encodeURIComponent(u.id), { method: 'DELETE' });
+    await refreshAll();
+    showAdminSaveNotice('Permanently deleted ' + label + '.', false);
+}
+
 async function deactivateUser(u) {
     const label = u.email || u.displayName || u.id;
     if (
         !confirm(
             'Deactivate ' +
                 label +
-                '?\n\nThey will not be able to sign in until you Reactivate them. Accounts are never permanently deleted.'
+                '?\n\nThey will not be able to sign in until you Reactivate them. You can permanently delete the account later (deactivated users only).'
         )
     ) {
         return;
@@ -82,7 +129,7 @@ async function deactivateUser(u) {
         body: JSON.stringify({ active: false })
     });
     await refreshAll();
-    setStatus('Deactivated ' + label + '.');
+    showAdminSaveNotice('Saved: deactivated ' + label + '.', false);
 }
 
 async function loadUsers() {
@@ -113,7 +160,7 @@ async function loadUsers() {
                 deact.className = 'btn btn-outline btn-small';
                 deact.textContent = 'Deactivate';
                 deact.title = 'Block sign-in (account is kept; use Reactivate later)';
-                deact.onclick = () => deactivateUser(u).catch((ex) => setStatus(ex.message, true));
+                deact.onclick = () => deactivateUser(u).catch((ex) => showAdminSaveNotice(ex.message, true));
                 if (u.role === 'admin' && activeAdminCount <= 1) {
                     deact.disabled = true;
                     deact.title = 'Cannot deactivate the only admin';
@@ -126,16 +173,20 @@ async function loadUsers() {
                 promote.className = 'btn btn-outline btn-small';
                 promote.textContent = 'Make admin';
                 promote.onclick = async () => {
-                    if (!confirm('Make ' + (u.displayName || u.email) + ' an admin?')) {
-                        return;
+                    try {
+                        if (!confirm('Make ' + (u.displayName || u.email) + ' an admin?')) {
+                            return;
+                        }
+                        await api('/admin/users/' + encodeURIComponent(u.id), {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ role: 'admin' })
+                        });
+                        await refreshAll();
+                        showAdminSaveNotice('Saved: ' + (u.displayName || u.email) + ' is now an admin.', false);
+                    } catch (ex) {
+                        showAdminSaveNotice(ex.message, true);
                     }
-                    await api('/admin/users/' + encodeURIComponent(u.id), {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ role: 'admin' })
-                    });
-                    await refreshAll();
-                    setStatus('User is now an admin.');
                 };
                 actions.appendChild(promote);
             } else if (activeAdminCount > 1 && !isSelf) {
@@ -144,16 +195,20 @@ async function loadUsers() {
                 demote.className = 'btn btn-outline btn-small';
                 demote.textContent = 'Make teacher';
                 demote.onclick = async () => {
-                    if (!confirm('Demote ' + (u.displayName || u.email) + ' to teacher?')) {
-                        return;
+                    try {
+                        if (!confirm('Demote ' + (u.displayName || u.email) + ' to teacher?')) {
+                            return;
+                        }
+                        await api('/admin/users/' + encodeURIComponent(u.id), {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ role: 'teacher' })
+                        });
+                        await refreshAll();
+                        showAdminSaveNotice('Saved: ' + (u.displayName || u.email) + ' is now a teacher.', false);
+                    } catch (ex) {
+                        showAdminSaveNotice(ex.message, true);
                     }
-                    await api('/admin/users/' + encodeURIComponent(u.id), {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ role: 'teacher' })
-                    });
-                    await refreshAll();
-                    setStatus('User is now a teacher.');
                 };
                 actions.appendChild(demote);
             }
@@ -164,15 +219,28 @@ async function loadUsers() {
             react.textContent = 'Reactivate';
             react.title = 'Allow sign-in again';
             react.onclick = async () => {
-                await api('/admin/users/' + encodeURIComponent(u.id), {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ active: true })
-                });
-                await refreshAll();
-                setStatus('Reactivated ' + (u.email || u.displayName) + '.');
+                try {
+                    await api('/admin/users/' + encodeURIComponent(u.id), {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ active: true })
+                    });
+                    await refreshAll();
+                    showAdminSaveNotice('Saved: reactivated ' + (u.email || u.displayName) + '.', false);
+                } catch (ex) {
+                    showAdminSaveNotice(ex.message, true);
+                }
             };
             actions.appendChild(react);
+            if (!isSelf) {
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'btn btn-outline btn-small btn-danger-text';
+                del.textContent = 'Delete permanently';
+                del.title = 'Remove this account from the database (cannot be undone)';
+                del.onclick = () => permanentlyDeleteUser(u).catch((ex) => showAdminSaveNotice(ex.message, true));
+                actions.appendChild(del);
+            }
         }
         body.appendChild(tr);
     });
@@ -210,11 +278,16 @@ async function loadGroups() {
         delBtn.className = 'btn btn-outline btn-small btn-danger-text';
         delBtn.textContent = 'Delete';
         delBtn.onclick = async () => {
-            if (!confirm('Delete group "' + g.name + '"? Calendars will lose this group assignment.')) {
-                return;
+            try {
+                if (!confirm('Delete group "' + g.name + '"? Calendars will lose this group assignment.')) {
+                    return;
+                }
+                await api('/admin/groups/' + encodeURIComponent(g.id), { method: 'DELETE' });
+                await refreshAll();
+                showAdminSaveNotice('Saved: deleted group "' + g.name + '".', false);
+            } catch (ex) {
+                showAdminSaveNotice(ex.message, true);
             }
-            await api('/admin/groups/' + encodeURIComponent(g.id), { method: 'DELETE' });
-            await refreshAll();
         };
         actions.appendChild(delBtn);
         body.appendChild(tr);
@@ -244,9 +317,9 @@ function openEditGroupMembers(group, activeTeachers) {
             });
             wrap.remove();
             await refreshAll();
-            setStatus('Group updated.');
+            showAdminSaveNotice('Saved: updated members for group "' + group.name + '".', false);
         } catch (ex) {
-            setStatus(ex.message, true);
+            showAdminSaveNotice(ex.message, true);
         }
     };
     wrap.appendChild(saveBtn);
@@ -400,9 +473,9 @@ async function init() {
             document.getElementById('newEmail').value = '';
             document.getElementById('newPassword').value = '';
             await refreshAll();
-            setStatus('User added.');
+            showAdminSaveNotice('Saved: new user added.', false);
         } catch (ex) {
-            setStatus(ex.message, true);
+            showAdminSaveNotice(ex.message, true);
         }
     });
 
@@ -420,14 +493,14 @@ async function init() {
             });
             document.getElementById('newGroupName').value = '';
             await refreshAll();
-            setStatus('Group created.');
+            showAdminSaveNotice('Saved: group created.', false);
         } catch (ex) {
-            setStatus(ex.message, true);
+            showAdminSaveNotice(ex.message, true);
         }
     });
 
     document.getElementById('accessCalendarSelect').addEventListener('change', () => {
-        loadCalendarAccessForSelected().catch((ex) => setStatus(ex.message, true));
+        loadCalendarAccessForSelected().catch((ex) => showAdminSaveNotice(ex.message, true));
     });
 
     document.getElementById('calendarAccessForm').addEventListener('submit', async (e) => {
@@ -441,10 +514,12 @@ async function init() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userIds, groupIds })
             });
-            setStatus('Calendar access saved.');
+            const calLabel =
+                document.getElementById('accessCalendarSelect')?.selectedOptions?.[0]?.textContent || calId;
             await loadCalendarAccessUI();
+            showAdminSaveNotice('Saved: calendar access for "' + calLabel + '".', false);
         } catch (ex) {
-            setStatus(ex.message, true);
+            showAdminSaveNotice(ex.message, true);
         }
     });
 
