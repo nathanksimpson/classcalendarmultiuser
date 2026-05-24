@@ -20,17 +20,19 @@ Teachers open **one bookmark**, sign in with **Kakao**, and edit shared calendar
 3. Enable **email** consent if you want email-based allowlist.
 4. Copy **REST API key** → `KAKAO_CLIENT_ID`.
 
-### 2. Cloudflare
+### 2. Cloudflare (Workers + D1)
 
-1. **Pages**: connect this folder; build command empty; output = project root.
-2. **D1**: create database, run migration:  
-   `npx wrangler d1 migrations apply calendar-team --remote`
-3. **Worker**: deploy `worker/src/index.js` (see `wrangler.toml`); route `/api/*` to the Worker.
-4. Set secrets:  
-   `wrangler secret put KAKAO_CLIENT_ID`  
-   `wrangler secret put KAKAO_CLIENT_SECRET`  
-   `wrangler secret put BOOTSTRAP_ADMIN_SECRET`
-5. Set `PUBLIC_URL` in `wrangler.toml` to your Pages URL.
+This repo deploys with **`npx wrangler deploy`** (static files + API in one Worker).
+
+**If the build failed with error `10021`**, follow **[CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md)** (create D1, paste `database_id` into `wrangler.toml`, migrate, secrets, push).
+
+Summary:
+
+1. Create D1 database **`calendar-team`** → copy **Database ID** into `wrangler.toml`.
+2. `npm run db:migrate:remote`
+3. `wrangler secret put` for Kakao + `BOOTSTRAP_ADMIN_SECRET`
+4. Set `PUBLIC_URL` in `wrangler.toml` to your live `*.workers.dev` URL.
+5. Push to GitHub (Cloudflare rebuilds).
 
 ### 3. First admin
 

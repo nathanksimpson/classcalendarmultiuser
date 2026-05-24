@@ -5,7 +5,12 @@
   "description": "Class Calendar Planner — team cloud sync",
   "scripts": {
     "start": "node server/index.js",
-    "sync-from-main": "node scripts/sync-from-main.mjs"
+    "sync-from-main": "node scripts/sync-from-main.mjs",
+    "deploy": "wrangler deploy",
+    "db:migrate:remote": "wrangler d1 migrations apply calendar-team --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.94.0"
   },
   "engines": {
     "node": ">=18"

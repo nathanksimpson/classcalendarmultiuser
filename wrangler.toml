@@ -1,17 +1,23 @@
-name = "class-calendar-team"
+name = "classcalendarmultiuser"
 main = "worker/src/index.js"
 compatibility_date = "2024-09-01"
 
-# Static site: connect this repo root as Cloudflare Pages project.
-# Route /api/* to this Worker (Workers & Pages → your project → Settings → Functions).
+# Serves index.html, app.js, etc. API routes are handled in worker/src/index.js.
+[assets]
+directory = "."
+binding = "ASSETS"
+not_found_handling = "single-page-application"
 
+# REQUIRED: create D1 in Cloudflare, then paste its Database ID here (see CLOUDFLARE-DEPLOY.md).
 [[d1_databases]]
 binding = "DB"
 database_name = "calendar-team"
 database_id = "REPLACE_WITH_YOUR_D1_ID"
+migrations_dir = "worker/migrations"
 
 [vars]
-PUBLIC_URL = "https://your-calendar.pages.dev"
+# Set to your live URL after the first deploy (Workers *.workers.dev or custom domain).
+PUBLIC_URL = "https://classcalendarmultiuser.workers.dev"
 
 # Secrets (wrangler secret put):
 # KAKAO_CLIENT_ID

@@ -1,0 +1,14 @@
+node_modules
+.git
+data
+Reference
+scripts
+tests
+server
+worker
+Example Calendars
+*.bat
+.env
+.env.*
+.wrangler
+package-lock.json

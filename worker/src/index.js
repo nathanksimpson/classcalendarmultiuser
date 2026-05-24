@@ -234,6 +234,13 @@ export default {
         const secure = publicUrl(env, request).startsWith('https://');
         const kakaoId = env.KAKAO_CLIENT_ID || '';
 
+        if (!path.startsWith('/api/')) {
+            if (env.ASSETS) {
+                return env.ASSETS.fetch(request);
+            }
+            return new Response('Not found', { status: 404 });
+        }
+
         if (path === '/api/health') {
             return json({
                 ok: true,
