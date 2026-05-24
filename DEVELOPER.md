@@ -121,6 +121,10 @@ Do not commit `.env`, `data/`, `node_modules/`, or `.wrangler/`.
 
 ---
 
+## Security
+
+See **[SECURITY-AUDIT.md](SECURITY-AUDIT.md)** for a pinned security review (Kakao OAuth, locks, bootstrap, rate limiting) and phased remediation plan. Auth/TOTP/Kakao removal are **not** implemented until explicitly scheduled.
+
 ## Agent handoff
 
 See **[AGENTS.md](AGENTS.md)** for recent feature summary, lock behavior, key files, and suggested first steps for a new coding session.

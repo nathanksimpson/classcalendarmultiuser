@@ -131,8 +131,8 @@ body {
     position: sticky;
     top: 0;
     z-index: 200;
-    margin: -24px -24px 20px;
-    padding: 12px 24px;
+    margin: -24px -24px 16px;
+    padding: 8px 20px;
     background: var(--top-bar-bg);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -143,8 +143,29 @@ body {
 .app-top-bar-compact {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
+}
+
+.app-term-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+@media (min-width: 1100px) {
+    .app-top-bar-compact {
+        flex-wrap: nowrap;
+    }
+
+    .app-top-bar-title-block {
+        flex: 0 1 auto;
+    }
+
+    .app-tab-nav {
+        flex: 0 1 auto;
+    }
 }
 
 .app-top-bar-title-block {
@@ -389,12 +410,6 @@ body {
 .btn-lang {
     font-weight: 600;
     min-width: 100px;
-}
-
-.btn-help::before {
-    content: '?';
-    margin-right: 0.35em;
-    font-weight: 700;
 }
 
 .btn-help {
@@ -3086,35 +3101,12 @@ input.input-readonly {
     padding-right: 6px;
 }
 
-.app-header-tool-group--overflow {
-    position: relative;
+.app-header-tool-group--help {
     padding-left: 6px;
 }
 
-.app-header-overflow-menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 300;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    min-width: 11rem;
-    padding: 8px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    box-shadow: var(--shadow-lg);
-}
-
-.app-header-overflow-menu[hidden] {
-    display: none !important;
-}
-
-.app-header-overflow-menu .btn {
-    width: 100%;
-    justify-content: flex-start;
+.app-header-tool-group--data {
+    padding-right: 0;
 }
 
 .app-banner-stack {
@@ -3151,8 +3143,18 @@ input.input-readonly {
     line-height: 1.4;
 }
 
-.team-calendar-row--header .team-sync-status {
+.team-calendar-row-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.team-account-toolbar {
     margin-left: auto;
+    flex-shrink: 0;
 }
 
 @media (max-width: 900px) {
@@ -3231,19 +3233,19 @@ input.input-readonly {
     color: #fff;
 }
 
-/* Print & data tab: navigation to settings panel, not the header Print action */
-.app-tab-btn--print-data:not(.is-active) {
+/* Data tab: settings panel (header Print is separate) */
+.app-tab-btn--data:not(.is-active) {
     color: var(--tab-print-inactive-color);
     background: var(--tab-print-inactive-bg);
     box-shadow: inset 0 0 0 1px var(--tab-print-inactive-border);
 }
 
-.app-tab-btn--print-data:not(.is-active):hover {
+.app-tab-btn--data:not(.is-active):hover {
     background: var(--tab-print-hover-bg);
     color: var(--tab-print-inactive-color);
 }
 
-.app-tab-btn--print-data.is-active {
+.app-tab-btn--data.is-active {
     background: var(--tab-print-active-bg);
     color: #fff;
     box-shadow: none;
@@ -4087,6 +4089,29 @@ input.input-readonly {
 
 .print-options-form {
     padding: 0;
+}
+
+.print-form-include-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.print-form-include-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-right: 0.25rem;
+}
+
+.print-form-footer-actions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
 }
 
 .print-form-section {

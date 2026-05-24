@@ -124,9 +124,13 @@ const translations = {
         themeDark: '🌙 Dark',
         themeLight: '☀️ Light',
         themeToggleTitle: 'Switch light/dark theme',
-        howToBtn: 'Help?',
+        howToBtn: 'Help',
         howToBtnTitle: 'How to use this app',
-        headerToolsMenu: 'Tools ▾',
+        printBtn: 'Print',
+        printIncludeLabel: 'Include in this print:',
+        printIncludeCalendar: 'Calendar (landscape)',
+        printIncludeSummary: 'Summary & syllabi (portrait)',
+        printNothingSelected: 'Choose at least one: calendar or summary.',
         teamCalendarHelp: 'Team help',
         
         // Term Selector
@@ -167,7 +171,7 @@ const translations = {
         tabSyllabus: 'Syllabus',
         tabEvents: 'Events',
         tabHomework: 'Homework',
-        tabPrint: 'Print & data',
+        tabData: 'Data',
         tabPrintDataHeading: 'Data & settings',
         printBooksHeading: 'Books',
         printBooksHint: 'Curriculum books (Write Now, Write Right, Hand in Hand, etc.): lesson plans and page blocks that class syllabi pull from. Green / Blue / Navy levels share one book where pagination is the same.',
@@ -694,9 +698,13 @@ const translations = {
         themeDark: '🌙 다크',
         themeLight: '☀️ 라이트',
         themeToggleTitle: '라이트/다크 테마 전환',
-        howToBtn: '도움말?',
+        howToBtn: '도움말',
         howToBtnTitle: '앱 사용 방법',
-        headerToolsMenu: '도구 ▾',
+        printBtn: '인쇄',
+        printIncludeLabel: '이번 인쇄에 포함:',
+        printIncludeCalendar: '캘린더 (가로)',
+        printIncludeSummary: '요약 및 강의계획 (세로)',
+        printNothingSelected: '캘린더 또는 요약 중 하나 이상을 선택하세요.',
         teamCalendarHelp: '팀 도움말',
         
         // Term Selector
@@ -737,7 +745,7 @@ const translations = {
         tabSyllabus: '강의 계획표',
         tabEvents: '일정',
         tabHomework: '숙제',
-        tabPrint: '인쇄 및 데이터',
+        tabData: '데이터',
         tabPrintDataHeading: '데이터 및 설정',
         printBooksHeading: '교재',
         printBooksHint: 'Write Now, Write Right, Hand in Hand 등 교재별 수업 계획·페이지 데이터입니다. 수업 강의 계획표에 불러옵니다. Green/Blue/Navy는 페이지가 같으면 하나의 교재로 묶입니다.',
@@ -3592,6 +3600,9 @@ function ensureUiState() {
     if (appData.ui.topBarCollapsed === undefined) {
         appData.ui.topBarCollapsed = false;
     }
+    if (appData.ui.activeTab === 'print') {
+        appData.ui.activeTab = 'data';
+    }
     if (!appData.ui.activeTab || !APP_TAB_IDS.includes(appData.ui.activeTab)) {
         appData.ui.activeTab = 'calendar';
     }
@@ -3710,44 +3721,6 @@ function initTopBarToggle() {
         setTopBarCollapsed(!appData.ui.topBarCollapsed);
     });
     applyTopBarCollapsedState();
-}
-
-function setupHeaderToolsMenu() {
-    const btn = document.getElementById('headerToolsMenuBtn');
-    const menu = document.getElementById('headerToolsMenu');
-    if (!btn || !menu || btn.dataset.bound === '1') {
-        return;
-    }
-    btn.dataset.bound = '1';
-    const closeMenu = () => {
-        menu.hidden = true;
-        btn.setAttribute('aria-expanded', 'false');
-    };
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const willOpen = menu.hidden;
-        if (willOpen) {
-            menu.hidden = false;
-            btn.setAttribute('aria-expanded', 'true');
-        } else {
-            closeMenu();
-        }
-    });
-    menu.addEventListener('click', (e) => {
-        if (e.target.closest('button')) {
-            closeMenu();
-        }
-    });
-    document.addEventListener('click', (e) => {
-        if (!menu.hidden && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-            closeMenu();
-        }
-    });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !menu.hidden) {
-            closeMenu();
-        }
-    });
 }
 
 function normalizeEventType(type) {
@@ -5515,10 +5488,9 @@ function fillBooksFromTermDefaultBook() {
 // ============================================
 // App shell: templates, tabs, form mounts
 // ============================================
-const APP_TAB_IDS = ['calendar', 'classes', 'syllabus', 'events', 'homework', 'print'];
+const APP_TAB_IDS = ['calendar', 'classes', 'syllabus', 'events', 'homework', 'data'];
 let classEditorMount = 'modal';
 let eventEditorMount = 'modal';
-let printFormMountTarget = 'tab';
 /** When true, calendar cells use print visibility checkboxes instead of screen filters. */
 let calendarRenderForPrint = false;
 let syllabusEditorMounted = false;
@@ -5539,7 +5511,7 @@ function mountTemplateInto(templateId, mountId) {
 function initAppShellFromTemplates() {
     mountTemplateInto('classFormTemplate', 'classFormMountModal');
     mountTemplateInto('holidayFormTemplate', 'holidayFormMountModal');
-    mountTemplateInto('printFormTemplate', 'printFormMountTab');
+    mountTemplateInto('printFormTemplate', 'printFormMountModal');
 }
 
 function mountSyllabusEditor() {
@@ -6286,18 +6258,15 @@ function mountClassForm(target) {
     syncClassOpenEditorButton();
 }
 
-function mountPrintForm(target) {
+function mountPrintForm() {
     const form = document.getElementById('printForm');
-    const modalMount = document.getElementById('printFormMountModal');
-    const tabMount = document.getElementById('printFormMountTab');
-    const mount = target === 'tab' ? tabMount : modalMount;
+    const mount = document.getElementById('printFormMountModal');
     if (!form || !mount) {
         return;
     }
     if (form.parentElement !== mount) {
         mount.appendChild(form);
     }
-    printFormMountTarget = target;
 }
 
 function resetHolidayPopoutLayout(mount) {
@@ -6471,12 +6440,8 @@ function navigateToTab(tabId, options = {}) {
         }
         renderHomeworkClassList();
         renderHomeworkEditor();
-    } else if (tabId === 'print') {
-        mountPrintForm('tab');
+    } else if (tabId === 'data') {
         requestAnimationFrame(() => {
-            setPrintFormSectionMode('all');
-            syncPrintVisibilityFromUi();
-            updatePrintLessonFilterHint();
             renderPrintSyllabusManager();
         });
     } else if (tabId === 'calendar' && options.focusClassId) {
@@ -7791,9 +7756,6 @@ function setupEventListeners() {
                 appData.ui.visibilityFilters = readVisibilityFiltersFromDom();
                 saveData();
                 renderCalendar();
-                if (getActiveTab() === 'print') {
-                    syncPrintVisibilityFromUi();
-                }
             });
         }
     });
@@ -7818,7 +7780,6 @@ function setupEventListeners() {
     setupChangePasswordModal();
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importData);
-    setupHeaderToolsMenu();
     const printCalVisSelectAll = document.getElementById('printCalVisSelectAllBtn');
     const printCalVisClearAll = document.getElementById('printCalVisClearAllBtn');
     if (printCalVisSelectAll && !printCalVisSelectAll.dataset.bound) {
@@ -8032,9 +7993,6 @@ function closeModal(modal) {
     modal.style.removeProperty('display');
     if (modal === elements.holidayModal) {
         closeEventApplicabilityPopover();
-    }
-    if (modal === elements.printOptionsModal) {
-        mountPrintForm('tab');
     }
 }
 
@@ -11561,29 +11519,10 @@ function setPrintFormSectionMode(mode) {
     }
 }
 
-function openPrintCalendarDialog() {
-    syncPrintVisibilityFromUi();
-    mountPrintForm('modal');
-    setPrintFormSectionMode('calendar');
-    if (elements.printOptionsModal) {
-        openModal(elements.printOptionsModal);
-    }
-}
-
-function openPrintSummaryDialog() {
-    syncPrintVisibilityFromUi();
-    updatePrintLessonFilterHint();
-    mountPrintForm('modal');
-    setPrintFormSectionMode('summary');
-    if (elements.printOptionsModal) {
-        openModal(elements.printOptionsModal);
-    }
-}
-
 function openPrintOptionsDialog() {
     syncPrintVisibilityFromUi();
     updatePrintLessonFilterHint();
-    mountPrintForm('modal');
+    mountPrintForm();
     setPrintFormSectionMode('all');
     if (elements.printOptionsModal) {
         openModal(elements.printOptionsModal);
@@ -11598,13 +11537,27 @@ function closePrintOptionsModal() {
 
 function handlePrint(e) {
     e.preventDefault();
-    const printMode = e.submitter?.dataset?.printMode === 'summary' ? 'summary' : 'calendar';
+    const includeCalendar = document.getElementById('printIncludeCalendar')?.checked !== false;
+    const includeSummary = document.getElementById('printIncludeSummary')?.checked !== false;
+    if (!includeCalendar && !includeSummary) {
+        alert(t('printNothingSelected'));
+        return;
+    }
     const modalWasOpen = elements.printOptionsModal
         && elements.printOptionsModal.classList.contains('active');
     if (modalWasOpen) {
         closePrintOptionsModal();
     }
-    runAppPrint(printMode);
+    if (includeSummary) {
+        syncPrintVisibilityFromUi();
+        updatePrintLessonFilterHint();
+    }
+    if (includeCalendar) {
+        runAppPrint('calendar');
+    }
+    if (includeSummary) {
+        runAppPrint('summary');
+    }
 }
 
 /**
@@ -13917,15 +13870,10 @@ function setupPrintSyllabusControls() {
     const importBtn = document.getElementById('printImportSyllabusBtn');
     const importFile = document.getElementById('printImportSyllabusFile');
     const openTabBtn = document.getElementById('printOpenSyllabusTabBtn');
-    const topBarPrintCalendarBtn = document.getElementById('topBarPrintCalendarBtn');
-    if (topBarPrintCalendarBtn && !topBarPrintCalendarBtn.dataset.bound) {
-        topBarPrintCalendarBtn.dataset.bound = '1';
-        topBarPrintCalendarBtn.addEventListener('click', openPrintCalendarDialog);
-    }
-    const topBarPrintSummaryBtn = document.getElementById('topBarPrintSummaryBtn');
-    if (topBarPrintSummaryBtn && !topBarPrintSummaryBtn.dataset.bound) {
-        topBarPrintSummaryBtn.dataset.bound = '1';
-        topBarPrintSummaryBtn.addEventListener('click', openPrintSummaryDialog);
+    const openPrintBtn = document.getElementById('openPrintBtn');
+    if (openPrintBtn && !openPrintBtn.dataset.bound) {
+        openPrintBtn.dataset.bound = '1';
+        openPrintBtn.addEventListener('click', openPrintOptionsDialog);
     }
     if (exportBtn && !exportBtn.dataset.bound) {
         exportBtn.dataset.bound = '1';

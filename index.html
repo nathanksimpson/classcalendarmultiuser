@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260526-ui-review">
+    <link rel="stylesheet" href="styles.css?v=20260527-header">
     <script>
         (function () {
             try {
@@ -66,13 +66,21 @@
             </div>
 
             <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
-                <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
-                <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
-                <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
-                <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
-                <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
-                <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
-                <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
+                <div class="team-calendar-row-main">
+                    <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
+                    <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
+                    <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
+                    <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
+                    <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
+                    <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
+                    <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
+                </div>
+                <div class="app-header-tool-group app-header-tool-group--account team-account-toolbar" id="teamAccountGroup" hidden>
+                    <span id="teamUserLabel" class="team-user-label" hidden></span>
+                    <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
+                    <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
+                    <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
+                </div>
                 <details class="team-calendar-help">
                     <summary data-i18n="teamCalendarHelp">Team help</summary>
                     <p class="team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
@@ -105,6 +113,10 @@
             <div class="app-top-bar-compact">
                 <div class="app-top-bar-title-block">
                     <h1 data-i18n="appTitle">Class Calendar Planner</h1>
+                    <div class="app-term-quick-actions">
+                        <button type="button" id="addClassBtn" class="btn btn-primary btn-small" data-i18n="addClass">+ Add Class</button>
+                        <button type="button" id="addHolidayBtn" class="btn btn-secondary btn-small" data-i18n="addEvent">+ Add Event</button>
+                    </div>
                     <span id="topBarCalendarLabel" class="top-bar-calendar-label" hidden></span>
                 </div>
                 <nav class="app-tab-nav" id="appTabNav" role="tablist" aria-label="App sections">
@@ -113,29 +125,23 @@
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-syllabus" aria-selected="false" aria-controls="panel-syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabus</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-events" aria-selected="false" aria-controls="panel-events" data-tab="events" data-i18n="tabEvents">Events</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-homework" aria-selected="false" aria-controls="panel-homework" data-tab="homework" data-i18n="tabHomework">Homework</button>
-                    <button type="button" class="app-tab-btn app-tab-btn--print-data" role="tab" id="tabBtn-print" aria-selected="false" aria-controls="panel-print" data-tab="print" data-i18n="tabPrint">Print &amp; data</button>
+                    <button type="button" class="app-tab-btn app-tab-btn--data" role="tab" id="tabBtn-data" aria-selected="false" aria-controls="panel-data" data-tab="data" data-i18n="tabData">Data</button>
                 </nav>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
-                    <div class="app-header-tool-group app-header-tool-group--overflow">
-                        <button type="button" id="headerToolsMenuBtn" class="btn btn-outline btn-small" aria-expanded="false" aria-controls="headerToolsMenu" aria-haspopup="true" data-i18n="headerToolsMenu">Tools ▾</button>
-                        <div id="headerToolsMenu" class="app-header-overflow-menu" hidden>
-                            <button type="button" id="topBarPrintCalendarBtn" class="btn btn-header-print btn-small" data-i18n="printCalendarBtn">Print calendar</button>
-                            <button type="button" id="topBarPrintSummaryBtn" class="btn btn-outline btn-small btn-header-print-secondary" data-i18n="printSummaryBtn">Print summary</button>
-                            <button type="button" id="howToBtn" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help?</button>
-                            <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="export">Export</button>
-                            <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="import">Import</button>
-                        </div>
+                    <div class="app-header-tool-group app-header-tool-group--print">
+                        <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
+                    </div>
+                    <div class="app-header-tool-group app-header-tool-group--data">
+                        <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="export">Export</button>
+                        <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="import">Import</button>
                     </div>
                     <input type="file" id="importFile" accept=".json" hidden>
+                    <div class="app-header-tool-group app-header-tool-group--help">
+                        <button type="button" id="howToBtn" class="btn btn-outline btn-small" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</button>
+                    </div>
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
                         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
-                    </div>
-                    <div class="app-header-tool-group app-header-tool-group--account" id="teamAccountGroup" hidden>
-                        <span id="teamUserLabel" class="team-user-label" hidden></span>
-                        <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
-                        <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
-                        <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
                     </div>
                 </div>
             </div>
@@ -143,11 +149,6 @@
 
         <main class="app-main" id="appMain">
             <section id="panel-calendar" class="app-tab-panel is-active" data-tab="calendar" role="tabpanel" aria-labelledby="tabBtn-calendar">
-                <div class="calendar-panel-toolbar module-toolbar">
-                    <button id="addClassBtn" class="btn btn-primary btn-compact" data-i18n="addClass">+ Add Class</button>
-                    <button id="addHolidayBtn" class="btn btn-secondary btn-compact" data-i18n="addEvent">+ Add Event</button>
-                </div>
-
                 <div id="calendarOptions" class="calendar-options">
                 <button type="button" id="topBarToggle" class="app-top-bar-toggle calendar-options-toggle" aria-expanded="true" aria-controls="topBarDetails">
                     <span class="app-top-bar-toggle-icon" aria-hidden="true">▲</span>
@@ -364,12 +365,8 @@
                 </div>
             </section>
 
-            <section id="panel-print" class="app-tab-panel" data-tab="print" role="tabpanel" aria-labelledby="tabBtn-print" hidden>
+            <section id="panel-data" class="app-tab-panel" data-tab="data" role="tabpanel" aria-labelledby="tabBtn-data" hidden>
                 <div class="print-data-layout">
-                    <div class="print-data-section print-data-section--options">
-                        <h2 class="module-section-title" data-i18n="printOptions">Print Options</h2>
-                        <div id="printFormMountTab"></div>
-                    </div>
                     <div class="print-data-section print-data-section--books print-books-section">
                         <h2 class="module-section-title" data-i18n="printBooksHeading">Books</h2>
                         <p class="section-hint" data-i18n="printBooksHint">Curriculum books (Write Now, Write Right, Hand in Hand, etc.): lesson plans and page blocks that class syllabi pull from. Green / Blue / Navy levels share one book where pagination is the same.</p>
@@ -1003,6 +1000,11 @@
 
     <template id="printFormTemplate">
             <form id="printForm" class="print-options-form" data-print-form-mode="all">
+                <div class="print-form-include-row form-group">
+                    <span class="print-form-include-label" data-i18n="printIncludeLabel">Include in this print:</span>
+                    <label class="checkbox-label"><input type="checkbox" id="printIncludeCalendar" checked><span data-i18n="printIncludeCalendar">Calendar (landscape)</span></label>
+                    <label class="checkbox-label"><input type="checkbox" id="printIncludeSummary" checked><span data-i18n="printIncludeSummary">Summary &amp; syllabi (portrait)</span></label>
+                </div>
                 <section class="print-form-section print-form-section--calendar" aria-labelledby="printSectionCalendarTitle">
                     <h3 id="printSectionCalendarTitle" class="print-form-section-title" data-i18n="printSectionCalendar">Calendar (landscape)</h3>
                     <p class="section-hint" data-i18n="printSectionCalendarHint">Opens one preview tab with the month grid. Use your browser&apos;s Print or Save as PDF there.</p>
@@ -1018,9 +1020,6 @@
                         <label class="checkbox-label"><input type="checkbox" id="printCalHomeworkDeadline" checked><span data-i18n="showHomeworkDeadlines">Homework deadlines</span></label>
                         <label class="checkbox-label"><input type="checkbox" id="printCalEvalPeriod" checked><span data-i18n="showEvalPeriods">Evaluation periods</span></label>
                         <label class="checkbox-label"><input type="checkbox" id="printCalOther" checked><span data-i18n="showOtherEvents">Other events</span></label>
-                    </div>
-                    <div class="form-actions print-form-section-actions">
-                        <button type="submit" class="btn btn-primary" data-print-mode="calendar" data-i18n="printCalendarBtn">Print calendar</button>
                     </div>
                 </section>
                 <section class="print-form-section print-form-section--summary" aria-labelledby="printSectionSummaryTitle">
@@ -1061,10 +1060,10 @@
                         </label>
                     </div>
                     <p id="printLessonFilterHint" class="section-hint print-lesson-filter-hint" hidden></p>
-                    <div class="form-actions print-form-section-actions">
-                        <button type="submit" class="btn btn-primary" data-print-mode="summary" data-i18n="printSummaryBtn">Print summary</button>
-                    </div>
                 </section>
+                <div class="form-actions print-form-footer-actions">
+                    <button type="submit" class="btn btn-primary" id="printRunBtn" data-i18n="printBtn">Print</button>
+                </div>
             </form>
     </template>
 
@@ -1100,9 +1099,9 @@
     <script src="js/homework-import.js"></script>
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
-    <script src="js/team-auth.js?v=20260526-ui-review"></script>
-    <script src="js/calendar-sync.js?v=20260526-ui-review"></script>
-    <script src="app.js?v=20260526-ui-review"></script>
+    <script src="js/team-auth.js?v=20260527-header"></script>
+    <script src="js/calendar-sync.js?v=20260527-header"></script>
+    <script src="app.js?v=20260527-header"></script>
     <script src="howto.js"></script>
 </body>
 </html>

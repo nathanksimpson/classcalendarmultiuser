@@ -7,16 +7,16 @@
             sections: [
                 {
                     heading: '1. The tabs',
-                    where: 'Top header — Calendar | Classes | Syllabus | Events | Homework | Print & data',
+                    where: 'Top header — Calendar | Classes | Syllabus | Events | Homework | Data',
                     steps: [
                         'Calendar — view the month grid, set term dates, show/hide items, filter classes, and use quick add/edit pop-outs.',
                         'Classes — schedule and settings: meeting days, term dates, compression, colors, books (no long syllabus table here).',
                         'Syllabus — edit each class syllabus table, custom reusable syllabi (My syllabi), refresh from calendar, import homework paste, print.',
                         'Events — search holidays and deadlines and use the full event editor.',
                         'Homework — copy previous-week and this-week homework from each class syllabus to paste into your separate Simson grading and homework assignment websites (not inside this app).',
-                        'Print & data — print options, clear all data, and edit default class types.',
+                        'Data — books catalog, lesson-plan packs, clear all data, and edit default class types.',
                         'The app remembers which tab you last used in this browser.',
-                        'Header (always visible): Help?, Export, Import, and the language button (English ↔ Korean).'
+                        'Header (always visible): + Add Class / + Add Event (under the title), Print, Export, Import, Help, theme, and language (English ↔ Korean).'
                     ]
                 },
                 {
@@ -76,7 +76,7 @@
                     steps: [
                         'Toggle Lessons, Holidays, Evaluation deadlines, Homework deadlines, Evaluation periods, or Other events.',
                         'This only changes what you see on screen; it re-draws the calendar.',
-                        'Print uses separate checkboxes on the Print & data tab (and the Print button on the Calendar tab opens the same options).'
+                        'Print uses checkboxes in the Print dialog (header Print button).'
                     ]
                 },
                 {
@@ -127,7 +127,7 @@
                 },
                 {
                     heading: '11. Edit default class types',
-                    where: 'Print & data tab → Edit defaults (also available inside the class form)',
+                    where: 'Data tab → Edit defaults (also available inside the class form)',
                     steps: [
                         'Click Edit defaults to change factory settings for built-in and PDF preset class types (lesson count, default book, labels, homework paste mode). Existing saved classes keep their own values; new classes use your edited defaults.',
                         'Use Reset on one type or Reset all to restore factory settings for presets.',
@@ -137,13 +137,14 @@
                 },
                 {
                     heading: '12. Print or save as PDF',
-                    where: 'Print & data tab, or Calendar tab → Print (same options)',
+                    where: 'Header → Print',
                     steps: [
-                        'Open the Print & data tab (or click Print on the Calendar tab).',
-                        'Choose whether to print the calendar grid, the summary page, and which summary sections (class list, events, lesson schedule, compression notes, syllabus tables).',
+                        'Click Print in the top header.',
+                        'At the top, check Calendar and/or Summary & syllabi for what to include in this run.',
+                        'Choose which summary sections (class list, events, lesson schedule, compression notes, syllabus tables) when summary is included.',
                         'If a lesson filter is active, only filtered classes appear in class-related sections.',
                         'Under “On printed calendar, show:” pick which event types appear on the printed calendar (independent from the on-screen visibility bar on the Calendar tab).',
-                        'Click Print — your browser opens a separate tab with only the print content (not the app screen). Choose Save as PDF in the print dialog.',
+                        'Click the Print button at the bottom of the dialog — your browser opens separate preview tab(s). Choose Save as PDF in each print dialog.',
                         'The calendar prints in landscape on its own tab. Summary sections and syllabi print in portrait (a second tab and print dialog if you selected both calendar and summary).',
                         'Allow pop-ups for this site if the browser blocks the print tab.',
                         'Holiday names on print follow your current language setting (important for imported Korean public holidays).',
@@ -161,7 +162,7 @@
                 },
                 {
                     heading: '14. Clear all data',
-                    where: 'Print & data tab → Clear All Data (red button)',
+                    where: 'Data tab → Clear All Data (red button)',
                     steps: [
                         'Removes all classes and events from this browser.',
                         'Export first if you might need the data later.'
@@ -175,16 +176,16 @@
             sections: [
                 {
                     heading: '1. 탭',
-                    where: '상단 헤더 — Calendar | Classes | Syllabus | Events | Homework | Print & data',
+                    where: '상단 헤더 — Calendar | Classes | Syllabus | Events | Homework | Data',
                     steps: [
                         'Calendar(캘린더) — 월별 격자, 학기 설정, 표시/숨김, 수업 필터, 빠른 추가·수정 팝업.',
                         'Classes(수업) — 일정·설정(수업 요일, 학기, 압축, 색상 등).',
                         'Syllabus(강의 계획표) — 수업별 표 편집, 사용자 강의 계획표(내 템플릿), 새로고침·붙여넣기·인쇄.',
                         'Events(이벤트) — 공휴일·마감일 목록 검색 및 전체 편집기.',
                         'Homework(숙제) — 강의 계획표에서 지난주·이번주 숙제를 복사해, 이 앱 밖의 Simson 채점·숙제 배정 웹사이트에 붙여넣기.',
-                        'Print & data(인쇄·데이터) — 인쇄 옵션, 전체 삭제, 기본 수업 유형 편집.',
+                        'Data(데이터) — 도서, 강의계획 팩, 전체 삭제, 기본 수업 유형 편집.',
                         '마지막으로 연 탭은 이 브라우저에 저장됩니다.',
-                        '헤더(항상 표시): 도움말?, Export(보내기), Import(가져오기), 언어 버튼(영어 ↔ 한국어).'
+                        '헤더(항상 표시): + 수업 추가 / + 일정 추가, Print, Export, Import, 도움말, 테마, 언어(영어 ↔ 한국어).'
                     ]
                 },
                 {
@@ -244,7 +245,7 @@
                     steps: [
                         '수업, 공휴일, 평가 마감, 숙제 마감, 평가 기간, 기타 이벤트를 켜거나 끕니다.',
                         '화면에 보이는 것만 바뀝니다. 캘린더가 다시 그려집니다.',
-                        '인쇄는 Print & data 탭의 별도 체크박스를 사용합니다 (Calendar 탭의 Print 버튼도 같은 옵션으로 이동합니다).'
+                        '인쇄는 상단 Print 버튼의 대화상자에서 설정합니다.'
                     ]
                 },
                 {
@@ -294,7 +295,7 @@
                 },
                 {
                     heading: '11. 기본 수업 유형 편집',
-                    where: 'Print & data 탭 → Edit defaults (수업 폼에서도 가능)',
+                    where: 'Data 탭 → Edit defaults (수업 폼에서도 가능)',
                     steps: [
                         'Edit defaults로 내장·PDF 프리셋의 기본값(수업 횟수, 교재, 라벨, 과제 붙여넣기 모드)을 바꿉니다. 이미 저장된 수업은 그대로이고, 새로 만드는 수업에 적용됩니다.',
                         '한 유형 또는 전체 초기화로 공장 설정을 되돌릴 수 있습니다.',
@@ -304,9 +305,10 @@
                 },
                 {
                     heading: '12. 인쇄 또는 PDF 저장',
-                    where: 'Print & data 탭, 또는 Calendar 탭 → Print',
+                    where: '상단 → Print',
                     steps: [
-                        'Print & data 탭을 엽니다 (Calendar 탭의 Print도 같은 옵션).',
+                        '상단 Print 버튼을 클릭합니다.',
+                        '상단에서 캘린더 및/또는 요약·강의계획 포함 여부를 선택합니다.',
                         '캘린더, 요약 페이지, 요약 항목(수업 목록, 이벤트, 수업 일정, 압축 메모, 강의 계획표)을 선택하세요.',
                         '수업 필터가 켜져 있으면 수업 관련 항목에는 필터된 수업만 포함됩니다.',
                         '“인쇄 캘린더에 표시:”에서 인쇄물에 나올 이벤트 유형을 고릅니다 (Calendar 탭 화면 표시와 별개).',
@@ -328,7 +330,7 @@
                 },
                 {
                     heading: '14. 모든 데이터 삭제',
-                    where: 'Print & data 탭 → Clear All Data (빨간 버튼)',
+                    where: 'Data 탭 → Clear All Data (빨간 버튼)',
                     steps: [
                         '이 브라우저의 모든 수업과 이벤트를 삭제합니다.',
                         '나중에 필요할 수 있으면 먼저 Export 하세요.'
