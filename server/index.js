@@ -323,18 +323,23 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
     }
     const force = Boolean(req.body && req.body.force);
     const name = req.user.displayName || req.user.email || 'Teacher';
-    const result = users.acquireLock(req.params.id, req.user.id, name, force);
+    users.acquireLock(req.params.id, req.user.id, name, force);
     const status = users.lockStatusForClient(req.params.id, req.user.id);
     res.json({
-        acquired: result.acquired,
+        acquired: !status.readOnly,
         lock: status.lock,
         readOnly: status.readOnly
     });
 });
 
 app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
-    users.releaseLock(req.params.id, req.user.id);
-    res.json({ ok: true });
+    const result = users.releaseLock(req.params.id, req.user.id);
+    if (result.reason === 'not_holder') {
+        const status = users.lockStatusForClient(req.params.id, req.user.id);
+        res.status(403).json({ error: 'Only the current editor can release this lock', lock: status.lock });
+        return;
+    }
+    res.json({ ok: true, released: Boolean(result.released) });
 });
 
 app.post('/api/calendars', requireUser, (req, res) => {

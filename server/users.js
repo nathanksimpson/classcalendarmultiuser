@@ -220,22 +220,60 @@ function isLockStale(lock) {
     return Date.now() - new Date(lock.updated_at).getTime() > LOCK_STALE_MS;
 }
 
+function recordLockEditRequest(calendarId, userId, displayName) {
+    const db = getDb();
+    db.prepare(
+        `UPDATE calendar_locks SET pending_requester_id = ?, pending_requester_name = ?, pending_requested_at = ? WHERE calendar_id = ?`
+    ).run(userId, displayName, nowIso(), calendarId);
+}
+
+function lockToClient(lock) {
+    if (!lock) {
+        return null;
+    }
+    const db = getDb();
+    const holder = db.prepare('SELECT email, display_name FROM users WHERE id = ?').get(lock.holder_user_id);
+    let pendingRequester = null;
+    if (lock.pending_requester_id) {
+        const pending = db.prepare('SELECT email, display_name FROM users WHERE id = ?').get(lock.pending_requester_id);
+        pendingRequester = {
+            userId: lock.pending_requester_id,
+            displayName: lock.pending_requester_name || (pending && pending.display_name) || '',
+            email: pending && pending.email ? pending.email : null,
+            requestedAt: lock.pending_requested_at || null
+        };
+    }
+    return {
+        holderUserId: lock.holder_user_id,
+        holderName: lock.holder_name,
+        holderEmail: holder && holder.email ? holder.email : null,
+        updatedAt: lock.updated_at,
+        pendingRequester
+    };
+}
+
 function acquireLock(calendarId, userId, displayName, force) {
     const db = getDb();
     const existing = getLock(calendarId);
-    if (!existing || isLockStale(existing) || existing.holder_user_id === userId || force) {
+    const stale = !existing || isLockStale(existing);
+    const heldByMe = existing && existing.holder_user_id === userId;
+    if (stale || heldByMe || force) {
         const at = nowIso();
         db.prepare(
-            `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at)
-             VALUES (?, ?, ?, ?)
+            `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at, pending_requester_id, pending_requester_name, pending_requested_at)
+             VALUES (?, ?, ?, ?, NULL, NULL, NULL)
              ON CONFLICT(calendar_id) DO UPDATE SET
                holder_user_id = excluded.holder_user_id,
                holder_name = excluded.holder_name,
-               updated_at = excluded.updated_at`
+               updated_at = excluded.updated_at,
+               pending_requester_id = NULL,
+               pending_requester_name = NULL,
+               pending_requested_at = NULL`
         ).run(calendarId, userId, displayName, at);
-        return { acquired: true, lock: getLock(calendarId) };
+        return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false };
     }
-    return { acquired: false, lock: existing };
+    recordLockEditRequest(calendarId, userId, displayName);
+    return { acquired: false, lock: existing, editRequestRecorded: true };
 }
 
 function refreshLock(calendarId, userId) {
@@ -252,11 +290,13 @@ function refreshLock(calendarId, userId) {
 function releaseLock(calendarId, userId) {
     const lock = getLock(calendarId);
     if (!lock) {
-        return;
+        return { released: false, reason: 'none' };
     }
-    if (!userId || lock.holder_user_id === userId) {
-        getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
+    if (lock.holder_user_id !== userId) {
+        return { released: false, reason: 'not_holder' };
     }
+    getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
+    return { released: true };
 }
 
 function lockStatusForClient(calendarId, userId) {
@@ -268,11 +308,7 @@ function lockStatusForClient(calendarId, userId) {
     return {
         held: true,
         readOnly: !heldByMe,
-        lock: {
-            holderUserId: lock.holder_user_id,
-            holderName: lock.holder_name,
-            updatedAt: lock.updated_at
-        }
+        lock: lockToClient(lock)
     };
 }
 

@@ -70,6 +70,21 @@ function migrate(db) {
         );
         CREATE INDEX IF NOT EXISTS idx_history_calendar ON calendar_history(calendar_id, revision DESC);
     `);
+    migrateLockPendingColumns(db);
+}
+
+function migrateLockPendingColumns(db) {
+    const cols = db.prepare('PRAGMA table_info(calendar_locks)').all();
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('pending_requester_id')) {
+        db.exec('ALTER TABLE calendar_locks ADD COLUMN pending_requester_id TEXT');
+    }
+    if (!names.has('pending_requester_name')) {
+        db.exec('ALTER TABLE calendar_locks ADD COLUMN pending_requester_name TEXT');
+    }
+    if (!names.has('pending_requested_at')) {
+        db.exec('ALTER TABLE calendar_locks ADD COLUMN pending_requested_at TEXT');
+    }
 }
 
 function newId() {

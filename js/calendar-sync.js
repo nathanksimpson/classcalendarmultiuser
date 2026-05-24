@@ -190,6 +190,16 @@
             return apiFetch('/calendars');
         },
 
+        async refreshLockMeta(id) {
+            const calId = id || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                return null;
+            }
+            const meta = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/meta');
+            applyLockFromResponse(meta);
+            return meta;
+        },
+
         async acquireLock(id, force) {
             const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
                 method: 'POST',
@@ -202,21 +212,13 @@
         async releaseLock(id) {
             const calId = id || CalendarSync.getActiveCalendarId();
             if (!calId) {
-                return;
+                return { released: false };
             }
-            try {
-                await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock', {
-                    method: 'DELETE'
-                });
-            } catch (_) {
-                /* ignore */
-            }
-            state.readOnly = false;
-            state.lock = null;
-            state.holdsLock = false;
-            if (typeof handlers.onLockChange === 'function') {
-                handlers.onLockChange({ readOnly: false, lock: null, holdsLock: false });
-            }
+            const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock', {
+                method: 'DELETE'
+            });
+            await CalendarSync.refreshLockMeta(calId);
+            return result;
         },
 
         async loadCalendar(id) {

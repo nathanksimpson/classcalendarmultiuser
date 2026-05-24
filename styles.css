@@ -2976,6 +2976,18 @@ input.input-readonly {
     border-color: var(--status-error-border);
 }
 
+.app-status.app-status-lock {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fcd34d;
+}
+
+[data-theme="dark"] .app-status.app-status-lock {
+    background: #422006;
+    color: #fde68a;
+    border-color: #b45309;
+}
+
 /* ============================================
    Tab navigation & module panels
    ============================================ */
@@ -4607,6 +4619,17 @@ input.input-readonly {
 .team-lock-banner {
     background: #fffbeb;
     border-color: #fcd34d;
+    position: relative;
+    z-index: 30;
+}
+
+.team-lock-banner .btn {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.app-main--team-readonly {
+    opacity: 0.92;
 }
 
 .team-calendar-select.team-sync-select--highlight {

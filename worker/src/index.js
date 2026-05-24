@@ -131,6 +131,33 @@ async function getLock(env, calendarId) {
     return dbOne(env, 'SELECT * FROM calendar_locks WHERE calendar_id = ?', calendarId);
 }
 
+async function lockToClient(env, lock) {
+    if (!lock) {
+        return null;
+    }
+    const holder = await dbOne(env, 'SELECT email, display_name FROM users WHERE id = ?', lock.holder_user_id);
+    let pendingRequester = null;
+    if (lock.pending_requester_id) {
+        const pending = await dbOne(env, 'SELECT email, display_name FROM users WHERE id = ?', lock.pending_requester_id);
+        pendingRequester = {
+            userId: lock.pending_requester_id,
+            displayName:
+                lock.pending_requester_name ||
+                (pending && pending.display_name) ||
+                '',
+            email: pending && pending.email ? pending.email : null,
+            requestedAt: lock.pending_requested_at || null
+        };
+    }
+    return {
+        holderUserId: lock.holder_user_id,
+        holderName: lock.holder_name,
+        holderEmail: holder && holder.email ? holder.email : null,
+        updatedAt: lock.updated_at,
+        pendingRequester
+    };
+}
+
 async function lockStatus(env, calendarId, userId) {
     const lock = await getLock(env, calendarId);
     if (!lock || isLockStale(lock)) {
@@ -140,8 +167,28 @@ async function lockStatus(env, calendarId, userId) {
     return {
         held: true,
         readOnly: !heldByMe,
-        lock: { holderUserId: lock.holder_user_id, holderName: lock.holder_name, updatedAt: lock.updated_at }
+        lock: await lockToClient(env, lock)
     };
+}
+
+async function recordLockEditRequest(env, calendarId, user) {
+    const label = user.displayName || user.email || user.id;
+    await dbRun(
+        env,
+        `UPDATE calendar_locks SET pending_requester_id = ?, pending_requester_name = ?, pending_requested_at = ? WHERE calendar_id = ?`,
+        user.id,
+        label,
+        nowIso(),
+        calendarId
+    );
+}
+
+async function clearLockEditRequest(env, calendarId) {
+    await dbRun(
+        env,
+        `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL WHERE calendar_id = ?`,
+        calendarId
+    );
 }
 
 function bytesToHex(bytes) {
@@ -571,29 +618,48 @@ export default {
                 const body = await readJson(request);
                 const existing = await getLock(env, calId);
                 const force = Boolean(body.force);
-                if (!existing || isLockStale(existing) || existing.holder_user_id === user.id || force) {
+                const stale = !existing || isLockStale(existing);
+                const heldByMe = existing && existing.holder_user_id === user.id;
+                if (stale || heldByMe || force) {
                     const name = user.displayName || user.email || 'Teacher';
                     await dbRun(
                         env,
-                        `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at)
-                         VALUES (?, ?, ?, ?)
-                         ON CONFLICT(calendar_id) DO UPDATE SET holder_user_id=excluded.holder_user_id, holder_name=excluded.holder_name, updated_at=excluded.updated_at`,
+                        `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at, pending_requester_id, pending_requester_name, pending_requested_at)
+                         VALUES (?, ?, ?, ?, NULL, NULL, NULL)
+                         ON CONFLICT(calendar_id) DO UPDATE SET
+                           holder_user_id = excluded.holder_user_id,
+                           holder_name = excluded.holder_name,
+                           updated_at = excluded.updated_at,
+                           pending_requester_id = NULL,
+                           pending_requester_name = NULL,
+                           pending_requested_at = NULL`,
                         calId,
                         user.id,
                         name,
                         nowIso()
                     );
+                } else if (existing && existing.holder_user_id !== user.id) {
+                    await recordLockEditRequest(env, calId, user);
                 }
                 const status = await lockStatus(env, calId, user.id);
-                return json({ acquired: !status.readOnly, lock: status.lock, readOnly: status.readOnly });
+                return json({
+                    acquired: !status.readOnly,
+                    lock: status.lock,
+                    readOnly: status.readOnly,
+                    editRequestRecorded: Boolean(existing && !stale && !heldByMe && !force)
+                });
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
                 const lock = await getLock(env, calId);
-                if (lock && lock.holder_user_id === user.id) {
-                    await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
+                if (!lock) {
+                    return json({ ok: true, released: false });
                 }
-                return json({ ok: true });
+                if (lock.holder_user_id !== user.id) {
+                    return json({ error: 'Only the current editor can release this lock', lock: await lockToClient(env, lock) }, 403);
+                }
+                await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
+                return json({ ok: true, released: true });
             }
 
             if (!sub && request.method === 'GET') {
