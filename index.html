@@ -711,6 +711,12 @@
                     <label for="newCalendarNameInput" data-i18n="calendarName">Calendar Name:</label>
                     <input type="text" id="newCalendarNameInput" required maxlength="120" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
                 </div>
+                <div class="form-group" id="newCalendarAccessSection">
+                    <label data-i18n="newCalendarAccessTeachers">Who can access this calendar?</label>
+                    <p class="section-hint" data-i18n="newCalendarAccessHint">Check teachers and/or groups. You are always included. Admins can see all calendars.</p>
+                    <div id="newCalendarTeachersList" class="access-checkbox-list" role="group" aria-label="Teachers"></div>
+                    <div id="newCalendarGroupsList" class="access-checkbox-list access-checkbox-list--groups" role="group" aria-label="Groups"></div>
+                </div>
                 <div class="form-actions">
                     <button type="button" id="cancelNewCalendarBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                     <button type="submit" id="submitNewCalendarBtn" class="btn btn-primary" data-i18n="newCalendarCreate">Create calendar</button>

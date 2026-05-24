@@ -4765,3 +4765,39 @@ input.input-readonly {
     color: #fde68a;
 }
 
+.access-checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 10rem;
+    overflow-y: auto;
+    margin: 0.5rem 0 0;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    background: var(--surface-muted, #f8fafc);
+}
+
+.access-checkbox-list--groups {
+    max-height: 6rem;
+}
+
+.access-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.access-groups-label {
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+[data-theme="dark"] .access-checkbox-list {
+    background: #1e293b;
+    border-color: #334155;
+}
+

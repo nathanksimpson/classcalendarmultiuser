@@ -190,6 +190,14 @@
             return apiFetch('/calendars');
         },
 
+        async fetchTeachers() {
+            return apiFetch('/teachers');
+        },
+
+        async fetchGroups() {
+            return apiFetch('/groups');
+        },
+
         async refreshLockMeta(id) {
             const calId = id || CalendarSync.getActiveCalendarId();
             if (!calId) {
@@ -229,10 +237,18 @@
             return doc;
         },
 
-        async createCalendar(data, name) {
+        async createCalendar(data, name, options) {
+            const opts = options || {};
+            const body = { name, data };
+            if (Array.isArray(opts.memberUserIds)) {
+                body.memberUserIds = opts.memberUserIds;
+            }
+            if (Array.isArray(opts.groupIds)) {
+                body.groupIds = opts.groupIds;
+            }
             const doc = await apiFetch('/calendars', {
                 method: 'POST',
-                body: { name, data }
+                body
             });
             state.revision = doc.revision || 1;
             await CalendarSync.acquireLock(doc.id, true);

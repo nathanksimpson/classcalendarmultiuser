@@ -1,6 +1,8 @@
 /**
  * Cloudflare Worker API — production deploy (Pages static + /api/* routed here).
  */
+import * as CalAccess from './calendar-access.js';
+
 const SESSION_COOKIE = 'cal_session';
 const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 14;
@@ -589,17 +591,36 @@ export default {
         }
 
         if (path === '/api/calendars' && request.method === 'GET') {
-            const rows = await dbAll(
-                env,
-                'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
-            );
+            const rows = await CalAccess.listCalendarsForUser(env, user);
             return json(rows);
+        }
+
+        if (path === '/api/teachers' && request.method === 'GET') {
+            const teachers = await CalAccess.listTeachers(env);
+            if (!CalAccess.isAdmin(user)) {
+                const me = teachers.find((t) => t.id === user.id);
+                if (me) {
+                    return json([me]);
+                }
+                return json([{ id: user.id, email: user.email, displayName: user.displayName, role: user.role }]);
+            }
+            return json(teachers);
+        }
+
+        if (path === '/api/groups' && request.method === 'GET') {
+            const groups = await CalAccess.listGroups(env);
+            return json(groups);
         }
 
         const calMatch = path.match(/^\/api\/calendars\/([^/]+)(\/meta|\/lock)?$/);
         if (calMatch) {
             const calId = calMatch[1];
             const sub = calMatch[2];
+
+            const allowed = await CalAccess.canAccessCalendar(env, user, calId);
+            if (!allowed) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
 
             if (sub === '/meta' && request.method === 'GET') {
                 const meta = await dbOne(
@@ -729,6 +750,7 @@ export default {
                 }
                 await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
+                await CalAccess.deleteCalendarAccess(env, calId);
                 return json({ ok: true });
             }
         }
@@ -749,12 +771,95 @@ export default {
                 nowIso(),
                 label
             );
+            const memberIds = Array.isArray(body.memberUserIds) ? body.memberUserIds.map(String) : [];
+            if (!memberIds.includes(user.id)) {
+                memberIds.push(user.id);
+            }
+            const groupIds = Array.isArray(body.groupIds) ? body.groupIds.map(String) : [];
+            await CalAccess.setCalendarAccess(env, id, memberIds, groupIds, user.id);
             const doc = await dbOne(
                 env,
                 'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
                 id
             );
             return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }), 201);
+        }
+
+        if (path === '/api/admin/groups' && request.method === 'GET' && user.role === 'admin') {
+            const groups = await CalAccess.listGroups(env);
+            const out = [];
+            for (const g of groups) {
+                const memberIds = await CalAccess.getGroupMemberIds(env, g.id);
+                out.push(Object.assign({}, g, { memberIds }));
+            }
+            return json(out);
+        }
+
+        if (path === '/api/admin/groups' && request.method === 'POST' && user.role === 'admin') {
+            const body = await readJson(request);
+            const name = body.name && String(body.name).trim();
+            if (!name) {
+                return json({ error: 'name is required' }, 400);
+            }
+            const gid = uuid();
+            const created = await CalAccess.createGroup(env, gid, name, user.id);
+            if (Array.isArray(body.memberIds) && body.memberIds.length) {
+                await CalAccess.setGroupMembers(env, gid, body.memberIds);
+            }
+            const memberIds = await CalAccess.getGroupMemberIds(env, gid);
+            return json(Object.assign({}, created, { memberIds }), 201);
+        }
+
+        const adminGroupMatch = path.match(/^\/api\/admin\/groups\/([^/]+)(\/members)?$/);
+        if (adminGroupMatch && user.role === 'admin') {
+            const groupId = adminGroupMatch[1];
+            const isMembers = adminGroupMatch[2] === '/members';
+            const existing = await CalAccess.getGroup(env, groupId);
+            if (!existing) {
+                return json({ error: 'Group not found' }, 404);
+            }
+            if (isMembers && request.method === 'PUT') {
+                const body = await readJson(request);
+                const memberIds = await CalAccess.setGroupMembers(env, groupId, body.memberIds || []);
+                return json({ id: groupId, memberIds });
+            }
+            if (!isMembers && request.method === 'PATCH') {
+                const body = await readJson(request);
+                const updated = await CalAccess.updateGroupName(env, groupId, body.name || existing.name);
+                const memberIds = await CalAccess.getGroupMemberIds(env, groupId);
+                return json(Object.assign({}, updated, { memberIds }));
+            }
+            if (!isMembers && request.method === 'DELETE') {
+                await CalAccess.deleteGroup(env, groupId);
+                return json({ ok: true });
+            }
+        }
+
+        if (path === '/api/admin/calendars' && request.method === 'GET' && user.role === 'admin') {
+            return json(await CalAccess.listAdminCalendarsWithAccess(env));
+        }
+
+        const adminCalAccessMatch = path.match(/^\/api\/admin\/calendars\/([^/]+)\/access$/);
+        if (adminCalAccessMatch && user.role === 'admin') {
+            const calId = adminCalAccessMatch[1];
+            const meta = await dbOne(env, 'SELECT id FROM calendars WHERE id = ?', calId);
+            if (!meta) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
+            if (request.method === 'GET') {
+                return json(await CalAccess.getCalendarAccess(env, calId));
+            }
+            if (request.method === 'PUT') {
+                const body = await readJson(request);
+                const result = await CalAccess.setCalendarAccess(
+                    env,
+                    calId,
+                    body.userIds || [],
+                    body.groupIds || [],
+                    user.id
+                );
+                return json(result);
+            }
         }
 
         if (path === '/api/admin/users' && request.method === 'GET' && user.role === 'admin') {
@@ -784,7 +889,20 @@ export default {
         const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
         if (adminUserMatch && request.method === 'PATCH' && user.role === 'admin') {
             const patchBody = await readJson(request);
-            const updated = await updateUser(env, adminUserMatch[1], {
+            const targetId = adminUserMatch[1];
+            const targetRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
+            if (!targetRow) {
+                return json({ error: 'User not found' }, 404);
+            }
+            const nextRole = patchBody.role !== undefined ? patchBody.role : targetRow.role;
+            const nextActive = patchBody.active !== undefined ? (patchBody.active ? 1 : 0) : targetRow.active;
+            if (targetRow.role === 'admin' && nextActive === 0 && (await countAdmins(env)) <= 1) {
+                return json({ error: 'Cannot deactivate the last admin' }, 403);
+            }
+            if (targetRow.role === 'admin' && nextRole !== 'admin' && (await countAdmins(env)) <= 1) {
+                return json({ error: 'Cannot demote the last admin' }, 403);
+            }
+            const updated = await updateUser(env, targetId, {
                 email: patchBody.email,
                 displayName: patchBody.displayName,
                 role: patchBody.role,

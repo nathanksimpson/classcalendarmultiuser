@@ -4,52 +4,100 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — Class Calendar</title>
-    <link rel="stylesheet" href="styles.css?v=20260523-admin">
+    <link rel="stylesheet" href="styles.css?v=20260525-admin">
     <style>
-        .admin-page { max-width: 720px; margin: 2rem auto; padding: 0 1rem 3rem; }
+        .admin-page { max-width: 900px; margin: 2rem auto; padding: 0 1rem 3rem; }
         .admin-page h1 { margin-bottom: 0.25rem; }
         .admin-hint { color: var(--text-muted, #64748b); margin-bottom: 1.5rem; }
         .admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        .admin-table th, .admin-table td { border-bottom: 1px solid var(--border-color, #e2e8f0); padding: 0.5rem; text-align: left; }
+        .admin-table th, .admin-table td { border-bottom: 1px solid var(--border-color, #e2e8f0); padding: 0.5rem; text-align: left; vertical-align: top; }
         .admin-form { display: grid; gap: 0.5rem; margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; }
-        .admin-form input, .admin-form select { padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; }
+        .admin-form input, .admin-form select { padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; max-width: 100%; }
         .badge-inactive { color: #b91c1c; }
         .admin-nav { margin-bottom: 1rem; }
+        .admin-section { margin-top: 2.5rem; }
+        .admin-section h2 { font-size: 1.15rem; margin: 0 0 0.5rem; }
+        .admin-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .admin-checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.35rem; max-height: 12rem; overflow-y: auto; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 6px; margin: 0.5rem 0; }
+        .admin-checkbox-grid label { font-size: 0.85rem; display: flex; gap: 0.35rem; align-items: center; }
     </style>
 </head>
 <body>
     <div class="admin-page">
         <p class="admin-nav" id="adminNav"><a href="/">← Back to calendar</a> · <a href="login.html" id="adminSignInLink">Sign in</a></p>
-        <h1>Teacher access</h1>
-        <p class="admin-hint">Add teachers by <strong>email</strong> (recommended). They sign in with Kakao; you never need to ask them for a Kakao ID.</p>
+        <h1>Admin</h1>
+        <p class="admin-hint">Manage teachers, groups, and which calendars each person can open.</p>
         <p id="adminStatus" class="admin-hint"></p>
 
-        <table class="admin-table" id="usersTable" hidden>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="usersBody"></tbody>
-        </table>
+        <section class="admin-section" id="usersSection" hidden>
+            <h2>Teachers &amp; admins</h2>
+            <p class="admin-hint">Add teachers by <strong>email</strong>. They sign in with Kakao or a password you set.</p>
+            <table class="admin-table" id="usersTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersBody"></tbody>
+            </table>
 
-        <form class="admin-form" id="addUserForm">
-            <h2 style="margin:0;font-size:1.1rem;">Add teacher</h2>
-            <label>Display name <input type="text" id="newDisplayName" required></label>
-            <label>Email <input type="email" id="newEmail" required></label>
-            <label>Role
-                <select id="newRole">
-                    <option value="teacher">Teacher</option>
-                    <option value="admin">Admin</option>
-                </select>
-            </label>
-            <label>Optional temp password <input type="password" id="newPassword" autocomplete="new-password"></label>
-            <button type="submit" class="btn btn-primary">Add user</button>
-        </form>
+            <form class="admin-form" id="addUserForm">
+                <h3 style="margin:0;font-size:1rem;">Add teacher</h3>
+                <label>Display name <input type="text" id="newDisplayName" required></label>
+                <label>Email <input type="email" id="newEmail" required></label>
+                <label>Role
+                    <select id="newRole">
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </label>
+                <label>Optional temp password <input type="password" id="newPassword" autocomplete="new-password"></label>
+                <button type="submit" class="btn btn-primary">Add user</button>
+            </form>
+        </section>
+
+        <section class="admin-section" id="groupsSection" hidden>
+            <h2>Groups</h2>
+            <p class="admin-hint">Put teachers in groups, then assign groups to calendars when creating or editing access.</p>
+            <table class="admin-table" id="groupsTable">
+                <thead>
+                    <tr><th>Name</th><th>Members</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="groupsBody"></tbody>
+            </table>
+            <form class="admin-form" id="addGroupForm">
+                <h3 style="margin:0;font-size:1rem;">New group</h3>
+                <label>Group name <input type="text" id="newGroupName" required maxlength="80"></label>
+                <fieldset>
+                    <legend>Members</legend>
+                    <div id="newGroupMembers" class="admin-checkbox-grid"></div>
+                </fieldset>
+                <button type="submit" class="btn btn-primary">Create group</button>
+            </form>
+        </section>
+
+        <section class="admin-section" id="calendarAccessSection" hidden>
+            <h2>Calendar access</h2>
+            <p class="admin-hint">Choose a calendar, then pick teachers and groups who may open it. Admins always see every calendar.</p>
+            <form class="admin-form" id="calendarAccessForm">
+                <label>Calendar
+                    <select id="accessCalendarSelect" required></select>
+                </label>
+                <fieldset>
+                    <legend>Teachers (direct access)</legend>
+                    <div id="accessTeachersGrid" class="admin-checkbox-grid"></div>
+                </fieldset>
+                <fieldset>
+                    <legend>Groups</legend>
+                    <div id="accessGroupsGrid" class="admin-checkbox-grid"></div>
+                </fieldset>
+                <button type="submit" class="btn btn-primary">Save access</button>
+            </form>
+        </section>
 
         <section class="admin-form" id="bootstrapBox" style="display: none;">
             <h2 style="margin:0;font-size:1.1rem;">First-time setup</h2>

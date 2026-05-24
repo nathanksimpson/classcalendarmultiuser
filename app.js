@@ -57,6 +57,11 @@ const translations = {
         newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team folder and selected in the dropdown above.',
         newCalendarCreate: 'Create calendar',
         newCalendarCreated: 'Created "{name}" — now selected in Team calendar ↑',
+        newCalendarAccessTeachers: 'Who can access this calendar?',
+        newCalendarAccessHint: 'Check teachers and/or groups. You are always included. Admins can see all calendars.',
+        newCalendarAccessGroupsLabel: 'Groups',
+        newCalendarNoAccessList: 'No other teachers or groups yet. Only you will have access until an admin adds more.',
+        teamCalendarAccessLost: 'You no longer have access to that calendar. Switched to another calendar.',
         deleteCalendarTitle: 'Remove team calendar',
         deleteCalendarConfirm: 'Remove permanently',
         deleteCalendarPrompt: 'Remove "{name}" from the team folder? This cannot be undone.',
@@ -578,6 +583,11 @@ const translations = {
         newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀 폴더에 저장되고 위 목록에서 선택됩니다.',
         newCalendarCreate: '캘린더 만들기',
         newCalendarCreated: '"{name}" 생성됨 — 팀 캘린더 ↑ 에서 선택됨',
+        newCalendarAccessTeachers: '이 캘린더에 접근할 수 있는 사람',
+        newCalendarAccessHint: '선생님 및/또는 그룹을 선택하세요. 본인은 항상 포함됩니다. 관리자는 모든 캘린더를 볼 수 있습니다.',
+        newCalendarAccessGroupsLabel: '그룹',
+        newCalendarNoAccessList: '다른 선생님이나 그룹이 없습니다. 관리자가 추가할 때까지 본인만 접근할 수 있습니다.',
+        teamCalendarAccessLost: '해당 캘린더에 더 이상 접근할 수 없습니다. 다른 캘린더로 전환했습니다.',
         deleteCalendarTitle: '팀 캘린더 삭제',
         deleteCalendarConfirm: '영구 삭제',
         deleteCalendarPrompt: '팀 폴더에서 "{name}"을(를) 삭제할까요? 되돌릴 수 없습니다.',
@@ -12181,22 +12191,136 @@ async function switchToTeamCalendar(id, calendarsOptional) {
     }
     const list = calendarsOptional || (await CalendarSync.listCalendars());
     populateCalendarSelect(list, id);
+    if (!id || !list.some((c) => c.id === id)) {
+        CalendarSync.setActiveCalendarId(null);
+        if (list.length === 0) {
+            appData = getDefaultAppData();
+            initializeTermStart();
+            renderCalendar();
+        }
+        return;
+    }
     CalendarSync.setActiveCalendarId(id);
-    const doc = await CalendarSync.loadCalendar(id);
-    await CalendarSync.acquireLock(id);
-    teamLockPreviousCalendarId = id;
-    applyTeamLockAccessState({
-        readOnly: CalendarSync.state.readOnly,
-        lock: CalendarSync.state.lock,
-        holdsLock: CalendarSync.state.holdsLock
-    });
-    applyServerDocument(doc);
-    initializeTermStart();
-    renderCalendar();
-    updateTeamSyncStatus('saved');
+    try {
+        const doc = await CalendarSync.loadCalendar(id);
+        await CalendarSync.acquireLock(id);
+        teamLockPreviousCalendarId = id;
+        applyTeamLockAccessState({
+            readOnly: CalendarSync.state.readOnly,
+            lock: CalendarSync.state.lock,
+            holdsLock: CalendarSync.state.holdsLock
+        });
+        applyServerDocument(doc);
+        initializeTermStart();
+        renderCalendar();
+        updateTeamSyncStatus('saved');
+    } catch (err) {
+        if (err.status === 404) {
+            showSyncToast(t('teamCalendarAccessLost'), true);
+            const freshList = await CalendarSync.listCalendars();
+            if (freshList.length > 0) {
+                await switchToTeamCalendar(freshList[0].id, freshList);
+            } else {
+                populateCalendarSelect([], null);
+                CalendarSync.setActiveCalendarId(null);
+                appData = getDefaultAppData();
+                initializeTermStart();
+                renderCalendar();
+            }
+            return;
+        }
+        throw err;
+    }
 }
 
-async function createTeamCalendarFromName(name) {
+function renderAccessCheckboxList(container, items, inputName, options) {
+    if (!container) {
+        return;
+    }
+    const opts = options || {};
+    container.innerHTML = '';
+    if (!items || items.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'section-hint';
+        p.textContent = opts.emptyText || '';
+        container.appendChild(p);
+        return;
+    }
+    items.forEach((item) => {
+        const label = document.createElement('label');
+        label.className = 'access-checkbox-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = inputName;
+        cb.value = item.id;
+        if (opts.checkedIds && opts.checkedIds.includes(item.id)) {
+            cb.checked = true;
+        }
+        if (opts.disabledIds && opts.disabledIds.includes(item.id)) {
+            cb.disabled = true;
+            cb.checked = true;
+        }
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(' ' + (item.displayName || item.name || item.email || item.id)));
+        container.appendChild(label);
+    });
+}
+
+function getNewCalendarAccessSelections() {
+    const memberUserIds = [];
+    document.querySelectorAll('#newCalendarTeachersList input[type="checkbox"]:checked').forEach((el) => {
+        if (el.value && !el.disabled) {
+            memberUserIds.push(el.value);
+        }
+    });
+    const groupIds = [];
+    document.querySelectorAll('#newCalendarGroupsList input[type="checkbox"]:checked').forEach((el) => {
+        if (el.value) {
+            groupIds.push(el.value);
+        }
+    });
+    return { memberUserIds, groupIds };
+}
+
+async function populateNewCalendarAccessPicker() {
+    const teachersEl = document.getElementById('newCalendarTeachersList');
+    const groupsEl = document.getElementById('newCalendarGroupsList');
+    const groupsLabel = document.querySelector('.access-groups-label');
+    const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+    if (!teachersEl) {
+        return;
+    }
+    let teachers = [];
+    let groups = [];
+    try {
+        teachers = await CalendarSync.fetchTeachers();
+        groups = await CalendarSync.fetchGroups();
+    } catch (_) {
+        teachers = [];
+        groups = [];
+    }
+    const otherTeachers = (teachers || []).filter((t) => !me || t.id !== me.id);
+    const disabledIds = me ? [me.id] : [];
+    renderAccessCheckboxList(teachersEl, otherTeachers, 'newCalTeacher', {
+        emptyText: t('newCalendarNoAccessList'),
+        disabledIds
+    });
+    if (groupsEl) {
+        if (groups.length > 0) {
+            if (groupsLabel) {
+                groupsLabel.hidden = false;
+            }
+            renderAccessCheckboxList(groupsEl, groups, 'newCalGroup', { emptyText: '' });
+        } else {
+            groupsEl.innerHTML = '';
+            if (groupsLabel) {
+                groupsLabel.hidden = true;
+            }
+        }
+    }
+}
+
+async function createTeamCalendarFromName(name, accessOptions) {
     CalendarSync.cancelPendingSave();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -12204,7 +12328,11 @@ async function createTeamCalendarFromName(name) {
     }
     const freshData = getDefaultAppData();
     freshData.calendarName = trimmed;
-    const created = await CalendarSync.createCalendar(freshData, trimmed);
+    const opts = accessOptions || getNewCalendarAccessSelections();
+    const created = await CalendarSync.createCalendar(freshData, trimmed, {
+        memberUserIds: opts.memberUserIds,
+        groupIds: opts.groupIds
+    });
     const list = await CalendarSync.listCalendars();
     const id = created.id;
     await switchToTeamCalendar(id, list);
@@ -12220,6 +12348,7 @@ function openNewCalendarModal() {
         return;
     }
     input.value = '';
+    populateNewCalendarAccessPicker();
     openModal(modal);
     setTimeout(() => input.focus(), 100);
 }

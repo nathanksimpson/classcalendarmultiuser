@@ -4,6 +4,7 @@ const express = require('express');
 const calendars = require('./calendars');
 const users = require('./users');
 const kakao = require('./kakao');
+const CalAccess = require('./calendar-access');
 const { getDb } = require('./schema');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -273,7 +274,23 @@ app.post('/api/admin/users', requireUser, requireAdmin, (req, res) => {
 });
 
 app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
-    const updated = users.updateUser(req.params.id, {
+    const targetId = req.params.id;
+    const targetRow = getDb().prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    if (!targetRow) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+    }
+    const nextRole = req.body.role !== undefined ? req.body.role : targetRow.role;
+    const nextActive = req.body.active !== undefined ? (req.body.active ? 1 : 0) : targetRow.active;
+    if (targetRow.role === 'admin' && nextActive === 0 && users.countAdmins() <= 1) {
+        res.status(403).json({ error: 'Cannot deactivate the last admin' });
+        return;
+    }
+    if (targetRow.role === 'admin' && nextRole !== 'admin' && users.countAdmins() <= 1) {
+        res.status(403).json({ error: 'Cannot demote the last admin' });
+        return;
+    }
+    const updated = users.updateUser(targetId, {
         email: req.body.email,
         displayName: req.body.displayName,
         role: req.body.role,
@@ -287,15 +304,125 @@ app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
     res.json(updated);
 });
 
+app.get('/api/teachers', requireUser, (req, res) => {
+    const teachers = CalAccess.listTeachers();
+    if (!CalAccess.isAdmin(req.user)) {
+        const me = teachers.find((t) => t.id === req.user.id);
+        if (me) {
+            res.json([me]);
+            return;
+        }
+        res.json([
+            {
+                id: req.user.id,
+                email: req.user.email,
+                displayName: req.user.displayName,
+                role: req.user.role
+            }
+        ]);
+        return;
+    }
+    res.json(teachers);
+});
+
+app.get('/api/groups', requireUser, (req, res) => {
+    res.json(CalAccess.listGroups());
+});
+
+app.get('/api/admin/groups', requireUser, requireAdmin, (req, res) => {
+    const groups = CalAccess.listGroups();
+    res.json(
+        groups.map((g) => Object.assign({}, g, { memberIds: CalAccess.getGroupMemberIds(g.id) }))
+    );
+});
+
+app.post('/api/admin/groups', requireUser, requireAdmin, (req, res) => {
+    const name = req.body.name && String(req.body.name).trim();
+    if (!name) {
+        res.status(400).json({ error: 'name is required' });
+        return;
+    }
+    const gid = calendars.newId();
+    const created = CalAccess.createGroup(gid, name, req.user.id);
+    if (Array.isArray(req.body.memberIds) && req.body.memberIds.length) {
+        CalAccess.setGroupMembers(gid, req.body.memberIds);
+    }
+    res.status(201).json(Object.assign({}, created, { memberIds: CalAccess.getGroupMemberIds(gid) }));
+});
+
+app.put('/api/admin/groups/:id/members', requireUser, requireAdmin, (req, res) => {
+    const groupId = req.params.id;
+    if (!CalAccess.getGroup(groupId)) {
+        res.status(404).json({ error: 'Group not found' });
+        return;
+    }
+    const memberIds = CalAccess.setGroupMembers(groupId, req.body.memberIds || []);
+    res.json({ id: groupId, memberIds });
+});
+
+app.patch('/api/admin/groups/:id', requireUser, requireAdmin, (req, res) => {
+    const groupId = req.params.id;
+    const existing = CalAccess.getGroup(groupId);
+    if (!existing) {
+        res.status(404).json({ error: 'Group not found' });
+        return;
+    }
+    const updated = CalAccess.updateGroupName(groupId, req.body.name || existing.name);
+    res.json(Object.assign({}, updated, { memberIds: CalAccess.getGroupMemberIds(groupId) }));
+});
+
+app.delete('/api/admin/groups/:id', requireUser, requireAdmin, (req, res) => {
+    const groupId = req.params.id;
+    if (!CalAccess.getGroup(groupId)) {
+        res.status(404).json({ error: 'Group not found' });
+        return;
+    }
+    CalAccess.deleteGroup(groupId);
+    res.json({ ok: true });
+});
+
+app.get('/api/admin/calendars', requireUser, requireAdmin, (req, res) => {
+    res.json(CalAccess.listAdminCalendarsWithAccess());
+});
+
+app.get('/api/admin/calendars/:id/access', requireUser, requireAdmin, (req, res) => {
+    const meta = calendars.getCalendarMeta(req.params.id);
+    if (!meta) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    res.json(CalAccess.getCalendarAccess(req.params.id));
+});
+
+app.put('/api/admin/calendars/:id/access', requireUser, requireAdmin, (req, res) => {
+    const calId = req.params.id;
+    const meta = calendars.getCalendarMeta(calId);
+    if (!meta) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    const result = CalAccess.setCalendarAccess(
+        calId,
+        req.body.userIds || [],
+        req.body.groupIds || [],
+        req.user.id
+    );
+    res.json(result);
+});
+
 app.post('/api/backup', requireUser, (_req, res) => {
     res.json({ skipped: true, reason: 'Use Synology or export from Print & data tab for backups' });
 });
 
-app.get('/api/calendars', requireUser, (_req, res) => {
-    res.json(calendars.listCalendars());
+app.get('/api/calendars', requireUser, (req, res) => {
+    res.json(CalAccess.listCalendarsForUser(req.user));
 });
 
 app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
     const meta = calendars.getCalendarMeta(req.params.id);
     if (!meta) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -306,6 +433,10 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
 });
 
 app.get('/api/calendars/:id', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
     const doc = calendars.getCalendar(req.params.id);
     if (!doc) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -316,6 +447,10 @@ app.get('/api/calendars/:id', requireUser, (req, res) => {
 });
 
 app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
     const cal = calendars.getCalendarMeta(req.params.id);
     if (!cal) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -333,6 +468,10 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
 });
 
 app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
     const result = users.releaseLock(req.params.id, req.user.id);
     if (result.reason === 'not_holder') {
         const status = users.lockStatusForClient(req.params.id, req.user.id);
@@ -343,7 +482,7 @@ app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
 });
 
 app.post('/api/calendars', requireUser, (req, res) => {
-    const { name, data } = req.body || {};
+    const { name, data, memberUserIds, groupIds } = req.body || {};
     if (!name || !data) {
         res.status(400).json({ error: 'name and data are required' });
         return;
@@ -351,11 +490,21 @@ app.post('/api/calendars', requireUser, (req, res) => {
     const id = calendars.newId();
     const label = req.user.displayName || req.user.email || 'Teacher';
     const doc = calendars.createCalendar(id, String(name).trim(), data, label);
+    const memberIds = Array.isArray(memberUserIds) ? memberUserIds.map(String) : [];
+    if (!memberIds.includes(req.user.id)) {
+        memberIds.push(req.user.id);
+    }
+    const gids = Array.isArray(groupIds) ? groupIds.map(String) : [];
+    CalAccess.setCalendarAccess(id, memberIds, gids, req.user.id);
     users.acquireLock(id, req.user.id, label, true);
     res.status(201).json(doc);
 });
 
 app.put('/api/calendars/:id', requireUser, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
     const { data, revision, force, name } = req.body || {};
     if (!data) {
         res.status(400).json({ error: 'data is required' });
@@ -402,6 +551,7 @@ app.delete('/api/calendars/:id', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
+    CalAccess.deleteCalendarAccess(req.params.id);
     res.json({ ok: true });
 });
 
