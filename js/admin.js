@@ -8,6 +8,142 @@ async function api(path, options) {
 }
 
 let adminNoticeTimer = null;
+let resetPasswordTargetId = null;
+
+function openAdminModal(modal) {
+    if (!modal) {
+        return;
+    }
+    modal.style.removeProperty('display');
+    modal.classList.add('active');
+}
+
+function closeAdminModal(modal) {
+    if (!modal) {
+        return;
+    }
+    modal.classList.remove('active');
+    modal.style.removeProperty('display');
+}
+
+function openResetPasswordModal(user) {
+    resetPasswordTargetId = user.id;
+    const modal = document.getElementById('resetPasswordModal');
+    const label = document.getElementById('resetPasswordUserLabel');
+    const newInput = document.getElementById('resetPasswordNew');
+    const confirmInput = document.getElementById('resetPasswordConfirm');
+    if (label) {
+        label.textContent = 'Set a new password for ' + (user.displayName || user.email || user.id) + '.';
+    }
+    if (newInput) {
+        newInput.value = '';
+    }
+    if (confirmInput) {
+        confirmInput.value = '';
+    }
+    openAdminModal(modal);
+    newInput?.focus();
+}
+
+async function clearUserPassword(u) {
+    const label = u.email || u.displayName || u.id;
+    if (
+        !confirm(
+            'Clear password for ' +
+                label +
+                '?\n\nThey can only sign in with Kakao (if linked). Any password sessions will end.'
+        )
+    ) {
+        return;
+    }
+    await api('/admin/users/' + encodeURIComponent(u.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearPassword: true })
+    });
+    await refreshAll();
+    showAdminSaveNotice('Saved: password cleared for ' + label + '.', false);
+}
+
+function setupResetPasswordModal() {
+    const modal = document.getElementById('resetPasswordModal');
+    if (!modal || modal.dataset.bound === '1') {
+        return;
+    }
+    modal.dataset.bound = '1';
+    document.getElementById('closeResetPasswordModal')?.addEventListener('click', () => {
+        resetPasswordTargetId = null;
+        closeAdminModal(modal);
+    });
+    document.getElementById('cancelResetPasswordBtn')?.addEventListener('click', () => {
+        resetPasswordTargetId = null;
+        closeAdminModal(modal);
+    });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            resetPasswordTargetId = null;
+            closeAdminModal(modal);
+        }
+    });
+    document.getElementById('resetPasswordForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = resetPasswordTargetId;
+        if (!id) {
+            return;
+        }
+        const newPwd = document.getElementById('resetPasswordNew')?.value || '';
+        const confirmPwd = document.getElementById('resetPasswordConfirm')?.value || '';
+        if (newPwd.length < 8) {
+            showAdminSaveNotice('Password must be at least 8 characters.', true);
+            return;
+        }
+        if (newPwd !== confirmPwd) {
+            showAdminSaveNotice('Passwords do not match.', true);
+            return;
+        }
+        const submitBtn = document.getElementById('submitResetPasswordBtn');
+        const prevText = submitBtn ? submitBtn.textContent : '';
+        try {
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Saving…';
+            }
+            await api('/admin/users/' + encodeURIComponent(id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: newPwd })
+            });
+            resetPasswordTargetId = null;
+            closeAdminModal(modal);
+            showAdminSaveNotice('Saved: password updated. They must sign in again with the new password.', false);
+        } catch (ex) {
+            showAdminSaveNotice(ex.message, true);
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = prevText || 'Save password';
+            }
+        }
+    });
+}
+
+function appendResetPasswordActions(actions, u) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn btn-outline btn-small';
+    reset.textContent = 'Reset password';
+    reset.title = 'Set a new password; signs them out everywhere';
+    reset.onclick = () => openResetPasswordModal(u);
+    actions.appendChild(reset);
+
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'btn btn-outline btn-small';
+    clear.textContent = 'Clear password';
+    clear.title = 'Remove password login (Kakao only if linked)';
+    clear.onclick = () => clearUserPassword(u).catch((ex) => showAdminSaveNotice(ex.message, true));
+    actions.appendChild(clear);
+}
 
 function setStatus(msg, isError) {
     const el = document.getElementById('adminStatus');
@@ -242,6 +378,7 @@ async function loadUsers() {
                 actions.appendChild(del);
             }
         }
+        appendResetPasswordActions(actions, u);
         body.appendChild(tr);
     });
 }
@@ -427,6 +564,7 @@ function showAdminSections(visible) {
 }
 
 async function init() {
+    setupResetPasswordModal();
     try {
         const me = await api('/auth/me');
         currentAdminId = me.id;

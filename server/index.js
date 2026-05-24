@@ -166,6 +166,17 @@ app.post('/api/auth/password', (req, res) => {
     });
 });
 
+app.post('/api/auth/change-password', requireUser, (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body || {};
+        const session = users.changeOwnPassword(req.user.id, currentPassword, newPassword);
+        setSessionCookie(res, session.token);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Password change failed' });
+    }
+});
+
 app.get('/api/auth/kakao', (req, res) => {
     if (!KAKAO_CLIENT_ID) {
         res.status(503).send('Kakao login is not configured on this server.');
@@ -318,10 +329,32 @@ app.patch('/api/admin/users/:id', requireUser, requireAdmin, (req, res) => {
         res.status(404).json({ error: 'User not found' });
         return;
     }
+    let passwordSecurityChange = false;
+    if (req.body.password !== undefined) {
+        const pwd = String(req.body.password || '');
+        if (pwd.length < users.MIN_PASSWORD_LENGTH) {
+            res.status(400).json({ error: 'Password must be at least 8 characters' });
+            return;
+        }
+        if (!users.setUserPassword(targetId, users.hashPassword(pwd))) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        passwordSecurityChange = true;
+    }
+    if (req.body.clearPassword === true) {
+        if (!users.setUserPassword(targetId, null)) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        passwordSecurityChange = true;
+    }
     if (targetRow.active === 1 && nextActive === 0) {
         users.deleteAllSessionsForUser(targetId);
+    } else if (passwordSecurityChange) {
+        users.deleteAllSessionsForUser(targetId);
     }
-    res.json(updated);
+    res.json(users.getUserById(targetId));
 });
 
 app.get('/api/teachers', requireUser, (req, res) => {

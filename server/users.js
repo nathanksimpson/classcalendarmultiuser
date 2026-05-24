@@ -3,6 +3,7 @@ const { getDb, newId, nowIso } = require('./schema');
 
 const SESSION_DAYS = 14;
 const LOCK_STALE_MS = 20 * 60 * 1000;
+const MIN_PASSWORD_LENGTH = 8;
 
 function normalizeEmail(email) {
     if (!email) {
@@ -215,6 +216,45 @@ function deleteAllSessionsForUser(userId) {
     getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
 }
 
+function setUserPassword(userId, passwordHash) {
+    const db = getDb();
+    const row = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    if (!row) {
+        return false;
+    }
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash || null, userId);
+    return true;
+}
+
+function changeOwnPassword(userId, currentPassword, newPassword) {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(userId);
+    if (!row) {
+        const err = new Error('Not signed in');
+        err.status = 401;
+        throw err;
+    }
+    if (!row.password_hash) {
+        const err = new Error('No password set — contact your admin');
+        err.status = 400;
+        throw err;
+    }
+    const next = String(newPassword || '');
+    if (next.length < MIN_PASSWORD_LENGTH) {
+        const err = new Error('Password must be at least 8 characters');
+        err.status = 400;
+        throw err;
+    }
+    if (!verifyPassword(currentPassword, row.password_hash)) {
+        const err = new Error('Current password is incorrect');
+        err.status = 401;
+        throw err;
+    }
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(next), userId);
+    deleteAllSessionsForUser(userId);
+    return createSession(userId);
+}
+
 function permanentlyDeleteUser(targetId, actingAdminId) {
     const db = getDb();
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
@@ -386,6 +426,9 @@ module.exports = {
     getSessionUser,
     deleteSession,
     deleteAllSessionsForUser,
+    setUserPassword,
+    changeOwnPassword,
+    MIN_PASSWORD_LENGTH,
     permanentlyDeleteUser,
     getLock,
     acquireLock,

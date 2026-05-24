@@ -98,6 +98,16 @@ const translations = {
         teamReadOnlySave: 'Someone else is editing. Take over the lock to save.',
         teamSignOut: 'Sign out',
         teamAdminLink: 'Admin',
+        changePassword: 'Change password',
+        changePasswordTitle: 'Change password',
+        currentPassword: 'Current password',
+        newPassword: 'New password',
+        confirmPassword: 'Confirm new password',
+        passwordMismatch: 'New passwords do not match.',
+        passwordTooShort: 'Password must be at least 8 characters.',
+        passwordChanged: 'Password updated.',
+        passwordChangeFailed: 'Could not change password.',
+        noPasswordSet: 'No password is set on your account. Ask your admin to set one.',
         hostLinkCopied: 'Team link copied!',
         langToggle: '🌐 한국어',
         themeDark: '🌙 Dark',
@@ -645,6 +655,16 @@ const translations = {
         teamReadOnlySave: '다른 사람이 편집 중입니다. 저장하려면 잠금을 인수하세요.',
         teamSignOut: '로그아웃',
         teamAdminLink: '관리',
+        changePassword: '비밀번호 변경',
+        changePasswordTitle: '비밀번호 변경',
+        currentPassword: '현재 비밀번호',
+        newPassword: '새 비밀번호',
+        confirmPassword: '새 비밀번호 확인',
+        passwordMismatch: '새 비밀번호가 일치하지 않습니다.',
+        passwordTooShort: '비밀번호는 8자 이상이어야 합니다.',
+        passwordChanged: '비밀번호가 변경되었습니다.',
+        passwordChangeFailed: '비밀번호를 변경할 수 없습니다.',
+        noPasswordSet: '비밀번호가 설정되어 있지 않습니다. 관리자에게 문의하세요.',
         hostLinkCopied: '팀 링크가 복사되었습니다!',
         langToggle: '🌐 English',
         themeDark: '🌙 다크',
@@ -7674,6 +7694,7 @@ function setupEventListeners() {
     document.getElementById('addHolidayBtn').addEventListener('click', () => openEventEditor(null, 'calendar-popout'));
     document.getElementById('exportBtn').addEventListener('click', exportData);
     setupImportDestinationModal();
+    setupChangePasswordModal();
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importData);
     const printCalendarBtn = document.getElementById('printCalendarBtn');
@@ -11958,10 +11979,81 @@ function setupTeamLockButtons() {
     });
 }
 
+function setupChangePasswordModal() {
+    if (document.body.dataset.changePasswordModalBound === '1') {
+        return;
+    }
+    const modal = document.getElementById('changePasswordModal');
+    const form = document.getElementById('changePasswordForm');
+    if (!modal || !form) {
+        return;
+    }
+
+    function closeChangePasswordModal() {
+        closeModal(modal);
+        form.reset();
+    }
+
+    document.getElementById('closeChangePasswordModal')?.addEventListener('click', closeChangePasswordModal);
+    document.getElementById('cancelChangePasswordBtn')?.addEventListener('click', closeChangePasswordModal);
+    bindModalBackdropClose(modal);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const current = document.getElementById('changePasswordCurrent')?.value || '';
+        const newPwd = document.getElementById('changePasswordNew')?.value || '';
+        const confirmPwd = document.getElementById('changePasswordConfirm')?.value || '';
+        if (newPwd.length < 8) {
+            showSyncToast(t('passwordTooShort'), true);
+            return;
+        }
+        if (newPwd !== confirmPwd) {
+            showSyncToast(t('passwordMismatch'), true);
+            return;
+        }
+        const submitBtn = document.getElementById('submitChangePasswordBtn');
+        const prevText = submitBtn ? submitBtn.textContent : '';
+        try {
+            if (submitBtn) {
+                submitBtn.disabled = true;
+            }
+            const res = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword: current, newPassword: newPwd })
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg =
+                    json.error ||
+                    (res.status === 400 ? t('noPasswordSet') : t('passwordChangeFailed'));
+                showSyncToast(msg, true);
+                return;
+            }
+            closeChangePasswordModal();
+            showSyncToast(t('passwordChanged'), false);
+            if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
+                await TeamAuth.refresh();
+            }
+        } catch (err) {
+            showSyncToast(t('passwordChangeFailed'), true);
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = prevText || t('changePassword');
+            }
+        }
+    });
+
+    document.body.dataset.changePasswordModalBound = '1';
+}
+
 function setupTeamUserBar() {
     const accountGroup = document.getElementById('teamAccountGroup');
     const label = document.getElementById('teamUserLabel');
     const logoutBtn = document.getElementById('teamLogoutBtn');
+    const changePwdBtn = document.getElementById('teamChangePasswordBtn');
     const adminLink = document.getElementById('teamAdminLink');
     const deleteCalBtn = document.getElementById('teamDeleteCalendarBtn');
     const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
@@ -11976,6 +12068,9 @@ function setupTeamUserBar() {
         }
         if (logoutBtn) {
             logoutBtn.hidden = true;
+        }
+        if (changePwdBtn) {
+            changePwdBtn.hidden = true;
         }
         if (adminLink) {
             adminLink.hidden = true;
@@ -11992,6 +12087,20 @@ function setupTeamUserBar() {
     if (label) {
         label.hidden = false;
         label.textContent = user.displayName || user.email || '';
+    }
+    if (changePwdBtn) {
+        changePwdBtn.hidden = false;
+        if (changePwdBtn.dataset.bound !== '1') {
+            changePwdBtn.dataset.bound = '1';
+            changePwdBtn.addEventListener('click', () => {
+                const modal = document.getElementById('changePasswordModal');
+                if (modal) {
+                    document.getElementById('changePasswordForm')?.reset();
+                    openModal(modal);
+                    document.getElementById('changePasswordCurrent')?.focus();
+                }
+            });
+        }
     }
     if (logoutBtn) {
         logoutBtn.hidden = false;

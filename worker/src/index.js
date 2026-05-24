@@ -6,6 +6,7 @@ import * as CalAccess from './calendar-access.js';
 const SESSION_COOKIE = 'cal_session';
 const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 14;
+const MIN_PASSWORD_LENGTH = 8;
 const LOCK_STALE_MS = 20 * 60 * 1000;
 
 function json(data, status = 200, extraHeaders = {}) {
@@ -626,6 +627,31 @@ export default {
             return json({ error: 'Not signed in' }, 401);
         }
 
+        if (path === '/api/auth/change-password' && request.method === 'POST') {
+            const body = await readJson(request);
+            const current = String(body.currentPassword || '');
+            const newPwd = String(body.newPassword || '');
+            if (newPwd.length < MIN_PASSWORD_LENGTH) {
+                return json({ error: 'Password must be at least 8 characters' }, 400);
+            }
+            const row = await dbOne(env, 'SELECT * FROM users WHERE id = ? AND active = 1', user.id);
+            if (!row || !row.password_hash) {
+                return json({ error: 'No password set — contact your admin' }, 400);
+            }
+            if (!(await verifyPassword(current, row.password_hash))) {
+                return json({ error: 'Current password is incorrect' }, 401);
+            }
+            await dbRun(
+                env,
+                'UPDATE users SET password_hash = ? WHERE id = ?',
+                await hashPassword(newPwd),
+                user.id
+            );
+            await deleteAllSessionsForUser(env, user.id);
+            const sessionToken = await createSession(env, user.id);
+            return json({ ok: true }, 200, { 'Set-Cookie': sessionCookie(sessionToken, secure) });
+        }
+
         if (path === '/api/calendars' && request.method === 'GET') {
             const rows = await CalAccess.listCalendarsForUser(env, user);
             return json(rows);
@@ -961,10 +987,31 @@ export default {
             if (!updated) {
                 return json({ error: 'User not found' }, 404);
             }
+            let passwordSecurityChange = false;
+            if (patchBody.password !== undefined) {
+                const pwd = String(patchBody.password || '');
+                if (pwd.length < MIN_PASSWORD_LENGTH) {
+                    return json({ error: 'Password must be at least 8 characters' }, 400);
+                }
+                await dbRun(
+                    env,
+                    'UPDATE users SET password_hash = ? WHERE id = ?',
+                    await hashPassword(pwd),
+                    targetId
+                );
+                passwordSecurityChange = true;
+            }
+            if (patchBody.clearPassword === true) {
+                await dbRun(env, 'UPDATE users SET password_hash = NULL WHERE id = ?', targetId);
+                passwordSecurityChange = true;
+            }
             if (targetRow.active === 1 && nextActive === 0) {
                 await deleteAllSessionsForUser(env, targetId);
+            } else if (passwordSecurityChange) {
+                await deleteAllSessionsForUser(env, targetId);
             }
-            return json(updated);
+            const freshRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
+            return json(rowToUser(freshRow));
         }
 
         return json({ error: 'Not found' }, 404);

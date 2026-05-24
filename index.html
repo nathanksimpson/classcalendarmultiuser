@@ -109,6 +109,7 @@
                     <div class="app-header-tool-group app-header-tool-group--account" id="teamAccountGroup" hidden>
                         <span id="teamUserLabel" class="team-user-label" hidden></span>
                         <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
+                        <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
                         <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
                     </div>
                 </div>
@@ -753,6 +754,33 @@
         </div>
     </div>
 
+    <div id="changePasswordModal" class="modal" role="dialog" aria-labelledby="changePasswordModalTitle" aria-modal="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="changePasswordModalTitle" data-i18n="changePasswordTitle">Change password</h2>
+                <button type="button" class="modal-close" id="closeChangePasswordModal" aria-label="Close">&times;</button>
+            </div>
+            <form id="changePasswordForm">
+                <div class="form-group">
+                    <label for="changePasswordCurrent" data-i18n="currentPassword">Current password</label>
+                    <input type="password" id="changePasswordCurrent" autocomplete="current-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="changePasswordNew" data-i18n="newPassword">New password</label>
+                    <input type="password" id="changePasswordNew" autocomplete="new-password" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="changePasswordConfirm" data-i18n="confirmPassword">Confirm new password</label>
+                    <input type="password" id="changePasswordConfirm" autocomplete="new-password" required minlength="8">
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancelChangePasswordBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="submit" id="submitChangePasswordBtn" class="btn btn-primary" data-i18n="changePassword">Change password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="importDestinationModal" class="modal" role="dialog" aria-labelledby="importDestinationModalTitle" aria-modal="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -1048,7 +1076,7 @@
     <script src="js/syllabus-templates.js"></script>
     <script src="js/team-auth.js"></script>
     <script src="js/calendar-sync.js"></script>
-    <script src="app.js?v=20260525-import-modals"></script>
+    <script src="app.js?v=20260525-password-reset"></script>
     <script src="howto.js"></script>
 </body>
 </html>

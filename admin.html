@@ -18,6 +18,7 @@
         .admin-section { margin-top: 2.5rem; }
         .admin-section h2 { font-size: 1.15rem; margin: 0 0 0.5rem; }
         .admin-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        #resetPasswordModal.modal.active { display: flex; }
         .admin-checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.35rem; max-height: 12rem; overflow-y: auto; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 6px; margin: 0.5rem 0; }
         .admin-checkbox-grid label { font-size: 0.85rem; display: flex; gap: 0.35rem; align-items: center; }
         .admin-notice {
@@ -62,7 +63,7 @@
 
         <section class="admin-section" id="usersSection" hidden>
             <h2>Teachers &amp; admins</h2>
-            <p class="admin-hint">Add teachers by <strong>email</strong>. They sign in with Kakao or a password you set.</p>
+            <p class="admin-hint">Add teachers by <strong>email</strong>. They sign in with Kakao or a password you set. Use <strong>Reset password</strong> anytime to set a new temp password (they must sign in again).</p>
             <p class="admin-hint"><strong>Deactivate</strong> blocks sign-in and signs them out. Use <strong>Reactivate</strong> to restore access. <strong>Delete permanently</strong> (deactivated accounts only) removes the user from the database and cannot be undone.</p>
             <table class="admin-table" id="usersTable">
                 <thead>
@@ -130,6 +131,30 @@
                 <button type="submit" class="btn btn-primary">Save access</button>
             </form>
         </section>
+
+        <div id="resetPasswordModal" class="modal" role="dialog" aria-labelledby="resetPasswordModalTitle" aria-modal="true">
+            <div class="modal-content modal-small">
+                <div class="modal-header">
+                    <h2 id="resetPasswordModalTitle">Reset password</h2>
+                    <button type="button" class="modal-close" id="closeResetPasswordModal" aria-label="Close">&times;</button>
+                </div>
+                <p id="resetPasswordUserLabel" class="section-hint"></p>
+                <form id="resetPasswordForm">
+                    <div class="form-group">
+                        <label for="resetPasswordNew">New password (min 8 characters)</label>
+                        <input type="password" id="resetPasswordNew" autocomplete="new-password" required minlength="8">
+                    </div>
+                    <div class="form-group">
+                        <label for="resetPasswordConfirm">Confirm new password</label>
+                        <input type="password" id="resetPasswordConfirm" autocomplete="new-password" required minlength="8">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelResetPasswordBtn" class="btn btn-outline">Cancel</button>
+                        <button type="submit" id="submitResetPasswordBtn" class="btn btn-primary">Save password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <section class="admin-form" id="bootstrapBox" style="display: none;">
             <h2 style="margin:0;font-size:1.1rem;">First-time setup</h2>
