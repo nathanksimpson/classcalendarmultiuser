@@ -595,6 +595,16 @@
 
         async deleteCalendar(id) {
             await apiFetch('/calendars/' + encodeURIComponent(id), { method: 'DELETE' });
+            if (state.activeCalendarId === id) {
+                state.activeCalendarId = null;
+            }
+            try {
+                if (localStorage.getItem(STORAGE_ACTIVE) === id) {
+                    localStorage.removeItem(STORAGE_ACTIVE);
+                }
+            } catch (_) {
+                /* ignore */
+            }
         },
 
         async runBackup() {

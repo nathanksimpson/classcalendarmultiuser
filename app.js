@@ -12972,14 +12972,60 @@ async function openNewCalendarModal() {
 
 let pendingDeleteCalendarId = null;
 
-function openDeleteCalendarModal() {
-    const id = CalendarSync.getActiveCalendarId() || document.getElementById('teamCalendarSelect')?.value;
-    if (!id) {
+async function refreshTeamCalendarsAfterDelete(deletedId) {
+    teamLockPreviousCalendarId = null;
+    CalendarSync.cancelPendingSave();
+    const list = await CalendarSync.listCalendars();
+    populateCalendarSelect(list, null);
+    if (list.length === 0) {
+        CalendarSync.setActiveCalendarId(null);
+        appData = getDefaultAppData();
+        initializeTermStart();
+        renderCalendar();
+        applyTeamLockAccessState({ readOnly: false, lock: null, holdsLock: false });
+        setTeamLockBarVisible(teamSyncEnabled);
+        updateCalendarTitle();
+        updateTopBarCalendarLabel();
+        return list;
+    }
+    const prevActive = CalendarSync.getActiveCalendarId();
+    let nextId = null;
+    if (prevActive && prevActive !== deletedId && list.some((c) => c.id === prevActive)) {
+        nextId = prevActive;
+    } else {
+        nextId = list[0].id;
+    }
+    await switchToTeamCalendar(nextId, list);
+    highlightCalendarSelect();
+    return list;
+}
+
+async function openDeleteCalendarModal() {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        showSyncToast(t('teamSyncOffline'), true);
+        return;
+    }
+    let list = [];
+    try {
+        list = await CalendarSync.listCalendars();
+        const activeId = CalendarSync.getActiveCalendarId();
+        populateCalendarSelect(list, activeId);
+    } catch (err) {
+        showSyncToast(t('syncError') + ': ' + err.message, true);
+        return;
+    }
+    if (list.length === 0) {
         showSyncToast(t('teamCalendarEmpty'), true);
         return;
     }
     const sel = document.getElementById('teamCalendarSelect');
-    const label = sel?.selectedOptions?.[0]?.textContent || id;
+    const id = CalendarSync.getActiveCalendarId() || sel?.value;
+    if (!id) {
+        showSyncToast(t('teamCalendarEmpty'), true);
+        return;
+    }
+    const row = list.find((c) => c.id === id);
+    const label = row?.name || sel?.selectedOptions?.[0]?.textContent || id;
     pendingDeleteCalendarId = id;
     const msg = document.getElementById('deleteCalendarMessage');
     if (msg) {
@@ -13006,20 +13052,15 @@ async function confirmDeleteTeamCalendar() {
         await CalendarSync.deleteCalendar(id);
         pendingDeleteCalendarId = null;
         closeModal(document.getElementById('deleteCalendarModal'));
-        const list = await CalendarSync.listCalendars();
-        if (list.length > 0) {
-            await switchToTeamCalendar(list[0].id, list);
-        } else {
-            populateCalendarSelect([], null);
-            appData = getDefaultAppData();
-            initializeTermStart();
-            renderCalendar();
-            CalendarSync.setActiveCalendarId(null);
-            applyTeamLockAccessState({ readOnly: false, lock: null, holdsLock: false });
-        }
+        await refreshTeamCalendarsAfterDelete(id);
         showSyncToast(t('deleteCalendarDone').replace('{name}', label), false);
     } catch (err) {
         showSyncToast(t('syncError') + ': ' + err.message, true);
+        try {
+            await refreshTeamCalendarsAfterDelete(null);
+        } catch (_) {
+            /* ignore refresh errors */
+        }
     } finally {
         if (confirmBtn) {
             confirmBtn.disabled = false;
@@ -13056,7 +13097,9 @@ function setupTeamCalendarModals() {
         if (!requireTeamSync('delete')) {
             return;
         }
-        openDeleteCalendarModal();
+        openDeleteCalendarModal().catch((err) =>
+            showSyncToast(t('syncError') + ': ' + err.message, true)
+        );
     });
 
     document.getElementById('closeNewCalendarModal')?.addEventListener('click', () => closeModal(newModal));

@@ -601,6 +601,11 @@ function setupLockSettingsForm() {
 async function init() {
     setupResetPasswordModal();
     setupLockSettingsForm();
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && currentAdminId) {
+            refreshAll().catch(() => {});
+        }
+    });
     try {
         const me = await api('/auth/me');
         currentAdminId = me.id;
