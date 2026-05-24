@@ -1,6 +1,8 @@
 /**
  * Cloudflare Worker API — production deploy (Pages static + /api/* routed here).
  */
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+
 const SESSION_COOKIE = 'cal_session';
 const SESSION_DAYS = 14;
 const LOCK_STALE_MS = 20 * 60 * 1000;
@@ -141,6 +143,90 @@ async function lockStatus(env, calendarId, userId) {
         readOnly: !heldByMe,
         lock: { holderUserId: lock.holder_user_id, holderName: lock.holder_name, updatedAt: lock.updated_at }
     };
+}
+
+function hashPassword(password) {
+    const salt = randomBytes(16).toString('hex');
+    const hash = scryptSync(password, salt, 64).toString('hex');
+    return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+    if (!stored || !password) {
+        return false;
+    }
+    const [salt, hash] = stored.split(':');
+    if (!salt || !hash) {
+        return false;
+    }
+    const attempt = scryptSync(password, salt, 64).toString('hex');
+    return timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(attempt, 'hex'));
+}
+
+async function countAdmins(env) {
+    const row = await dbOne(env, `SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND active = 1`);
+    return Number(row?.c || 0);
+}
+
+async function findUserByEmailPassword(env, email, password) {
+    const em = normalizeEmail(email);
+    if (!em || !password) {
+        return null;
+    }
+    const row = await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em);
+    if (!row || !row.password_hash) {
+        return null;
+    }
+    if (!verifyPassword(password, row.password_hash)) {
+        return null;
+    }
+    return rowToUser(row);
+}
+
+async function createUser(env, { email, displayName, kakaoUserId, role, passwordHash }) {
+    const id = uuid();
+    const em = normalizeEmail(email);
+    await dbRun(
+        env,
+        `INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+        id,
+        em,
+        displayName || '',
+        kakaoUserId ? String(kakaoUserId) : null,
+        passwordHash || null,
+        role || 'teacher',
+        nowIso()
+    );
+    return rowToUser(await dbOne(env, 'SELECT * FROM users WHERE id = ?', id));
+}
+
+async function updateUser(env, id, fields) {
+    const existing = await dbOne(env, 'SELECT * FROM users WHERE id = ?', id);
+    if (!existing) {
+        return null;
+    }
+    const displayName = fields.displayName != null ? fields.displayName : existing.display_name;
+    const email = fields.email !== undefined ? normalizeEmail(fields.email) : existing.email;
+    const active = fields.active !== undefined ? (fields.active ? 1 : 0) : existing.active;
+    const kakaoUserId =
+        fields.kakaoUserId !== undefined
+            ? fields.kakaoUserId
+                ? String(fields.kakaoUserId)
+                : null
+            : existing.kakao_user_id;
+    const role = fields.role || existing.role;
+    await dbRun(
+        env,
+        `UPDATE users SET email = ?, display_name = ?, kakao_user_id = ?, role = ?, active = ? WHERE id = ?`,
+        email,
+        displayName,
+        kakaoUserId,
+        role,
+        active,
+        id
+    );
+    return rowToUser(await dbOne(env, 'SELECT * FROM users WHERE id = ?', id));
 }
 
 async function findUserForKakao(env, kakaoUserId, email) {
@@ -334,6 +420,52 @@ export default {
             }
         }
 
+        if (path === '/api/auth/password' && request.method === 'POST') {
+            const body = await readJson(request);
+            const matched = await findUserByEmailPassword(env, body.email, body.password);
+            if (!matched) {
+                return json({ error: 'Invalid email or password' }, 401);
+            }
+            const sessionToken = await createSession(env, matched.id);
+            return json(
+                {
+                    id: matched.id,
+                    email: matched.email,
+                    displayName: matched.displayName,
+                    role: matched.role
+                },
+                200,
+                { 'Set-Cookie': sessionCookie(sessionToken, secure) }
+            );
+        }
+
+        if (path === '/api/admin/bootstrap' && request.method === 'POST') {
+            const body = await readJson(request);
+            if ((await countAdmins(env)) > 0) {
+                return json({ error: 'Bootstrap already completed' }, 403);
+            }
+            const bootstrapSecret = env.BOOTSTRAP_ADMIN_SECRET || '';
+            if (!bootstrapSecret || body.secret !== bootstrapSecret) {
+                return json({ error: 'Invalid bootstrap secret' }, 403);
+            }
+            const em = normalizeEmail(body.email);
+            if (!em) {
+                return json({ error: 'email is required' }, 400);
+            }
+            const created = await createUser(env, {
+                email: em,
+                displayName: body.displayName || 'Admin',
+                role: 'admin',
+                passwordHash: body.password ? hashPassword(body.password) : null
+            });
+            const sessionToken = await createSession(env, created.id);
+            return json(
+                { ok: true, userId: created.id },
+                201,
+                { 'Set-Cookie': sessionCookie(sessionToken, secure) }
+            );
+        }
+
         const user = await requireUser(request, env);
         if (!user) {
             return json({ error: 'Not signed in' }, 401);
@@ -495,6 +627,38 @@ export default {
                 'SELECT id, email, display_name, kakao_user_id, role, active, created_at FROM users ORDER BY display_name'
             );
             return json(rows.map(rowToUser));
+        }
+
+        if (path === '/api/admin/users' && request.method === 'POST' && user.role === 'admin') {
+            const body = await readJson(request);
+            const em = normalizeEmail(body.email);
+            if (!em && !body.kakaoUserId) {
+                return json({ error: 'email or kakaoUserId is required' }, 400);
+            }
+            const created = await createUser(env, {
+                email: em,
+                displayName: body.displayName || em || 'Teacher',
+                role: body.role === 'admin' ? 'admin' : 'teacher',
+                kakaoUserId: body.kakaoUserId || null,
+                passwordHash: body.password ? hashPassword(body.password) : null
+            });
+            return json(created, 201);
+        }
+
+        const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
+        if (adminUserMatch && request.method === 'PATCH' && user.role === 'admin') {
+            const patchBody = await readJson(request);
+            const updated = await updateUser(env, adminUserMatch[1], {
+                email: patchBody.email,
+                displayName: patchBody.displayName,
+                role: patchBody.role,
+                active: patchBody.active,
+                kakaoUserId: patchBody.kakaoUserId
+            });
+            if (!updated) {
+                return json({ error: 'User not found' }, 404);
+            }
+            return json(updated);
         }
 
         return json({ error: 'Not found' }, 404);

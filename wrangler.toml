@@ -1,6 +1,7 @@
 name = "classcalendarmultiuser"
 main = "worker/src/index.js"
 compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
 
 # Serves index.html, app.js, etc. API routes are handled in worker/src/index.js.
 [assets]
@@ -17,7 +18,7 @@ migrations_dir = "worker/migrations"
 
 [vars]
 # Set to your live URL after the first deploy (Workers *.workers.dev or custom domain).
-PUBLIC_URL = "https://classcalendarmultiuser.workers.dev"
+PUBLIC_URL = "https://classcalendarmultiuser.nathanksimpson.workers.dev"
 
 # Secrets (wrangler secret put):
 # KAKAO_CLIENT_ID
