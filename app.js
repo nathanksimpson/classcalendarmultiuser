@@ -55,6 +55,7 @@ const translations = {
         deleteCalendarRemoving: 'Removing…',
         teamCalendarNameLabel: 'Calendar name (saved):',
         teamCalendarEmpty: '— No calendars yet — click + New',
+        teamSyncOffline: 'Not connected to team server',
         newCalendarTitle: 'Add team calendar',
         newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team and selected in the dropdown above.',
         newCalendarCreate: 'Create calendar',
@@ -588,6 +589,7 @@ const translations = {
         teamCalendarHint: '목록에서 캘린더를 선택하거나 + 새로 만들기를 누르세요. 아래 캘린더 이름을 바꾸면 저장된 이름도 바뀝니다.',
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
+        teamSyncOffline: '팀 서버에 연결되지 않음',
         newCalendarTitle: '팀 캘린더 추가',
         newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀에 저장되고 위 목록에서 선택됩니다.',
         newCalendarCreating: '만드는 중…',
@@ -7465,11 +7467,27 @@ function repairCorruptedLangToggleButton() {
 // ============================================
 // Initialization
 // ============================================
+function getCalendarOptionsTermSelector() {
+    const termSelector = document.querySelector('#topBarDetails .term-selector');
+    if (!termSelector || termSelector.closest('#teamCalendarRow')) {
+        return null;
+    }
+    return termSelector;
+}
+
+function cleanupMisplacedKrHolidayControls() {
+    const teamRow = document.getElementById('teamCalendarRow');
+    if (!teamRow) {
+        return;
+    }
+    teamRow.querySelectorAll('#fetchKrHolidaysBtn, #krHolidaysSourceHint').forEach((el) => el.remove());
+}
+
 function ensureKrHolidaysSourceHint() {
     if (document.getElementById('krHolidaysSourceHint')) {
         return;
     }
-    const termSelector = document.querySelector('.term-selector');
+    const termSelector = getCalendarOptionsTermSelector();
     if (!termSelector) {
         return;
     }
@@ -7485,7 +7503,7 @@ function ensureKrHolidaysImportButton() {
     if (document.getElementById('fetchKrHolidaysBtn')) {
         return;
     }
-    const termSelector = document.querySelector('.term-selector');
+    const termSelector = getCalendarOptionsTermSelector();
     if (!termSelector) {
         return;
     }
@@ -7535,6 +7553,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initBooksEditorModule();
     await initTeamSync();
     initializeTermStart();
+    cleanupMisplacedKrHolidayControls();
     ensureKrHolidaysImportButton();
     ensureKrHolidaysSourceHint();
     setupEventListeners();
@@ -12409,27 +12428,46 @@ async function confirmDeleteTeamCalendar() {
 }
 
 function setupTeamCalendarModals() {
-    const newForm = document.getElementById('newCalendarForm');
-    if (newForm && newForm.dataset.teamCalBound === '1') {
+    if (document.body.dataset.teamCalendarModalsBound === '1') {
         return;
-    }
-    if (newForm) {
-        newForm.dataset.teamCalBound = '1';
     }
 
     const newModal = document.getElementById('newCalendarModal');
     const delModal = document.getElementById('deleteCalendarModal');
+    const newForm = document.getElementById('newCalendarForm');
+
+    function requireTeamSync(action) {
+        if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+            updateTeamSyncStatus('offline', t('teamSyncOffline'));
+            showSyncToast(t('teamSyncOffline'), true);
+            return false;
+        }
+        return true;
+    }
 
     document.getElementById('teamNewCalendarBtn')?.addEventListener('click', () => {
+        if (!requireTeamSync('new')) {
+            return;
+        }
         openNewCalendarModal().catch((err) => showSyncToast(t('newCalendarFailed') + ': ' + err.message, true));
     });
-    document.getElementById('teamDeleteCalendarBtn')?.addEventListener('click', () => openDeleteCalendarModal());
+    document.getElementById('teamDeleteCalendarBtn')?.addEventListener('click', () => {
+        if (!requireTeamSync('delete')) {
+            return;
+        }
+        openDeleteCalendarModal();
+    });
 
     document.getElementById('closeNewCalendarModal')?.addEventListener('click', () => closeModal(newModal));
     document.getElementById('cancelNewCalendarBtn')?.addEventListener('click', () => closeModal(newModal));
     document.getElementById('closeDeleteCalendarModal')?.addEventListener('click', () => closeModal(delModal));
     document.getElementById('cancelDeleteCalendarBtn')?.addEventListener('click', () => closeModal(delModal));
-    document.getElementById('confirmDeleteCalendarBtn')?.addEventListener('click', () => confirmDeleteTeamCalendar());
+    document.getElementById('confirmDeleteCalendarBtn')?.addEventListener('click', () => {
+        if (!requireTeamSync('delete')) {
+            return;
+        }
+        confirmDeleteTeamCalendar();
+    });
 
     if (newModal) {
         bindModalBackdropClose(newModal);
@@ -12440,6 +12478,9 @@ function setupTeamCalendarModals() {
 
     newForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!requireTeamSync('new')) {
+            return;
+        }
         const input = document.getElementById('newCalendarNameInput');
         const submitBtn = document.getElementById('submitNewCalendarBtn');
         if (!input?.value.trim()) {
@@ -12463,6 +12504,8 @@ function setupTeamCalendarModals() {
             }
         }
     });
+
+    document.body.dataset.teamCalendarModalsBound = '1';
 }
 
 /** True when team server runs on this LAN (not Cloudflare / public HTTPS). */
@@ -12541,6 +12584,7 @@ async function initTeamSync() {
         return;
     }
 
+    setupTeamCalendarModals();
     setupTeamUserBar();
 
     CalendarSync.setHandlers({
@@ -12605,8 +12649,6 @@ async function initTeamSync() {
 
     let calendars = await CalendarSync.listCalendars();
     let activeId = CalendarSync.getActiveCalendarId();
-
-    setupTeamCalendarModals();
 
     if (calendars.length === 0) {
         const local = localStorage.getItem('classCalendarData');
