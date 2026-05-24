@@ -145,6 +145,10 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
     const token = getSessionToken(req);
+    const user = token ? users.getSessionUser(token) : null;
+    if (user) {
+        users.releaseAllLocksHeldByUser(user.id);
+    }
     users.deleteSession(token);
     clearSessionCookie(res);
     res.json({ ok: true });

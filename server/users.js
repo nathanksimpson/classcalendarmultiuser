@@ -213,6 +213,7 @@ function deleteAllSessionsForUser(userId) {
     if (!userId) {
         return;
     }
+    releaseAllLocksHeldByUser(userId);
     getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
 }
 
@@ -435,6 +436,20 @@ function releaseLock(calendarId, userId) {
     return { released: true };
 }
 
+/** Release every lock held by this user; clear any pending edit requests they sent. */
+function releaseAllLocksHeldByUser(userId) {
+    if (!userId) {
+        return { released: 0 };
+    }
+    const db = getDb();
+    db.prepare(
+        `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL
+         WHERE pending_requester_id = ?`
+    ).run(userId);
+    const result = db.prepare('DELETE FROM calendar_locks WHERE holder_user_id = ?').run(userId);
+    return { released: result.changes || 0 };
+}
+
 function lockStatusForClient(calendarId, userId) {
     const lock = getLock(calendarId);
     const lockStaleMinutes = appSettings.getLockStaleMinutes();
@@ -515,6 +530,7 @@ module.exports = {
     touchLock,
     refreshLock,
     releaseLock,
+    releaseAllLocksHeldByUser,
     lockStatusForClient,
     lockPayloadForClient,
     appendHistory

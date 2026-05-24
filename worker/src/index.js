@@ -121,6 +121,7 @@ async function getSessionUser(env, token) {
 
 async function deleteAllSessionsForUser(env, userId) {
     if (userId) {
+        await releaseAllLocksHeldByUser(env, userId);
         await dbRun(env, 'DELETE FROM sessions WHERE user_id = ?', userId);
     }
 }
@@ -217,6 +218,20 @@ async function touchLockHolder(env, calendarId, userId) {
     }
     await dbRun(env, 'UPDATE calendar_locks SET updated_at = ? WHERE calendar_id = ?', nowIso(), calendarId);
     return true;
+}
+
+async function releaseAllLocksHeldByUser(env, userId) {
+    if (!userId) {
+        return { released: 0 };
+    }
+    await dbRun(
+        env,
+        `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL
+         WHERE pending_requester_id = ?`,
+        userId
+    );
+    await dbRun(env, 'DELETE FROM calendar_locks WHERE holder_user_id = ?', userId);
+    return { released: true };
 }
 
 async function dismissLockRequest(env, calendarId, holderUserId) {
@@ -604,6 +619,10 @@ export default {
         if (path === '/api/auth/logout' && request.method === 'POST') {
             const token = parseCookies(request)[SESSION_COOKIE];
             if (token) {
+                const sessionRow = await dbOne(env, 'SELECT user_id FROM sessions WHERE token = ?', token);
+                if (sessionRow && sessionRow.user_id) {
+                    await releaseAllLocksHeldByUser(env, sessionRow.user_id);
+                }
                 await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
             }
             return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie(secure) });

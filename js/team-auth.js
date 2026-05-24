@@ -65,8 +65,25 @@
         },
 
         async logout() {
+            if (typeof CalendarSync !== 'undefined') {
+                try {
+                    if (CalendarSync.stopPolling) {
+                        CalendarSync.stopPolling();
+                    }
+                    if (CalendarSync.cancelPendingSave) {
+                        CalendarSync.cancelPendingSave();
+                    }
+                    const calId = CalendarSync.getActiveCalendarId && CalendarSync.getActiveCalendarId();
+                    if (calId && CalendarSync.state && CalendarSync.state.holdsLock && CalendarSync.releaseLock) {
+                        await CalendarSync.releaseLock(calId);
+                    }
+                } catch (_) {
+                    /* server also releases locks on logout */
+                }
+            }
             await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
             currentUser = null;
+            checked = false;
             location.href = '/login.html';
         }
     };
