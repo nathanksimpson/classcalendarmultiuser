@@ -116,14 +116,32 @@ function countAdmins() {
 }
 
 function hashPassword(password) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-    return `${salt}:${hash}`;
+    const salt = crypto.randomBytes(16);
+    const hash = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256');
+    return `pbkdf2-sha256$100000$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+function verifyPbkdf2Password(password, stored) {
+    if (!stored || !password || !stored.startsWith('pbkdf2-sha256$')) {
+        return false;
+    }
+    const parts = stored.split('$');
+    if (parts.length !== 4) {
+        return false;
+    }
+    const iterations = Number(parts[1]);
+    const salt = Buffer.from(parts[2], 'hex');
+    const expected = parts[3];
+    const key = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+    return crypto.timingSafeEqual(key, Buffer.from(expected, 'hex'));
 }
 
 function verifyPassword(password, stored) {
     if (!stored || !password) {
         return false;
+    }
+    if (stored.startsWith('pbkdf2-sha256$')) {
+        return verifyPbkdf2Password(password, stored);
     }
     const [salt, hash] = stored.split(':');
     if (!salt || !hash) {

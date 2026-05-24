@@ -1,9 +1,8 @@
 /**
  * Cloudflare Worker API — production deploy (Pages static + /api/* routed here).
  */
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-
 const SESSION_COOKIE = 'cal_session';
+const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 14;
 const LOCK_STALE_MS = 20 * 60 * 1000;
 
@@ -145,22 +144,81 @@ async function lockStatus(env, calendarId, userId) {
     };
 }
 
-function hashPassword(password) {
-    const salt = randomBytes(16).toString('hex');
-    const hash = scryptSync(password, salt, 64).toString('hex');
-    return `${salt}:${hash}`;
+function bytesToHex(bytes) {
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, 'hex')).join('');
 }
 
-function verifyPassword(password, stored) {
+function hexToBytes(hex) {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) {
+        out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
+}
+
+function safeEqualHex(a, b) {
+    if (a.length !== b.length) {
+        return false;
+    }
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
+
+async function pbkdf2Hash(password, saltBytes) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt: saltBytes, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+        keyMaterial,
+        256
+    );
+    return new Uint8Array(bits);
+}
+
+async function hashPassword(password) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const hash = await pbkdf2Hash(password, salt);
+    return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(hash)}`;
+}
+
+async function verifyPassword(password, stored) {
     if (!stored || !password) {
         return false;
+    }
+    if (stored.startsWith('pbkdf2-sha256$')) {
+        const parts = stored.split('$');
+        if (parts.length !== 4) {
+            return false;
+        }
+        const iterations = Number(parts[1]);
+        if (!iterations) {
+            return false;
+        }
+        const salt = hexToBytes(parts[2]);
+        const expected = parts[3];
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+        const bits = await crypto.subtle.deriveBits(
+            { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+            keyMaterial,
+            256
+        );
+        return safeEqualHex(bytesToHex(new Uint8Array(bits)), expected);
     }
     const [salt, hash] = stored.split(':');
     if (!salt || !hash) {
         return false;
     }
-    const attempt = scryptSync(password, salt, 64).toString('hex');
-    return timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(attempt, 'hex'));
+    try {
+        const { scryptSync, timingSafeEqual } = await import('node:crypto');
+        const attempt = scryptSync(password, salt, 64).toString('hex');
+        return timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(attempt, 'hex'));
+    } catch (_) {
+        return false;
+    }
 }
 
 async function countAdmins(env) {
@@ -177,7 +235,7 @@ async function findUserByEmailPassword(env, email, password) {
     if (!row || !row.password_hash) {
         return null;
     }
-    if (!verifyPassword(password, row.password_hash)) {
+    if (!(await verifyPassword(password, row.password_hash))) {
         return null;
     }
     return rowToUser(row);
@@ -456,7 +514,7 @@ export default {
                 email: em,
                 displayName: body.displayName || 'Admin',
                 role: 'admin',
-                passwordHash: body.password ? hashPassword(body.password) : null
+                passwordHash: body.password ? await hashPassword(body.password) : null
             });
             const sessionToken = await createSession(env, created.id);
             return json(
@@ -640,7 +698,7 @@ export default {
                 displayName: body.displayName || em || 'Teacher',
                 role: body.role === 'admin' ? 'admin' : 'teacher',
                 kakaoUserId: body.kakaoUserId || null,
-                passwordHash: body.password ? hashPassword(body.password) : null
+                passwordHash: body.password ? await hashPassword(body.password) : null
             });
             return json(created, 201);
         }

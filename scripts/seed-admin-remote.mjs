@@ -22,10 +22,18 @@ if (!email || !password) {
     process.exit(1);
 }
 
-function hashPassword(pw) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync(pw, salt, 64).toString('hex');
-    return `${salt}:${hash}`;
+const PBKDF2_ITERATIONS = 100000;
+
+async function hashPassword(pw) {
+    const salt = crypto.randomBytes(16);
+    const key = await crypto.subtle.importKey('raw', Buffer.from(pw, 'utf8'), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+        key,
+        256
+    );
+    const hashHex = Buffer.from(bits).toString('hex');
+    return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${salt.toString('hex')}$${hashHex}`;
 }
 
 function sqlQuote(value) {
@@ -33,7 +41,7 @@ function sqlQuote(value) {
 }
 
 const em = email.trim().toLowerCase();
-const hash = hashPassword(password);
+const hash = await hashPassword(password);
 const created = new Date().toISOString();
 
 function wranglerSql(command) {
