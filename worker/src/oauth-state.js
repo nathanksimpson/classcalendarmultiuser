@@ -1,6 +1,8 @@
 /**
  * Signed OAuth state cookie for Kakao login CSRF protection (Worker).
  */
+import { sanitizeLoginContext } from './login-context.js';
+
 const KAKAO_OAUTH_COOKIE = 'kakao_oauth_state';
 const OAUTH_STATE_MAX_AGE_SEC = 600;
 
@@ -56,13 +58,14 @@ function decodeReturnB64(returnB64) {
 }
 
 /**
- * @returns {Promise<{ state: string, setCookie: string, returnTo: string }>}
+ * @returns {Promise<{ state: string, setCookie: string, returnTo: string, loginContext: string }>}
  */
-export async function createKakaoOAuthState(returnTo, secret, secure) {
+export async function createKakaoOAuthState(returnTo, secret, secure, loginContext) {
     const safeReturn = sanitizeReturnTo(returnTo);
+    const ctx = sanitizeLoginContext(loginContext);
     const nonce = crypto.randomUUID().replace(/-/g, '');
     const returnB64 = encodeReturnB64(safeReturn);
-    const payload = `${nonce}.${returnB64}`;
+    const payload = `${nonce}.${returnB64}.${ctx}`;
     const sig = await signPayload(payload, secret);
     const cookieValue = `${payload}.${sig}`;
     const parts = [
@@ -78,7 +81,8 @@ export async function createKakaoOAuthState(returnTo, secret, secure) {
     return {
         state: payload,
         setCookie: parts.join('; '),
-        returnTo: safeReturn
+        returnTo: safeReturn,
+        loginContext: ctx
     };
 }
 
@@ -97,35 +101,37 @@ export function clearKakaoOAuthStateCookie(secure) {
 }
 
 /**
- * @returns {Promise<{ ok: boolean, returnTo: string }>}
+ * @returns {Promise<{ ok: boolean, returnTo: string, loginContext: string }>}
  */
 export async function verifyKakaoOAuthState(stateParam, cookieValue, secret) {
     if (!stateParam || !cookieValue) {
-        return { ok: false, returnTo: '/' };
+        return { ok: false, returnTo: '/', loginContext: 'personal' };
     }
     const cookieParts = String(cookieValue).split('.');
     if (cookieParts.length < 3) {
-        return { ok: false, returnTo: '/' };
+        return { ok: false, returnTo: '/', loginContext: 'personal' };
     }
     const sig = cookieParts.pop();
     const cookiePayload = cookieParts.join('.');
     if (!timingSafeEqualStr(cookiePayload, stateParam)) {
-        return { ok: false, returnTo: '/' };
+        return { ok: false, returnTo: '/', loginContext: 'personal' };
     }
     const expectedSig = await signPayload(cookiePayload, secret);
     if (!timingSafeEqualStr(sig, expectedSig)) {
-        return { ok: false, returnTo: '/' };
+        return { ok: false, returnTo: '/', loginContext: 'personal' };
     }
     const stateParts = stateParam.split('.');
     if (stateParts.length < 2) {
-        return { ok: false, returnTo: '/' };
+        return { ok: false, returnTo: '/', loginContext: 'personal' };
     }
-    const returnB64 = stateParts.slice(1).join('.');
+    const returnB64 = stateParts[1];
+    const loginContext =
+        stateParts.length >= 3 ? sanitizeLoginContext(stateParts[2]) : 'personal';
     try {
         const returnTo = sanitizeReturnTo(decodeReturnB64(returnB64));
-        return { ok: true, returnTo };
+        return { ok: true, returnTo, loginContext };
     } catch (_) {
-        return { ok: false, returnTo: '/' };
+        return { ok: false, returnTo: '/', loginContext: 'personal' };
     }
 }
 

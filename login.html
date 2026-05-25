@@ -98,6 +98,44 @@
         .login-kakao-switch a:hover {
             color: var(--text-primary);
         }
+        .login-device {
+            margin: 0 0 1.25rem;
+            padding: 0;
+            border: none;
+        }
+        .login-device legend {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            padding: 0;
+        }
+        .login-device label {
+            display: block;
+            margin-bottom: 0.5rem;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.35;
+        }
+        .login-device label:has(input:checked) {
+            border-color: var(--accent, #3b82f6);
+            background: var(--bg-subtle, rgba(59, 130, 246, 0.08));
+            color: var(--text-primary);
+        }
+        .login-device input {
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        .login-device strong {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            margin-bottom: 0.15rem;
+        }
         .login-denied {
             background: var(--status-error-bg);
             border: 1px solid var(--status-error-border);
@@ -167,6 +205,20 @@
                 <p>Kakao ID (for admin only): <code id="deniedKakaoId">—</code></p>
             </div>
 
+            <fieldset class="login-device" id="loginDeviceFieldset">
+                <legend>Where are you signing in?</legend>
+                <label>
+                    <input type="radio" name="loginDevice" value="personal" checked>
+                    <strong>My computer</strong>
+                    Stay signed in longer (up to your school’s limit). Idle sign-out uses your admin’s normal timeout.
+                </label>
+                <label>
+                    <input type="radio" name="loginDevice" value="shared">
+                    <strong>Shared or public computer</strong>
+                    Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle. Kakao will ask you to log in again.
+                </label>
+            </fieldset>
+
             <a id="kakaoLoginBtn" class="login-kakao" href="/api/auth/kakao">Login with Kakao</a>
             <p class="login-kakao-switch">
                 <a id="kakaoSwitchAccount" href="/api/auth/kakao?prompt=login">Use a different Kakao account</a>
@@ -177,6 +229,7 @@
                 <p><strong>Password fallback</strong> (only if your admin gave you one)</p>
                 <form id="passwordForm" method="post" action="/api/auth/password">
                     <input type="hidden" name="return" id="passwordReturn" value="/">
+                    <input type="hidden" name="device" id="passwordDevice" value="personal">
                     <label for="loginEmail">Email</label>
                     <input type="email" id="loginEmail" name="email" autocomplete="username" required>
                     <label for="loginPassword">Password</label>
@@ -252,14 +305,77 @@
                 history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
             }
 
+            const DEVICE_STORAGE_KEY = 'calendarLoginDevice';
+
+            function getSelectedLoginDevice() {
+                const picked = document.querySelector('input[name="loginDevice"]:checked');
+                return picked && picked.value === 'shared' ? 'shared' : 'personal';
+            }
+
+            function rememberLoginDevice(device) {
+                try {
+                    localStorage.setItem(DEVICE_STORAGE_KEY, device === 'shared' ? 'shared' : 'personal');
+                } catch (_) { /* ignore */ }
+            }
+
+            function restoreLoginDevice() {
+                try {
+                    const saved = localStorage.getItem(DEVICE_STORAGE_KEY);
+                    if (saved === 'shared' || saved === 'personal') {
+                        const input = document.querySelector(
+                            'input[name="loginDevice"][value="' + saved + '"]'
+                        );
+                        if (input) {
+                            input.checked = true;
+                        }
+                    }
+                } catch (_) { /* ignore */ }
+            }
+
+            function syncLoginDeviceToForms() {
+                const device = getSelectedLoginDevice();
+                rememberLoginDevice(device);
+                const passwordDevice = document.getElementById('passwordDevice');
+                if (passwordDevice) {
+                    passwordDevice.value = device;
+                }
+                return device;
+            }
+
+            function kakaoAuthQuery(extra) {
+                const device = syncLoginDeviceToForms();
+                const parts = ['return=' + encodeURIComponent(returnTo), 'device=' + encodeURIComponent(device)];
+                if (extra) {
+                    parts.push(extra);
+                }
+                return parts.join('&');
+            }
+
+            restoreLoginDevice();
+            syncLoginDeviceToForms();
+
+            const deviceInputs = document.querySelectorAll('input[name="loginDevice"]');
+            deviceInputs.forEach(function (input) {
+                input.addEventListener('change', function () {
+                    syncLoginDeviceToForms();
+                    updateKakaoLinks();
+                });
+            });
+
             const kakaoBtn = document.getElementById('kakaoLoginBtn');
             const kakaoSwitch = document.getElementById('kakaoSwitchAccount');
             const kakaoHint = document.getElementById('kakaoConfigHint');
-            const kakaoReturnQs = 'return=' + encodeURIComponent(returnTo);
-            kakaoBtn.href = '/api/auth/kakao?' + kakaoReturnQs;
-            if (kakaoSwitch) {
-                kakaoSwitch.href = '/api/auth/kakao?prompt=login&' + kakaoReturnQs;
+
+            function updateKakaoLinks() {
+                syncLoginDeviceToForms();
+                if (kakaoBtn) {
+                    kakaoBtn.href = '/api/auth/kakao?' + kakaoAuthQuery();
+                }
+                if (kakaoSwitch) {
+                    kakaoSwitch.href = '/api/auth/kakao?' + kakaoAuthQuery('prompt=login');
+                }
             }
+            updateKakaoLinks();
 
             const ERROR_MESSAGES = {
                 oauth_failed: 'Kakao sign-in failed. Try again or ask your calendar admin.',
@@ -328,6 +444,7 @@
             const passwordForm = document.getElementById('passwordForm');
             if (passwordForm) {
                 passwordForm.addEventListener('submit', function () {
+                    syncLoginDeviceToForms();
                     const submitBtn = passwordForm.querySelector('button[type="submit"]');
                     if (submitBtn) {
                         submitBtn.disabled = true;

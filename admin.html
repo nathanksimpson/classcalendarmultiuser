@@ -19,138 +19,117 @@
         })();
     </script>
     <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
+    <link rel="stylesheet" href="admin.css?v=20260525-polish">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        .admin-page { max-width: 900px; margin: 2rem auto; padding: 0 1rem 3rem; }
-        .admin-page h1,
-        .admin-page h2,
-        .admin-page h3 { color: var(--text-primary); }
-        .admin-page h1 { margin-bottom: 0.25rem; }
-        .admin-hint { color: var(--text-muted); margin-bottom: 1.5rem; }
-        .admin-nav {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem 0.75rem;
-            margin-bottom: 1rem;
-        }
-        .admin-nav a { color: var(--primary); }
-        .admin-nav-spacer { flex: 1 1 auto; min-width: 0.5rem; }
-        .admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        .admin-table th,
-        .admin-table td {
-            border-bottom: 1px solid var(--border-color);
-            padding: 0.5rem;
-            text-align: left;
-            vertical-align: top;
-            color: var(--text-primary);
-        }
-        .admin-table th { color: var(--text-secondary); font-weight: 600; }
-        .admin-form {
-            display: grid;
-            gap: 0.5rem;
-            margin: 1.5rem 0;
-            padding: 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background: var(--bg-card);
-        }
-        .admin-form label { color: var(--text-primary); }
-        .admin-form input,
-        .admin-form select {
-            padding: 0.45rem 0.6rem;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            background: var(--input-bg);
-            color: var(--text-primary);
-            max-width: 100%;
-        }
-        .admin-form fieldset {
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 0.5rem 0.75rem;
-        }
-        .admin-form legend { color: var(--text-secondary); }
-        .badge-inactive { color: var(--status-error-color); }
-        .admin-section { margin-top: 2.5rem; }
-        .admin-section h2 { font-size: 1.15rem; margin: 0 0 0.5rem; }
-        .admin-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-        #resetPasswordModal .modal-content {
-            max-height: min(90vh, 100dvh - 2rem);
-        }
-        .admin-checkbox-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 0.35rem;
-            max-height: 12rem;
-            overflow-y: auto;
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            margin: 0.5rem 0;
-            background: var(--surface-muted);
-        }
-        .admin-checkbox-grid label {
-            font-size: 0.85rem;
-            display: flex;
-            gap: 0.35rem;
-            align-items: center;
-            color: var(--text-primary);
-        }
-        .admin-notice {
-            display: none;
-            margin: 0 0 1rem;
-            padding: 0.65rem 1rem;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            line-height: 1.4;
-        }
-        .admin-notice.admin-notice--visible { display: block; }
-        .admin-notice--success {
-            color: var(--status-success-color);
-            background: var(--status-success-bg);
-            border: 1px solid var(--status-success-border);
-        }
-        .admin-notice--error {
-            color: var(--status-error-color);
-            background: var(--status-error-bg);
-            border: 1px solid var(--status-error-border);
-        }
-        #bootstrapBox code {
-            background: var(--surface-elevated);
-            color: var(--text-primary);
-            padding: 0.1em 0.35em;
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-        .admin-lock-label {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.35rem 0.5rem;
-        }
-        .admin-lock-label input[type="number"] {
-            width: 4.5rem;
-        }
-    </style>
 </head>
 <body>
     <div class="admin-page">
-        <p class="admin-nav" id="adminNav">
+        <nav class="admin-nav" id="adminNav" aria-label="Admin toolbar">
             <a href="/" data-i18n="backToCalendar">← Back to calendar</a>
             <span aria-hidden="true">·</span>
             <a href="login.html" id="adminSignInLink" data-i18n="signIn">Sign in</a>
             <span class="admin-nav-spacer" aria-hidden="true"></span>
             <button type="button" id="adminLangToggle" class="btn btn-outline btn-small btn-lang" data-i18n-title="langToggleTitle" title="Switch to Korean">🌐 한국어</button>
             <button type="button" id="adminThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
-        </p>
+        </nav>
         <h1 data-i18n="adminHeading">Admin</h1>
         <p class="admin-hint" data-i18n="adminIntro">Manage teachers, groups, and which calendars each person can open.</p>
+        <nav id="adminSectionNav" class="admin-section-nav" aria-label="Admin sections" hidden>
+            <a href="#usersSection" data-i18n="navUsers">Teachers</a>
+            <a href="#groupsSection" data-i18n="navGroups">Groups</a>
+            <a href="#calendarAccessSection" data-i18n="navCalendarAccess">Calendar access</a>
+            <a href="#lockSettingsSection" data-i18n="navLock">Lock &amp; sign-out</a>
+        </nav>
         <div id="adminNotice" class="admin-notice" role="status" aria-live="polite" hidden></div>
-        <p id="adminStatus" class="admin-hint"></p>
+        <p id="adminStatus" class="admin-status-line" role="status"></p>
+
+        <section class="admin-section" id="usersSection" hidden>
+            <h2 data-i18n="usersHeading">Teachers &amp; admins</h2>
+            <p class="admin-hint admin-hint--tight" data-i18n="usersHint1">Teachers can sign in with Kakao (first login creates their account). Use Edit to set a recognizable name. Grant calendar access via groups or per-calendar access.</p>
+            <p class="admin-hint admin-hint--tight" data-i18n="usersHint2">Deactivate blocks sign-in and signs them out. Use Reactivate to restore access. Delete permanently (deactivated accounts only) removes the user from the database and cannot be undone.</p>
+            <p class="admin-hint admin-hint--tight" data-i18n="usersWaitingHint">Waiting = signed in but no calendar access yet (assign via Groups or Calendar access below).</p>
+            <div class="admin-table-wrap">
+                <table class="admin-table" id="usersTable">
+                    <caption class="visually-hidden" data-i18n="captionUsers">Teachers and administrators</caption>
+                    <thead>
+                        <tr>
+                            <th data-i18n="thName">Name</th>
+                            <th data-i18n="thEmail">Email</th>
+                            <th data-i18n="thKakaoId">Kakao ID</th>
+                            <th data-i18n="thRole">Role</th>
+                            <th data-i18n="thCalendars">Calendars</th>
+                            <th data-i18n="thStatus">Status</th>
+                            <th data-i18n="thActions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody"></tbody>
+                </table>
+            </div>
+
+            <form class="admin-form" id="addUserForm">
+                <h3 data-i18n="addTeacherHeading">Add teacher</h3>
+                <p class="admin-callout" data-i18n="addTeacherCallout">Most teachers appear automatically after their first Kakao sign-in. Use the form below only to pre-add someone before they log in.</p>
+                <label><span data-i18n="displayName">Display name</span><input type="text" id="newDisplayName" required></label>
+                <label><span data-i18n="email">Email</span><input type="email" id="newEmail" autocomplete="email"></label>
+                <label><span data-i18n="kakaoUserIdOptional">Kakao user ID (optional)</span>
+                    <input type="text" id="newKakaoUserId" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1234567890" autocomplete="off">
+                </label>
+                <p class="admin-hint admin-hint--tight" data-i18n="addTeacherEmailOrKakaoHint">Optional: pre-add before first Kakao sign-in. Otherwise teachers appear automatically after they log in (use Kakao ID in the Users table). Email is not required for privacy.</p>
+                <label><span data-i18n="role">Role</span>
+                    <select id="newRole">
+                        <option value="teacher" data-i18n="roleTeacher">Teacher</option>
+                        <option value="admin" data-i18n="roleAdmin">Admin</option>
+                    </select>
+                </label>
+                <label><span data-i18n="optionalTempPassword">Optional temp password</span><input type="password" id="newPassword" autocomplete="new-password"></label>
+                <button type="submit" class="btn btn-primary" data-i18n="addUser">Add user</button>
+            </form>
+        </section>
+
+        <section class="admin-section" id="groupsSection" hidden>
+            <h2 data-i18n="groupsHeading">Groups</h2>
+            <p class="admin-hint" data-i18n="groupsHint">Put teachers in groups, then assign groups to calendars when creating or editing access.</p>
+            <div class="admin-table-wrap">
+                <table class="admin-table" id="groupsTable">
+                    <caption class="visually-hidden" data-i18n="captionGroups">Teacher groups</caption>
+                    <thead>
+                        <tr><th data-i18n="thGroupName">Name</th><th data-i18n="thMembers">Members</th><th data-i18n="thActions">Actions</th></tr>
+                    </thead>
+                    <tbody id="groupsBody"></tbody>
+                </table>
+            </div>
+            <div id="groupEditPanel"></div>
+            <form class="admin-form" id="addGroupForm">
+                <h3 data-i18n="newGroupHeading">New group</h3>
+                <label><span data-i18n="groupName">Group name</span><input type="text" id="newGroupName" required maxlength="80"></label>
+                <fieldset>
+                    <legend data-i18n="membersLegend">Members</legend>
+                    <div id="newGroupMembers" class="admin-checkbox-grid"></div>
+                </fieldset>
+                <button type="submit" class="btn btn-primary" data-i18n="createGroup">Create group</button>
+            </form>
+        </section>
+
+        <section class="admin-section" id="calendarAccessSection" hidden>
+            <h2 data-i18n="calendarAccessHeading">Calendar access</h2>
+            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then pick teachers and groups who may open it. Admins always see every calendar.</p>
+            <form class="admin-form" id="calendarAccessForm">
+                <label><span data-i18n="calendarLabel">Calendar</span>
+                    <select id="accessCalendarSelect" required></select>
+                </label>
+                <fieldset>
+                    <legend data-i18n="teachersDirectLegend">Teachers (direct access)</legend>
+                    <div id="accessTeachersGrid" class="admin-checkbox-grid"></div>
+                </fieldset>
+                <fieldset>
+                    <legend data-i18n="groupsLegend">Groups</legend>
+                    <div id="accessGroupsGrid" class="admin-checkbox-grid"></div>
+                </fieldset>
+                <button type="submit" class="btn btn-primary" data-i18n="saveAccess">Save access</button>
+            </form>
+        </section>
 
         <section class="admin-section" id="lockSettingsSection" hidden>
             <h2 data-i18n="lockSettingsHeading">Security &amp; lock settings</h2>
@@ -180,90 +159,13 @@
             </form>
         </section>
 
-        <section class="admin-section" id="usersSection" hidden>
-            <h2 data-i18n="usersHeading">Teachers &amp; admins</h2>
-            <p class="admin-hint" data-i18n="usersHint1">Add teachers by email. They sign in with Kakao or a password you set. Use Reset password anytime to set a new temp password (they must sign in again).</p>
-            <p class="admin-hint" data-i18n="usersHint2">Deactivate blocks sign-in and signs them out. Use Reactivate to restore access. Delete permanently (deactivated accounts only) removes the user from the database and cannot be undone.</p>
-            <table class="admin-table" id="usersTable">
-                <thead>
-                    <tr>
-                        <th data-i18n="thName">Name</th>
-                        <th data-i18n="thEmail">Email</th>
-                        <th data-i18n="thKakaoId">Kakao ID</th>
-                        <th data-i18n="thRole">Role</th>
-                        <th data-i18n="thCalendars">Calendars</th>
-                        <th data-i18n="thStatus">Status</th>
-                        <th data-i18n="thActions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="usersBody"></tbody>
-            </table>
-
-            <form class="admin-form" id="addUserForm">
-                <h3 style="margin:0;font-size:1rem;" data-i18n="addTeacherHeading">Add teacher</h3>
-                <label><span data-i18n="displayName">Display name</span> <input type="text" id="newDisplayName" required></label>
-                <label><span data-i18n="email">Email</span> <input type="email" id="newEmail" autocomplete="email"></label>
-                <label><span data-i18n="kakaoUserIdOptional">Kakao user ID (optional)</span>
-                    <input type="text" id="newKakaoUserId" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1234567890" autocomplete="off">
-                </label>
-                <p class="admin-hint" data-i18n="addTeacherEmailOrKakaoHint">Provide email and/or Kakao user ID (at least one). Email is used for Kakao allowlist; Kakao ID works if email is not shared.</p>
-                <label><span data-i18n="role">Role</span>
-                    <select id="newRole">
-                        <option value="teacher">Teacher</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </label>
-                <label><span data-i18n="optionalTempPassword">Optional temp password</span> <input type="password" id="newPassword" autocomplete="new-password"></label>
-                <button type="submit" class="btn btn-primary" data-i18n="addUser">Add user</button>
-            </form>
-        </section>
-
-        <section class="admin-section" id="groupsSection" hidden>
-            <h2 data-i18n="groupsHeading">Groups</h2>
-            <p class="admin-hint" data-i18n="groupsHint">Put teachers in groups, then assign groups to calendars when creating or editing access.</p>
-            <table class="admin-table" id="groupsTable">
-                <thead>
-                    <tr><th data-i18n="thGroupName">Name</th><th data-i18n="thMembers">Members</th><th data-i18n="thActions">Actions</th></tr>
-                </thead>
-                <tbody id="groupsBody"></tbody>
-            </table>
-            <form class="admin-form" id="addGroupForm">
-                <h3 style="margin:0;font-size:1rem;" data-i18n="newGroupHeading">New group</h3>
-                <label><span data-i18n="groupName">Group name</span> <input type="text" id="newGroupName" required maxlength="80"></label>
-                <fieldset>
-                    <legend data-i18n="membersLegend">Members</legend>
-                    <div id="newGroupMembers" class="admin-checkbox-grid"></div>
-                </fieldset>
-                <button type="submit" class="btn btn-primary" data-i18n="createGroup">Create group</button>
-            </form>
-        </section>
-
-        <section class="admin-section" id="calendarAccessSection" hidden>
-            <h2 data-i18n="calendarAccessHeading">Calendar access</h2>
-            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then pick teachers and groups who may open it. Admins always see every calendar.</p>
-            <form class="admin-form" id="calendarAccessForm">
-                <label><span data-i18n="calendarLabel">Calendar</span>
-                    <select id="accessCalendarSelect" required></select>
-                </label>
-                <fieldset>
-                    <legend data-i18n="teachersDirectLegend">Teachers (direct access)</legend>
-                    <div id="accessTeachersGrid" class="admin-checkbox-grid"></div>
-                </fieldset>
-                <fieldset>
-                    <legend data-i18n="groupsLegend">Groups</legend>
-                    <div id="accessGroupsGrid" class="admin-checkbox-grid"></div>
-                </fieldset>
-                <button type="submit" class="btn btn-primary" data-i18n="saveAccess">Save access</button>
-            </form>
-        </section>
-
-        <div id="editUserModal" class="modal" role="dialog" aria-labelledby="editUserModalTitle" aria-modal="true">
+        <div id="editUserModal" class="modal" role="dialog" aria-labelledby="editUserModalTitle" aria-modal="true" hidden>
             <div class="modal-content modal-small">
                 <div class="modal-header">
                     <h2 id="editUserModalTitle" data-i18n="editUserTitle">Edit user</h2>
                     <button type="button" class="modal-close" id="closeEditUserModal" data-i18n-aria="closeAria" aria-label="Close">&times;</button>
                 </div>
-                <p class="admin-hint" data-i18n="editUserHint">Set a clear display name so you can recognize this teacher (especially after Kakao sign-in).</p>
+                <p class="section-hint" data-i18n="editUserHint">Set a clear display name so you can recognize this teacher (especially after Kakao sign-in).</p>
                 <form id="editUserForm">
                     <div class="form-group">
                         <label for="editUserDisplayName" data-i18n="displayName">Display name</label>
@@ -285,7 +187,7 @@
             </div>
         </div>
 
-        <div id="resetPasswordModal" class="modal" role="dialog" aria-labelledby="resetPasswordModalTitle" aria-modal="true">
+        <div id="resetPasswordModal" class="modal" role="dialog" aria-labelledby="resetPasswordModalTitle" aria-modal="true" hidden>
             <div class="modal-content modal-small">
                 <div class="modal-header">
                     <h2 id="resetPasswordModalTitle" data-i18n="resetPasswordTitle">Reset password</h2>
@@ -309,18 +211,18 @@
             </div>
         </div>
 
-        <section class="admin-form" id="bootstrapBox" style="display: none;">
-            <h2 style="margin:0;font-size:1.1rem;" data-i18n="bootstrapHeading">First-time setup</h2>
+        <section class="admin-form admin-bootstrap" id="bootstrapBox" style="display: none;">
+            <h2 data-i18n="bootstrapHeading">First-time setup</h2>
             <p data-i18n="bootstrapHint">No admin exists yet. Use the bootstrap secret from your server .env.</p>
-            <label><span data-i18n="bootstrapSecret">Bootstrap secret</span> <input type="password" id="bootstrapSecret"></label>
-            <label><span data-i18n="bootstrapEmail">Your email</span> <input type="email" id="bootstrapEmail" required></label>
-            <label><span data-i18n="bootstrapName">Your name</span> <input type="text" id="bootstrapName" value="Lead teacher"></label>
-            <label><span data-i18n="bootstrapPasswordOptional">Password (optional)</span> <input type="password" id="bootstrapPassword"></label>
+            <label><span data-i18n="bootstrapSecret">Bootstrap secret</span><input type="password" id="bootstrapSecret"></label>
+            <label><span data-i18n="bootstrapEmail">Your email</span><input type="email" id="bootstrapEmail" required></label>
+            <label><span data-i18n="bootstrapName">Your name</span><input type="text" id="bootstrapName" value="Lead teacher"></label>
+            <label><span data-i18n="bootstrapPasswordOptional">Password (optional)</span><input type="password" id="bootstrapPassword"></label>
             <button type="button" class="btn btn-primary" id="bootstrapBtn" data-i18n="bootstrapCreate">Create admin account</button>
         </section>
     </div>
-    <script src="js/admin-i18n.js?v=20260528-session"></script>
+    <script src="js/admin-i18n.js?v=20260525-polish"></script>
     <script src="js/team-auth.js?v=20260601-theme-fix"></script>
-    <script src="js/admin.js?v=20260525-users-columns"></script>
+    <script src="js/admin.js?v=20260525-polish"></script>
 </body>
 </html>

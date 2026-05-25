@@ -1,0 +1,289 @@
+/* Admin page — Class Calendar */
+.admin-page {
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem 3rem;
+}
+.admin-page h1,
+.admin-page h2,
+.admin-page h3 {
+    color: var(--text-primary);
+}
+.admin-page h1 {
+    margin-bottom: 0.25rem;
+}
+.admin-hint {
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    line-height: 1.45;
+}
+.admin-hint--tight {
+    margin-bottom: 0.5rem;
+}
+.admin-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    list-style: none;
+    padding: 0;
+}
+.admin-nav a {
+    color: var(--primary);
+}
+.admin-nav-spacer {
+    flex: 1 1 auto;
+    min-width: 0.5rem;
+}
+.admin-section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    margin: 0 0 1.5rem;
+    padding: 0.65rem 0.85rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    list-style: none;
+}
+.admin-section-nav a {
+    color: var(--primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.admin-section-nav a:hover {
+    text-decoration: underline;
+}
+.admin-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 0.5rem;
+}
+.admin-table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.admin-table th,
+.admin-table td {
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem;
+    text-align: left;
+    vertical-align: top;
+    color: var(--text-primary);
+}
+.admin-table th {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+.admin-table-empty td {
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+}
+.admin-form {
+    display: grid;
+    gap: 0.65rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+}
+.admin-form > label:not(.admin-lock-label) {
+    display: grid;
+    gap: 0.25rem;
+    color: var(--text-primary);
+}
+.admin-form input,
+.admin-form select {
+    padding: 0.45rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    max-width: 100%;
+}
+.admin-form fieldset {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+.admin-form legend {
+    color: var(--text-secondary);
+}
+.admin-form h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+.badge-inactive {
+    color: var(--status-error-color);
+}
+.admin-section {
+    margin-top: 2.5rem;
+    scroll-margin-top: 1rem;
+}
+.admin-section h2 {
+    font-size: 1.15rem;
+    margin: 0 0 0.5rem;
+}
+.admin-callout {
+    margin: 0 0 1rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    background: var(--surface-muted);
+    border: 1px solid var(--border-color);
+}
+.admin-actions-cell {
+    position: relative;
+    min-width: 7rem;
+}
+.admin-actions-menu {
+    position: relative;
+    display: inline-block;
+}
+.admin-actions-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+.admin-actions-menu > summary::-webkit-details-marker {
+    display: none;
+}
+.admin-actions-menu[open] .admin-actions-dropdown {
+    display: block;
+}
+.admin-actions-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 50;
+    min-width: 11rem;
+    max-width: min(16rem, 90vw);
+    margin: 0;
+    padding: 0.35rem 0;
+    list-style: none;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+}
+.admin-actions-dropdown button {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.admin-actions-dropdown button:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
+.admin-actions-dropdown button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.admin-actions-dropdown button.btn-danger-text {
+    color: var(--status-error-color);
+}
+.admin-actions-dropdown .admin-actions-sep {
+    height: 1px;
+    margin: 0.25rem 0;
+    background: var(--border-color);
+    padding: 0;
+    pointer-events: none;
+}
+.admin-actions-dropdown .admin-actions-group-label {
+    padding: 0.35rem 0.75rem 0.15rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+#resetPasswordModal .modal-content,
+#editUserModal .modal-content {
+    max-height: min(90vh, 100dvh - 2rem);
+}
+.admin-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.35rem;
+    max-height: 12rem;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin: 0.5rem 0;
+    background: var(--surface-muted);
+}
+.admin-checkbox-grid label {
+    font-size: 0.85rem;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    color: var(--text-primary);
+}
+.admin-notice {
+    display: none;
+    margin: 0 0 1rem;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.admin-notice.admin-notice--visible {
+    display: block;
+}
+.admin-notice--success {
+    color: var(--status-success-color);
+    background: var(--status-success-bg);
+    border: 1px solid var(--status-success-border);
+}
+.admin-notice--error {
+    color: var(--status-error-color);
+    background: var(--status-error-bg);
+    border: 1px solid var(--status-error-border);
+}
+.admin-status-line {
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+.admin-status-line--loading {
+    font-style: italic;
+}
+.admin-bootstrap {
+    border-color: var(--status-error-border);
+    background: var(--status-error-bg);
+}
+#bootstrapBox code {
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.admin-lock-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+}
+.admin-lock-label input[type="number"] {
+    width: 4.5rem;
+}
+#groupEditPanel:empty {
+    display: none;
+}

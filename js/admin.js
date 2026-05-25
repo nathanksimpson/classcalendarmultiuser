@@ -76,148 +76,24 @@ async function api(path, options) {
 let adminNoticeTimer = null;
 let resetPasswordTargetId = null;
 let editUserTargetId = null;
+let editUserTriggerEl = null;
+let resetPasswordTriggerEl = null;
+let sessionStatusText = '';
+let refreshInFlight = 0;
 
-function openAdminModal(modal) {
-    if (!modal) {
-        return;
-    }
-    modal.style.removeProperty('display');
-    modal.classList.add('active');
-}
-
-function closeAdminModal(modal) {
-    if (!modal) {
-        return;
-    }
-    modal.classList.remove('active');
-    modal.style.removeProperty('display');
-}
-
-function openResetPasswordModal(user) {
-    resetPasswordTargetId = user.id;
-    const modal = document.getElementById('resetPasswordModal');
-    const label = document.getElementById('resetPasswordUserLabel');
-    const newInput = document.getElementById('resetPasswordNew');
-    const confirmInput = document.getElementById('resetPasswordConfirm');
-    if (label) {
-        label.textContent = t('resetPasswordFor', {
-            name: user.displayName || user.email || user.id
-        });
-    }
-    if (newInput) {
-        newInput.value = '';
-    }
-    if (confirmInput) {
-        confirmInput.value = '';
-    }
-    openAdminModal(modal);
-    newInput?.focus();
-}
-
-async function clearUserPassword(u) {
-    const label = u.email || u.displayName || u.id;
-    if (!confirm(t('confirmClearPassword', { label }))) {
-        return;
-    }
-    await api('/admin/users/' + encodeURIComponent(u.id), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clearPassword: true })
-    });
-    await refreshAll();
-    showAdminSaveNotice(t('savedPasswordCleared', { label }), false);
-}
-
-function setupResetPasswordModal() {
-    const modal = document.getElementById('resetPasswordModal');
-    if (!modal || modal.dataset.bound === '1') {
-        return;
-    }
-    modal.dataset.bound = '1';
-    document.getElementById('closeResetPasswordModal')?.addEventListener('click', () => {
-        resetPasswordTargetId = null;
-        closeAdminModal(modal);
-    });
-    document.getElementById('cancelResetPasswordBtn')?.addEventListener('click', () => {
-        resetPasswordTargetId = null;
-        closeAdminModal(modal);
-    });
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            resetPasswordTargetId = null;
-            closeAdminModal(modal);
-        }
-    });
-    document.getElementById('resetPasswordForm')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const id = resetPasswordTargetId;
-        if (!id) {
-            return;
-        }
-        const newPwd = document.getElementById('resetPasswordNew')?.value || '';
-        const confirmPwd = document.getElementById('resetPasswordConfirm')?.value || '';
-        if (newPwd.length < 8) {
-            showAdminSaveNotice(t('passwordTooShort'), true);
-            return;
-        }
-        if (newPwd !== confirmPwd) {
-            showAdminSaveNotice(t('passwordMismatch'), true);
-            return;
-        }
-        const submitBtn = document.getElementById('submitResetPasswordBtn');
-        const prevText = submitBtn ? submitBtn.textContent : '';
-        try {
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = t('saving');
-            }
-            await api('/admin/users/' + encodeURIComponent(id), {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: newPwd })
-            });
-            resetPasswordTargetId = null;
-            closeAdminModal(modal);
-            showAdminSaveNotice(t('savedPasswordUpdated'), false);
-        } catch (ex) {
-            showAdminSaveNotice(ex.message, true);
-        } finally {
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = prevText || t('savePassword');
-            }
-        }
-    });
-}
-
-function appendResetPasswordActions(actions, u) {
-    const reset = document.createElement('button');
-    reset.type = 'button';
-    reset.className = 'btn btn-outline btn-small';
-    reset.textContent = t('resetPassword');
-    reset.title = t('resetPasswordTitleBtn');
-    reset.onclick = () => openResetPasswordModal(u);
-    actions.appendChild(reset);
-
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.className = 'btn btn-outline btn-small';
-    clear.textContent = t('clearPassword');
-    clear.title = t('clearPasswordTitle');
-    clear.onclick = () => clearUserPassword(u).catch((ex) => showAdminSaveNotice(ex.message, true));
-    actions.appendChild(clear);
-}
-
-function setStatus(msg, isError) {
+function setSessionStatus(msg, loading) {
+    sessionStatusText = msg || '';
     const el = document.getElementById('adminStatus');
     if (!el) {
         return;
     }
-    el.textContent = msg;
-    el.style.color = isError ? 'var(--status-error-color)' : '';
-    if (isError && msg) {
-        showAdminSaveNotice(msg, true);
+    if (refreshInFlight > 0) {
+        el.textContent = t('updating');
+        el.className = 'admin-status-line admin-status-line--loading';
+        return;
     }
+    el.textContent = sessionStatusText;
+    el.className = 'admin-status-line' + (loading ? ' admin-status-line--loading' : '');
 }
 
 function showAdminSaveNotice(msg, isError) {
@@ -243,11 +119,173 @@ function showAdminSaveNotice(msg, isError) {
     }
 }
 
+function showAuthError(msg) {
+    const full = msg + ' ' + t('mustBeAdminHint');
+    showAdminSaveNotice(full.trim(), true);
+    setSessionStatus('');
+}
+
 function escapeHtml(s) {
     return String(s || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+}
+
+function closeAllActionMenus(except) {
+    document.querySelectorAll('.admin-actions-menu[open]').forEach((menu) => {
+        if (except && menu === except) {
+            return;
+        }
+        menu.removeAttribute('open');
+    });
+}
+
+function setupActionMenuCloseOnOutside() {
+    if (document.body.dataset.adminActionMenusBound === '1') {
+        return;
+    }
+    document.body.dataset.adminActionMenusBound = '1';
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.admin-actions-menu')) {
+            closeAllActionMenus();
+        }
+    });
+    document.addEventListener('toggle', (e) => {
+        const menu = e.target;
+        if (!menu.classList || !menu.classList.contains('admin-actions-menu')) {
+            return;
+        }
+        if (menu.open) {
+            closeAllActionMenus(menu);
+        }
+    }, true);
+}
+
+function createActionsMenu(items) {
+    const details = document.createElement('details');
+    details.className = 'admin-actions-menu';
+    const summary = document.createElement('summary');
+    summary.className = 'btn btn-outline btn-small';
+    summary.textContent = t('actionsMenu');
+    summary.setAttribute('aria-label', t('actionsMenuAria'));
+    details.appendChild(summary);
+    const list = document.createElement('div');
+    list.className = 'admin-actions-dropdown';
+    list.setAttribute('role', 'menu');
+    (items || []).forEach((item) => {
+        if (item.separator) {
+            const sep = document.createElement('div');
+            sep.className = 'admin-actions-sep';
+            sep.setAttribute('role', 'separator');
+            list.appendChild(sep);
+            return;
+        }
+        if (item.groupLabel) {
+            const label = document.createElement('div');
+            label.className = 'admin-actions-group-label';
+            label.textContent = item.groupLabel;
+            list.appendChild(label);
+            return;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('role', 'menuitem');
+        btn.textContent = item.label;
+        if (item.title) {
+            btn.title = item.title;
+        }
+        if (item.danger) {
+            btn.className = 'btn-danger-text';
+        }
+        if (item.disabled) {
+            btn.disabled = true;
+        }
+        btn.addEventListener('click', () => {
+            details.removeAttribute('open');
+            if (typeof item.onClick === 'function') {
+                item.onClick();
+            }
+        });
+        list.appendChild(btn);
+    });
+    details.appendChild(list);
+    return details;
+}
+
+function getModalFocusables(modal) {
+    if (!modal) {
+        return [];
+    }
+    return Array.from(
+        modal.querySelectorAll(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+    ).filter((el) => el.offsetParent !== null || modal.contains(el));
+}
+
+function bindAdminModalA11y(modal, onClose) {
+    if (!modal || modal.dataset.a11yBound === '1') {
+        return;
+    }
+    modal.dataset.a11yBound = '1';
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            onClose();
+        }
+        if (e.key === 'Tab') {
+            const focusables = getModalFocusables(modal);
+            if (focusables.length < 2) {
+                return;
+            }
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    });
+}
+
+function openAdminModal(modal, triggerEl) {
+    if (!modal) {
+        return;
+    }
+    modal.hidden = false;
+    modal.style.removeProperty('display');
+    modal.classList.add('active');
+    if (triggerEl) {
+        modal.dataset.triggerId = triggerEl.id || '';
+        if (!triggerEl.id) {
+            triggerEl.id = 'admin-modal-trigger-' + Math.random().toString(36).slice(2, 9);
+            modal.dataset.triggerId = triggerEl.id;
+        }
+    }
+    const focusables = getModalFocusables(modal);
+    if (focusables.length) {
+        focusables[0].focus();
+    }
+}
+
+function closeAdminModal(modal, triggerEl) {
+    if (!modal) {
+        return;
+    }
+    modal.classList.remove('active');
+    modal.hidden = true;
+    modal.style.removeProperty('display');
+    const tid = modal.dataset.triggerId;
+    const restore =
+        triggerEl || (tid ? document.getElementById(tid) : null);
+    if (restore && typeof restore.focus === 'function') {
+        restore.focus();
+    }
+    delete modal.dataset.triggerId;
 }
 
 let cachedTeachers = [];
@@ -257,6 +295,16 @@ let currentAdminId = null;
 
 function countActiveAdmins(users) {
     return (users || []).filter((u) => u.active && u.role === 'admin').length;
+}
+
+function renderEmptyRow(body, colSpan, messageKey) {
+    const tr = document.createElement('tr');
+    tr.className = 'admin-table-empty';
+    const td = document.createElement('td');
+    td.colSpan = colSpan;
+    td.textContent = t(messageKey);
+    tr.appendChild(td);
+    body.appendChild(tr);
 }
 
 function renderCheckboxGrid(container, items, name, selectedIds, labelKey) {
@@ -319,11 +367,294 @@ async function deactivateUser(u) {
     showAdminSaveNotice(t('savedDeactivated', { label }), false);
 }
 
+function openEditUserModal(user, triggerEl) {
+    editUserTargetId = user.id;
+    editUserTriggerEl = triggerEl || null;
+    const modal = document.getElementById('editUserModal');
+    document.getElementById('editUserDisplayName').value = user.displayName || '';
+    document.getElementById('editUserEmail').value = user.email || '';
+    document.getElementById('editUserKakaoId').value = user.kakaoUserId || '';
+    openAdminModal(modal, editUserTriggerEl);
+    document.getElementById('editUserDisplayName')?.focus();
+}
+
+function setupEditUserModal() {
+    const modal = document.getElementById('editUserModal');
+    if (!modal || modal.dataset.bound === '1') {
+        return;
+    }
+    modal.dataset.bound = '1';
+    const close = () => {
+        editUserTargetId = null;
+        closeAdminModal(modal, editUserTriggerEl);
+        editUserTriggerEl = null;
+    };
+    bindAdminModalA11y(modal, close);
+    document.getElementById('closeEditUserModal')?.addEventListener('click', close);
+    document.getElementById('cancelEditUserBtn')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            close();
+        }
+    });
+    document.getElementById('editUserForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = editUserTargetId;
+        if (!id) {
+            return;
+        }
+        const displayName = document.getElementById('editUserDisplayName')?.value.trim() || '';
+        if (!displayName) {
+            showAdminSaveNotice(t('editUserNameRequired'), true);
+            return;
+        }
+        const submitBtn = document.getElementById('submitEditUserBtn');
+        const prevText = submitBtn ? submitBtn.textContent : '';
+        try {
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = t('saving');
+            }
+            await api('/admin/users/' + encodeURIComponent(id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    displayName,
+                    email: document.getElementById('editUserEmail')?.value.trim() || null,
+                    kakaoUserId: document.getElementById('editUserKakaoId')?.value.trim() || null
+                })
+            });
+            editUserTargetId = null;
+            close();
+            await refreshAll();
+            showAdminSaveNotice(t('savedUserUpdated'), false);
+        } catch (ex) {
+            showAdminSaveNotice(ex.message, true);
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = prevText || t('saveUser');
+            }
+        }
+    });
+}
+
+function openResetPasswordModal(user, triggerEl) {
+    resetPasswordTargetId = user.id;
+    resetPasswordTriggerEl = triggerEl || null;
+    const modal = document.getElementById('resetPasswordModal');
+    const label = document.getElementById('resetPasswordUserLabel');
+    const newInput = document.getElementById('resetPasswordNew');
+    const confirmInput = document.getElementById('resetPasswordConfirm');
+    if (label) {
+        label.textContent = t('resetPasswordFor', {
+            name: user.displayName || user.email || user.id
+        });
+    }
+    if (newInput) {
+        newInput.value = '';
+    }
+    if (confirmInput) {
+        confirmInput.value = '';
+    }
+    openAdminModal(modal, resetPasswordTriggerEl);
+    newInput?.focus();
+}
+
+async function clearUserPassword(u) {
+    const label = u.email || u.displayName || u.id;
+    if (!confirm(t('confirmClearPassword', { label }))) {
+        return;
+    }
+    await api('/admin/users/' + encodeURIComponent(u.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearPassword: true })
+    });
+    await refreshAll();
+    showAdminSaveNotice(t('savedPasswordCleared', { label }), false);
+}
+
+function setupResetPasswordModal() {
+    const modal = document.getElementById('resetPasswordModal');
+    if (!modal || modal.dataset.bound === '1') {
+        return;
+    }
+    modal.dataset.bound = '1';
+    const close = () => {
+        resetPasswordTargetId = null;
+        closeAdminModal(modal, resetPasswordTriggerEl);
+        resetPasswordTriggerEl = null;
+    };
+    bindAdminModalA11y(modal, close);
+    document.getElementById('closeResetPasswordModal')?.addEventListener('click', close);
+    document.getElementById('cancelResetPasswordBtn')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            close();
+        }
+    });
+    document.getElementById('resetPasswordForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = resetPasswordTargetId;
+        if (!id) {
+            return;
+        }
+        const newPwd = document.getElementById('resetPasswordNew')?.value || '';
+        const confirmPwd = document.getElementById('resetPasswordConfirm')?.value || '';
+        if (newPwd.length < 8) {
+            showAdminSaveNotice(t('passwordTooShort'), true);
+            return;
+        }
+        if (newPwd !== confirmPwd) {
+            showAdminSaveNotice(t('passwordMismatch'), true);
+            return;
+        }
+        const submitBtn = document.getElementById('submitResetPasswordBtn');
+        const prevText = submitBtn ? submitBtn.textContent : '';
+        try {
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = t('saving');
+            }
+            await api('/admin/users/' + encodeURIComponent(id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: newPwd })
+            });
+            resetPasswordTargetId = null;
+            close();
+            showAdminSaveNotice(t('savedPasswordUpdated'), false);
+        } catch (ex) {
+            showAdminSaveNotice(ex.message, true);
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = prevText || t('savePassword');
+            }
+        }
+    });
+}
+
+function buildUserActionItems(u, activeAdminCount, isSelf) {
+    const items = [
+        {
+            label: t('editUser'),
+            title: t('editUserTitle'),
+            onClick: () => {
+                const trigger = document.activeElement;
+                openEditUserModal(u, trigger);
+            }
+        }
+    ];
+    if (u.active) {
+        if (!isSelf) {
+            const deactDisabled = u.role === 'admin' && activeAdminCount <= 1;
+            items.push({
+                label: t('deactivate'),
+                title: deactDisabled ? t('onlyAdminDeactivate') : t('deactivateTitle'),
+                disabled: deactDisabled,
+                onClick: () => deactivateUser(u).catch((ex) => showAdminSaveNotice(ex.message, true))
+            });
+        }
+        if (u.role === 'teacher') {
+            items.push({
+                label: t('makeAdmin'),
+                onClick: async () => {
+                    try {
+                        const name = u.displayName || u.email;
+                        if (!confirm(t('confirmMakeAdmin', { name }))) {
+                            return;
+                        }
+                        await api('/admin/users/' + encodeURIComponent(u.id), {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ role: 'admin' })
+                        });
+                        await refreshAll();
+                        showAdminSaveNotice(t('savedNowAdmin', { name: u.displayName || u.email }), false);
+                    } catch (ex) {
+                        showAdminSaveNotice(ex.message, true);
+                    }
+                }
+            });
+        } else if (activeAdminCount > 1 && !isSelf) {
+            items.push({
+                label: t('makeTeacher'),
+                onClick: async () => {
+                    try {
+                        const name = u.displayName || u.email;
+                        if (!confirm(t('confirmDemote', { name }))) {
+                            return;
+                        }
+                        await api('/admin/users/' + encodeURIComponent(u.id), {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ role: 'teacher' })
+                        });
+                        await refreshAll();
+                        showAdminSaveNotice(t('savedNowTeacher', { name: u.displayName || u.email }), false);
+                    } catch (ex) {
+                        showAdminSaveNotice(ex.message, true);
+                    }
+                }
+            });
+        }
+    } else {
+        items.push({
+            label: t('reactivate'),
+            title: t('reactivateTitle'),
+            onClick: async () => {
+                try {
+                    await api('/admin/users/' + encodeURIComponent(u.id), {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ active: true })
+                    });
+                    await refreshAll();
+                    showAdminSaveNotice(t('savedReactivated', { label: u.email || u.displayName }), false);
+                } catch (ex) {
+                    showAdminSaveNotice(ex.message, true);
+                }
+            }
+        });
+        if (!isSelf) {
+            items.push({
+                label: t('deletePermanently'),
+                title: t('deletePermanentlyTitle'),
+                danger: true,
+                onClick: () => permanentlyDeleteUser(u).catch((ex) => showAdminSaveNotice(ex.message, true))
+            });
+        }
+    }
+    items.push({ separator: true });
+    items.push({ groupLabel: t('passwordActionsLabel') });
+    items.push({
+        label: t('resetPassword'),
+        title: t('resetPasswordTitleBtn'),
+        onClick: () => {
+            const trigger = document.activeElement;
+            openResetPasswordModal(u, trigger);
+        }
+    });
+    items.push({
+        label: t('clearPassword'),
+        title: t('clearPasswordTitle'),
+        onClick: () => clearUserPassword(u).catch((ex) => showAdminSaveNotice(ex.message, true))
+    });
+    return items;
+}
+
 async function loadUsers() {
     const users = await api('/admin/users');
     const body = document.getElementById('usersBody');
     body.innerHTML = '';
     const activeAdminCount = countActiveAdmins(users);
+
+    if (!users.length) {
+        renderEmptyRow(body, 7, 'emptyUsers');
+        return;
+    }
 
     users.forEach((u) => {
         const tr = document.createElement('tr');
@@ -343,102 +674,10 @@ async function loadUsers() {
                 : '<span class="badge-inactive">' + escapeHtml(t('calendarsNoAccess')) + '</span>') +
             '</td><td>' +
             (u.active ? t('statusActive') : '<span class="badge-inactive">' + escapeHtml(t('statusDeactivated')) + '</span>') +
-            '</td><td class="admin-actions"></td>';
-        const actions = tr.querySelector('.admin-actions');
+            '</td><td class="admin-actions-cell"></td>';
+        const cell = tr.querySelector('.admin-actions-cell');
         const isSelf = currentAdminId && u.id === currentAdminId;
-
-        if (u.active) {
-            if (!isSelf) {
-                const deact = document.createElement('button');
-                deact.type = 'button';
-                deact.className = 'btn btn-outline btn-small';
-                deact.textContent = t('deactivate');
-                deact.title = t('deactivateTitle');
-                deact.onclick = () => deactivateUser(u).catch((ex) => showAdminSaveNotice(ex.message, true));
-                if (u.role === 'admin' && activeAdminCount <= 1) {
-                    deact.disabled = true;
-                    deact.title = t('onlyAdminDeactivate');
-                }
-                actions.appendChild(deact);
-            }
-            if (u.role === 'teacher') {
-                const promote = document.createElement('button');
-                promote.type = 'button';
-                promote.className = 'btn btn-outline btn-small';
-                promote.textContent = t('makeAdmin');
-                promote.onclick = async () => {
-                    try {
-                        const name = u.displayName || u.email;
-                        if (!confirm(t('confirmMakeAdmin', { name }))) {
-                            return;
-                        }
-                        await api('/admin/users/' + encodeURIComponent(u.id), {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ role: 'admin' })
-                        });
-                        await refreshAll();
-                        showAdminSaveNotice(t('savedNowAdmin', { name: u.displayName || u.email }), false);
-                    } catch (ex) {
-                        showAdminSaveNotice(ex.message, true);
-                    }
-                };
-                actions.appendChild(promote);
-            } else if (activeAdminCount > 1 && !isSelf) {
-                const demote = document.createElement('button');
-                demote.type = 'button';
-                demote.className = 'btn btn-outline btn-small';
-                demote.textContent = t('makeTeacher');
-                demote.onclick = async () => {
-                    try {
-                        const name = u.displayName || u.email;
-                        if (!confirm(t('confirmDemote', { name }))) {
-                            return;
-                        }
-                        await api('/admin/users/' + encodeURIComponent(u.id), {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ role: 'teacher' })
-                        });
-                        await refreshAll();
-                        showAdminSaveNotice(t('savedNowTeacher', { name: u.displayName || u.email }), false);
-                    } catch (ex) {
-                        showAdminSaveNotice(ex.message, true);
-                    }
-                };
-                actions.appendChild(demote);
-            }
-        } else {
-            const react = document.createElement('button');
-            react.type = 'button';
-            react.className = 'btn btn-outline btn-small';
-            react.textContent = t('reactivate');
-            react.title = t('reactivateTitle');
-            react.onclick = async () => {
-                try {
-                    await api('/admin/users/' + encodeURIComponent(u.id), {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ active: true })
-                    });
-                    await refreshAll();
-                    showAdminSaveNotice(t('savedReactivated', { label: u.email || u.displayName }), false);
-                } catch (ex) {
-                    showAdminSaveNotice(ex.message, true);
-                }
-            };
-            actions.appendChild(react);
-            if (!isSelf) {
-                const del = document.createElement('button');
-                del.type = 'button';
-                del.className = 'btn btn-outline btn-small btn-danger-text';
-                del.textContent = t('deletePermanently');
-                del.title = t('deletePermanentlyTitle');
-                del.onclick = () => permanentlyDeleteUser(u).catch((ex) => showAdminSaveNotice(ex.message, true));
-                actions.appendChild(del);
-            }
-        }
-        appendResetPasswordActions(actions, u);
+        cell.appendChild(createActionsMenu(buildUserActionItems(u, activeAdminCount, isSelf)));
         body.appendChild(tr);
     });
 }
@@ -449,6 +688,11 @@ async function loadGroups() {
     body.innerHTML = '';
     const allUsers = await api('/admin/users');
     const activeTeachers = allUsers.filter((u) => u.active);
+
+    if (!cachedGroups.length) {
+        renderEmptyRow(body, 3, 'emptyGroups');
+    }
+
     cachedGroups.forEach((g) => {
         const tr = document.createElement('tr');
         const memberNames = (g.memberIds || [])
@@ -462,44 +706,65 @@ async function loadGroups() {
             escapeHtml(g.name) +
             '</td><td>' +
             escapeHtml(memberNames || '—') +
-            '</td><td class="admin-actions"></td>';
-        const actions = tr.querySelector('.admin-actions');
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'btn btn-outline btn-small';
-        editBtn.textContent = t('editMembers');
-        editBtn.onclick = () => openEditGroupMembers(g, activeTeachers);
-        actions.appendChild(editBtn);
-        const delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.className = 'btn btn-outline btn-small btn-danger-text';
-        delBtn.textContent = t('deleteGroup');
-        delBtn.onclick = async () => {
-            try {
-                if (!confirm(t('confirmDeleteGroup', { name: g.name }))) {
-                    return;
+            '</td><td class="admin-actions-cell"></td>';
+        const cell = tr.querySelector('.admin-actions-cell');
+        const menuItems = [
+            {
+                label: t('editMembers'),
+                onClick: () => openEditGroupMembers(g, activeTeachers)
+            },
+            { separator: true },
+            {
+                label: t('deleteGroup'),
+                danger: true,
+                onClick: async () => {
+                    try {
+                        if (!confirm(t('confirmDeleteGroup', { name: g.name }))) {
+                            return;
+                        }
+                        await api('/admin/groups/' + encodeURIComponent(g.id), { method: 'DELETE' });
+                        closeGroupEditPanel();
+                        await refreshAll();
+                        showAdminSaveNotice(t('savedGroupDeleted', { name: g.name }), false);
+                    } catch (ex) {
+                        showAdminSaveNotice(ex.message, true);
+                    }
                 }
-                await api('/admin/groups/' + encodeURIComponent(g.id), { method: 'DELETE' });
-                await refreshAll();
-                showAdminSaveNotice(t('savedGroupDeleted', { name: g.name }), false);
-            } catch (ex) {
-                showAdminSaveNotice(ex.message, true);
             }
-        };
-        actions.appendChild(delBtn);
+        ];
+        cell.appendChild(createActionsMenu(menuItems));
         body.appendChild(tr);
     });
     renderCheckboxGrid(document.getElementById('newGroupMembers'), activeTeachers, 'newGroupMember', [], 'displayName');
 }
 
+function closeGroupEditPanel() {
+    const panel = document.getElementById('groupEditPanel');
+    if (panel) {
+        panel.innerHTML = '';
+    }
+}
+
 function openEditGroupMembers(group, activeTeachers) {
+    closeGroupEditPanel();
+    const panel = document.getElementById('groupEditPanel');
+    if (!panel) {
+        return;
+    }
     const wrap = document.createElement('div');
     wrap.className = 'admin-form';
-    wrap.innerHTML = '<h3 style="margin:0">' + escapeHtml(t('editGroupPrefix')) + ' ' + escapeHtml(group.name) + '</h3>';
+    wrap.id = 'groupEditForm';
+    const heading = document.createElement('h3');
+    heading.textContent = t('editGroupPrefix') + ' ' + (group.name || '');
+    wrap.appendChild(heading);
     const grid = document.createElement('div');
     grid.className = 'admin-checkbox-grid';
     wrap.appendChild(grid);
     renderCheckboxGrid(grid, activeTeachers, 'editGroupMember', group.memberIds || [], 'displayName');
+    const btnRow = document.createElement('div');
+    btnRow.style.display = 'flex';
+    btnRow.style.flexWrap = 'wrap';
+    btnRow.style.gap = '0.5rem';
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.className = 'btn btn-primary';
@@ -512,21 +777,23 @@ function openEditGroupMembers(group, activeTeachers) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ memberIds })
             });
-            wrap.remove();
+            closeGroupEditPanel();
             await refreshAll();
             showAdminSaveNotice(t('savedGroupMembers', { name: group.name }), false);
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         }
     };
-    wrap.appendChild(saveBtn);
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn btn-outline';
     cancelBtn.textContent = t('cancel');
-    cancelBtn.onclick = () => wrap.remove();
-    wrap.appendChild(cancelBtn);
-    document.getElementById('groupsSection').appendChild(wrap);
+    cancelBtn.onclick = () => closeGroupEditPanel();
+    btnRow.appendChild(saveBtn);
+    btnRow.appendChild(cancelBtn);
+    wrap.appendChild(btnRow);
+    panel.appendChild(wrap);
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function loadCalendarAccessUI() {
@@ -534,6 +801,16 @@ async function loadCalendarAccessUI() {
     const sel = document.getElementById('accessCalendarSelect');
     const prev = sel.value;
     sel.innerHTML = '';
+    if (!cachedAdminCalendars.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = t('emptyCalendars');
+        opt.disabled = true;
+        sel.appendChild(opt);
+        document.getElementById('accessTeachersGrid').innerHTML = '';
+        document.getElementById('accessGroupsGrid').innerHTML = '';
+        return;
+    }
     cachedAdminCalendars.forEach((c) => {
         const opt = document.createElement('option');
         opt.value = c.id;
@@ -571,16 +848,27 @@ async function loadCalendarAccessForSelected() {
 }
 
 async function refreshAll() {
-    await loadLockSettings();
-    await loadUsers();
-    await loadTeachersCache();
-    await loadGroups();
-    await loadCalendarAccessUI();
+    refreshInFlight += 1;
+    setSessionStatus(sessionStatusText);
+    try {
+        await loadLockSettings();
+        await loadUsers();
+        await loadTeachersCache();
+        await loadGroups();
+        await loadCalendarAccessUI();
+    } finally {
+        refreshInFlight -= 1;
+        setSessionStatus(sessionStatusText);
+    }
 }
 
 function setupAdminNav(signedIn) {
     const nav = document.getElementById('adminNav');
     const signInLink = document.getElementById('adminSignInLink');
+    const sectionNav = document.getElementById('adminSectionNav');
+    if (sectionNav) {
+        sectionNav.hidden = !signedIn;
+    }
     if (!nav) {
         return;
     }
@@ -616,7 +904,7 @@ function setupAdminNav(signedIn) {
 }
 
 function showAdminSections(visible) {
-    ['lockSettingsSection', 'usersSection', 'groupsSection', 'calendarAccessSection'].forEach((id) => {
+    ['usersSection', 'groupsSection', 'calendarAccessSection', 'lockSettingsSection'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
             el.hidden = !visible;
@@ -698,6 +986,8 @@ function setupLockSettingsForm() {
 }
 
 async function init() {
+    setupActionMenuCloseOnOutside();
+    setupEditUserModal();
     setupResetPasswordModal();
     setupLockSettingsForm();
     document.addEventListener('visibilitychange', () => {
@@ -716,12 +1006,12 @@ async function init() {
         if (me.role !== 'admin') {
             setupAdminNav(false);
             showAdminSections(false);
-            setStatus(t('mustBeAdmin'), true);
+            showAuthError(t('mustBeAdmin'));
             return;
         }
         setupAdminNav(true);
         showAdminSections(true);
-        setStatus(t('signedInAs', { name: me.displayName || me.email }));
+        setSessionStatus(t('signedInAs', { name: me.displayName || me.email }));
         document.getElementById('bootstrapBox').style.display = 'none';
         if (typeof TeamAuth !== 'undefined' && TeamAuth.startIdleWatch) {
             TeamAuth.startIdleWatch();
@@ -745,7 +1035,8 @@ async function init() {
                 /* ignore */
             }
             if (needsBootstrap) {
-                setStatus(t('signInFirst'), true);
+                showAdminSaveNotice(t('signInFirst'), true);
+                setSessionStatus('');
                 document.getElementById('bootstrapBox').style.display = 'block';
             } else {
                 location.replace(
@@ -754,10 +1045,11 @@ async function init() {
                 return;
             }
         } else if (err.message.includes('Admin only') || err.message.includes('admin')) {
-            setStatus(err.message, true);
+            showAuthError(err.message);
             document.getElementById('bootstrapBox').style.display = 'none';
         } else {
-            setStatus(err.message, true);
+            showAdminSaveNotice(err.message, true);
+            setSessionStatus('');
             document.getElementById('bootstrapBox').style.display = 'none';
         }
     }
@@ -821,6 +1113,10 @@ async function init() {
         e.preventDefault();
         try {
             const calId = document.getElementById('accessCalendarSelect').value;
+            if (!calId) {
+                showAdminSaveNotice(t('emptyCalendars'), true);
+                return;
+            }
             const userIds = getCheckedIds(document.getElementById('accessTeachersGrid'));
             const groupIds = getCheckedIds(document.getElementById('accessGroupsGrid'));
             await api('/admin/calendars/' + encodeURIComponent(calId) + '/access', {
@@ -849,10 +1145,10 @@ async function init() {
                     password: document.getElementById('bootstrapPassword').value || undefined
                 })
             });
-            setStatus(t('adminCreated'));
+            showAdminSaveNotice(t('adminCreated'), false);
             location.reload();
         } catch (ex) {
-            setStatus(ex.message, true);
+            showAdminSaveNotice(ex.message, true);
         }
     });
 }

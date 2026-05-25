@@ -73,6 +73,21 @@ function migrate(db) {
     migrateLockPendingColumns(db);
     migrateCalendarAccessTables(db);
     migrateAppSettings(db);
+    migrateSessionLoginContext(db);
+}
+
+function migrateSessionLoginContext(db) {
+    const cols = db.prepare('PRAGMA table_info(sessions)').all();
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('login_context')) {
+        db.exec("ALTER TABLE sessions ADD COLUMN login_context TEXT NOT NULL DEFAULT 'personal'");
+    }
+    if (!names.has('idle_logout_minutes')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN idle_logout_minutes INTEGER');
+    }
+    if (!names.has('idle_warning_minutes')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN idle_warning_minutes INTEGER');
+    }
 }
 
 function migrateAppSettings(db) {

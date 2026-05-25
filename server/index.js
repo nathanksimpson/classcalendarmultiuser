@@ -6,6 +6,7 @@ const users = require('./users');
 const appSettings = require('./app-settings');
 const kakao = require('./kakao');
 const oauthState = require('./oauth-state');
+const loginContext = require('./login-context');
 const rateLimit = require('./rate-limit');
 const CalAccess = require('./calendar-access');
 const { getDb } = require('./schema');
@@ -149,7 +150,6 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
         res.status(401).json({ error: 'Not signed in' });
         return;
     }
-    const settings = appSettings.getAdminSettings();
     const calendars = CalAccess.listCalendarsForUser(req.user);
     const hasCalendarAccess = CalAccess.isAdmin(req.user) || calendars.length > 0;
     res.json({
@@ -158,8 +158,9 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
         displayName: req.user.displayName,
         role: req.user.role,
         hasCalendarAccess,
-        idleLogoutMinutes: settings.idleLogoutMinutes,
-        idleWarningMinutes: settings.idleWarningMinutes
+        loginContext: req.user.loginContext || loginContext.LOGIN_CONTEXT_PERSONAL,
+        idleLogoutMinutes: req.user.idleLogoutMinutes,
+        idleWarningMinutes: req.user.idleWarningMinutes
     });
 });
 
@@ -196,6 +197,7 @@ function passwordLoginErrorRedirect(res, returnTo, code) {
 app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000), (req, res) => {
     const redirect = wantsPasswordFormRedirect(req);
     const returnTo = oauthState.sanitizeReturnTo(req.body.return || '/');
+    const device = loginContext.sanitizeLoginContext(req.body.device || req.body.loginContext);
     const email = req.body.email;
     const password = req.body.password;
     if (users.activeUserHasNoPassword(email)) {
@@ -218,7 +220,7 @@ app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25
         res.status(401).json({ error: 'Invalid email or password' });
         return;
     }
-    const session = users.createLoginSession(user.id);
+    const session = users.createLoginSession(user.id, device);
     setSessionCookie(res, session.token, session.maxAgeSec);
     if (redirect) {
         res.redirect(302, returnTo);
@@ -228,14 +230,20 @@ app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25
         id: user.id,
         email: user.email,
         displayName: user.displayName,
-        role: user.role
+        role: user.role,
+        loginContext: session.loginContext
     });
 });
 
 app.post('/api/auth/change-password', requireUser, (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body || {};
-        const session = users.changeOwnPassword(req.user.id, currentPassword, newPassword);
+        const session = users.changeOwnPassword(
+            req.user.id,
+            currentPassword,
+            newPassword,
+            req.user.loginContext
+        );
         setSessionCookie(res, session.token, session.maxAgeSec);
         res.json({ ok: true });
     } catch (err) {
@@ -246,7 +254,6 @@ app.post('/api/auth/change-password', requireUser, (req, res) => {
 app.patch('/api/auth/profile', requireUser, (req, res) => {
     try {
         const updated = users.updateOwnDisplayName(req.user.id, req.body && req.body.displayName);
-        const settings = appSettings.getAdminSettings();
         const calendars = CalAccess.listCalendarsForUser(updated);
         const hasCalendarAccess = CalAccess.isAdmin(updated) || calendars.length > 0;
         res.json({
@@ -255,8 +262,9 @@ app.patch('/api/auth/profile', requireUser, (req, res) => {
             displayName: updated.displayName,
             role: updated.role,
             hasCalendarAccess,
-            idleLogoutMinutes: settings.idleLogoutMinutes,
-            idleWarningMinutes: settings.idleWarningMinutes
+            loginContext: req.user.loginContext || loginContext.LOGIN_CONTEXT_PERSONAL,
+            idleLogoutMinutes: req.user.idleLogoutMinutes,
+            idleWarningMinutes: req.user.idleWarningMinutes
         });
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Profile update failed' });
@@ -272,9 +280,14 @@ app.get(
             return;
         }
         const returnTo = typeof req.query.return === 'string' ? req.query.return : '/';
-        const prompt = kakao.sanitizeKakaoOAuthPrompt(req.query.prompt);
+        const device = loginContext.sanitizeLoginContext(req.query.device || req.query.loginContext);
+        let prompt = kakao.sanitizeKakaoOAuthPrompt(req.query.prompt);
+        const profile = loginContext.resolveLoginProfile(device, appSettings.getAdminSettings());
+        if (!prompt && profile.kakaoPrompt) {
+            prompt = profile.kakaoPrompt;
+        }
         const oauthSecret = oauthState.oauthStateSecret();
-        const created = oauthState.createKakaoOAuthState(returnTo, oauthSecret, COOKIE_SECURE);
+        const created = oauthState.createKakaoOAuthState(returnTo, oauthSecret, COOKIE_SECURE, device);
         const url = kakao.buildAuthorizeUrl(KAKAO_CLIENT_ID, kakaoRedirectUri(req), created.state, {
             prompt
         });
@@ -334,7 +347,7 @@ app.get(
                 res.redirect('/login.html?error=missing_kakao_id');
                 return;
             }
-            const session = users.createLoginSession(resolved.user.id);
+            const session = users.createLoginSession(resolved.user.id, verified.loginContext);
             res.append('Set-Cookie', oauthState.clearKakaoOAuthStateCookie(COOKIE_SECURE));
             setSessionCookie(res, session.token, session.maxAgeSec);
             res.redirect(returnTo);

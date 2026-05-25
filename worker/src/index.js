@@ -12,6 +12,12 @@ import {
     sanitizeReturnTo
 } from './oauth-state.js';
 import { rateLimitOr429 } from './rate-limit.js';
+import {
+    LOGIN_CONTEXT_PERSONAL,
+    sanitizeLoginContext,
+    resolveLoginProfile,
+    sessionPolicyFromRow
+} from './login-context.js';
 import { scryptSync, timingSafeEqual } from 'node:crypto';
 
 const MAX_CALENDAR_BODY_BYTES = 5 * 1024 * 1024;
@@ -129,7 +135,8 @@ async function getSessionUser(env, token) {
     }
     const row = await dbOne(
         env,
-        `SELECT s.expires_at, u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.active = 1`,
+        `SELECT s.expires_at, s.login_context, s.idle_logout_minutes, s.idle_warning_minutes, u.*
+         FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.active = 1`,
         token
     );
     if (!row) {
@@ -139,7 +146,13 @@ async function getSessionUser(env, token) {
         await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
         return null;
     }
-    return rowToUser(row);
+    const admin = await AppSettings.getAdminSettings(env);
+    const policy = sessionPolicyFromRow(row, admin);
+    const user = rowToUser(row);
+    user.loginContext = policy.loginContext;
+    user.idleLogoutMinutes = policy.idleLogoutMinutes;
+    user.idleWarningMinutes = policy.idleWarningMinutes;
+    return user;
 }
 
 async function deleteAllSessionsForUser(env, userId) {
@@ -179,17 +192,35 @@ async function permanentlyDeleteUser(env, targetId, actingAdminId) {
     return { ok: true };
 }
 
-async function createSession(env, userId) {
-    const maxAgeSec = await AppSettings.getSessionMaxAgeSec(env);
+async function createSession(env, userId, deviceContext) {
+    const admin = await AppSettings.getAdminSettings(env);
+    const profile = resolveLoginProfile(deviceContext, admin);
+    const maxAgeSec = profile.sessionMaxAgeSec;
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
-    await dbRun(env, 'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)', token, userId, expires);
-    return { token, maxAgeSec };
+    await dbRun(
+        env,
+        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        token,
+        userId,
+        expires,
+        profile.loginContext,
+        profile.idleLogoutMinutes,
+        profile.idleWarningMinutes
+    );
+    return {
+        token,
+        maxAgeSec,
+        loginContext: profile.loginContext,
+        idleLogoutMinutes: profile.idleLogoutMinutes,
+        idleWarningMinutes: profile.idleWarningMinutes
+    };
 }
 
-async function createLoginSession(env, userId) {
+async function createLoginSession(env, userId, deviceContext) {
     await deleteAllSessionsForUser(env, userId);
-    return createSession(env, userId);
+    return createSession(env, userId, deviceContext);
 }
 
 async function isLockStale(env, lock) {
@@ -806,6 +837,7 @@ async function readPasswordLoginBody(request) {
             email: String(form.get('email') || ''),
             password: String(form.get('password') || ''),
             returnTo: sanitizeReturnTo(String(form.get('return') || '/')),
+            device: sanitizeLoginContext(String(form.get('device') || form.get('loginContext') || '')),
             wantsRedirect: true
         };
     }
@@ -814,6 +846,7 @@ async function readPasswordLoginBody(request) {
         email: body.email,
         password: body.password,
         returnTo: sanitizeReturnTo(body.return || '/'),
+        device: sanitizeLoginContext(body.device || body.loginContext),
         wantsRedirect: false
     };
 }
@@ -877,7 +910,6 @@ export default {
             if (!user) {
                 return json({ error: 'Not signed in' }, 401);
             }
-            const sessionSettings = await AppSettings.getAdminSettings(env);
             const calendars = await CalAccess.listCalendarsForUser(env, user);
             const hasCalendarAccess = CalAccess.isAdmin(user) || calendars.length > 0;
             return json({
@@ -886,8 +918,9 @@ export default {
                 displayName: user.displayName,
                 role: user.role,
                 hasCalendarAccess,
-                idleLogoutMinutes: sessionSettings.idleLogoutMinutes,
-                idleWarningMinutes: sessionSettings.idleWarningMinutes
+                loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
+                idleLogoutMinutes: user.idleLogoutMinutes,
+                idleWarningMinutes: user.idleWarningMinutes
             });
         }
 
@@ -921,9 +954,17 @@ export default {
                 return limited;
             }
             const returnTo = url.searchParams.get('return') || '/';
-            const prompt = sanitizeKakaoOAuthPrompt(url.searchParams.get('prompt'));
+            const device = sanitizeLoginContext(
+                url.searchParams.get('device') || url.searchParams.get('loginContext')
+            );
+            let prompt = sanitizeKakaoOAuthPrompt(url.searchParams.get('prompt'));
+            const adminSettings = await AppSettings.getAdminSettings(env);
+            const profile = resolveLoginProfile(device, adminSettings);
+            if (!prompt && profile.kakaoPrompt) {
+                prompt = profile.kakaoPrompt;
+            }
             const oauthSecret = oauthStateSecret(env);
-            const oauthState = await createKakaoOAuthState(returnTo, oauthSecret, secure);
+            const oauthState = await createKakaoOAuthState(returnTo, oauthSecret, secure, device);
             const params = new URLSearchParams({
                 client_id: kakaoId,
                 redirect_uri: kakaoRedirectUri(env, request),
@@ -983,7 +1024,7 @@ export default {
                 if (!resolved.user) {
                     return redirectTo('/login.html?error=missing_kakao_id');
                 }
-                const session = await createLoginSession(env, resolved.user.id);
+                const session = await createLoginSession(env, resolved.user.id, verified.loginContext);
                 const headers = new Headers({
                     Location: returnTo,
                     'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec)
@@ -1034,7 +1075,7 @@ export default {
                     }
                     return json({ error: 'Invalid email or password' }, 401);
                 }
-                const session = await createLoginSession(env, matched.id);
+                const session = await createLoginSession(env, matched.id, loginBody.device);
                 const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
                 if (loginBody.wantsRedirect) {
                     return redirectWithCookie(loginBody.returnTo, cookie);
@@ -1082,7 +1123,7 @@ export default {
                 role: 'admin',
                 passwordHash: body.password ? await hashPassword(body.password) : null
             });
-            const session = await createLoginSession(env, created.id);
+            const session = await createLoginSession(env, created.id, LOGIN_CONTEXT_PERSONAL);
             return json(
                 { ok: true, userId: created.id },
                 201,
@@ -1116,7 +1157,7 @@ export default {
                 user.id
             );
             await deleteAllSessionsForUser(env, user.id);
-            const session = await createSession(env, user.id);
+            const session = await createSession(env, user.id, user.loginContext);
             return json(
                 { ok: true },
                 200,
@@ -1141,7 +1182,6 @@ export default {
             if (!updated) {
                 return json({ error: 'Not signed in' }, 401);
             }
-            const sessionSettings = await AppSettings.getAdminSettings(env);
             const calendars = await CalAccess.listCalendarsForUser(env, updated);
             const hasCalendarAccess = CalAccess.isAdmin(updated) || calendars.length > 0;
             return json({
@@ -1150,8 +1190,9 @@ export default {
                 displayName: updated.displayName,
                 role: updated.role,
                 hasCalendarAccess,
-                idleLogoutMinutes: sessionSettings.idleLogoutMinutes,
-                idleWarningMinutes: sessionSettings.idleWarningMinutes
+                loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
+                idleLogoutMinutes: user.idleLogoutMinutes,
+                idleWarningMinutes: user.idleWarningMinutes
             });
         }
 

@@ -15,6 +15,24 @@
             themeToggleTitle: 'Switch light/dark theme',
             adminHeading: 'Admin',
             adminIntro: 'Manage teachers, groups, and which calendars each person can open.',
+            navAriaLabel: 'Admin sections',
+            navUsers: 'Teachers',
+            navGroups: 'Groups',
+            navCalendarAccess: 'Calendar access',
+            navLock: 'Lock & sign-out',
+            usersWaitingHint: 'Waiting = signed in but no calendar access yet (assign via Groups or Calendar access below).',
+            addTeacherCallout:
+                'Most teachers appear automatically after their first Kakao sign-in. Use the form below only to pre-add someone before they log in.',
+            emptyUsers: 'No users yet. Teachers appear here after Kakao sign-in, or use Add teacher below.',
+            emptyGroups: 'No groups yet. Create one below.',
+            emptyCalendars: 'No calendars yet. Create a team calendar from the main calendar page first.',
+            updating: 'Updating…',
+            actionsMenu: 'Actions',
+            actionsMenuAria: 'Actions for this row',
+            passwordActionsLabel: 'Password',
+            captionUsers: 'Teachers and administrators',
+            captionGroups: 'Teacher groups',
+            mustBeAdminHint: 'Sign in with an admin account, or go back to the calendar.',
             lockSettingsHeading: 'Security & lock settings',
             lockSettingsHint:
                 'Control edit-lock expiry and automatic sign-out when a teacher is inactive (no mouse, keyboard, or touch).',
@@ -152,6 +170,24 @@
             themeToggleTitle: '밝기/어두기 테마 전환',
             adminHeading: '관리',
             adminIntro: '선생님, 그룹, 캘린더 접근 권한을 관리합니다.',
+            navAriaLabel: '관리 섹션',
+            navUsers: '선생님',
+            navGroups: '그룹',
+            navCalendarAccess: '캘린더 접근',
+            navLock: '잠금·로그아웃',
+            usersWaitingHint: '대기 중 = 로그인했지만 캘린더 접근이 없음 (아래 그룹·캘린더 접근에서 부여).',
+            addTeacherCallout:
+                '대부분의 선생님은 첫 카카오 로그인 후 자동으로 목록에 나타납니다. 로그인 전에만 아래 양식으로 미리 등록하세요.',
+            emptyUsers: '사용자가 없습니다. 카카오 로그인 후 나타나거나 아래에서 추가하세요.',
+            emptyGroups: '그룹이 없습니다. 아래에서 만드세요.',
+            emptyCalendars: '캘린더가 없습니다. 먼저 메인 캘린더 페이지에서 팀 캘린더를 만드세요.',
+            updating: '업데이트 중…',
+            actionsMenu: '작업',
+            actionsMenuAria: '이 행의 작업',
+            passwordActionsLabel: '비밀번호',
+            captionUsers: '선생님 및 관리자',
+            captionGroups: '선생님 그룹',
+            mustBeAdminHint: '관리자 계정으로 로그인하거나 캘린더로 돌아가세요.',
             lockSettingsHeading: '보안 및 잠금 설정',
             lockSettingsHint:
                 '편집 잠금 만료 시간과 선생님이 비활성(마우스·키보드·터치 없음)일 때 자동 로그아웃을 설정합니다.',
@@ -168,7 +204,7 @@
             usersHint1:
                 '카카오 로그인 시 계정이 자동 생성됩니다. 이름을 알아보기 쉽게 하려면 편집을 사용하세요. 그룹·캘린더 접근 권한을 부여해야 플래너를 사용할 수 있습니다.',
             usersHint2:
-                'Deactivate는 로그인을 차단하고 로그아웃시킵니다. Reactivate로 복구. Delete permanently는 비활성 계정만 DB에서 삭제하며 되돌릴 수 없습니다.',
+                '비활성화하면 로그인이 차단되고 로그아웃됩니다. 재활성화로 복구할 수 있습니다. 영구 삭제는 비활성 계정만 DB에서 제거하며 되돌릴 수 없습니다.',
             thName: '이름',
             thEmail: '이메일',
             thKakaoId: '카카오 ID',
@@ -192,8 +228,8 @@
                 '선택: 첫 카카오 로그인 전에 미리 등록할 때만 사용하세요. 보통은 선생님이 로그인한 뒤 Users 목록에 자동으로 나타납니다(카카오 ID로 확인). 이메일은 필수가 아닙니다.',
             addTeacherNeedEmailOrKakao: '이메일 또는 카카오 사용자 ID를 입력하세요.',
             role: '역할',
-            roleTeacher: 'Teacher',
-            roleAdmin: 'Admin',
+            roleTeacher: '선생님',
+            roleAdmin: '관리자',
             optionalTempPassword: '선택: 임시 비밀번호',
             addUser: '사용자 추가',
             groupsHeading: '그룹',
@@ -225,18 +261,18 @@
             bootstrapCreate: '관리자 계정 만들기',
             statusActive: '활성',
             statusDeactivated: '비활성',
-            deactivate: 'Deactivate',
-            deactivateTitle: '로그인 차단 (계정 유지, 나중에 Reactivate)',
+            deactivate: '비활성화',
+            deactivateTitle: '로그인 차단 (계정 유지, 나중에 재활성화)',
             onlyAdminDeactivate: '유일한 관리자는 비활성화할 수 없음',
-            reactivate: 'Reactivate',
+            reactivate: '재활성화',
             reactivateTitle: '다시 로그인 허용',
-            deletePermanently: 'Delete permanently',
+            deletePermanently: '영구 삭제',
             deletePermanentlyTitle: 'DB에서 계정 삭제 (되돌릴 수 없음)',
             makeAdmin: '관리자로',
             makeTeacher: '선생님으로',
-            resetPassword: 'Reset password',
+            resetPassword: '비밀번호 재설정',
             resetPasswordTitleBtn: '새 비밀번호 설정; 모든 세션 종료',
-            clearPassword: 'Clear password',
+            clearPassword: '비밀번호 지우기',
             clearPasswordTitle: '비밀번호 로그인 제거 (카카오만 가능)',
             editMembers: '구성원 편집',
             deleteGroup: '삭제',
@@ -354,6 +390,11 @@
         if (logoutBtn) {
             logoutBtn.textContent = t('signOut');
         }
+
+        document.querySelectorAll('.admin-actions-menu summary').forEach((el) => {
+            el.textContent = t('actionsMenu');
+            el.setAttribute('aria-label', t('actionsMenuAria'));
+        });
 
         const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
         const themeBtn = document.getElementById('adminThemeToggle');

@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { getDb, newId, nowIso } = require('./schema');
 const appSettings = require('./app-settings');
+const loginContext = require('./login-context');
 
 const SESSION_DAYS = 14; /* default; createSession uses app_settings.session_max_days */
 const MIN_PASSWORD_LENGTH = 8;
@@ -263,22 +264,37 @@ function findUserByEmailPassword(email, password) {
     return rowToUser(row);
 }
 
-function createSession(userId) {
+function createSession(userId, deviceContext) {
     const db = getDb();
-    const maxAgeSec = appSettings.getSessionMaxAgeSec();
+    const admin = appSettings.getAdminSettings();
+    const profile = loginContext.resolveLoginProfile(deviceContext, admin);
+    const maxAgeSec = profile.sessionMaxAgeSec;
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
-    db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(
+    db.prepare(
+        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes)
+         VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
         token,
         userId,
-        expires
+        expires,
+        profile.loginContext,
+        profile.idleLogoutMinutes,
+        profile.idleWarningMinutes
     );
-    return { token, expires, maxAgeSec };
+    return {
+        token,
+        expires,
+        maxAgeSec,
+        loginContext: profile.loginContext,
+        idleLogoutMinutes: profile.idleLogoutMinutes,
+        idleWarningMinutes: profile.idleWarningMinutes
+    };
 }
 
-function createLoginSession(userId) {
+function createLoginSession(userId, deviceContext) {
     deleteAllSessionsForUser(userId);
-    return createSession(userId);
+    return createSession(userId, deviceContext);
 }
 
 function getSessionUser(token) {
@@ -288,7 +304,7 @@ function getSessionUser(token) {
     const db = getDb();
     const row = db
         .prepare(
-            `SELECT s.token, s.expires_at, u.*
+            `SELECT s.token, s.expires_at, s.login_context, s.idle_logout_minutes, s.idle_warning_minutes, u.*
              FROM sessions s JOIN users u ON u.id = s.user_id
              WHERE s.token = ? AND u.active = 1`
         )
@@ -300,7 +316,12 @@ function getSessionUser(token) {
         db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
         return null;
     }
-    return rowToUser(row);
+    const policy = loginContext.sessionPolicyFromRow(row, appSettings.getAdminSettings());
+    const user = rowToUser(row);
+    user.loginContext = policy.loginContext;
+    user.idleLogoutMinutes = policy.idleLogoutMinutes;
+    user.idleWarningMinutes = policy.idleWarningMinutes;
+    return user;
 }
 
 function deleteSession(token) {
@@ -349,7 +370,7 @@ function updateOwnDisplayName(userId, displayName) {
     return updated;
 }
 
-function changeOwnPassword(userId, currentPassword, newPassword) {
+function changeOwnPassword(userId, currentPassword, newPassword, deviceContext) {
     const db = getDb();
     const row = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(userId);
     if (!row) {
@@ -375,7 +396,7 @@ function changeOwnPassword(userId, currentPassword, newPassword) {
     }
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(next), userId);
     deleteAllSessionsForUser(userId);
-    return createSession(userId);
+    return createSession(userId, deviceContext);
 }
 
 function permanentlyDeleteUser(targetId, actingAdminId) {
