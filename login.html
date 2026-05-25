@@ -18,7 +18,7 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260525-kakao-login-debug">
+    <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
     <style>
         .login-page {
             min-height: 100vh;
@@ -274,6 +274,23 @@
                 const el = document.getElementById('loginError');
                 el.style.display = 'block';
                 el.textContent = ERROR_MESSAGES[err] || 'Sign-in problem: ' + err;
+            }
+
+            if (!err && params.get('signedOut') !== 'idle') {
+                fetch('/api/auth/me', { credentials: 'same-origin' })
+                    .then(function (r) {
+                        return r.ok ? r.json() : null;
+                    })
+                    .then(function (me) {
+                        if (me && me.id) {
+                            const dest =
+                                returnTo.startsWith('/') && !returnTo.startsWith('//')
+                                    ? returnTo
+                                    : '/';
+                            location.replace(dest);
+                        }
+                    })
+                    .catch(function () { /* ignore */ });
             }
 
             document.getElementById('passwordForm').addEventListener('submit', async (e) => {

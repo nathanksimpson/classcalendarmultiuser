@@ -122,7 +122,8 @@ app.get('/api/health', (req, res) => {
         kakaoConfigured: Boolean(KAKAO_CLIENT_ID),
         kakaoClientSecretConfigured: Boolean(KAKAO_CLIENT_ID && KAKAO_CLIENT_SECRET),
         kakaoRedirectUri: KAKAO_CLIENT_ID ? kakaoRedirectUri(req) : null,
-        openAccess: ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID
+        openAccess: ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID,
+        needsBootstrap: users.countAdmins() === 0
     });
 });
 
@@ -180,6 +181,13 @@ app.post('/api/auth/logout-all', requireUser, (req, res) => {
 
 app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000), (req, res) => {
     const { email, password } = req.body || {};
+    if (users.activeUserHasNoPassword(email)) {
+        res.status(401).json({
+            error:
+                'No password is set for this account. Sign in with Kakao, or ask an admin to set a password for you.'
+        });
+        return;
+    }
     const user = users.findUserByEmailPassword(email, password);
     if (!user) {
         res.status(401).json({ error: 'Invalid email or password' });

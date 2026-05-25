@@ -1333,13 +1333,8 @@ function applyLanguage() {
         langBtn.textContent = t('langToggle');
     }
 
-    const themeBtn = document.getElementById('themeToggleBtn');
-    if (themeBtn) {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        themeBtn.textContent = t(isDark ? 'themeLight' : 'themeDark');
-        themeBtn.setAttribute('title', t('themeToggleTitle'));
-    }
-    
+    updateThemeToggleButtons();
+
     document.documentElement.lang = currentLanguage === 'ko' ? 'ko' : 'en';
     const titleBase = (appData.calendarName && appData.calendarName.trim())
         ? appData.calendarName.trim()
@@ -1448,19 +1443,38 @@ function getStoredTheme() {
     return 'light';
 }
 
+function updateThemeToggleButtons() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const labelKey = isDark ? 'themeLight' : 'themeDark';
+    const labelText =
+        typeof t === 'function' && translations && translations[currentLanguage] && translations[currentLanguage][labelKey]
+            ? t(labelKey)
+            : isDark
+              ? '☀️ Light'
+              : '🌙 Dark';
+    const titleText =
+        typeof t === 'function' && translations && translations[currentLanguage] && translations[currentLanguage].themeToggleTitle
+            ? t('themeToggleTitle')
+            : 'Switch light/dark theme';
+
+    ['themeToggleBtn', 'workspaceThemeToggle'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (!btn) {
+            return;
+        }
+        btn.textContent = labelText;
+        btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+        btn.setAttribute('title', titleText);
+    });
+}
+
 function applyTheme(theme) {
     const next = theme === 'dark' ? 'dark' : 'light';
     document.documentElement.classList.remove('print-color-mode-light');
     document.documentElement.setAttribute('data-theme', next);
     document.documentElement.style.colorScheme = next;
     localStorage.setItem('calendarTheme', next);
-    const themeBtn = document.getElementById('themeToggleBtn');
-    if (themeBtn) {
-        const labelKey = next === 'dark' ? 'themeLight' : 'themeDark';
-        themeBtn.textContent = t(labelKey);
-        themeBtn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
-        themeBtn.setAttribute('title', t('themeToggleTitle'));
-    }
+    updateThemeToggleButtons();
 }
 
 function loadTheme() {

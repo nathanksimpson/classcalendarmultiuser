@@ -11,11 +11,14 @@
                 if (theme === 'dark' || theme === 'light') {
                     document.documentElement.setAttribute('data-theme', theme);
                     document.documentElement.style.colorScheme = theme;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.style.colorScheme = 'dark';
                 }
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260529-curriculum">
+    <link rel="stylesheet" href="styles.css?v=20260602-curriculum-theme">
 </head>
 <body class="workspace-page">
     <header class="workspace-header">
@@ -132,9 +135,9 @@
     <script src="js/homework-import.js"></script>
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
-    <script src="js/team-auth.js?v=20260528-workspace"></script>
+    <script src="js/team-auth.js?v=20260601-theme-fix"></script>
     <script src="js/calendar-sync.js?v=20260528-workspace"></script>
-    <script src="app.js?v=20260528-workspace"></script>
+    <script src="app.js?v=20260601-theme-fix"></script>
     <script src="js/workspace.js?v=20260528-workspace"></script>
 </body>
 </html>

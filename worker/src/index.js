@@ -805,6 +805,7 @@ export default {
         }
 
         if (path === '/api/health') {
+            const adminCount = await countAdmins(env);
             return json({
                 ok: true,
                 time: nowIso(),
@@ -813,7 +814,8 @@ export default {
                 kakaoClientSecretConfigured: Boolean(kakaoId && env.KAKAO_CLIENT_SECRET),
                 kakaoRedirectUri: kakaoId ? kakaoRedirectUri(env, request) : null,
                 passwordAuth: true,
-                openAccess: false
+                openAccess: false,
+                needsBootstrap: adminCount === 0
             });
         }
 
@@ -954,32 +956,48 @@ export default {
         }
 
         if (path === '/api/auth/password' && request.method === 'POST') {
-            const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
-            if (limited) {
-                return limited;
+            try {
+                const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
+                if (limited) {
+                    return limited;
+                }
+                const body = await readJson(request);
+                const em = normalizeEmail(body.email);
+                const row = em
+                    ? await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em)
+                    : null;
+                const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
+                if (row && !storedHash) {
+                    return json(
+                        {
+                            error:
+                                'No password is set for this account. Sign in with Kakao, or ask an admin to set a password for you.'
+                        },
+                        401
+                    );
+                }
+                const matched =
+                    row && storedHash && (await verifyPassword(body.password, storedHash))
+                        ? rowToUser(row)
+                        : null;
+                if (!matched) {
+                    return json({ error: 'Invalid email or password' }, 401);
+                }
+                const session = await createLoginSession(env, matched.id);
+                return json(
+                    {
+                        id: matched.id,
+                        email: matched.email,
+                        displayName: matched.displayName,
+                        role: matched.role
+                    },
+                    200,
+                    { 'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec) }
+                );
+            } catch (err) {
+                console.error('POST /api/auth/password error:', err && err.message ? err.message : err);
+                return json({ error: 'Sign-in failed. Try again or use Kakao login.' }, 500);
             }
-            const body = await readJson(request);
-            const em = normalizeEmail(body.email);
-            const row = em
-                ? await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em)
-                : null;
-            const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
-            const matched =
-                row && storedHash && (await verifyPassword(body.password, storedHash)) ? rowToUser(row) : null;
-            if (!matched) {
-                return json({ error: 'Invalid email or password' }, 401);
-            }
-            const session = await createLoginSession(env, matched.id);
-            return json(
-                {
-                    id: matched.id,
-                    email: matched.email,
-                    displayName: matched.displayName,
-                    role: matched.role
-                },
-                200,
-                { 'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec) }
-            );
         }
 
         if (path === '/api/admin/bootstrap' && request.method === 'POST') {

@@ -42,10 +42,23 @@ function setupAdminThemeToggle() {
     });
 }
 
+function apiAllowsWithoutSession(path, method) {
+    const m = (method || 'GET').toUpperCase();
+    if (path === '/admin/bootstrap' && m === 'POST') {
+        return true;
+    }
+    if (path === '/auth/password' && m === 'POST') {
+        return true;
+    }
+    return false;
+}
+
 async function api(path, options) {
+    const opts = options || {};
     const isAuthMe = path === '/auth/me' || path.startsWith('/auth/me?');
     if (
         !isAuthMe &&
+        !apiAllowsWithoutSession(path, opts.method) &&
         typeof TeamAuth !== 'undefined' &&
         TeamAuth.isSignedIn &&
         !TeamAuth.isSignedIn()
@@ -201,7 +214,7 @@ function setStatus(msg, isError) {
         return;
     }
     el.textContent = msg;
-    el.style.color = isError ? '#b91c1c' : '';
+    el.style.color = isError ? 'var(--status-error-color)' : '';
     if (isError && msg) {
         showAdminSaveNotice(msg, true);
     }
@@ -690,10 +703,12 @@ async function init() {
         }
     });
     try {
-        if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
-            await TeamAuth.refresh();
+        let me;
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.ensure) {
+            me = await TeamAuth.ensure();
+        } else {
+            me = await api('/auth/me');
         }
-        const me = await api('/auth/me');
         currentAdminId = me.id;
         if (me.role !== 'admin') {
             setupAdminNav(false);
@@ -710,11 +725,31 @@ async function init() {
         }
         await refreshAll();
     } catch (err) {
+        if (err && err.message === 'redirect') {
+            return;
+        }
         setupAdminNav(false);
         showAdminSections(false);
         if (err.message.includes('Not signed in') || err.message.includes('401')) {
-            setStatus(t('signInFirst'), true);
-            document.getElementById('bootstrapBox').style.display = 'block';
+            let needsBootstrap = false;
+            try {
+                const healthRes = await fetch('/api/health', { credentials: 'same-origin' });
+                if (healthRes.ok) {
+                    const health = await healthRes.json();
+                    needsBootstrap = Boolean(health.needsBootstrap);
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            if (needsBootstrap) {
+                setStatus(t('signInFirst'), true);
+                document.getElementById('bootstrapBox').style.display = 'block';
+            } else {
+                location.replace(
+                    '/login.html?return=' + encodeURIComponent('/admin.html')
+                );
+                return;
+            }
         } else if (err.message.includes('Admin only') || err.message.includes('admin')) {
             setStatus(err.message, true);
             document.getElementById('bootstrapBox').style.display = 'none';

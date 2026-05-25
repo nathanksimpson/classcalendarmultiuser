@@ -73,12 +73,9 @@
         }
         const el = document.createElement('div');
         el.id = 'teamIdleWarningBanner';
+        el.className = 'team-idle-warning-banner';
         el.setAttribute('role', 'alert');
         el.hidden = true;
-        el.style.cssText =
-            'position:fixed;left:0;right:0;top:0;z-index:100000;padding:0.65rem 1rem;' +
-            'background:#fef3c7;border-bottom:1px solid #f59e0b;color:#92400e;' +
-            'font-size:0.9rem;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);';
         document.body.appendChild(el);
         idleBannerEl = el;
         updateIdleBannerText();

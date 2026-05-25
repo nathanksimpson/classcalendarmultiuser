@@ -238,6 +238,15 @@ function verifyPassword(password, stored) {
     return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(attempt, 'hex'));
 }
 
+function activeUserHasNoPassword(email) {
+    const em = normalizeEmail(email);
+    if (!em) {
+        return false;
+    }
+    const row = getDb().prepare('SELECT password_hash FROM users WHERE email = ? AND active = 1').get(em);
+    return Boolean(row && !row.password_hash);
+}
+
 function findUserByEmailPassword(email, password) {
     const em = normalizeEmail(email);
     if (!em || !password) {
@@ -630,6 +639,7 @@ module.exports = {
     countAdmins,
     hashPassword,
     findUserByEmailPassword,
+    activeUserHasNoPassword,
     createSession,
     createLoginSession,
     getSessionUser,

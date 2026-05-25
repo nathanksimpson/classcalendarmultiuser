@@ -143,8 +143,12 @@ export async function getSessionMaxDays(env) {
 }
 
 export async function getSessionMaxAgeSec(env) {
-    const days = await readSessionMaxDays(env);
-    return days * 86400;
+    try {
+        const days = await readSessionMaxDays(env);
+        return days * 86400;
+    } catch (_) {
+        return DEFAULT_SESSION_MAX_DAYS * 86400;
+    }
 }
 
 export async function getAdminSettings(env) {

@@ -3,39 +3,38 @@
  */
 
 export async function checkRateLimit(env, bucketKey, limit, windowMs) {
-    const now = Date.now();
-    let row;
     try {
-        row = await env.DB.prepare(
+        const now = Date.now();
+        const row = await env.DB.prepare(
             'SELECT hit_count, window_start_ms FROM api_rate_buckets WHERE bucket_key = ?'
         )
             .bind(bucketKey)
             .first();
+
+        if (!row || now - Number(row.window_start_ms) > windowMs) {
+            await env.DB.prepare(
+                `INSERT INTO api_rate_buckets (bucket_key, hit_count, window_start_ms)
+                 VALUES (?, 1, ?)
+                 ON CONFLICT(bucket_key) DO UPDATE SET hit_count = 1, window_start_ms = excluded.window_start_ms`
+            )
+                .bind(bucketKey, now)
+                .run();
+            return true;
+        }
+
+        if (Number(row.hit_count) >= limit) {
+            return false;
+        }
+
+        await env.DB.prepare(
+            'UPDATE api_rate_buckets SET hit_count = hit_count + 1 WHERE bucket_key = ?'
+        )
+            .bind(bucketKey)
+            .run();
+        return true;
     } catch (_) {
         return true;
     }
-
-    if (!row || now - Number(row.window_start_ms) > windowMs) {
-        await env.DB.prepare(
-            `INSERT INTO api_rate_buckets (bucket_key, hit_count, window_start_ms)
-             VALUES (?, 1, ?)
-             ON CONFLICT(bucket_key) DO UPDATE SET hit_count = 1, window_start_ms = excluded.window_start_ms`
-        )
-            .bind(bucketKey, now)
-            .run();
-        return true;
-    }
-
-    if (Number(row.hit_count) >= limit) {
-        return false;
-    }
-
-    await env.DB.prepare(
-        'UPDATE api_rate_buckets SET hit_count = hit_count + 1 WHERE bucket_key = ?'
-    )
-        .bind(bucketKey)
-        .run();
-    return true;
 }
 
 export function clientIp(request) {
