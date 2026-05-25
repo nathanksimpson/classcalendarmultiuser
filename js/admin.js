@@ -1,4 +1,57 @@
+function t(key, vars) {
+    return typeof AdminI18n !== 'undefined' ? AdminI18n.t(key, vars) : key;
+}
+
+function getStoredTheme() {
+    const saved = localStorage.getItem('calendarTheme');
+    if (saved === 'light' || saved === 'dark') {
+        return saved;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+    }
+    return 'light';
+}
+
+function applyAdminTheme(theme) {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    document.documentElement.style.colorScheme = next;
+    localStorage.setItem('calendarTheme', next);
+    const btn = document.getElementById('adminThemeToggle');
+    if (btn) {
+        btn.textContent = next === 'dark' ? t('themeLight') : t('themeDark');
+        btn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
+        btn.title = t('themeToggleTitle');
+    }
+}
+
+function loadAdminTheme() {
+    applyAdminTheme(getStoredTheme());
+}
+
+function setupAdminThemeToggle() {
+    const btn = document.getElementById('adminThemeToggle');
+    if (!btn || btn.dataset.bound === '1') {
+        return;
+    }
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        applyAdminTheme(current === 'dark' ? 'light' : 'dark');
+    });
+}
+
 async function api(path, options) {
+    const isAuthMe = path === '/auth/me' || path.startsWith('/auth/me?');
+    if (
+        !isAuthMe &&
+        typeof TeamAuth !== 'undefined' &&
+        TeamAuth.isSignedIn &&
+        !TeamAuth.isSignedIn()
+    ) {
+        throw new Error('Not signed in');
+    }
     const res = await fetch('/api' + path, Object.assign({ credentials: 'same-origin' }, options || {}));
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -33,7 +86,9 @@ function openResetPasswordModal(user) {
     const newInput = document.getElementById('resetPasswordNew');
     const confirmInput = document.getElementById('resetPasswordConfirm');
     if (label) {
-        label.textContent = 'Set a new password for ' + (user.displayName || user.email || user.id) + '.';
+        label.textContent = t('resetPasswordFor', {
+            name: user.displayName || user.email || user.id
+        });
     }
     if (newInput) {
         newInput.value = '';
@@ -47,13 +102,7 @@ function openResetPasswordModal(user) {
 
 async function clearUserPassword(u) {
     const label = u.email || u.displayName || u.id;
-    if (
-        !confirm(
-            'Clear password for ' +
-                label +
-                '?\n\nThey can only sign in with Kakao (if linked). Any password sessions will end.'
-        )
-    ) {
+    if (!confirm(t('confirmClearPassword', { label }))) {
         return;
     }
     await api('/admin/users/' + encodeURIComponent(u.id), {
@@ -62,7 +111,7 @@ async function clearUserPassword(u) {
         body: JSON.stringify({ clearPassword: true })
     });
     await refreshAll();
-    showAdminSaveNotice('Saved: password cleared for ' + label + '.', false);
+    showAdminSaveNotice(t('savedPasswordCleared', { label }), false);
 }
 
 function setupResetPasswordModal() {
@@ -94,11 +143,11 @@ function setupResetPasswordModal() {
         const newPwd = document.getElementById('resetPasswordNew')?.value || '';
         const confirmPwd = document.getElementById('resetPasswordConfirm')?.value || '';
         if (newPwd.length < 8) {
-            showAdminSaveNotice('Password must be at least 8 characters.', true);
+            showAdminSaveNotice(t('passwordTooShort'), true);
             return;
         }
         if (newPwd !== confirmPwd) {
-            showAdminSaveNotice('Passwords do not match.', true);
+            showAdminSaveNotice(t('passwordMismatch'), true);
             return;
         }
         const submitBtn = document.getElementById('submitResetPasswordBtn');
@@ -106,7 +155,7 @@ function setupResetPasswordModal() {
         try {
             if (submitBtn) {
                 submitBtn.disabled = true;
-                submitBtn.textContent = 'Saving…';
+                submitBtn.textContent = t('saving');
             }
             await api('/admin/users/' + encodeURIComponent(id), {
                 method: 'PATCH',
@@ -115,13 +164,13 @@ function setupResetPasswordModal() {
             });
             resetPasswordTargetId = null;
             closeAdminModal(modal);
-            showAdminSaveNotice('Saved: password updated. They must sign in again with the new password.', false);
+            showAdminSaveNotice(t('savedPasswordUpdated'), false);
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = prevText || 'Save password';
+                submitBtn.textContent = prevText || t('savePassword');
             }
         }
     });
@@ -131,16 +180,16 @@ function appendResetPasswordActions(actions, u) {
     const reset = document.createElement('button');
     reset.type = 'button';
     reset.className = 'btn btn-outline btn-small';
-    reset.textContent = 'Reset password';
-    reset.title = 'Set a new password; signs them out everywhere';
+    reset.textContent = t('resetPassword');
+    reset.title = t('resetPasswordTitleBtn');
     reset.onclick = () => openResetPasswordModal(u);
     actions.appendChild(reset);
 
     const clear = document.createElement('button');
     clear.type = 'button';
     clear.className = 'btn btn-outline btn-small';
-    clear.textContent = 'Clear password';
-    clear.title = 'Remove password login (Kakao only if linked)';
+    clear.textContent = t('clearPassword');
+    clear.title = t('clearPasswordTitle');
     clear.onclick = () => clearUserPassword(u).catch((ex) => showAdminSaveNotice(ex.message, true));
     actions.appendChild(clear);
 }
@@ -234,29 +283,17 @@ async function loadTeachersCache() {
 
 async function permanentlyDeleteUser(u) {
     const label = u.email || u.displayName || u.id;
-    if (
-        !confirm(
-            'Permanently delete ' +
-                label +
-                '?\n\nThis removes their account from the database. This cannot be undone.'
-        )
-    ) {
+    if (!confirm(t('confirmPermanentDelete', { label }))) {
         return;
     }
     await api('/admin/users/' + encodeURIComponent(u.id), { method: 'DELETE' });
     await refreshAll();
-    showAdminSaveNotice('Permanently deleted ' + label + '.', false);
+    showAdminSaveNotice(t('permanentlyDeleted', { label }), false);
 }
 
 async function deactivateUser(u) {
     const label = u.email || u.displayName || u.id;
-    if (
-        !confirm(
-            'Deactivate ' +
-                label +
-                '?\n\nThey will not be able to sign in until you Reactivate them. You can permanently delete the account later (deactivated users only).'
-        )
-    ) {
+    if (!confirm(t('confirmDeactivate', { label }))) {
         return;
     }
     await api('/admin/users/' + encodeURIComponent(u.id), {
@@ -265,7 +302,7 @@ async function deactivateUser(u) {
         body: JSON.stringify({ active: false })
     });
     await refreshAll();
-    showAdminSaveNotice('Saved: deactivated ' + label + '.', false);
+    showAdminSaveNotice(t('savedDeactivated', { label }), false);
 }
 
 async function loadUsers() {
@@ -284,7 +321,7 @@ async function loadUsers() {
             '</td><td>' +
             escapeHtml(u.role) +
             '</td><td>' +
-            (u.active ? 'Active' : '<span class="badge-inactive">Deactivated</span>') +
+            (u.active ? t('statusActive') : '<span class="badge-inactive">' + escapeHtml(t('statusDeactivated')) + '</span>') +
             '</td><td class="admin-actions"></td>';
         const actions = tr.querySelector('.admin-actions');
         const isSelf = currentAdminId && u.id === currentAdminId;
@@ -294,12 +331,12 @@ async function loadUsers() {
                 const deact = document.createElement('button');
                 deact.type = 'button';
                 deact.className = 'btn btn-outline btn-small';
-                deact.textContent = 'Deactivate';
-                deact.title = 'Block sign-in (account is kept; use Reactivate later)';
+                deact.textContent = t('deactivate');
+                deact.title = t('deactivateTitle');
                 deact.onclick = () => deactivateUser(u).catch((ex) => showAdminSaveNotice(ex.message, true));
                 if (u.role === 'admin' && activeAdminCount <= 1) {
                     deact.disabled = true;
-                    deact.title = 'Cannot deactivate the only admin';
+                    deact.title = t('onlyAdminDeactivate');
                 }
                 actions.appendChild(deact);
             }
@@ -307,10 +344,11 @@ async function loadUsers() {
                 const promote = document.createElement('button');
                 promote.type = 'button';
                 promote.className = 'btn btn-outline btn-small';
-                promote.textContent = 'Make admin';
+                promote.textContent = t('makeAdmin');
                 promote.onclick = async () => {
                     try {
-                        if (!confirm('Make ' + (u.displayName || u.email) + ' an admin?')) {
+                        const name = u.displayName || u.email;
+                        if (!confirm(t('confirmMakeAdmin', { name }))) {
                             return;
                         }
                         await api('/admin/users/' + encodeURIComponent(u.id), {
@@ -319,7 +357,7 @@ async function loadUsers() {
                             body: JSON.stringify({ role: 'admin' })
                         });
                         await refreshAll();
-                        showAdminSaveNotice('Saved: ' + (u.displayName || u.email) + ' is now an admin.', false);
+                        showAdminSaveNotice(t('savedNowAdmin', { name: u.displayName || u.email }), false);
                     } catch (ex) {
                         showAdminSaveNotice(ex.message, true);
                     }
@@ -329,10 +367,11 @@ async function loadUsers() {
                 const demote = document.createElement('button');
                 demote.type = 'button';
                 demote.className = 'btn btn-outline btn-small';
-                demote.textContent = 'Make teacher';
+                demote.textContent = t('makeTeacher');
                 demote.onclick = async () => {
                     try {
-                        if (!confirm('Demote ' + (u.displayName || u.email) + ' to teacher?')) {
+                        const name = u.displayName || u.email;
+                        if (!confirm(t('confirmDemote', { name }))) {
                             return;
                         }
                         await api('/admin/users/' + encodeURIComponent(u.id), {
@@ -341,7 +380,7 @@ async function loadUsers() {
                             body: JSON.stringify({ role: 'teacher' })
                         });
                         await refreshAll();
-                        showAdminSaveNotice('Saved: ' + (u.displayName || u.email) + ' is now a teacher.', false);
+                        showAdminSaveNotice(t('savedNowTeacher', { name: u.displayName || u.email }), false);
                     } catch (ex) {
                         showAdminSaveNotice(ex.message, true);
                     }
@@ -352,8 +391,8 @@ async function loadUsers() {
             const react = document.createElement('button');
             react.type = 'button';
             react.className = 'btn btn-outline btn-small';
-            react.textContent = 'Reactivate';
-            react.title = 'Allow sign-in again';
+            react.textContent = t('reactivate');
+            react.title = t('reactivateTitle');
             react.onclick = async () => {
                 try {
                     await api('/admin/users/' + encodeURIComponent(u.id), {
@@ -362,7 +401,7 @@ async function loadUsers() {
                         body: JSON.stringify({ active: true })
                     });
                     await refreshAll();
-                    showAdminSaveNotice('Saved: reactivated ' + (u.email || u.displayName) + '.', false);
+                    showAdminSaveNotice(t('savedReactivated', { label: u.email || u.displayName }), false);
                 } catch (ex) {
                     showAdminSaveNotice(ex.message, true);
                 }
@@ -372,8 +411,8 @@ async function loadUsers() {
                 const del = document.createElement('button');
                 del.type = 'button';
                 del.className = 'btn btn-outline btn-small btn-danger-text';
-                del.textContent = 'Delete permanently';
-                del.title = 'Remove this account from the database (cannot be undone)';
+                del.textContent = t('deletePermanently');
+                del.title = t('deletePermanentlyTitle');
                 del.onclick = () => permanentlyDeleteUser(u).catch((ex) => showAdminSaveNotice(ex.message, true));
                 actions.appendChild(del);
             }
@@ -407,21 +446,21 @@ async function loadGroups() {
         const editBtn = document.createElement('button');
         editBtn.type = 'button';
         editBtn.className = 'btn btn-outline btn-small';
-        editBtn.textContent = 'Edit members';
+        editBtn.textContent = t('editMembers');
         editBtn.onclick = () => openEditGroupMembers(g, activeTeachers);
         actions.appendChild(editBtn);
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.className = 'btn btn-outline btn-small btn-danger-text';
-        delBtn.textContent = 'Delete';
+        delBtn.textContent = t('deleteGroup');
         delBtn.onclick = async () => {
             try {
-                if (!confirm('Delete group "' + g.name + '"? Calendars will lose this group assignment.')) {
+                if (!confirm(t('confirmDeleteGroup', { name: g.name }))) {
                     return;
                 }
                 await api('/admin/groups/' + encodeURIComponent(g.id), { method: 'DELETE' });
                 await refreshAll();
-                showAdminSaveNotice('Saved: deleted group "' + g.name + '".', false);
+                showAdminSaveNotice(t('savedGroupDeleted', { name: g.name }), false);
             } catch (ex) {
                 showAdminSaveNotice(ex.message, true);
             }
@@ -435,7 +474,7 @@ async function loadGroups() {
 function openEditGroupMembers(group, activeTeachers) {
     const wrap = document.createElement('div');
     wrap.className = 'admin-form';
-    wrap.innerHTML = '<h3 style="margin:0">Edit: ' + escapeHtml(group.name) + '</h3>';
+    wrap.innerHTML = '<h3 style="margin:0">' + escapeHtml(t('editGroupPrefix')) + ' ' + escapeHtml(group.name) + '</h3>';
     const grid = document.createElement('div');
     grid.className = 'admin-checkbox-grid';
     wrap.appendChild(grid);
@@ -443,7 +482,7 @@ function openEditGroupMembers(group, activeTeachers) {
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.className = 'btn btn-primary';
-    saveBtn.textContent = 'Save members';
+    saveBtn.textContent = t('saveMembers');
     saveBtn.onclick = async () => {
         try {
             const memberIds = getCheckedIds(grid);
@@ -454,7 +493,7 @@ function openEditGroupMembers(group, activeTeachers) {
             });
             wrap.remove();
             await refreshAll();
-            showAdminSaveNotice('Saved: updated members for group "' + group.name + '".', false);
+            showAdminSaveNotice(t('savedGroupMembers', { name: group.name }), false);
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         }
@@ -463,7 +502,7 @@ function openEditGroupMembers(group, activeTeachers) {
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn btn-outline';
-    cancelBtn.textContent = 'Cancel';
+    cancelBtn.textContent = t('cancel');
     cancelBtn.onclick = () => wrap.remove();
     wrap.appendChild(cancelBtn);
     document.getElementById('groupsSection').appendChild(wrap);
@@ -534,7 +573,7 @@ function setupAdminNav(signedIn) {
             logoutBtn.type = 'button';
             logoutBtn.id = 'adminLogoutBtn';
             logoutBtn.className = 'btn btn-outline btn-small';
-            logoutBtn.textContent = 'Sign out';
+            logoutBtn.textContent = t('signOut');
             logoutBtn.style.marginLeft = '0.35rem';
             logoutBtn.onclick = () => {
                 if (typeof TeamAuth !== 'undefined') {
@@ -566,9 +605,17 @@ function showAdminSections(visible) {
 
 async function loadLockSettings() {
     const settings = await api('/admin/settings');
-    const input = document.getElementById('lockStaleMinutesInput');
-    if (input && settings.lockStaleMinutes != null) {
-        input.value = String(settings.lockStaleMinutes);
+    const lockInput = document.getElementById('lockStaleMinutesInput');
+    const idleLogoutInput = document.getElementById('idleLogoutMinutesInput');
+    const idleWarningInput = document.getElementById('idleWarningMinutesInput');
+    if (lockInput && settings.lockStaleMinutes != null) {
+        lockInput.value = String(settings.lockStaleMinutes);
+    }
+    if (idleLogoutInput && settings.idleLogoutMinutes != null) {
+        idleLogoutInput.value = String(settings.idleLogoutMinutes);
+    }
+    if (idleWarningInput && settings.idleWarningMinutes != null) {
+        idleWarningInput.value = String(settings.idleWarningMinutes);
     }
 }
 
@@ -580,20 +627,41 @@ function setupLockSettingsForm() {
     form.dataset.bound = '1';
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const input = document.getElementById('lockStaleMinutesInput');
-        const minutes = Number(input && input.value);
+        const lockInput = document.getElementById('lockStaleMinutesInput');
+        const idleLogoutInput = document.getElementById('idleLogoutMinutesInput');
+        const idleWarningInput = document.getElementById('idleWarningMinutesInput');
         try {
             const saved = await api('/admin/settings', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lockStaleMinutes: minutes })
+                body: JSON.stringify({
+                    lockStaleMinutes: Number(lockInput && lockInput.value),
+                    idleLogoutMinutes: Number(idleLogoutInput && idleLogoutInput.value),
+                    idleWarningMinutes: Number(idleWarningInput && idleWarningInput.value)
+                })
             });
-            if (input && saved.lockStaleMinutes != null) {
-                input.value = String(saved.lockStaleMinutes);
+            if (lockInput && saved.lockStaleMinutes != null) {
+                lockInput.value = String(saved.lockStaleMinutes);
             }
-            showAdminSaveNotice('Saved: lock expires after ' + saved.lockStaleMinutes + ' minutes.', false);
+            if (idleLogoutInput && saved.idleLogoutMinutes != null) {
+                idleLogoutInput.value = String(saved.idleLogoutMinutes);
+            }
+            if (idleWarningInput && saved.idleWarningMinutes != null) {
+                idleWarningInput.value = String(saved.idleWarningMinutes);
+            }
+            if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
+                await TeamAuth.refresh();
+            }
+            showAdminSaveNotice(
+                t('savedLockSettings', {
+                    lock: saved.lockStaleMinutes,
+                    idle: saved.idleLogoutMinutes,
+                    warn: saved.idleWarningMinutes
+                }),
+                false
+            );
         } catch (err) {
-            showAdminSaveNotice(err.message || 'Could not save lock settings.', true);
+            showAdminSaveNotice(err.message || t('couldNotSaveSettings'), true);
         }
     });
 }
@@ -607,31 +675,37 @@ async function init() {
         }
     });
     try {
-        const me = await api('/auth/me');
-        currentAdminId = me.id;
         if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
             await TeamAuth.refresh();
         }
+        const me = await api('/auth/me');
+        currentAdminId = me.id;
         if (me.role !== 'admin') {
             setupAdminNav(false);
             showAdminSections(false);
-            setStatus('You must sign in as an admin.', true);
+            setStatus(t('mustBeAdmin'), true);
             return;
         }
         setupAdminNav(true);
         showAdminSections(true);
-        setStatus('Signed in as ' + (me.displayName || me.email));
+        setStatus(t('signedInAs', { name: me.displayName || me.email }));
         document.getElementById('bootstrapBox').style.display = 'none';
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.startIdleWatch) {
+            TeamAuth.startIdleWatch();
+        }
         await refreshAll();
     } catch (err) {
         setupAdminNav(false);
         showAdminSections(false);
         if (err.message.includes('Not signed in') || err.message.includes('401')) {
-            setStatus('Sign in first, then return here.', true);
+            setStatus(t('signInFirst'), true);
             document.getElementById('bootstrapBox').style.display = 'block';
+        } else if (err.message.includes('Admin only') || err.message.includes('admin')) {
+            setStatus(err.message, true);
+            document.getElementById('bootstrapBox').style.display = 'none';
         } else {
             setStatus(err.message, true);
-            document.getElementById('bootstrapBox').style.display = 'block';
+            document.getElementById('bootstrapBox').style.display = 'none';
         }
     }
 
@@ -652,7 +726,7 @@ async function init() {
             document.getElementById('newEmail').value = '';
             document.getElementById('newPassword').value = '';
             await refreshAll();
-            showAdminSaveNotice('Saved: new user added.', false);
+            showAdminSaveNotice(t('noticedNewUser'), false);
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         }
@@ -672,7 +746,7 @@ async function init() {
             });
             document.getElementById('newGroupName').value = '';
             await refreshAll();
-            showAdminSaveNotice('Saved: group created.', false);
+            showAdminSaveNotice(t('noticedGroupCreated'), false);
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         }
@@ -696,7 +770,7 @@ async function init() {
             const calLabel =
                 document.getElementById('accessCalendarSelect')?.selectedOptions?.[0]?.textContent || calId;
             await loadCalendarAccessUI();
-            showAdminSaveNotice('Saved: calendar access for "' + calLabel + '".', false);
+            showAdminSaveNotice(t('savedCalendarAccess', { name: calLabel }), false);
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         }
@@ -714,7 +788,7 @@ async function init() {
                     password: document.getElementById('bootstrapPassword').value || undefined
                 })
             });
-            setStatus('Admin created — you are signed in. Refreshing…');
+            setStatus(t('adminCreated'));
             location.reload();
         } catch (ex) {
             setStatus(ex.message, true);
@@ -722,4 +796,21 @@ async function init() {
     });
 }
 
+loadAdminTheme();
+setupAdminThemeToggle();
+if (typeof AdminI18n !== 'undefined') {
+    AdminI18n.setupAdminLanguageToggle(() => {
+        if (currentAdminId) {
+            refreshAll().catch(() => {});
+        } else if (typeof AdminI18n.applyAdminLanguage === 'function') {
+            AdminI18n.applyAdminLanguage();
+        }
+    });
+    const bootstrapName = document.getElementById('bootstrapName');
+    if (bootstrapName) {
+        bootstrapName.addEventListener('input', () => {
+            bootstrapName.dataset.userEdited = '1';
+        });
+    }
+}
 init();

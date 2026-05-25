@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-header">
+    <link rel="stylesheet" href="styles.css?v=20260528-print-data-grid">
     <script>
         (function () {
             try {
@@ -66,20 +66,22 @@
             </div>
 
             <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
-                <div class="team-calendar-row-main">
-                    <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
-                    <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
-                    <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
-                    <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
-                    <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
-                    <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
-                    <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
-                </div>
-                <div class="app-header-tool-group app-header-tool-group--account team-account-toolbar" id="teamAccountGroup" hidden>
-                    <span id="teamUserLabel" class="team-user-label" hidden></span>
-                    <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
-                    <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
-                    <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
+                <div class="team-calendar-panel-toolbar">
+                    <div class="team-calendar-row-main">
+                        <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
+                        <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
+                        <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
+                        <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
+                        <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
+                        <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
+                        <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
+                    </div>
+                    <div class="app-header-tool-group app-header-tool-group--account team-account-toolbar" id="teamAccountGroup" hidden>
+                        <span id="teamUserLabel" class="team-user-label" hidden></span>
+                        <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
+                        <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
+                        <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
+                    </div>
                 </div>
                 <details class="team-calendar-help">
                     <summary data-i18n="teamCalendarHelp">Team help</summary>
@@ -306,6 +308,7 @@
 
             <section id="panel-homework" class="app-tab-panel" data-tab="homework" role="tabpanel" aria-labelledby="tabBtn-homework" hidden>
                 <div class="module-toolbar homework-tab-toolbar">
+                    <button type="button" id="openWorkspaceHomeworkBtn" class="btn btn-outline btn-small" data-i18n="workspaceOpen">Open expanded workspace</button>
                     <div class="homework-ref-date-controls">
                         <label class="homework-ref-date-label" for="homeworkReferenceDate">
                             <span data-i18n="homeworkTabReferenceDate">Reference date</span>
@@ -370,6 +373,9 @@
                     <div class="print-data-section print-data-section--books print-books-section">
                         <h2 class="module-section-title" data-i18n="printBooksHeading">Books</h2>
                         <p class="section-hint" data-i18n="printBooksHint">Curriculum books (Write Now, Write Right, Hand in Hand, etc.): lesson plans and page blocks that class syllabi pull from. Green / Blue / Navy levels share one book where pagination is the same.</p>
+                        <div class="print-data-actions" style="margin-bottom: 0.75rem;">
+                            <button type="button" id="openWorkspaceBooksBtn" class="btn btn-outline btn-small" data-i18n="workspaceOpen">Open expanded workspace</button>
+                        </div>
                         <p id="printBooksStats" class="print-books-stats section-hint" role="status"></p>
                         <div id="printBooksList" class="print-books-list" aria-label="Curriculum books"></div>
                     </div>
@@ -717,7 +723,7 @@
     </template>
 
 
-    <div id="syncToast" class="sync-toast" style="display: none;" role="status" aria-live="polite"></div>
+    <div id="syncToast" class="sync-toast" role="status" aria-live="polite" aria-hidden="true"></div>
 
     <div id="conflictModal" class="modal" role="dialog" aria-labelledby="conflictModalTitle" aria-modal="true">
         <div class="modal-content modal-small">
@@ -1099,10 +1105,10 @@
     <script src="js/homework-import.js"></script>
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
-    <script src="js/team-auth.js?v=20260527-header"></script>
-    <script src="js/calendar-sync.js?v=20260527-header"></script>
-    <script src="app.js?v=20260527-header"></script>
-    <script src="howto.js"></script>
+    <script src="js/team-auth.js?v=20260528-logout-save"></script>
+    <script src="js/calendar-sync.js?v=20260528-logout-save"></script>
+    <script src="app.js?v=20260528-workspace"></script>
+    <script src="howto.js?v=20260528-howto-team"></script>
 </body>
 </html>
 

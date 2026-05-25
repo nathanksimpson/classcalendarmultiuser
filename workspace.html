@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curriculum workspace — Class Calendar</title>
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('calendarTheme');
+                if (theme === 'dark' || theme === 'light') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    document.documentElement.style.colorScheme = theme;
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260528-workspace">
+</head>
+<body class="workspace-page">
+    <header class="workspace-header">
+        <div class="workspace-header-main">
+            <a href="/" class="workspace-back-link" data-i18n="workspaceBackCalendar">← Back to calendar</a>
+            <h1 class="workspace-title" data-i18n="workspaceTitle">Curriculum workspace</h1>
+            <p id="workspaceCalendarLabel" class="workspace-calendar-label section-hint"></p>
+        </div>
+        <div class="workspace-header-actions">
+            <button type="button" id="workspaceLangToggle" class="btn btn-outline btn-small btn-lang">🌐 한국어</button>
+            <button type="button" id="workspaceThemeToggle" class="btn btn-outline btn-small btn-header-theme">🌙 Dark</button>
+        </div>
+    </header>
+
+    <div id="workspaceRemoteBanner" class="remote-newer-banner workspace-remote-banner" hidden role="alert">
+        <span data-i18n="workspaceRemoteNewer">Calendar was updated elsewhere.</span>
+        <button type="button" id="workspaceReloadBtn" class="btn btn-primary btn-small" data-i18n="workspaceReload">Reload</button>
+    </div>
+
+    <nav class="workspace-tab-nav" role="tablist">
+        <button type="button" class="workspace-tab-btn is-active" data-ws-tab="homework" role="tab" aria-selected="true" data-i18n="workspaceTabHomework">Homework copy</button>
+        <button type="button" class="workspace-tab-btn" data-ws-tab="books" role="tab" aria-selected="false" data-i18n="workspaceTabBooks">Book editor</button>
+    </nav>
+
+    <main class="workspace-main">
+        <section id="workspacePanelHomework" class="workspace-panel is-active" data-ws-panel="homework" role="tabpanel">
+            <div class="module-toolbar homework-tab-toolbar">
+                <div class="homework-ref-date-controls">
+                    <label class="homework-ref-date-label" for="homeworkReferenceDate">
+                        <span data-i18n="homeworkTabReferenceDate">Reference date</span>
+                        <input type="date" id="homeworkReferenceDate" class="homework-ref-date-input">
+                    </label>
+                    <button type="button" id="homeworkReferenceTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
+                </div>
+            </div>
+            <p class="workspace-flow-hint section-hint" data-i18n="workspaceHomeworkFlowHint">Text comes from syllabus Pages / detail, which comes from the curriculum book. Edit the book, refresh syllabi, then copy here.</p>
+            <div class="homework-layout module-split-layout workspace-homework-layout">
+                <aside class="module-list-panel homework-sidebar-panel">
+                    <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application"></div>
+                    <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Refresh syllabi from calendar</button>
+                    <input type="search" id="homeworkClassListSearch" class="module-list-search" autocomplete="off" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
+                    <div id="homeworkClassList" class="module-list" role="listbox"></div>
+                </aside>
+                <div class="module-editor-panel homework-editor-panel workspace-homework-editor">
+                    <p id="homeworkEditorEmpty" class="module-empty-hint" data-i18n="homeworkTabEditorEmpty">Select a class to see homework copy blocks from its syllabus.</p>
+                    <div id="homeworkEditorContent" class="homework-editor-content" hidden>
+                        <header class="homework-class-header">
+                            <h2 id="homeworkClassTitle" class="homework-class-title"></h2>
+                            <p id="homeworkClassMeta" class="homework-class-meta"></p>
+                            <p id="homeworkSourceBookRow" class="homework-source-book section-hint" hidden>
+                                <span data-i18n="workspaceSourceBook">Source book:</span>
+                                <strong id="homeworkSourceBookName"></strong>
+                                <button type="button" id="homeworkEditBookBtn" class="btn btn-outline btn-small" data-i18n="workspaceEditBook">Edit book →</button>
+                            </p>
+                        </header>
+                        <p class="homework-external-banner" data-i18n="homeworkTabExternalBanner">Copy from here, then paste on your other websites.</p>
+                        <p id="homeworkTabMessage" class="homework-tab-message" role="status" hidden></p>
+                        <div class="homework-due-block">
+                            <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
+                            <strong id="homeworkDueDateDisplay" class="homework-due-value"></strong>
+                            <span id="homeworkTargetLessonMeta" class="homework-target-meta"></span>
+                            <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>
+                        </div>
+                        <p class="section-hint homework-editable-hint" data-i18n="homeworkTabEditableHint">Edit below to update syllabus Pages / detail (per class, not the shared book).</p>
+                        <div class="homework-copy-section">
+                            <div class="homework-copy-header">
+                                <h3 data-i18n="homeworkTabGradingTitle">Previous week — grading site</h3>
+                                <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyGradingBtn" data-i18n="homeworkTabCopy">Copy</button>
+                            </div>
+                            <textarea id="homeworkGradingText" class="homework-copy-textarea workspace-copy-textarea" rows="12" spellcheck="false"></textarea>
+                            <p id="homeworkGradingSourceHint" class="homework-source-hint section-hint" hidden></p>
+                        </div>
+                        <div class="homework-copy-section">
+                            <div class="homework-copy-header">
+                                <h3 data-i18n="homeworkTabAssignTitle">This week — assignment site</h3>
+                                <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopy">Copy</button>
+                            </div>
+                            <textarea id="homeworkAssignText" class="homework-copy-textarea workspace-copy-textarea" rows="12" spellcheck="false"></textarea>
+                            <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
+                        </div>
+                        <div class="homework-copy-actions">
+                            <button type="button" class="btn btn-outline btn-small" id="homeworkCopyBothBtn" data-i18n="homeworkTabCopyBoth">Copy grading + assignment</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="workspacePanelBooks" class="workspace-panel" data-ws-panel="books" role="tabpanel" hidden>
+            <p class="section-hint workspace-books-intro" data-i18n="workspaceBooksIntro">Edit shared page blocks for each curriculum book. Save, then refresh syllabi on the Homework copy tab.</p>
+            <div class="workspace-books-layout">
+                <aside class="workspace-books-sidebar">
+                    <div id="workspaceBooksList" class="workspace-books-list" role="listbox"></div>
+                </aside>
+                <div id="workspaceBooksEditorMount" class="workspace-books-editor-mount">
+                    <p class="module-empty-hint" data-i18n="workspaceBooksPick">Select a book to edit session pages.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="appStatus" class="app-status" role="status" aria-live="polite"></div>
+
+    <script src="js/schedule-core.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/syllabus-table.js"></script>
+    <script src="js/schedule-matrix-data.js"></script>
+    <script src="js/syllabus-schedule-matrix.js"></script>
+    <script src="js/syllabus-curricula-data.js"></script>
+    <script src="js/syllabus-curricula.js"></script>
+    <script src="js/syllabus-presets.js"></script>
+    <script src="js/default-class-editor.js"></script>
+    <script src="js/books-editor.js"></script>
+    <script src="js/homework-import.js"></script>
+    <script src="js/homework-tab.js"></script>
+    <script src="js/syllabus-templates.js"></script>
+    <script src="js/team-auth.js?v=20260528-workspace"></script>
+    <script src="js/calendar-sync.js?v=20260528-workspace"></script>
+    <script src="app.js?v=20260528-workspace"></script>
+    <script src="js/workspace.js?v=20260528-workspace"></script>
+</body>
+</html>

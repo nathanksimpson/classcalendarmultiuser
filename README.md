@@ -45,7 +45,8 @@ Summary:
 
 ## Teacher instructions
 
-See **FOR TEACHERS.md** — bookmark + Kakao login only.
+- English: **[FOR TEACHERS.md](FOR%20TEACHERS.md)** — bookmark, Kakao or password login, team calendars, edit locks.
+- Korean: **[FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md)** — same content in Korean.
 
 ## Synology NAS
 

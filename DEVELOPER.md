@@ -1,8 +1,10 @@
 # Developer guide — Class Calendar Multi User
 
-Quick reference for editing this repo and pushing updates. Teachers use [FOR TEACHERS.md](FOR TEACHERS.md); production setup uses [CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md).
+Quick reference for editing this repo and pushing updates. Teachers use [FOR TEACHERS.md](FOR%20TEACHERS.md) and [FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md); in-app Help is in `howto.js`. Production setup uses [CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md).
 
 ## Local setup
+
+**Preview requires the server** — opening HTML files directly (or static-only preview) will not load team calendars or save data. Always use `npm start` and http://localhost:8080.
 
 1. `.env` should exist (copy from `.env.example` if missing).
 2. Keep `ALLOW_OPEN_ACCESS=1` for login-free local dev (never use in production).

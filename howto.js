@@ -3,7 +3,7 @@
     const GUIDE = {
         en: {
             title: 'Help — Class Calendar Planner',
-            intro: 'This app builds a term calendar for your classes: lesson days, holidays, deadlines, syllabus tables, and printouts. Everything is organized in tabs at the top. Use this guide in order when you are new, or jump to a section you need.',
+            intro: 'This app builds a term calendar for your classes: lesson days, holidays, deadlines, syllabus tables, and printouts. Everything is organized in tabs at the top. When your school uses the team cloud link, you also share calendars with colleagues (sections 15–18). Use this guide in order when you are new, or jump to a section you need.',
             sections: [
                 {
                     heading: '1. The tabs',
@@ -157,7 +157,8 @@
                     steps: [
                         'Export downloads a .json file with all classes, events, settings, syllabus tables, and custom class types.',
                         'Import lets you pick a previously exported .json file to restore a calendar (replaces current data after confirmation).',
-                        'Use Export before clearing data or moving to another computer.'
+                        'Use Export before clearing data or moving to another computer.',
+                        'Team mode: Export is still useful as a personal backup copy. Import can replace the current team calendar or create a new one from the file — if another teacher is editing, you must Request to edit first or choose Create new (see section 17).'
                     ]
                 },
                 {
@@ -165,14 +166,66 @@
                     where: 'Data tab → Clear All Data (red button)',
                     steps: [
                         'Removes all classes and events from this browser.',
-                        'Export first if you might need the data later.'
+                        'Export first if you might need the data later.',
+                        'Team mode: this clears only what you see locally until the next reload; prefer admin Remove calendar or edit the shared calendar on the server.'
+                    ]
+                },
+                {
+                    heading: '15. Sign in and your account (team)',
+                    where: 'School bookmark → login page → header after sign-in',
+                    steps: [
+                        'Open the team URL your school gave you in the browser (bookmark it). Do not double-click index.html from a folder.',
+                        'Click Login with Kakao. Your lead teacher must add your email on the Admin page before Kakao sign-in works.',
+                        'If you see Access not granted, send the email shown on screen to your admin. You do not need to look up your Kakao ID.',
+                        'Password fallback: only if your admin gave you email + temporary password — use the form below Kakao on the login page.',
+                        'After sign-in: Change password in the header (min 8 characters) if you use password login.',
+                        'Sign out from the header when finished. On shared PCs the site signs you out after idle time (admin sets minutes; default 30 with a 2-minute warning). Move the mouse or press a key when warned to stay signed in.'
+                    ]
+                },
+                {
+                    heading: '16. Team calendars (cloud save)',
+                    where: 'Header — Team calendar row (when signed in)',
+                    steps: [
+                        'Pick a calendar from the Team calendar dropdown, or click + New to create one.',
+                        'Rename using Calendar name (saved) on the Calendar tab — the name updates for everyone.',
+                        'Edits auto-save to the server. Watch the status line (Saved, Saving…, etc.).',
+                        'Backup runs a server-side backup. Export in the header still downloads a .json file to your computer.',
+                        'If Someone else saved a newer version appears, click Reload latest to load their changes.',
+                        'When creating a calendar (+ New), check which teachers and/or groups may open it. You are always included. Admins can open every calendar.',
+                        'Remove deletes a team calendar — admins only.'
+                    ]
+                },
+                {
+                    heading: '17. Editing together (edit lock)',
+                    where: 'Header — lock icon and label next to Team calendar',
+                    steps: [
+                        'Only one person should edit at a time. The lock icon shows who may change the calendar.',
+                        'Nobody editing: click Start editing to take the lock.',
+                        'You are editing: make changes; click Release lock when done so others can edit.',
+                        'Someone else is editing: the calendar is read-only for you. Click Request to edit and wait. They see Allow or Dismiss.',
+                        'If you requested: wait until they Allow (you can edit) or Dismiss (try again later).',
+                        'If you are editing and someone requested: Allow hands them the lock after your pending save finishes, or Dismiss to keep editing.',
+                        'There is no force takeover — only Allow, Release, or admin lock timeout (inactive lock expires after admin-set minutes, default 20).',
+                        'Signing out releases any lock you hold.'
+                    ]
+                },
+                {
+                    heading: '18. Admin: teachers, groups, and access (technical)',
+                    where: 'admin.html — Admin link in header (admins only)',
+                    steps: [
+                        'Teachers & admins: add users by email; optional temporary password; Reset password anytime. Roles: teacher or admin. Deactivate blocks sign-in; Reactivate restores; Delete permanently only for deactivated accounts.',
+                        'Groups: put teachers in named groups, then assign groups to calendars.',
+                        'Calendar access: pick a calendar, check teachers (direct) and/or groups. Admins always see every calendar. Teachers only see calendars they are assigned to (or create).',
+                        'Security & lock settings: lock expires after N minutes of no lock activity; idle sign-out and warning minutes for inactive browsers.',
+                        'First-time setup: when no admin exists, use the bootstrap secret from server config once, then add teachers.',
+                        'Privilege summary — Teacher: assigned calendars only; cannot delete team calendars; no Admin page. Admin: all calendars; can Remove calendars; full Admin page.'
                     ]
                 }
             ]
         },
         ko: {
             title: '도움말 — Class Calendar Planner',
-            intro: '이 앱은 학기 캘린더를 만듭니다. 수업일, 공휴일, 마감일, 강의 계획표, 인쇄까지 한곳에서 관리할 수 있습니다. 상단 탭으로 기능이 나뉩니다. 처음에는 아래 순서대로, 필요한 항목만 골라 읽어도 됩니다.',
+            intro: '이 앱은 학기 캘린더를 만듭니다. 수업일, 공휴일, 마감일, 강의 계획표, 인쇄까지 한곳에서 관리할 수 있습니다. 상단 탭으로 기능이 나뉩니다. 학교 팀 클라우드 링크를 쓰면 동료와 캘린더를 공유합니다(15–18절). 처음에는 아래 순서대로, 필요한 항목만 골라 읽어도 됩니다.',
             sections: [
                 {
                     heading: '1. 탭',
@@ -325,7 +378,8 @@
                     steps: [
                         'Export는 모든 수업, 이벤트, 설정, 강의 계획표, 사용자 정의 수업 유형이 담긴 .json 파일을 다운로드합니다.',
                         'Import는 이전에 보낸 .json 파일을 선택해 캘린더를 복원합니다 (확인 후 현재 데이터를 대체).',
-                        '데이터 삭제나 다른 PC로 옮기기 전에 Export 하세요.'
+                        '데이터 삭제나 다른 PC로 옮기기 전에 Export 하세요.',
+                        '팀 모드: Export는 개인 백업용으로 계속 유용합니다. Import는 현재 팀 캘린더를 바꾸거나 파일로 새 캘린더를 만들 수 있습니다. 다른 선생님이 편집 중이면 먼저 편집 요청을 하거나 새로 만들기를 선택하세요(17절).'
                     ]
                 },
                 {
@@ -333,7 +387,59 @@
                     where: 'Data 탭 → Clear All Data (빨간 버튼)',
                     steps: [
                         '이 브라우저의 모든 수업과 이벤트를 삭제합니다.',
-                        '나중에 필요할 수 있으면 먼저 Export 하세요.'
+                        '나중에 필요할 수 있으면 먼저 Export 하세요.',
+                        '팀 모드: 로컬 화면만 지워질 수 있으며, 다음 불러오기 시 서버 데이터가 다시 나타납니다. 공유 캘린더 삭제는 관리자 Remove를 사용하세요.'
+                    ]
+                },
+                {
+                    heading: '15. 로그인 및 계정 (팀)',
+                    where: '학교 북마크 → 로그인 페이지 → 로그인 후 헤더',
+                    steps: [
+                        '학교에서 준 팀 URL을 브라우저에서 여세요(북마크 권장). 폴더의 index.html을 더블클릭하지 마세요.',
+                        'Login with Kakao를 클릭하세요. 카카오 로그인 전에 관리자가 Admin에서 이메일을 등록해야 합니다.',
+                        'Access not granted가 보이면 화면의 이메일을 관리자에게 보내세요. 카카오 ID를 직접 찾을 필요는 없습니다.',
+                        '비밀번호 로그인: 관리자가 이메일과 임시 비밀번호를 준 경우에만 카카오 아래 양식을 사용하세요.',
+                        '로그인 후: 비밀번호 로그인을 쓰면 헤더의 Change password로 변경할 수 있습니다(8자 이상).',
+                        '끝나면 Sign out하세요. 공용 PC에서는 일정 시간 동안 입력이 없으면 자동 로그아웃됩니다(관리자 설정, 기본 30분, 2분 전 경고). 경고가 뜨면 마우스를 움직이거나 키를 눌러 유지하세요.'
+                    ]
+                },
+                {
+                    heading: '16. 팀 캘린더 (클라우드 저장)',
+                    where: '헤더 — 팀 캘린더 줄 (로그인 후)',
+                    steps: [
+                        '팀 캘린더 목록에서 선택하거나 + 새로 만들기로 만드세요.',
+                        'Calendar 탭의 캘린더 이름(저장됨)으로 이름을 바꾸면 모두에게 반영됩니다.',
+                        '수정 내용은 서버에 자동 저장됩니다. 상태 줄(Saved, Saving… 등)을 확인하세요.',
+                        'Backup은 서버 백업입니다. 헤더 Export는 PC로 .json을 받습니다.',
+                        '다른 사람이 더 최신 버전을 저장했다는 배너가 뜨면 Reload latest를 누르세요.',
+                        '+ 새로 만들기 때 접근할 선생님·그룹을 선택하세요. 본인은 항상 포함됩니다. 관리자는 모든 캘린더를 볼 수 있습니다.',
+                        'Remove는 팀 캘린더 삭제 — 관리자만 가능합니다.'
+                    ]
+                },
+                {
+                    heading: '17. 함께 편집하기 (편집 잠금)',
+                    where: '헤더 — 팀 캘린더 옆 잠금 아이콘',
+                    steps: [
+                        '한 번에 한 명만 편집해야 합니다. 잠금 아이콘이 누가 수정할 수 있는지 보여 줍니다.',
+                        '아무도 편집 중이 아님: 편집 시작을 눌러 잠금을 잡으세요.',
+                        '편집 중: 수정 후 끝나면 잠금 해제를 눌러 다른 사람이 편집할 수 있게 하세요.',
+                        '다른 사람이 편집 중: 읽기 전용입니다. 편집 요청을 누르고 기다리세요. 상대는 허용 또는 거절을 봅니다.',
+                        '요청을 보냈으면: 허용될 때까지 기다리거나 거절되면 나중에 다시 요청하세요.',
+                        '편집 중인데 요청이 오면: 허용(대기 중 저장 후 상대에게 잠금) 또는 거절(계속 편집).',
+                        '강제로 빼앗을 수 없습니다 — 허용, 잠금 해제, 관리자 설정 시간 후 잠금 만료(기본 20분)만 가능합니다.',
+                        '로그아웃하면 본인이 잡은 잠금이 해제됩니다.'
+                    ]
+                },
+                {
+                    heading: '18. 관리자: 선생님, 그룹, 접근 권한 (기술)',
+                    where: 'admin.html — 헤더 Admin 링크 (관리자만)',
+                    steps: [
+                        'Teachers & admins: 이메일로 추가, 선택적 임시 비밀번호, Reset password. 역할 teacher/admin. Deactivate는 로그인 차단, Reactivate 복구, Delete permanently는 비활성 계정만.',
+                        'Groups: 선생님을 그룹으로 묶고 캘린더에 그룹을 지정합니다.',
+                        'Calendar access: 캘린더 선택 후 선생님(직접)·그룹 체크. 관리자는 모든 캘린더. teacher는 지정된 캘린더(또는 본인이 만든 것)만.',
+                        'Security & lock settings: 잠금 활동 없을 때 만료 분, 유휴 자동 로그아웃·경고 분.',
+                        'First-time setup: 관리자가 없을 때 서버 bootstrap secret으로 한 번 생성 후 선생님 추가.',
+                        '권한 요약 — Teacher: 지정 캘린더만, 팀 캘린더 삭제 불가, Admin 없음. Admin: 모든 캘린더, Remove 가능, Admin 전체.'
                     ]
                 }
             ]

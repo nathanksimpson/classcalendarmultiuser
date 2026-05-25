@@ -274,9 +274,7 @@
         return document.getElementById('booksEditorModal');
     }
 
-    function renderEditorTable(bookId) {
-        const tbody = document.getElementById('booksEditorTableBody');
-        const meta = document.getElementById('booksEditorMeta');
+    function renderEditorTableInto(bookId, tbody, meta) {
         if (!tbody || !meta) {
             return;
         }
@@ -306,8 +304,15 @@
         });
     }
 
-    function collectEditorRows() {
-        const tbody = document.getElementById('booksEditorTableBody');
+    function renderEditorTable(bookId) {
+        renderEditorTableInto(
+            bookId,
+            document.getElementById('booksEditorTableBody'),
+            document.getElementById('booksEditorMeta')
+        );
+    }
+
+    function collectEditorRowsFromTbody(tbody) {
         if (!tbody) {
             return [];
         }
@@ -319,6 +324,125 @@
                 planDetail: tr.querySelector('.books-ed-detail')?.value || ''
             };
         }).filter((r) => r.sessionNumber > 0);
+    }
+
+    function collectEditorRows() {
+        return collectEditorRowsFromTbody(document.getElementById('booksEditorTableBody'));
+    }
+
+    let fullPageEditingBookId = null;
+    let fullPageAfterSave = null;
+
+    function renderFullPageEditor(mountEl, bookId, options) {
+        if (!mountEl || !bookId) {
+            return;
+        }
+        fullPageEditingBookId = bookId;
+        fullPageAfterSave = options && typeof options.onSaved === 'function' ? options.onSaved : null;
+        const book = getBookById(bookId, getAppData());
+        if (!book) {
+            mountEl.innerHTML = '';
+            return;
+        }
+        mountEl.innerHTML = `
+          <div class="books-editor-fullpage">
+            <div id="workspaceBooksEditorMeta" class="books-editor-meta"></div>
+            <p class="section-hint workspace-books-feed-hint" data-i18n="workspaceBooksFeedHint">Pages / detail here feed class syllabi when you refresh from calendar. Homework copy uses syllabus rows.</p>
+            <div class="books-editor-toolbar"><span data-i18n="booksEditorSessionsHeading">Sessions</span></div>
+            <div class="books-editor-table-wrap workspace-books-table-wrap">
+              <table class="books-editor-table">
+                <thead><tr>
+                  <th class="books-col-num">#</th>
+                  <th data-i18n="booksEditorColPlan">Lesson plan</th>
+                  <th data-i18n="booksEditorColPages">Pages / detail</th>
+                </tr></thead>
+                <tbody id="workspaceBooksEditorTableBody"></tbody>
+              </table>
+            </div>
+            <div class="form-actions books-editor-actions">
+              <button type="button" id="workspaceBooksEditorResetBtn" class="btn btn-outline" data-i18n="booksEditorReset">Reset to factory</button>
+              <button type="button" id="workspaceBooksEditorSaveBtn" class="btn btn-primary" data-i18n="booksEditorSave">Save book</button>
+            </div>
+            <p id="workspaceBooksAfterSaveHint" class="section-hint workspace-books-after-save" hidden></p>
+          </div>`;
+        if (typeof hooks.applyLanguage === 'function') {
+            hooks.applyLanguage();
+        }
+        renderEditorTableInto(
+            bookId,
+            document.getElementById('workspaceBooksEditorTableBody'),
+            document.getElementById('workspaceBooksEditorMeta')
+        );
+        if (mountEl.dataset.fullPageBound !== '1') {
+            mountEl.dataset.fullPageBound = '1';
+            mountEl.addEventListener('click', (e) => {
+                if (e.target.id === 'workspaceBooksEditorSaveBtn' && fullPageEditingBookId) {
+                    const rows = collectEditorRowsFromTbody(
+                        document.getElementById('workspaceBooksEditorTableBody')
+                    );
+                    if (!rows.length) {
+                        alert(hooks.t('booksEditorNoRows'));
+                        return;
+                    }
+                    saveBookTemplates(fullPageEditingBookId, rows, getAppData());
+                    renderEditorTableInto(
+                        fullPageEditingBookId,
+                        document.getElementById('workspaceBooksEditorTableBody'),
+                        document.getElementById('workspaceBooksEditorMeta')
+                    );
+                    const hint = document.getElementById('workspaceBooksAfterSaveHint');
+                    if (hint) {
+                        hint.hidden = false;
+                        hint.textContent = hooks.t('workspaceBooksSavedRefresh');
+                    }
+                    if (fullPageAfterSave) {
+                        fullPageAfterSave(fullPageEditingBookId);
+                    }
+                }
+                if (e.target.id === 'workspaceBooksEditorResetBtn' && fullPageEditingBookId) {
+                    if (!confirm(hooks.t('booksEditorResetConfirm'))) {
+                        return;
+                    }
+                    resetBookToFactory(fullPageEditingBookId, getAppData());
+                    renderEditorTableInto(
+                        fullPageEditingBookId,
+                        document.getElementById('workspaceBooksEditorTableBody'),
+                        document.getElementById('workspaceBooksEditorMeta')
+                    );
+                }
+            });
+        }
+    }
+
+    function renderFullPageBookList(listEl, selectedBookId) {
+        if (!listEl) {
+            return;
+        }
+        const appData = getAppData();
+        const books = discoverBooks(appData);
+        listEl.innerHTML = '';
+        books.forEach((book) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className =
+                'workspace-book-list-item' + (book.id === selectedBookId ? ' is-selected' : '');
+            btn.dataset.bookId = book.id;
+            const title = document.createElement('span');
+            title.className = 'workspace-book-list-title';
+            title.textContent = book.name;
+            const meta = document.createElement('span');
+            meta.className = 'workspace-book-list-meta section-hint';
+            meta.textContent = hooks.t('booksListSessions').replace('{n}', String(book.sessionCount));
+            btn.appendChild(title);
+            btn.appendChild(meta);
+            if (book.hasOverride) {
+                const badge = document.createElement('span');
+                badge.className = 'print-books-edited-badge';
+                badge.textContent = hooks.t('booksListEdited');
+                btn.appendChild(badge);
+            }
+            listEl.appendChild(btn);
+        });
     }
 
     function openBookEditor(bookId) {
@@ -347,6 +471,11 @@
                 openBookEditor(bookId);
             }
         });
+        const booksModal = ensureModalDom();
+        if (booksModal && booksModal.dataset.backdropBound !== '1' && typeof hooks.bindModalBackdropClose === 'function') {
+            booksModal.dataset.backdropBound = '1';
+            hooks.bindModalBackdropClose(booksModal);
+        }
         document.addEventListener('click', (e) => {
             const closeBtn = e.target.closest('#closeBooksEditorModal');
             const modal = document.getElementById('booksEditorModal');
@@ -459,6 +588,10 @@
         renderPrintBooksList,
         bindEditorUI,
         openBookEditor,
-        deriveBookKey
+        deriveBookKey,
+        renderFullPageEditor,
+        renderFullPageBookList,
+        getBookById,
+        discoverBooks
     };
 })(typeof window !== 'undefined' ? window : globalThis);

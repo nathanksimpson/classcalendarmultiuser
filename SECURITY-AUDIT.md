@@ -38,6 +38,7 @@ The app is a multi-teacher calendar with Kakao OAuth, SQLite (local) / D1 (produ
 
 ## Low / hygiene
 
+- **Client idle logout (implemented 2026-05-28):** Admin-configurable idle sign-out (`idle_logout_minutes`, `idle_warning_minutes` in `app_settings`, default 30 / 2) via Admin → Security & lock settings; enforced in [`js/team-auth.js`](js/team-auth.js); calendar/admin API calls blocked when not signed in.
 - Log sensitive fields (passwords, tokens) — ensure redaction.
 - D1 / SQLite backups — encrypt at rest where stored.
 - Dependency audit — `npm audit` periodically.
@@ -59,7 +60,7 @@ The app is a multi-teacher calendar with Kakao OAuth, SQLite (local) / D1 (produ
 
 1. Password policy (min length, breach check optional).
 2. **TOTP** for admin (and optionally all teachers).
-3. Session rotation on login; idle timeout.
+3. Session rotation on login; server-side idle session expiry (client idle logout done).
 4. Structured audit log for admin actions (user create, calendar delete, force lock).
 
 ### Phase 2 — Kakao removal (planned)

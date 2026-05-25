@@ -14,9 +14,19 @@ Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps
 
 After starting a session: `git pull origin main` in the project folder.
 
+## Local preview (required for real data)
+
+**Do not open `index.html` / `workspace.html` as a file or with Live Server only** — team calendars, login, and saves need the API.
+
+1. `.env` with `ALLOW_OPEN_ACCESS=1` (local dev only).
+2. `npm start` → http://localhost:8080 (default port **8080**).
+3. Hard refresh (Ctrl+F5) after script/CSS changes.
+
+Without `npm start`, the app cannot load or save calendar data.
+
 ## Deploy (required for production)
 
-1. Test locally: `npm start` (`.env` with `ALLOW_OPEN_ACCESS=1`).
+1. Test locally via `npm start` when possible (see above).
 2. API changes: update **both** `server/` and `worker/src/`.
 3. Bump `?v=` on changed scripts in `index.html` (`app.js`, `js/calendar-sync.js`, `js/team-auth.js`).
 4. `npm run deploy` — **git push alone does not update the live site.**

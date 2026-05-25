@@ -4,25 +4,101 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — Class Calendar</title>
-    <link rel="stylesheet" href="styles.css?v=20260526-ui-review">
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('calendarTheme');
+                if (theme === 'dark' || theme === 'light') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    document.documentElement.style.colorScheme = theme;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260527-notify">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         .admin-page { max-width: 900px; margin: 2rem auto; padding: 0 1rem 3rem; }
+        .admin-page h1,
+        .admin-page h2,
+        .admin-page h3 { color: var(--text-primary); }
         .admin-page h1 { margin-bottom: 0.25rem; }
-        .admin-hint { color: var(--text-muted, #64748b); margin-bottom: 1.5rem; }
+        .admin-hint { color: var(--text-muted); margin-bottom: 1.5rem; }
+        .admin-nav {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .admin-nav a { color: var(--primary); }
+        .admin-nav-spacer { flex: 1 1 auto; min-width: 0.5rem; }
         .admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        .admin-table th, .admin-table td { border-bottom: 1px solid var(--border-color, #e2e8f0); padding: 0.5rem; text-align: left; vertical-align: top; }
-        .admin-form { display: grid; gap: 0.5rem; margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; }
-        .admin-form input, .admin-form select { padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; max-width: 100%; }
-        .badge-inactive { color: #b91c1c; }
-        .admin-nav { margin-bottom: 1rem; }
+        .admin-table th,
+        .admin-table td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.5rem;
+            text-align: left;
+            vertical-align: top;
+            color: var(--text-primary);
+        }
+        .admin-table th { color: var(--text-secondary); font-weight: 600; }
+        .admin-form {
+            display: grid;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+        }
+        .admin-form label { color: var(--text-primary); }
+        .admin-form input,
+        .admin-form select {
+            padding: 0.45rem 0.6rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            max-width: 100%;
+        }
+        .admin-form fieldset {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+        }
+        .admin-form legend { color: var(--text-secondary); }
+        .badge-inactive { color: var(--status-error-color); }
         .admin-section { margin-top: 2.5rem; }
         .admin-section h2 { font-size: 1.15rem; margin: 0 0 0.5rem; }
         .admin-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
         #resetPasswordModal .modal-content {
             max-height: min(90vh, 100dvh - 2rem);
         }
-        .admin-checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.35rem; max-height: 12rem; overflow-y: auto; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 6px; margin: 0.5rem 0; }
-        .admin-checkbox-grid label { font-size: 0.85rem; display: flex; gap: 0.35rem; align-items: center; }
+        .admin-checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.35rem;
+            max-height: 12rem;
+            overflow-y: auto;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin: 0.5rem 0;
+            background: var(--surface-muted);
+        }
+        .admin-checkbox-grid label {
+            font-size: 0.85rem;
+            display: flex;
+            gap: 0.35rem;
+            align-items: center;
+            color: var(--text-primary);
+        }
         .admin-notice {
             display: none;
             margin: 0 0 1rem;
@@ -34,154 +110,178 @@
         }
         .admin-notice.admin-notice--visible { display: block; }
         .admin-notice--success {
-            color: #047857;
-            background: #ecfdf5;
-            border: 1px solid #a7f3d0;
+            color: var(--status-success-color);
+            background: var(--status-success-bg);
+            border: 1px solid var(--status-success-border);
         }
         .admin-notice--error {
-            color: #b91c1c;
-            background: #fef2f2;
-            border: 1px solid #fecaca;
+            color: var(--status-error-color);
+            background: var(--status-error-bg);
+            border: 1px solid var(--status-error-border);
         }
-        [data-theme="dark"] .admin-notice--success {
-            color: #6ee7b7;
-            background: #064e3b;
-            border-color: #059669;
+        #bootstrapBox code {
+            background: var(--surface-elevated);
+            color: var(--text-primary);
+            padding: 0.1em 0.35em;
+            border-radius: 4px;
+            font-size: 0.9em;
         }
-        [data-theme="dark"] .admin-notice--error {
-            color: #fca5a5;
-            background: #450a0a;
-            border-color: #991b1b;
+        .admin-lock-label {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem 0.5rem;
+        }
+        .admin-lock-label input[type="number"] {
+            width: 4.5rem;
         }
     </style>
 </head>
 <body>
     <div class="admin-page">
-        <p class="admin-nav" id="adminNav"><a href="/">← Back to calendar</a> · <a href="login.html" id="adminSignInLink">Sign in</a></p>
-        <h1>Admin</h1>
-        <p class="admin-hint">Manage teachers, groups, and which calendars each person can open.</p>
+        <p class="admin-nav" id="adminNav">
+            <a href="/" data-i18n="backToCalendar">← Back to calendar</a>
+            <span aria-hidden="true">·</span>
+            <a href="login.html" id="adminSignInLink" data-i18n="signIn">Sign in</a>
+            <span class="admin-nav-spacer" aria-hidden="true"></span>
+            <button type="button" id="adminLangToggle" class="btn btn-outline btn-small btn-lang" data-i18n-title="langToggleTitle" title="Switch to Korean">🌐 한국어</button>
+            <button type="button" id="adminThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
+        </p>
+        <h1 data-i18n="adminHeading">Admin</h1>
+        <p class="admin-hint" data-i18n="adminIntro">Manage teachers, groups, and which calendars each person can open.</p>
         <div id="adminNotice" class="admin-notice" role="status" aria-live="polite" hidden></div>
         <p id="adminStatus" class="admin-hint"></p>
 
         <section class="admin-section" id="lockSettingsSection" hidden>
-            <h2>Lock settings</h2>
-            <p class="admin-hint">If a teacher closes the browser without releasing the edit lock, others can start editing after this many minutes of no lock activity.</p>
+            <h2 data-i18n="lockSettingsHeading">Security &amp; lock settings</h2>
+            <p class="admin-hint" data-i18n="lockSettingsHint">Control edit-lock expiry and automatic sign-out when a teacher is inactive (no mouse, keyboard, or touch).</p>
             <form class="admin-form" id="lockSettingsForm" style="max-width: 28rem;">
-                <label>
-                    Lock expires after
+                <label class="admin-lock-label">
+                    <span data-i18n="lockExpiresLabel">Lock expires after</span>
                     <input type="number" id="lockStaleMinutesInput" min="5" max="120" step="1" value="20" required>
-                    minutes of no activity
+                    <span data-i18n="lockExpiresSuffix">minutes of no lock activity</span>
                 </label>
-                <button type="submit" class="btn btn-primary">Save lock settings</button>
+                <label class="admin-lock-label">
+                    <span data-i18n="idleLogoutLabel">Sign out after</span>
+                    <input type="number" id="idleLogoutMinutesInput" min="5" max="240" step="1" value="30" required>
+                    <span data-i18n="idleLogoutSuffix">minutes idle</span>
+                </label>
+                <label class="admin-lock-label">
+                    <span data-i18n="idleWarningLabel">Idle warning</span>
+                    <input type="number" id="idleWarningMinutesInput" min="1" max="60" step="1" value="2" required>
+                    <span data-i18n="idleWarningSuffix">minutes before sign-out</span>
+                </label>
+                <button type="submit" class="btn btn-primary" data-i18n="saveSettings">Save settings</button>
             </form>
         </section>
 
         <section class="admin-section" id="usersSection" hidden>
-            <h2>Teachers &amp; admins</h2>
-            <p class="admin-hint">Add teachers by <strong>email</strong>. They sign in with Kakao or a password you set. Use <strong>Reset password</strong> anytime to set a new temp password (they must sign in again).</p>
-            <p class="admin-hint"><strong>Deactivate</strong> blocks sign-in and signs them out. Use <strong>Reactivate</strong> to restore access. <strong>Delete permanently</strong> (deactivated accounts only) removes the user from the database and cannot be undone.</p>
+            <h2 data-i18n="usersHeading">Teachers &amp; admins</h2>
+            <p class="admin-hint" data-i18n="usersHint1">Add teachers by email. They sign in with Kakao or a password you set. Use Reset password anytime to set a new temp password (they must sign in again).</p>
+            <p class="admin-hint" data-i18n="usersHint2">Deactivate blocks sign-in and signs them out. Use Reactivate to restore access. Delete permanently (deactivated accounts only) removes the user from the database and cannot be undone.</p>
             <table class="admin-table" id="usersTable">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th data-i18n="thName">Name</th>
+                        <th data-i18n="thEmail">Email</th>
+                        <th data-i18n="thRole">Role</th>
+                        <th data-i18n="thStatus">Status</th>
+                        <th data-i18n="thActions">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="usersBody"></tbody>
             </table>
 
             <form class="admin-form" id="addUserForm">
-                <h3 style="margin:0;font-size:1rem;">Add teacher</h3>
-                <label>Display name <input type="text" id="newDisplayName" required></label>
-                <label>Email <input type="email" id="newEmail" required></label>
-                <label>Role
+                <h3 style="margin:0;font-size:1rem;" data-i18n="addTeacherHeading">Add teacher</h3>
+                <label><span data-i18n="displayName">Display name</span> <input type="text" id="newDisplayName" required></label>
+                <label><span data-i18n="email">Email</span> <input type="email" id="newEmail" required></label>
+                <label><span data-i18n="role">Role</span>
                     <select id="newRole">
                         <option value="teacher">Teacher</option>
                         <option value="admin">Admin</option>
                     </select>
                 </label>
-                <label>Optional temp password <input type="password" id="newPassword" autocomplete="new-password"></label>
-                <button type="submit" class="btn btn-primary">Add user</button>
+                <label><span data-i18n="optionalTempPassword">Optional temp password</span> <input type="password" id="newPassword" autocomplete="new-password"></label>
+                <button type="submit" class="btn btn-primary" data-i18n="addUser">Add user</button>
             </form>
         </section>
 
         <section class="admin-section" id="groupsSection" hidden>
-            <h2>Groups</h2>
-            <p class="admin-hint">Put teachers in groups, then assign groups to calendars when creating or editing access.</p>
+            <h2 data-i18n="groupsHeading">Groups</h2>
+            <p class="admin-hint" data-i18n="groupsHint">Put teachers in groups, then assign groups to calendars when creating or editing access.</p>
             <table class="admin-table" id="groupsTable">
                 <thead>
-                    <tr><th>Name</th><th>Members</th><th>Actions</th></tr>
+                    <tr><th data-i18n="thGroupName">Name</th><th data-i18n="thMembers">Members</th><th data-i18n="thActions">Actions</th></tr>
                 </thead>
                 <tbody id="groupsBody"></tbody>
             </table>
             <form class="admin-form" id="addGroupForm">
-                <h3 style="margin:0;font-size:1rem;">New group</h3>
-                <label>Group name <input type="text" id="newGroupName" required maxlength="80"></label>
+                <h3 style="margin:0;font-size:1rem;" data-i18n="newGroupHeading">New group</h3>
+                <label><span data-i18n="groupName">Group name</span> <input type="text" id="newGroupName" required maxlength="80"></label>
                 <fieldset>
-                    <legend>Members</legend>
+                    <legend data-i18n="membersLegend">Members</legend>
                     <div id="newGroupMembers" class="admin-checkbox-grid"></div>
                 </fieldset>
-                <button type="submit" class="btn btn-primary">Create group</button>
+                <button type="submit" class="btn btn-primary" data-i18n="createGroup">Create group</button>
             </form>
         </section>
 
         <section class="admin-section" id="calendarAccessSection" hidden>
-            <h2>Calendar access</h2>
-            <p class="admin-hint">Choose a calendar, then pick teachers and groups who may open it. Admins always see every calendar.</p>
+            <h2 data-i18n="calendarAccessHeading">Calendar access</h2>
+            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then pick teachers and groups who may open it. Admins always see every calendar.</p>
             <form class="admin-form" id="calendarAccessForm">
-                <label>Calendar
+                <label><span data-i18n="calendarLabel">Calendar</span>
                     <select id="accessCalendarSelect" required></select>
                 </label>
                 <fieldset>
-                    <legend>Teachers (direct access)</legend>
+                    <legend data-i18n="teachersDirectLegend">Teachers (direct access)</legend>
                     <div id="accessTeachersGrid" class="admin-checkbox-grid"></div>
                 </fieldset>
                 <fieldset>
-                    <legend>Groups</legend>
+                    <legend data-i18n="groupsLegend">Groups</legend>
                     <div id="accessGroupsGrid" class="admin-checkbox-grid"></div>
                 </fieldset>
-                <button type="submit" class="btn btn-primary">Save access</button>
+                <button type="submit" class="btn btn-primary" data-i18n="saveAccess">Save access</button>
             </form>
         </section>
 
         <div id="resetPasswordModal" class="modal" role="dialog" aria-labelledby="resetPasswordModalTitle" aria-modal="true">
             <div class="modal-content modal-small">
                 <div class="modal-header">
-                    <h2 id="resetPasswordModalTitle">Reset password</h2>
-                    <button type="button" class="modal-close" id="closeResetPasswordModal" aria-label="Close">&times;</button>
+                    <h2 id="resetPasswordModalTitle" data-i18n="resetPasswordTitle">Reset password</h2>
+                    <button type="button" class="modal-close" id="closeResetPasswordModal" data-i18n-aria="closeAria" aria-label="Close">&times;</button>
                 </div>
                 <p id="resetPasswordUserLabel" class="section-hint"></p>
                 <form id="resetPasswordForm">
                     <div class="form-group">
-                        <label for="resetPasswordNew">New password (min 8 characters)</label>
+                        <label for="resetPasswordNew" data-i18n="resetPasswordNew">New password (min 8 characters)</label>
                         <input type="password" id="resetPasswordNew" autocomplete="new-password" required minlength="8">
                     </div>
                     <div class="form-group">
-                        <label for="resetPasswordConfirm">Confirm new password</label>
+                        <label for="resetPasswordConfirm" data-i18n="resetPasswordConfirm">Confirm new password</label>
                         <input type="password" id="resetPasswordConfirm" autocomplete="new-password" required minlength="8">
                     </div>
                     <div class="form-actions">
-                        <button type="button" id="cancelResetPasswordBtn" class="btn btn-outline">Cancel</button>
-                        <button type="submit" id="submitResetPasswordBtn" class="btn btn-primary">Save password</button>
+                        <button type="button" id="cancelResetPasswordBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                        <button type="submit" id="submitResetPasswordBtn" class="btn btn-primary" data-i18n="savePassword">Save password</button>
                     </div>
                 </form>
             </div>
         </div>
 
         <section class="admin-form" id="bootstrapBox" style="display: none;">
-            <h2 style="margin:0;font-size:1.1rem;">First-time setup</h2>
-            <p>No admin exists yet. Use the bootstrap secret from your server <code>.env</code>.</p>
-            <label>Bootstrap secret <input type="password" id="bootstrapSecret"></label>
-            <label>Your email <input type="email" id="bootstrapEmail" required></label>
-            <label>Your name <input type="text" id="bootstrapName" value="Lead teacher"></label>
-            <label>Password (optional) <input type="password" id="bootstrapPassword"></label>
-            <button type="button" class="btn btn-primary" id="bootstrapBtn">Create admin account</button>
+            <h2 style="margin:0;font-size:1.1rem;" data-i18n="bootstrapHeading">First-time setup</h2>
+            <p data-i18n="bootstrapHint">No admin exists yet. Use the bootstrap secret from your server .env.</p>
+            <label><span data-i18n="bootstrapSecret">Bootstrap secret</span> <input type="password" id="bootstrapSecret"></label>
+            <label><span data-i18n="bootstrapEmail">Your email</span> <input type="email" id="bootstrapEmail" required></label>
+            <label><span data-i18n="bootstrapName">Your name</span> <input type="text" id="bootstrapName" value="Lead teacher"></label>
+            <label><span data-i18n="bootstrapPasswordOptional">Password (optional)</span> <input type="password" id="bootstrapPassword"></label>
+            <button type="button" class="btn btn-primary" id="bootstrapBtn" data-i18n="bootstrapCreate">Create admin account</button>
         </section>
     </div>
-    <script src="js/team-auth.js"></script>
-    <script src="js/admin.js"></script>
+    <script src="js/admin-i18n.js?v=20260528-admin-i18n"></script>
+    <script src="js/team-auth.js?v=20260528-idle-admin"></script>
+    <script src="js/admin.js?v=20260528-admin-i18n"></script>
 </body>
 </html>

@@ -51,7 +51,7 @@ const translations = {
         newCalendarFailed: 'Could not create calendar',
         duplicateCalendarName: 'A calendar named "{name}" already exists. Choose a different name.',
         teamDeleteCalendar: 'Remove',
-        teamCalendarHint: 'Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved team calendar.',
+        teamCalendarHint: 'Pick a calendar from the list, or click + New. Changes auto-save to the cloud. Edit Calendar Name below to rename. Open Help (sections 15–17) for sign-in, locks, and collaboration.',
         newCalendarCreating: 'Creating…',
         deleteCalendarRemoving: 'Removing…',
         teamCalendarNameLabel: 'Calendar name (saved):',
@@ -483,7 +483,26 @@ const translations = {
         homeworkTabSkippedHeading: 'Regular class days skipped before due date:',
         homeworkTabSkipHoliday: '{date} — {name} (no class)',
         homeworkTabSkipHolidayNoName: '{date} — holiday (no class)',
-        
+        workspaceTitle: 'Curriculum workspace',
+        workspaceBackCalendar: '← Back to calendar',
+        workspaceTabHomework: 'Homework copy',
+        workspaceTabBooks: 'Book editor',
+        workspaceOpen: 'Open expanded workspace',
+        workspaceOpenBooks: 'Open in workspace',
+        workspaceHomeworkFlowHint:
+            'Text comes from syllabus Pages / detail, which comes from the curriculum book. Edit the book, refresh syllabi, then copy here.',
+        workspaceBooksIntro:
+            'Edit shared page blocks for each curriculum book. Save, then refresh syllabi on the Homework copy tab.',
+        workspaceBooksPick: 'Select a book to edit session pages.',
+        workspaceSourceBook: 'Source book:',
+        workspaceEditBook: 'Edit book →',
+        workspaceBooksFeedHint:
+            'Pages / detail here feed class syllabi when you refresh from calendar. Homework copy uses syllabus rows.',
+        workspaceBooksSavedRefresh:
+            'Book saved. Use Refresh syllabi from calendar on the Homework copy tab to update copy text.',
+        workspaceRemoteNewer: 'Calendar was updated elsewhere.',
+        workspaceReload: 'Reload',
+
         // Holiday Modal
         addHolidayTitle: 'Add Holiday',
         editHoliday: 'Edit Holiday',
@@ -568,7 +587,7 @@ const translations = {
         importToNew: 'Create new team calendar from file',
         importOverwriteWarning: 'Replaces all data in this calendar. Export a backup first if unsure.',
         importOverwriteConfirm: 'Replace all data in "{name}" with the imported file? This cannot be undone.',
-        importReadOnlyHint: 'This calendar is locked by another teacher. Choose “Create new” or take over the lock first.',
+        importReadOnlyHint: 'This calendar is locked by another teacher. Request to edit first, or choose “Create new team calendar from file”.',
         importConfirm: 'Import',
         importImporting: 'Importing…',
         importNoActiveCalendar: 'No team calendar selected. Create a new calendar from the file instead.',
@@ -625,7 +644,7 @@ const translations = {
         newCalendarFailed: '캘린더를 만들지 못했습니다',
         duplicateCalendarName: '"{name}"(이)라는 이름의 캘린더가 이미 있습니다. 다른 이름을 사용하세요.',
         teamDeleteCalendar: '삭제',
-        teamCalendarHint: '목록에서 캘린더를 선택하거나 + 새로 만들기를 누르세요. 아래 캘린더 이름을 바꾸면 저장된 이름도 바뀝니다.',
+        teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·협업은 도움말 15–17절을 보세요.',
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
         teamSyncOffline: '팀 서버에 연결되지 않음',
@@ -1057,6 +1076,25 @@ const translations = {
         homeworkTabSkippedHeading: '마감 전에 건너뛴 정규 수업일:',
         homeworkTabSkipHoliday: '{date} — {name} (수업 없음)',
         homeworkTabSkipHolidayNoName: '{date} — 공휴일 (수업 없음)',
+        workspaceTitle: '커리큘럼 작업 공간',
+        workspaceBackCalendar: '← 캘린더로',
+        workspaceTabHomework: '숙제 복사',
+        workspaceTabBooks: '교재 편집',
+        workspaceOpen: '확장 작업 공간 열기',
+        workspaceOpenBooks: '작업 공간에서 열기',
+        workspaceHomeworkFlowHint:
+            '텍스트는 강의 계획표 Pages / detail에서 오며, 이는 교재에서 옵니다. 교재 편집 → 강의 계획표 새로고침 → 여기서 복사하세요.',
+        workspaceBooksIntro:
+            '교재별 공유 페이지 블록을 편집합니다. 저장 후 Homework copy 탭에서 강의 계획표를 새로고침하세요.',
+        workspaceBooksPick: '편집할 교재를 선택하세요.',
+        workspaceSourceBook: '원본 교재:',
+        workspaceEditBook: '교재 편집 →',
+        workspaceBooksFeedHint:
+            '여기의 Pages / detail은 캘린더에서 새로고침할 때 강의 계획표에 반영됩니다. 숙제 복사는 강의 계획표 행을 사용합니다.',
+        workspaceBooksSavedRefresh:
+            '교재가 저장되었습니다. Homework copy 탭에서 강의 계획표 새로고침을 실행하세요.',
+        workspaceRemoteNewer: '다른 곳에서 캘린더가 업데이트되었습니다.',
+        workspaceReload: '다시 불러오기',
         
         // Holiday Modal
         addHolidayTitle: '휴일 추가',
@@ -1142,7 +1180,7 @@ const translations = {
         importToNew: '파일로 새 팀 캘린더 만들기',
         importOverwriteWarning: '이 캘린더의 모든 데이터를 대체합니다. 확실하지 않으면 먼저보내기로 백업하세요.',
         importOverwriteConfirm: '"{name}"의 모든 데이터를 가져온 파일로 바꿀까요? 되돌릴 수 없습니다.',
-        importReadOnlyHint: '다른 선생님이 이 캘린더를 잠갔습니다. “새로 만들기”를 선택하거나 먼저 잠금을 가져오세요.',
+        importReadOnlyHint: '다른 선생님이 이 캘린더를 편집 중입니다. 먼저 편집 요청을 하거나 “파일에서 새 팀 캘린더 만들기”를 선택하세요.',
         importConfirm: '가져오기',
         importImporting: '가져오는 중…',
         importNoActiveCalendar: '선택된 팀 캘린더가 없습니다. 파일로 새 캘린더를 만드세요.',
@@ -2041,6 +2079,7 @@ function initBooksEditorModule() {
         applyLanguage,
         openModal,
         closeModal,
+        bindModalBackdropClose,
         onBooksSaved: () => {
             renderPrintSyllabusManager();
             if (window.CCPDefaultClassEditor) {
@@ -7053,6 +7092,7 @@ function renderHomeworkEditor() {
             .filter(Boolean)
             .join(' · ');
     }
+    renderHomeworkSourceBook(classData);
     const packet = computeHomeworkPacketForClass(classData);
     homeworkEditorState = { classId: classData.id, packet };
     if (gradingEl) {
@@ -7127,24 +7167,72 @@ async function copyTextToClipboard(text) {
     return ok;
 }
 
+const NOTIFY_MS_OUT = 360;
+
+function afterNotificationTransition(el, onDone) {
+    if (!el) {
+        onDone();
+        return;
+    }
+    let done = false;
+    const finish = () => {
+        if (done) {
+            return;
+        }
+        done = true;
+        el.removeEventListener('transitionend', onTransitionEnd);
+        onDone();
+    };
+    const onTransitionEnd = (e) => {
+        if (e.target === el && (e.propertyName === 'opacity' || e.propertyName === 'transform')) {
+            finish();
+        }
+    };
+    el.addEventListener('transitionend', onTransitionEnd);
+    window.setTimeout(finish, NOTIFY_MS_OUT + 80);
+}
+
+function dismissAppStatus(el) {
+    if (!el || !el.classList.contains('app-status-visible')) {
+        return;
+    }
+    el.classList.remove('app-status-visible');
+    afterNotificationTransition(el, () => {
+        el.classList.remove('app-status-error', 'app-status-lock');
+        el.textContent = '';
+    });
+}
+
 function setAppStatusMessage(message, isError, durationMs) {
     const el = document.getElementById('appStatus');
     if (!el || !message) {
         return;
     }
-    el.textContent = message;
-    el.className =
-        'app-status app-status-visible' +
-        (isError ? ' app-status-error' : '') +
-        (!isError ? ' app-status-lock' : '');
     if (setAppStatusMessage._timer) {
         clearTimeout(setAppStatusMessage._timer);
     }
-    const ms = typeof durationMs === 'number' ? durationMs : 5000;
-    setAppStatusMessage._timer = setTimeout(() => {
-        el.className = 'app-status';
-        el.textContent = '';
-    }, ms);
+    const apply = () => {
+        el.textContent = message;
+        el.className = 'app-status' + (isError ? ' app-status-error' : ' app-status-lock');
+        requestAnimationFrame(() => {
+            el.classList.add('app-status-visible');
+        });
+        const ms = typeof durationMs === 'number' ? durationMs : 5000;
+        setAppStatusMessage._timer = setTimeout(() => dismissAppStatus(el), ms);
+    };
+    if (el.classList.contains('app-status-visible')) {
+        el.textContent = message;
+        el.classList.toggle('app-status-error', !!isError);
+        el.classList.toggle('app-status-lock', !isError);
+        const ms = typeof durationMs === 'number' ? durationMs : 5000;
+        setAppStatusMessage._timer = setTimeout(() => dismissAppStatus(el), ms);
+        return;
+    }
+    if (el.textContent && !el.classList.contains('app-status-visible')) {
+        afterNotificationTransition(el, apply);
+        return;
+    }
+    apply();
 }
 
 function showHomeworkCopyStatus(ok) {
@@ -7653,7 +7741,102 @@ function warnIfOpenedFromNetworkFile() {
     }
 }
 
+function getBookIdForClass(classData) {
+    if (!classData || !window.CCPBooksEditor || !window.CCPBooksEditor.deriveBookKey) {
+        return null;
+    }
+    const def = getClassTypeDefinitionById(classData.classTypeId);
+    if (def) {
+        return window.CCPBooksEditor.deriveBookKey(def);
+    }
+    return null;
+}
+
+function getBookIdForSelectedHomeworkClass() {
+    ensureUiState();
+    const classId = appData.ui.homeworkTabClassId;
+    if (!classId) {
+        return null;
+    }
+    const classData = appData.classes.find((c) => c.id === classId);
+    return classData ? getBookIdForClass(classData) : null;
+}
+
+function renderHomeworkSourceBook(classData) {
+    const row = document.getElementById('homeworkSourceBookRow');
+    const nameEl = document.getElementById('homeworkSourceBookName');
+    const editBtn = document.getElementById('homeworkEditBookBtn');
+    if (!row || !nameEl) {
+        return;
+    }
+    const bookId = getBookIdForClass(classData);
+    if (!bookId || !window.CCPBooksEditor) {
+        row.hidden = true;
+        return;
+    }
+    const book = window.CCPBooksEditor.getBookById(bookId, appData);
+    row.hidden = false;
+    nameEl.textContent = book ? book.name : bookId;
+    if (editBtn) {
+        editBtn.dataset.bookId = bookId;
+    }
+}
+
+function openWorkspacePage(tab, bookId) {
+    const params = new URLSearchParams();
+    params.set('tab', tab === 'books' ? 'books' : 'homework');
+    if (bookId) {
+        params.set('book', String(bookId));
+    }
+    if (typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
+        const calId = CalendarSync.getActiveCalendarId();
+        if (calId) {
+            try {
+                localStorage.setItem('teamCalendarActiveId', calId);
+            } catch (_) {
+                /* ignore */
+            }
+        }
+    }
+    window.open('/workspace.html?' + params.toString(), '_blank', 'noopener');
+}
+
+async function reloadWorkspaceCalendar() {
+    if (typeof CalendarSync === 'undefined' || !teamSyncEnabled) {
+        return;
+    }
+    const id = CalendarSync.getActiveCalendarId();
+    if (!id) {
+        return;
+    }
+    const doc = await CalendarSync.loadCalendar(id);
+    applyServerDocument(doc);
+    if (typeof renderHomeworkClassList === 'function') {
+        renderHomeworkClassList();
+    }
+    if (typeof renderHomeworkEditor === 'function') {
+        renderHomeworkEditor();
+    }
+    const banner = document.getElementById('workspaceRemoteBanner');
+    if (banner) {
+        banner.hidden = true;
+    }
+    CalendarSync.state.remoteNewer = false;
+    const label = document.getElementById('workspaceCalendarLabel');
+    if (label) {
+        label.textContent = appData.calendarName || '';
+    }
+    setAppStatusMessage(t('syncReload') || 'Reloaded', false);
+}
+
+if (typeof window !== 'undefined') {
+    window.openWorkspacePage = openWorkspacePage;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    if (document.body.classList.contains('workspace-page')) {
+        return;
+    }
     ensureClassFormExtendedMarkup();
     repairCorruptedLangToggleButton();
     setupTeamLockButtons();
@@ -7718,6 +7901,17 @@ function initializeTermStart() {
 // Event Listeners Setup
 // ============================================
 function setupEventListeners() {
+    const openWsHomework = document.getElementById('openWorkspaceHomeworkBtn');
+    if (openWsHomework && openWsHomework.dataset.bound !== '1') {
+        openWsHomework.dataset.bound = '1';
+        openWsHomework.addEventListener('click', () => openWorkspacePage('homework'));
+    }
+    const openWsBooks = document.getElementById('openWorkspaceBooksBtn');
+    if (openWsBooks && openWsBooks.dataset.bound !== '1') {
+        openWsBooks.dataset.bound = '1';
+        openWsBooks.addEventListener('click', () => openWorkspacePage('books'));
+    }
+
     // Calendar Name Change
     elements.calendarName.addEventListener('input', (e) => {
         appData.calendarName = e.target.value;
@@ -7977,9 +8171,28 @@ function setupEventListeners() {
 // ============================================
 // Modal Functions
 // ============================================
+const EXCLUSIVE_MODAL_IDS = [
+    'booksEditorModal',
+    'defaultClassEditorModal',
+    'howToModal',
+    'changePasswordModal'
+];
+
+function closeExclusiveModalsExcept(keepModal) {
+    EXCLUSIVE_MODAL_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el !== keepModal && el.classList.contains('active')) {
+            closeModal(el);
+        }
+    });
+}
+
 function openModal(modal) {
     if (!modal) {
         return;
+    }
+    if (modal.id && EXCLUSIVE_MODAL_IDS.includes(modal.id)) {
+        closeExclusiveModalsExcept(modal);
     }
     modal.style.removeProperty('display');
     modal.classList.add('active');
@@ -10387,6 +10600,9 @@ function getHolidayDates(holiday) {
 // Calendar Rendering
 // ============================================
 function renderCalendar() {
+    if (!elements.calendarContainer) {
+        return;
+    }
     if (!appData.termStart) return;
 
     syncHolidaysFromEvents();
@@ -12661,20 +12877,46 @@ function updateTeamSyncStatus(status, detail) {
 
 let syncToastTimer = null;
 
+function dismissSyncToast(el, onDone) {
+    if (!el || !el.classList.contains('sync-toast--visible')) {
+        if (onDone) {
+            onDone();
+        }
+        return;
+    }
+    el.classList.remove('sync-toast--visible');
+    afterNotificationTransition(el, () => {
+        el.setAttribute('aria-hidden', 'true');
+        el.textContent = '';
+        if (onDone) {
+            onDone();
+        }
+    });
+}
+
 function showSyncToast(message, isError) {
     const el = document.getElementById('syncToast');
     if (!el) {
         return;
     }
-    el.textContent = message;
-    el.className = 'sync-toast' + (isError ? ' sync-toast-error' : ' sync-toast-success');
-    el.style.display = 'block';
     if (syncToastTimer) {
         clearTimeout(syncToastTimer);
+        syncToastTimer = null;
     }
-    syncToastTimer = setTimeout(() => {
-        el.style.display = 'none';
-    }, 7000);
+    const present = () => {
+        el.setAttribute('aria-hidden', 'false');
+        el.textContent = message;
+        el.className = 'sync-toast' + (isError ? ' sync-toast-error' : ' sync-toast-success');
+        requestAnimationFrame(() => {
+            el.classList.add('sync-toast--visible');
+        });
+        syncToastTimer = setTimeout(() => dismissSyncToast(el), 7000);
+    };
+    if (el.classList.contains('sync-toast--visible')) {
+        dismissSyncToast(el, present);
+        return;
+    }
+    present();
 }
 
 function highlightCalendarSelect() {
@@ -13262,10 +13504,34 @@ async function reloadActiveCalendarFromServer() {
     }
     const doc = await CalendarSync.loadCalendar(id);
     applyServerDocument(doc);
+    if (document.body.classList.contains('workspace-page')) {
+        if (typeof renderHomeworkClassList === 'function') {
+            renderHomeworkClassList();
+        }
+        if (typeof renderHomeworkEditor === 'function') {
+            renderHomeworkEditor();
+        }
+        const wsBanner = document.getElementById('workspaceRemoteBanner');
+        if (wsBanner) {
+            wsBanner.hidden = true;
+        }
+        const label = document.getElementById('workspaceCalendarLabel');
+        if (label) {
+            label.textContent = appData.calendarName || '';
+        }
+        CalendarSync.state.remoteNewer = false;
+        return;
+    }
     initializeTermStart();
     renderCalendar();
-    document.getElementById('remoteNewerBanner').style.display = 'none';
-    document.getElementById('teamReloadBtn').style.display = 'none';
+    const remoteBanner = document.getElementById('remoteNewerBanner');
+    const teamReloadBtn = document.getElementById('teamReloadBtn');
+    if (remoteBanner) {
+        remoteBanner.style.display = 'none';
+    }
+    if (teamReloadBtn) {
+        teamReloadBtn.style.display = 'none';
+    }
     CalendarSync.state.remoteNewer = false;
 }
 
@@ -13279,6 +13545,16 @@ async function initTeamSync() {
 
     CalendarSync.setHandlers({
         onStatusChange: updateTeamSyncStatus,
+        onPrepareLogout() {
+            saveDataToLocalCache();
+            if (CalendarSync.isReadOnly()) {
+                return;
+            }
+            CalendarSync.scheduleSave(() => {
+                saveDataToLocalCache();
+                return JSON.parse(JSON.stringify(appData));
+            });
+        },
         onSaved(doc) {
             if (doc && doc.name && String(doc.name).trim()) {
                 appData.calendarName = String(doc.name).trim();
@@ -13304,8 +13580,21 @@ async function initTeamSync() {
             await maybeAutoReloadTeamCalendar(meta, lockState);
         },
         onRemoteNewer(meta) {
-            document.getElementById('remoteNewerBanner').style.display = 'flex';
-            document.getElementById('teamReloadBtn').style.display = 'inline-flex';
+            if (document.body.classList.contains('workspace-page')) {
+                const wsBanner = document.getElementById('workspaceRemoteBanner');
+                if (wsBanner) {
+                    wsBanner.hidden = false;
+                }
+                return;
+            }
+            const remoteBanner = document.getElementById('remoteNewerBanner');
+            const teamReloadBtn = document.getElementById('teamReloadBtn');
+            if (remoteBanner) {
+                remoteBanner.style.display = 'flex';
+            }
+            if (teamReloadBtn) {
+                teamReloadBtn.style.display = 'inline-flex';
+            }
         },
         async onConflict(serverDocument, localData) {
             const choice = await showConflictModal(serverDocument, localData);

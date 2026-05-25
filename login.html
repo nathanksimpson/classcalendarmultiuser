@@ -4,7 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in — Class Calendar</title>
-    <link rel="stylesheet" href="styles.css?v=20260523-login">
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('calendarTheme');
+                if (theme === 'dark' || theme === 'light') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    document.documentElement.style.colorScheme = theme;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260528-login-theme">
     <style>
         .login-page {
             min-height: 100vh;
@@ -12,19 +26,35 @@
             align-items: center;
             justify-content: center;
             padding: 2rem;
-            background: var(--bg-primary, #f8fafc);
+            background: var(--bg-main);
+            color: var(--text-primary);
+        }
+        .login-theme-bar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 10;
+            padding: 0.75rem 1rem;
         }
         .login-card {
             max-width: 420px;
             width: 100%;
-            background: var(--bg-secondary, #fff);
-            border: 1px solid var(--border-color, #e2e8f0);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 2rem;
-            box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+            box-shadow: var(--shadow-lg);
         }
-        .login-card h1 { margin: 0 0 0.5rem; font-size: 1.35rem; }
-        .login-card p { margin: 0 0 1.25rem; color: var(--text-muted, #64748b); font-size: 0.95rem; }
+        .login-card h1 {
+            margin: 0 0 0.5rem;
+            font-size: 1.35rem;
+            color: var(--text-primary);
+        }
+        .login-card p {
+            margin: 0 0 1.25rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
         .login-kakao {
             display: block;
             width: 100%;
@@ -39,32 +69,66 @@
             text-align: center;
             text-decoration: none;
         }
-        .login-kakao:hover { filter: brightness(0.97); }
+        .login-kakao:hover {
+            filter: brightness(0.97);
+        }
         .login-denied {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #991b1b;
+            background: var(--status-error-bg);
+            border: 1px solid var(--status-error-border);
+            color: var(--status-error-color);
             padding: 1rem;
             border-radius: 8px;
             margin-bottom: 1rem;
             font-size: 0.9rem;
         }
-        .login-denied code { font-size: 0.85rem; word-break: break-all; }
-        .login-fallback { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color, #e2e8f0); }
-        .login-fallback label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; }
+        .login-denied code {
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+        .login-fallback {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .login-fallback label {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
         .login-fallback input {
             width: 100%;
             margin-bottom: 0.75rem;
             padding: 0.5rem 0.65rem;
             border-radius: 6px;
-            border: 1px solid var(--border-color, #cbd5e1);
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            color: var(--text-primary);
         }
-        .login-error { color: #b91c1c; font-size: 0.9rem; margin-top: 0.75rem; }
-        .login-admin-link { margin-top: 1rem; font-size: 0.85rem; }
-        .login-admin-link a { color: var(--accent, #2563eb); }
+        .login-error {
+            color: var(--status-error-color);
+            font-size: 0.9rem;
+            margin-top: 0.75rem;
+        }
+        .login-admin-link {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+        .login-admin-link a {
+            color: var(--primary);
+        }
     </style>
 </head>
 <body>
+    <div class="login-theme-bar">
+        <button
+            type="button"
+            id="loginThemeToggle"
+            class="btn btn-outline btn-small btn-header-theme"
+            aria-pressed="false"
+            title="Switch light/dark theme"
+        >🌙 Dark</button>
+    </div>
     <div class="login-page">
         <div class="login-card">
             <h1>Class Calendar — Team</h1>
@@ -95,6 +159,45 @@
     </div>
     <script>
         (function () {
+            function getStoredTheme() {
+                try {
+                    var saved = localStorage.getItem('calendarTheme');
+                    if (saved === 'light' || saved === 'dark') {
+                        return saved;
+                    }
+                } catch (_) { /* ignore */ }
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+
+            function applyLoginTheme(theme) {
+                var next = theme === 'dark' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', next);
+                document.documentElement.style.colorScheme = next;
+                try {
+                    localStorage.setItem('calendarTheme', next);
+                } catch (_) { /* ignore */ }
+                var btn = document.getElementById('loginThemeToggle');
+                if (btn) {
+                    btn.textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+                    btn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
+                    btn.title = 'Switch light/dark theme';
+                }
+            }
+
+            applyLoginTheme(getStoredTheme());
+
+            var themeBtn = document.getElementById('loginThemeToggle');
+            if (themeBtn) {
+                themeBtn.addEventListener('click', function () {
+                    var current =
+                        document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                    applyLoginTheme(current === 'dark' ? 'light' : 'dark');
+                });
+            }
+
             const params = new URLSearchParams(location.search);
             const returnTo = params.get('return') || '/';
             const kakaoBtn = document.getElementById('kakaoLoginBtn');
@@ -104,6 +207,12 @@
                 document.getElementById('deniedBox').style.display = 'block';
                 document.getElementById('deniedEmail').textContent = params.get('email') || '(not shared by Kakao)';
                 document.getElementById('deniedKakaoId').textContent = params.get('kakaoId') || '—';
+            }
+
+            if (params.get('signedOut') === 'idle') {
+                const el = document.getElementById('loginError');
+                el.style.display = 'block';
+                el.textContent = 'You were signed out due to inactivity. Sign in again to continue.';
             }
 
             const err = params.get('error');

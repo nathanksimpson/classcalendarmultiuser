@@ -32,7 +32,8 @@
         onLockOrRevisionChange: null,
         onLockDebugChange: null,
         onDuplicateName: null,
-        onSaved: null
+        onSaved: null,
+        onPrepareLogout: null
     };
 
     const lockDebug = {
@@ -157,7 +158,16 @@
         location.replace('/login.html?return=' + ret);
     }
 
+    function assertSignedIn() {
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
+            const err = new Error('Not signed in');
+            err.status = 401;
+            throw err;
+        }
+    }
+
     async function apiFetch(path, options) {
+        assertSignedIn();
         const opts = Object.assign({ credentials: 'same-origin' }, options || {});
         const headers = Object.assign({}, opts.headers || {});
         if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
@@ -414,7 +424,21 @@
             return result;
         },
 
+        hasPendingSave() {
+            return Boolean(state.saveTimer || state.pendingGetData || state.saving);
+        },
+
+        async waitForSaveComplete(timeoutMs) {
+            const limit = timeoutMs != null ? timeoutMs : 20000;
+            const start = Date.now();
+            while (state.saving && Date.now() - start < limit) {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+            return !state.saving;
+        },
+
         async flushPendingSave() {
+            await CalendarSync.waitForSaveComplete();
             if (state.saveTimer) {
                 clearTimeout(state.saveTimer);
                 state.saveTimer = null;
@@ -432,6 +456,32 @@
                 throw e;
             }
             await CalendarSync.saveCalendar(data);
+            await CalendarSync.waitForSaveComplete();
+        },
+
+        async prepareForLogout() {
+            if (state.readOnly || !CalendarSync.getActiveCalendarId()) {
+                return { saved: false, skipped: true };
+            }
+            if (typeof handlers.onPrepareLogout === 'function') {
+                try {
+                    await handlers.onPrepareLogout();
+                } catch (err) {
+                    console.warn('onPrepareLogout failed:', err);
+                }
+            }
+            try {
+                if (CalendarSync.hasPendingSave()) {
+                    setStatus('saving');
+                }
+                await CalendarSync.flushPendingSave();
+                return { saved: true };
+            } catch (err) {
+                if (err.status !== 409) {
+                    console.warn('prepareForLogout save failed:', err);
+                }
+                return { saved: false, error: err };
+            }
         },
 
         async touchLock(id) {
@@ -494,6 +544,7 @@
         },
 
         async saveCalendar(data, options) {
+            assertSignedIn();
             if (state.readOnly) {
                 const err = new Error('Calendar is locked by another teacher');
                 err.status = 423;
@@ -555,6 +606,9 @@
         },
 
         scheduleSave(getDataFn) {
+            if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
+                return;
+            }
             if (state.readOnly) {
                 return;
             }
@@ -618,6 +672,10 @@
                 clearInterval(state.pollTimer);
             }
             state.pollTimer = setInterval(async () => {
+                if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
+                    CalendarSync.stopPolling();
+                    return;
+                }
                 const id = CalendarSync.getActiveCalendarId();
                 if (!id) {
                     return;

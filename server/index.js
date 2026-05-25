@@ -135,11 +135,14 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
         res.status(401).json({ error: 'Not signed in' });
         return;
     }
+    const settings = appSettings.getAdminSettings();
     res.json({
         id: req.user.id,
         email: req.user.email,
         displayName: req.user.displayName,
-        role: req.user.role
+        role: req.user.role,
+        idleLogoutMinutes: settings.idleLogoutMinutes,
+        idleWarningMinutes: settings.idleWarningMinutes
     });
 });
 
@@ -367,11 +370,7 @@ app.get('/api/admin/settings', requireUser, requireAdmin, (_req, res) => {
 });
 
 app.patch('/api/admin/settings', requireUser, requireAdmin, (req, res) => {
-    if (req.body.lockStaleMinutes === undefined) {
-        res.json(appSettings.getAdminSettings());
-        return;
-    }
-    res.json(appSettings.setLockStaleMinutes(req.body.lockStaleMinutes));
+    res.json(appSettings.patchAdminSettings(req.body || {}));
 });
 
 app.get('/api/teachers', requireUser, (req, res) => {

@@ -634,11 +634,14 @@ export default {
             if (!user) {
                 return json({ error: 'Not signed in' }, 401);
             }
+            const sessionSettings = await AppSettings.getAdminSettings(env);
             return json({
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName,
-                role: user.role
+                role: user.role,
+                idleLogoutMinutes: sessionSettings.idleLogoutMinutes,
+                idleWarningMinutes: sessionSettings.idleWarningMinutes
             });
         }
 
@@ -1038,10 +1041,7 @@ export default {
             }
             if (request.method === 'PATCH') {
                 const body = await readJson(request);
-                if (body.lockStaleMinutes === undefined) {
-                    return json(await AppSettings.getAdminSettings(env));
-                }
-                return json(await AppSettings.setLockStaleMinutes(env, body.lockStaleMinutes));
+                return json(await AppSettings.patchAdminSettings(env, body));
             }
         }
 
