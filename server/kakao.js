@@ -67,7 +67,16 @@ function profileFromKakaoMe(me) {
     return { kakaoUserId: id, email, nickname };
 }
 
-function buildAuthorizeUrl(clientId, redirectUri, state) {
+/** Kakao authorize `prompt`: login = re-enter credentials; select_account = pick among saved sessions. */
+function sanitizeKakaoOAuthPrompt(value) {
+    const p = value && String(value).trim();
+    if (p === 'login' || p === 'select_account') {
+        return p;
+    }
+    return null;
+}
+
+function buildAuthorizeUrl(clientId, redirectUri, state, options) {
     const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -75,6 +84,11 @@ function buildAuthorizeUrl(clientId, redirectUri, state) {
     });
     if (state) {
         params.set('state', state);
+    }
+    const prompt =
+        options && options.prompt ? sanitizeKakaoOAuthPrompt(options.prompt) : null;
+    if (prompt) {
+        params.set('prompt', prompt);
     }
     const scope = oauthScopesFromEnv();
     if (scope) {
@@ -132,6 +146,7 @@ module.exports = {
     exchangeAuthorizationCode,
     fetchUserProfile,
     profileFromKakaoMe,
+    sanitizeKakaoOAuthPrompt,
     buildAuthorizeUrl,
     classifyOAuthError,
     kakaoErrorDetail,

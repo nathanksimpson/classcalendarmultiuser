@@ -327,13 +327,16 @@ async function loadUsers() {
 
     users.forEach((u) => {
         const tr = document.createElement('tr');
+        const roleLabel = u.role === 'admin' ? t('roleAdmin') : t('roleTeacher');
         tr.innerHTML =
             '<td>' +
             escapeHtml(u.displayName) +
             '</td><td>' +
             escapeHtml(u.email || '—') +
             '</td><td>' +
-            escapeHtml(u.role) +
+            escapeHtml(u.kakaoUserId || '—') +
+            '</td><td>' +
+            escapeHtml(roleLabel) +
             '</td><td>' +
             (u.hasCalendarAccess
                 ? escapeHtml(t('calendarsHasAccess'))

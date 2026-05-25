@@ -87,6 +87,17 @@
             font-size: 0.78rem;
             word-break: break-all;
         }
+        .login-kakao-switch {
+            margin: 0.65rem 0 0;
+            font-size: 0.88rem;
+            text-align: center;
+        }
+        .login-kakao-switch a {
+            color: var(--text-secondary);
+        }
+        .login-kakao-switch a:hover {
+            color: var(--text-primary);
+        }
         .login-denied {
             background: var(--status-error-bg);
             border: 1px solid var(--status-error-border);
@@ -157,11 +168,15 @@
             </div>
 
             <a id="kakaoLoginBtn" class="login-kakao" href="/api/auth/kakao">Login with Kakao</a>
+            <p class="login-kakao-switch">
+                <a id="kakaoSwitchAccount" href="/api/auth/kakao?prompt=login">Use a different Kakao account</a>
+            </p>
             <p id="kakaoConfigHint" class="login-kakao-hint" style="display: none;"></p>
 
             <div class="login-fallback">
                 <p><strong>Password fallback</strong> (only if your admin gave you one)</p>
-                <form id="passwordForm">
+                <form id="passwordForm" method="post" action="/api/auth/password">
+                    <input type="hidden" name="return" id="passwordReturn" value="/">
                     <label for="loginEmail">Email</label>
                     <input type="email" id="loginEmail" name="email" autocomplete="username" required>
                     <label for="loginPassword">Password</label>
@@ -216,9 +231,35 @@
 
             const params = new URLSearchParams(location.search);
             const returnTo = params.get('return') || '/';
+            const passwordReturn = document.getElementById('passwordReturn');
+            if (passwordReturn) {
+                passwordReturn.value =
+                    returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+            }
+
+            if (params.has('email') || params.has('password')) {
+                const clean = new URLSearchParams();
+                if (params.get('return')) {
+                    clean.set('return', params.get('return'));
+                }
+                if (params.get('error')) {
+                    clean.set('error', params.get('error'));
+                }
+                if (params.get('signedOut')) {
+                    clean.set('signedOut', params.get('signedOut'));
+                }
+                const qs = clean.toString();
+                history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+            }
+
             const kakaoBtn = document.getElementById('kakaoLoginBtn');
+            const kakaoSwitch = document.getElementById('kakaoSwitchAccount');
             const kakaoHint = document.getElementById('kakaoConfigHint');
-            kakaoBtn.href = '/api/auth/kakao?return=' + encodeURIComponent(returnTo);
+            const kakaoReturnQs = 'return=' + encodeURIComponent(returnTo);
+            kakaoBtn.href = '/api/auth/kakao?' + kakaoReturnQs;
+            if (kakaoSwitch) {
+                kakaoSwitch.href = '/api/auth/kakao?prompt=login&' + kakaoReturnQs;
+            }
 
             const ERROR_MESSAGES = {
                 oauth_failed: 'Kakao sign-in failed. Try again or ask your calendar admin.',
@@ -246,7 +287,12 @@
                 kakao_not_linked:
                     'Your email is on file but Kakao is not linked yet. Ask your admin to add your Kakao user ID in Admin (Users → Edit), then sign in again.',
                 kakao_mismatch:
-                    'This Kakao account does not match the Kakao ID on file for your email. Contact your calendar admin.'
+                    'This Kakao account does not match the Kakao ID on file for your email. Contact your calendar admin.',
+                invalid_password: 'Invalid email or password.',
+                password_not_set:
+                    'No password is set for this account. Sign in with Kakao, or ask an admin to set a password for you.',
+                too_many_requests: 'Too many sign-in attempts. Wait a few minutes and try again.',
+                sign_in_failed: 'Sign-in failed. Try again or use Kakao login.'
             };
 
             fetch('/api/health', { credentials: 'same-origin' })
@@ -257,6 +303,9 @@
                     if (h && h.kakaoConfigured === false) {
                         kakaoBtn.classList.add('is-disabled');
                         kakaoBtn.setAttribute('aria-disabled', 'true');
+                        if (kakaoSwitch) {
+                            kakaoSwitch.style.display = 'none';
+                        }
                         kakaoHint.style.display = 'block';
                         kakaoHint.textContent =
                             'Kakao login is not configured on this site yet. Use the password form below if your admin gave you one.';
@@ -276,66 +325,15 @@
                 el.textContent = ERROR_MESSAGES[err] || 'Sign-in problem: ' + err;
             }
 
-            if (!err && params.get('signedOut') !== 'idle') {
-                fetch('/api/auth/me', { credentials: 'same-origin' })
-                    .then(function (r) {
-                        return r.ok ? r.json() : null;
-                    })
-                    .then(function (me) {
-                        if (me && me.id) {
-                            const dest =
-                                returnTo.startsWith('/') && !returnTo.startsWith('//')
-                                    ? returnTo
-                                    : '/';
-                            location.replace(dest);
-                        }
-                    })
-                    .catch(function () { /* ignore */ });
-            }
-
-            document.getElementById('passwordForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const errEl = document.getElementById('loginError');
-                const submitBtn = e.target.querySelector('button[type="submit"]');
-                errEl.style.display = 'none';
-                const email = document.getElementById('loginEmail').value.trim();
-                const password = document.getElementById('loginPassword').value;
-                if (!email || !password) {
-                    errEl.style.display = 'block';
-                    errEl.textContent = 'Enter your email and password.';
-                    return;
-                }
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                }
-                try {
-                    const res = await fetch('/api/auth/password', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password })
-                    });
-                    const json = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                        throw new Error(json.error || 'Sign in failed');
-                    }
-                    const dest = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
-                    location.replace(dest);
-                } catch (ex) {
-                    errEl.style.display = 'block';
-                    const msg = ex && ex.message ? ex.message : 'Sign in failed';
-                    if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
-                        errEl.textContent =
-                            'Cannot reach the server. Open the team URL from your browser (https://…workers.dev), not a file on your PC.';
-                    } else {
-                        errEl.textContent = msg;
-                    }
-                } finally {
+            const passwordForm = document.getElementById('passwordForm');
+            if (passwordForm) {
+                passwordForm.addEventListener('submit', function () {
+                    const submitBtn = passwordForm.querySelector('button[type="submit"]');
                     if (submitBtn) {
-                        submitBtn.disabled = false;
+                        submitBtn.disabled = true;
                     }
-                }
-            });
+                });
+            }
         })();
     </script>
 </body>

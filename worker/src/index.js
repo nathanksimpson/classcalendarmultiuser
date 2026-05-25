@@ -8,9 +8,11 @@ import {
     oauthStateSecret,
     createKakaoOAuthState,
     verifyKakaoOAuthState,
-    clearKakaoOAuthStateCookie
+    clearKakaoOAuthStateCookie,
+    sanitizeReturnTo
 } from './oauth-state.js';
 import { rateLimitOr429 } from './rate-limit.js';
+import { scryptSync, timingSafeEqual } from 'node:crypto';
 
 const MAX_CALENDAR_BODY_BYTES = 5 * 1024 * 1024;
 const RATE_AUTH_WINDOW_MS = 15 * 60 * 1000;
@@ -464,7 +466,6 @@ async function verifyPassword(password, stored) {
         return false;
     }
     try {
-        const { scryptSync, timingSafeEqual } = await import('node:crypto');
         const attempt = scryptSync(password, salt, 64).toString('hex');
         return timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(attempt, 'hex'));
     } catch (_) {
@@ -650,6 +651,14 @@ function kakaoLoginErrorRedirect(code) {
     return '/login.html?error=' + encodeURIComponent(code);
 }
 
+function sanitizeKakaoOAuthPrompt(value) {
+    const p = value && String(value).trim();
+    if (p === 'login' || p === 'select_account') {
+        return p;
+    }
+    return null;
+}
+
 function kakaoOAuthScopes(env) {
     const raw = env.KAKAO_OAUTH_SCOPES || '';
     return raw && String(raw).trim() ? String(raw).trim() : '';
@@ -789,6 +798,34 @@ async function readJson(request, maxBytes = MAX_CALENDAR_BODY_BYTES) {
     }
 }
 
+async function readPasswordLoginBody(request) {
+    const ct = (request.headers.get('Content-Type') || '').toLowerCase();
+    if (ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data')) {
+        const form = await request.formData();
+        return {
+            email: String(form.get('email') || ''),
+            password: String(form.get('password') || ''),
+            returnTo: sanitizeReturnTo(String(form.get('return') || '/')),
+            wantsRedirect: true
+        };
+    }
+    const body = await readJson(request);
+    return {
+        email: body.email,
+        password: body.password,
+        returnTo: sanitizeReturnTo(body.return || '/'),
+        wantsRedirect: false
+    };
+}
+
+function passwordLoginErrorRedirect(returnTo, code) {
+    const q = new URLSearchParams({ error: code });
+    if (returnTo && returnTo !== '/') {
+        q.set('return', returnTo);
+    }
+    return redirectTo(`/login.html?${q.toString()}`);
+}
+
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
@@ -884,6 +921,7 @@ export default {
                 return limited;
             }
             const returnTo = url.searchParams.get('return') || '/';
+            const prompt = sanitizeKakaoOAuthPrompt(url.searchParams.get('prompt'));
             const oauthSecret = oauthStateSecret(env);
             const oauthState = await createKakaoOAuthState(returnTo, oauthSecret, secure);
             const params = new URLSearchParams({
@@ -892,6 +930,9 @@ export default {
                 response_type: 'code',
                 state: oauthState.state
             });
+            if (prompt) {
+                params.set('prompt', prompt);
+            }
             const scope = kakaoOAuthScopes(env);
             if (scope) {
                 params.set('scope', scope);
@@ -956,18 +997,25 @@ export default {
         }
 
         if (path === '/api/auth/password' && request.method === 'POST') {
+            let loginBody;
             try {
+                loginBody = await readPasswordLoginBody(request);
                 const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
                 if (limited) {
+                    if (loginBody.wantsRedirect) {
+                        return passwordLoginErrorRedirect(loginBody.returnTo, 'too_many_requests');
+                    }
                     return limited;
                 }
-                const body = await readJson(request);
-                const em = normalizeEmail(body.email);
+                const em = normalizeEmail(loginBody.email);
                 const row = em
                     ? await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em)
                     : null;
                 const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
                 if (row && !storedHash) {
+                    if (loginBody.wantsRedirect) {
+                        return passwordLoginErrorRedirect(loginBody.returnTo, 'password_not_set');
+                    }
                     return json(
                         {
                             error:
@@ -977,13 +1025,20 @@ export default {
                     );
                 }
                 const matched =
-                    row && storedHash && (await verifyPassword(body.password, storedHash))
+                    row && storedHash && (await verifyPassword(loginBody.password, storedHash))
                         ? rowToUser(row)
                         : null;
                 if (!matched) {
+                    if (loginBody.wantsRedirect) {
+                        return passwordLoginErrorRedirect(loginBody.returnTo, 'invalid_password');
+                    }
                     return json({ error: 'Invalid email or password' }, 401);
                 }
                 const session = await createLoginSession(env, matched.id);
+                const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
+                if (loginBody.wantsRedirect) {
+                    return redirectWithCookie(loginBody.returnTo, cookie);
+                }
                 return json(
                     {
                         id: matched.id,
@@ -992,10 +1047,14 @@ export default {
                         role: matched.role
                     },
                     200,
-                    { 'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec) }
+                    { 'Set-Cookie': cookie }
                 );
             } catch (err) {
                 console.error('POST /api/auth/password error:', err && err.message ? err.message : err);
+                const ret = loginBody ? loginBody.returnTo : '/';
+                if (loginBody && loginBody.wantsRedirect) {
+                    return passwordLoginErrorRedirect(ret, 'sign_in_failed');
+                }
                 return json({ error: 'Sign-in failed. Try again or use Kakao login.' }, 500);
             }
         }

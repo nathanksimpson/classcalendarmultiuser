@@ -31,6 +31,7 @@ const DEV_USER = {
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.set('trust proxy', 1);
 
 function parseCookies(req) {
@@ -179,9 +180,29 @@ app.post('/api/auth/logout-all', requireUser, (req, res) => {
     res.json({ ok: true });
 });
 
+function wantsPasswordFormRedirect(req) {
+    const ct = (req.headers['content-type'] || '').toLowerCase();
+    return ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data');
+}
+
+function passwordLoginErrorRedirect(res, returnTo, code) {
+    const q = new URLSearchParams({ error: code });
+    if (returnTo && returnTo !== '/') {
+        q.set('return', returnTo);
+    }
+    res.redirect(302, `/login.html?${q.toString()}`);
+}
+
 app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000), (req, res) => {
-    const { email, password } = req.body || {};
+    const redirect = wantsPasswordFormRedirect(req);
+    const returnTo = oauthState.sanitizeReturnTo(req.body.return || '/');
+    const email = req.body.email;
+    const password = req.body.password;
     if (users.activeUserHasNoPassword(email)) {
+        if (redirect) {
+            passwordLoginErrorRedirect(res, returnTo, 'password_not_set');
+            return;
+        }
         res.status(401).json({
             error:
                 'No password is set for this account. Sign in with Kakao, or ask an admin to set a password for you.'
@@ -190,11 +211,19 @@ app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25
     }
     const user = users.findUserByEmailPassword(email, password);
     if (!user) {
+        if (redirect) {
+            passwordLoginErrorRedirect(res, returnTo, 'invalid_password');
+            return;
+        }
         res.status(401).json({ error: 'Invalid email or password' });
         return;
     }
     const session = users.createLoginSession(user.id);
     setSessionCookie(res, session.token, session.maxAgeSec);
+    if (redirect) {
+        res.redirect(302, returnTo);
+        return;
+    }
     res.json({
         id: user.id,
         email: user.email,
@@ -243,9 +272,12 @@ app.get(
             return;
         }
         const returnTo = typeof req.query.return === 'string' ? req.query.return : '/';
+        const prompt = kakao.sanitizeKakaoOAuthPrompt(req.query.prompt);
         const oauthSecret = oauthState.oauthStateSecret();
         const created = oauthState.createKakaoOAuthState(returnTo, oauthSecret, COOKIE_SECURE);
-        const url = kakao.buildAuthorizeUrl(KAKAO_CLIENT_ID, kakaoRedirectUri(req), created.state);
+        const url = kakao.buildAuthorizeUrl(KAKAO_CLIENT_ID, kakaoRedirectUri(req), created.state, {
+            prompt
+        });
         res.setHeader('Set-Cookie', created.setCookie);
         res.redirect(url);
     }

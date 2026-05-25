@@ -104,4 +104,5 @@ Run `npm start`, open http://localhost:8080/login.html.
 | Account deactivated | Admin re-enabled user in Users table |
 | Email shows “(not shared by Kakao)” | Enable email consent in Kakao app, or add user by Kakao ID in admin |
 | `oauth_code_expired` | Click Login with Kakao again (code is one-time) |
+| After sign out, same Kakao user logs in again | Calendar sign-out only ends *this app*. On the login page use **Use a different Kakao account** (asks Kakao for credentials again), or use a private/incognito window |
 | Kakao page **KOE205** / invalid_scope | Enable **동의항목** for each scope you request, or leave scopes off (default). To request email: enable **카카오계정(이메일)** in 동의항목, then `wrangler secret put KAKAO_OAUTH_SCOPES` with value `account_email profile_nickname` |
