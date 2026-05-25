@@ -171,6 +171,11 @@
                     <input type="number" id="idleWarningMinutesInput" min="1" max="60" step="1" value="2" required>
                     <span data-i18n="idleWarningSuffix">minutes before sign-out</span>
                 </label>
+                <label class="admin-lock-label">
+                    <span data-i18n="sessionMaxDaysLabel">Stay signed in up to</span>
+                    <input type="number" id="sessionMaxDaysInput" min="1" max="14" step="1" value="14" required>
+                    <span data-i18n="sessionMaxDaysSuffix">days (new logins; shared PCs: use shorter idle sign-out above)</span>
+                </label>
                 <button type="submit" class="btn btn-primary" data-i18n="saveSettings">Save settings</button>
             </form>
         </section>
@@ -184,7 +189,9 @@
                     <tr>
                         <th data-i18n="thName">Name</th>
                         <th data-i18n="thEmail">Email</th>
+                        <th data-i18n="thKakaoId">Kakao ID</th>
                         <th data-i18n="thRole">Role</th>
+                        <th data-i18n="thCalendars">Calendars</th>
                         <th data-i18n="thStatus">Status</th>
                         <th data-i18n="thActions">Actions</th>
                     </tr>
@@ -195,7 +202,11 @@
             <form class="admin-form" id="addUserForm">
                 <h3 style="margin:0;font-size:1rem;" data-i18n="addTeacherHeading">Add teacher</h3>
                 <label><span data-i18n="displayName">Display name</span> <input type="text" id="newDisplayName" required></label>
-                <label><span data-i18n="email">Email</span> <input type="email" id="newEmail" required></label>
+                <label><span data-i18n="email">Email</span> <input type="email" id="newEmail" autocomplete="email"></label>
+                <label><span data-i18n="kakaoUserIdOptional">Kakao user ID (optional)</span>
+                    <input type="text" id="newKakaoUserId" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1234567890" autocomplete="off">
+                </label>
+                <p class="admin-hint" data-i18n="addTeacherEmailOrKakaoHint">Provide email and/or Kakao user ID (at least one). Email is used for Kakao allowlist; Kakao ID works if email is not shared.</p>
                 <label><span data-i18n="role">Role</span>
                     <select id="newRole">
                         <option value="teacher">Teacher</option>
@@ -246,6 +257,34 @@
             </form>
         </section>
 
+        <div id="editUserModal" class="modal" role="dialog" aria-labelledby="editUserModalTitle" aria-modal="true">
+            <div class="modal-content modal-small">
+                <div class="modal-header">
+                    <h2 id="editUserModalTitle" data-i18n="editUserTitle">Edit user</h2>
+                    <button type="button" class="modal-close" id="closeEditUserModal" data-i18n-aria="closeAria" aria-label="Close">&times;</button>
+                </div>
+                <p class="admin-hint" data-i18n="editUserHint">Set a clear display name so you can recognize this teacher (especially after Kakao sign-in).</p>
+                <form id="editUserForm">
+                    <div class="form-group">
+                        <label for="editUserDisplayName" data-i18n="displayName">Display name</label>
+                        <input type="text" id="editUserDisplayName" required maxlength="120" autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label for="editUserEmail" data-i18n="email">Email</label>
+                        <input type="email" id="editUserEmail" autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="editUserKakaoId" data-i18n="kakaoUserIdOptional">Kakao user ID</label>
+                        <input type="text" id="editUserKakaoId" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelEditUserBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                        <button type="submit" id="submitEditUserBtn" class="btn btn-primary" data-i18n="saveUser">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div id="resetPasswordModal" class="modal" role="dialog" aria-labelledby="resetPasswordModalTitle" aria-modal="true">
             <div class="modal-content modal-small">
                 <div class="modal-header">
@@ -280,8 +319,8 @@
             <button type="button" class="btn btn-primary" id="bootstrapBtn" data-i18n="bootstrapCreate">Create admin account</button>
         </section>
     </div>
-    <script src="js/admin-i18n.js?v=20260528-admin-i18n"></script>
-    <script src="js/team-auth.js?v=20260528-idle-admin"></script>
-    <script src="js/admin.js?v=20260528-admin-i18n"></script>
+    <script src="js/admin-i18n.js?v=20260528-session"></script>
+    <script src="js/team-auth.js?v=20260528-session"></script>
+    <script src="js/admin.js?v=20260528-session"></script>
 </body>
 </html>

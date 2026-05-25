@@ -12,9 +12,15 @@ const DEFAULT_IDLE_WARNING_MINUTES = 2;
 const MIN_IDLE_WARNING_MINUTES = 1;
 const MAX_IDLE_WARNING_MINUTES = 60;
 
+const SETTING_SESSION_MAX_DAYS = 'session_max_days';
+const DEFAULT_SESSION_MAX_DAYS = 14;
+const MIN_SESSION_MAX_DAYS = 1;
+const MAX_SESSION_MAX_DAYS = 14;
+
 let cachedStaleMinutes = null;
 let cachedIdleLogoutMinutes = null;
 let cachedIdleWarningMinutes = null;
+let cachedSessionMaxDays = null;
 let cachedAt = 0;
 const CACHE_MS = 60 * 1000;
 
@@ -51,10 +57,19 @@ export function normalizeIdlePair(logoutMinutes, warningMinutes) {
     return { idleLogoutMinutes, idleWarningMinutes };
 }
 
+export function clampSessionMaxDays(n) {
+    const v = Math.floor(Number(n));
+    if (!Number.isFinite(v)) {
+        return DEFAULT_SESSION_MAX_DAYS;
+    }
+    return Math.min(MAX_SESSION_MAX_DAYS, Math.max(MIN_SESSION_MAX_DAYS, v));
+}
+
 function invalidateCache() {
     cachedStaleMinutes = null;
     cachedIdleLogoutMinutes = null;
     cachedIdleWarningMinutes = null;
+    cachedSessionMaxDays = null;
     cachedAt = 0;
 }
 
@@ -111,12 +126,34 @@ export async function getIdleWarningMinutes(env) {
     return pair.idleWarningMinutes;
 }
 
+async function readSessionMaxDays(env) {
+    const now = Date.now();
+    if (cachedSessionMaxDays != null && now - cachedAt < CACHE_MS) {
+        return cachedSessionMaxDays;
+    }
+    const row = await readSetting(env, SETTING_SESSION_MAX_DAYS);
+    const days = clampSessionMaxDays(row || DEFAULT_SESSION_MAX_DAYS);
+    cachedSessionMaxDays = days;
+    cachedAt = now;
+    return days;
+}
+
+export async function getSessionMaxDays(env) {
+    return readSessionMaxDays(env);
+}
+
+export async function getSessionMaxAgeSec(env) {
+    const days = await readSessionMaxDays(env);
+    return days * 86400;
+}
+
 export async function getAdminSettings(env) {
     const pair = await readIdlePair(env);
     return {
         lockStaleMinutes: await readLockStaleMinutes(env),
         idleLogoutMinutes: pair.idleLogoutMinutes,
-        idleWarningMinutes: pair.idleWarningMinutes
+        idleWarningMinutes: pair.idleWarningMinutes,
+        sessionMaxDays: await readSessionMaxDays(env)
     };
 }
 
@@ -168,6 +205,17 @@ export async function patchAdminSettings(env, body) {
             body.idleWarningMinutes !== undefined ? body.idleWarningMinutes : current.idleWarningMinutes;
         await setIdleSessionMinutes(env, logout, warning);
     }
+    if (body.sessionMaxDays !== undefined) {
+        const days = clampSessionMaxDays(body.sessionMaxDays);
+        await env.DB.prepare(
+            `INSERT INTO app_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+        )
+            .bind(SETTING_SESSION_MAX_DAYS, String(days))
+            .run();
+        cachedSessionMaxDays = days;
+        cachedAt = Date.now();
+    }
     return getAdminSettings(env);
 }
 
@@ -180,5 +228,8 @@ export {
     DEFAULT_IDLE_LOGOUT_MINUTES,
     MIN_IDLE_WARNING_MINUTES,
     MAX_IDLE_WARNING_MINUTES,
-    DEFAULT_IDLE_WARNING_MINUTES
+    DEFAULT_IDLE_WARNING_MINUTES,
+    MIN_SESSION_MAX_DAYS,
+    MAX_SESSION_MAX_DAYS,
+    DEFAULT_SESSION_MAX_DAYS
 };

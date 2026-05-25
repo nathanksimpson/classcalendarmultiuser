@@ -5,6 +5,8 @@ const calendars = require('./calendars');
 const users = require('./users');
 const appSettings = require('./app-settings');
 const kakao = require('./kakao');
+const oauthState = require('./oauth-state');
+const rateLimit = require('./rate-limit');
 const CalAccess = require('./calendar-access');
 const { getDb } = require('./schema');
 
@@ -28,7 +30,7 @@ const DEV_USER = {
 };
 
 const app = express();
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '5mb' }));
 app.set('trust proxy', 1);
 
 function parseCookies(req) {
@@ -52,8 +54,8 @@ function getSessionToken(req) {
     return parseCookies(req)[SESSION_COOKIE] || '';
 }
 
-function setSessionCookie(res, token) {
-    const maxAge = 14 * 86400;
+function setSessionCookie(res, token, maxAgeSec) {
+    const maxAge = Number(maxAgeSec) > 0 ? Number(maxAgeSec) : 14 * 86400;
     const parts = [
         `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
         'Path=/',
@@ -64,7 +66,7 @@ function setSessionCookie(res, token) {
     if (COOKIE_SECURE) {
         parts.push('Secure');
     }
-    res.setHeader('Set-Cookie', parts.join('; '));
+    res.append('Set-Cookie', parts.join('; '));
 }
 
 function clearSessionCookie(res) {
@@ -72,7 +74,7 @@ function clearSessionCookie(res) {
     if (COOKIE_SECURE) {
         parts.push('Secure');
     }
-    res.setHeader('Set-Cookie', parts.join('; '));
+    res.append('Set-Cookie', parts.join('; '));
 }
 
 function optionalUser(req, _res, next) {
@@ -112,13 +114,23 @@ function kakaoRedirectUri(req) {
     return `${PUBLIC_URL}/api/auth/kakao/callback`;
 }
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (req, res) => {
     res.json({
         ok: true,
         time: new Date().toISOString(),
         auth: Boolean(KAKAO_CLIENT_ID) || ALLOW_OPEN_ACCESS,
         kakaoConfigured: Boolean(KAKAO_CLIENT_ID),
+        kakaoClientSecretConfigured: Boolean(KAKAO_CLIENT_ID && KAKAO_CLIENT_SECRET),
+        kakaoRedirectUri: KAKAO_CLIENT_ID ? kakaoRedirectUri(req) : null,
         openAccess: ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID
+    });
+});
+
+app.get('/api/auth/kakao/config', (req, res) => {
+    res.json({
+        configured: Boolean(KAKAO_CLIENT_ID),
+        redirectUri: KAKAO_CLIENT_ID ? kakaoRedirectUri(req) : null,
+        scopes: kakao.oauthScopesFromEnv() || null
     });
 });
 
@@ -136,11 +148,14 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
         return;
     }
     const settings = appSettings.getAdminSettings();
+    const calendars = CalAccess.listCalendarsForUser(req.user);
+    const hasCalendarAccess = CalAccess.isAdmin(req.user) || calendars.length > 0;
     res.json({
         id: req.user.id,
         email: req.user.email,
         displayName: req.user.displayName,
         role: req.user.role,
+        hasCalendarAccess,
         idleLogoutMinutes: settings.idleLogoutMinutes,
         idleWarningMinutes: settings.idleWarningMinutes
     });
@@ -157,15 +172,21 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ ok: true });
 });
 
-app.post('/api/auth/password', (req, res) => {
+app.post('/api/auth/logout-all', requireUser, (req, res) => {
+    users.deleteAllSessionsForUser(req.user.id);
+    clearSessionCookie(res);
+    res.json({ ok: true });
+});
+
+app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000), (req, res) => {
     const { email, password } = req.body || {};
     const user = users.findUserByEmailPassword(email, password);
     if (!user) {
         res.status(401).json({ error: 'Invalid email or password' });
         return;
     }
-    const session = users.createSession(user.id);
-    setSessionCookie(res, session.token);
+    const session = users.createLoginSession(user.id);
+    setSessionCookie(res, session.token, session.maxAgeSec);
     res.json({
         id: user.id,
         email: user.email,
@@ -178,74 +199,113 @@ app.post('/api/auth/change-password', requireUser, (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body || {};
         const session = users.changeOwnPassword(req.user.id, currentPassword, newPassword);
-        setSessionCookie(res, session.token);
+        setSessionCookie(res, session.token, session.maxAgeSec);
         res.json({ ok: true });
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Password change failed' });
     }
 });
 
-app.get('/api/auth/kakao', (req, res) => {
-    if (!KAKAO_CLIENT_ID) {
-        res.status(503).send('Kakao login is not configured on this server.');
-        return;
+app.patch('/api/auth/profile', requireUser, (req, res) => {
+    try {
+        const updated = users.updateOwnDisplayName(req.user.id, req.body && req.body.displayName);
+        const settings = appSettings.getAdminSettings();
+        const calendars = CalAccess.listCalendarsForUser(updated);
+        const hasCalendarAccess = CalAccess.isAdmin(updated) || calendars.length > 0;
+        res.json({
+            id: updated.id,
+            email: updated.email,
+            displayName: updated.displayName,
+            role: updated.role,
+            hasCalendarAccess,
+            idleLogoutMinutes: settings.idleLogoutMinutes,
+            idleWarningMinutes: settings.idleWarningMinutes
+        });
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Profile update failed' });
     }
-    const returnTo = typeof req.query.return === 'string' ? req.query.return : '/';
-    const state = crypto.randomBytes(16).toString('hex') + '.' + Buffer.from(returnTo).toString('base64url');
-    const url = kakao.buildAuthorizeUrl(KAKAO_CLIENT_ID, kakaoRedirectUri(req), state);
-    res.redirect(url);
 });
 
-app.get('/api/auth/kakao/callback', async (req, res) => {
-    const code = req.query.code;
-    const state = req.query.state || '';
-    let returnTo = '/';
-    if (state.includes('.')) {
-        try {
-            returnTo = Buffer.from(state.split('.').slice(1).join('.'), 'base64url').toString('utf8') || '/';
-        } catch (_) {
-            returnTo = '/';
-        }
-    }
-    if (!code) {
-        res.redirect('/login.html?error=missing_code');
-        return;
-    }
-    if (!KAKAO_CLIENT_ID) {
-        res.redirect('/login.html?error=kakao_not_configured');
-        return;
-    }
-    try {
-        const tokenJson = await kakao.exchangeAuthorizationCode(
-            code,
-            kakaoRedirectUri(req),
-            KAKAO_CLIENT_ID,
-            KAKAO_CLIENT_SECRET
-        );
-        const me = await kakao.fetchUserProfile(tokenJson.access_token);
-        const profile = kakao.profileFromKakaoMe(me);
-        const matched = users.findUserForKakaoLogin(profile.kakaoUserId, profile.email);
-        if (!matched) {
-            const q = new URLSearchParams({
-                denied: '1',
-                email: profile.email || '',
-                kakaoId: profile.kakaoUserId,
-                nickname: profile.nickname || ''
-            });
-            res.redirect('/login.html?' + q.toString());
+app.get(
+    '/api/auth/kakao',
+    rateLimit.rateLimitMiddleware('auth_kakao_start', 40, 15 * 60 * 1000),
+    (req, res) => {
+        if (!KAKAO_CLIENT_ID) {
+            res.status(503).send('Kakao login is not configured on this server.');
             return;
         }
-        const session = users.createSession(matched.id);
-        setSessionCookie(res, session.token);
-        const safeReturn = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
-        res.redirect(safeReturn);
-    } catch (err) {
-        console.error('Kakao callback error:', err);
-        res.redirect('/login.html?error=oauth_failed');
+        const returnTo = typeof req.query.return === 'string' ? req.query.return : '/';
+        const oauthSecret = oauthState.oauthStateSecret();
+        const created = oauthState.createKakaoOAuthState(returnTo, oauthSecret, COOKIE_SECURE);
+        const url = kakao.buildAuthorizeUrl(KAKAO_CLIENT_ID, kakaoRedirectUri(req), created.state);
+        res.setHeader('Set-Cookie', created.setCookie);
+        res.redirect(url);
     }
-});
+);
 
-app.post('/api/admin/bootstrap', (req, res) => {
+app.get(
+    '/api/auth/kakao/callback',
+    rateLimit.rateLimitMiddleware('auth_kakao_callback', 40, 15 * 60 * 1000),
+    async (req, res) => {
+        if (req.query.error) {
+            res.redirect('/login.html?error=oauth_denied');
+            return;
+        }
+        const code = req.query.code;
+        const state = req.query.state || '';
+        const oauthSecret = oauthState.oauthStateSecret();
+        const verified = oauthState.verifyKakaoOAuthState(
+            state,
+            parseCookies(req)[oauthState.KAKAO_OAUTH_COOKIE],
+            oauthSecret
+        );
+        if (!verified.ok) {
+            res.redirect('/login.html?error=oauth_state_invalid');
+            return;
+        }
+        const returnTo = verified.returnTo;
+        if (!code) {
+            res.redirect('/login.html?error=missing_code');
+            return;
+        }
+        if (!KAKAO_CLIENT_ID) {
+            res.redirect('/login.html?error=kakao_not_configured');
+            return;
+        }
+        try {
+            const tokenJson = await kakao.exchangeAuthorizationCode(
+                code,
+                kakaoRedirectUri(req),
+                KAKAO_CLIENT_ID,
+                KAKAO_CLIENT_SECRET
+            );
+            const me = await kakao.fetchUserProfile(tokenJson.access_token);
+            const profile = kakao.profileFromKakaoMe(me);
+            const resolved = users.resolveKakaoLoginUser(profile);
+            if (resolved.disabled) {
+                res.redirect('/login.html?error=account_disabled');
+                return;
+            }
+            if (resolved.error) {
+                res.redirect('/login.html?error=' + encodeURIComponent(resolved.error));
+                return;
+            }
+            if (!resolved.user) {
+                res.redirect('/login.html?error=missing_kakao_id');
+                return;
+            }
+            const session = users.createLoginSession(resolved.user.id);
+            res.append('Set-Cookie', oauthState.clearKakaoOAuthStateCookie(COOKIE_SECURE));
+            setSessionCookie(res, session.token, session.maxAgeSec);
+            res.redirect(returnTo);
+        } catch (err) {
+            console.error('Kakao callback error:', kakao.kakaoErrorDetail(err));
+            res.redirect(kakao.loginRedirectForKakaoError(err));
+        }
+    }
+);
+
+app.post('/api/admin/bootstrap', rateLimit.rateLimitMiddleware('admin_bootstrap', 15, 15 * 60 * 1000), (req, res) => {
     const { secret, email, displayName, password } = req.body || {};
     if (users.countAdmins() > 0) {
         res.status(403).json({ error: 'Bootstrap already completed' });
@@ -272,7 +332,13 @@ app.post('/api/admin/bootstrap', (req, res) => {
 });
 
 app.get('/api/admin/users', requireUser, requireAdmin, (_req, res) => {
-    res.json(users.listUsers());
+    const list = users.listUsers().map((u) => {
+        const calendars = CalAccess.listCalendarsForUser(u);
+        const hasCalendarAccess =
+            Boolean(u.active) && (CalAccess.isAdmin(u) || calendars.length > 0);
+        return Object.assign({}, u, { hasCalendarAccess });
+    });
+    res.json(list);
 });
 
 app.post('/api/admin/users', requireUser, requireAdmin, (req, res) => {
@@ -604,6 +670,10 @@ app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
 });
 
 app.post('/api/calendars', requireUser, (req, res) => {
+    if (req.user.role !== 'admin') {
+        res.status(403).json({ error: 'Only admins can create team calendars' });
+        return;
+    }
     const { name, data, memberUserIds, groupIds } = req.body || {};
     if (!name || !data) {
         res.status(400).json({ error: 'name and data are required' });

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260528-print-data-grid">
+    <link rel="stylesheet" href="styles.css?v=20260601-curriculum-applicability">
     <script>
         (function () {
             try {
@@ -79,8 +79,10 @@
                     <div class="app-header-tool-group app-header-tool-group--account team-account-toolbar" id="teamAccountGroup" hidden>
                         <span id="teamUserLabel" class="team-user-label" hidden></span>
                         <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
+                        <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="editDisplayName">Edit name</button>
                         <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
                         <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
+                        <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
                     </div>
                 </div>
                 <details class="team-calendar-help">
@@ -127,6 +129,7 @@
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-syllabus" aria-selected="false" aria-controls="panel-syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabus</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-events" aria-selected="false" aria-controls="panel-events" data-tab="events" data-i18n="tabEvents">Events</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-homework" aria-selected="false" aria-controls="panel-homework" data-tab="homework" data-i18n="tabHomework">Homework</button>
+                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-curriculum" aria-selected="false" aria-controls="panel-curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Curriculum</button>
                     <button type="button" class="app-tab-btn app-tab-btn--data" role="tab" id="tabBtn-data" aria-selected="false" aria-controls="panel-data" data-tab="data" data-i18n="tabData">Data</button>
                 </nav>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
@@ -368,16 +371,27 @@
                 </div>
             </section>
 
+            <section id="panel-curriculum" class="app-tab-panel" data-tab="curriculum" role="tabpanel" aria-labelledby="tabBtn-curriculum" hidden>
+                <p class="section-hint curriculum-tab-intro" data-i18n="curriculumTabIntro">Edit session pages and default schedule settings for each program book. On the class form, pick Level and Book, then Apply from curriculum.</p>
+                <div class="curriculum-tab-layout workspace-books-layout">
+                    <aside class="curriculum-tab-sidebar workspace-books-sidebar">
+                        <div class="curriculum-tab-sidebar-toolbar">
+                            <button type="button" id="curriculumAddBtn" class="btn btn-primary btn-small" data-i18n="curriculumAddBtn">Add curriculum</button>
+                        </div>
+                        <div id="curriculumTabList" class="workspace-books-list" role="listbox" aria-label="Curriculum list"></div>
+                    </aside>
+                    <div id="curriculumTabEditorMount" class="curriculum-tab-editor-mount workspace-books-editor-mount">
+                        <p class="module-empty-hint" data-i18n="curriculumTabPick">Select a curriculum to edit sessions and defaults.</p>
+                    </div>
+                </div>
+            </section>
+
             <section id="panel-data" class="app-tab-panel" data-tab="data" role="tabpanel" aria-labelledby="tabBtn-data" hidden>
                 <div class="print-data-layout">
-                    <div class="print-data-section print-data-section--books print-books-section">
-                        <h2 class="module-section-title" data-i18n="printBooksHeading">Books</h2>
-                        <p class="section-hint" data-i18n="printBooksHint">Curriculum books (Write Now, Write Right, Hand in Hand, etc.): lesson plans and page blocks that class syllabi pull from. Green / Blue / Navy levels share one book where pagination is the same.</p>
-                        <div class="print-data-actions" style="margin-bottom: 0.75rem;">
-                            <button type="button" id="openWorkspaceBooksBtn" class="btn btn-outline btn-small" data-i18n="workspaceOpen">Open expanded workspace</button>
-                        </div>
-                        <p id="printBooksStats" class="print-books-stats section-hint" role="status"></p>
-                        <div id="printBooksList" class="print-books-list" aria-label="Curriculum books"></div>
+                    <div class="print-data-section print-data-section--curriculum-link">
+                        <h2 class="module-section-title" data-i18n="tabCurriculum">Curriculum</h2>
+                        <p class="section-hint" data-i18n="dataCurriculumLinkHint">Edit books, session pages, and program defaults on the Curriculum tab.</p>
+                        <button type="button" id="openCurriculumTabBtn" class="btn btn-outline btn-small" data-i18n="dataOpenCurriculumTab">Open Curriculum tab</button>
                     </div>
                     <div class="print-data-section print-data-section--lesson-plans print-syllabus-presets-section">
                         <h2 class="module-section-title" data-i18n="printSyllabusPresetsHeading">My lesson plans/books</h2>
@@ -388,14 +402,12 @@
                             <button type="button" id="printImportSyllabusBtn" class="btn btn-outline btn-small" data-i18n="printImportSyllabusPack">Import lesson plans/books pack</button>
                             <input type="file" id="printImportSyllabusFile" accept=".json,application/json" hidden>
                             <button type="button" id="printOpenSyllabusTabBtn" class="btn btn-outline btn-small" data-i18n="printOpenSyllabusTab">Open Syllabus tab</button>
-                            <button type="button" class="btn btn-outline btn-small" data-open-default-class-editor data-i18n="printEditPdfPresets">Edit PDF preset defaults</button>
                         </div>
                         <div id="printSyllabusTemplateList" class="print-syllabus-template-list" data-i18n-aria-label="printSyllabusTemplateListLabel" aria-label="Custom lesson plans"></div>
                     </div>
                     <div class="print-data-section print-data-section--data print-data-actions-section">
                         <h2 class="module-section-title" data-i18n="tabPrintDataHeading">Data &amp; settings</h2>
                         <div class="print-data-actions">
-                            <button type="button" class="btn btn-outline btn-small" data-open-default-class-editor data-i18n="defaultClassEditorOpen">Edit defaults</button>
                             <button type="button" id="clearDataBtn" class="btn btn-danger btn-small" data-i18n="clearAllData">Clear All Data</button>
                         </div>
                     </div>
@@ -496,21 +508,33 @@
                     <div id="classNameSuggestions" class="autocomplete-dropdown"></div>
                 </div>
 
-                <div class="form-row class-type-row">
-                    <div class="form-group class-type-select-wrap">
-                        <label for="classTypeSelect" data-i18n="classTypeLabel">Class type</label>
-                        <select id="classTypeSelect" aria-describedby="classTypeHint"></select>
-                        <p id="classTypeHint" class="section-hint" data-i18n="classTypeHint"></p>
+                <input type="hidden" id="classTypeIdHidden" value="">
+                <section class="class-curriculum-picker form-row">
+                    <div class="form-group">
+                        <label for="classCurriculumLevel" data-i18n="classCurriculumLevel">Level</label>
+                        <select id="classCurriculumLevel" aria-describedby="classCurriculumHint">
+                            <option value="" data-i18n="selectLevel">Select level</option>
+                        </select>
                     </div>
-                    <div class="form-group class-type-inline-actions">
+                    <div class="form-group">
+                        <label for="classCurriculumBook" data-i18n="classCurriculumBook">Book</label>
+                        <select id="classCurriculumBook" disabled>
+                            <option value="" data-i18n="classCurriculumBookPickLevel">Select level first</option>
+                        </select>
+                    </div>
+                    <div class="form-group class-curriculum-apply-wrap">
                         <span class="form-spacer-label" aria-hidden="true">&nbsp;</span>
-                        <div class="class-type-action-buttons">
-                            <button type="button" class="btn btn-outline btn-small" data-open-default-class-editor data-i18n="defaultClassEditorOpen">Edit defaults</button>
-                            <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
-                            <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
-                        </div>
+                        <button type="button" id="applyCurriculumToClassBtn" class="btn btn-primary btn-small" disabled data-i18n="applyCurriculumToClass">Apply from curriculum</button>
                     </div>
-                </div>
+                    <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
+                    <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Pick level and book, then Apply to fill class settings from curriculum. Name and dates stay yours.</p>
+                    <div class="class-curriculum-extra-actions">
+                        <button type="button" id="openCurriculumFromClassBtn" class="btn btn-outline btn-small" data-i18n="editCurriculumForBook">Edit curriculum</button>
+                        <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
+                        <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
+                    </div>
+                </section>
+                <select id="classTypeSelect" class="visually-hidden" aria-hidden="true" tabindex="-1"></select>
 
                 <div class="form-row">
                     <div class="form-group form-group-class-period">
@@ -778,6 +802,26 @@
                 <button type="button" id="cancelDeleteCalendarBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                 <button type="button" id="confirmDeleteCalendarBtn" class="btn btn-danger" data-i18n="deleteCalendarConfirm">Remove permanently</button>
             </div>
+        </div>
+    </div>
+
+    <div id="editDisplayNameModal" class="modal" role="dialog" aria-labelledby="editDisplayNameModalTitle" aria-modal="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="editDisplayNameModalTitle" data-i18n="editDisplayNameTitle">Edit display name</h2>
+                <button type="button" class="modal-close" id="closeEditDisplayNameModal" aria-label="Close">&times;</button>
+            </div>
+            <form id="editDisplayNameForm">
+                <div class="form-group">
+                    <label for="editDisplayNameInput" data-i18n="displayNameLabel">Display name</label>
+                    <input type="text" id="editDisplayNameInput" autocomplete="name" required maxlength="120">
+                    <p class="section-hint" data-i18n="editDisplayNameHint">This name appears in the team calendar header and when you request to edit a calendar.</p>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancelEditDisplayNameBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="submit" id="submitEditDisplayNameBtn" class="btn btn-primary" data-i18n="saveDisplayName">Save name</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1101,13 +1145,13 @@
     <script src="js/syllabus-curricula.js"></script>
     <script src="js/syllabus-presets.js"></script>
     <script src="js/default-class-editor.js"></script>
-    <script src="js/books-editor.js"></script>
+    <script src="js/books-editor.js?v=20260601-curriculum-applicability"></script>
     <script src="js/homework-import.js"></script>
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
-    <script src="js/team-auth.js?v=20260528-logout-save"></script>
+    <script src="js/team-auth.js?v=20260528-session"></script>
     <script src="js/calendar-sync.js?v=20260528-logout-save"></script>
-    <script src="app.js?v=20260528-workspace"></script>
+    <script src="app.js?v=20260528-session"></script>
     <script src="howto.js?v=20260528-howto-team"></script>
 </body>
 </html>

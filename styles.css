@@ -4065,6 +4065,189 @@ input.input-readonly {
     flex-shrink: 0;
 }
 
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.curriculum-tab-layout,
+.curriculum-tab-intro {
+    margin-bottom: 0.75rem;
+}
+
+.curriculum-tab-sidebar-toolbar {
+    margin-bottom: 0.75rem;
+}
+
+.curriculum-tab-sidebar-toolbar .btn {
+    width: 100%;
+}
+
+.workspace-book-list-item.is-custom .workspace-book-list-title::after {
+    content: ' · custom';
+    font-weight: normal;
+    opacity: 0.75;
+    font-size: 0.85em;
+}
+
+.curriculum-editor-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.curriculum-editor-title-row label {
+    font-weight: 600;
+}
+
+.curriculum-editor-title-input {
+    flex: 1;
+    min-width: 12rem;
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 6px;
+}
+
+.curriculum-applicability-panel {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.curriculum-applicability-heading {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+}
+
+.curriculum-applicability-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.curriculum-applicability-row label {
+    min-width: 10rem;
+    font-weight: 600;
+}
+
+.curriculum-default-lessons-input {
+    width: 5rem;
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 6px;
+}
+
+.curriculum-default-grade-select,
+.curriculum-default-level-select {
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 6px;
+    min-width: 10rem;
+}
+
+.curriculum-applicability-levels-wrap {
+    margin-top: 8px;
+}
+
+.curriculum-applicability-levels-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.curriculum-applicability-group strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+}
+
+.curriculum-applicability-levels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+}
+
+.curriculum-level-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.curriculum-level-chip-all {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.workspace-book-list-item.is-debate .workspace-book-list-title {
+    font-weight: 600;
+}
+
+.class-curriculum-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 12px;
+    align-items: end;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    margin-bottom: 12px;
+}
+
+.class-curriculum-apply-wrap .btn {
+    width: 100%;
+}
+
+.class-curriculum-extra-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    grid-column: 1 / -1;
+}
+
+.class-curriculum-preview {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+.books-col-actions {
+    width: 2.5rem;
+    text-align: center;
+}
+
+.books-ed-note {
+    width: 100%;
+    min-width: 8rem;
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 6px;
+    resize: vertical;
+}
+
+.books-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
 .print-syllabus-stats {
     margin: 0 0 10px;
 }

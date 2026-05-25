@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting for access — Class Calendar</title>
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('calendarTheme');
+                if (theme === 'dark' || theme === 'light') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    document.documentElement.style.colorScheme = theme;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260525-pending-access">
+    <style>
+        .pending-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: var(--bg-main);
+            color: var(--text-primary);
+        }
+        .pending-card {
+            max-width: 440px;
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+        .pending-card h1 {
+            margin: 0 0 0.5rem;
+            font-size: 1.35rem;
+        }
+        .pending-card p {
+            margin: 0 0 1rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .pending-user {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.9rem;
+        }
+        .pending-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+        .pending-actions .btn {
+            width: 100%;
+        }
+        .pending-lang {
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .pending-lang button {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            padding: 0;
+            font-size: inherit;
+        }
+        .pending-error {
+            color: var(--status-error-color);
+            font-size: 0.9rem;
+            margin-top: 0.75rem;
+            display: none;
+        }
+        .pending-edit-name {
+            margin-bottom: 1.25rem;
+        }
+        .pending-edit-name label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.35rem;
+        }
+        .pending-edit-name input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0.5rem 0.65rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background: var(--bg-main);
+            color: var(--text-primary);
+        }
+        .pending-edit-name .btn {
+            margin-top: 0.5rem;
+            width: 100%;
+        }
+        .pending-name-saved {
+            font-size: 0.85rem;
+            color: var(--status-success-color, #15803d);
+            margin-top: 0.35rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="pending-page">
+        <div class="pending-card">
+            <h1 id="pendingTitle">Waiting for calendar access</h1>
+            <p id="pendingLead">You are signed in. Your lead teacher must grant you access to a team calendar before you can use the planner.</p>
+            <p id="pendingHint">Ask them to add you to a <strong>group</strong> or assign you on a calendar in Admin. Then click <strong>Check again</strong>.</p>
+            <div class="pending-user" id="pendingUserBox" hidden>
+                <span id="pendingSignedInLabel">Signed in as</span>:
+                <strong id="pendingUserName">—</strong>
+                <span id="pendingUserEmail"></span>
+            </div>
+            <div class="pending-edit-name" id="pendingEditNameBox" hidden>
+                <label for="pendingDisplayNameInput" id="pendingDisplayNameLabel">Your display name</label>
+                <input type="text" id="pendingDisplayNameInput" maxlength="120" autocomplete="name">
+                <button type="button" class="btn btn-outline" id="pendingSaveNameBtn">Save name</button>
+                <p id="pendingNameSaved" class="pending-name-saved"></p>
+            </div>
+            <div class="pending-actions">
+                <button type="button" class="btn btn-primary" id="pendingCheckBtn">Check again</button>
+                <button type="button" class="btn btn-outline" id="pendingSignOutBtn">Sign out</button>
+            </div>
+            <p id="pendingError" class="pending-error"></p>
+            <p class="pending-lang">
+                <button type="button" id="pendingLangEn">English</button>
+                ·
+                <button type="button" id="pendingLangKo">한국어</button>
+            </p>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var LANG_KEY = 'pendingAccessLang';
+            var copy = {
+                en: {
+                    title: 'Waiting for calendar access',
+                    lead: 'You are signed in. Your lead teacher must grant you access to a team calendar before you can use the planner.',
+                    hint: 'Ask them to add you to a group or assign you on a calendar in Admin. Then click Check again.',
+                    signedIn: 'Signed in as',
+                    displayNameLabel: 'Your display name',
+                    saveName: 'Save name',
+                    nameSaved: 'Name saved.',
+                    nameRequired: 'Please enter a display name.',
+                    nameSaveFailed: 'Could not save name.',
+                    check: 'Check again',
+                    signOut: 'Sign out',
+                    notSignedIn: 'You are not signed in.',
+                    stillWaiting: 'No calendars yet. Please wait for your admin to grant access.',
+                    checkFailed: 'Could not check access. Try again.'
+                },
+                ko: {
+                    title: '캘린더 접근 대기 중',
+                    lead: '로그인되었습니다. 플래너를 사용하려면 담당 선생님이 팀 캘린더 접근 권한을 부여해야 합니다.',
+                    hint: '관리자 페이지에서 그룹에 추가하거나 캘린더 접근 권한을 부여해 달라고 요청한 뒤, 다시 확인을 누르세요.',
+                    signedIn: '로그인',
+                    displayNameLabel: '표시 이름',
+                    saveName: '이름 저장',
+                    nameSaved: '이름이 저장되었습니다.',
+                    nameRequired: '표시 이름을 입력하세요.',
+                    nameSaveFailed: '이름을 저장할 수 없습니다.',
+                    check: '다시 확인',
+                    signOut: '로그아웃',
+                    notSignedIn: '로그인되어 있지 않습니다.',
+                    stillWaiting: '아직 캘린더가 없습니다. 관리자가 접근 권한을 부여할 때까지 기다려 주세요.',
+                    checkFailed: '접근 확인에 실패했습니다. 다시 시도해 주세요.'
+                }
+            };
+
+            function lang() {
+                try {
+                    var s = localStorage.getItem(LANG_KEY);
+                    if (s === 'ko') {
+                        return 'ko';
+                    }
+                } catch (_) { /* ignore */ }
+                return 'en';
+            }
+
+            function setLang(next) {
+                try {
+                    localStorage.setItem(LANG_KEY, next === 'ko' ? 'ko' : 'en');
+                } catch (_) { /* ignore */ }
+                applyCopy();
+            }
+
+            function t(key) {
+                return copy[lang()][key] || copy.en[key] || key;
+            }
+
+            function applyCopy() {
+                document.getElementById('pendingTitle').textContent = t('title');
+                document.getElementById('pendingLead').textContent = t('lead');
+                document.getElementById('pendingHint').innerHTML = t('hint');
+                document.getElementById('pendingSignedInLabel').textContent = t('signedIn');
+                document.getElementById('pendingDisplayNameLabel').textContent = t('displayNameLabel');
+                document.getElementById('pendingSaveNameBtn').textContent = t('saveName');
+                document.getElementById('pendingCheckBtn').textContent = t('check');
+                document.getElementById('pendingSignOutBtn').textContent = t('signOut');
+                document.documentElement.lang = lang() === 'ko' ? 'ko' : 'en';
+            }
+
+            function showError(msg) {
+                var el = document.getElementById('pendingError');
+                el.style.display = 'block';
+                el.textContent = msg;
+            }
+
+            function clearError() {
+                var el = document.getElementById('pendingError');
+                el.style.display = 'none';
+                el.textContent = '';
+            }
+
+            async function fetchMe() {
+                var res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+                if (res.status === 401) {
+                    return null;
+                }
+                if (!res.ok) {
+                    throw new Error('me');
+                }
+                return res.json();
+            }
+
+            async function checkAccessAndMaybeRedirect() {
+                clearError();
+                var me = await fetchMe();
+                if (!me) {
+                    location.replace('/login.html?return=' + encodeURIComponent('/pending-access.html'));
+                    return;
+                }
+                if (me.hasCalendarAccess) {
+                    location.replace('/');
+                    return;
+                }
+                var calRes = await fetch('/api/calendars', { credentials: 'same-origin' });
+                if (!calRes.ok) {
+                    throw new Error('calendars');
+                }
+                var calendars = await calRes.json();
+                if (Array.isArray(calendars) && calendars.length > 0) {
+                    location.replace('/');
+                    return;
+                }
+                showError(t('stillWaiting'));
+            }
+
+            function showNameSaved(msg) {
+                var el = document.getElementById('pendingNameSaved');
+                el.textContent = msg || t('nameSaved');
+                el.style.display = 'block';
+            }
+
+            function hideNameSaved() {
+                var el = document.getElementById('pendingNameSaved');
+                el.style.display = 'none';
+                el.textContent = '';
+            }
+
+            async function saveDisplayName() {
+                hideNameSaved();
+                clearError();
+                var input = document.getElementById('pendingDisplayNameInput');
+                var name = (input && input.value ? input.value : '').trim();
+                if (!name) {
+                    showError(t('nameRequired'));
+                    return;
+                }
+                var btn = document.getElementById('pendingSaveNameBtn');
+                if (btn) {
+                    btn.disabled = true;
+                }
+                try {
+                    var res = await fetch('/api/auth/profile', {
+                        method: 'PATCH',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ displayName: name })
+                    });
+                    var json = await res.json().catch(function () {
+                        return {};
+                    });
+                    if (!res.ok) {
+                        showError(json.error || t('nameSaveFailed'));
+                        return;
+                    }
+                    document.getElementById('pendingUserName').textContent =
+                        json.displayName || name;
+                    showNameSaved(t('nameSaved'));
+                } catch (_) {
+                    showError(t('nameSaveFailed'));
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                    }
+                }
+            }
+
+            async function init() {
+                applyCopy();
+                if (location.protocol === 'file:') {
+                    showError('Open this page from your team server URL (https://…), not as a file on your PC.');
+                    return;
+                }
+                try {
+                    var me = await fetchMe();
+                    if (!me) {
+                        location.replace('/login.html?return=' + encodeURIComponent('/pending-access.html'));
+                        return;
+                    }
+                    if (me.hasCalendarAccess) {
+                        location.replace('/');
+                        return;
+                    }
+                    var box = document.getElementById('pendingUserBox');
+                    box.hidden = false;
+                    document.getElementById('pendingUserName').textContent =
+                        me.displayName || me.email || 'Teacher';
+                    var emailEl = document.getElementById('pendingUserEmail');
+                    if (me.email) {
+                        emailEl.textContent = ' (' + me.email + ')';
+                    } else {
+                        emailEl.textContent = '';
+                    }
+                    var editBox = document.getElementById('pendingEditNameBox');
+                    editBox.hidden = false;
+                    document.getElementById('pendingDisplayNameInput').value =
+                        me.displayName || me.email || '';
+                } catch (_) {
+                    showError(t('checkFailed'));
+                }
+            }
+
+            document.getElementById('pendingSaveNameBtn').addEventListener('click', function () {
+                saveDisplayName();
+            });
+            document.getElementById('pendingCheckBtn').addEventListener('click', function () {
+                checkAccessAndMaybeRedirect().catch(function () {
+                    showError(t('checkFailed'));
+                });
+            });
+            document.getElementById('pendingSignOutBtn').addEventListener('click', function () {
+                fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+                    .catch(function () { /* ignore */ })
+                    .finally(function () {
+                        location.href = '/login.html';
+                    });
+            });
+            document.getElementById('pendingLangEn').addEventListener('click', function () {
+                setLang('en');
+            });
+            document.getElementById('pendingLangKo').addEventListener('click', function () {
+                setLang('ko');
+            });
+
+            init();
+        })();
+    </script>
+</body>
+</html>

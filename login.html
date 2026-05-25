@@ -18,7 +18,7 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260528-login-theme">
+    <link rel="stylesheet" href="styles.css?v=20260525-kakao-login-debug">
     <style>
         .login-page {
             min-height: 100vh;
@@ -71,6 +71,21 @@
         }
         .login-kakao:hover {
             filter: brightness(0.97);
+        }
+        .login-kakao.is-disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .login-kakao-hint {
+            margin: 0.75rem 0 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        .login-kakao-hint code {
+            font-size: 0.78rem;
+            word-break: break-all;
         }
         .login-denied {
             background: var(--status-error-bg);
@@ -132,7 +147,7 @@
     <div class="login-page">
         <div class="login-card">
             <h1>Class Calendar — Team</h1>
-            <p>Sign in with your school Kakao account. Your lead teacher must add your email first.</p>
+            <p>Sign in with your school Kakao account. First-time sign-in creates your account — you do not need to give your email to your admin. They grant calendar access after you sign in (waiting page until then).</p>
 
             <div id="deniedBox" class="login-denied" style="display: none;">
                 <strong>Access not granted yet</strong>
@@ -142,6 +157,7 @@
             </div>
 
             <a id="kakaoLoginBtn" class="login-kakao" href="/api/auth/kakao">Login with Kakao</a>
+            <p id="kakaoConfigHint" class="login-kakao-hint" style="display: none;"></p>
 
             <div class="login-fallback">
                 <p><strong>Password fallback</strong> (only if your admin gave you one)</p>
@@ -201,13 +217,51 @@
             const params = new URLSearchParams(location.search);
             const returnTo = params.get('return') || '/';
             const kakaoBtn = document.getElementById('kakaoLoginBtn');
+            const kakaoHint = document.getElementById('kakaoConfigHint');
             kakaoBtn.href = '/api/auth/kakao?return=' + encodeURIComponent(returnTo);
 
-            if (params.get('denied') === '1') {
-                document.getElementById('deniedBox').style.display = 'block';
-                document.getElementById('deniedEmail').textContent = params.get('email') || '(not shared by Kakao)';
-                document.getElementById('deniedKakaoId').textContent = params.get('kakaoId') || '—';
-            }
+            const ERROR_MESSAGES = {
+                oauth_failed: 'Kakao sign-in failed. Try again or ask your calendar admin.',
+                oauth_denied: 'Kakao sign-in was cancelled.',
+                kakao_not_configured:
+                    'Kakao login is not set up on this server yet. Use password sign-in below or ask your admin.',
+                redirect_uri_mismatch:
+                    'Kakao redirect URI does not match. Ask your calendar admin to fix Kakao Developers settings.',
+                oauth_code_expired: 'Kakao sign-in timed out. Click Login with Kakao again.',
+                missing_code: 'Kakao did not return a sign-in code. Try again.',
+                email_required:
+                    'Kakao did not share your email. Ask your admin to add your Kakao user ID instead of email.',
+                account_disabled:
+                    'This account has been deactivated. Contact your calendar admin.',
+                kakao_client_secret:
+                    'Kakao client secret is wrong or missing on the server. Check KAKAO_CLIENT_SECRET in Cloudflare matches the REST API key in Kakao Developers.',
+                invalid_scope:
+                    'Kakao scope error (KOE205). Do not request email/nickname scopes until they are enabled under 카카오 로그인 → 동의항목.',
+                missing_kakao_id:
+                    'Kakao did not return a user id. Try again or contact your admin.',
+                oauth_state_invalid:
+                    'Sign-in session expired or was invalid. Click Login with Kakao again.',
+                not_invited:
+                    'You are not on the teacher list yet. Ask your calendar admin to add your email or Kakao user ID in Admin, then try again.',
+                kakao_not_linked:
+                    'Your email is on file but Kakao is not linked yet. Ask your admin to add your Kakao user ID in Admin (Users → Edit), then sign in again.',
+                kakao_mismatch:
+                    'This Kakao account does not match the Kakao ID on file for your email. Contact your calendar admin.'
+            };
+
+            fetch('/api/health', { credentials: 'same-origin' })
+                .then(function (r) {
+                    return r.ok ? r.json() : {};
+                })
+                .then(function (h) {
+                    if (h && h.kakaoConfigured === false) {
+                        kakaoBtn.classList.add('is-disabled');
+                        kakaoBtn.setAttribute('aria-disabled', 'true');
+                        kakaoHint.style.display = 'block';
+                        kakaoHint.textContent =
+                            'Kakao login is not configured on this site yet. Use the password form below if your admin gave you one.';
+                })
+                .catch(function () { /* offline / file URL */ });
 
             if (params.get('signedOut') === 'idle') {
                 const el = document.getElementById('loginError');
@@ -219,10 +273,7 @@
             if (err) {
                 const el = document.getElementById('loginError');
                 el.style.display = 'block';
-                el.textContent =
-                    err === 'oauth_failed'
-                        ? 'Kakao sign-in failed. Try again or contact your admin.'
-                        : 'Sign-in problem: ' + err;
+                el.textContent = ERROR_MESSAGES[err] || 'Sign-in problem: ' + err;
             }
 
             document.getElementById('passwordForm').addEventListener('submit', async (e) => {

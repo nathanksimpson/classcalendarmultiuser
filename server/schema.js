@@ -82,6 +82,7 @@ function migrateAppSettings(db) {
             value TEXT NOT NULL
         );
         INSERT OR IGNORE INTO app_settings (key, value) VALUES ('lock_stale_minutes', '20');
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('session_max_days', '14');
     `);
 }
 

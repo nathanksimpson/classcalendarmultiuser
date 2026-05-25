@@ -175,8 +175,8 @@
                     where: 'School bookmark → login page → header after sign-in',
                     steps: [
                         'Open the team URL your school gave you in the browser (bookmark it). Do not double-click index.html from a folder.',
-                        'Click Login with Kakao. Your lead teacher must add your email on the Admin page before Kakao sign-in works.',
-                        'If you see Access not granted, send the email shown on screen to your admin. You do not need to look up your Kakao ID.',
+                        'Click Login with Kakao. First sign-in creates your account — you do not need to give your email to your admin.',
+                        'If you see a waiting page, your admin must grant calendar access (they can find you in Admin → Users by Kakao ID or display name).',
                         'Password fallback: only if your admin gave you email + temporary password — use the form below Kakao on the login page.',
                         'After sign-in: Change password in the header (min 8 characters) if you use password login.',
                         'Sign out from the header when finished. On shared PCs the site signs you out after idle time (admin sets minutes; default 30 with a 2-minute warning). Move the mouse or press a key when warned to stay signed in.'

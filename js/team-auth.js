@@ -224,6 +224,20 @@
                 location.replace('/login.html?return=' + ret);
                 throw new Error('redirect');
             }
+            if (
+                currentUser.hasCalendarAccess === false &&
+                currentUser.role !== 'admin' &&
+                typeof location !== 'undefined'
+            ) {
+                const path = location.pathname || '';
+                const onPending =
+                    path === '/pending-access.html' || path.endsWith('/pending-access.html');
+                const onAdmin = path === '/admin.html' || path.endsWith('/admin.html');
+                if (!onPending && !onAdmin) {
+                    location.replace('/pending-access.html');
+                    throw new Error('redirect');
+                }
+            }
             attachIdleWatch();
             return currentUser;
         },
@@ -237,6 +251,35 @@
                 detachIdleWatch();
             }
             return currentUser;
+        },
+
+        async logoutAll() {
+            detachIdleWatch();
+            if (typeof CalendarSync !== 'undefined') {
+                try {
+                    if (CalendarSync.prepareForLogout) {
+                        await CalendarSync.prepareForLogout();
+                    }
+                    if (CalendarSync.stopPolling) {
+                        CalendarSync.stopPolling();
+                    }
+                    const calId = CalendarSync.getActiveCalendarId && CalendarSync.getActiveCalendarId();
+                    if (calId && CalendarSync.state && CalendarSync.state.holdsLock && CalendarSync.releaseLock) {
+                        await CalendarSync.releaseLock(calId);
+                    }
+                } catch (_) {
+                    /* server also releases locks on logout */
+                }
+            }
+            try {
+                await fetch('/api/auth/logout-all', { method: 'POST', credentials: 'same-origin' });
+            } catch (_) {
+                /* proceed to login */
+            }
+            currentUser = null;
+            checked = false;
+            idleLoggingOut = false;
+            location.href = '/login.html';
         },
 
         async logout(options) {

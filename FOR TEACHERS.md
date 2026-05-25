@@ -5,7 +5,7 @@ Quick guide for daily use. For full planner features (tabs, syllabus, print), op
 ## What you need
 
 1. **Bookmark** your school calendar link (from your lead teacher or admin).
-2. **Kakao account** — the same email your admin added — **or** a temporary password if your admin set one.
+2. **Kakao account** — click **Login with Kakao**; first sign-in creates your account (you do **not** need to give your email to your admin) — **or** a temporary password if your admin set one.
 
 ## How to sign in
 
@@ -14,11 +14,13 @@ Quick guide for daily use. For full planner features (tabs, syllabus, print), op
 3. **Password only:** if your admin gave email + temporary password, use the form under Kakao on the login page.
 4. After sign-in you can use **Change password** in the header (min 8 characters) if you use password login.
 
-If you see **Access not granted**, send the **email** shown on that screen to your lead teacher. You do **not** need to find your Kakao ID yourself.
+### Waiting for calendar access
+
+If you sign in but have **no team calendars yet**, you will see a **waiting** page (not the full planner). Ask your lead teacher to add you to a **group** or grant **calendar access** in Admin, then click **Check again**.
 
 ## Team calendars
 
-1. Pick a calendar from **Team calendar** in the header, or click **+ New**.
+1. Pick a calendar from **Team calendar** in the header (admins can click **+ New** to create calendars).
 2. Edit the schedule as usual — changes **save automatically** to the cloud.
 3. Rename with **Calendar name (saved)** on the Calendar tab.
 4. **Export** downloads a backup file to your computer; **Backup** runs a server backup (admins manage the site).
@@ -36,6 +38,13 @@ If you see **Someone else saved a newer version**, click **Reload latest**.
 ## Automatic sign-out when idle
 
 On shared computers, the site signs you out after a period with no mouse, keyboard, or touch (your admin sets the timing; default is **30 minutes** with a **2-minute warning**). Move the mouse or press a key when you see the warning. Sign in again with Kakao or your password.
+
+## Sign out, cookies, and Kakao (shared computers)
+
+- **Sign out** in the header ends your **Class Calendar** session (`cal_session` cookie). Use this when you finish on a shared or lab PC.
+- **Sign out all devices** ends every calendar session tied to your account (other browsers, phone, home laptop). Use it if you think you stayed signed in somewhere else.
+- **Login with Kakao** may leave you signed in to **Kakao** in the browser for other websites. That is separate from this calendar. On a shared PC, use **Sign out** here, then sign out of Kakao in the browser if you want extra privacy.
+- A new Kakao login on this site replaces your previous calendar session on other devices (only the latest sign-in stays active until it expires or you sign out).
 
 ## You do not need to
 

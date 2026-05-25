@@ -16,6 +16,8 @@ Teachers open **one bookmark**, sign in with **Kakao**, and edit shared calendar
 
 ### 1. Kakao Developers
 
+Full checklist: **[KAKAO-SETUP.md](KAKAO-SETUP.md)**.
+
 1. Create an app at [developers.kakao.com](https://developers.kakao.com).
 2. Enable **Kakao Login** → set redirect URI:  
    `https://YOUR-DOMAIN/api/auth/kakao/callback`
@@ -40,8 +42,8 @@ Summary:
 
 1. Open `https://YOUR-DOMAIN/admin.html`.
 2. Use **First-time setup** with `BOOTSTRAP_ADMIN_SECRET`.
-3. Add teachers by **email** on the admin page.
-4. Teachers use **Login with Kakao** on the bookmark.
+3. Teachers **Login with Kakao** (first login creates their account); grant **groups / calendar access** in admin.
+4. Teachers without calendar access see a waiting page until step 3 is done.
 
 ## Teacher instructions
 

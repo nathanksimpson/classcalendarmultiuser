@@ -100,11 +100,12 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     }
 
     const lockState = users.lockStatusForClient(id, user.id);
-    if (lockState.readOnly && !force) {
+    const forceAllowed = Boolean(force) && (user.role === 'admin' || lockState.holdsLock);
+    if (lockState.readOnly && !forceAllowed) {
         return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
     }
 
-    if (!force && revision != null && Number(revision) !== Number(existing.revision)) {
+    if (!forceAllowed && revision != null && Number(revision) !== Number(existing.revision)) {
         return { ok: false, status: 409, document: getCalendar(id) };
     }
 

@@ -1,16 +1,37 @@
 /**
- * Books — curriculum page data (Write Now, Write Right, etc.) used by class syllabi.
+ * Curriculum — book sessions, class defaults, overrides (Write Now, Write Right, etc.)
  * window.CCPBooksEditor
  */
 (function (global) {
+    const MAX_SESSION_ROWS = 48;
+    const MIN_SESSION_ROWS = 1;
+    /** Book dropdown value when applying level defaults without a curriculum book. */
+    const NO_BOOK_CURRICULUM_ID = '__no_book__';
+    const DEBATE_CURRICULUM_ID = '__debate__';
+    const LEVEL_ONLY_PRESET_ID = 'builtin-korean-multiweekly';
+    const DEBATE_PRESET_ID = 'builtin-debate';
+    /** Simson middle-school level ids (중1–중3 sections). */
+    const MIDDLE_SCHOOL_LEVEL_IDS = new Set([
+        '\uC720\uB9C8', '\uB808\uC624', '\uD30C\uBCF4', '\uD3F4\uB77C',
+        '\uD649\uC2A4', '\uD2F0\uCE74', '\uBE45\uD0A4', '\uBC14\uC774\uCEEC',
+        '\uC548\uB098', '\uB0AD\uAC00', '\uB85C\uCCB4', '\uCE89\uCCB8'
+    ]);
+    /** Elementary Purple+ and all middle school — debate curriculum (schedule matrix). */
+    const DEBATE_ELIGIBLE_LEVEL_IDS = new Set([
+        'Purple', 'Yeoul', 'Saemmul', 'Garam', 'Bada', 'Byeolmaru', 'Mirinae',
+        ...MIDDLE_SCHOOL_LEVEL_IDS
+    ]);
+
     let hooks = {
         getAppData: () => ({}),
         saveData: () => {},
         t: (k) => k,
         getLang: () => 'en',
-        openModal: () => {},
-        closeModal: () => {},
-        onBooksSaved: () => {}
+        applyLanguage: () => {},
+        onBooksSaved: () => {},
+        navigateToCurriculumTab: null,
+        getSimsonLevelGroups: () => [],
+        getSchoolGradeOptions: () => []
     };
 
     function init(options = {}) {
@@ -29,6 +50,14 @@
         return data.bookOverrides;
     }
 
+    function ensureCurriculumOverrides(appData) {
+        const data = appData || getAppData();
+        if (!data.curriculumOverrides || typeof data.curriculumOverrides !== 'object') {
+            data.curriculumOverrides = {};
+        }
+        return data.curriculumOverrides;
+    }
+
     function slugifyBookKey(text) {
         return (text || '')
             .trim()
@@ -37,7 +66,6 @@
             .replace(/^-+|-+$/g, '') || 'book';
     }
 
-    /** Strip trailing book number / level tag for series grouping. */
     function bookSeriesBaseName(defaultBook, fallbackName) {
         const raw = (defaultBook || fallbackName || '').trim();
         if (!raw) {
@@ -65,6 +93,13 @@
         return null;
     }
 
+    function getAllFactoryPresets() {
+        if (global.CCPSyllabusPresets && global.CCPSyllabusPresets.getAll) {
+            return global.CCPSyllabusPresets.getAll();
+        }
+        return [];
+    }
+
     function normalizeRowTemplates(rows) {
         return (rows || []).map((r, i) => ({
             sessionNumber: r.sessionNumber != null ? r.sessionNumber : i + 1,
@@ -83,15 +118,146 @@
         return normalizeRowTemplates(factory && factory.defaultSyllabusRowTemplates);
     }
 
-    /**
-     * Discover book series from factory PDF presets that ship row templates.
-     */
+    function factoryClassDefaultsFromPreset(preset) {
+        if (!preset) {
+            return {};
+        }
+        const out = {};
+        if (preset.defaultTotalLessons != null) {
+            out.defaultTotalLessons = preset.defaultTotalLessons;
+        }
+        if (preset.scheduleModel) {
+            out.scheduleModel = preset.scheduleModel;
+        }
+        if (Array.isArray(preset.defaultMeetingDays) && preset.defaultMeetingDays.length) {
+            out.defaultMeetingDays = [...preset.defaultMeetingDays];
+        }
+        if (preset.defaultCompressionMode) {
+            out.defaultCompressionMode = preset.defaultCompressionMode;
+        }
+        if (preset.lessonLabelMode) {
+            out.lessonLabelMode = preset.lessonLabelMode;
+        }
+        if (preset.homeworkImportMode) {
+            out.homeworkImportMode = preset.homeworkImportMode;
+        }
+        if (preset.usesUnitPairLabels != null) {
+            out.usesUnitPairLabels = !!preset.usesUnitPairLabels;
+        }
+        if (preset.level) {
+            out.levelPreset = preset.level;
+        }
+        return out;
+    }
+
+    function mergeClassDefaults(base, patch) {
+        const out = { ...(base || {}) };
+        if (!patch || typeof patch !== 'object') {
+            return out;
+        }
+        Object.keys(patch).forEach((key) => {
+            const v = patch[key];
+            if (v === undefined || v === null) {
+                return;
+            }
+            if (typeof v === 'string' && v.trim() === '') {
+                return;
+            }
+            out[key] = deepClone(v);
+        });
+        return out;
+    }
+
+    function getCurriculumRecord(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return null;
+        }
+        const overrides = ensureCurriculumOverrides(appData);
+        const raw = overrides[id];
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+        const sessions = raw.sessions
+            ? normalizeRowTemplates(raw.sessions)
+            : (raw.defaultSyllabusRowTemplates
+                ? normalizeRowTemplates(raw.defaultSyllabusRowTemplates)
+                : []);
+        const applicableLevels = Array.isArray(raw.applicableLevels)
+            ? raw.applicableLevels
+            : (Array.isArray(raw.levels) ? raw.levels : undefined);
+        return {
+            ...raw,
+            sessions,
+            applicableLevels,
+            classDefaults: raw.classDefaults && typeof raw.classDefaults === 'object'
+                ? raw.classDefaults
+                : {},
+            types: raw.types && typeof raw.types === 'object' ? raw.types : {}
+        };
+    }
+
+    function syncLegacyBookOverride(curriculumId, sessions, appData) {
+        const overrides = ensureBookOverrides(appData);
+        const book = getBookById(curriculumId, appData);
+        const factory = book ? getFactoryTemplatesForBook(book) : [];
+        const normalized = normalizeRowTemplates(sessions);
+        if (JSON.stringify(normalized) === JSON.stringify(factory)) {
+            delete overrides[curriculumId];
+        } else {
+            overrides[curriculumId] = {
+                defaultSyllabusRowTemplates: normalized,
+                updatedAt: new Date().toISOString()
+            };
+        }
+    }
+
+    function migrateLegacyToCurriculum(appData) {
+        const data = appData || getAppData();
+        const curricula = ensureCurriculumOverrides(data);
+        const books = ensureBookOverrides(data);
+        Object.keys(books).forEach((id) => {
+            const leg = books[id];
+            if (!leg || typeof leg !== 'object') {
+                return;
+            }
+            if (!curricula[id]) {
+                curricula[id] = {
+                    sessions: normalizeRowTemplates(leg.defaultSyllabusRowTemplates),
+                    classDefaults: {},
+                    types: {},
+                    updatedAt: leg.updatedAt || new Date().toISOString()
+                };
+            } else if (!curricula[id].sessions?.length && leg.defaultSyllabusRowTemplates) {
+                curricula[id].sessions = normalizeRowTemplates(leg.defaultSyllabusRowTemplates);
+            }
+        });
+        const typeOv = data.defaultClassTypeOverrides;
+        if (typeOv && typeof typeOv === 'object') {
+            getAllFactoryPresets().forEach((preset) => {
+                const patch = typeOv[preset.id];
+                if (!patch || !Array.isArray(patch.defaultSyllabusRowTemplates)) {
+                    return;
+                }
+                const cid = deriveBookKey(preset);
+                if (!curricula[cid]) {
+                    curricula[cid] = { sessions: [], classDefaults: {}, types: {} };
+                }
+                if (!curricula[cid].sessions.length) {
+                    curricula[cid].sessions = normalizeRowTemplates(patch.defaultSyllabusRowTemplates);
+                }
+                delete patch.defaultSyllabusRowTemplates;
+            });
+        }
+    }
+
     function discoverBooks(appData) {
+        migrateLegacyToCurriculum(appData);
         const api = global.CCPSyllabusPresets;
         if (!api || !api.getAll) {
             return [];
         }
-        const overrides = ensureBookOverrides(appData);
+        const bookOv = ensureBookOverrides(appData);
         const byKey = new Map();
         api.getAll().forEach((preset) => {
             const templates = preset.defaultSyllabusRowTemplates;
@@ -119,38 +285,188 @@
                 book.defaultTotalLessons = preset.defaultTotalLessons;
             }
         });
+        const curricula = ensureCurriculumOverrides(appData);
+        Object.keys(curricula).forEach((id) => {
+            const raw = curricula[id];
+            if (!raw || typeof raw !== 'object' || !raw.isCustom || byKey.has(id)) {
+                return;
+            }
+            const sessions = raw.sessions
+                ? normalizeRowTemplates(raw.sessions)
+                : [];
+            const title = (raw.bookTitle || id).trim();
+            const levels = Array.isArray(raw.applicableLevels)
+                ? raw.applicableLevels.filter(Boolean)
+                : (Array.isArray(raw.levels) ? raw.levels.filter(Boolean) : []);
+            const applicable = getStoredApplicableLevels(id, appData, levels, false);
+            byKey.set(id, {
+                id,
+                name: title,
+                displayName: title,
+                presetIds: [],
+                levels: applicable.levels,
+                applicableIsAllLevels: applicable.isAllLevels,
+                isCustom: true,
+                defaultTotalLessons: raw.classDefaults && raw.classDefaults.defaultTotalLessons != null
+                    ? raw.classDefaults.defaultTotalLessons
+                    : (sessions.length || 4),
+                lessonLabelMode: (raw.classDefaults && raw.classDefaults.lessonLabelMode) || '',
+                programTrack: '',
+                sessionCount: sessions.length,
+                factorySessionCount: 0,
+                hasOverride: true,
+                levelsLabel: applicable.levelsLabel
+            });
+        });
+        appendVirtualDebateBook(byKey, appData);
         return [...byKey.values()]
             .map((book) => {
-                const hasOverride = !!(overrides[book.id]
-                    && Array.isArray(overrides[book.id].defaultSyllabusRowTemplates)
-                    && overrides[book.id].defaultSyllabusRowTemplates.length);
+                if (book.isCustom || book.isVirtualDebate) {
+                    return { ...book };
+                }
+                const cur = getCurriculumRecord(book.id, appData);
+                const legacySessions = bookOv[book.id] && bookOv[book.id].defaultSyllabusRowTemplates;
+                const hasCurSessions = !!(cur && cur.sessions && cur.sessions.length);
+                const hasLegacy = !!(legacySessions && legacySessions.length);
+                const hasOverride = hasCurSessions || hasLegacy;
                 const factoryRows = getFactoryTemplatesForBook(book);
-                const effectiveRows = hasOverride
-                    ? normalizeRowTemplates(overrides[book.id].defaultSyllabusRowTemplates)
-                    : factoryRows;
+                let effectiveRows = factoryRows;
+                if (hasCurSessions) {
+                    effectiveRows = cur.sessions;
+                } else if (hasLegacy) {
+                    effectiveRows = normalizeRowTemplates(legacySessions);
+                }
+                const displayName = (cur && cur.bookTitle) || book.name;
+                const factoryLevels = book.levels.slice();
+                const applicable = getStoredApplicableLevels(book.id, appData, factoryLevels, false);
                 return {
                     ...book,
+                    name: displayName,
+                    displayName,
+                    levels: applicable.levels,
+                    applicableIsAllLevels: applicable.isAllLevels,
                     sessionCount: effectiveRows.length,
                     factorySessionCount: factoryRows.length,
                     hasOverride,
-                    levelsLabel: book.levels.sort().join(', ')
+                    levelsLabel: applicable.levelsLabel
                 };
             })
             .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const discoverCurricula = discoverBooks;
+
+    function isCustomCurriculum(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return false;
+        }
+        const raw = ensureCurriculumOverrides(appData)[id];
+        return !!(raw && raw.isCustom);
     }
 
     function getBookById(bookId, appData) {
         return discoverBooks(appData).find((b) => b.id === bookId) || null;
     }
 
+    function uniqueCurriculumId(baseTitle, appData) {
+        const curricula = ensureCurriculumOverrides(appData);
+        const base = slugifyBookKey(baseTitle) || 'curriculum';
+        let candidate = base;
+        let n = 2;
+        while (curricula[candidate]) {
+            candidate = `${base}-${n}`;
+            n += 1;
+        }
+        return candidate;
+    }
+
+    function createCurriculum(patch, appData) {
+        const data = appData || getAppData();
+        const title = (patch && (patch.bookTitle || patch.title) || '').trim();
+        if (!title) {
+            return null;
+        }
+        const id = uniqueCurriculumId(title, data);
+        const sessions = patch && patch.sessions && patch.sessions.length
+            ? normalizeRowTemplates(patch.sessions)
+            : [{ sessionNumber: 1, planTitle: '', planDetail: '', note: '' }];
+        const lessonCount = patch && patch.classDefaults && patch.classDefaults.defaultTotalLessons != null
+            ? patch.classDefaults.defaultTotalLessons
+            : sessions.length;
+        const curricula = ensureCurriculumOverrides(data);
+        const applicableLevels = Array.isArray(patch && patch.applicableLevels)
+            ? patch.applicableLevels.filter(Boolean)
+            : (Array.isArray(patch && patch.levels) ? patch.levels.filter(Boolean) : []);
+        curricula[id] = {
+            isCustom: true,
+            bookTitle: title,
+            applicableLevels,
+            levels: applicableLevels,
+            sessions,
+            classDefaults: {
+                defaultTotalLessons: lessonCount,
+                defaultBook: title,
+                ...(patch && patch.classDefaults ? patch.classDefaults : {})
+            },
+            types: {},
+            updatedAt: new Date().toISOString()
+        };
+        hooks.saveData();
+        hooks.onBooksSaved();
+        return id;
+    }
+
+    function deleteCustomCurriculum(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id || !isCustomCurriculum(id, appData)) {
+            return false;
+        }
+        const curricula = ensureCurriculumOverrides(appData);
+        delete curricula[id];
+        const overrides = ensureBookOverrides(appData);
+        delete overrides[id];
+        hooks.saveData();
+        hooks.onBooksSaved();
+        return true;
+    }
+
+    function getCurriculumDisplayName(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (id === DEBATE_CURRICULUM_ID) {
+            const label = hooks.t('classCurriculumDebate');
+            return label && label !== 'classCurriculumDebate' ? label : 'Debate';
+        }
+        if (id === NO_BOOK_CURRICULUM_ID) {
+            const label = hooks.t('classCurriculumNoBook');
+            return label && label !== 'classCurriculumNoBook' ? label : 'No book';
+        }
+        const book = getBookById(curriculumId, appData);
+        if (book) {
+            return book.displayName || book.name;
+        }
+        const cur = getCurriculumRecord(curriculumId, appData);
+        return (cur && cur.bookTitle) || curriculumId;
+    }
+
     function getTemplatesForBookId(bookId, appData) {
-        const book = getBookById(bookId, appData);
-        if (!book) {
-            return [];
+        migrateLegacyToCurriculum(appData);
+        const cur = getCurriculumRecord(bookId, appData);
+        if (cur && cur.sessions.length) {
+            return cur.sessions;
         }
         const overrides = ensureBookOverrides(appData);
         if (overrides[bookId] && Array.isArray(overrides[bookId].defaultSyllabusRowTemplates)) {
             return normalizeRowTemplates(overrides[bookId].defaultSyllabusRowTemplates);
+        }
+        if (isDebateCurriculum(bookId)) {
+            const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData);
+            return cur && cur.sessions.length ? cur.sessions : getFactoryDebateSessions();
+        }
+        const book = getBookById(bookId, appData);
+        if (book && book.isCustom) {
+            const cur = getCurriculumRecord(bookId, appData);
+            return cur && cur.sessions.length ? cur.sessions : [];
         }
         return getFactoryTemplatesForBook(book);
     }
@@ -176,21 +492,347 @@
         return merged;
     }
 
-    function saveBookTemplates(bookId, rowTemplates, appData) {
+    function isNoBookCurriculum(curriculumId) {
+        const cid = (curriculumId || '').trim();
+        return !cid || cid === NO_BOOK_CURRICULUM_ID;
+    }
+
+    function isDebateCurriculum(curriculumId) {
+        return (curriculumId || '').trim() === DEBATE_CURRICULUM_ID;
+    }
+
+    function isMiddleSchoolSimsonLevel(level) {
+        return MIDDLE_SCHOOL_LEVEL_IDS.has((level || '').trim());
+    }
+
+    function getDebateDefaultApplicableLevels() {
+        return [...DEBATE_ELIGIBLE_LEVEL_IDS];
+    }
+
+    function getStoredApplicableLevels(curriculumId, appData, factoryLevels, isDebate) {
+        const cur = getCurriculumRecord(curriculumId, appData);
+        if (cur && Array.isArray(cur.applicableLevels)) {
+            if (!cur.applicableLevels.length) {
+                const allLabel = hooks.t('curriculumAllLevels');
+                return {
+                    levels: [],
+                    levelsLabel: allLabel && allLabel !== 'curriculumAllLevels' ? allLabel : 'All levels',
+                    isAllLevels: true
+                };
+            }
+            const sorted = cur.applicableLevels.slice().sort();
+            return { levels: sorted, levelsLabel: sorted.join(', '), isAllLevels: false };
+        }
+        if (isDebate) {
+            const levels = getDebateDefaultApplicableLevels();
+            const label = hooks.t('curriculumDebateLevelsLabel');
+            return {
+                levels,
+                levelsLabel: label && label !== 'curriculumDebateLevelsLabel'
+                    ? label
+                    : 'Purple+, Yeoul–Mirinae, middle school',
+                isAllLevels: false
+            };
+        }
+        const levels = (factoryLevels || []).slice();
+        return {
+            levels,
+            levelsLabel: levels.length ? levels.sort().join(', ') : '—',
+            isAllLevels: false
+        };
+    }
+
+    function levelSupportsDebateCurriculum(level, appData) {
+        const levelTrim = (level || '').trim();
+        if (!levelTrim) {
+            return false;
+        }
+        const applicable = getStoredApplicableLevels(
+            DEBATE_CURRICULUM_ID,
+            appData || getAppData(),
+            getDebateDefaultApplicableLevels(),
+            true
+        );
+        if (applicable.isAllLevels) {
+            return true;
+        }
+        if (!applicable.levels.length) {
+            return DEBATE_ELIGIBLE_LEVEL_IDS.has(levelTrim);
+        }
+        return applicable.levels.includes(levelTrim);
+    }
+
+    function curriculumAppliesToLevel(book, level, appData) {
+        const levelTrim = (level || '').trim();
+        if (!levelTrim) {
+            return true;
+        }
+        if (!book) {
+            return false;
+        }
+        if (book.isVirtualDebate) {
+            return levelSupportsDebateCurriculum(levelTrim, appData);
+        }
+        const applicable = getStoredApplicableLevels(book.id, appData, book.levels, false);
+        if (applicable.isAllLevels || !applicable.levels.length) {
+            return true;
+        }
+        return applicable.levels.includes(levelTrim);
+    }
+
+    function getFactoryDebateSessions() {
+        return [1, 2, 3, 4].map((n) => ({
+            sessionNumber: n,
+            planTitle: `Day ${n}`,
+            planDetail: '',
+            note: ''
+        }));
+    }
+
+    function appendVirtualDebateBook(byKey, appData) {
+        if (byKey.has(DEBATE_CURRICULUM_ID)) {
+            return;
+        }
+        const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData);
+        const factoryRows = getFactoryDebateSessions();
+        let effectiveRows = factoryRows;
+        const hasCurSessions = !!(cur && cur.sessions && cur.sessions.length);
+        if (hasCurSessions) {
+            effectiveRows = cur.sessions;
+        }
+        const hasOverride = hasCurSessions
+            && JSON.stringify(normalizeRowTemplates(effectiveRows))
+                !== JSON.stringify(factoryRows);
+        const title = getCurriculumDisplayName(DEBATE_CURRICULUM_ID, appData);
+        const applicable = getStoredApplicableLevels(
+            DEBATE_CURRICULUM_ID,
+            appData,
+            getDebateDefaultApplicableLevels(),
+            true
+        );
+        byKey.set(DEBATE_CURRICULUM_ID, {
+            id: DEBATE_CURRICULUM_ID,
+            name: title,
+            displayName: title,
+            presetIds: [DEBATE_PRESET_ID],
+            levels: applicable.levels,
+            isVirtualDebate: true,
+            applicableIsAllLevels: applicable.isAllLevels,
+            defaultTotalLessons: 4,
+            lessonLabelMode: '',
+            programTrack: 'debate',
+            sessionCount: effectiveRows.length,
+            factorySessionCount: factoryRows.length,
+            hasOverride,
+            levelsLabel: applicable.levelsLabel
+        });
+    }
+
+    function getLevelOnlyPresetId(level) {
+        if (!((level || '').trim())) {
+            return null;
+        }
+        return LEVEL_ONLY_PRESET_ID;
+    }
+
+    function buildDebateMergedDefaults(level, appData) {
+        const levelTrim = (level || '').trim();
+        const base = {
+            levelPreset: levelTrim,
+            defaultTotalLessons: 4,
+            scheduleModel: 'debateMonthly',
+            defaultCompressionMode: 'autoWhenNeeded',
+            homeworkImportMode: 'debate',
+            defaultBook: 'Debate'
+        };
+        const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData)
+            || getCurriculumRecord(`level:${levelTrim}`, appData);
+        if (cur && cur.classDefaults) {
+            return mergeClassDefaults(base, cur.classDefaults);
+        }
+        return base;
+    }
+
+    function buildLevelOnlyMergedDefaults(level, appData) {
+        const levelTrim = (level || '').trim();
+        const base = {
+            levelPreset: levelTrim,
+            defaultTotalLessons: 16,
+            scheduleModel: 'sequentialTerm',
+            defaultCompressionMode: 'sequentialTerm',
+            homeworkImportMode: 'unitPair',
+            usesUnitPairLabels: true,
+            defaultBook: ''
+        };
+        const cur = getCurriculumRecord(`level:${levelTrim}`, appData);
+        if (cur && cur.classDefaults) {
+            return mergeClassDefaults(base, cur.classDefaults);
+        }
+        return base;
+    }
+
+    function resolvePresetFromLevelAndBook(level, curriculumId, appData) {
+        const levelTrim = (level || '').trim();
+        const cid = (curriculumId || '').trim();
+        if (isDebateCurriculum(cid)) {
+            return levelTrim && levelSupportsDebateCurriculum(levelTrim, appData) ? DEBATE_PRESET_ID : null;
+        }
+        if (isNoBookCurriculum(cid)) {
+            return levelTrim ? getLevelOnlyPresetId(levelTrim) : null;
+        }
+        const customBook = getBookById(cid, appData);
+        if (customBook && customBook.isCustom) {
+            if (levelTrim && customBook.levels.length && !customBook.levels.includes(levelTrim)) {
+                return null;
+            }
+            return getLevelOnlyPresetId(levelTrim || 'custom');
+        }
+        const matches = getAllFactoryPresets().filter((preset) => {
+            if (!Array.isArray(preset.defaultSyllabusRowTemplates) || !preset.defaultSyllabusRowTemplates.length) {
+                return false;
+            }
+            if (deriveBookKey(preset) !== cid) {
+                return false;
+            }
+            if (levelTrim && (preset.level || '') !== levelTrim) {
+                return false;
+            }
+            return true;
+        });
+        if (!matches.length) {
+            return null;
+        }
+        matches.sort((a, b) => a.id.localeCompare(b.id));
+        return matches[0].id;
+    }
+
+    function getCurriculaForLevel(level, appData) {
+        const levelTrim = (level || '').trim();
+        return discoverBooks(appData).filter((book) => curriculumAppliesToLevel(book, levelTrim, appData));
+    }
+
+    function buildMergedClassDefaults(curriculumId, presetId, appData, level) {
+        const levelTrim = (level || '').trim();
+        if (isDebateCurriculum(curriculumId) && levelTrim) {
+            return buildDebateMergedDefaults(level, appData);
+        }
+        if (isNoBookCurriculum(curriculumId) && levelTrim) {
+            return buildLevelOnlyMergedDefaults(level, appData);
+        }
+        const book = getBookById(curriculumId, appData);
+        if (book && book.isCustom) {
+            const cur = getCurriculumRecord(curriculumId, appData);
+            const base = {
+                defaultTotalLessons: book.defaultTotalLessons || (cur && cur.sessions.length) || 4,
+                defaultBook: (cur && cur.bookTitle) || book.displayName,
+                scheduleModel: 'sequentialTerm',
+                defaultCompressionMode: 'sequentialTerm',
+                homeworkImportMode: 'unitPair',
+                usesUnitPairLabels: true
+            };
+            if (levelTrim) {
+                base.levelPreset = levelTrim;
+            }
+            if (cur && cur.classDefaults) {
+                return mergeClassDefaults(base, cur.classDefaults);
+            }
+            return base;
+        }
+        const factory = getFactoryPresetById(presetId);
+        let merged = factoryClassDefaultsFromPreset(factory);
+        const cur = getCurriculumRecord(curriculumId, appData);
+        if (cur && cur.classDefaults) {
+            merged = mergeClassDefaults(merged, cur.classDefaults);
+        }
+        if (cur && cur.types && cur.types[presetId] && cur.types[presetId].classDefaults) {
+            merged = mergeClassDefaults(merged, cur.types[presetId].classDefaults);
+        }
+        merged.defaultBook = getCurriculumDisplayName(curriculumId, appData);
+        return merged;
+    }
+
+    function curriculumRecordHasMeta(record) {
+        if (!record || typeof record !== 'object') {
+            return false;
+        }
+        if (Array.isArray(record.applicableLevels)) {
+            return true;
+        }
+        if (record.bookTitle && String(record.bookTitle).trim()) {
+            return true;
+        }
+        if (record.classDefaults && typeof record.classDefaults === 'object'
+            && Object.keys(record.classDefaults).length) {
+            return true;
+        }
+        return false;
+    }
+
+    function saveBookTemplates(bookId, rowTemplates, appData, options) {
         const book = getBookById(bookId, appData);
         if (!book) {
             return false;
         }
-        const overrides = ensureBookOverrides(appData);
         const normalized = normalizeRowTemplates(rowTemplates);
-        const factory = getFactoryTemplatesForBook(book);
-        if (JSON.stringify(normalized) === JSON.stringify(factory)) {
-            delete overrides[bookId];
+        if (!normalized.length) {
+            return false;
+        }
+        const saveId = isDebateCurriculum(bookId) ? DEBATE_CURRICULUM_ID : bookId;
+        const curricula = ensureCurriculumOverrides(appData);
+        const prev = curricula[saveId] || {};
+        const factoryRows = book.isVirtualDebate
+            ? getFactoryDebateSessions()
+            : getFactoryTemplatesForBook(book);
+        const sessionsMatchFactory = JSON.stringify(normalized) === JSON.stringify(factoryRows || []);
+        const opt = options || {};
+        let classDefaults = { ...(prev.classDefaults || {}) };
+        if (opt.classDefaults && typeof opt.classDefaults === 'object') {
+            classDefaults = mergeClassDefaults(classDefaults, opt.classDefaults);
+        }
+        if (classDefaults.defaultTotalLessons == null) {
+            classDefaults.defaultTotalLessons = normalized.length;
+        }
+        const titlePatch = opt.bookTitle != null
+            ? String(opt.bookTitle).trim()
+            : (prev.bookTitle || book.displayName);
+        classDefaults.defaultBook = titlePatch || classDefaults.defaultBook || book.displayName;
+        const next = {
+            ...prev,
+            bookTitle: titlePatch || prev.bookTitle,
+            classDefaults,
+            types: prev.types || {},
+            updatedAt: new Date().toISOString()
+        };
+        if (book.isCustom) {
+            next.isCustom = true;
+        }
+        if (book.isVirtualDebate) {
+            next.isBuiltinDebate = true;
+        }
+        if (opt.applicableLevels !== undefined) {
+            next.applicableLevels = Array.isArray(opt.applicableLevels)
+                ? opt.applicableLevels.filter(Boolean)
+                : [];
+            if (book.isCustom) {
+                next.levels = next.applicableLevels;
+            }
+        } else if (book.isCustom && !next.applicableLevels) {
+            next.applicableLevels = prev.applicableLevels || prev.levels || book.levels || [];
+            next.levels = next.applicableLevels;
+        }
+        if (!sessionsMatchFactory || book.isCustom) {
+            next.sessions = normalized;
         } else {
-            overrides[bookId] = {
-                defaultSyllabusRowTemplates: normalized,
-                updatedAt: new Date().toISOString()
-            };
+            delete next.sessions;
+        }
+        const hasMeta = curriculumRecordHasMeta(next);
+        if (!next.sessions && !hasMeta && !book.isCustom && !book.isVirtualDebate) {
+            delete curricula[saveId];
+        } else {
+            curricula[saveId] = next;
+        }
+        if (!book.isCustom && !book.isVirtualDebate) {
+            syncLegacyBookOverride(bookId, normalized, appData);
         }
         hooks.saveData();
         hooks.onBooksSaved();
@@ -198,6 +840,18 @@
     }
 
     function resetBookToFactory(bookId, appData) {
+        const book = getBookById(bookId, appData);
+        if (book && book.isCustom) {
+            return deleteCustomCurriculum(bookId, appData);
+        }
+        const curricula = ensureCurriculumOverrides(appData);
+        if (book && book.isVirtualDebate) {
+            delete curricula[DEBATE_CURRICULUM_ID];
+            hooks.saveData();
+            hooks.onBooksSaved();
+            return true;
+        }
+        delete curricula[bookId];
         const overrides = ensureBookOverrides(appData);
         delete overrides[bookId];
         hooks.saveData();
@@ -205,10 +859,17 @@
     }
 
     function countBookOverrides(appData) {
-        const overrides = ensureBookOverrides(appData);
-        return Object.keys(overrides).filter((k) => {
-            const o = overrides[k];
-            return o && Array.isArray(o.defaultSyllabusRowTemplates) && o.defaultSyllabusRowTemplates.length;
+        migrateLegacyToCurriculum(appData);
+        const curricula = ensureCurriculumOverrides(appData);
+        return Object.keys(curricula).filter((k) => {
+            const o = curricula[k];
+            if (!o) {
+                return false;
+            }
+            if (o.isCustom) {
+                return true;
+            }
+            return Array.isArray(o.sessions) && o.sessions.length;
         }).length;
     }
 
@@ -224,57 +885,69 @@
         return escapeHtml(str).replace(/'/g, '&#39;');
     }
 
-    let editingBookId = null;
-
-    function ensureModalDom() {
-        const existing = document.getElementById('booksEditorModal');
-        if (existing && existing.querySelector('.books-editor-body')) {
-            return existing;
+    function renumberSessionRows(tbody) {
+        if (!tbody) {
+            return;
         }
-        if (existing) {
-            existing.remove();
-        }
-        const wrap = document.createElement('div');
-        wrap.innerHTML = `
-<div id="booksEditorModal" class="modal books-editor-modal">
-  <div class="modal-content modal-wide books-editor-content">
-    <div class="modal-header">
-      <h2 data-i18n="booksEditorTitle">Edit book</h2>
-      <button type="button" class="modal-close" id="closeBooksEditorModal" aria-label="Close">&times;</button>
-    </div>
-    <div class="books-editor-body">
-      <p class="section-hint books-editor-intro" data-i18n="booksEditorHint">Lesson plans and page blocks for this book. Changes apply to all linked class types (e.g. Green, Blue, Navy).</p>
-      <div id="booksEditorMeta" class="books-editor-meta"></div>
-      <div class="books-editor-toolbar">
-        <span data-i18n="booksEditorSessionsHeading">Sessions</span>
-      </div>
-      <div class="books-editor-table-wrap">
-        <table class="books-editor-table" id="booksEditorTable">
-          <thead>
-            <tr>
-              <th class="books-col-num">#</th>
-              <th data-i18n="booksEditorColPlan">Lesson plan</th>
-              <th data-i18n="booksEditorColPages">Pages / detail</th>
-            </tr>
-          </thead>
-          <tbody id="booksEditorTableBody"></tbody>
-        </table>
-      </div>
-      <div class="form-actions books-editor-actions">
-        <button type="button" id="booksEditorResetBtn" class="btn btn-outline" data-i18n="booksEditorReset">Reset to factory</button>
-        <button type="button" id="booksEditorSaveBtn" class="btn btn-primary" data-i18n="booksEditorSave">Save book</button>
-      </div>
-    </div>
-  </div>
-</div>`;
-        document.body.appendChild(wrap.firstElementChild);
-        if (typeof hooks.applyLanguage === 'function') {
-            hooks.applyLanguage();
-        }
-        return document.getElementById('booksEditorModal');
+        Array.from(tbody.querySelectorAll('tr')).forEach((tr, i) => {
+            const n = i + 1;
+            tr.dataset.session = String(n);
+            const numCell = tr.querySelector('.books-col-num');
+            if (numCell) {
+                numCell.textContent = String(n);
+            }
+        });
     }
 
-    function renderEditorTableInto(bookId, tbody, meta) {
+    function createSessionRowEl(row, index) {
+        const tr = document.createElement('tr');
+        const sessionNumber = row && row.sessionNumber != null ? row.sessionNumber : index + 1;
+        tr.dataset.session = String(sessionNumber);
+        tr.innerHTML = `
+              <td class="books-col-num">${sessionNumber}</td>
+              <td><input type="text" class="books-ed-title" value="${escapeAttr(row && row.planTitle)}" maxlength="200"></td>
+              <td><textarea class="books-ed-detail" rows="4">${escapeHtml(row && row.planDetail)}</textarea></td>
+              <td><textarea class="books-ed-note" rows="2">${escapeHtml(row && row.note)}</textarea></td>
+              <td class="books-col-actions"><button type="button" class="btn btn-outline btn-small books-row-remove" aria-label="Remove">&times;</button></td>
+            `;
+        tr.querySelector('.books-row-remove').addEventListener('click', () => {
+            tr.remove();
+            renumberSessionRows(tr.closest('tbody'));
+        });
+        return tr;
+    }
+
+    function collectEditorRowsFromTbody(tbody) {
+        if (!tbody) {
+            return [];
+        }
+        return Array.from(tbody.querySelectorAll('tr')).map((tr, i) => ({
+            sessionNumber: i + 1,
+            planTitle: (tr.querySelector('.books-ed-title')?.value || '').trim(),
+            planDetail: tr.querySelector('.books-ed-detail')?.value || '',
+            note: tr.querySelector('.books-ed-note')?.value || ''
+        })).filter((r) => r.planTitle || r.planDetail || r.note);
+    }
+
+    function bindSessionsToolbar(toolbarEl, tbody) {
+        if (!toolbarEl || toolbarEl.dataset.bound === '1') {
+            return;
+        }
+        toolbarEl.dataset.bound = '1';
+        const addBtn = toolbarEl.querySelector('[data-books-add-session]');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                const count = tbody.querySelectorAll('tr').length;
+                if (count >= MAX_SESSION_ROWS) {
+                    return;
+                }
+                tbody.appendChild(createSessionRowEl({}, count));
+                renumberSessionRows(tbody);
+            });
+        }
+    }
+
+    function renderEditorTableInto(bookId, tbody, meta, options) {
         if (!tbody || !meta) {
             return;
         }
@@ -284,152 +957,314 @@
             return;
         }
         const rows = getTemplatesForBookId(bookId, appData);
+        const countWarn = !book.isCustom && !book.isVirtualDebate && rows.length !== book.factorySessionCount
+            ? `<p class="section-hint books-editor-count-warn">${escapeHtml(
+                hooks.t('booksEditorSessionCountWarn')
+                    .replace('{n}', String(rows.length))
+                    .replace('{factory}', String(book.factorySessionCount))
+            )}</p>`
+            : '';
+        const customBadge = book.isCustom
+            ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('curriculumCustomBadge'))}</p>`
+            : (book.hasOverride ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>` : '');
         meta.innerHTML = `
-          <p><strong>${escapeHtml(book.name)}</strong></p>
+          <p><strong>${escapeHtml(book.displayName || book.name)}</strong></p>
           <p class="section-hint">${escapeHtml(hooks.t('booksEditorMetaLevels').replace('{levels}', book.levelsLabel || '—'))}</p>
           <p class="section-hint">${escapeHtml(hooks.t('booksEditorMetaLessons').replace('{n}', String(book.defaultTotalLessons || rows.length)))}</p>
-          <p class="section-hint">${escapeHtml(hooks.t('booksEditorMetaPresets').replace('{ids}', book.presetIds.join(', ')))}</p>
-          ${book.hasOverride ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>` : ''}
+          ${customBadge}
+          ${countWarn}
         `;
         tbody.innerHTML = '';
-        rows.forEach((row) => {
-            const tr = document.createElement('tr');
-            tr.dataset.session = String(row.sessionNumber);
-            tr.innerHTML = `
-              <td class="books-col-num">${row.sessionNumber}</td>
-              <td><input type="text" class="books-ed-title" value="${escapeAttr(row.planTitle)}" maxlength="200"></td>
-              <td><textarea class="books-ed-detail" rows="5">${escapeHtml(row.planDetail)}</textarea></td>
-            `;
-            tbody.appendChild(tr);
+        rows.forEach((row, i) => {
+            tbody.appendChild(createSessionRowEl(row, i));
         });
-    }
-
-    function renderEditorTable(bookId) {
-        renderEditorTableInto(
-            bookId,
-            document.getElementById('booksEditorTableBody'),
-            document.getElementById('booksEditorMeta')
-        );
-    }
-
-    function collectEditorRowsFromTbody(tbody) {
-        if (!tbody) {
-            return [];
+        const toolbar = options && options.toolbarEl;
+        if (toolbar) {
+            bindSessionsToolbar(toolbar, tbody);
         }
-        return Array.from(tbody.querySelectorAll('tr')).map((tr) => {
-            const sessionNumber = parseInt(tr.dataset.session, 10);
-            return {
-                sessionNumber: Number.isNaN(sessionNumber) ? 0 : sessionNumber,
-                planTitle: (tr.querySelector('.books-ed-title')?.value || '').trim(),
-                planDetail: tr.querySelector('.books-ed-detail')?.value || ''
-            };
-        }).filter((r) => r.sessionNumber > 0);
-    }
-
-    function collectEditorRows() {
-        return collectEditorRowsFromTbody(document.getElementById('booksEditorTableBody'));
     }
 
     let fullPageEditingBookId = null;
     let fullPageAfterSave = null;
 
-    function renderFullPageEditor(mountEl, bookId, options) {
-        if (!mountEl || !bookId) {
+    function getCheckedApplicableLevelIds(prefix) {
+        const root = document.getElementById(`${prefix}ApplicabilityLevels`);
+        if (!root) {
+            return null;
+        }
+        const allCb = document.getElementById(`${prefix}ApplicabilityAllLevels`);
+        if (allCb && allCb.checked) {
+            return [];
+        }
+        return Array.from(root.querySelectorAll('.curriculum-level-cb:checked'))
+            .map((cb) => cb.value)
+            .filter(Boolean);
+    }
+
+    function collectApplicabilitySettings(prefix) {
+        const lessonsEl = document.getElementById(`${prefix}DefaultTotalLessons`);
+        const gradeEl = document.getElementById(`${prefix}DefaultGrade`);
+        const levelEl = document.getElementById(`${prefix}DefaultLevelPreset`);
+        const titleEl = document.getElementById(`${prefix}EditorBookTitle`);
+        const classDefaults = {};
+        if (lessonsEl && lessonsEl.value !== '') {
+            const n = parseInt(lessonsEl.value, 10);
+            if (!Number.isNaN(n) && n > 0) {
+                classDefaults.defaultTotalLessons = n;
+            }
+        }
+        if (gradeEl && gradeEl.value) {
+            classDefaults.grade = gradeEl.value;
+        }
+        if (levelEl && levelEl.value) {
+            classDefaults.levelPreset = levelEl.value;
+        }
+        return {
+            bookTitle: titleEl ? titleEl.value : undefined,
+            applicableLevels: getCheckedApplicableLevelIds(prefix),
+            classDefaults
+        };
+    }
+
+    function renderApplicabilityPanelHtml(prefix, book, curriculumId, appData) {
+        const cur = getCurriculumRecord(curriculumId, appData) || {};
+        const cd = cur.classDefaults || {};
+        const factoryLevels = book.isVirtualDebate
+            ? getDebateDefaultApplicableLevels()
+            : (book.levels || []);
+        const applicable = getStoredApplicableLevels(curriculumId, appData, factoryLevels, !!book.isVirtualDebate);
+        const checkedSet = applicable.isAllLevels
+            ? null
+            : new Set(applicable.levels);
+        const groups = hooks.getSimsonLevelGroups ? hooks.getSimsonLevelGroups() : [];
+        const grades = hooks.getSchoolGradeOptions ? hooks.getSchoolGradeOptions() : [];
+        let levelChecks = '';
+        groups.forEach((group) => {
+            levelChecks += `<div class="curriculum-applicability-group"><strong>${escapeHtml(group.label || group.id)}</strong><div class="curriculum-applicability-levels">`;
+            (group.levels || []).forEach((lv) => {
+                const checked = applicable.isAllLevels || (checkedSet && checkedSet.has(lv.id));
+                levelChecks += `<label class="curriculum-level-chip"><input type="checkbox" class="curriculum-level-cb" value="${escapeAttr(lv.id)}"${checked ? ' checked' : ''}> ${escapeHtml(lv.name || lv.id)}</label>`;
+            });
+            levelChecks += '</div></div>';
+        });
+        let gradeOpts = `<option value="">${escapeHtml(hooks.t('curriculumDefaultGradeNone'))}</option>`;
+        grades.forEach((g) => {
+            const sel = cd.grade === g ? ' selected' : '';
+            gradeOpts += `<option value="${escapeAttr(g)}"${sel}>${escapeHtml(g)}</option>`;
+        });
+        const lessonsVal = cd.defaultTotalLessons != null
+            ? cd.defaultTotalLessons
+            : (book.defaultTotalLessons || '');
+        const allChecked = applicable.isAllLevels ? ' checked' : '';
+        const nameLabel = book.isCustom
+            ? hooks.t('curriculumEditorNameLabel')
+            : hooks.t('curriculumDisplayNameLabel');
+        const nameVal = (cur.bookTitle || book.displayName || book.name || '').trim();
+        return `
+          <section class="curriculum-applicability-panel" id="${prefix}ApplicabilityPanel">
+            <h3 class="curriculum-applicability-heading" data-i18n="curriculumApplicabilityHeading">Applicability &amp; class defaults</h3>
+            <p class="section-hint" data-i18n="curriculumApplicabilityHint">Choose which levels see this book on the class form. Empty “all levels” applies everywhere. Defaults are used when you Apply from curriculum.</p>
+            <div class="curriculum-editor-title-row">
+              <label for="${prefix}EditorBookTitle">${escapeHtml(nameLabel)}</label>
+              <input type="text" id="${prefix}EditorBookTitle" class="curriculum-editor-title-input" maxlength="120"
+                value="${escapeAttr(nameVal)}">
+            </div>
+            <div class="curriculum-applicability-row">
+              <label for="${prefix}DefaultTotalLessons" data-i18n="curriculumDefaultLessons">Default total lessons</label>
+              <input type="number" id="${prefix}DefaultTotalLessons" class="curriculum-default-lessons-input" min="1" max="48" value="${escapeAttr(String(lessonsVal))}">
+            </div>
+            <div class="curriculum-applicability-row">
+              <label for="${prefix}DefaultGrade" data-i18n="curriculumDefaultGrade">Default grade (optional)</label>
+              <select id="${prefix}DefaultGrade" class="curriculum-default-grade-select">${gradeOpts}</select>
+            </div>
+            <div class="curriculum-applicability-row">
+              <label for="${prefix}DefaultLevelPreset" data-i18n="curriculumDefaultLevel">Default section level (optional)</label>
+              <select id="${prefix}DefaultLevelPreset" class="curriculum-default-level-select">
+                <option value="">${escapeHtml(hooks.t('curriculumDefaultLevelNone'))}</option>
+                ${groups.map((group) => {
+                    const opts = (group.levels || []).map((lv) => {
+                        const sel = cd.levelPreset === lv.id ? ' selected' : '';
+                        return `<option value="${escapeAttr(lv.id)}"${sel}>${escapeHtml(lv.name || lv.id)}</option>`;
+                    }).join('');
+                    return `<optgroup label="${escapeAttr(group.label || group.id)}">${opts}</optgroup>`;
+                }).join('')}
+              </select>
+            </div>
+            <div class="curriculum-applicability-levels-wrap">
+              <label class="curriculum-level-chip curriculum-level-chip-all">
+                <input type="checkbox" id="${prefix}ApplicabilityAllLevels"${allChecked}>
+                <span data-i18n="curriculumAllLevels">All levels</span>
+              </label>
+              <div id="${prefix}ApplicabilityLevels" class="curriculum-applicability-levels-grid">${levelChecks}</div>
+            </div>
+          </section>`;
+    }
+
+    function bindApplicabilityPanel(prefix) {
+        const allCb = document.getElementById(`${prefix}ApplicabilityAllLevels`);
+        const root = document.getElementById(`${prefix}ApplicabilityLevels`);
+        if (!allCb || !root || root.dataset.bound === '1') {
             return;
         }
-        fullPageEditingBookId = bookId;
+        root.dataset.bound = '1';
+        const syncAll = () => {
+            const on = allCb.checked;
+            root.querySelectorAll('.curriculum-level-cb').forEach((cb) => {
+                cb.disabled = on;
+                if (on) {
+                    cb.checked = false;
+                }
+            });
+        };
+        allCb.addEventListener('change', syncAll);
+        root.querySelectorAll('.curriculum-level-cb').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                if (cb.checked) {
+                    allCb.checked = false;
+                    syncAll();
+                }
+            });
+        });
+        syncAll();
+    }
+
+    function renderCurriculumEditorMount(mountEl, curriculumId, options) {
+        if (!mountEl || !curriculumId) {
+            return;
+        }
+        fullPageEditingBookId = curriculumId;
         fullPageAfterSave = options && typeof options.onSaved === 'function' ? options.onSaved : null;
-        const book = getBookById(bookId, getAppData());
+        const book = getBookById(curriculumId, getAppData());
         if (!book) {
             mountEl.innerHTML = '';
             return;
         }
+        const prefix = options && options.idPrefix ? options.idPrefix : 'curriculum';
+        const metaId = `${prefix}EditorMeta`;
+        const tbodyId = `${prefix}EditorTableBody`;
+        const saveId = `${prefix}EditorSaveBtn`;
+        const resetId = `${prefix}EditorResetBtn`;
+        const toolbarId = `${prefix}EditorToolbar`;
+        const isCustom = !!book.isCustom;
+        const applicabilityHtml = renderApplicabilityPanelHtml(prefix, book, curriculumId, getAppData());
+        const resetLabelKey = isCustom ? 'curriculumDeleteBtn' : 'booksEditorReset';
+        const resetDefault = isCustom ? 'Delete curriculum' : 'Reset sessions to factory';
         mountEl.innerHTML = `
-          <div class="books-editor-fullpage">
-            <div id="workspaceBooksEditorMeta" class="books-editor-meta"></div>
-            <p class="section-hint workspace-books-feed-hint" data-i18n="workspaceBooksFeedHint">Pages / detail here feed class syllabi when you refresh from calendar. Homework copy uses syllabus rows.</p>
-            <div class="books-editor-toolbar"><span data-i18n="booksEditorSessionsHeading">Sessions</span></div>
-            <div class="books-editor-table-wrap workspace-books-table-wrap">
+          <div class="books-editor-fullpage curriculum-editor-panel">
+            ${applicabilityHtml}
+            <div id="${metaId}" class="books-editor-meta"></div>
+            <p class="section-hint curriculum-editor-apply-hint" data-i18n="curriculumEditorApplyHint">On the class form, pick Level and Book, then Apply from curriculum.</p>
+            <div id="${toolbarId}" class="books-editor-toolbar">
+              <span data-i18n="booksEditorSessionsHeading">Sessions</span>
+              <button type="button" class="btn btn-outline btn-small" data-books-add-session data-i18n="booksEditorAddSession">Add session</button>
+            </div>
+            <div class="books-editor-table-wrap">
               <table class="books-editor-table">
                 <thead><tr>
                   <th class="books-col-num">#</th>
                   <th data-i18n="booksEditorColPlan">Lesson plan</th>
                   <th data-i18n="booksEditorColPages">Pages / detail</th>
+                  <th data-i18n="booksEditorColNote">Note</th>
+                  <th class="books-col-actions"><span class="sr-only">Remove</span></th>
                 </tr></thead>
-                <tbody id="workspaceBooksEditorTableBody"></tbody>
+                <tbody id="${tbodyId}"></tbody>
               </table>
             </div>
             <div class="form-actions books-editor-actions">
-              <button type="button" id="workspaceBooksEditorResetBtn" class="btn btn-outline" data-i18n="booksEditorReset">Reset to factory</button>
-              <button type="button" id="workspaceBooksEditorSaveBtn" class="btn btn-primary" data-i18n="booksEditorSave">Save book</button>
+              <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${resetDefault}</button>
+              <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
             </div>
-            <p id="workspaceBooksAfterSaveHint" class="section-hint workspace-books-after-save" hidden></p>
           </div>`;
         if (typeof hooks.applyLanguage === 'function') {
             hooks.applyLanguage();
         }
+        bindApplicabilityPanel(prefix);
         renderEditorTableInto(
-            bookId,
-            document.getElementById('workspaceBooksEditorTableBody'),
-            document.getElementById('workspaceBooksEditorMeta')
+            curriculumId,
+            document.getElementById(tbodyId),
+            document.getElementById(metaId),
+            { toolbarEl: document.getElementById(toolbarId) }
         );
-        if (mountEl.dataset.fullPageBound !== '1') {
-            mountEl.dataset.fullPageBound = '1';
-            mountEl.addEventListener('click', (e) => {
-                if (e.target.id === 'workspaceBooksEditorSaveBtn' && fullPageEditingBookId) {
-                    const rows = collectEditorRowsFromTbody(
-                        document.getElementById('workspaceBooksEditorTableBody')
-                    );
-                    if (!rows.length) {
-                        alert(hooks.t('booksEditorNoRows'));
-                        return;
-                    }
-                    saveBookTemplates(fullPageEditingBookId, rows, getAppData());
-                    renderEditorTableInto(
-                        fullPageEditingBookId,
-                        document.getElementById('workspaceBooksEditorTableBody'),
-                        document.getElementById('workspaceBooksEditorMeta')
-                    );
-                    const hint = document.getElementById('workspaceBooksAfterSaveHint');
-                    if (hint) {
-                        hint.hidden = false;
-                        hint.textContent = hooks.t('workspaceBooksSavedRefresh');
-                    }
-                    if (fullPageAfterSave) {
-                        fullPageAfterSave(fullPageEditingBookId);
-                    }
-                }
-                if (e.target.id === 'workspaceBooksEditorResetBtn' && fullPageEditingBookId) {
-                    if (!confirm(hooks.t('booksEditorResetConfirm'))) {
-                        return;
-                    }
-                    resetBookToFactory(fullPageEditingBookId, getAppData());
-                    renderEditorTableInto(
-                        fullPageEditingBookId,
-                        document.getElementById('workspaceBooksEditorTableBody'),
-                        document.getElementById('workspaceBooksEditorMeta')
-                    );
-                }
-            });
+        if (mountEl.dataset.curriculumEditorBound === '1') {
+            return;
         }
+        mountEl.dataset.curriculumEditorBound = '1';
+        mountEl.addEventListener('click', (e) => {
+            if (e.target.id === saveId && fullPageEditingBookId) {
+                const tbody = document.getElementById(tbodyId);
+                const rows = collectEditorRowsFromTbody(tbody);
+                if (rows.length < MIN_SESSION_ROWS) {
+                    alert(hooks.t('booksEditorNoRows'));
+                    return;
+                }
+                const saveOpts = collectApplicabilitySettings(prefix);
+                saveBookTemplates(fullPageEditingBookId, rows, getAppData(), saveOpts);
+                renderEditorTableInto(
+                    fullPageEditingBookId,
+                    tbody,
+                    document.getElementById(metaId),
+                    { toolbarEl: document.getElementById(toolbarId) }
+                );
+                if (fullPageAfterSave) {
+                    fullPageAfterSave(fullPageEditingBookId);
+                }
+            }
+            if (e.target.id === resetId && fullPageEditingBookId) {
+                const confirmKey = isCustom ? 'curriculumDeleteConfirm' : 'booksEditorResetConfirm';
+                if (!confirm(hooks.t(confirmKey))) {
+                    return;
+                }
+                resetBookToFactory(fullPageEditingBookId, getAppData());
+                if (isCustom) {
+                    fullPageEditingBookId = null;
+                    mountEl.innerHTML = `<p class="module-empty-hint">${escapeHtml(hooks.t('curriculumTabPick'))}</p>`;
+                    if (fullPageAfterSave) {
+                        fullPageAfterSave(null);
+                    }
+                    return;
+                }
+                renderEditorTableInto(
+                    fullPageEditingBookId,
+                    document.getElementById(tbodyId),
+                    document.getElementById(metaId),
+                    { toolbarEl: document.getElementById(toolbarId) }
+                );
+            }
+        });
     }
 
-    function renderFullPageBookList(listEl, selectedBookId) {
+    function renderFullPageEditor(mountEl, bookId, options) {
+        renderCurriculumEditorMount(mountEl, bookId, { ...options, idPrefix: 'workspaceBooks' });
+    }
+
+    function renderCurriculumList(listEl, selectedId) {
         if (!listEl) {
             return;
         }
-        const appData = getAppData();
-        const books = discoverBooks(appData);
+        const books = discoverBooks(getAppData()).slice().sort((a, b) => {
+            if (a.isVirtualDebate && !b.isVirtualDebate) {
+                return -1;
+            }
+            if (b.isVirtualDebate && !a.isVirtualDebate) {
+                return 1;
+            }
+            return (a.displayName || a.name).localeCompare(b.displayName || b.name);
+        });
         listEl.innerHTML = '';
         books.forEach((book) => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className =
-                'workspace-book-list-item' + (book.id === selectedBookId ? ' is-selected' : '');
+            btn.className = 'workspace-book-list-item'
+                + (book.id === selectedId ? ' is-selected' : '')
+                + (book.isCustom ? ' is-custom' : '')
+                + (book.isVirtualDebate ? ' is-debate' : '');
+            btn.dataset.curriculumId = book.id;
             btn.dataset.bookId = book.id;
             const title = document.createElement('span');
             title.className = 'workspace-book-list-title';
-            title.textContent = book.name;
+            title.textContent = book.isVirtualDebate
+                ? `${book.displayName || book.name} (${hooks.t('curriculumDebateListTag')})`
+                : (book.displayName || book.name);
             const meta = document.createElement('span');
             meta.className = 'workspace-book-list-meta section-hint';
             meta.textContent = hooks.t('booksListSessions').replace('{n}', String(book.sessionCount));
@@ -445,15 +1280,12 @@
         });
     }
 
+    const renderFullPageBookList = renderCurriculumList;
+
     function openBookEditor(bookId) {
-        const book = getBookById(bookId, getAppData());
-        if (!book) {
-            return;
+        if (typeof hooks.navigateToCurriculumTab === 'function') {
+            hooks.navigateToCurriculumTab(bookId);
         }
-        editingBookId = bookId;
-        const modal = ensureModalDom();
-        renderEditorTable(bookId);
-        hooks.openModal(modal);
     }
 
     function bindEditorUI() {
@@ -462,56 +1294,14 @@
         }
         document.body.dataset.booksEditorBound = '1';
         document.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-open-book-editor]');
+            const btn = e.target.closest('[data-open-book-editor],[data-open-curriculum-editor]');
             if (!btn) {
                 return;
             }
-            const bookId = btn.getAttribute('data-book-id');
+            const bookId = btn.getAttribute('data-book-id') || btn.getAttribute('data-curriculum-id');
             if (bookId) {
                 openBookEditor(bookId);
             }
-        });
-        const booksModal = ensureModalDom();
-        if (booksModal && booksModal.dataset.backdropBound !== '1' && typeof hooks.bindModalBackdropClose === 'function') {
-            booksModal.dataset.backdropBound = '1';
-            hooks.bindModalBackdropClose(booksModal);
-        }
-        document.addEventListener('click', (e) => {
-            const closeBtn = e.target.closest('#closeBooksEditorModal');
-            const modal = document.getElementById('booksEditorModal');
-            if (closeBtn && modal) {
-                hooks.closeModal(modal);
-            }
-        });
-        document.addEventListener('click', (e) => {
-            if (e.target.id !== 'booksEditorSaveBtn') {
-                return;
-            }
-            if (!editingBookId) {
-                return;
-            }
-            const rows = collectEditorRows();
-            if (!rows.length) {
-                alert(hooks.t('booksEditorNoRows'));
-                return;
-            }
-            saveBookTemplates(editingBookId, rows, getAppData());
-            renderEditorTable(editingBookId);
-            const modal = document.getElementById('booksEditorModal');
-            hooks.closeModal(modal);
-        });
-        document.addEventListener('click', (e) => {
-            if (e.target.id !== 'booksEditorResetBtn') {
-                return;
-            }
-            if (!editingBookId) {
-                return;
-            }
-            if (!confirm(hooks.t('booksEditorResetConfirm'))) {
-                return;
-            }
-            resetBookToFactory(editingBookId, getAppData());
-            renderEditorTable(editingBookId);
         });
     }
 
@@ -547,7 +1337,7 @@
             main.className = 'print-books-item-main';
             const title = document.createElement('span');
             title.className = 'print-books-item-title';
-            title.textContent = book.name;
+            title.textContent = book.displayName || book.name;
             const meta = document.createElement('span');
             meta.className = 'print-books-item-meta section-hint';
             const metaParts = [
@@ -566,7 +1356,7 @@
             const editBtn = document.createElement('button');
             editBtn.type = 'button';
             editBtn.className = 'btn btn-outline btn-small';
-            editBtn.setAttribute('data-open-book-editor', '');
+            editBtn.setAttribute('data-open-curriculum-editor', '');
             editBtn.setAttribute('data-book-id', book.id);
             editBtn.textContent = hooks.t('booksListEdit');
             row.appendChild(main);
@@ -578,6 +1368,7 @@
     global.CCPBooksEditor = {
         init,
         discoverBooks,
+        discoverCurricula,
         getBookById,
         getTemplatesForBookId,
         getTemplatesForPresetId,
@@ -591,7 +1382,30 @@
         deriveBookKey,
         renderFullPageEditor,
         renderFullPageBookList,
-        getBookById,
-        discoverBooks
+        renderCurriculumEditorMount,
+        renderCurriculumList,
+        NO_BOOK_CURRICULUM_ID,
+        DEBATE_CURRICULUM_ID,
+        isNoBookCurriculum,
+        isDebateCurriculum,
+        isMiddleSchoolSimsonLevel,
+        levelSupportsDebateCurriculum,
+        DEBATE_ELIGIBLE_LEVEL_IDS,
+        getLevelOnlyPresetId,
+        buildLevelOnlyMergedDefaults,
+        buildDebateMergedDefaults,
+        getFactoryDebateSessions,
+        getStoredApplicableLevels,
+        resolvePresetFromLevelAndBook,
+        getCurriculaForLevel,
+        getCurriculumDisplayName,
+        buildMergedClassDefaults,
+        isCustomCurriculum,
+        createCurriculum,
+        deleteCustomCurriculum,
+        migrateLegacyToCurriculum,
+        ensureCurriculumOverrides,
+        collectEditorRowsFromTbody,
+        normalizeRowTemplates
     };
 })(typeof window !== 'undefined' ? window : globalThis);

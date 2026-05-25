@@ -2,8 +2,9 @@ const crypto = require('crypto');
 const { getDb, newId, nowIso } = require('./schema');
 const appSettings = require('./app-settings');
 
-const SESSION_DAYS = 14;
+const SESSION_DAYS = 14; /* default; createSession uses app_settings.session_max_days */
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_DISPLAY_NAME_LENGTH = 120;
 
 function normalizeEmail(email) {
     if (!email) {
@@ -60,14 +61,91 @@ function findUserForKakaoLogin(kakaoUserId, email) {
     if (em) {
         const byEmail = db.prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(em);
         if (byEmail) {
-            if (kid && !byEmail.kakao_user_id) {
-                db.prepare('UPDATE users SET kakao_user_id = ? WHERE id = ?').run(kid, byEmail.id);
-                byEmail.kakao_user_id = kid;
+            const linkedKid = byEmail.kakao_user_id ? String(byEmail.kakao_user_id) : null;
+            if (linkedKid && kid && linkedKid !== kid) {
+                return { mismatch: true };
             }
+            if (linkedKid && kid && linkedKid === kid) {
+                return rowToUser(byEmail);
+            }
+            if (!linkedKid && kid) {
+                return { needsKakaoLink: true, row: byEmail };
+            }
+            if (!linkedKid && !kid) {
+                return rowToUser(byEmail);
+            }
+        }
+    }
+    return null;
+}
+
+function findInactiveUserForKakao(kakaoUserId, email) {
+    const db = getDb();
+    const kid = kakaoUserId ? String(kakaoUserId) : null;
+    const em = normalizeEmail(email);
+    if (kid) {
+        const byKid = db.prepare('SELECT * FROM users WHERE kakao_user_id = ? AND active = 0').get(kid);
+        if (byKid) {
+            return rowToUser(byKid);
+        }
+    }
+    if (em) {
+        const byEmail = db.prepare('SELECT * FROM users WHERE email = ? AND active = 0').get(em);
+        if (byEmail) {
             return rowToUser(byEmail);
         }
     }
     return null;
+}
+
+function isUniqueConstraintError(err) {
+    const msg = String((err && err.message) || '');
+    return msg.includes('UNIQUE') || (err && err.code === 'SQLITE_CONSTRAINT_UNIQUE');
+}
+
+function provisionUserFromKakaoProfile(profile) {
+    const kid = profile && profile.kakaoUserId ? String(profile.kakaoUserId) : '';
+    if (!kid) {
+        return null;
+    }
+    try {
+        const nickname = profile.nickname && String(profile.nickname).trim();
+        return createUser({
+            email: profile.email || null,
+            displayName: nickname || `Kakao ${kid}`,
+            kakaoUserId: kid,
+            role: 'teacher'
+        });
+    } catch (err) {
+        if (isUniqueConstraintError(err)) {
+            const again = findUserForKakaoLogin(kid, profile.email);
+            if (again && !again.mismatch && !again.needsKakaoLink) {
+                return again;
+            }
+        }
+        throw err;
+    }
+}
+
+function resolveKakaoLoginUser(profile) {
+    const match = findUserForKakaoLogin(profile.kakaoUserId, profile.email);
+    if (match && match.mismatch) {
+        return { error: 'kakao_mismatch' };
+    }
+    if (match && match.needsKakaoLink) {
+        return { error: 'kakao_not_linked' };
+    }
+    if (match) {
+        return { user: match };
+    }
+    if (findInactiveUserForKakao(profile.kakaoUserId, profile.email)) {
+        return { disabled: true };
+    }
+    const created = provisionUserFromKakaoProfile(profile);
+    if (!created || created.mismatch || created.needsKakaoLink) {
+        return { error: 'missing_kakao_id' };
+    }
+    return { user: created };
 }
 
 function createUser({ email, displayName, kakaoUserId, role, passwordHash }) {
@@ -108,6 +186,14 @@ function updateUser(id, fields) {
     db.prepare(
         `UPDATE users SET email = ?, display_name = ?, kakao_user_id = ?, role = ?, active = ? WHERE id = ?`
     ).run(email, displayName, kakaoUserId, role, active, id);
+    if (fields.displayName != null) {
+        const label = String(displayName || '').trim();
+        db.prepare('UPDATE calendar_locks SET holder_name = ? WHERE holder_user_id = ?').run(label, id);
+        db.prepare('UPDATE calendar_locks SET pending_requester_name = ? WHERE pending_requester_id = ?').run(
+            label,
+            id
+        );
+    }
     return getUserById(id);
 }
 
@@ -170,14 +256,20 @@ function findUserByEmailPassword(email, password) {
 
 function createSession(userId) {
     const db = getDb();
+    const maxAgeSec = appSettings.getSessionMaxAgeSec();
     const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+    const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
     db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(
         token,
         userId,
         expires
     );
-    return { token, expires };
+    return { token, expires, maxAgeSec };
+}
+
+function createLoginSession(userId) {
+    deleteAllSessionsForUser(userId);
+    return createSession(userId);
 }
 
 function getSessionUser(token) {
@@ -225,6 +317,27 @@ function setUserPassword(userId, passwordHash) {
     }
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash || null, userId);
     return true;
+}
+
+function updateOwnDisplayName(userId, displayName) {
+    const name = String(displayName || '').trim();
+    if (!name) {
+        const err = new Error('Display name is required');
+        err.status = 400;
+        throw err;
+    }
+    if (name.length > MAX_DISPLAY_NAME_LENGTH) {
+        const err = new Error(`Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer`);
+        err.status = 400;
+        throw err;
+    }
+    const updated = updateUser(userId, { displayName: name });
+    if (!updated || !updated.active) {
+        const err = new Error('Not signed in');
+        err.status = 401;
+        throw err;
+    }
+    return updated;
 }
 
 function changeOwnPassword(userId, currentPassword, newPassword) {
@@ -509,17 +622,23 @@ module.exports = {
     listUsers,
     getUserById,
     findUserForKakaoLogin,
+    findInactiveUserForKakao,
+    provisionUserFromKakaoProfile,
+    resolveKakaoLoginUser,
     createUser,
     updateUser,
     countAdmins,
     hashPassword,
     findUserByEmailPassword,
     createSession,
+    createLoginSession,
     getSessionUser,
     deleteSession,
     deleteAllSessionsForUser,
     setUserPassword,
     changeOwnPassword,
+    updateOwnDisplayName,
+    MAX_DISPLAY_NAME_LENGTH,
     MIN_PASSWORD_LENGTH,
     permanentlyDeleteUser,
     getLock,

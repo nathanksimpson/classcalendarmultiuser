@@ -62,6 +62,7 @@ async function api(path, options) {
 
 let adminNoticeTimer = null;
 let resetPasswordTargetId = null;
+let editUserTargetId = null;
 
 function openAdminModal(modal) {
     if (!modal) {
@@ -320,6 +321,10 @@ async function loadUsers() {
             escapeHtml(u.email || '—') +
             '</td><td>' +
             escapeHtml(u.role) +
+            '</td><td>' +
+            (u.hasCalendarAccess
+                ? escapeHtml(t('calendarsHasAccess'))
+                : '<span class="badge-inactive">' + escapeHtml(t('calendarsNoAccess')) + '</span>') +
             '</td><td>' +
             (u.active ? t('statusActive') : '<span class="badge-inactive">' + escapeHtml(t('statusDeactivated')) + '</span>') +
             '</td><td class="admin-actions"></td>';
@@ -608,6 +613,7 @@ async function loadLockSettings() {
     const lockInput = document.getElementById('lockStaleMinutesInput');
     const idleLogoutInput = document.getElementById('idleLogoutMinutesInput');
     const idleWarningInput = document.getElementById('idleWarningMinutesInput');
+    const sessionMaxDaysInput = document.getElementById('sessionMaxDaysInput');
     if (lockInput && settings.lockStaleMinutes != null) {
         lockInput.value = String(settings.lockStaleMinutes);
     }
@@ -616,6 +622,9 @@ async function loadLockSettings() {
     }
     if (idleWarningInput && settings.idleWarningMinutes != null) {
         idleWarningInput.value = String(settings.idleWarningMinutes);
+    }
+    if (sessionMaxDaysInput && settings.sessionMaxDays != null) {
+        sessionMaxDaysInput.value = String(settings.sessionMaxDays);
     }
 }
 
@@ -630,6 +639,7 @@ function setupLockSettingsForm() {
         const lockInput = document.getElementById('lockStaleMinutesInput');
         const idleLogoutInput = document.getElementById('idleLogoutMinutesInput');
         const idleWarningInput = document.getElementById('idleWarningMinutesInput');
+        const sessionMaxDaysInput = document.getElementById('sessionMaxDaysInput');
         try {
             const saved = await api('/admin/settings', {
                 method: 'PATCH',
@@ -637,7 +647,8 @@ function setupLockSettingsForm() {
                 body: JSON.stringify({
                     lockStaleMinutes: Number(lockInput && lockInput.value),
                     idleLogoutMinutes: Number(idleLogoutInput && idleLogoutInput.value),
-                    idleWarningMinutes: Number(idleWarningInput && idleWarningInput.value)
+                    idleWarningMinutes: Number(idleWarningInput && idleWarningInput.value),
+                    sessionMaxDays: Number(sessionMaxDaysInput && sessionMaxDaysInput.value)
                 })
             });
             if (lockInput && saved.lockStaleMinutes != null) {
@@ -649,6 +660,9 @@ function setupLockSettingsForm() {
             if (idleWarningInput && saved.idleWarningMinutes != null) {
                 idleWarningInput.value = String(saved.idleWarningMinutes);
             }
+            if (sessionMaxDaysInput && saved.sessionMaxDays != null) {
+                sessionMaxDaysInput.value = String(saved.sessionMaxDays);
+            }
             if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
                 await TeamAuth.refresh();
             }
@@ -656,7 +670,8 @@ function setupLockSettingsForm() {
                 t('savedLockSettings', {
                     lock: saved.lockStaleMinutes,
                     idle: saved.idleLogoutMinutes,
-                    warn: saved.idleWarningMinutes
+                    warn: saved.idleWarningMinutes,
+                    sessionDays: saved.sessionMaxDays
                 }),
                 false
             );
@@ -711,19 +726,27 @@ async function init() {
 
     document.getElementById('addUserForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const email = document.getElementById('newEmail').value.trim();
+        const kakaoUserId = document.getElementById('newKakaoUserId').value.trim();
+        if (!email && !kakaoUserId) {
+            showAdminSaveNotice(t('addTeacherNeedEmailOrKakao'), true);
+            return;
+        }
         try {
             await api('/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     displayName: document.getElementById('newDisplayName').value.trim(),
-                    email: document.getElementById('newEmail').value.trim(),
+                    email: email || undefined,
+                    kakaoUserId: kakaoUserId || undefined,
                     role: document.getElementById('newRole').value,
                     password: document.getElementById('newPassword').value || undefined
                 })
             });
             document.getElementById('newDisplayName').value = '';
             document.getElementById('newEmail').value = '';
+            document.getElementById('newKakaoUserId').value = '';
             document.getElementById('newPassword').value = '';
             await refreshAll();
             showAdminSaveNotice(t('noticedNewUser'), false);

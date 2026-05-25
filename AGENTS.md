@@ -52,6 +52,7 @@ Without `npm start`, the app cannot load or save calendar data.
 | Local server | `server/index.js`, `server/users.js`, `server/calendars.js`, `server/app-settings.js` |
 | Client sync | `js/calendar-sync.js`, `js/team-auth.js` |
 | Client UI | `app.js`, `index.html`, `styles.css` |
+| Kakao / waiting | `login.html`, `pending-access.html`, `server/kakao.js`, `server/users.js` (`resolveKakaoLoginUser`) |
 | Admin | `admin.html`, `js/admin.js` |
 | Migrations | `worker/migrations/0001` … `0005` |
 

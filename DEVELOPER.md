@@ -16,7 +16,7 @@ Quick reference for editing this repo and pushing updates. Teachers use [FOR TEA
 | `PORT` | Default 8080 |
 | `PUBLIC_URL` | OAuth redirect base |
 | `ALLOW_OPEN_ACCESS=1` | Dev only — synthetic admin |
-| `KAKAO_*`, `BOOTSTRAP_ADMIN_SECRET` | Real auth / first admin |
+| `KAKAO_*`, `BOOTSTRAP_ADMIN_SECRET`, `OAUTH_STATE_SECRET` (optional) | Real auth / first admin / OAuth CSRF signing |
 
 ## Architecture
 
@@ -36,7 +36,7 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 |------|--------|
 | Calendar UI, print, syllabus | `app.js`, `js/`, `styles.css`, `index.html` |
 | Team sync / locks | `js/calendar-sync.js`, hooks in `app.js` |
-| Login / session | `js/team-auth.js`, `login.html` |
+| Login / session | `js/team-auth.js`, `login.html`, `pending-access.html` |
 | Admin UI | `admin.html`, `js/admin.js` |
 | REST / Kakao / sessions | `server/index.js` **and** `worker/src/index.js` |
 | Users, passwords, locks | `server/users.js` + Worker mirror in `worker/src/index.js` |
@@ -64,6 +64,8 @@ Use this whenever you change auth, routes, locks, calendars, admin, or DB behavi
 UI-only changes still need **`npx wrangler deploy`** for production (see deploy checklist). Local-only: `npm start` is enough.
 
 **Lock / sync API notes:** Server returns explicit `holdsLock` on meta/lock/load — do not infer only from `lock.holderUserId`. `409` revision conflict includes `body.document`; duplicate name uses `code: DUPLICATE_NAME` (no conflict modal).
+
+**Kakao auth:** First Kakao login auto-creates a teacher (`resolveKakaoLoginUser` in `server/users.js` / `worker/src/index.js`). Teachers with zero accessible calendars are sent to `pending-access.html` (`TeamAuth.ensure` + `app.js` team init). Only admins may `POST /api/calendars`. Setup: [KAKAO-SETUP.md](KAKAO-SETUP.md). `GET /api/auth/me` includes `hasCalendarAccess`. Signed-in users may update their own display name via `PATCH /api/auth/profile` (`{ displayName }`); UI on `index.html` (Edit name) and `pending-access.html`.
 
 ---
 

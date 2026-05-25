@@ -3,6 +3,17 @@
  */
 import * as CalAccess from './calendar-access.js';
 import * as AppSettings from './app-settings.js';
+import {
+    KAKAO_OAUTH_COOKIE,
+    oauthStateSecret,
+    createKakaoOAuthState,
+    verifyKakaoOAuthState,
+    clearKakaoOAuthStateCookie
+} from './oauth-state.js';
+import { rateLimitOr429 } from './rate-limit.js';
+
+const MAX_CALENDAR_BODY_BYTES = 5 * 1024 * 1024;
+const RATE_AUTH_WINDOW_MS = 15 * 60 * 1000;
 
 const SESSION_COOKIE = 'cal_session';
 const PBKDF2_ITERATIONS = 100000;
@@ -20,6 +31,15 @@ function redirectTo(location, headers = {}) {
     return new Response(null, { status: 302, headers: Object.assign({ Location: location }, headers) });
 }
 
+function redirectWithCookie(location, setCookieValue) {
+    const headers = new Headers();
+    headers.set('Location', location);
+    if (setCookieValue) {
+        headers.append('Set-Cookie', setCookieValue);
+    }
+    return new Response(null, { status: 302, headers });
+}
+
 function parseCookies(request) {
     const out = {};
     const raw = request.headers.get('Cookie') || '';
@@ -33,13 +53,14 @@ function parseCookies(request) {
     return out;
 }
 
-function sessionCookie(token, secure) {
+function sessionCookie(token, secure, maxAgeSec) {
+    const maxAge = Number(maxAgeSec) > 0 ? Number(maxAgeSec) : SESSION_DAYS * 86400;
     const parts = [
         `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
         'Path=/',
         'HttpOnly',
         'SameSite=Lax',
-        `Max-Age=${SESSION_DAYS * 86400}`
+        `Max-Age=${maxAge}`
     ];
     if (secure) {
         parts.push('Secure');
@@ -157,10 +178,16 @@ async function permanentlyDeleteUser(env, targetId, actingAdminId) {
 }
 
 async function createSession(env, userId) {
+    const maxAgeSec = await AppSettings.getSessionMaxAgeSec(env);
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-    const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+    const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
     await dbRun(env, 'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)', token, userId, expires);
-    return token;
+    return { token, maxAgeSec };
+}
+
+async function createLoginSession(env, userId) {
+    await deleteAllSessionsForUser(env, userId);
+    return createSession(env, userId);
 }
 
 async function isLockStale(env, lock) {
@@ -508,6 +535,16 @@ async function updateUser(env, id, fields) {
         active,
         id
     );
+    if (fields.displayName != null) {
+        const label = String(displayName || '').trim();
+        await dbRun(env, 'UPDATE calendar_locks SET holder_name = ? WHERE holder_user_id = ?', label, id);
+        await dbRun(
+            env,
+            'UPDATE calendar_locks SET pending_requester_name = ? WHERE pending_requester_id = ?',
+            label,
+            id
+        );
+    }
     return rowToUser(await dbOne(env, 'SELECT * FROM users WHERE id = ?', id));
 }
 
@@ -523,13 +560,140 @@ async function findUserForKakao(env, kakaoUserId, email) {
     if (em) {
         const byEmail = await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em);
         if (byEmail) {
-            if (kid && !byEmail.kakao_user_id) {
-                await dbRun(env, 'UPDATE users SET kakao_user_id = ? WHERE id = ?', kid, byEmail.id);
+            const linkedKid = byEmail.kakao_user_id ? String(byEmail.kakao_user_id) : null;
+            if (linkedKid && kid && linkedKid !== kid) {
+                return { mismatch: true };
             }
+            if (linkedKid && kid && linkedKid === kid) {
+                return rowToUser(byEmail);
+            }
+            if (!linkedKid && kid) {
+                return { needsKakaoLink: true };
+            }
+            if (!linkedKid && !kid) {
+                return rowToUser(byEmail);
+            }
+        }
+    }
+    return null;
+}
+
+async function findInactiveUserForKakao(env, kakaoUserId, email) {
+    const kid = kakaoUserId ? String(kakaoUserId) : null;
+    const em = normalizeEmail(email);
+    if (kid) {
+        const byKid = await dbOne(env, 'SELECT * FROM users WHERE kakao_user_id = ? AND active = 0', kid);
+        if (byKid) {
+            return rowToUser(byKid);
+        }
+    }
+    if (em) {
+        const byEmail = await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 0', em);
+        if (byEmail) {
             return rowToUser(byEmail);
         }
     }
     return null;
+}
+
+function isUniqueConstraintError(err) {
+    const msg = String((err && err.message) || '');
+    return msg.includes('UNIQUE') || msg.includes('constraint');
+}
+
+async function provisionUserFromKakaoProfile(env, profile) {
+    const kid = profile && profile.kakaoUserId ? String(profile.kakaoUserId) : '';
+    if (!kid) {
+        return null;
+    }
+    try {
+        const nickname = profile.nickname && String(profile.nickname).trim();
+        return await createUser(env, {
+            email: profile.email || null,
+            displayName: nickname || `Kakao ${kid}`,
+            kakaoUserId: kid,
+            role: 'teacher'
+        });
+    } catch (err) {
+        if (isUniqueConstraintError(err)) {
+            const again = await findUserForKakao(env, profile.kakaoUserId, profile.email);
+            if (again && !again.mismatch && !again.needsKakaoLink) {
+                return again;
+            }
+        }
+        throw err;
+    }
+}
+
+async function resolveKakaoLoginUser(env, profile) {
+    const match = await findUserForKakao(env, profile.kakaoUserId, profile.email);
+    if (match && match.mismatch) {
+        return { error: 'kakao_mismatch' };
+    }
+    if (match && match.needsKakaoLink) {
+        return { error: 'kakao_not_linked' };
+    }
+    if (match) {
+        return { user: match };
+    }
+    if (await findInactiveUserForKakao(env, profile.kakaoUserId, profile.email)) {
+        return { disabled: true };
+    }
+    const created = await provisionUserFromKakaoProfile(env, profile);
+    if (!created || created.mismatch || created.needsKakaoLink) {
+        return { error: 'missing_kakao_id' };
+    }
+    return { user: created };
+}
+
+function kakaoLoginErrorRedirect(code) {
+    return '/login.html?error=' + encodeURIComponent(code);
+}
+
+function kakaoOAuthScopes(env) {
+    const raw = env.KAKAO_OAUTH_SCOPES || '';
+    return raw && String(raw).trim() ? String(raw).trim() : '';
+}
+
+function kakaoErrorDetail(err) {
+    const body = (err && err.body) || {};
+    const parts = [
+        err && err.message,
+        body.error_description,
+        body.error,
+        body.error_code
+    ].filter(Boolean);
+    return String(parts[0] || 'unknown').slice(0, 200);
+}
+
+function classifyKakaoOAuthError(err) {
+    const msg = String((err && err.message) || '').toLowerCase();
+    const body = (err && err.body) || {};
+    const code = String(body.error || '').toLowerCase();
+    const errCode = String(body.error_code || '').toUpperCase();
+    if (
+        msg.includes('client_secret') ||
+        msg.includes('bad client credentials') ||
+        code === 'invalid_client' ||
+        errCode === 'KOE029'
+    ) {
+        return 'kakao_client_secret';
+    }
+    if (msg.includes('redirect_uri') || msg.includes('redirect uri') || errCode === 'KOE006') {
+        return 'redirect_uri_mismatch';
+    }
+    if (msg.includes('invalid_grant') || msg.includes('authorization code') || errCode === 'KOE322') {
+        return 'oauth_code_expired';
+    }
+    if (errCode === 'KOE205') {
+        return 'invalid_scope';
+    }
+    return 'oauth_failed';
+}
+
+function loginRedirectForKakaoError(err) {
+    const code = classifyKakaoOAuthError(err);
+    return `/login.html?error=${encodeURIComponent(code)}`;
 }
 
 async function kakaoToken(code, redirectUri, clientId, clientSecret) {
@@ -549,24 +713,41 @@ async function kakaoToken(code, redirectUri, clientId, clientSecret) {
     });
     const json = await res.json();
     if (!res.ok) {
-        throw new Error(json.error_description || 'token failed');
+        const err = new Error(json.error_description || json.error || 'token failed');
+        err.body = json;
+        throw err;
     }
     return json;
 }
 
 async function kakaoMe(accessToken) {
     const res = await fetch('https://kapi.kakao.com/v2/user/me', {
-        headers: { Authorization: 'Bearer ' + accessToken }
+        headers: {
+            Authorization: 'Bearer ' + accessToken,
+            'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8'
+        }
     });
     const json = await res.json();
     if (!res.ok) {
-        throw new Error('profile failed');
+        const err = new Error(json.msg || json.error_description || 'profile failed');
+        err.body = json;
+        throw err;
+    }
+    if (json.id == null || json.id === undefined) {
+        throw new Error('Kakao profile missing user id');
     }
     const account = json.kakao_account || {};
+    let email = account.email || null;
+    if (account.email_needs_agreement === true) {
+        email = null;
+    }
     return {
         kakaoUserId: String(json.id),
-        email: account.email || null,
-        nickname: (account.profile && account.profile.nickname) || ''
+        email,
+        nickname:
+            (account.profile && account.profile.nickname) ||
+            (json.properties && json.properties.nickname) ||
+            ''
     };
 }
 
@@ -587,7 +768,20 @@ async function requireUser(request, env) {
     return null;
 }
 
-async function readJson(request) {
+function requestBodyTooLarge(request, maxBytes) {
+    const cl = request.headers.get('Content-Length');
+    if (cl && Number(cl) > maxBytes) {
+        return true;
+    }
+    return false;
+}
+
+async function readJson(request, maxBytes = MAX_CALENDAR_BODY_BYTES) {
+    if (requestBodyTooLarge(request, maxBytes)) {
+        const err = new Error('Payload too large');
+        err.status = 413;
+        throw err;
+    }
     try {
         return await request.json();
     } catch (_) {
@@ -601,7 +795,7 @@ export default {
         const path = url.pathname;
         // Use the actual request scheme — PUBLIC_URL is https even on wrangler dev (http://localhost).
         const secure = url.protocol === 'https:';
-        const kakaoId = env.KAKAO_CLIENT_ID || '';
+        const kakaoId = (env.KAKAO_CLIENT_ID || '').trim();
 
         if (!path.startsWith('/api/')) {
             if (env.ASSETS) {
@@ -616,8 +810,18 @@ export default {
                 time: nowIso(),
                 auth: Boolean(kakaoId),
                 kakaoConfigured: Boolean(kakaoId),
+                kakaoClientSecretConfigured: Boolean(kakaoId && env.KAKAO_CLIENT_SECRET),
+                kakaoRedirectUri: kakaoId ? kakaoRedirectUri(env, request) : null,
                 passwordAuth: true,
                 openAccess: false
+            });
+        }
+
+        if (path === '/api/auth/kakao/config' && request.method === 'GET') {
+            return json({
+                configured: Boolean(kakaoId),
+                redirectUri: kakaoId ? kakaoRedirectUri(env, request) : null,
+                scopes: kakaoOAuthScopes(env) || null
             });
         }
 
@@ -635,11 +839,14 @@ export default {
                 return json({ error: 'Not signed in' }, 401);
             }
             const sessionSettings = await AppSettings.getAdminSettings(env);
+            const calendars = await CalAccess.listCalendarsForUser(env, user);
+            const hasCalendarAccess = CalAccess.isAdmin(user) || calendars.length > 0;
             return json({
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName,
                 role: user.role,
+                hasCalendarAccess,
                 idleLogoutMinutes: sessionSettings.idleLogoutMinutes,
                 idleWarningMinutes: sessionSettings.idleWarningMinutes
             });
@@ -657,61 +864,100 @@ export default {
             return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie(secure) });
         }
 
+        if (path === '/api/auth/logout-all' && request.method === 'POST') {
+            const logoutUser = await requireUser(request, env);
+            if (!logoutUser) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            await deleteAllSessionsForUser(env, logoutUser.id);
+            return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie(secure) });
+        }
+
         if (path === '/api/auth/kakao' && request.method === 'GET') {
             if (!kakaoId) {
                 return new Response('Kakao not configured', { status: 503 });
             }
+            const limited = await rateLimitOr429(env, request, 'auth_kakao_start', 40, RATE_AUTH_WINDOW_MS);
+            if (limited) {
+                return limited;
+            }
             const returnTo = url.searchParams.get('return') || '/';
-            const state =
-                crypto.randomUUID().replace(/-/g, '') +
-                '.' +
-                btoa(returnTo).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            const oauthSecret = oauthStateSecret(env);
+            const oauthState = await createKakaoOAuthState(returnTo, oauthSecret, secure);
             const params = new URLSearchParams({
                 client_id: kakaoId,
                 redirect_uri: kakaoRedirectUri(env, request),
                 response_type: 'code',
-                state
+                state: oauthState.state
             });
-            return redirectTo('https://kauth.kakao.com/oauth/authorize?' + params.toString());
+            const scope = kakaoOAuthScopes(env);
+            if (scope) {
+                params.set('scope', scope);
+            }
+            const headers = new Headers({ Location: 'https://kauth.kakao.com/oauth/authorize?' + params.toString() });
+            headers.append('Set-Cookie', oauthState.setCookie);
+            return new Response(null, { status: 302, headers });
         }
 
         if (path === '/api/auth/kakao/callback' && request.method === 'GET') {
+            const limited = await rateLimitOr429(env, request, 'auth_kakao_callback', 40, RATE_AUTH_WINDOW_MS);
+            if (limited) {
+                return limited;
+            }
+            if (url.searchParams.get('error')) {
+                return redirectTo('/login.html?error=oauth_denied');
+            }
             const code = url.searchParams.get('code');
             const state = url.searchParams.get('state') || '';
-            let returnTo = '/';
-            if (state.includes('.')) {
-                try {
-                    const b64 = state.split('.').slice(1).join('.');
-                    returnTo = atob(b64.replace(/-/g, '+').replace(/_/g, '/')) || '/';
-                } catch (_) {
-                    returnTo = '/';
-                }
+            const oauthSecret = oauthStateSecret(env);
+            const verified = await verifyKakaoOAuthState(
+                state,
+                parseCookies(request)[KAKAO_OAUTH_COOKIE],
+                oauthSecret
+            );
+            if (!verified.ok) {
+                return redirectTo('/login.html?error=oauth_state_invalid');
             }
+            const returnTo = verified.returnTo;
             if (!code || !kakaoId) {
                 return redirectTo('/login.html?error=missing_code');
             }
             try {
-                const tokens = await kakaoToken(code, kakaoRedirectUri(env, request), kakaoId, env.KAKAO_CLIENT_SECRET || '');
+                const tokens = await kakaoToken(
+                    code,
+                    kakaoRedirectUri(env, request),
+                    kakaoId,
+                    (env.KAKAO_CLIENT_SECRET || '').trim()
+                );
                 const profile = await kakaoMe(tokens.access_token);
-                const matched = await findUserForKakao(env, profile.kakaoUserId, profile.email);
-                if (!matched) {
-                    const q = new URLSearchParams({
-                        denied: '1',
-                        email: profile.email || '',
-                        kakaoId: profile.kakaoUserId,
-                        nickname: profile.nickname || ''
-                    });
-                    return redirectTo('/login.html?' + q.toString());
+                const resolved = await resolveKakaoLoginUser(env, profile);
+                if (resolved.disabled) {
+                    return redirectTo('/login.html?error=account_disabled');
                 }
-                const sessionToken = await createSession(env, matched.id);
-                const safeReturn = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
-                return redirectTo(safeReturn, { 'Set-Cookie': sessionCookie(sessionToken, secure) });
+                if (resolved.error) {
+                    return redirectTo(kakaoLoginErrorRedirect(resolved.error));
+                }
+                if (!resolved.user) {
+                    return redirectTo('/login.html?error=missing_kakao_id');
+                }
+                const session = await createLoginSession(env, resolved.user.id);
+                const headers = new Headers({
+                    Location: returnTo,
+                    'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec)
+                });
+                headers.append('Set-Cookie', clearKakaoOAuthStateCookie(secure));
+                return new Response(null, { status: 302, headers });
             } catch (err) {
-                return redirectTo('/login.html?error=oauth_failed');
+                console.error('Kakao callback error:', kakaoErrorDetail(err));
+                return redirectTo(loginRedirectForKakaoError(err));
             }
         }
 
         if (path === '/api/auth/password' && request.method === 'POST') {
+            const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
+            if (limited) {
+                return limited;
+            }
             const body = await readJson(request);
             const em = normalizeEmail(body.email);
             const row = em
@@ -723,7 +969,7 @@ export default {
             if (!matched) {
                 return json({ error: 'Invalid email or password' }, 401);
             }
-            const sessionToken = await createSession(env, matched.id);
+            const session = await createLoginSession(env, matched.id);
             return json(
                 {
                     id: matched.id,
@@ -732,11 +978,15 @@ export default {
                     role: matched.role
                 },
                 200,
-                { 'Set-Cookie': sessionCookie(sessionToken, secure) }
+                { 'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec) }
             );
         }
 
         if (path === '/api/admin/bootstrap' && request.method === 'POST') {
+            const limited = await rateLimitOr429(env, request, 'admin_bootstrap', 15, RATE_AUTH_WINDOW_MS);
+            if (limited) {
+                return limited;
+            }
             const body = await readJson(request);
             if ((await countAdmins(env)) > 0) {
                 return json({ error: 'Bootstrap already completed' }, 403);
@@ -755,11 +1005,11 @@ export default {
                 role: 'admin',
                 passwordHash: body.password ? await hashPassword(body.password) : null
             });
-            const sessionToken = await createSession(env, created.id);
+            const session = await createLoginSession(env, created.id);
             return json(
                 { ok: true, userId: created.id },
                 201,
-                { 'Set-Cookie': sessionCookie(sessionToken, secure) }
+                { 'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec) }
             );
         }
 
@@ -789,8 +1039,43 @@ export default {
                 user.id
             );
             await deleteAllSessionsForUser(env, user.id);
-            const sessionToken = await createSession(env, user.id);
-            return json({ ok: true }, 200, { 'Set-Cookie': sessionCookie(sessionToken, secure) });
+            const session = await createSession(env, user.id);
+            return json(
+                { ok: true },
+                200,
+                { 'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec) }
+            );
+        }
+
+        const MAX_DISPLAY_NAME_LENGTH = 120;
+        if (path === '/api/auth/profile' && request.method === 'PATCH') {
+            const body = await readJson(request);
+            const name = String((body && body.displayName) || '').trim();
+            if (!name) {
+                return json({ error: 'Display name is required' }, 400);
+            }
+            if (name.length > MAX_DISPLAY_NAME_LENGTH) {
+                return json(
+                    { error: `Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer` },
+                    400
+                );
+            }
+            const updated = await updateUser(env, user.id, { displayName: name });
+            if (!updated) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            const sessionSettings = await AppSettings.getAdminSettings(env);
+            const calendars = await CalAccess.listCalendarsForUser(env, updated);
+            const hasCalendarAccess = CalAccess.isAdmin(updated) || calendars.length > 0;
+            return json({
+                id: updated.id,
+                email: updated.email,
+                displayName: updated.displayName,
+                role: updated.role,
+                hasCalendarAccess,
+                idleLogoutMinutes: sessionSettings.idleLogoutMinutes,
+                idleWarningMinutes: sessionSettings.idleWarningMinutes
+            });
         }
 
         if (path === '/api/calendars' && request.method === 'GET') {
@@ -922,7 +1207,15 @@ export default {
             }
 
             if (!sub && request.method === 'PUT') {
-                const body = await readJson(request);
+                let body;
+                try {
+                    body = await readJson(request);
+                } catch (err) {
+                    if (err && err.status === 413) {
+                        return json({ error: 'Payload too large' }, 413);
+                    }
+                    body = {};
+                }
                 if (!body.data) {
                     return json({ error: 'data is required' }, 400);
                 }
@@ -931,13 +1224,15 @@ export default {
                     return json({ error: 'Calendar not found' }, 404);
                 }
                 const lock = await lockStatus(env, calId, user.id);
-                if (lock.readOnly && !body.force) {
+                const forceAllowed =
+                    Boolean(body.force) && (user.role === 'admin' || Boolean(lock.holdsLock));
+                if (lock.readOnly && !forceAllowed) {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
                 }
                 const lockRow = await getLock(env, calId);
                 const lockStale = !lockRow || (await isLockStale(env, lockRow));
                 if (
-                    !body.force &&
+                    !forceAllowed &&
                     !lockStale &&
                     lockRow &&
                     lockRow.holder_user_id !== user.id
@@ -953,7 +1248,7 @@ export default {
                 if (!lockStale && lockRow && lockRow.holder_user_id === user.id) {
                     await touchLockHolder(env, calId, user.id);
                 }
-                if (!body.force && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
+                if (!forceAllowed && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
                     const doc = await dbOne(
                         env,
                         'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
@@ -1000,6 +1295,9 @@ export default {
         }
 
         if (path === '/api/calendars' && request.method === 'POST') {
+            if (user.role !== 'admin') {
+                return json({ error: 'Only admins can create team calendars' }, 403);
+            }
             const body = await readJson(request);
             if (!body.name || !body.data) {
                 return json({ error: 'name and data are required' }, 400);
@@ -1127,7 +1425,15 @@ export default {
                 env,
                 'SELECT id, email, display_name, kakao_user_id, role, active, created_at FROM users ORDER BY display_name'
             );
-            return json(rows.map(rowToUser));
+            const list = [];
+            for (const row of rows) {
+                const u = rowToUser(row);
+                const calendars = await CalAccess.listCalendarsForUser(env, u);
+                const hasCalendarAccess =
+                    Boolean(u.active) && (CalAccess.isAdmin(u) || calendars.length > 0);
+                list.push(Object.assign({}, u, { hasCalendarAccess }));
+            }
+            return json(list);
         }
 
         if (path === '/api/admin/users' && request.method === 'POST' && user.role === 'admin') {

@@ -14,6 +14,11 @@ const DEFAULT_IDLE_WARNING_MINUTES = 2;
 const MIN_IDLE_WARNING_MINUTES = 1;
 const MAX_IDLE_WARNING_MINUTES = 60;
 
+const SETTING_SESSION_MAX_DAYS = 'session_max_days';
+const DEFAULT_SESSION_MAX_DAYS = 14;
+const MIN_SESSION_MAX_DAYS = 1;
+const MAX_SESSION_MAX_DAYS = 14;
+
 function clampLockStaleMinutes(n) {
     const v = Math.floor(Number(n));
     if (!Number.isFinite(v)) {
@@ -78,12 +83,29 @@ function getIdleWarningMinutes() {
     return pair.idleWarningMinutes;
 }
 
+function clampSessionMaxDays(n) {
+    const v = Math.floor(Number(n));
+    if (!Number.isFinite(v)) {
+        return DEFAULT_SESSION_MAX_DAYS;
+    }
+    return Math.min(MAX_SESSION_MAX_DAYS, Math.max(MIN_SESSION_MAX_DAYS, v));
+}
+
+function getSessionMaxDays() {
+    return clampSessionMaxDays(getSetting(SETTING_SESSION_MAX_DAYS) || DEFAULT_SESSION_MAX_DAYS);
+}
+
+function getSessionMaxAgeSec() {
+    return getSessionMaxDays() * 86400;
+}
+
 function getAdminSettings() {
     const pair = normalizeIdlePair(getIdleLogoutMinutes(), getSetting(SETTING_IDLE_WARNING_MINUTES) || DEFAULT_IDLE_WARNING_MINUTES);
     return {
         lockStaleMinutes: getLockStaleMinutes(),
         idleLogoutMinutes: pair.idleLogoutMinutes,
-        idleWarningMinutes: pair.idleWarningMinutes
+        idleWarningMinutes: pair.idleWarningMinutes,
+        sessionMaxDays: getSessionMaxDays()
     };
 }
 
@@ -116,6 +138,9 @@ function patchAdminSettings(body) {
                 : getSetting(SETTING_IDLE_WARNING_MINUTES) || DEFAULT_IDLE_WARNING_MINUTES;
         setIdleSessionMinutes(logout, warning);
     }
+    if (body.sessionMaxDays !== undefined) {
+        setSetting(SETTING_SESSION_MAX_DAYS, String(clampSessionMaxDays(body.sessionMaxDays)));
+    }
     return getAdminSettings();
 }
 
@@ -124,9 +149,14 @@ module.exports = {
     getLockStaleMs,
     getIdleLogoutMinutes,
     getIdleWarningMinutes,
+    getSessionMaxDays,
+    getSessionMaxAgeSec,
     getAdminSettings,
     setLockStaleMinutes,
     patchAdminSettings,
+    MIN_SESSION_MAX_DAYS,
+    MAX_SESSION_MAX_DAYS,
+    DEFAULT_SESSION_MAX_DAYS,
     MIN_LOCK_STALE_MINUTES,
     MAX_LOCK_STALE_MINUTES,
     DEFAULT_LOCK_STALE_MINUTES,
