@@ -503,4 +503,4 @@
     } else {
         applyAdminLanguage();
     }
-})();
+})(typeof window !== 'undefined' ? window : globalThis);
