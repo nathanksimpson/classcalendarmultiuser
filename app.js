@@ -474,6 +474,7 @@ const translations = {
         homeworkTabPrevMonth: 'Previous month',
         homeworkTabNextMonth: 'Next month',
         homeworkTabRefreshSyllabi: 'Refresh syllabi from calendar',
+        homeworkTabOnSelectedDay: 'On selected day',
         homeworkTabEditorEmpty: 'Select a class to see homework copy blocks from its syllabus.',
         homeworkTabOpenClass: 'Edit syllabus in Classes',
         homeworkTabOpenSyllabus: 'Edit syllabus',
@@ -1123,6 +1124,7 @@ const translations = {
         homeworkTabPrevMonth: '이전 달',
         homeworkTabNextMonth: '다음 달',
         homeworkTabRefreshSyllabi: '캘린더에서 강의 계획표 새로고침',
+        homeworkTabOnSelectedDay: '선택한 날짜 수업',
         homeworkTabEditorEmpty: '수업을 선택하면 강의 계획표의 숙제 복사 블록이 표시됩니다.',
         homeworkTabOpenClass: '수업 탭에서 강의 계획표 편집',
         homeworkTabOpenSyllabus: '강의 계획표 편집',
@@ -7322,6 +7324,7 @@ function setHomeworkReferenceDate(isoDate, options = {}) {
         syncHomeworkRefCalendarViewToDate(isoDate);
     }
     renderHomeworkReferenceMiniCalendar();
+    renderHomeworkClassList();
     renderHomeworkEditor();
 }
 
@@ -7461,9 +7464,12 @@ function renderHomeworkClassList() {
     }
     ensureUiState();
     const q = (document.getElementById('homeworkClassListSearch')?.value || '').trim().toLowerCase();
+    const selectedIso = getHomeworkReferenceDateFromUi();
+    const selectedWeekday = parseISODateLocal(selectedIso).getDay();
     const selectedId = appData.ui.homeworkTabClassId || '';
     list.innerHTML = '';
-    const classes = getClassesInDisplayOrder().filter((c) => {
+    const baseOrder = getClassesInDisplayOrder();
+    const classes = baseOrder.filter((c) => {
         if (!q) {
             return true;
         }
@@ -7479,13 +7485,51 @@ function renderHomeworkClassList() {
         list.appendChild(empty);
         return;
     }
-    classes.forEach((c) => {
+
+    function classHasLessonOnSelectedDay(classData) {
+        const rows = getSyllabusRowsForClass(classData, { preferMerged: true });
+        return (rows || []).some((r) => r && r.kind === 'lesson' && r.date === selectedIso);
+    }
+
+    const enriched = classes.map((c) => ({
+        classData: c,
+        baseIndex: baseOrder.findIndex((x) => x.id === c.id),
+        onSelectedDay: classHasLessonOnSelectedDay(c),
+        periodSort: getClassPeriodForSort(c, selectedWeekday)
+    }));
+
+    enriched.sort((a, b) => {
+        if (a.onSelectedDay !== b.onSelectedDay) {
+            return a.onSelectedDay ? -1 : 1;
+        }
+        if (a.onSelectedDay) {
+            const ap = a.periodSort == null ? 999 : a.periodSort;
+            const bp = b.periodSort == null ? 999 : b.periodSort;
+            if (ap !== bp) {
+                return ap - bp;
+            }
+        }
+        // Keep stable-ish ordering by original list position, then name.
+        if (a.baseIndex !== b.baseIndex) {
+            return a.baseIndex - b.baseIndex;
+        }
+        return String(a.classData.name || '').localeCompare(String(b.classData.name || ''));
+    });
+
+    enriched.forEach(({ classData: c, onSelectedDay }) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'module-list-item' + (c.id === selectedId ? ' is-selected' : '');
+        btn.className =
+            'module-list-item' +
+            (c.id === selectedId ? ' is-selected' : '') +
+            (onSelectedDay ? ' is-homework-selected-day' : '');
         btn.setAttribute('role', 'option');
         btn.setAttribute('aria-selected', String(c.id === selectedId));
-        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(c), c.grade].filter(Boolean).join(' · '))}</span>`;
+        const metaParts = [formatClassLabelWithPeriod(c), c.grade].filter(Boolean);
+        if (onSelectedDay) {
+            metaParts.unshift(t('homeworkTabOnSelectedDay'));
+        }
+        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml(metaParts.join(' · '))}</span>`;
         btn.addEventListener('click', () => {
             appData.ui.homeworkTabClassId = c.id;
             saveData();
