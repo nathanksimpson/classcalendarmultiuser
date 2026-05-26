@@ -65,7 +65,20 @@ async function api(path, options) {
     ) {
         throw new Error('Not signed in');
     }
-    const res = await fetch('/api' + path, Object.assign({ credentials: 'same-origin' }, options || {}));
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutMs = 15000;
+    let timeoutId = null;
+    if (controller) {
+        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    }
+    const res = await fetch(
+        '/api' + path,
+        Object.assign({ credentials: 'same-origin' }, options || {}, controller ? { signal: controller.signal } : {})
+    ).finally(() => {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+    });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
         throw new Error(json.error || res.statusText);
