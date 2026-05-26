@@ -2,39 +2,87 @@
  * Calendar access: direct members + group-based access (local server).
  */
 const { getDb } = require('./schema');
+const Auth = require('./auth-permissions');
+const { ACCESS_LEVELS } = require('./activity-log');
 
+const LEVEL_RANK = { viewer: 0, suggester: 1, editor: 2 };
+
+function normalizeAccessLevel(level) {
+    const l = String(level || 'editor').trim().toLowerCase();
+    return ACCESS_LEVELS.has(l) ? l : 'editor';
+}
+
+function maxAccessLevel(a, b) {
+    const ra = LEVEL_RANK[normalizeAccessLevel(a)] ?? 0;
+    const rb = LEVEL_RANK[normalizeAccessLevel(b)] ?? 0;
+    return ra >= rb ? normalizeAccessLevel(a) : normalizeAccessLevel(b);
+}
+
+/** @deprecated use Auth.hasPermission(user, 'view_all_calendars') */
 function isAdmin(user) {
-    return Boolean(user && user.role === 'admin');
+    return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
+}
+
+function canViewAllCalendars(user) {
+    return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
+}
+
+function getUserAccessLevel(user, calendarId) {
+    if (!user || !calendarId) {
+        return null;
+    }
+    if (canViewAllCalendars(user)) {
+        return 'editor';
+    }
+    const db = getDb();
+    const member = db
+        .prepare(
+            'SELECT access_level AS accessLevel FROM calendar_members WHERE calendar_id = ? AND user_id = ?'
+        )
+        .get(calendarId, user.id);
+    let level = member ? member.accessLevel : null;
+    const groupRows = db
+        .prepare(
+            `SELECT cg.access_level AS accessLevel FROM calendar_groups cg
+             INNER JOIN group_members gm ON gm.group_id = cg.group_id
+             WHERE cg.calendar_id = ? AND gm.user_id = ?`
+        )
+        .all(calendarId, user.id);
+    for (const row of groupRows) {
+        level = level ? maxAccessLevel(level, row.accessLevel) : row.accessLevel;
+    }
+    return level ? normalizeAccessLevel(level) : null;
 }
 
 function canAccessCalendar(user, calendarId) {
     if (!user || !calendarId) {
         return false;
     }
-    if (isAdmin(user)) {
+    if (canViewAllCalendars(user)) {
         return true;
     }
-    const db = getDb();
-    const row = db
-        .prepare(
-            `SELECT 1 AS ok FROM calendars c WHERE c.id = ?
-             AND (
-               EXISTS (SELECT 1 FROM calendar_members cm WHERE cm.calendar_id = c.id AND cm.user_id = ?)
-               OR EXISTS (
-                 SELECT 1 FROM calendar_groups cg
-                 INNER JOIN group_members gm ON gm.group_id = cg.group_id
-                 WHERE cg.calendar_id = c.id AND gm.user_id = ?
-               )
-             )
-             LIMIT 1`
-        )
-        .get(calendarId, user.id, user.id);
-    return Boolean(row);
+    return getUserAccessLevel(user, calendarId) != null;
+}
+
+function canEditCalendar(user, calendarId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    const level = getUserAccessLevel(user, calendarId);
+    return level === 'editor';
+}
+
+function canSuggestChanges(user, calendarId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    const level = getUserAccessLevel(user, calendarId);
+    return level === 'suggester' || level === 'editor';
 }
 
 function listCalendarsForUser(user) {
     const db = getDb();
-    if (isAdmin(user)) {
+    if (canViewAllCalendars(user)) {
         return db
             .prepare(
                 'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
@@ -59,61 +107,143 @@ function listCalendarsForUser(user) {
 function getCalendarAccess(calendarId) {
     const db = getDb();
     const users = db
-        .prepare('SELECT user_id AS userId FROM calendar_members WHERE calendar_id = ? ORDER BY user_id')
+        .prepare(
+            `SELECT user_id AS userId, access_level AS accessLevel
+             FROM calendar_members WHERE calendar_id = ? ORDER BY user_id`
+        )
         .all(calendarId);
     const groups = db
-        .prepare('SELECT group_id AS groupId FROM calendar_groups WHERE calendar_id = ? ORDER BY group_id')
+        .prepare(
+            `SELECT group_id AS groupId, access_level AS accessLevel
+             FROM calendar_groups WHERE calendar_id = ? ORDER BY group_id`
+        )
         .all(calendarId);
     return {
+        userAccess: users.map((r) => ({
+            userId: r.userId,
+            accessLevel: normalizeAccessLevel(r.accessLevel)
+        })),
+        groupAccess: groups.map((r) => ({
+            groupId: r.groupId,
+            accessLevel: normalizeAccessLevel(r.accessLevel)
+        })),
         userIds: users.map((r) => r.userId),
         groupIds: groups.map((r) => r.groupId)
     };
 }
 
-function filterActiveUserIds(userIds) {
-    const ids = [...new Set((userIds || []).map(String).filter(Boolean))];
+function parseAccessPayload(body) {
+    const userAccess = [];
+    const groupAccess = [];
+    if (Array.isArray(body.userAccess)) {
+        for (const item of body.userAccess) {
+            if (item && item.userId) {
+                userAccess.push({
+                    userId: String(item.userId),
+                    accessLevel: normalizeAccessLevel(item.accessLevel)
+                });
+            }
+        }
+    } else if (Array.isArray(body.userIds)) {
+        for (const uid of body.userIds) {
+            userAccess.push({ userId: String(uid), accessLevel: 'editor' });
+        }
+    }
+    if (Array.isArray(body.groupAccess)) {
+        for (const item of body.groupAccess) {
+            if (item && item.groupId) {
+                groupAccess.push({
+                    groupId: String(item.groupId),
+                    accessLevel: normalizeAccessLevel(item.accessLevel)
+                });
+            }
+        }
+    } else if (Array.isArray(body.groupIds)) {
+        for (const gid of body.groupIds) {
+            groupAccess.push({ groupId: String(gid), accessLevel: 'editor' });
+        }
+    }
+    return { userAccess, groupAccess };
+}
+
+function filterActiveUserAccess(userAccess) {
+    const ids = [...new Set(userAccess.map((u) => u.userId).filter(Boolean))];
     if (ids.length === 0) {
         return [];
     }
     const db = getDb();
     const placeholders = ids.map(() => '?').join(',');
-    const rows = db
-        .prepare(`SELECT id FROM users WHERE active = 1 AND id IN (${placeholders})`)
-        .all(...ids);
-    return rows.map((row) => row.id);
+    const active = new Set(
+        db
+            .prepare(`SELECT id FROM users WHERE active = 1 AND id IN (${placeholders})`)
+            .all(...ids)
+            .map((r) => r.id)
+    );
+    return userAccess.filter((u) => active.has(u.userId));
 }
 
-function filterExistingGroupIds(groupIds) {
-    const ids = [...new Set((groupIds || []).map(String).filter(Boolean))];
+function filterExistingGroupAccess(groupAccess) {
+    const ids = [...new Set(groupAccess.map((g) => g.groupId).filter(Boolean))];
     if (ids.length === 0) {
         return [];
     }
     const db = getDb();
     const placeholders = ids.map(() => '?').join(',');
-    const rows = db.prepare(`SELECT id FROM teacher_groups WHERE id IN (${placeholders})`).all(...ids);
-    return rows.map((row) => row.id);
+    const existing = new Set(
+        db
+            .prepare(`SELECT id FROM teacher_groups WHERE id IN (${placeholders})`)
+            .all(...ids)
+            .map((r) => r.id)
+    );
+    return groupAccess.filter((g) => existing.has(g.groupId));
 }
 
-function setCalendarAccess(calendarId, userIds, groupIds, grantedByUserId) {
+function setCalendarAccess(calendarId, userIdsOrPayload, groupIds, grantedByUserId) {
+    let userAccess;
+    let groupAccess;
+    if (
+        userIdsOrPayload &&
+        typeof userIdsOrPayload === 'object' &&
+        !Array.isArray(userIdsOrPayload) &&
+        (userIdsOrPayload.userAccess || userIdsOrPayload.userIds)
+    ) {
+        const parsed = parseAccessPayload(userIdsOrPayload);
+        userAccess = parsed.userAccess;
+        groupAccess = parsed.groupAccess;
+    } else {
+        const parsed = parseAccessPayload({
+            userIds: userIdsOrPayload || [],
+            groupIds: groupIds || []
+        });
+        userAccess = parsed.userAccess;
+        groupAccess = parsed.groupAccess;
+    }
+    const users = filterActiveUserAccess(userAccess);
+    const groups = filterExistingGroupAccess(groupAccess);
     const db = getDb();
-    const users = filterActiveUserIds(userIds);
-    const groups = filterExistingGroupIds(groupIds);
     const at = new Date().toISOString();
     db.prepare('DELETE FROM calendar_members WHERE calendar_id = ?').run(calendarId);
     db.prepare('DELETE FROM calendar_groups WHERE calendar_id = ?').run(calendarId);
     const insertMember = db.prepare(
-        'INSERT INTO calendar_members (calendar_id, user_id, granted_at, granted_by_user_id) VALUES (?, ?, ?, ?)'
+        `INSERT INTO calendar_members (calendar_id, user_id, granted_at, granted_by_user_id, access_level)
+         VALUES (?, ?, ?, ?, ?)`
     );
     const insertGroup = db.prepare(
-        'INSERT INTO calendar_groups (calendar_id, group_id, granted_at, granted_by_user_id) VALUES (?, ?, ?, ?)'
+        `INSERT INTO calendar_groups (calendar_id, group_id, granted_at, granted_by_user_id, access_level)
+         VALUES (?, ?, ?, ?, ?)`
     );
-    for (const uid of users) {
-        insertMember.run(calendarId, uid, at, grantedByUserId || null);
+    for (const u of users) {
+        insertMember.run(calendarId, u.userId, at, grantedByUserId || null, u.accessLevel);
     }
-    for (const gid of groups) {
-        insertGroup.run(calendarId, gid, at, grantedByUserId || null);
+    for (const g of groups) {
+        insertGroup.run(calendarId, g.groupId, at, grantedByUserId || null, g.accessLevel);
     }
-    return { userIds: users, groupIds: groups };
+    return {
+        userAccess: users,
+        groupAccess: groups,
+        userIds: users.map((u) => u.userId),
+        groupIds: groups.map((g) => g.groupId)
+    };
 }
 
 function deleteCalendarAccess(calendarId) {
@@ -126,7 +256,9 @@ function listTeachers() {
     const db = getDb();
     return db
         .prepare(
-            `SELECT id, email, display_name AS displayName, role FROM users WHERE active = 1 AND role = 'teacher' ORDER BY display_name COLLATE NOCASE`
+            `SELECT id, email, display_name AS displayName, role FROM users
+             WHERE active = 1 AND role NOT IN ('admin', 'super_admin')
+             ORDER BY display_name COLLATE NOCASE`
         )
         .all();
 }
@@ -181,8 +313,16 @@ function getGroupMemberIds(groupId) {
 }
 
 function setGroupMembers(groupId, userIds) {
-    const users = filterActiveUserIds(userIds);
+    const ids = [...new Set((userIds || []).map(String).filter(Boolean))];
     const db = getDb();
+    let users = [];
+    if (ids.length) {
+        const placeholders = ids.map(() => '?').join(',');
+        users = db
+            .prepare(`SELECT id FROM users WHERE active = 1 AND id IN (${placeholders})`)
+            .all(...ids)
+            .map((r) => r.id);
+    }
     db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
     const insert = db.prepare('INSERT INTO group_members (group_id, user_id) VALUES (?, ?)');
     for (const uid of users) {
@@ -203,7 +343,11 @@ function listAdminCalendarsWithAccess() {
 
 module.exports = {
     isAdmin,
+    canViewAllCalendars,
+    getUserAccessLevel,
     canAccessCalendar,
+    canEditCalendar,
+    canSuggestChanges,
     listCalendarsForUser,
     getCalendarAccess,
     setCalendarAccess,
@@ -216,5 +360,6 @@ module.exports = {
     deleteGroup,
     getGroupMemberIds,
     setGroupMembers,
-    listAdminCalendarsWithAccess
+    listAdminCalendarsWithAccess,
+    normalizeAccessLevel
 };

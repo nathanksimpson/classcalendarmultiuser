@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const { getDb, newId, nowIso } = require('./schema');
 const appSettings = require('./app-settings');
 const loginContext = require('./login-context');
+const Auth = require('./auth-permissions');
+const { removePresence } = require('./presence');
 
 const SESSION_DAYS = 14; /* default; createSession uses app_settings.session_max_days */
 const MIN_PASSWORD_LENGTH = 8;
@@ -19,22 +21,25 @@ function rowToUser(row) {
     if (!row) {
         return null;
     }
-    return {
+    const user = {
         id: row.id,
         email: row.email,
         displayName: row.display_name,
         kakaoUserId: row.kakao_user_id,
         role: row.role,
+        permissions: row.permissions,
         active: Boolean(row.active),
         createdAt: row.created_at
     };
+    user.effectivePermissions = Auth.getEffectivePermissions(user);
+    return user;
 }
 
 function listUsers() {
     const db = getDb();
     const rows = db
         .prepare(
-            `SELECT id, email, display_name, kakao_user_id, role, active, created_at
+            `SELECT id, email, display_name, kakao_user_id, role, permissions, active, created_at
              FROM users ORDER BY display_name COLLATE NOCASE`
         )
         .all();
@@ -149,20 +154,28 @@ function resolveKakaoLoginUser(profile) {
     return { user: created };
 }
 
-function createUser({ email, displayName, kakaoUserId, role, passwordHash }) {
+function createUser({ email, displayName, kakaoUserId, role, passwordHash, permissions }) {
     const db = getDb();
     const id = newId();
     const em = normalizeEmail(email);
+    const assignedRole = Auth.normalizeAssignableRole(role || 'teacher');
+    const permsJson =
+        permissions != null
+            ? typeof permissions === 'string'
+                ? permissions
+                : JSON.stringify(permissions)
+            : null;
     db.prepare(
-        `INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
+        `INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, permissions, active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`
     ).run(
         id,
         em,
         displayName || '',
         kakaoUserId ? String(kakaoUserId) : null,
         passwordHash || null,
-        role || 'teacher',
+        assignedRole,
+        permsJson,
         nowIso()
     );
     return getUserById(id);
@@ -183,10 +196,19 @@ function updateUser(id, fields) {
                 ? String(fields.kakaoUserId)
                 : null
             : u.kakaoUserId;
-    const role = fields.role || u.role;
+    const role = fields.role != null ? Auth.normalizeAssignableRole(fields.role) : u.role;
+    let permissions = u.permissions;
+    if (fields.permissions !== undefined) {
+        permissions =
+            fields.permissions == null
+                ? null
+                : typeof fields.permissions === 'string'
+                  ? fields.permissions
+                  : JSON.stringify(fields.permissions);
+    }
     db.prepare(
-        `UPDATE users SET email = ?, display_name = ?, kakao_user_id = ?, role = ?, active = ? WHERE id = ?`
-    ).run(email, displayName, kakaoUserId, role, active, id);
+        `UPDATE users SET email = ?, display_name = ?, kakao_user_id = ?, role = ?, permissions = ?, active = ? WHERE id = ?`
+    ).run(email, displayName, kakaoUserId, role, permissions, active, id);
     if (fields.displayName != null) {
         const label = String(displayName || '').trim();
         db.prepare('UPDATE calendar_locks SET holder_name = ? WHERE holder_user_id = ?').run(label, id);
@@ -199,8 +221,21 @@ function updateUser(id, fields) {
 }
 
 function countAdmins() {
+    return countSuperAdmins();
+}
+
+function countSuperAdmins() {
     const db = getDb();
-    return db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND active = 1`).get().c;
+    return db
+        .prepare(
+            `SELECT COUNT(*) AS c FROM users WHERE active = 1 AND role IN ('admin', 'super_admin')`
+        )
+        .get().c;
+}
+
+function isSuperAdminRole(row) {
+    const role = Auth.normalizeRole(row && row.role);
+    return role === 'super_admin';
 }
 
 function hashPassword(password) {
@@ -336,7 +371,13 @@ function deleteAllSessionsForUser(userId) {
         return;
     }
     releaseAllLocksHeldByUser(userId);
+    removePresence(userId);
     getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+}
+
+function forceLogoutUser(targetId) {
+    deleteAllSessionsForUser(targetId);
+    return true;
 }
 
 function setUserPassword(userId, passwordHash) {
@@ -417,10 +458,14 @@ function permanentlyDeleteUser(targetId, actingAdminId) {
         err.status = 403;
         throw err;
     }
-    if (target.role === 'admin') {
-        const adminCount = db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role = 'admin'`).get();
+    if (isSuperAdminRole(target)) {
+        const adminCount = db
+            .prepare(
+                `SELECT COUNT(*) AS c FROM users WHERE role IN ('admin', 'super_admin')`
+            )
+            .get();
         if (Number(adminCount?.c || 0) <= 1) {
-            const err = new Error('Cannot delete the only admin account');
+            const err = new Error('Cannot delete the only super admin account');
             err.status = 403;
             throw err;
         }
@@ -593,9 +638,11 @@ function releaseAllLocksHeldByUser(userId) {
     return { released: result.changes || 0 };
 }
 
-function lockStatusForClient(calendarId, userId) {
+function lockStatusForClient(calendarId, userId, user) {
     const lock = getLock(calendarId);
     const lockStaleMinutes = appSettings.getLockStaleMinutes();
+    const bypassLock =
+        user && Auth.hasPermission(user, Auth.PERMS.BYPASS_COLLABORATIVE_LOCK);
     if (!lock || isLockStale(lock)) {
         return {
             held: false,
@@ -603,23 +650,26 @@ function lockStatusForClient(calendarId, userId) {
             readOnly: false,
             lock: null,
             pendingEditRequest: false,
-            lockStaleMinutes
+            lockStaleMinutes,
+            bypassLock: Boolean(bypassLock)
         };
     }
     const heldByMe = lock.holder_user_id === userId;
     const pendingEditRequest = Boolean(lock.pending_requester_id && lock.pending_requester_id === userId);
+    const readOnly = bypassLock ? false : !heldByMe;
     return {
         held: true,
         holdsLock: heldByMe,
-        readOnly: !heldByMe,
+        readOnly,
         lock: lockToClient(lock),
         pendingEditRequest,
-        lockStaleMinutes
+        lockStaleMinutes,
+        bypassLock: Boolean(bypassLock)
     };
 }
 
-function lockPayloadForClient(calendarId, userId) {
-    const status = lockStatusForClient(calendarId, userId);
+function lockPayloadForClient(calendarId, userId, user) {
+    const status = lockStatusForClient(calendarId, userId, user);
     return {
         acquired: Boolean(status.holdsLock),
         lock: status.lock,
@@ -629,22 +679,6 @@ function lockPayloadForClient(calendarId, userId) {
         lockStaleMinutes: status.lockStaleMinutes,
         editRequestRecorded: false
     };
-}
-
-function appendHistory(calendarId, revision, data, user) {
-    const db = getDb();
-    db.prepare(
-        `INSERT INTO calendar_history (id, calendar_id, revision, data, saved_by_user_id, saved_by_name, saved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-        newId(),
-        calendarId,
-        revision,
-        JSON.stringify(data),
-        user.id,
-        user.displayName || user.email || 'Teacher',
-        nowIso()
-    );
 }
 
 module.exports = {
@@ -658,6 +692,9 @@ module.exports = {
     createUser,
     updateUser,
     countAdmins,
+    countSuperAdmins,
+    isSuperAdminRole,
+    forceLogoutUser,
     hashPassword,
     findUserByEmailPassword,
     activeUserHasNoPassword,
@@ -682,6 +719,5 @@ module.exports = {
     releaseLock,
     releaseAllLocksHeldByUser,
     lockStatusForClient,
-    lockPayloadForClient,
-    appendHistory
+    lockPayloadForClient
 };

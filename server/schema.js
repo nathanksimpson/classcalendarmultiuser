@@ -74,6 +74,9 @@ function migrate(db) {
     migrateCalendarAccessTables(db);
     migrateAppSettings(db);
     migrateSessionLoginContext(db);
+    migrateAuthPermissions(db);
+    migrateSuggestionsPresence(db);
+    migrateActivityLog(db);
 }
 
 function migrateSessionLoginContext(db) {
@@ -142,6 +145,67 @@ function migrateCalendarAccessTables(db) {
             WHERE u.active = 1;
         `);
     }
+}
+
+function migrateAuthPermissions(db) {
+    const userCols = db.prepare('PRAGMA table_info(users)').all();
+    if (!new Set(userCols.map((c) => c.name)).has('permissions')) {
+        db.exec('ALTER TABLE users ADD COLUMN permissions TEXT');
+    }
+    const memberCols = db.prepare('PRAGMA table_info(calendar_members)').all();
+    if (!new Set(memberCols.map((c) => c.name)).has('access_level')) {
+        db.exec(
+            "ALTER TABLE calendar_members ADD COLUMN access_level TEXT NOT NULL DEFAULT 'editor'"
+        );
+    }
+    const groupCols = db.prepare('PRAGMA table_info(calendar_groups)').all();
+    if (!new Set(groupCols.map((c) => c.name)).has('access_level')) {
+        db.exec(
+            "ALTER TABLE calendar_groups ADD COLUMN access_level TEXT NOT NULL DEFAULT 'editor'"
+        );
+    }
+}
+
+function migrateSuggestionsPresence(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS calendar_suggestions (
+            id TEXT PRIMARY KEY,
+            calendar_id TEXT NOT NULL,
+            base_revision INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            summary TEXT,
+            created_by_user_id TEXT NOT NULL,
+            created_by_name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+        );
+        CREATE INDEX IF NOT EXISTS idx_suggestions_calendar ON calendar_suggestions(calendar_id, status);
+        CREATE TABLE IF NOT EXISTS user_presence (
+            user_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            calendar_id TEXT,
+            calendar_name TEXT,
+            last_seen_at TEXT NOT NULL
+        );
+    `);
+}
+
+function migrateActivityLog(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id TEXT PRIMARY KEY,
+            action TEXT NOT NULL,
+            actor_user_id TEXT,
+            actor_name TEXT NOT NULL,
+            calendar_id TEXT,
+            calendar_name TEXT,
+            summary TEXT NOT NULL,
+            detail_json TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_activity_log_calendar ON activity_log(calendar_id, created_at DESC);
+    `);
 }
 
 function migrateLockPendingColumns(db) {

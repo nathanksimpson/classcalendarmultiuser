@@ -2,6 +2,10 @@
  * Cloudflare Worker API — production deploy (Pages static + /api/* routed here).
  */
 import * as CalAccess from './calendar-access.js';
+import * as Auth from './auth-permissions.js';
+import * as ActivityLog from './activity-log.js';
+import * as Presence from './presence.js';
+import * as Suggestions from './suggestions.js';
 import * as AppSettings from './app-settings.js';
 import {
     KAKAO_OAUTH_COOKIE,
@@ -104,14 +108,17 @@ function rowToUser(row) {
     if (!row) {
         return null;
     }
-    return {
+    const user = {
         id: row.id,
         email: row.email,
         displayName: row.display_name,
         kakaoUserId: row.kakao_user_id,
         role: row.role,
+        permissions: row.permissions,
         active: Boolean(row.active)
     };
+    user.effectivePermissions = Auth.getEffectivePermissions(user);
+    return user;
 }
 
 async function dbOne(env, sql, ...params) {
@@ -158,6 +165,7 @@ async function getSessionUser(env, token) {
 async function deleteAllSessionsForUser(env, userId) {
     if (userId) {
         await releaseAllLocksHeldByUser(env, userId);
+        await Presence.removePresence(env, userId);
         await dbRun(env, 'DELETE FROM sessions WHERE user_id = ?', userId);
     }
 }
@@ -173,10 +181,13 @@ async function permanentlyDeleteUser(env, targetId, actingAdminId) {
     if (target.active !== 0) {
         return { error: 'Deactivate the account before permanent delete', status: 403 };
     }
-    if (target.role === 'admin') {
-        const row = await dbOne(env, `SELECT COUNT(*) AS c FROM users WHERE role = 'admin'`);
+    if (Auth.isSuperAdminRole(target)) {
+        const row = await dbOne(
+            env,
+            `SELECT COUNT(*) AS c FROM users WHERE role IN ('admin', 'super_admin')`
+        );
         if (Number(row?.c || 0) <= 1) {
-            return { error: 'Cannot delete the only admin account', status: 403 };
+            return { error: 'Cannot delete the only super admin account', status: 403 };
         }
     }
     await dbRun(env, 'DELETE FROM sessions WHERE user_id = ?', targetId);
@@ -363,8 +374,9 @@ async function lockToClient(env, lock) {
     };
 }
 
-async function lockStatus(env, calendarId, userId) {
+async function lockStatus(env, calendarId, userId, user = null) {
     const lockStaleMinutes = await AppSettings.getLockStaleMinutes(env);
+    const bypassLock = user && Auth.hasPermission(user, Auth.PERMS.BYPASS_COLLABORATIVE_LOCK);
     const lock = await getLock(env, calendarId);
     if (!lock || (await isLockStale(env, lock))) {
         return {
@@ -373,7 +385,8 @@ async function lockStatus(env, calendarId, userId) {
             readOnly: false,
             lock: null,
             pendingEditRequest: false,
-            lockStaleMinutes
+            lockStaleMinutes,
+            bypassLock: Boolean(bypassLock)
         };
     }
     const heldByMe = lock.holder_user_id === userId;
@@ -381,15 +394,18 @@ async function lockStatus(env, calendarId, userId) {
     return {
         held: true,
         holdsLock: heldByMe,
-        readOnly: !heldByMe,
+        readOnly: bypassLock ? false : !heldByMe,
         lock: await lockToClient(env, lock),
         pendingEditRequest,
-        lockStaleMinutes
+        lockStaleMinutes,
+        bypassLock: Boolean(bypassLock)
     };
 }
 
-async function lockPayloadForClient(env, calendarId, userId, extra = {}) {
-    const status = await lockStatus(env, calendarId, userId);
+async function lockPayloadForClient(env, calendarId, user, extra = {}) {
+    const userId = typeof user === 'string' ? user : user && user.id;
+    const userObj = typeof user === 'object' && user ? user : null;
+    const status = await lockStatus(env, calendarId, userId, userObj);
     return Object.assign(
         {
             acquired: Boolean(status.holdsLock),
@@ -402,6 +418,23 @@ async function lockPayloadForClient(env, calendarId, userId, extra = {}) {
         },
         extra
     );
+}
+
+async function calendarMetaExtras(env, user, calendarId, meta) {
+    const lock = await lockStatus(env, calendarId, user.id, user);
+    const accessLevel = await CalAccess.getUserAccessLevel(env, user, calendarId);
+    return Object.assign({}, meta, {
+        lock: lock.lock,
+        readOnly: lock.readOnly,
+        holdsLock: Boolean(lock.holdsLock),
+        pendingEditRequest: lock.pendingEditRequest,
+        lockStaleMinutes: lock.lockStaleMinutes,
+        bypassLock: Boolean(lock.bypassLock),
+        accessLevel,
+        canEdit: await CalAccess.canEditCalendar(env, user, calendarId),
+        canSuggest: await CalAccess.canSuggestChanges(env, user, calendarId),
+        pendingSuggestions: await Suggestions.countPendingSuggestions(env, calendarId)
+    });
 }
 
 async function recordLockEditRequest(env, calendarId, user) {
@@ -504,9 +537,16 @@ async function verifyPassword(password, stored) {
     }
 }
 
-async function countAdmins(env) {
-    const row = await dbOne(env, `SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND active = 1`);
+async function countSuperAdmins(env) {
+    const row = await dbOne(
+        env,
+        `SELECT COUNT(*) AS c FROM users WHERE active = 1 AND role IN ('admin', 'super_admin')`
+    );
     return Number(row?.c || 0);
+}
+
+async function countAdmins(env) {
+    return countSuperAdmins(env);
 }
 
 async function findUserByEmailPassword(env, email, password) {
@@ -524,19 +564,27 @@ async function findUserByEmailPassword(env, email, password) {
     return rowToUser(row);
 }
 
-async function createUser(env, { email, displayName, kakaoUserId, role, passwordHash }) {
+async function createUser(env, { email, displayName, kakaoUserId, role, passwordHash, permissions }) {
     const id = uuid();
     const em = normalizeEmail(email);
+    const assignedRole = Auth.normalizeAssignableRole(role || 'teacher');
+    const permsJson =
+        permissions != null
+            ? typeof permissions === 'string'
+                ? permissions
+                : JSON.stringify(permissions)
+            : null;
     await dbRun(
         env,
-        `INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+        `INSERT INTO users (id, email, display_name, kakao_user_id, password_hash, role, permissions, active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
         id,
         em,
         displayName || '',
         kakaoUserId ? String(kakaoUserId) : null,
         passwordHash || null,
-        role || 'teacher',
+        assignedRole,
+        permsJson,
         nowIso()
     );
     return rowToUser(await dbOne(env, 'SELECT * FROM users WHERE id = ?', id));
@@ -556,14 +604,24 @@ async function updateUser(env, id, fields) {
                 ? String(fields.kakaoUserId)
                 : null
             : existing.kakao_user_id;
-    const role = fields.role || existing.role;
+    const role = fields.role != null ? Auth.normalizeAssignableRole(fields.role) : existing.role;
+    let permissions = existing.permissions;
+    if (fields.permissions !== undefined) {
+        permissions =
+            fields.permissions == null
+                ? null
+                : typeof fields.permissions === 'string'
+                  ? fields.permissions
+                  : JSON.stringify(fields.permissions);
+    }
     await dbRun(
         env,
-        `UPDATE users SET email = ?, display_name = ?, kakao_user_id = ?, role = ?, active = ? WHERE id = ?`,
+        `UPDATE users SET email = ?, display_name = ?, kakao_user_id = ?, role = ?, permissions = ?, active = ? WHERE id = ?`,
         email,
         displayName,
         kakaoUserId,
         role,
+        permissions,
         active,
         id
     );
@@ -911,12 +969,15 @@ export default {
                 return json({ error: 'Not signed in' }, 401);
             }
             const calendars = await CalAccess.listCalendarsForUser(env, user);
-            const hasCalendarAccess = CalAccess.isAdmin(user) || calendars.length > 0;
+            const hasCalendarAccess = CalAccess.canViewAllCalendars(user) || calendars.length > 0;
             return json({
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName,
-                role: user.role,
+                role: Auth.normalizeRole(user.role),
+                roleRaw: user.role,
+                permissions: Auth.getEffectivePermissions(user),
+                canAccessAdmin: Auth.canAccessAdminPage(user),
                 hasCalendarAccess,
                 loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
                 idleLogoutMinutes: user.idleLogoutMinutes,
@@ -930,6 +991,7 @@ export default {
                 const sessionRow = await dbOne(env, 'SELECT user_id FROM sessions WHERE token = ?', token);
                 if (sessionRow && sessionRow.user_id) {
                     await releaseAllLocksHeldByUser(env, sessionRow.user_id);
+                    await Presence.removePresence(env, sessionRow.user_id);
                 }
                 await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
             }
@@ -1120,7 +1182,7 @@ export default {
             const created = await createUser(env, {
                 email: em,
                 displayName: body.displayName || 'Admin',
-                role: 'admin',
+                role: 'super_admin',
                 passwordHash: body.password ? await hashPassword(body.password) : null
             });
             const session = await createLoginSession(env, created.id, LOGIN_CONTEXT_PERSONAL);
@@ -1183,7 +1245,7 @@ export default {
                 return json({ error: 'Not signed in' }, 401);
             }
             const calendars = await CalAccess.listCalendarsForUser(env, updated);
-            const hasCalendarAccess = CalAccess.isAdmin(updated) || calendars.length > 0;
+            const hasCalendarAccess = CalAccess.canViewAllCalendars(updated) || calendars.length > 0;
             return json({
                 id: updated.id,
                 email: updated.email,
@@ -1203,7 +1265,7 @@ export default {
 
         if (path === '/api/teachers' && request.method === 'GET') {
             const teachers = await CalAccess.listTeachers(env);
-            if (!CalAccess.isAdmin(user)) {
+            if (!CalAccess.canViewAllCalendars(user)) {
                 const me = teachers.find((t) => t.id === user.id);
                 if (me) {
                     return json([me]);
@@ -1216,6 +1278,109 @@ export default {
         if (path === '/api/groups' && request.method === 'GET') {
             const groups = await CalAccess.listGroups(env);
             return json(groups);
+        }
+
+        if (path === '/api/presence/heartbeat' && request.method === 'POST') {
+            const body = await readJson(request);
+            await Presence.upsertPresence(env, user, body);
+            return json({ ok: true });
+        }
+
+        const suggestionMatch = path.match(
+            /^\/api\/calendars\/([^/]+)\/suggestions(?:\/([^/]+)(\/apply|\/dismiss)?)?$/
+        );
+        if (suggestionMatch) {
+            const calId = suggestionMatch[1];
+            const suggestionId = suggestionMatch[2];
+            const suggestionAction = suggestionMatch[3];
+            if (!(await CalAccess.canAccessCalendar(env, user, calId))) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
+            if (!suggestionId && request.method === 'GET') {
+                if (
+                    !Auth.hasPermission(user, Auth.PERMS.APPLY_SUGGESTIONS) &&
+                    !(await CalAccess.canSuggestChanges(env, user, calId))
+                ) {
+                    return json({ error: 'Forbidden' }, 403);
+                }
+                return json(await Suggestions.listPendingSuggestions(env, calId));
+            }
+            if (!suggestionId && request.method === 'POST') {
+                if (!(await CalAccess.canSuggestChanges(env, user, calId))) {
+                    return json({ error: 'You cannot submit suggestions for this calendar' }, 403);
+                }
+                if (await CalAccess.canEditCalendar(env, user, calId)) {
+                    return json({ error: 'Editors should save directly' }, 400);
+                }
+                const body = await readJson(request);
+                if (!body.data || body.revision == null) {
+                    return json({ error: 'data and revision are required' }, 400);
+                }
+                const meta = await dbOne(env, 'SELECT name FROM calendars WHERE id = ?', calId);
+                const created = await Suggestions.createSuggestion(
+                    env,
+                    calId,
+                    user,
+                    body.revision,
+                    body.data,
+                    body.summary
+                );
+                await ActivityLog.recordActivityForUser(env, user, {
+                    action: 'suggestion_submit',
+                    calendarId: calId,
+                    calendarName: meta && meta.name,
+                    summary: body.summary || 'Submitted calendar suggestion',
+                    detail: { suggestionId: created.id, baseRevision: body.revision }
+                });
+                return json(created, 201);
+            }
+            if (suggestionId && suggestionAction === '/apply' && request.method === 'POST') {
+                if (!Auth.hasPermission(user, Auth.PERMS.APPLY_SUGGESTIONS)) {
+                    return json({ error: 'Forbidden' }, 403);
+                }
+                const suggestion = await Suggestions.getSuggestion(env, suggestionId);
+                if (!suggestion || suggestion.calendarId !== calId || suggestion.status !== 'pending') {
+                    return json({ error: 'Suggestion not found' }, 404);
+                }
+                const meta = await dbOne(env, 'SELECT revision, name FROM calendars WHERE id = ?', calId);
+                const label = user.displayName || user.email || 'Teacher';
+                const nextRev = Number(meta.revision) + 1;
+                await dbRun(
+                    env,
+                    'UPDATE calendars SET name=?, data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                    meta.name,
+                    JSON.stringify(suggestion.data),
+                    nextRev,
+                    nowIso(),
+                    label,
+                    calId
+                );
+                await Suggestions.setSuggestionStatus(env, suggestionId, 'applied');
+                await ActivityLog.recordActivityForUser(env, user, {
+                    action: 'suggestion_apply',
+                    calendarId: calId,
+                    calendarName: meta.name,
+                    summary: `Applied suggestion from ${suggestion.createdByName}`,
+                    detail: { suggestionId }
+                });
+                const doc = await dbOne(
+                    env,
+                    'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    calId
+                );
+                return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }));
+            }
+            if (suggestionId && suggestionAction === '/dismiss' && request.method === 'POST') {
+                if (!Auth.hasPermission(user, Auth.PERMS.APPLY_SUGGESTIONS)) {
+                    return json({ error: 'Forbidden' }, 403);
+                }
+                const suggestion = await Suggestions.getSuggestion(env, suggestionId);
+                if (!suggestion || suggestion.calendarId !== calId || suggestion.status !== 'pending') {
+                    return json({ error: 'Suggestion not found' }, 404);
+                }
+                await Suggestions.setSuggestionStatus(env, suggestionId, 'dismissed');
+                return json({ ok: true });
+            }
         }
 
         const calMatch = path.match(
@@ -1233,22 +1398,13 @@ export default {
             if (sub === '/meta' && request.method === 'GET') {
                 const meta = await dbOne(
                     env,
-                    'SELECT id, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
                     calId
                 );
                 if (!meta) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
-                const lock = await lockStatus(env, calId, user.id);
-                return json(
-                    Object.assign({}, meta, {
-                        lock: lock.lock,
-                        readOnly: lock.readOnly,
-                        holdsLock: Boolean(lock.holdsLock),
-                        pendingEditRequest: lock.pendingEditRequest,
-                        lockStaleMinutes: lock.lockStaleMinutes
-                    })
-                );
+                return json(await calendarMetaExtras(env, user, calId, meta));
             }
 
             if (sub === '/lock/touch' && request.method === 'POST') {
@@ -1256,7 +1412,7 @@ export default {
                 if (!touched) {
                     return json({ error: 'Only the current editor can refresh the lock', touched: false }, 403);
                 }
-                return json(await lockPayloadForClient(env, calId, user.id, { touched: true }));
+                return json(await lockPayloadForClient(env, calId, user, { touched: true }));
             }
 
             if (sub === '/lock/grant' && request.method === 'POST') {
@@ -1264,7 +1420,7 @@ export default {
                 if (result.error) {
                     return json({ error: result.error }, result.status || 400);
                 }
-                return json(await lockPayloadForClient(env, calId, user.id));
+                return json(await lockPayloadForClient(env, calId, user));
             }
 
             if (sub === '/lock/dismiss' && request.method === 'POST') {
@@ -1272,7 +1428,7 @@ export default {
                 if (result.error) {
                     return json({ error: result.error }, result.status || 400);
                 }
-                return json(await lockPayloadForClient(env, calId, user.id));
+                return json(await lockPayloadForClient(env, calId, user));
             }
 
             if (sub === '/lock' && request.method === 'POST') {
@@ -1287,7 +1443,7 @@ export default {
                     await recordLockEditRequest(env, calId, user);
                     editRequestRecorded = true;
                 }
-                return json(await lockPayloadForClient(env, calId, user.id, { editRequestRecorded }));
+                return json(await lockPayloadForClient(env, calId, user, { editRequestRecorded }));
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
@@ -1311,17 +1467,8 @@ export default {
                 if (!row) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
-                const lock = await lockStatus(env, calId, user.id);
-                return json(
-                    Object.assign({}, row, {
-                        data: JSON.parse(row.data),
-                        lock: lock.lock,
-                        readOnly: lock.readOnly,
-                        holdsLock: Boolean(lock.holdsLock),
-                        pendingEditRequest: lock.pendingEditRequest,
-                        lockStaleMinutes: lock.lockStaleMinutes
-                    })
-                );
+                const doc = Object.assign({}, row, { data: JSON.parse(row.data) });
+                return json(await calendarMetaExtras(env, user, calId, doc));
             }
 
             if (!sub && request.method === 'PUT') {
@@ -1341,9 +1488,13 @@ export default {
                 if (!existing) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
-                const lock = await lockStatus(env, calId, user.id);
+                if (!(await CalAccess.canEditCalendar(env, user, calId))) {
+                    return json({ error: 'You do not have edit access to this calendar' }, 403);
+                }
+                const lock = await lockStatus(env, calId, user.id, user);
                 const forceAllowed =
-                    Boolean(body.force) && (user.role === 'admin' || Boolean(lock.holdsLock));
+                    Boolean(body.force) &&
+                    (Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) || Boolean(lock.holdsLock));
                 if (lock.readOnly && !forceAllowed) {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
                 }
@@ -1393,6 +1544,13 @@ export default {
                     label,
                     calId
                 );
+                await ActivityLog.recordActivityForUser(env, user, {
+                    action: 'calendar_save',
+                    calendarId: calId,
+                    calendarName: displayName,
+                    summary: `Saved calendar (revision ${nextRev})`,
+                    detail: { revision: nextRev }
+                });
                 const doc = await dbOne(
                     env,
                     'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
@@ -1402,19 +1560,27 @@ export default {
             }
 
             if (!sub && request.method === 'DELETE') {
-                if (user.role !== 'admin') {
-                    return json({ error: 'Only admins can delete team calendars' }, 403);
+                if (!Auth.hasPermission(user, Auth.PERMS.DELETE_CALENDARS)) {
+                    return json({ error: 'Forbidden' }, 403);
                 }
+                const meta = await dbOne(env, 'SELECT name FROM calendars WHERE id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
+                await dbRun(env, 'DELETE FROM calendar_suggestions WHERE calendar_id = ?', calId);
                 await CalAccess.deleteCalendarAccess(env, calId);
+                await ActivityLog.recordActivityForUser(env, user, {
+                    action: 'calendar_delete',
+                    calendarId: calId,
+                    calendarName: meta && meta.name,
+                    summary: `Deleted calendar "${(meta && meta.name) || calId}"`
+                });
                 return json({ ok: true });
             }
         }
 
         if (path === '/api/calendars' && request.method === 'POST') {
-            if (user.role !== 'admin') {
-                return json({ error: 'Only admins can create team calendars' }, 403);
+            if (!Auth.hasPermission(user, Auth.PERMS.CREATE_CALENDARS)) {
+                return json({ error: 'Forbidden' }, 403);
             }
             const body = await readJson(request);
             if (!body.name || !body.data) {
@@ -1441,8 +1607,14 @@ export default {
                 memberIds.push(user.id);
             }
             const groupIds = Array.isArray(body.groupIds) ? body.groupIds.map(String) : [];
-            await CalAccess.setCalendarAccess(env, id, memberIds, groupIds, user.id);
+            await CalAccess.setCalendarAccess(env, id, { userIds: memberIds, groupIds }, null, user.id);
             await assignLockHolder(env, id, user.id, label);
+            await ActivityLog.recordActivityForUser(env, user, {
+                action: 'calendar_create',
+                calendarId: id,
+                calendarName: trimmedName,
+                summary: `Created calendar "${trimmedName}"`
+            });
             const doc = await dbOne(
                 env,
                 'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
@@ -1451,7 +1623,45 @@ export default {
             return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }), 201);
         }
 
-        if (path === '/api/admin/settings' && user.role === 'admin') {
+        if (path === '/api/admin/activity' && request.method === 'GET') {
+            if (!Auth.hasPermission(user, Auth.PERMS.VIEW_AUDIT)) {
+                return json({ error: 'Forbidden' }, 403);
+            }
+            const url = new URL(request.url);
+            return json(
+                await ActivityLog.listActivity(env, {
+                    limit: url.searchParams.get('limit'),
+                    calendarId: url.searchParams.get('calendarId')
+                })
+            );
+        }
+
+        if (path === '/api/admin/presence' && request.method === 'GET') {
+            if (!Auth.hasPermission(user, Auth.PERMS.VIEW_PRESENCE)) {
+                return json({ error: 'Forbidden' }, 403);
+            }
+            return json(await Presence.listOnlinePresence(env));
+        }
+
+        const forceLogoutMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/force-logout$/);
+        if (forceLogoutMatch && request.method === 'POST') {
+            if (!Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
+                return json({ error: 'Forbidden' }, 403);
+            }
+            const target = await dbOne(env, 'SELECT * FROM users WHERE id = ?', forceLogoutMatch[1]);
+            if (!target) {
+                return json({ error: 'User not found' }, 404);
+            }
+            await deleteAllSessionsForUser(env, forceLogoutMatch[1]);
+            await ActivityLog.recordActivityForUser(env, user, {
+                action: 'force_logout',
+                summary: `Forced logout for ${target.display_name || target.email || target.id}`,
+                detail: { targetUserId: target.id }
+            });
+            return json({ ok: true });
+        }
+
+        if (path === '/api/admin/settings' && Auth.hasPermission(user, Auth.PERMS.MANAGE_SETTINGS)) {
             if (request.method === 'GET') {
                 return json(await AppSettings.getAdminSettings(env));
             }
@@ -1461,7 +1671,7 @@ export default {
             }
         }
 
-        if (path === '/api/admin/groups' && request.method === 'GET' && user.role === 'admin') {
+        if (path === '/api/admin/groups' && request.method === 'GET' && Auth.hasPermission(user, Auth.PERMS.MANAGE_GROUPS)) {
             const groups = await CalAccess.listGroups(env);
             const out = [];
             for (const g of groups) {
@@ -1471,7 +1681,7 @@ export default {
             return json(out);
         }
 
-        if (path === '/api/admin/groups' && request.method === 'POST' && user.role === 'admin') {
+        if (path === '/api/admin/groups' && request.method === 'POST' && Auth.hasPermission(user, Auth.PERMS.MANAGE_GROUPS)) {
             const body = await readJson(request);
             const name = body.name && String(body.name).trim();
             if (!name) {
@@ -1487,7 +1697,7 @@ export default {
         }
 
         const adminGroupMatch = path.match(/^\/api\/admin\/groups\/([^/]+)(\/members)?$/);
-        if (adminGroupMatch && user.role === 'admin') {
+        if (adminGroupMatch && Auth.hasPermission(user, Auth.PERMS.MANAGE_GROUPS)) {
             const groupId = adminGroupMatch[1];
             const isMembers = adminGroupMatch[2] === '/members';
             const existing = await CalAccess.getGroup(env, groupId);
@@ -1511,12 +1721,16 @@ export default {
             }
         }
 
-        if (path === '/api/admin/calendars' && request.method === 'GET' && user.role === 'admin') {
+        if (
+            path === '/api/admin/calendars' &&
+            request.method === 'GET' &&
+            Auth.hasAnyPermission(user, [Auth.PERMS.MANAGE_CALENDAR_ACCESS, Auth.PERMS.VIEW_ALL_CALENDARS])
+        ) {
             return json(await CalAccess.listAdminCalendarsWithAccess(env));
         }
 
         const adminCalAccessMatch = path.match(/^\/api\/admin\/calendars\/([^/]+)\/access$/);
-        if (adminCalAccessMatch && user.role === 'admin') {
+        if (adminCalAccessMatch && Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)) {
             const calId = adminCalAccessMatch[1];
             const meta = await dbOne(env, 'SELECT id FROM calendars WHERE id = ?', calId);
             if (!meta) {
@@ -1527,34 +1741,41 @@ export default {
             }
             if (request.method === 'PUT') {
                 const body = await readJson(request);
-                const result = await CalAccess.setCalendarAccess(
-                    env,
-                    calId,
-                    body.userIds || [],
-                    body.groupIds || [],
-                    user.id
-                );
+                const result = await CalAccess.setCalendarAccess(env, calId, body, null, user.id);
+                const metaRow = await dbOne(env, 'SELECT name FROM calendars WHERE id = ?', calId);
+                await ActivityLog.recordActivityForUser(env, user, {
+                    action: 'calendar_access_update',
+                    calendarId: calId,
+                    calendarName: metaRow && metaRow.name,
+                    summary: 'Updated calendar access'
+                });
                 return json(result);
             }
         }
 
-        if (path === '/api/admin/users' && request.method === 'GET' && user.role === 'admin') {
+        if (path === '/api/admin/users' && request.method === 'GET' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const rows = await dbAll(
                 env,
-                'SELECT id, email, display_name, kakao_user_id, role, active, created_at FROM users ORDER BY display_name'
+                'SELECT id, email, display_name, kakao_user_id, role, permissions, active, created_at FROM users ORDER BY display_name'
             );
             const list = [];
             for (const row of rows) {
                 const u = rowToUser(row);
                 const calendars = await CalAccess.listCalendarsForUser(env, u);
                 const hasCalendarAccess =
-                    Boolean(u.active) && (CalAccess.isAdmin(u) || calendars.length > 0);
-                list.push(Object.assign({}, u, { hasCalendarAccess }));
+                    Boolean(u.active) && (CalAccess.canViewAllCalendars(u) || calendars.length > 0);
+                list.push(
+                    Object.assign({}, u, {
+                        hasCalendarAccess,
+                        permissions: Auth.getEffectivePermissions(u),
+                        role: Auth.normalizeRole(u.role)
+                    })
+                );
             }
             return json(list);
         }
 
-        if (path === '/api/admin/users' && request.method === 'POST' && user.role === 'admin') {
+        if (path === '/api/admin/users' && request.method === 'POST' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const body = await readJson(request);
             const em = normalizeEmail(body.email);
             if (!em && !body.kakaoUserId) {
@@ -1563,7 +1784,7 @@ export default {
             const created = await createUser(env, {
                 email: em,
                 displayName: body.displayName || em || 'Teacher',
-                role: body.role === 'admin' ? 'admin' : 'teacher',
+                role: Auth.normalizeAssignableRole(body.role || 'teacher'),
                 kakaoUserId: body.kakaoUserId || null,
                 passwordHash: body.password ? await hashPassword(body.password) : null
             });
@@ -1571,7 +1792,7 @@ export default {
         }
 
         const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
-        if (adminUserMatch && user.role === 'admin') {
+        if (adminUserMatch && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const targetId = adminUserMatch[1];
             if (request.method === 'DELETE') {
                 const result = await permanentlyDeleteUser(env, targetId, user.id);
@@ -1581,30 +1802,38 @@ export default {
                 return json({ ok: true });
             }
         }
-        if (adminUserMatch && request.method === 'PATCH' && user.role === 'admin') {
+        if (adminUserMatch && request.method === 'PATCH' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const patchBody = await readJson(request);
             const targetId = adminUserMatch[1];
             const targetRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
             if (!targetRow) {
                 return json({ error: 'User not found' }, 404);
             }
-            const nextRole = patchBody.role !== undefined ? patchBody.role : targetRow.role;
+            const nextRole =
+                patchBody.role !== undefined
+                    ? Auth.normalizeAssignableRole(patchBody.role)
+                    : targetRow.role;
             const nextActive = patchBody.active !== undefined ? (patchBody.active ? 1 : 0) : targetRow.active;
             if (targetId === user.id && nextActive === 0) {
                 return json({ error: 'You cannot deactivate your own account' }, 403);
             }
-            if (targetRow.role === 'admin' && nextActive === 0 && (await countAdmins(env)) <= 1) {
-                return json({ error: 'Cannot deactivate the last admin' }, 403);
+            if (Auth.isSuperAdminRole(targetRow) && nextActive === 0 && (await countSuperAdmins(env)) <= 1) {
+                return json({ error: 'Cannot deactivate the last super admin' }, 403);
             }
-            if (targetRow.role === 'admin' && nextRole !== 'admin' && (await countAdmins(env)) <= 1) {
-                return json({ error: 'Cannot demote the last admin' }, 403);
+            const demotingSuper =
+                Auth.isSuperAdminRole(targetRow) &&
+                !Auth.isSuperAdminRole({ role: nextRole }) &&
+                nextActive === 1;
+            if (demotingSuper && (await countSuperAdmins(env)) <= 1) {
+                return json({ error: 'Cannot demote the last super admin' }, 403);
             }
             const updated = await updateUser(env, targetId, {
                 email: patchBody.email,
                 displayName: patchBody.displayName,
-                role: patchBody.role,
+                role: patchBody.role != null ? nextRole : undefined,
                 active: patchBody.active,
-                kakaoUserId: patchBody.kakaoUserId
+                kakaoUserId: patchBody.kakaoUserId,
+                permissions: patchBody.permissions
             });
             if (!updated) {
                 return json({ error: 'User not found' }, 404);

@@ -1,5 +1,8 @@
 const { getDb, newId, nowIso } = require('./schema');
 const users = require('./users');
+const CalAccess = require('./calendar-access');
+const Auth = require('./auth-permissions');
+const { recordActivityForUser } = require('./activity-log');
 
 function listCalendars() {
     const db = getDb();
@@ -90,6 +93,10 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         return { ok: false, status: 404, error: 'Calendar not found' };
     }
 
+    if (!CalAccess.canEditCalendar(user, id)) {
+        return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
+    }
+
     const displayName = name != null ? normalizeCalendarName(name) : existing.name;
     if (displayName.toLowerCase() !== String(existing.name || '').trim().toLowerCase()) {
         try {
@@ -99,8 +106,10 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         }
     }
 
-    const lockState = users.lockStatusForClient(id, user.id);
-    const forceAllowed = Boolean(force) && (user.role === 'admin' || lockState.holdsLock);
+    const lockState = users.lockStatusForClient(id, user.id, user);
+    const forceAllowed =
+        Boolean(force) &&
+        (Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) || lockState.holdsLock);
     if (lockState.readOnly && !forceAllowed) {
         return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
     }
@@ -116,8 +125,18 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         `UPDATE calendars SET name = ?, data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
     ).run(displayName, JSON.stringify(data), nextRevision, now, label, id);
 
-    users.appendHistory(id, nextRevision, data, user);
-    users.refreshLock(id, user.id);
+    const meta = getCalendarMeta(id);
+    recordActivityForUser(user, {
+        action: 'calendar_save',
+        calendarId: id,
+        calendarName: meta && meta.name,
+        summary: `Saved calendar (revision ${nextRevision})`,
+        detail: { revision: nextRevision }
+    });
+
+    if (lockState.holdsLock) {
+        users.refreshLock(id, user.id);
+    }
 
     return { ok: true, document: getCalendar(id) };
 }
@@ -126,6 +145,7 @@ function deleteCalendar(id) {
     const db = getDb();
     const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
     db.prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(id);
+    db.prepare('DELETE FROM calendar_suggestions WHERE calendar_id = ?').run(id);
     return result.changes > 0;
 }
 
