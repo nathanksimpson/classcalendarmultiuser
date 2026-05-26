@@ -55,12 +55,85 @@
         return { bySession, byTitle, byBlockKey };
     }
 
+    function templateByTitle(indexes, title) {
+        if (!indexes || !title) {
+            return null;
+        }
+        return indexes.byTitle.get(normalizePlanTitleKey(title)) || null;
+    }
+
+    function debateDayTitle(dayNum) {
+        if (dayNum === 4) {
+            return 'Day 4 / Preview';
+        }
+        return `Day ${dayNum}`;
+    }
+
+    function mergeDebateTemplates(indexes, titles, combinedPlanTitle) {
+        const parts = (titles || []).map((t) => templateByTitle(indexes, t)).filter(Boolean);
+        if (!parts.length) {
+            return null;
+        }
+        return {
+            planTitle: combinedPlanTitle || parts.map((p) => p.planTitle).filter(Boolean).join(' & '),
+            planDetail: parts.map((p) => (p.planDetail || '').trim()).filter(Boolean).join('\n\n'),
+            note: parts.map((p) => (p.note || '').trim()).filter(Boolean).join(' ')
+        };
+    }
+
+    /**
+     * Debate monthly: merged calendar slots and month-bridge days use combined templates.
+     */
+    function resolveDebateRowTemplate(indexes, row) {
+        if (!indexes || !row) {
+            return null;
+        }
+        const key = row.debateTemplateKey;
+        if (key === 'day2and3combined') {
+            return templateByTitle(indexes, 'Day 2 & 3 Combined')
+                || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+        }
+        if (key === 'day4and1bridge') {
+            return mergeDebateTemplates(
+                indexes,
+                ['Day 4 / Preview', 'Day 1'],
+                'Day 4 / Preview & Day 1 (month bridge)'
+            );
+        }
+        if (row.debateCompressed && row.debateGroupStart != null && row.debateGroupEnd != null) {
+            const start = row.debateGroupStart;
+            const end = row.debateGroupEnd;
+            if (start === 2 && end === 3) {
+                return templateByTitle(indexes, 'Day 2 & 3 Combined')
+                    || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+            }
+            const dayTitles = [];
+            for (let d = start; d <= end; d += 1) {
+                dayTitles.push(debateDayTitle(d));
+            }
+            return mergeDebateTemplates(indexes, dayTitles);
+        }
+        const title = (row.planTitle || '').trim().toLowerCase();
+        if (/combined/.test(title) || (/day\s*2/.test(title) && /day\s*3/.test(title))
+            || (/merge/.test(title) && /2/.test(title) && /3/.test(title))) {
+            return templateByTitle(indexes, 'Day 2 & 3 Combined')
+                || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+        }
+        return resolveRowTemplate(indexes, row);
+    }
+
     /**
      * Find preset row: plan title / unit block first, then curriculum lesson #.
      */
     function resolveRowTemplate(indexes, row) {
         if (!indexes || !row) {
             return null;
+        }
+        if (row.debateTemplateKey || row.debateCompressed) {
+            const debateTpl = resolveDebateRowTemplate(indexes, row);
+            if (debateTpl) {
+                return debateTpl;
+            }
         }
         const title = (row.planTitle || '').trim();
         if (title) {
@@ -204,6 +277,9 @@
         normalizePlanTitleKey,
         parseCurriculumBlockKey,
         buildTemplateIndexes,
+        templateByTitle,
+        mergeDebateTemplates,
+        resolveDebateRowTemplate,
         resolveRowTemplate,
         applyTemplateToRow,
         applyRowTemplatesToSyllabusRows,

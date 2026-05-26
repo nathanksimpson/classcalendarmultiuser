@@ -317,7 +317,15 @@
 
             lessonNumber += 1;
             let planTitle = lesson.label || `Lesson ${lessonNumber}`;
-            const rowForTemplate = { planTitle, lessonNumber, sessionNumber: lessonNumber };
+            const rowForTemplate = {
+                planTitle,
+                lessonNumber,
+                sessionNumber: lessonNumber,
+                debateTemplateKey: lesson.__debateTemplateKey || '',
+                debateCompressed: lesson.compressed === true,
+                debateGroupStart: lesson.group && lesson.group.start != null ? lesson.group.start : null,
+                debateGroupEnd: lesson.group && lesson.group.end != null ? lesson.group.end : null
+            };
             let planDetail = planDetailFromUnits(lessonNumber, units, planTitle);
             if (resolveRowTemplate) {
                 const tpl = resolveRowTemplate(rowForTemplate);

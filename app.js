@@ -9030,6 +9030,49 @@ function syllabusScheduleHooks() {
     };
 }
 
+function debateLessonGroupIncludesDay(group, dayNum) {
+    if (!group || !Array.isArray(group.days)) {
+        return false;
+    }
+    return group.days.includes(dayNum);
+}
+
+/**
+ * Debate only: tag lessons so syllabus rows pull Combined or month-bridge templates.
+ */
+function annotateDebateTemplateHints(classData, items) {
+    if (!classUsesDebateCompression(classData) || !Array.isArray(items)) {
+        return;
+    }
+    const dated = items.filter((item) => item.date
+        && !item.__syllabusHoliday
+        && !item.__syllabusExtraPeriod
+        && !item.__syllabusOverflowIntro
+        && !item.__syllabusUnscheduled);
+    dated.forEach((item) => {
+        if (item.compressed && item.group
+            && item.group.start === 2 && item.group.end === 3) {
+            item.__debateTemplateKey = 'day2and3combined';
+        }
+    });
+    const monthKeys = [...new Set(dated.map((item) => item.monthKey).filter(Boolean))].sort();
+    monthKeys.forEach((monthKey, monthIndex) => {
+        const inMonth = dated.filter((item) => item.monthKey === monthKey);
+        if (!inMonth.length) {
+            return;
+        }
+        const last = inMonth[inMonth.length - 1];
+        const nextMonthKey = monthKeys[monthIndex + 1];
+        if (!nextMonthKey) {
+            return;
+        }
+        const hasNextMonth = dated.some((item) => item.monthKey === nextMonthKey);
+        if (hasNextMonth && debateLessonGroupIncludesDay(last.group, 4)) {
+            last.__debateTemplateKey = 'day4and1bridge';
+        }
+    });
+}
+
 function lessonsForSyllabusBuild(classData) {
     const { slots, unscheduledLessonNumbers } = buildSyllabusTimelineForClass(classData);
     const items = [];
@@ -9074,6 +9117,7 @@ function lessonsForSyllabusBuild(classData) {
         });
     }
 
+    annotateDebateTemplateHints(classData, items);
     return items;
 }
 

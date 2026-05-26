@@ -301,4 +301,54 @@ function assert(cond, msg) {
     assert(scaleWidth < 2 && Math.abs(900 * scaleWidth - contentW) < 1, 'width cap when scaled up');
 }
 
+// Debate: merged Day 2+3 and month-bridge Day 4 + Day 1 templates
+{
+    const templates = [
+        { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' },
+        { planTitle: 'Day 2 & 3 Combined', planDetail: 'HW-COMBINED-23' },
+        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const combined = globalThis.CCPSyllabusTemplates.resolveDebateRowTemplate(indexes, {
+        planTitle: 'Merge Day 2+3',
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3,
+        sessionNumber: 2
+    });
+    assert(combined && combined.planDetail.includes('HW-COMBINED-23'), 'merge 2+3 uses combined template');
+    const bridge = globalThis.CCPSyllabusTemplates.resolveDebateRowTemplate(indexes, {
+        debateTemplateKey: 'day4and1bridge'
+    });
+    assert(bridge && bridge.planDetail.includes('HW-DAY-4'), 'bridge includes day 4');
+    assert(bridge.planDetail.includes('HW-DAY-1'), 'bridge includes day 1');
+    const classData = { scheduleModel: 'debateMonthly', totalLessons: 4 };
+    const lessons = [
+        { date: '2026-03-04', monthKey: '2026-03', label: 'Day 1', group: { days: [1], start: 1, end: 1 } },
+        { date: '2026-03-11', monthKey: '2026-03', label: 'Merge Day 2+3', compressed: true,
+            group: { days: [2, 3], start: 2, end: 3 } },
+        { date: '2026-03-18', monthKey: '2026-03', label: 'Day 4', group: { days: [4], start: 4, end: 4 } },
+        { date: '2026-04-08', monthKey: '2026-04', label: 'Day 1', group: { days: [1], start: 1, end: 1 } }
+    ];
+    lessons.forEach((lesson) => {
+        if (lesson.compressed && lesson.group.start === 2) {
+            lesson.__debateTemplateKey = 'day2and3combined';
+        }
+    });
+    const marchLast = lessons[2];
+    marchLast.__debateTemplateKey = 'day4and1bridge';
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, lessons, {
+        isHolidayForClass: () => false,
+        rowTemplates: templates,
+        templateIndexes: indexes
+    });
+    const mergeRow = rows.find((r) => r.planTitle && /Day 2/.test(r.planTitle) && r.date === '2026-03-11');
+    assert(mergeRow && mergeRow.planDetail.includes('HW-COMBINED-23'), 'syllabus merge row filled');
+    const bridgeRow = rows.find((r) => r.date === '2026-03-18');
+    assert(bridgeRow && bridgeRow.planDetail.includes('HW-DAY-4'), 'march bridge day 4');
+    assert(bridgeRow.planDetail.includes('HW-DAY-1'), 'march bridge day 1');
+}
+
 console.log('All syllabus-table tests passed.');
