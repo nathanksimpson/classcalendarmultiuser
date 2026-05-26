@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { getDb, newId, nowIso } = require('./schema');
 const appSettings = require('./app-settings');
 const loginContext = require('./login-context');
+const permissions = require('./permissions');
 
 const SESSION_DAYS = 14; /* default; createSession uses app_settings.session_max_days */
 const MIN_PASSWORD_LENGTH = 8;
@@ -448,6 +449,22 @@ function isLockStale(lock) {
     return Date.now() - new Date(lock.updated_at).getTime() > appSettings.getLockStaleMs();
 }
 
+function lockExpiresAtIso(lock) {
+    if (!lock || !lock.updated_at) {
+        return null;
+    }
+    return new Date(new Date(lock.updated_at).getTime() + appSettings.getLockStaleMs()).toISOString();
+}
+
+function purgeStaleLock(calendarId) {
+    const lock = getLock(calendarId);
+    if (lock && isLockStale(lock)) {
+        getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
+        return true;
+    }
+    return false;
+}
+
 function recordLockEditRequest(calendarId, userId, displayName) {
     const db = getDb();
     db.prepare(
@@ -497,16 +514,29 @@ function assignLockHolder(calendarId, userId, displayName) {
         .run(calendarId, userId, displayName, at);
 }
 
-function acquireLock(calendarId, userId, displayName) {
+function acquireLock(calendarId, user, opts) {
+    const userId = user.id;
+    const displayName = user.displayName || user.email || 'Teacher';
+    const force = Boolean(opts && opts.force);
+    purgeStaleLock(calendarId);
     const existing = getLock(calendarId);
+    if (force && permissions.canForceUnlock(user)) {
+        assignLockHolder(calendarId, userId, displayName);
+        return {
+            acquired: true,
+            forced: true,
+            lock: getLock(calendarId),
+            editRequestRecorded: false
+        };
+    }
     const stale = !existing || isLockStale(existing);
     const heldByMe = existing && existing.holder_user_id === userId;
     if (stale || heldByMe) {
         assignLockHolder(calendarId, userId, displayName);
-        return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false };
+        return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false, forced: false };
     }
     recordLockEditRequest(calendarId, userId, displayName);
-    return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true };
+    return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true, forced: false };
 }
 
 function grantLockToPending(calendarId, holderUserId) {
@@ -594,6 +624,7 @@ function releaseAllLocksHeldByUser(userId) {
 }
 
 function lockStatusForClient(calendarId, userId) {
+    const lockTimedOut = purgeStaleLock(calendarId);
     const lock = getLock(calendarId);
     const lockStaleMinutes = appSettings.getLockStaleMinutes();
     if (!lock || isLockStale(lock)) {
@@ -603,7 +634,9 @@ function lockStatusForClient(calendarId, userId) {
             readOnly: false,
             lock: null,
             pendingEditRequest: false,
-            lockStaleMinutes
+            lockStaleMinutes,
+            lockExpiresAt: null,
+            lockTimedOut: Boolean(lockTimedOut)
         };
     }
     const heldByMe = lock.holder_user_id === userId;
@@ -614,21 +647,29 @@ function lockStatusForClient(calendarId, userId) {
         readOnly: !heldByMe,
         lock: lockToClient(lock),
         pendingEditRequest,
-        lockStaleMinutes
+        lockStaleMinutes,
+        lockExpiresAt: lockExpiresAtIso(lock),
+        lockTimedOut: false
     };
 }
 
-function lockPayloadForClient(calendarId, userId) {
+function lockPayloadForClient(calendarId, userId, extra) {
     const status = lockStatusForClient(calendarId, userId);
-    return {
-        acquired: Boolean(status.holdsLock),
-        lock: status.lock,
-        readOnly: status.readOnly,
-        holdsLock: Boolean(status.holdsLock),
-        pendingEditRequest: status.pendingEditRequest,
-        lockStaleMinutes: status.lockStaleMinutes,
-        editRequestRecorded: false
-    };
+    return Object.assign(
+        {
+            acquired: Boolean(status.holdsLock),
+            lock: status.lock,
+            readOnly: status.readOnly,
+            holdsLock: Boolean(status.holdsLock),
+            pendingEditRequest: status.pendingEditRequest,
+            lockStaleMinutes: status.lockStaleMinutes,
+            lockExpiresAt: status.lockExpiresAt,
+            lockTimedOut: status.lockTimedOut,
+            editRequestRecorded: false,
+            forced: false
+        },
+        extra || {}
+    );
 }
 
 function appendHistory(calendarId, revision, data, user) {

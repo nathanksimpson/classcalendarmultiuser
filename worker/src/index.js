@@ -18,6 +18,8 @@ import {
     resolveLoginProfile,
     sessionPolicyFromRow
 } from './login-context.js';
+import * as Perms from './permissions.js';
+import { touchPresence, listViewersForCalendar } from './presence.js';
 import { scryptSync, timingSafeEqual } from 'node:crypto';
 
 const MAX_CALENDAR_BODY_BYTES = 5 * 1024 * 1024;
@@ -231,6 +233,36 @@ async function isLockStale(env, lock) {
     return Date.now() - new Date(lock.updated_at).getTime() > staleMs;
 }
 
+async function lockExpiresAtIso(env, lock) {
+    if (!lock || !lock.updated_at) {
+        return null;
+    }
+    const staleMs = await AppSettings.getLockStaleMs(env);
+    return new Date(new Date(lock.updated_at).getTime() + staleMs).toISOString();
+}
+
+async function purgeStaleLock(env, calendarId) {
+    const lock = await getLock(env, calendarId);
+    if (lock && (await isLockStale(env, lock))) {
+        await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calendarId);
+        return true;
+    }
+    return false;
+}
+
+async function lockFieldsForClient(env, calId, userId, lockStatus) {
+    return {
+        lock: lockStatus.lock,
+        readOnly: lockStatus.readOnly,
+        holdsLock: Boolean(lockStatus.holdsLock),
+        pendingEditRequest: lockStatus.pendingEditRequest,
+        lockStaleMinutes: lockStatus.lockStaleMinutes,
+        lockExpiresAt: lockStatus.lockExpiresAt != null ? lockStatus.lockExpiresAt : null,
+        lockTimedOut: Boolean(lockStatus.lockTimedOut),
+        viewers: calId ? await listViewersForCalendar(env, calId, userId) : []
+    };
+}
+
 async function assignLockHolder(env, calendarId, userId, displayName) {
     const at = nowIso();
     await dbRun(
@@ -365,6 +397,7 @@ async function lockToClient(env, lock) {
 
 async function lockStatus(env, calendarId, userId) {
     const lockStaleMinutes = await AppSettings.getLockStaleMinutes(env);
+    const lockTimedOut = await purgeStaleLock(env, calendarId);
     const lock = await getLock(env, calendarId);
     if (!lock || (await isLockStale(env, lock))) {
         return {
@@ -373,7 +406,9 @@ async function lockStatus(env, calendarId, userId) {
             readOnly: false,
             lock: null,
             pendingEditRequest: false,
-            lockStaleMinutes
+            lockStaleMinutes,
+            lockExpiresAt: null,
+            lockTimedOut: Boolean(lockTimedOut)
         };
     }
     const heldByMe = lock.holder_user_id === userId;
@@ -384,7 +419,9 @@ async function lockStatus(env, calendarId, userId) {
         readOnly: !heldByMe,
         lock: await lockToClient(env, lock),
         pendingEditRequest,
-        lockStaleMinutes
+        lockStaleMinutes,
+        lockExpiresAt: await lockExpiresAtIso(env, lock),
+        lockTimedOut: false
     };
 }
 
@@ -398,7 +435,10 @@ async function lockPayloadForClient(env, calendarId, userId, extra = {}) {
             holdsLock: Boolean(status.holdsLock),
             pendingEditRequest: status.pendingEditRequest,
             lockStaleMinutes: status.lockStaleMinutes,
-            editRequestRecorded: false
+            lockExpiresAt: status.lockExpiresAt,
+            lockTimedOut: status.lockTimedOut,
+            editRequestRecorded: false,
+            forced: false
         },
         extra
     );
@@ -912,16 +952,41 @@ export default {
             }
             const calendars = await CalAccess.listCalendarsForUser(env, user);
             const hasCalendarAccess = CalAccess.isAdmin(user) || calendars.length > 0;
+            const enriched = Perms.enrichUserForClient(user);
             return json({
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName,
-                role: user.role,
+                role: enriched.role,
                 hasCalendarAccess,
+                canAccessAdmin: enriched.canAccessAdmin,
+                canForceUnlock: enriched.canForceUnlock,
                 loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
                 idleLogoutMinutes: user.idleLogoutMinutes,
                 idleWarningMinutes: user.idleWarningMinutes
             });
+        }
+
+        if (path === '/api/presence/heartbeat' && request.method === 'POST') {
+            const user = await requireUser(request, env);
+            if (!user) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            let body = {};
+            try {
+                body = await readJson(request);
+            } catch (_) {
+                body = {};
+            }
+            const calendarId = body.calendarId ? String(body.calendarId) : null;
+            if (calendarId) {
+                const allowed = await CalAccess.canAccessCalendar(env, user, calendarId);
+                if (!allowed) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
+            }
+            await touchPresence(env, user.id, calendarId, body.calendarName || '');
+            return json({ ok: true });
         }
 
         if (path === '/api/auth/logout' && request.method === 'POST') {
@@ -1233,22 +1298,14 @@ export default {
             if (sub === '/meta' && request.method === 'GET') {
                 const meta = await dbOne(
                     env,
-                    'SELECT id, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
                     calId
                 );
                 if (!meta) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
                 const lock = await lockStatus(env, calId, user.id);
-                return json(
-                    Object.assign({}, meta, {
-                        lock: lock.lock,
-                        readOnly: lock.readOnly,
-                        holdsLock: Boolean(lock.holdsLock),
-                        pendingEditRequest: lock.pendingEditRequest,
-                        lockStaleMinutes: lock.lockStaleMinutes
-                    })
-                );
+                return json(Object.assign({}, meta, await lockFieldsForClient(env, calId, user.id, lock)));
             }
 
             if (sub === '/lock/touch' && request.method === 'POST') {
@@ -1276,18 +1333,42 @@ export default {
             }
 
             if (sub === '/lock' && request.method === 'POST') {
+                let body = {};
+                try {
+                    body = await readJson(request);
+                } catch (_) {
+                    body = {};
+                }
+                const force = Boolean(body.force);
+                await purgeStaleLock(env, calId);
                 const existing = await getLock(env, calId);
-                const stale = !existing || (await isLockStale(env, existing));
-                const heldByMe = existing && existing.holder_user_id === user.id;
                 let editRequestRecorded = false;
-                if (stale || heldByMe) {
+                let forced = false;
+                let acquired = false;
+                if (force && Perms.canForceUnlock(user)) {
                     const name = user.displayName || user.email || 'Teacher';
                     await assignLockHolder(env, calId, user.id, name);
-                } else if (existing && existing.holder_user_id !== user.id) {
-                    await recordLockEditRequest(env, calId, user);
-                    editRequestRecorded = true;
+                    forced = true;
+                    acquired = true;
+                } else {
+                    const stale = !existing || (await isLockStale(env, existing));
+                    const heldByMe = existing && existing.holder_user_id === user.id;
+                    if (stale || heldByMe) {
+                        const name = user.displayName || user.email || 'Teacher';
+                        await assignLockHolder(env, calId, user.id, name);
+                        acquired = true;
+                    } else if (existing && existing.holder_user_id !== user.id) {
+                        await recordLockEditRequest(env, calId, user);
+                        editRequestRecorded = true;
+                    }
                 }
-                return json(await lockPayloadForClient(env, calId, user.id, { editRequestRecorded }));
+                return json(
+                    await lockPayloadForClient(env, calId, user.id, {
+                        editRequestRecorded,
+                        forced,
+                        acquired
+                    })
+                );
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
@@ -1313,14 +1394,7 @@ export default {
                 }
                 const lock = await lockStatus(env, calId, user.id);
                 return json(
-                    Object.assign({}, row, {
-                        data: JSON.parse(row.data),
-                        lock: lock.lock,
-                        readOnly: lock.readOnly,
-                        holdsLock: Boolean(lock.holdsLock),
-                        pendingEditRequest: lock.pendingEditRequest,
-                        lockStaleMinutes: lock.lockStaleMinutes
-                    })
+                    Object.assign({}, row, { data: JSON.parse(row.data) }, await lockFieldsForClient(env, calId, user.id, lock))
                 );
             }
 
@@ -1343,7 +1417,7 @@ export default {
                 }
                 const lock = await lockStatus(env, calId, user.id);
                 const forceAllowed =
-                    Boolean(body.force) && (user.role === 'admin' || Boolean(lock.holdsLock));
+                    Boolean(body.force) && (Perms.canForceUnlock(user) || Boolean(lock.holdsLock));
                 if (lock.readOnly && !forceAllowed) {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
                 }

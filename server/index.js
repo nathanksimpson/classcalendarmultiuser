@@ -9,7 +9,23 @@ const oauthState = require('./oauth-state');
 const loginContext = require('./login-context');
 const rateLimit = require('./rate-limit');
 const CalAccess = require('./calendar-access');
+const permissions = require('./permissions');
+const presence = require('./presence');
 const { getDb } = require('./schema');
+
+function lockFieldsForClient(req, lockStatus) {
+    const calId = req.params && req.params.id;
+    return {
+        lock: lockStatus.lock,
+        readOnly: lockStatus.readOnly,
+        holdsLock: Boolean(lockStatus.holdsLock),
+        pendingEditRequest: lockStatus.pendingEditRequest,
+        lockStaleMinutes: lockStatus.lockStaleMinutes,
+        lockExpiresAt: lockStatus.lockExpiresAt != null ? lockStatus.lockExpiresAt : null,
+        lockTimedOut: Boolean(lockStatus.lockTimedOut),
+        viewers: calId ? presence.listViewersForCalendar(calId, req.user.id) : []
+    };
+}
 
 const PORT = Number(process.env.PORT) || 8080;
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -152,16 +168,30 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
     }
     const calendars = CalAccess.listCalendarsForUser(req.user);
     const hasCalendarAccess = CalAccess.isAdmin(req.user) || calendars.length > 0;
+    const enriched = permissions.enrichUserForClient(req.user);
     res.json({
         id: req.user.id,
         email: req.user.email,
         displayName: req.user.displayName,
-        role: req.user.role,
+        role: enriched.role,
         hasCalendarAccess,
+        canAccessAdmin: enriched.canAccessAdmin,
+        canForceUnlock: enriched.canForceUnlock,
         loginContext: req.user.loginContext || loginContext.LOGIN_CONTEXT_PERSONAL,
         idleLogoutMinutes: req.user.idleLogoutMinutes,
         idleWarningMinutes: req.user.idleWarningMinutes
     });
+});
+
+app.post('/api/presence/heartbeat', requireUser, (req, res) => {
+    const body = req.body || {};
+    const calendarId = body.calendarId ? String(body.calendarId) : null;
+    if (calendarId && !CalAccess.canAccessCalendar(req.user, calendarId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    presence.touchPresence(req.user.id, calendarId, body.calendarName || '');
+    res.json({ ok: true });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -617,15 +647,7 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
         return;
     }
     const lock = users.lockStatusForClient(req.params.id, req.user.id);
-    res.json(
-        Object.assign({}, meta, {
-            lock: lock.lock,
-            readOnly: lock.readOnly,
-            holdsLock: Boolean(lock.holdsLock),
-            pendingEditRequest: lock.pendingEditRequest,
-            lockStaleMinutes: lock.lockStaleMinutes
-        })
-    );
+    res.json(Object.assign({}, meta, lockFieldsForClient(req, lock)));
 });
 
 app.get('/api/calendars/:id', requireUser, (req, res) => {
@@ -639,15 +661,7 @@ app.get('/api/calendars/:id', requireUser, (req, res) => {
         return;
     }
     const lock = users.lockStatusForClient(req.params.id, req.user.id);
-    res.json(
-        Object.assign({}, doc, {
-            lock: lock.lock,
-            readOnly: lock.readOnly,
-            holdsLock: Boolean(lock.holdsLock),
-            pendingEditRequest: lock.pendingEditRequest,
-            lockStaleMinutes: lock.lockStaleMinutes
-        })
-    );
+    res.json(Object.assign({}, doc, lockFieldsForClient(req, lock)));
 });
 
 app.post('/api/calendars/:id/lock/touch', requireUser, (req, res) => {
@@ -672,13 +686,13 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    const name = req.user.displayName || req.user.email || 'Teacher';
-    const result = users.acquireLock(req.params.id, req.user.id, name);
-    const payload = users.lockPayloadForClient(req.params.id, req.user.id);
-    payload.editRequestRecorded = Boolean(result.editRequestRecorded);
-    if (result.acquired) {
-        payload.acquired = true;
-    }
+    const force = Boolean(req.body && req.body.force);
+    const result = users.acquireLock(req.params.id, req.user, { force });
+    const payload = users.lockPayloadForClient(req.params.id, req.user.id, {
+        editRequestRecorded: Boolean(result.editRequestRecorded),
+        forced: Boolean(result.forced),
+        acquired: Boolean(result.acquired)
+    });
     res.json(payload);
 });
 

@@ -1,9 +1,10 @@
 /**
  * Calendar access: direct members + group-based access.
  */
+import { isCalendarSuperAdmin } from './permissions.js';
 
 export function isAdmin(user) {
-    return Boolean(user && user.role === 'admin');
+    return isCalendarSuperAdmin(user);
 }
 
 export async function canAccessCalendar(env, user, calendarId) {

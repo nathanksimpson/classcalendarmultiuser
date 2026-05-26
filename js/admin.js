@@ -293,8 +293,46 @@ let cachedGroups = [];
 let cachedAdminCalendars = [];
 let currentAdminId = null;
 
-function countActiveAdmins(users) {
-    return (users || []).filter((u) => u.active && u.role === 'admin').length;
+function adminHasPerm(perm) {
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.hasPermission) {
+        return TeamAuth.hasPermission(perm);
+    }
+    const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+    return Boolean(me && (me.role === 'admin' || me.role === 'super_admin'));
+}
+
+function countActiveSuperAdmins(users) {
+    return (users || []).filter((u) => {
+        if (!u.active) {
+            return false;
+        }
+        const role = u.role === 'admin' ? 'super_admin' : u.role;
+        return role === 'super_admin';
+    }).length;
+}
+
+function roleDisplayLabel(role) {
+    const r = role === 'admin' ? 'super_admin' : role;
+    const key = 'role_' + r;
+    const translated = t(key);
+    return translated !== key ? translated : r;
+}
+
+function applyAdminSectionVisibility() {
+    const map = {
+        usersSection: 'manage_users',
+        groupsSection: 'manage_groups',
+        calendarAccessSection: 'manage_calendar_access',
+        lockSettingsSection: 'manage_settings',
+        presenceSection: 'view_presence',
+        activitySection: 'view_audit'
+    };
+    Object.keys(map).forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.hidden = !adminHasPerm(map[id]);
+        }
+    });
 }
 
 function renderEmptyRow(body, colSpan, messageKey) {
@@ -371,6 +409,10 @@ function openEditUserModal(user, triggerEl) {
     editUserTargetId = user.id;
     editUserTriggerEl = triggerEl || null;
     const modal = document.getElementById('editUserModal');
+    const roleEl = document.getElementById('editUserRole');
+    if (roleEl) {
+        roleEl.value = user.role === 'admin' ? 'super_admin' : user.role || 'teacher';
+    }
     document.getElementById('editUserDisplayName').value = user.displayName || '';
     document.getElementById('editUserEmail').value = user.email || '';
     document.getElementById('editUserKakaoId').value = user.kakaoUserId || '';
@@ -421,7 +463,8 @@ function setupEditUserModal() {
                 body: JSON.stringify({
                     displayName,
                     email: document.getElementById('editUserEmail')?.value.trim() || null,
-                    kakaoUserId: document.getElementById('editUserKakaoId')?.value.trim() || null
+                    kakaoUserId: document.getElementById('editUserKakaoId')?.value.trim() || null,
+                    role: document.getElementById('editUserRole')?.value || 'teacher'
                 })
             });
             editUserTargetId = null;
@@ -536,7 +579,7 @@ function setupResetPasswordModal() {
     });
 }
 
-function buildUserActionItems(u, activeAdminCount, isSelf) {
+function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
     const items = [
         {
             label: t('editUser'),
@@ -549,7 +592,8 @@ function buildUserActionItems(u, activeAdminCount, isSelf) {
     ];
     if (u.active) {
         if (!isSelf) {
-            const deactDisabled = u.role === 'admin' && activeAdminCount <= 1;
+            const isSuper = u.role === 'admin' || u.role === 'super_admin';
+            const deactDisabled = isSuper && activeSuperAdminCount <= 1;
             items.push({
                 label: t('deactivate'),
                 title: deactDisabled ? t('onlyAdminDeactivate') : t('deactivateTitle'),
@@ -557,43 +601,20 @@ function buildUserActionItems(u, activeAdminCount, isSelf) {
                 onClick: () => deactivateUser(u).catch((ex) => showAdminSaveNotice(ex.message, true))
             });
         }
-        if (u.role === 'teacher') {
+        if (!isSelf && adminHasPerm('manage_users')) {
             items.push({
-                label: t('makeAdmin'),
+                label: t('forceLogout') || 'Force sign out',
+                title: t('forceLogoutTitle') || 'End all sessions for this user',
                 onClick: async () => {
                     try {
-                        const name = u.displayName || u.email;
-                        if (!confirm(t('confirmMakeAdmin', { name }))) {
+                        const name = u.displayName || u.email || u.id;
+                        if (!confirm((t('confirmForceLogout') || 'Force sign out for {name}?').replace('{name}', name))) {
                             return;
                         }
-                        await api('/admin/users/' + encodeURIComponent(u.id), {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ role: 'admin' })
+                        await api('/admin/users/' + encodeURIComponent(u.id) + '/force-logout', {
+                            method: 'POST'
                         });
-                        await refreshAll();
-                        showAdminSaveNotice(t('savedNowAdmin', { name: u.displayName || u.email }), false);
-                    } catch (ex) {
-                        showAdminSaveNotice(ex.message, true);
-                    }
-                }
-            });
-        } else if (activeAdminCount > 1 && !isSelf) {
-            items.push({
-                label: t('makeTeacher'),
-                onClick: async () => {
-                    try {
-                        const name = u.displayName || u.email;
-                        if (!confirm(t('confirmDemote', { name }))) {
-                            return;
-                        }
-                        await api('/admin/users/' + encodeURIComponent(u.id), {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ role: 'teacher' })
-                        });
-                        await refreshAll();
-                        showAdminSaveNotice(t('savedNowTeacher', { name: u.displayName || u.email }), false);
+                        showAdminSaveNotice(t('savedForceLogout') || 'User signed out on all devices', false);
                     } catch (ex) {
                         showAdminSaveNotice(ex.message, true);
                     }
@@ -649,7 +670,7 @@ async function loadUsers() {
     const users = await api('/admin/users');
     const body = document.getElementById('usersBody');
     body.innerHTML = '';
-    const activeAdminCount = countActiveAdmins(users);
+    const activeSuperAdminCount = countActiveSuperAdmins(users);
 
     if (!users.length) {
         renderEmptyRow(body, 7, 'emptyUsers');
@@ -658,7 +679,7 @@ async function loadUsers() {
 
     users.forEach((u) => {
         const tr = document.createElement('tr');
-        const roleLabel = u.role === 'admin' ? t('roleAdmin') : t('roleTeacher');
+        const roleLabel = roleDisplayLabel(u.role);
         tr.innerHTML =
             '<td>' +
             escapeHtml(u.displayName) +
@@ -677,7 +698,7 @@ async function loadUsers() {
             '</td><td class="admin-actions-cell"></td>';
         const cell = tr.querySelector('.admin-actions-cell');
         const isSelf = currentAdminId && u.id === currentAdminId;
-        cell.appendChild(createActionsMenu(buildUserActionItems(u, activeAdminCount, isSelf)));
+        cell.appendChild(createActionsMenu(buildUserActionItems(u, activeSuperAdminCount, isSelf)));
         body.appendChild(tr);
     });
 }
@@ -847,15 +868,80 @@ async function loadCalendarAccessForSelected() {
     );
 }
 
+async function loadPresence() {
+    if (!adminHasPerm('view_presence')) {
+        return;
+    }
+    const list = document.getElementById('presenceList');
+    if (!list) {
+        return;
+    }
+    const rows = await api('/admin/presence');
+    list.innerHTML = '';
+    if (!rows.length) {
+        const li = document.createElement('li');
+        li.textContent = t('presenceEmpty') || 'No one online right now';
+        list.appendChild(li);
+        return;
+    }
+    rows.forEach((row) => {
+        const li = document.createElement('li');
+        const where = row.calendarName ? ' — ' + row.calendarName : '';
+        li.textContent = (row.displayName || row.userId) + where;
+        list.appendChild(li);
+    });
+}
+
+async function loadActivity() {
+    if (!adminHasPerm('view_audit')) {
+        return;
+    }
+    const body = document.getElementById('activityBody');
+    if (!body) {
+        return;
+    }
+    const rows = await api('/admin/activity?limit=80');
+    body.innerHTML = '';
+    if (!rows.length) {
+        renderEmptyRow(body, 4, 'emptyActivity');
+        return;
+    }
+    rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        const when = row.createdAt ? new Date(row.createdAt).toLocaleString() : '—';
+        tr.innerHTML =
+            '<td>' +
+            escapeHtml(when) +
+            '</td><td>' +
+            escapeHtml(row.actorName || '—') +
+            '</td><td>' +
+            escapeHtml(row.action || '—') +
+            '</td><td>' +
+            escapeHtml(row.summary || '—') +
+            '</td>';
+        body.appendChild(tr);
+    });
+}
+
 async function refreshAll() {
     refreshInFlight += 1;
     setSessionStatus(sessionStatusText);
     try {
-        await loadLockSettings();
-        await loadUsers();
-        await loadTeachersCache();
-        await loadGroups();
-        await loadCalendarAccessUI();
+        if (adminHasPerm('manage_settings')) {
+            await loadLockSettings();
+        }
+        if (adminHasPerm('manage_users')) {
+            await loadUsers();
+            await loadTeachersCache();
+        }
+        if (adminHasPerm('manage_groups')) {
+            await loadGroups();
+        }
+        if (adminHasPerm('manage_calendar_access')) {
+            await loadCalendarAccessUI();
+        }
+        await loadPresence();
+        await loadActivity();
     } finally {
         refreshInFlight -= 1;
         setSessionStatus(sessionStatusText);
@@ -904,12 +990,23 @@ function setupAdminNav(signedIn) {
 }
 
 function showAdminSections(visible) {
-    ['usersSection', 'groupsSection', 'calendarAccessSection', 'lockSettingsSection'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.hidden = !visible;
-        }
-    });
+    if (!visible) {
+        [
+            'usersSection',
+            'groupsSection',
+            'calendarAccessSection',
+            'lockSettingsSection',
+            'presenceSection',
+            'activitySection'
+        ].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.hidden = true;
+            }
+        });
+        return;
+    }
+    applyAdminSectionVisibility();
 }
 
 async function loadLockSettings() {
@@ -1003,7 +1100,7 @@ async function init() {
             me = await api('/auth/me');
         }
         currentAdminId = me.id;
-        if (me.role !== 'admin') {
+        if (!me.canAccessAdmin && me.role !== 'admin' && me.role !== 'super_admin') {
             setupAdminNav(false);
             showAdminSections(false);
             showAuthError(t('mustBeAdmin'));
@@ -1011,6 +1108,7 @@ async function init() {
         }
         setupAdminNav(true);
         showAdminSections(true);
+        applyAdminSectionVisibility();
         setSessionStatus(t('signedInAs', { name: me.displayName || me.email }));
         document.getElementById('bootstrapBox').style.display = 'none';
         if (typeof TeamAuth !== 'undefined' && TeamAuth.startIdleWatch) {

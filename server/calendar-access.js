@@ -2,9 +2,10 @@
  * Calendar access: direct members + group-based access (local server).
  */
 const { getDb } = require('./schema');
+const permissions = require('./permissions');
 
 function isAdmin(user) {
-    return Boolean(user && user.role === 'admin');
+    return permissions.isCalendarSuperAdmin(user);
 }
 
 function canAccessCalendar(user, calendarId) {
