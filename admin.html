@@ -80,7 +80,11 @@
                 <label><span data-i18n="role">Role</span>
                     <select id="newRole">
                         <option value="teacher" data-i18n="roleTeacher">Teacher</option>
-                        <option value="admin" data-i18n="roleAdmin">Admin</option>
+                        <option value="viewer" data-i18n="roleViewer">Viewer</option>
+                        <option value="head_teacher" data-i18n="roleHeadTeacher">Head teacher</option>
+                        <option value="user_admin" data-i18n="roleUserAdmin">User admin</option>
+                        <option value="settings_admin" data-i18n="roleSettingsAdmin">Settings admin</option>
+                        <option value="super_admin" data-i18n="roleSuperAdmin">Super admin</option>
                     </select>
                 </label>
                 <label><span data-i18n="optionalTempPassword">Optional temp password</span><input type="password" id="newPassword" autocomplete="new-password"></label>
@@ -131,6 +135,30 @@
             </form>
         </section>
 
+        <section class="admin-section" id="presenceSection" hidden>
+            <h2 data-i18n="presenceTitle">Who is online</h2>
+            <p class="section-hint" data-i18n="presenceHint">Teachers who sent a heartbeat in the last ~90 seconds.</p>
+            <ul id="presenceList" class="admin-presence-list"></ul>
+        </section>
+
+        <section class="admin-section" id="activitySection" hidden>
+            <h2 data-i18n="activityTitle">Activity log</h2>
+            <p class="section-hint" data-i18n="activityHint">Recent saves and admin actions (not full calendar snapshots).</p>
+            <div class="admin-table-wrap">
+                <table class="admin-table" id="activityTable">
+                    <thead>
+                        <tr>
+                            <th data-i18n="activityWhen">When</th>
+                            <th data-i18n="activityWho">Who</th>
+                            <th data-i18n="activityAction">Action</th>
+                            <th data-i18n="activitySummary">Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activityBody"></tbody>
+                </table>
+            </div>
+        </section>
+
         <section class="admin-section" id="lockSettingsSection" hidden>
             <h2 data-i18n="lockSettingsHeading">Security &amp; lock settings</h2>
             <p class="admin-hint" data-i18n="lockSettingsHint">Control edit-lock expiry and automatic sign-out when a teacher is inactive (no mouse, keyboard, or touch).</p>
@@ -167,6 +195,17 @@
                 </div>
                 <p class="section-hint" data-i18n="editUserHint">Set a clear display name so you can recognize this teacher (especially after Kakao sign-in).</p>
                 <form id="editUserForm">
+                    <div class="form-group">
+                        <label for="editUserRole" data-i18n="role">Role</label>
+                        <select id="editUserRole" name="role">
+                            <option value="teacher" data-i18n="roleTeacher">Teacher</option>
+                            <option value="viewer" data-i18n="roleViewer">Viewer</option>
+                            <option value="head_teacher" data-i18n="roleHeadTeacher">Head teacher</option>
+                            <option value="user_admin" data-i18n="roleUserAdmin">User admin</option>
+                            <option value="settings_admin" data-i18n="roleSettingsAdmin">Settings admin</option>
+                            <option value="super_admin" data-i18n="roleSuperAdmin">Super admin</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="editUserDisplayName" data-i18n="displayName">Display name</label>
                         <input type="text" id="editUserDisplayName" required maxlength="120" autocomplete="name">
@@ -222,7 +261,7 @@
         </section>
     </div>
     <script src="js/admin-i18n.js?v=20260525-polish"></script>
-    <script src="js/team-auth.js?v=20260601-theme-fix"></script>
-    <script src="js/admin.js?v=20260525-polish"></script>
+    <script src="js/team-auth.js?v=20260525-auth"></script>
+    <script src="js/admin.js?v=20260525-auth"></script>
 </body>
 </html>
