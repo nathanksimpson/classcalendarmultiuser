@@ -104,7 +104,15 @@
             presenceEmpty: 'No one online right now.',
             activityTitle: 'Activity log',
             activityHint: 'Recent saves and admin actions (not full calendar snapshots).',
+            activityWhen: 'When',
+            activityWho: 'Who',
+            activityAction: 'Action',
+            activitySummary: 'Summary',
             emptyActivity: 'No activity yet.',
+            forceLogout: 'Force sign out',
+            forceLogoutTitle: 'End all sessions for this user',
+            confirmForceLogout: 'Force sign out {name} on all devices?',
+            savedForceLogout: 'User signed out on all devices.',
             resetPasswordTitle: 'Reset password',
             closeAria: 'Close',
             resetPasswordNew: 'New password (min 8 characters)',
@@ -271,7 +279,15 @@
             presenceEmpty: '현재 접속 중인 사용자가 없습니다.',
             activityTitle: '활동 기록',
             activityHint: '최근 저장 및 관리자 작업 내역입니다(전체 캘린더 스냅샷은 아님).',
+            activityWhen: '시간',
+            activityWho: '사용자',
+            activityAction: '작업',
+            activitySummary: '내용',
             emptyActivity: '아직 기록이 없습니다.',
+            forceLogout: '강제 로그아웃',
+            forceLogoutTitle: '이 사용자의 모든 세션 종료',
+            confirmForceLogout: '{name}을(를) 모든 기기에서 강제 로그아웃할까요?',
+            savedForceLogout: '모든 기기에서 로그아웃되었습니다.',
             resetPasswordTitle: '비밀번호 재설정',
             closeAria: '닫기',
             resetPasswordNew: '새 비밀번호 (8자 이상)',
@@ -363,6 +379,9 @@
     }
 
     function applyAdminLanguage() {
+        if (!document.body) {
+            return;
+        }
         adminLang = getAdminLang();
         document.documentElement.lang = adminLang === 'ko' ? 'ko' : 'en';
         document.title = t('pageTitle');
@@ -386,16 +405,16 @@
             }
         });
 
-        const roleSelect = document.getElementById('newRole');
-        if (roleSelect) {
-            const teacherOpt = roleSelect.querySelector('option[value="teacher"]');
-            const adminOpt = roleSelect.querySelector('option[value="admin"]');
-            if (teacherOpt) {
-                teacherOpt.textContent = t('roleTeacher');
+        document.querySelectorAll('select option[data-i18n]').forEach((opt) => {
+            const key = opt.getAttribute('data-i18n');
+            if (key) {
+                opt.textContent = t(key);
             }
-            if (adminOpt) {
-                adminOpt.textContent = t('roleAdmin');
-            }
+        });
+
+        const sectionNav = document.getElementById('adminSectionNav');
+        if (sectionNav) {
+            sectionNav.setAttribute('aria-label', t('navAriaLabel'));
         }
 
         const bootstrapName = document.getElementById('bootstrapName');
@@ -431,17 +450,24 @@
     }
 
     function setAdminLang(next) {
-        const lang = next === 'ko' ? 'ko' : 'en';
+        adminLang = next === 'ko' ? 'ko' : 'en';
         try {
-            localStorage.setItem('calendarLanguage', lang);
+            localStorage.setItem('calendarLanguage', adminLang);
         } catch (_) {
             /* ignore */
         }
         applyAdminLanguage();
+        try {
+            document.dispatchEvent(
+                new CustomEvent('calendarLanguageChanged', { detail: { lang: adminLang } })
+            );
+        } catch (_) {
+            /* ignore */
+        }
     }
 
     function toggleAdminLang() {
-        setAdminLang(getAdminLang() === 'ko' ? 'en' : 'ko');
+        setAdminLang(adminLang === 'ko' ? 'en' : 'ko');
     }
 
     function setupAdminLanguageToggle(onChange) {
@@ -467,6 +493,14 @@
         t,
         applyAdminLanguage,
         setupAdminLanguageToggle,
-        getAdminLang
+        getAdminLang,
+        setAdminLang,
+        toggleAdminLang
     };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyAdminLanguage);
+    } else {
+        applyAdminLanguage();
+    }
 })();

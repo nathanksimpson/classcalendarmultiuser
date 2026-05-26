@@ -361,6 +361,7 @@ let cachedTeachers = [];
 let cachedGroups = [];
 let cachedAdminCalendars = [];
 let currentAdminId = null;
+let currentAdminDisplayName = '';
 
 function adminHasPerm(perm) {
     if (typeof TeamAuth !== 'undefined' && TeamAuth.hasPermission) {
@@ -686,18 +687,18 @@ function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
         }
         if (!isSelf && adminHasPerm('manage_users')) {
             items.push({
-                label: t('forceLogout') || 'Force sign out',
-                title: t('forceLogoutTitle') || 'End all sessions for this user',
+                label: t('forceLogout'),
+                title: t('forceLogoutTitle'),
                 onClick: async () => {
                     try {
                         const name = u.displayName || u.email || u.id;
-                        if (!confirm((t('confirmForceLogout') || 'Force sign out for {name}?').replace('{name}', name))) {
+                        if (!confirm(t('confirmForceLogout', { name }))) {
                             return;
                         }
                         await api('/admin/users/' + encodeURIComponent(u.id) + '/force-logout', {
                             method: 'POST'
                         });
-                        showAdminSaveNotice(t('savedForceLogout') || 'User signed out on all devices', false);
+                        showAdminSaveNotice(t('savedForceLogout'), false);
                     } catch (ex) {
                         showAdminSaveNotice(ex.message, true);
                     }
@@ -1184,6 +1185,7 @@ async function init() {
             me = await api('/auth/me');
         }
         currentAdminId = me.id;
+        currentAdminDisplayName = me.displayName || me.email || me.id;
         if (!me.canAccessAdmin && me.role !== 'admin' && me.role !== 'super_admin') {
             setupAdminNav(false);
             showAdminSections(false);
@@ -1193,8 +1195,11 @@ async function init() {
         setupAdminNav(true);
         showAdminSections(true);
         applyAdminSectionVisibility();
-        setSessionStatus(t('signedInAs', { name: me.displayName || me.email }));
+        setSessionStatus(t('signedInAs', { name: currentAdminDisplayName }));
         document.getElementById('bootstrapBox').style.display = 'none';
+        if (typeof AdminI18n !== 'undefined' && AdminI18n.applyAdminLanguage) {
+            AdminI18n.applyAdminLanguage();
+        }
         if (typeof TeamAuth !== 'undefined' && TeamAuth.startIdleWatch) {
             TeamAuth.startIdleWatch();
         }
@@ -1339,10 +1344,14 @@ loadAdminTheme();
 setupAdminThemeToggle();
 if (typeof AdminI18n !== 'undefined') {
     AdminI18n.setupAdminLanguageToggle(() => {
+        if (typeof AdminI18n.applyAdminLanguage === 'function') {
+            AdminI18n.applyAdminLanguage();
+        }
+        if (currentAdminDisplayName) {
+            setSessionStatus(t('signedInAs', { name: currentAdminDisplayName }));
+        }
         if (currentAdminId) {
             refreshAll().catch(() => {});
-        } else if (typeof AdminI18n.applyAdminLanguage === 'function') {
-            AdminI18n.applyAdminLanguage();
         }
     });
     const bootstrapName = document.getElementById('bootstrapName');
