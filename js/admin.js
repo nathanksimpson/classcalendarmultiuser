@@ -132,6 +132,28 @@ function escapeHtml(s) {
         .replace(/>/g, '&gt;');
 }
 
+function humanizeLabel(value) {
+    if (value == null) {
+        return '';
+    }
+    const raw = String(value).trim();
+    if (!raw) {
+        return '';
+    }
+    let spaced = raw
+        .replace(/[_-]+/g, ' ')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (spaced && spaced === spaced.toUpperCase()) {
+        spaced = spaced.toLowerCase();
+    }
+    return spaced
+        .split(' ')
+        .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : ''))
+        .join(' ');
+}
+
 function closeAllActionMenus(except) {
     document.querySelectorAll('.admin-actions-menu[open]').forEach((menu) => {
         if (except && menu === except) {
@@ -139,6 +161,48 @@ function closeAllActionMenus(except) {
         }
         menu.removeAttribute('open');
     });
+}
+
+function positionActionMenu(menu) {
+    if (!menu || !menu.open) {
+        return;
+    }
+    const summary = menu.querySelector('summary');
+    const dropdown = menu.querySelector('.admin-actions-dropdown');
+    if (!summary || !dropdown) {
+        return;
+    }
+
+    // Ensure we can measure it.
+    const prevVisibility = dropdown.style.visibility;
+    const prevDisplay = dropdown.style.display;
+    dropdown.style.display = 'block';
+    dropdown.style.visibility = 'hidden';
+
+    const margin = 8;
+    const gap = 6;
+    const summaryRect = summary.getBoundingClientRect();
+    const ddWidth = Math.min(dropdown.offsetWidth || 220, window.innerWidth - margin * 2);
+    const ddHeight = dropdown.offsetHeight || 200;
+
+    const spaceBelow = window.innerHeight - summaryRect.bottom - margin;
+    const spaceAbove = summaryRect.top - margin;
+    const openUp = spaceBelow < ddHeight && spaceAbove > spaceBelow;
+
+    let top = openUp ? summaryRect.top - ddHeight - gap : summaryRect.bottom + gap;
+    top = Math.max(margin, Math.min(top, window.innerHeight - ddHeight - margin));
+
+    let left = summaryRect.right - ddWidth;
+    left = Math.max(margin, Math.min(left, window.innerWidth - ddWidth - margin));
+
+    dropdown.style.left = left + 'px';
+    dropdown.style.top = top + 'px';
+    dropdown.style.minWidth = Math.max(176, Math.min(ddWidth, 320)) + 'px';
+    dropdown.style.maxHeight = Math.max(140, window.innerHeight - margin * 2) + 'px';
+    dropdown.style.overflowY = 'auto';
+
+    dropdown.style.visibility = prevVisibility;
+    dropdown.style.display = prevDisplay;
 }
 
 function setupActionMenuCloseOnOutside() {
@@ -158,8 +222,13 @@ function setupActionMenuCloseOnOutside() {
         }
         if (menu.open) {
             closeAllActionMenus(menu);
+            // After the <details> opens and the dropdown becomes visible, position it.
+            requestAnimationFrame(() => positionActionMenu(menu));
         }
     }, true);
+
+    window.addEventListener('scroll', () => closeAllActionMenus(), true);
+    window.addEventListener('resize', () => closeAllActionMenus());
 }
 
 function createActionsMenu(items) {
@@ -923,13 +992,14 @@ async function loadActivity() {
     rows.forEach((row) => {
         const tr = document.createElement('tr');
         const when = row.createdAt ? new Date(row.createdAt).toLocaleString() : '—';
+        const actionLabel = row.action ? humanizeLabel(row.action) : '—';
         tr.innerHTML =
             '<td>' +
             escapeHtml(when) +
             '</td><td>' +
             escapeHtml(row.actorName || '—') +
             '</td><td>' +
-            escapeHtml(row.action || '—') +
+            escapeHtml(actionLabel) +
             '</td><td>' +
             escapeHtml(row.summary || '—') +
             '</td>';
