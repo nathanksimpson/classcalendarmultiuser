@@ -118,7 +118,7 @@ function requireUser(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !permissions.canAccessAdmin(req.user)) {
         res.status(403).json({ error: 'Admin only' });
         return;
     }
@@ -521,6 +521,23 @@ app.get('/api/admin/settings', requireUser, requireAdmin, (_req, res) => {
 
 app.patch('/api/admin/settings', requireUser, requireAdmin, (req, res) => {
     res.json(appSettings.patchAdminSettings(req.body || {}));
+});
+
+app.get('/api/admin/presence', requireUser, requireAdmin, (_req, res) => {
+    res.json(presence.listAllPresenceForAdmin());
+});
+
+app.get('/api/admin/activity', requireUser, requireAdmin, (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 80, 1), 200);
+    const rows = getDb()
+        .prepare(
+            `SELECT id, action, actor_user_id AS actorUserId, actor_name AS actorName,
+                    calendar_id AS calendarId, calendar_name AS calendarName, summary,
+                    created_at AS createdAt
+             FROM activity_log ORDER BY created_at DESC LIMIT ?`
+        )
+        .all(limit);
+    res.json(rows);
 });
 
 app.get('/api/teachers', requireUser, (req, res) => {

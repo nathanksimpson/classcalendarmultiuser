@@ -544,8 +544,19 @@ async function verifyPassword(password, stored) {
     }
 }
 
+function userCanAccessAdminApi(user) {
+    return Perms.canAccessAdmin(user);
+}
+
+function isStoredSuperAdminRole(role) {
+    return role === 'admin' || role === 'super_admin';
+}
+
 async function countAdmins(env) {
-    const row = await dbOne(env, `SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND active = 1`);
+    const row = await dbOne(
+        env,
+        `SELECT COUNT(*) AS c FROM users WHERE role IN ('admin', 'super_admin') AND active = 1`
+    );
     return Number(row?.c || 0);
 }
 
@@ -1526,7 +1537,33 @@ export default {
             return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }), 201);
         }
 
-        if (path === '/api/admin/settings' && user.role === 'admin') {
+        if (path === '/api/admin/presence' && request.method === 'GET' && userCanAccessAdminApi(user)) {
+            const cutoff = new Date(Date.now() - 90 * 1000).toISOString();
+            const rows = await dbAll(
+                env,
+                `SELECT user_id AS userId, display_name AS displayName, calendar_id AS calendarId,
+                        calendar_name AS calendarName, last_seen_at AS lastSeenAt
+                 FROM user_presence WHERE last_seen_at >= ?
+                 ORDER BY display_name COLLATE NOCASE`,
+                cutoff
+            );
+            return json(rows);
+        }
+
+        if (path === '/api/admin/activity' && request.method === 'GET' && userCanAccessAdminApi(user)) {
+            const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 80, 1), 200);
+            const rows = await dbAll(
+                env,
+                `SELECT id, action, actor_user_id AS actorUserId, actor_name AS actorName,
+                        calendar_id AS calendarId, calendar_name AS calendarName, summary,
+                        created_at AS createdAt
+                 FROM activity_log ORDER BY created_at DESC LIMIT ?`,
+                limit
+            );
+            return json(rows);
+        }
+
+        if (path === '/api/admin/settings' && userCanAccessAdminApi(user)) {
             if (request.method === 'GET') {
                 return json(await AppSettings.getAdminSettings(env));
             }
@@ -1536,7 +1573,7 @@ export default {
             }
         }
 
-        if (path === '/api/admin/groups' && request.method === 'GET' && user.role === 'admin') {
+        if (path === '/api/admin/groups' && request.method === 'GET' && userCanAccessAdminApi(user)) {
             const groups = await CalAccess.listGroups(env);
             const out = [];
             for (const g of groups) {
@@ -1546,7 +1583,7 @@ export default {
             return json(out);
         }
 
-        if (path === '/api/admin/groups' && request.method === 'POST' && user.role === 'admin') {
+        if (path === '/api/admin/groups' && request.method === 'POST' && userCanAccessAdminApi(user)) {
             const body = await readJson(request);
             const name = body.name && String(body.name).trim();
             if (!name) {
@@ -1562,7 +1599,7 @@ export default {
         }
 
         const adminGroupMatch = path.match(/^\/api\/admin\/groups\/([^/]+)(\/members)?$/);
-        if (adminGroupMatch && user.role === 'admin') {
+        if (adminGroupMatch && userCanAccessAdminApi(user)) {
             const groupId = adminGroupMatch[1];
             const isMembers = adminGroupMatch[2] === '/members';
             const existing = await CalAccess.getGroup(env, groupId);
@@ -1586,12 +1623,12 @@ export default {
             }
         }
 
-        if (path === '/api/admin/calendars' && request.method === 'GET' && user.role === 'admin') {
+        if (path === '/api/admin/calendars' && request.method === 'GET' && userCanAccessAdminApi(user)) {
             return json(await CalAccess.listAdminCalendarsWithAccess(env));
         }
 
         const adminCalAccessMatch = path.match(/^\/api\/admin\/calendars\/([^/]+)\/access$/);
-        if (adminCalAccessMatch && user.role === 'admin') {
+        if (adminCalAccessMatch && userCanAccessAdminApi(user)) {
             const calId = adminCalAccessMatch[1];
             const meta = await dbOne(env, 'SELECT id FROM calendars WHERE id = ?', calId);
             if (!meta) {
@@ -1613,7 +1650,7 @@ export default {
             }
         }
 
-        if (path === '/api/admin/users' && request.method === 'GET' && user.role === 'admin') {
+        if (path === '/api/admin/users' && request.method === 'GET' && userCanAccessAdminApi(user)) {
             const rows = await dbAll(
                 env,
                 'SELECT id, email, display_name, kakao_user_id, role, active, created_at FROM users ORDER BY display_name'
@@ -1629,7 +1666,7 @@ export default {
             return json(list);
         }
 
-        if (path === '/api/admin/users' && request.method === 'POST' && user.role === 'admin') {
+        if (path === '/api/admin/users' && request.method === 'POST' && userCanAccessAdminApi(user)) {
             const body = await readJson(request);
             const em = normalizeEmail(body.email);
             if (!em && !body.kakaoUserId) {
@@ -1646,7 +1683,7 @@ export default {
         }
 
         const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
-        if (adminUserMatch && user.role === 'admin') {
+        if (adminUserMatch && userCanAccessAdminApi(user)) {
             const targetId = adminUserMatch[1];
             if (request.method === 'DELETE') {
                 const result = await permanentlyDeleteUser(env, targetId, user.id);
@@ -1656,7 +1693,7 @@ export default {
                 return json({ ok: true });
             }
         }
-        if (adminUserMatch && request.method === 'PATCH' && user.role === 'admin') {
+        if (adminUserMatch && request.method === 'PATCH' && userCanAccessAdminApi(user)) {
             const patchBody = await readJson(request);
             const targetId = adminUserMatch[1];
             const targetRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
@@ -1668,10 +1705,14 @@ export default {
             if (targetId === user.id && nextActive === 0) {
                 return json({ error: 'You cannot deactivate your own account' }, 403);
             }
-            if (targetRow.role === 'admin' && nextActive === 0 && (await countAdmins(env)) <= 1) {
+            if (isStoredSuperAdminRole(targetRow.role) && nextActive === 0 && (await countAdmins(env)) <= 1) {
                 return json({ error: 'Cannot deactivate the last admin' }, 403);
             }
-            if (targetRow.role === 'admin' && nextRole !== 'admin' && (await countAdmins(env)) <= 1) {
+            if (
+                isStoredSuperAdminRole(targetRow.role) &&
+                !isStoredSuperAdminRole(nextRole) &&
+                (await countAdmins(env)) <= 1
+            ) {
                 return json({ error: 'Cannot demote the last admin' }, 403);
             }
             const updated = await updateUser(env, targetId, {

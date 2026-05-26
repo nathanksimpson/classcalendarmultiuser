@@ -13453,7 +13453,10 @@ function setupTeamUserBar() {
     const adminLink = document.getElementById('teamAdminLink');
     const deleteCalBtn = document.getElementById('teamDeleteCalendarBtn');
     const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-    const isAdmin = Boolean(user && user.role === 'admin');
+    const isAdmin =
+        typeof TeamAuth !== 'undefined' && TeamAuth.canAccessAdmin
+            ? TeamAuth.canAccessAdmin()
+            : Boolean(user && (user.role === 'admin' || user.role === 'super_admin'));
 
     if (!user) {
         if (accountGroup) {
@@ -13769,7 +13772,11 @@ function populateCalendarSelect(calendars, activeId) {
         if (delBtn) {
             delBtn.disabled = true;
             const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-            delBtn.hidden = !(user && user.role === 'admin');
+            delBtn.hidden = !(
+                typeof TeamAuth !== 'undefined' && TeamAuth.canAccessAdmin
+                    ? TeamAuth.canAccessAdmin()
+                    : Boolean(user && (user.role === 'admin' || user.role === 'super_admin'))
+            );
         }
         return;
     }
@@ -13786,7 +13793,10 @@ function populateCalendarSelect(calendars, activeId) {
     }
     if (delBtn) {
         const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-        const isAdmin = Boolean(user && user.role === 'admin');
+        const isAdmin =
+        typeof TeamAuth !== 'undefined' && TeamAuth.canAccessAdmin
+            ? TeamAuth.canAccessAdmin()
+            : Boolean(user && (user.role === 'admin' || user.role === 'super_admin'));
         delBtn.hidden = !isAdmin;
         delBtn.disabled = !isAdmin;
     }
