@@ -164,6 +164,16 @@
         return res.json();
     }
 
+    function userPermissions() {
+        if (!currentUser) {
+            return [];
+        }
+        if (Array.isArray(currentUser.permissions)) {
+            return currentUser.permissions;
+        }
+        return [];
+    }
+
     const TeamAuth = {
         getUser() {
             return currentUser;
@@ -171,6 +181,23 @@
 
         isSignedIn() {
             return Boolean(currentUser);
+        },
+
+        hasPermission(perm) {
+            if (!perm) {
+                return false;
+            }
+            if (userPermissions().includes(perm)) {
+                return true;
+            }
+            if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin')) {
+                return true;
+            }
+            return false;
+        },
+
+        canAccessAdmin() {
+            return Boolean(currentUser && currentUser.canAccessAdmin);
         },
 
         startIdleWatch() {
@@ -223,6 +250,7 @@
             }
             if (
                 currentUser.hasCalendarAccess === false &&
+                !currentUser.canAccessAdmin &&
                 currentUser.role !== 'admin' &&
                 typeof location !== 'undefined'
             ) {

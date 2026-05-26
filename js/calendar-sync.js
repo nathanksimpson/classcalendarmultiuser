@@ -682,6 +682,18 @@
                 }
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
+                    if (typeof meta.canEdit === 'boolean' && !meta.canEdit && meta.canSuggest) {
+                        state.readOnly = true;
+                    }
+                    fetch('/api/presence/heartbeat', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            calendarId: id,
+                            calendarName: meta.name || ''
+                        })
+                    }).catch(() => {});
                     const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
                     if (state.holdsLock) {
                         await CalendarSync.touchLock(id);
