@@ -5505,17 +5505,10 @@ input.input-readonly {
 }
 
 .app-main--team-readonly {
-    opacity: 0.92;
+    opacity: 0.98;
 }
 
-.app-main--team-readonly .app-tab-panel {
-    pointer-events: none;
-    user-select: none;
-}
-
-.app-main--team-readonly .calendar-panel-toolbar {
-    pointer-events: none;
-}
+/* View-only: allow browse/print/modals; editing blocked in JS (not pointer-events). */
 
 .team-calendar-select.team-sync-select--highlight {
     outline: 2px solid var(--accent, #2563eb);

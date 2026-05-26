@@ -113,6 +113,7 @@ const translations = {
         teamTakeLock: 'Take over editing',
         teamReleaseLock: 'Release lock',
         teamReadOnlySave: 'Someone else is editing. Take over the lock to save.',
+        teamViewOnlyBrowse: 'View only — browse, open details, print, and copy. Request edit access to change the calendar.',
         teamSignOut: 'Sign out',
         teamSignOutAll: 'Sign out all devices',
         teamAdminLink: 'Admin',
@@ -766,6 +767,7 @@ const translations = {
         teamTakeLock: '편집 인수',
         teamReleaseLock: '잠금 해제',
         teamReadOnlySave: '다른 사람이 편집 중입니다. 저장하려면 잠금을 인수하세요.',
+        teamViewOnlyBrowse: '보기 전용 — 둘러보기, 세부 정보, 인쇄, 복사는 가능합니다. 수정하려면 편집 권한을 요청하세요.',
         teamSignOut: '로그아웃',
         teamSignOutAll: '모든 기기에서 로그아웃',
         teamAdminLink: '관리',
@@ -4328,7 +4330,8 @@ function setTopBarCollapsed(collapsed) {
     ensureUiState();
     appData.ui.topBarCollapsed = collapsed === true;
     applyTopBarCollapsedState();
-    saveData();
+    // UI-only: do not touch the shared calendar save / lock behavior.
+    saveUiStateToLocalStorage();
 }
 
 function updateTopBarCalendarLabel() {
@@ -4864,7 +4867,8 @@ function commitLessonFiltersFromPopover() {
     updateLessonFilterStatusText();
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
-    saveData();
+    // UI-only: viewer preference.
+    saveUiStateToLocalStorage();
     renderCalendar();
 }
 
@@ -4877,7 +4881,8 @@ function resetLessonFilters() {
     }
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
-    saveData();
+    // UI-only: viewer preference.
+    saveUiStateToLocalStorage();
     renderCalendar();
 }
 
@@ -5342,7 +5347,8 @@ function setPrintCalendarVisibilityCheckboxes(checked) {
         }
     });
     appData.ui.printVisibility = filters;
-    saveData();
+    // UI-only: viewer preference, do not touch shared save / lock behavior.
+    saveUiStateToLocalStorage();
 }
 
 function setPrintSummaryOptionCheckboxes(checked) {
@@ -6368,7 +6374,7 @@ function populateSyllabusEditorForClass(classData) {
     }
     clearSyllabusEditorSelection('class');
     appData.ui.syllabusTabClassId = classData.id;
-    saveData();
+    saveUiStateToLocalStorage();
     setSyllabusEditorDataset(classData);
     setSyllabusGeneralNotesInForm(classData.syllabusGeneralNotes || '');
     renderSyllabusUnitsRows(classData.syllabusUnits || []);
@@ -6391,7 +6397,7 @@ function populateSyllabusEditorForTemplate(template) {
     }
     clearSyllabusEditorSelection('template');
     appData.ui.syllabusTabTemplateId = template.id;
-    saveData();
+    saveUiStateToLocalStorage();
     setSyllabusEditorDataset({
         homeworkImportMode: template.homeworkImportMode,
         lessonLabelMode: template.lessonLabelMode
@@ -7016,7 +7022,8 @@ function navigateToTab(tabId, options = {}) {
     }
     ensureUiState();
     appData.ui.activeTab = tabId;
-    saveData();
+    // UI-only: viewer preference.
+    saveUiStateToLocalStorage();
 
     APP_TAB_IDS.forEach((id) => {
         const panel = document.getElementById(`panel-${id}`);
@@ -7077,7 +7084,7 @@ function navigateToTab(tabId, options = {}) {
         initHomeworkTabControls();
         if (options.classId) {
             appData.ui.homeworkTabClassId = options.classId;
-            saveData();
+            saveUiStateToLocalStorage();
         }
         renderHomeworkClassList();
         renderHomeworkEditor();
@@ -8017,6 +8024,10 @@ function initHomeworkTabListeners() {
 }
 
 function openClassEditor(classData, context, options = {}) {
+    if (isTeamCalendarViewOnly() && !classData) {
+        showLockFlash(t('teamReadOnlySave'), false);
+        return;
+    }
     const ctx = context || (getActiveTab() === 'classes' ? 'tab' : 'calendar-popout');
     populateClassForm(classData, options);
     if (ctx === 'tab') {
@@ -8031,6 +8042,10 @@ function openClassEditor(classData, context, options = {}) {
 }
 
 function openEventEditor(holidayData, context, options = {}) {
+    if (isTeamCalendarViewOnly() && !holidayData) {
+        showLockFlash(t('teamReadOnlySave'), false);
+        return;
+    }
     const ctx = context || (getActiveTab() === 'events' ? 'tab' : 'calendar-popout');
     populateHolidayForm(holidayData, options);
     if (ctx === 'tab') {
@@ -8619,7 +8634,8 @@ function setupEventListeners() {
             el.addEventListener('change', () => {
                 ensureUiState();
                 appData.ui.visibilityFilters = readVisibilityFiltersFromDom();
-                saveData();
+                // UI-only: viewer preference. Never triggers read-only lock flash.
+                saveUiStateToLocalStorage();
                 renderCalendar();
             });
         }
@@ -9967,6 +9983,7 @@ function populateClassForm(classData = null, options = {}) {
     syncDeleteCustomClassTypeButtonVisibility();
     syncPeriodByDayUi();
     syncClassOpenEditorButton();
+    applyTeamViewOnlyEditingState(teamViewOnlyActive);
 }
 
 function openClassModal(classData = null, options = {}) {
@@ -10036,6 +10053,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
     }
     syncEventApplicabilityUiFromDraft();
     syncEventOpenEditorButton();
+    applyTeamViewOnlyEditingState(teamViewOnlyActive);
 }
 
 function openHolidayModal(holidayData = null, options = {}) {
@@ -10304,6 +10322,9 @@ function updateSelectedSuggestion(items) {
 // ============================================
 function handleClassSubmit(e) {
     e.preventDefault();
+    if (isTeamCalendarViewOnly()) {
+        return;
+    }
 
     const scheduleModel = getScheduleModelFromForm();
     const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
@@ -10452,6 +10473,9 @@ function deleteClass() {
 // ============================================
 function handleHolidaySubmit(e) {
     e.preventDefault();
+    if (isTeamCalendarViewOnly()) {
+        return;
+    }
     
     // Get selected grades, sections, bands, class names
     let grades = [];
@@ -12502,7 +12526,8 @@ function runAppPrint(printMode) {
 
     ensureUiState();
     appData.ui.printVisibility = readPrintCalendarVisibilityFromForm();
-    saveData();
+    // UI-only: persist print visibility preferences locally.
+    saveUiStateToLocalStorage();
 
     calendarRenderForPrint = printCalendar;
     try {
@@ -12974,6 +12999,179 @@ function notifyLockStateChange(lockState) {
     refreshTeamLockDebugPanel({ uiMode });
 }
 
+let teamViewOnlyActive = false;
+
+function isTeamCalendarViewOnly() {
+    return teamViewOnlyActive;
+}
+
+function shouldAllowTeamViewOnlyInteraction(el) {
+    if (!el) {
+        return true;
+    }
+    if (el.closest('[data-team-view-allow]')) {
+        return true;
+    }
+    if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #howToModal, #teamLockStatus')) {
+        return true;
+    }
+    if (el.closest('.app-header-tool-group--print, .app-header-tool-group--help, .app-header-tool-group--locale')) {
+        return true;
+    }
+    if (el.classList.contains('modal-close')) {
+        return true;
+    }
+    if (el.closest('.module-list-item, .syllabus-segment-btn')) {
+        return true;
+    }
+    if (el.closest('.syllabus-list-panel') && !el.closest('.syllabus-editor-panel')) {
+        return true;
+    }
+    if (el.closest('.homework-copy-section') && el.tagName === 'BUTTON') {
+        return true;
+    }
+    if (
+        el.id === 'lessonFilterBtn' ||
+        el.id === 'homeworkOpenClassBtn' ||
+        el.id === 'openWorkspaceHomeworkBtn' ||
+        el.id === 'homeworkReferenceTodayBtn' ||
+        el.id === 'openCurriculumTabBtn' ||
+        el.id === 'openPrintBtn' ||
+        el.id === 'exportBtn' ||
+        el.id === 'topBarToggle'
+    ) {
+        return true;
+    }
+    if (el.closest('.homework-ref-mini-calendar, .homework-ref-date-controls')) {
+        return true;
+    }
+    return false;
+}
+
+function setTeamViewOnlyControlState(el, viewOnly) {
+    if (!el || shouldAllowTeamViewOnlyInteraction(el)) {
+        return;
+    }
+    const tag = el.tagName;
+    if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA' && tag !== 'BUTTON') {
+        return;
+    }
+    if (viewOnly) {
+        if (el.dataset.teamViewOnlyPrevDisabled === undefined) {
+            el.dataset.teamViewOnlyPrevDisabled = el.disabled ? '1' : '0';
+        }
+        if (el.dataset.teamViewOnlyPrevReadonly === undefined) {
+            el.dataset.teamViewOnlyPrevReadonly = el.readOnly ? '1' : '0';
+        }
+        if (tag === 'TEXTAREA' && el.classList.contains('homework-copy-textarea')) {
+            el.readOnly = true;
+            return;
+        }
+        el.disabled = true;
+        return;
+    }
+    if (el.dataset.teamViewOnlyPrevDisabled !== undefined) {
+        el.disabled = el.dataset.teamViewOnlyPrevDisabled === '1';
+        delete el.dataset.teamViewOnlyPrevDisabled;
+    }
+    if (el.dataset.teamViewOnlyPrevReadonly !== undefined) {
+        el.readOnly = el.dataset.teamViewOnlyPrevReadonly === '1';
+        delete el.dataset.teamViewOnlyPrevReadonly;
+    }
+}
+
+function applyTeamViewOnlyToSubtree(root, viewOnly) {
+    if (!root) {
+        return;
+    }
+    root.querySelectorAll('input, select, textarea, button').forEach((el) => {
+        setTeamViewOnlyControlState(el, viewOnly);
+    });
+}
+
+function applyTeamViewOnlyEditingState(viewOnly) {
+    teamViewOnlyActive = Boolean(viewOnly);
+    document.body.classList.toggle('team-view-only', teamViewOnlyActive);
+
+    [
+        'addClassBtn',
+        'addHolidayBtn',
+        'classesTabAddBtn',
+        'eventsTabAddBtn',
+        'fetchKrHolidaysBtn',
+        'clearDataBtn',
+        'importBtn',
+        'syllabusNewTemplateBtn',
+        'syllabusSaveClassBtn',
+        'syllabusSaveTemplateBtn',
+        'syllabusSaveAsTemplateBtn',
+        'syllabusDeleteTemplateBtn',
+        'curriculumAddBtn',
+        'homeworkRefreshSyllabiBtn'
+    ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            setTeamViewOnlyControlState(el, teamViewOnlyActive);
+        }
+    });
+
+    ['calendarName', 'termStart', 'termMonthCount'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) {
+            return;
+        }
+        if (teamViewOnlyActive) {
+            if (el.dataset.teamViewOnlyPrevReadonly === undefined) {
+                el.dataset.teamViewOnlyPrevReadonly = el.readOnly ? '1' : '0';
+            }
+            el.readOnly = true;
+        } else if (el.dataset.teamViewOnlyPrevReadonly !== undefined) {
+            el.readOnly = el.dataset.teamViewOnlyPrevReadonly === '1';
+            delete el.dataset.teamViewOnlyPrevReadonly;
+        }
+    });
+
+    const classForm = document.getElementById('classForm');
+    const holidayForm = document.getElementById('holidayForm');
+    if (classForm) {
+        applyTeamViewOnlyToSubtree(classForm, teamViewOnlyActive);
+    }
+    if (holidayForm) {
+        applyTeamViewOnlyToSubtree(holidayForm, teamViewOnlyActive);
+    }
+    const syllabusShell = document.getElementById('syllabusEditorShell');
+    if (syllabusShell) {
+        applyTeamViewOnlyToSubtree(syllabusShell, teamViewOnlyActive);
+    }
+    const curriculumMount = document.getElementById('curriculumTabEditorMount');
+    if (curriculumMount) {
+        applyTeamViewOnlyToSubtree(curriculumMount, teamViewOnlyActive);
+    }
+    const termSelector = document.querySelector('#panel-calendar .term-selector');
+    if (termSelector) {
+        applyTeamViewOnlyToSubtree(termSelector, teamViewOnlyActive);
+    }
+    const homeworkContent = document.getElementById('homeworkEditorContent');
+    if (homeworkContent) {
+        applyTeamViewOnlyToSubtree(homeworkContent, teamViewOnlyActive);
+        homeworkContent.querySelectorAll('.homework-copy-btn').forEach((btn) => {
+            if (teamViewOnlyActive) {
+                btn.disabled = false;
+            }
+        });
+        homeworkContent.querySelectorAll('.homework-copy-textarea').forEach((ta) => {
+            if (teamViewOnlyActive) {
+                ta.disabled = false;
+                ta.readOnly = true;
+            }
+        });
+    }
+    const ctxAddEvent = document.querySelector('#calendarContextMenu [data-action="add-event"]');
+    if (ctxAddEvent) {
+        ctxAddEvent.disabled = teamViewOnlyActive;
+    }
+}
+
 function updateTeamLockRoster(lockState) {
     const lineEditing = document.getElementById('teamLockLineEditing');
     const lineWants = document.getElementById('teamLockLineWants');
@@ -13084,6 +13282,7 @@ function applyTeamLockAccessState(lockState) {
     setTeamLockBarVisible(teamSyncEnabled && Boolean(calId));
 
     if (!statusBar || !btn) {
+        applyTeamViewOnlyEditingState(readOnly);
         notifyLockStateChange(lockState);
         return;
     }
@@ -13144,6 +13343,7 @@ function applyTeamLockAccessState(lockState) {
     }
 
     updateTeamLockRoster(lockState);
+    applyTeamViewOnlyEditingState(readOnly);
     notifyLockStateChange(lockState);
 }
 
@@ -13624,12 +13824,77 @@ function setupTeamUserBar() {
     }
 }
 
+// ============================================
+// Viewer-only UI prefs (per calendar)
+// ============================================
+// These UI preferences should never be written into the shared team calendar data.
+const UI_STORAGE_PREFIX = 'classCalendarUi:';
+const UI_STORAGE_LOCAL_ID = 'local';
+
+function getUiStorageCalendarId() {
+    try {
+        if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
+            const id = CalendarSync.getActiveCalendarId();
+            if (id) {
+                return String(id);
+            }
+        }
+    } catch (_) {
+        /* ignore */
+    }
+    return UI_STORAGE_LOCAL_ID;
+}
+
+function getUiStorageKey() {
+    return UI_STORAGE_PREFIX + getUiStorageCalendarId();
+}
+
+function loadUiStateFromLocalStorageIntoData(data) {
+    if (!data || typeof data !== 'object') {
+        return data;
+    }
+    let saved = null;
+    try {
+        const raw = localStorage.getItem(getUiStorageKey());
+        if (raw) {
+            saved = JSON.parse(raw);
+        }
+    } catch (_) {
+        saved = null;
+    }
+
+    if (saved && typeof saved === 'object') {
+        const legacyUi = data.ui && typeof data.ui === 'object' ? data.ui : {};
+        // Saved UI wins, but keep any legacy keys that are missing in saved UI.
+        data.ui = Object.assign({}, legacyUi, saved);
+    }
+    return data;
+}
+
+function saveUiStateToLocalStorage() {
+    ensureUiState();
+    try {
+        localStorage.setItem(getUiStorageKey(), JSON.stringify(appData.ui));
+    } catch (_) {
+        /* ignore */
+    }
+}
+
 function saveDataToLocalCache() {
     ensureUiState();
     appData.schemaVersion = SCHEMA_VERSION;
     appData.termMonthCount = getTermMonthCount();
     syncHolidaysFromEvents();
-    localStorage.setItem('classCalendarData', JSON.stringify(appData));
+
+    // Persist UI prefs separately (viewer-only); never store them in shared domain payload.
+    saveUiStateToLocalStorage();
+
+    // Store domain-only data in the shared local cache.
+    const domain = JSON.parse(JSON.stringify(appData));
+    if (domain && domain.ui) {
+        delete domain.ui;
+    }
+    localStorage.setItem('classCalendarData', JSON.stringify(domain));
 }
 
 function saveData() {
@@ -13641,13 +13906,22 @@ function saveData() {
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {
         CalendarSync.scheduleSave(() => {
             saveDataToLocalCache();
-            return JSON.parse(JSON.stringify(appData));
+            const payload = JSON.parse(JSON.stringify(appData));
+            if (payload && payload.ui) {
+                delete payload.ui;
+            }
+            return payload;
         });
     }
 }
 
 function applyLoadedAppData(data) {
     invalidateScheduleCache();
+    // If the server or old local cache contains legacy `data.ui`, prefer this viewer's personal
+    // UI prefs for the active calendar (stored separately in localStorage).
+    if (data && typeof data === 'object') {
+        loadUiStateFromLocalStorageIntoData(data);
+    }
     appData = data;
     const migrated = migrateData(appData);
     ensureUiState();
@@ -13665,9 +13939,11 @@ function loadDataFromLocalCache() {
         } catch (e) {
             console.error('Error loading saved data:', e);
             appData = getDefaultAppData();
+            loadUiStateFromLocalStorageIntoData(appData);
         }
     } else {
         appData = getDefaultAppData();
+        loadUiStateFromLocalStorageIntoData(appData);
     }
 }
 
@@ -13880,6 +14156,7 @@ async function switchToTeamCalendar(id, calendarsOptional) {
         CalendarSync.setActiveCalendarId(null);
         if (list.length === 0) {
             appData = getDefaultAppData();
+            loadUiStateFromLocalStorageIntoData(appData);
             initializeTermStart();
             renderCalendar();
         }
@@ -13920,6 +14197,7 @@ async function switchToTeamCalendar(id, calendarsOptional) {
                 populateCalendarSelect([], null);
                 CalendarSync.setActiveCalendarId(null);
                 appData = getDefaultAppData();
+                loadUiStateFromLocalStorageIntoData(appData);
                 initializeTermStart();
                 renderCalendar();
             }
@@ -14128,7 +14406,11 @@ async function createTeamCalendarFromImport(name, importedData, accessOptions, s
     migrateData(payload);
     await assertTeamCalendarNameAvailable(trimmed);
     const opts = accessOptions || getNewCalendarAccessSelections();
-    const created = await CalendarSync.createCalendar(payload, trimmed, {
+    const domainPayload = JSON.parse(JSON.stringify(payload));
+    if (domainPayload && domainPayload.ui) {
+        delete domainPayload.ui;
+    }
+    const created = await CalendarSync.createCalendar(domainPayload, trimmed, {
         memberUserIds: opts.memberUserIds,
         groupIds: opts.groupIds
     });
@@ -14167,6 +14449,7 @@ async function refreshTeamCalendarsAfterDelete(deletedId) {
     if (list.length === 0) {
         CalendarSync.setActiveCalendarId(null);
         appData = getDefaultAppData();
+        loadUiStateFromLocalStorageIntoData(appData);
         initializeTermStart();
         renderCalendar();
         applyTeamLockAccessState({ readOnly: false, lock: null, holdsLock: false });
@@ -14451,7 +14734,11 @@ async function initTeamSync() {
             }
             CalendarSync.scheduleSave(() => {
                 saveDataToLocalCache();
-                return JSON.parse(JSON.stringify(appData));
+                const payload = JSON.parse(JSON.stringify(appData));
+                if (payload && payload.ui) {
+                    delete payload.ui;
+                }
+                return payload;
             });
         },
         onSaved(doc) {
@@ -14516,11 +14803,19 @@ async function initTeamSync() {
                 applyLoadedAppData(merged);
                 initializeTermStart();
                 renderCalendar();
-                await CalendarSync.saveCalendar(merged, { force: true });
+                const payload = JSON.parse(JSON.stringify(merged));
+                if (payload && payload.ui) {
+                    delete payload.ui;
+                }
+                await CalendarSync.saveCalendar(payload, { force: true });
                 return;
             }
             if (choice === 'mine') {
-                await CalendarSync.saveCalendar(localData, { force: true });
+                const payload = JSON.parse(JSON.stringify(localData));
+                if (payload && payload.ui) {
+                    delete payload.ui;
+                }
+                await CalendarSync.saveCalendar(payload, { force: true });
             }
         }
     });
@@ -15214,7 +15509,11 @@ async function applyImportToCurrentTeamCalendar(imported) {
     appData.calendarName = calName;
     const migrated = migrateData(appData);
     finishImportUiAfterApply(migrated);
-    await CalendarSync.saveCalendar(JSON.parse(JSON.stringify(appData)), { force: true });
+    const payload = JSON.parse(JSON.stringify(appData));
+    if (payload && payload.ui) {
+        delete payload.ui;
+    }
+    await CalendarSync.saveCalendar(payload, { force: true });
     showSyncToast(t('importToCurrentDone').replace('{name}', calName), false);
     return migrated;
 }
@@ -15406,6 +15705,7 @@ function clearAllData() {
     localStorage.removeItem('classCalendarData');
     
     appData = getDefaultAppData();
+    loadUiStateFromLocalStorageIntoData(appData);
     initializeTermStart();
     saveData();
     
