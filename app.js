@@ -104,6 +104,12 @@ const translations = {
         teamLockGrantFailed: 'Could not allow editing. Try again.',
         teamLockDismissFailed: 'Could not dismiss the request. Try again.',
         teamLockUnknownUser: 'Another user',
+        teamLockLineEditing: '{name} is editing',
+        teamLockLineWants: '{name} wants to edit',
+        teamLockLineViewing: 'Also viewing: {names}',
+        teamLockLineExpiry: 'Lock expires around {time} if not renewed',
+        teamLockForceConfirm: 'Take over editing from {name}? They may lose unsaved work.',
+        teamLockForceTakenFlash: 'You took over editing.',
         teamTakeLock: 'Take over editing',
         teamReleaseLock: 'Release lock',
         teamReadOnlySave: 'Someone else is editing. Take over the lock to save.',
@@ -747,6 +753,12 @@ const translations = {
         teamLockGrantFailed: '편집을 허용할 수 없습니다. 다시 시도하세요.',
         teamLockDismissFailed: '요청을 거절할 수 없습니다. 다시 시도하세요.',
         teamLockUnknownUser: '다른 사용자',
+        teamLockLineEditing: '{name}님이 편집 중',
+        teamLockLineWants: '{name}님이 편집 요청',
+        teamLockLineViewing: '함께 보는 중: {names}',
+        teamLockLineExpiry: '갱신하지 않으면 {time}경 잠금 만료',
+        teamLockForceConfirm: '{name}님의 편집을 강제로 인수하시겠습니까? 저장하지 않은 내용이 있을 수 있습니다.',
+        teamLockForceTakenFlash: '편집 권한을 인수했습니다.',
         teamTakeLock: '편집 인수',
         teamReleaseLock: '잠금 해제',
         teamReadOnlySave: '다른 사람이 편집 중입니다. 저장하려면 잠금을 인수하세요.',
@@ -12887,6 +12899,86 @@ function notifyLockStateChange(lockState) {
     refreshTeamLockDebugPanel({ uiMode });
 }
 
+function updateTeamLockRoster(lockState) {
+    const lineEditing = document.getElementById('teamLockLineEditing');
+    const lineWants = document.getElementById('teamLockLineWants');
+    const lineViewing = document.getElementById('teamLockLineViewing');
+    const lineUpdates = document.getElementById('teamLockLineUpdates');
+    const lineExpiry = document.getElementById('teamLockLineExpiry');
+    if (!lineEditing || !lineWants || !lineViewing || !lineUpdates || !lineExpiry) {
+        return;
+    }
+
+    const readOnly = Boolean(lockState && lockState.readOnly);
+    const lock = (lockState && lockState.lock) || (typeof CalendarSync !== 'undefined' ? CalendarSync.state.lock : null);
+    const holdsLock = Boolean(
+        lockState && lockState.holdsLock != null ? lockState.holdsLock : CalendarSync && CalendarSync.state.holdsLock
+    );
+    const pendingEditRequest = Boolean(
+        lockState && lockState.pendingEditRequest != null
+            ? lockState.pendingEditRequest
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state.pendingEditRequest
+    );
+    const viewers =
+        (lockState && lockState.viewers) ||
+        (typeof CalendarSync !== 'undefined' && CalendarSync.state.viewers) ||
+        [];
+    const lockExpiresAt =
+        (lockState && lockState.lockExpiresAt) ||
+        (typeof CalendarSync !== 'undefined' && CalendarSync.state.lockExpiresAt) ||
+        null;
+    const remoteNewer = typeof CalendarSync !== 'undefined' && CalendarSync.state.remoteNewer;
+    const pending = holdsLock && lock && lock.pendingRequester;
+
+    if (lock && readOnly && !holdsLock) {
+        lineEditing.hidden = false;
+        lineEditing.textContent = t('teamLockLineEditing').replace('{name}', formatLockParty(lock));
+    } else if (holdsLock && !pending) {
+        lineEditing.hidden = false;
+        lineEditing.textContent = t('teamLockStatusHeld');
+    } else if (!lock && !readOnly) {
+        lineEditing.hidden = false;
+        lineEditing.textContent = t('teamLockStatusFree');
+    } else {
+        lineEditing.hidden = true;
+    }
+
+    if (pending) {
+        lineWants.hidden = false;
+        lineWants.textContent = t('teamLockLineWants').replace('{name}', formatLockParty(pending));
+    } else if (pendingEditRequest && readOnly && lock) {
+        lineWants.hidden = false;
+        lineWants.textContent = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
+    } else {
+        lineWants.hidden = true;
+    }
+
+    if (viewers.length > 0) {
+        const names = viewers
+            .map((v) => (v && (v.displayName || v.userId)) || '')
+            .filter(Boolean)
+            .join(', ');
+        lineViewing.hidden = false;
+        lineViewing.textContent = t('teamLockLineViewing').replace('{names}', names);
+    } else {
+        lineViewing.hidden = true;
+    }
+
+    const onWorkspace = document.body.classList.contains('workspace-page');
+    lineUpdates.hidden = !(remoteNewer && !onWorkspace);
+
+    if (lockExpiresAt && lock) {
+        const exp = new Date(lockExpiresAt);
+        const timeStr = Number.isNaN(exp.getTime())
+            ? lockExpiresAt
+            : exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        lineExpiry.hidden = false;
+        lineExpiry.textContent = t('teamLockLineExpiry').replace('{time}', timeStr);
+    } else {
+        lineExpiry.hidden = true;
+    }
+}
+
 function applyTeamLockAccessState(lockState) {
     const readOnly = Boolean(lockState && lockState.readOnly);
     const lock = lockState && lockState.lock;
@@ -12898,7 +12990,6 @@ function applyTeamLockAccessState(lockState) {
     );
     const main = document.getElementById('appMain');
     const statusBar = document.getElementById('teamLockStatus');
-    const labelEl = document.getElementById('teamLockStatusLabel');
     const btn = document.getElementById('teamLockStatusBtn');
     const pendingActions = document.getElementById('teamLockPendingActions');
     const allowBtn = document.getElementById('teamLockAllowBtn');
@@ -12917,7 +13008,7 @@ function applyTeamLockAccessState(lockState) {
             : null;
     setTeamLockBarVisible(teamSyncEnabled && Boolean(calId));
 
-    if (!statusBar || !labelEl || !btn) {
+    if (!statusBar || !btn) {
         notifyLockStateChange(lockState);
         return;
     }
@@ -12932,34 +13023,33 @@ function applyTeamLockAccessState(lockState) {
 
     const pending = holdsLock && lock && lock.pendingRequester;
     let mode = 'free';
-    let labelText = t('teamLockStatusFree');
+    let summaryText = t('teamLockStatusFree');
     let actionLabel = t('teamLockActionAcquire');
     let lockBtnDisabled = false;
 
     if (pendingEditRequest && readOnly && lock) {
         mode = 'waiting';
-        labelText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
+        summaryText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
         actionLabel = t('teamLockActionWaiting');
         lockBtnDisabled = true;
     } else if (readOnly && lock) {
         mode = 'blocked';
-        labelText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
+        summaryText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
         actionLabel = t('teamLockActionRequest');
     } else if (holdsLock) {
         if (pending) {
             mode = 'pending';
-            labelText = t('teamLockStatusPending').replace('{name}', formatLockParty(pending));
+            summaryText = t('teamLockStatusPending').replace('{name}', formatLockParty(pending));
         } else {
             mode = 'held';
-            labelText = t('teamLockStatusHeld');
+            summaryText = t('teamLockStatusHeld');
         }
         actionLabel = t('teamLockActionRelease');
     }
 
     statusBar.classList.add('team-lock-status--' + mode);
-    labelEl.textContent = labelText;
     btn.title = actionLabel;
-    btn.setAttribute('aria-label', labelText + '. ' + actionLabel);
+    btn.setAttribute('aria-label', summaryText + '. ' + actionLabel);
     btn.disabled = lockBtnDisabled;
 
     if (allowBtn) {
@@ -12978,6 +13068,7 @@ function applyTeamLockAccessState(lockState) {
         iconClosed.hidden = showOpen;
     }
 
+    updateTeamLockRoster(lockState);
     notifyLockStateChange(lockState);
 }
 
@@ -13060,14 +13151,25 @@ function setupTeamLockButtons() {
                 showLockFlash(t('teamLockReleasedFlash'), false);
             } else if (mode === 'blocked') {
                 const holder = CalendarSync.state.lock;
-                const result = await CalendarSync.acquireLock(id);
+                let force = false;
+                const teamUser = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+                if (teamUser && teamUser.canForceUnlock && e.shiftKey) {
+                    force = window.confirm(
+                        t('teamLockForceConfirm').replace('{name}', formatLockParty(holder))
+                    );
+                }
+                const result = await CalendarSync.acquireLock(id, { force });
                 applyTeamLockAccessState({
                     readOnly: CalendarSync.state.readOnly,
                     lock: CalendarSync.state.lock,
                     holdsLock: CalendarSync.state.holdsLock,
-                    pendingEditRequest: CalendarSync.state.pendingEditRequest
+                    pendingEditRequest: CalendarSync.state.pendingEditRequest,
+                    viewers: CalendarSync.state.viewers,
+                    lockExpiresAt: CalendarSync.state.lockExpiresAt
                 });
-                if (result && result.editRequestRecorded) {
+                if (result && result.forced && CalendarSync.state.holdsLock) {
+                    showLockFlash(t('teamLockForceTakenFlash'), false);
+                } else if (result && result.editRequestRecorded) {
                     showLockFlash(
                         t('teamLockRequestSentFlash').replace('{name}', formatLockParty(holder)),
                         false
@@ -14309,14 +14411,22 @@ async function initTeamSync() {
                 }
                 return;
             }
-            const remoteBanner = document.getElementById('remoteNewerBanner');
             const teamReloadBtn = document.getElementById('teamReloadBtn');
-            if (remoteBanner) {
-                remoteBanner.style.display = 'flex';
-            }
             if (teamReloadBtn) {
                 teamReloadBtn.style.display = 'inline-flex';
             }
+            updateTeamLockRoster(
+                meta
+                    ? {
+                          readOnly: CalendarSync.state.readOnly,
+                          lock: CalendarSync.state.lock,
+                          holdsLock: CalendarSync.state.holdsLock,
+                          pendingEditRequest: CalendarSync.state.pendingEditRequest,
+                          viewers: meta.viewers,
+                          lockExpiresAt: meta.lockExpiresAt
+                      }
+                    : null
+            );
         },
         async onConflict(serverDocument, localData) {
             const choice = await showConflictModal(serverDocument, localData);
@@ -14411,8 +14521,18 @@ async function initTeamSync() {
 
     document.getElementById('teamReloadBtn')?.addEventListener('click', reloadActiveCalendarFromServer);
     document.getElementById('remoteNewerReloadBtn')?.addEventListener('click', reloadActiveCalendarFromServer);
+    document.getElementById('teamLockUpdatesReloadBtn')?.addEventListener('click', reloadActiveCalendarFromServer);
+    document.getElementById('teamLockUpdatesDismissBtn')?.addEventListener('click', () => {
+        CalendarSync.state.remoteNewer = false;
+        updateTeamLockRoster(null);
+        const teamReloadBtn = document.getElementById('teamReloadBtn');
+        if (teamReloadBtn) {
+            teamReloadBtn.style.display = 'none';
+        }
+    });
     document.getElementById('remoteNewerDismissBtn')?.addEventListener('click', () => {
-        document.getElementById('remoteNewerBanner').style.display = 'none';
+        CalendarSync.state.remoteNewer = false;
+        updateTeamLockRoster(null);
     });
 
     document.getElementById('teamBackupBtn')?.addEventListener('click', async () => {

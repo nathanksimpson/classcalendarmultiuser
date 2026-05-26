@@ -21,7 +21,9 @@
         lock: null,
         holdsLock: false,
         pendingEditRequest: false,
-        lockStaleMinutes: 20
+        lockStaleMinutes: 20,
+        lockExpiresAt: null,
+        viewers: []
     };
 
     let handlers = {
@@ -217,12 +219,20 @@
         if (json && json.lockStaleMinutes != null) {
             state.lockStaleMinutes = json.lockStaleMinutes;
         }
+        if (json && json.lockExpiresAt !== undefined) {
+            state.lockExpiresAt = json.lockExpiresAt;
+        }
+        if (json && Array.isArray(json.viewers)) {
+            state.viewers = json.viewers;
+        }
         const lockState = {
             readOnly: state.readOnly,
             lock: state.lock,
             holdsLock: state.holdsLock,
             pendingEditRequest: state.pendingEditRequest,
             lockStaleMinutes: state.lockStaleMinutes,
+            lockExpiresAt: state.lockExpiresAt,
+            viewers: state.viewers,
             wasReadOnly,
             wasHoldsLock
         };
@@ -381,11 +391,12 @@
             return meta;
         },
 
-        async acquireLock(id) {
-            debugLog('api', 'POST /lock (acquire)', { calendarId: id });
+        async acquireLock(id, opts) {
+            const force = Boolean(opts && opts.force);
+            debugLog('api', 'POST /lock (acquire)', { calendarId: id, force });
             const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
                 method: 'POST',
-                body: {}
+                body: { force }
             });
             applyLockFromResponse(tagLockDebugSource(result, 'acquireLock'));
             debugLog('api', 'POST /lock result', {

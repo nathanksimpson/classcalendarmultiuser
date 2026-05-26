@@ -423,6 +423,7 @@ async function lockPayloadForClient(env, calendarId, user, extra = {}) {
 async function calendarMetaExtras(env, user, calendarId, meta) {
     const lock = await lockStatus(env, calendarId, user.id, user);
     const accessLevel = await CalAccess.getUserAccessLevel(env, user, calendarId);
+    const viewers = await Presence.listViewersForCalendar(env, calendarId, user.id);
     return Object.assign({}, meta, {
         lock: lock.lock,
         readOnly: lock.readOnly,
@@ -430,6 +431,7 @@ async function calendarMetaExtras(env, user, calendarId, meta) {
         pendingEditRequest: lock.pendingEditRequest,
         lockStaleMinutes: lock.lockStaleMinutes,
         bypassLock: Boolean(lock.bypassLock),
+        viewers,
         accessLevel,
         canEdit: await CalAccess.canEditCalendar(env, user, calendarId),
         canSuggest: await CalAccess.canSuggestChanges(env, user, calendarId),
@@ -978,6 +980,7 @@ export default {
                 roleRaw: user.role,
                 permissions: Auth.getEffectivePermissions(user),
                 canAccessAdmin: Auth.canAccessAdminPage(user),
+                canForceUnlock: Auth.canForceUnlock(user),
                 hasCalendarAccess,
                 loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
                 idleLogoutMinutes: user.idleLogoutMinutes,
@@ -1432,18 +1435,32 @@ export default {
             }
 
             if (sub === '/lock' && request.method === 'POST') {
+                let body = {};
+                try {
+                    body = await readJson(request);
+                } catch (_) {
+                    body = {};
+                }
+                const force = Boolean(body.force);
                 const existing = await getLock(env, calId);
-                const stale = !existing || (await isLockStale(env, existing));
-                const heldByMe = existing && existing.holder_user_id === user.id;
                 let editRequestRecorded = false;
-                if (stale || heldByMe) {
+                let forced = false;
+                if (force && Auth.canForceUnlock(user)) {
                     const name = user.displayName || user.email || 'Teacher';
                     await assignLockHolder(env, calId, user.id, name);
-                } else if (existing && existing.holder_user_id !== user.id) {
-                    await recordLockEditRequest(env, calId, user);
-                    editRequestRecorded = true;
+                    forced = true;
+                } else {
+                    const stale = !existing || (await isLockStale(env, existing));
+                    const heldByMe = existing && existing.holder_user_id === user.id;
+                    if (stale || heldByMe) {
+                        const name = user.displayName || user.email || 'Teacher';
+                        await assignLockHolder(env, calId, user.id, name);
+                    } else if (existing && existing.holder_user_id !== user.id) {
+                        await recordLockEditRequest(env, calId, user);
+                        editRequestRecorded = true;
+                    }
                 }
-                return json(await lockPayloadForClient(env, calId, user, { editRequestRecorded }));
+                return json(await lockPayloadForClient(env, calId, user, { editRequestRecorded, forced }));
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
@@ -1494,7 +1511,9 @@ export default {
                 const lock = await lockStatus(env, calId, user.id, user);
                 const forceAllowed =
                     Boolean(body.force) &&
-                    (Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) || Boolean(lock.holdsLock));
+                    (Auth.canForceUnlock(user) ||
+                        Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
+                        Boolean(lock.holdsLock));
                 if (lock.readOnly && !forceAllowed) {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
                 }

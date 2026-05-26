@@ -29,25 +29,39 @@
             <div id="appStatus" class="app-status" role="status" aria-live="polite"></div>
 
             <div id="teamLockStatus" class="team-lock-status" hidden>
-                <button type="button" id="teamLockStatusBtn" class="team-lock-status-btn" aria-live="polite">
-                    <span class="team-lock-icon team-lock-icon--open" aria-hidden="true">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                            <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
-                        </svg>
+                <div class="team-lock-control">
+                    <button type="button" id="teamLockStatusBtn" class="team-lock-status-btn" aria-live="polite">
+                        <span class="team-lock-icon team-lock-icon--open" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                            </svg>
+                        </span>
+                        <span class="team-lock-icon team-lock-icon--closed" aria-hidden="true" hidden>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </span>
+                    </button>
+                    <span id="teamLockPendingActions" class="team-lock-pending-actions team-lock-pending-actions--icon" hidden>
+                        <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn">Allow</button>
+                        <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn">Dismiss</button>
                     </span>
-                    <span class="team-lock-icon team-lock-icon--closed" aria-hidden="true" hidden>
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                        </svg>
-                    </span>
-                </button>
-                <span id="teamLockStatusLabel" class="team-lock-status-label"></span>
-                <span id="teamLockPendingActions" class="team-lock-pending-actions" hidden>
-                    <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn">Allow</button>
-                    <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn">Dismiss</button>
-                </span>
+                </div>
+                <div id="teamLockDetails" class="team-lock-details">
+                    <div id="teamLockLineEditing" class="team-lock-line" hidden></div>
+                    <div id="teamLockLineWants" class="team-lock-line" hidden></div>
+                    <div id="teamLockLineViewing" class="team-lock-line" hidden></div>
+                    <div id="teamLockLineUpdates" class="team-lock-line team-lock-line--updates" hidden>
+                        <span class="team-lock-line-text" data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
+                        <span class="team-lock-line-actions">
+                            <button type="button" id="teamLockUpdatesReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
+                            <button type="button" id="teamLockUpdatesDismissBtn" class="btn btn-outline btn-small" data-i18n="syncDismiss">Keep my view</button>
+                        </span>
+                    </div>
+                    <div id="teamLockLineExpiry" class="team-lock-line team-lock-line--muted" hidden></div>
+                </div>
                 <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden title="Lock sync debug">Debug</button>
             </div>
             <div id="teamLockDebugPanel" class="team-lock-debug-panel" hidden>
@@ -107,7 +121,7 @@
                     </div>
                 </div>
 
-                <div id="remoteNewerBanner" class="remote-newer-banner" style="display: none;" role="alert">
+                <div id="remoteNewerBanner" class="remote-newer-banner" style="display: none;" role="alert" hidden aria-hidden="true">
                     <span data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
                     <button type="button" id="remoteNewerReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
                     <button type="button" id="remoteNewerDismissBtn" class="btn btn-outline btn-small" data-i18n="syncDismiss">Keep editing</button>
@@ -1150,8 +1164,8 @@
     <script src="js/homework-tab.js"></script>
     <script src="js/syllabus-templates.js"></script>
     <script src="js/team-auth.js?v=20260525-auth"></script>
-    <script src="js/calendar-sync.js?v=20260525-auth"></script>
-    <script src="app.js?v=20260525-auth"></script>
+    <script src="js/calendar-sync.js?v=20260526-lock-bar"></script>
+    <script src="app.js?v=20260526-admin-fix"></script>
     <script src="howto.js?v=20260528-howto-team"></script>
 </body>
 </html>

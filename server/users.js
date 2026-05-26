@@ -493,6 +493,22 @@ function isLockStale(lock) {
     return Date.now() - new Date(lock.updated_at).getTime() > appSettings.getLockStaleMs();
 }
 
+function lockExpiresAtIso(lock) {
+    if (!lock || !lock.updated_at) {
+        return null;
+    }
+    return new Date(new Date(lock.updated_at).getTime() + appSettings.getLockStaleMs()).toISOString();
+}
+
+function purgeStaleLock(calendarId) {
+    const lock = getLock(calendarId);
+    if (lock && isLockStale(lock)) {
+        getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
+        return true;
+    }
+    return false;
+}
+
 function recordLockEditRequest(calendarId, userId, displayName) {
     const db = getDb();
     db.prepare(
@@ -542,16 +558,29 @@ function assignLockHolder(calendarId, userId, displayName) {
         .run(calendarId, userId, displayName, at);
 }
 
-function acquireLock(calendarId, userId, displayName) {
+function acquireLock(calendarId, user, opts) {
+    const userId = user.id;
+    const displayName = user.displayName || user.email || 'Teacher';
+    const force = Boolean(opts && opts.force);
+    purgeStaleLock(calendarId);
     const existing = getLock(calendarId);
+    if (force && Auth.canForceUnlock(user)) {
+        assignLockHolder(calendarId, userId, displayName);
+        return {
+            acquired: true,
+            forced: true,
+            lock: getLock(calendarId),
+            editRequestRecorded: false
+        };
+    }
     const stale = !existing || isLockStale(existing);
     const heldByMe = existing && existing.holder_user_id === userId;
     if (stale || heldByMe) {
         assignLockHolder(calendarId, userId, displayName);
-        return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false };
+        return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false, forced: false };
     }
     recordLockEditRequest(calendarId, userId, displayName);
-    return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true };
+    return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true, forced: false };
 }
 
 function grantLockToPending(calendarId, holderUserId) {
@@ -639,6 +668,7 @@ function releaseAllLocksHeldByUser(userId) {
 }
 
 function lockStatusForClient(calendarId, userId, user) {
+    const lockTimedOut = purgeStaleLock(calendarId);
     const lock = getLock(calendarId);
     const lockStaleMinutes = appSettings.getLockStaleMinutes();
     const bypassLock =
@@ -651,7 +681,9 @@ function lockStatusForClient(calendarId, userId, user) {
             lock: null,
             pendingEditRequest: false,
             lockStaleMinutes,
-            bypassLock: Boolean(bypassLock)
+            bypassLock: Boolean(bypassLock),
+            lockExpiresAt: null,
+            lockTimedOut: Boolean(lockTimedOut)
         };
     }
     const heldByMe = lock.holder_user_id === userId;
@@ -664,21 +696,30 @@ function lockStatusForClient(calendarId, userId, user) {
         lock: lockToClient(lock),
         pendingEditRequest,
         lockStaleMinutes,
-        bypassLock: Boolean(bypassLock)
+        bypassLock: Boolean(bypassLock),
+        lockExpiresAt: lockExpiresAtIso(lock),
+        lockTimedOut: false
     };
 }
 
-function lockPayloadForClient(calendarId, userId, user) {
+function lockPayloadForClient(calendarId, userId, user, extra) {
     const status = lockStatusForClient(calendarId, userId, user);
-    return {
-        acquired: Boolean(status.holdsLock),
-        lock: status.lock,
-        readOnly: status.readOnly,
-        holdsLock: Boolean(status.holdsLock),
-        pendingEditRequest: status.pendingEditRequest,
-        lockStaleMinutes: status.lockStaleMinutes,
-        editRequestRecorded: false
-    };
+    return Object.assign(
+        {
+            acquired: Boolean(status.holdsLock),
+            lock: status.lock,
+            readOnly: status.readOnly,
+            holdsLock: Boolean(status.holdsLock),
+            pendingEditRequest: status.pendingEditRequest,
+            lockStaleMinutes: status.lockStaleMinutes,
+            bypassLock: status.bypassLock,
+            lockExpiresAt: status.lockExpiresAt,
+            lockTimedOut: status.lockTimedOut,
+            editRequestRecorded: false,
+            forced: false
+        },
+        extra || {}
+    );
 }
 
 module.exports = {

@@ -109,6 +109,14 @@ export function isSuperAdminRole(user) {
     return normalizeRole(user && user.role) === 'super_admin';
 }
 
+export function canForceUnlock(user) {
+    if (!user) {
+        return false;
+    }
+    const r = normalizeRole(user.role);
+    return r === 'super_admin' || r === 'head_teacher';
+}
+
 export function normalizeAssignableRole(role) {
     const r = normalizeRole(role);
     if (ASSIGNABLE_ROLES.includes(r)) {

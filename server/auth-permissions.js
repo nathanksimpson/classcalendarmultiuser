@@ -114,6 +114,14 @@ function canManageUsers(user) {
     return hasPermission(user, PERMS.MANAGE_USERS);
 }
 
+function canForceUnlock(user) {
+    if (!user) {
+        return false;
+    }
+    const r = normalizeRole(user.role);
+    return r === 'super_admin' || r === 'head_teacher';
+}
+
 function normalizeAssignableRole(role) {
     const r = normalizeRole(role);
     if (ASSIGNABLE_ROLES.includes(r)) {
@@ -136,5 +144,6 @@ module.exports = {
     hasAnyPermission,
     canAccessAdminPage,
     isSuperAdminRole,
-    canManageUsers
+    canManageUsers,
+    canForceUnlock
 };
