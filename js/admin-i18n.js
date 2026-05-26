@@ -499,8 +499,8 @@
     };
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', applyAdminLanguage);
+        document.addEventListener('DOMContentLoaded', () => setupAdminLanguageToggle());
     } else {
-        applyAdminLanguage();
+        setupAdminLanguageToggle();
     }
 })(typeof window !== 'undefined' ? window : globalThis);
