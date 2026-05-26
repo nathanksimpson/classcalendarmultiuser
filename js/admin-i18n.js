@@ -475,12 +475,39 @@
         if (!btn) {
             return;
         }
+        // Some environments/extensions can interfere with direct element handlers.
+        // A capture-phase fallback ensures the toggle still works.
+        if (!document.body.dataset.adminLangCaptureBound) {
+            document.body.dataset.adminLangCaptureBound = '1';
+            document.addEventListener(
+                'click',
+                (e) => {
+                    const target = e.target && e.target.closest ? e.target.closest('#adminLangToggle') : null;
+                    if (!target) {
+                        return;
+                    }
+                    // If the normal handler runs, it will also toggle; prevent double toggles.
+                    if (target.dataset.didToggle === '1') {
+                        target.dataset.didToggle = '';
+                        return;
+                    }
+                    toggleAdminLang();
+                    if (typeof onChange === 'function') {
+                        onChange();
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                },
+                true
+            );
+        }
         if (btn.dataset.bound === '1') {
             applyAdminLanguage();
             return;
         }
         btn.dataset.bound = '1';
         btn.addEventListener('click', () => {
+            btn.dataset.didToggle = '1';
             toggleAdminLang();
             if (typeof onChange === 'function') {
                 onChange();
