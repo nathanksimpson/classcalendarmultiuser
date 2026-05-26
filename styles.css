@@ -3518,6 +3518,21 @@ input.input-readonly {
     display: none;
 }
 
+.module-list-section-title {
+    padding: 10px 12px 6px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.module-list-section-title--divider {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
 .syllabus-template-toolbar {
     margin-bottom: 6px;
 }

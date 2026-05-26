@@ -475,6 +475,9 @@ const translations = {
         homeworkTabNextMonth: 'Next month',
         homeworkTabRefreshSyllabi: 'Refresh syllabi from calendar',
         homeworkTabOnSelectedDay: 'On selected day',
+        homeworkTabAllClasses: 'All classes',
+        homeworkTabSelectedDateClasses: "Selected date's classes",
+        homeworkTabOtherClasses: 'Other classes',
         homeworkTabEditorEmpty: 'Select a class to see homework copy blocks from its syllabus.',
         homeworkTabOpenClass: 'Edit syllabus in Classes',
         homeworkTabOpenSyllabus: 'Edit syllabus',
@@ -1125,6 +1128,9 @@ const translations = {
         homeworkTabNextMonth: '다음 달',
         homeworkTabRefreshSyllabi: '캘린더에서 강의 계획표 새로고침',
         homeworkTabOnSelectedDay: '선택한 날짜 수업',
+        homeworkTabAllClasses: '모든 수업',
+        homeworkTabSelectedDateClasses: '선택한 날짜 수업',
+        homeworkTabOtherClasses: '기타 수업',
         homeworkTabEditorEmpty: '수업을 선택하면 강의 계획표의 숙제 복사 블록이 표시됩니다.',
         homeworkTabOpenClass: '수업 탭에서 강의 계획표 편집',
         homeworkTabOpenSyllabus: '강의 계획표 편집',
@@ -7386,6 +7392,41 @@ function renderHomeworkReferenceMiniCalendar() {
     }
 }
 
+function classOccursOnIsoDate(classData, isoDate) {
+    if (!classData || !isoDate) {
+        return false;
+    }
+    const d = parseISODateLocal(isoDate);
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
+        return false;
+    }
+    if (isHolidayForClass(isoDate, classData)) {
+        return false;
+    }
+    if (classData.customSchedule && classData.customSchedule.enabled) {
+        const schedule = calculateLessonDates(classData);
+        const lessons = (schedule && Array.isArray(schedule.lessons)) ? schedule.lessons : [];
+        return lessons.some((lesson) => {
+            const ld = lesson && lesson.date;
+            const iso = ld instanceof Date ? formatDateISO(ld) : String(ld || '');
+            return iso === isoDate;
+        });
+    }
+    const start = classData.startDate || '';
+    const end = classData.endDate || '';
+    if (start && isoDate < start) {
+        return false;
+    }
+    if (end && isoDate > end) {
+        return false;
+    }
+    const meetingDays = getMeetingDaysFromClass(classData);
+    if (!meetingDays || meetingDays.length === 0) {
+        return false;
+    }
+    return meetingDays.includes(d.getDay());
+}
+
 function initHomeworkTabControls() {
     const input = document.getElementById('homeworkReferenceDate');
     const miniCal = document.getElementById('homeworkReferenceMiniCalendar');
@@ -7403,6 +7444,7 @@ function initHomeworkTabControls() {
         input.addEventListener('change', () => {
             syncHomeworkRefCalendarViewToDate(input.value);
             renderHomeworkReferenceMiniCalendar();
+            renderHomeworkClassList();
             renderHomeworkEditor();
         });
     }
@@ -7465,7 +7507,10 @@ function renderHomeworkClassList() {
     ensureUiState();
     const q = (document.getElementById('homeworkClassListSearch')?.value || '').trim().toLowerCase();
     const selectedIso = getHomeworkReferenceDateFromUi();
-    const selectedWeekday = parseISODateLocal(selectedIso).getDay();
+    const selectedDate = parseISODateLocal(selectedIso);
+    const selectedWeekday = (selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime()))
+        ? selectedDate.getDay()
+        : null;
     const selectedId = appData.ui.homeworkTabClassId || '';
     list.innerHTML = '';
     const baseOrder = getClassesInDisplayOrder();
@@ -7486,50 +7531,29 @@ function renderHomeworkClassList() {
         return;
     }
 
-    function classHasLessonOnSelectedDay(classData) {
-        const rows = getSyllabusRowsForClass(classData, { preferMerged: true });
-        return (rows || []).some((r) => r && r.kind === 'lesson' && r.date === selectedIso);
+    const onDay = [];
+    const offDay = [];
+    if (selectedWeekday !== null) {
+        classes.forEach((c) => (classOccursOnIsoDate(c, selectedIso) ? onDay : offDay).push(c));
+        onDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
+    } else {
+        offDay.push(...classes);
     }
 
-    const enriched = classes.map((c) => ({
-        classData: c,
-        baseIndex: baseOrder.findIndex((x) => x.id === c.id),
-        onSelectedDay: classHasLessonOnSelectedDay(c),
-        periodSort: getClassPeriodForSort(c, selectedWeekday)
-    }));
+    const appendSectionTitle = (label, options = {}) => {
+        const el = document.createElement('div');
+        el.className = 'module-list-section-title' + (options.divider ? ' module-list-section-title--divider' : '');
+        el.textContent = label;
+        list.appendChild(el);
+    };
 
-    enriched.sort((a, b) => {
-        if (a.onSelectedDay !== b.onSelectedDay) {
-            return a.onSelectedDay ? -1 : 1;
-        }
-        if (a.onSelectedDay) {
-            const ap = a.periodSort == null ? 999 : a.periodSort;
-            const bp = b.periodSort == null ? 999 : b.periodSort;
-            if (ap !== bp) {
-                return ap - bp;
-            }
-        }
-        // Keep stable-ish ordering by original list position, then name.
-        if (a.baseIndex !== b.baseIndex) {
-            return a.baseIndex - b.baseIndex;
-        }
-        return String(a.classData.name || '').localeCompare(String(b.classData.name || ''));
-    });
-
-    enriched.forEach(({ classData: c, onSelectedDay }) => {
+    const renderClassButton = (c) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className =
-            'module-list-item' +
-            (c.id === selectedId ? ' is-selected' : '') +
-            (onSelectedDay ? ' is-homework-selected-day' : '');
+        btn.className = 'module-list-item' + (c.id === selectedId ? ' is-selected' : '');
         btn.setAttribute('role', 'option');
         btn.setAttribute('aria-selected', String(c.id === selectedId));
-        const metaParts = [formatClassLabelWithPeriod(c), c.grade].filter(Boolean);
-        if (onSelectedDay) {
-            metaParts.unshift(t('homeworkTabOnSelectedDay'));
-        }
-        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml(metaParts.join(' · '))}</span>`;
+        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(c), c.grade].filter(Boolean).join(' · '))}</span>`;
         btn.addEventListener('click', () => {
             appData.ui.homeworkTabClassId = c.id;
             saveData();
@@ -7537,7 +7561,14 @@ function renderHomeworkClassList() {
             renderHomeworkEditor();
         });
         list.appendChild(btn);
-    });
+    };
+
+    if (onDay.length > 0) {
+        appendSectionTitle(t('homeworkTabSelectedDateClasses') || "Selected date's classes");
+        onDay.forEach(renderClassButton);
+    }
+    appendSectionTitle(t('homeworkTabOtherClasses') || 'Other classes', { divider: onDay.length > 0 });
+    (onDay.length > 0 ? offDay : classes).forEach(renderClassButton);
 }
 
 /** Active homework tab editor state (class + packet row ids for syllabus save). */
