@@ -715,6 +715,154 @@ Homework: ${homework}`;
         };
     }
 
+    function debateCurriculum(fields) {
+        return curriculum({
+            scheduleModel: 'debateMonthly',
+            defaultCompressionMode: 'autoWhenNeeded',
+            homeworkImportMode: 'debate',
+            programTrack: 'debate',
+            defaultTotalLessons: 4,
+            ...fields
+        });
+    }
+
+    /** Middle-school section levels (same set as books-editor). */
+    const DEBATE_MIDDLE_SCHOOL_LEVEL_IDS = [
+        '\uC720\uB9C8', '\uB808\uC624', '\uD30C\uBCF4', '\uD3F4\uB77C',
+        '\uD649\uC2A4', '\uD2F0\uCE74', '\uBE45\uD0A4', '\uBC14\uC774\uCEEC',
+        '\uC548\uB098', '\uB0AD\uAC00', '\uB85C\uCCB4', '\uCE89\uCCB8'
+    ];
+
+    const DEBATE_SENIOR_ELEM_LEVELS = ['Garam', 'Bada', 'Byeolmaru', 'Mirinae'];
+
+    const DEBATE_BAND_LEVELS = {
+        purple: ['Purple'],
+        yeoulSaemmul: ['Yeoul', 'Saemmul'],
+        senior: [...DEBATE_SENIOR_ELEM_LEVELS, ...DEBATE_MIDDLE_SCHOOL_LEVEL_IDS]
+    };
+
+    const DEBATE_DAY1_DETAIL = `Vocabulary, p. 7 (Write example sentences)
+Reading Comprehension, p. 11 (if not finished during class)
+(If not done as preview:
+Vocabulary, p.7
+Listen 5x, Parents please sign on page 10 when completed.
+[음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운)
+And…
+Find the argument, warrant, and evidence for each pro and con for each perspective.
+See the attached file for hints. Sometimes, not every part will be there, but try your best to find them.`;
+
+    const DEBATE_DAY1_NOTE = 'NOTE: Month 2 outlines are blank. Provide explicit modeling and guidance.';
+
+    const DEBATE_PREVIEW_BLOCK = `Preview next month's material (if possible):
+1. Vocabulary, p.7
+2. Reading, p.8-10
+Listen 5x, Parents please sign on page 10 when completed.
+[음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운`;
+
+    const DEBATE_ESSAY_INTRO = `Write an essay with the opposite opinion of your debate speech. TRY NOT TO COPY EXACTLY FROM THE BOOK PLEASE!
+(You can use the ideas but try to use your own words.)`;
+
+    function buildDebateRowTemplates(band) {
+        const isPurple = band === 'purple';
+        const isYeoulSaemmul = band === 'yeoulSaemmul';
+        const day2Pages = isPurple ? '20-21' : '20-25';
+        const day2Title = isPurple ? 'Complete Speeches' : 'Complete Speech(es)';
+        const day3Memorize = isPurple
+            ? 'Memorize the completed speech for your role (ex. read out templates loud 5-10 times)'
+            : 'Memorize the completed speeches (ex. read out templates loud 5-10 times)';
+        const altDay3Memorize = isPurple || band === 'senior'
+            ? 'Memorize the completed speech for your role (ex. read out templates loud 5-10 times)'
+            : 'Memorize the completed speeches (ex. read out templates loud 5-10 times)';
+        const essayPages = isPurple ? '30-31' : '34-35';
+
+        let combinedDetail;
+        if (isPurple || isYeoulSaemmul) {
+            combinedDetail = `Complete Templates, p. 20-25
+Complete Templates, p. 20-21
+Practice each template.
+Memorize the completed template for your role (ex. read out templates loud 5-10 times)`;
+        } else {
+            combinedDetail = `Complete Templates, p. 20-25
+Practice each template.
+Memorize the completed template for your role (ex. read out templates loud 5-10 times)
+
+Submit your completed essay for feedback 2 days before your next class.`;
+        }
+
+        return [
+            {
+                sessionNumber: 1,
+                planTitle: 'Day 1',
+                planDetail: DEBATE_DAY1_DETAIL,
+                note: DEBATE_DAY1_NOTE
+            },
+            {
+                sessionNumber: 2,
+                planTitle: 'Day 2',
+                planDetail: `${day2Title}, p. ${day2Pages}
+Complete the rebuttals section if not completed in class
+Practice your assigned speech(es).`,
+                note: 'NOTE: Provide sentence frames and modeling.'
+            },
+            {
+                sessionNumber: 3,
+                planTitle: 'Day 3',
+                planDetail: day3Memorize,
+                note: 'NOTE: Model pronunciation and chunking.'
+            },
+            {
+                planTitle: 'Alt Day 3',
+                planDetail: altDay3Memorize,
+                note: 'NOTE: Extra support likely needed.'
+            },
+            {
+                planTitle: 'Day 2 & 3 Combined',
+                planDetail: combinedDetail
+            },
+            {
+                sessionNumber: 4,
+                planTitle: 'Day 4 / Preview',
+                planDetail: `${DEBATE_ESSAY_INTRO}
+See P. ${essayPages} for a good example essay.
+
+${DEBATE_PREVIEW_BLOCK}`,
+                note: 'NOTE: Provide brainstorming + structure support.'
+            }
+        ];
+    }
+
+    function resolveDebateHomeworkBand(level) {
+        const t = (level || '').trim();
+        if (t === 'Purple') {
+            return 'purple';
+        }
+        if (t === 'Yeoul' || t === 'Saemmul') {
+            return 'yeoulSaemmul';
+        }
+        if (DEBATE_SENIOR_ELEM_LEVELS.includes(t) || DEBATE_MIDDLE_SCHOOL_LEVEL_IDS.includes(t)) {
+            return 'senior';
+        }
+        return null;
+    }
+
+    function resolveDebatePresetId(level) {
+        const band = resolveDebateHomeworkBand(level);
+        if (band === 'purple') {
+            return 'preset-debate-purple';
+        }
+        if (band === 'yeoulSaemmul') {
+            return 'preset-debate-yeoul-saemmul';
+        }
+        if (band === 'senior') {
+            return 'preset-debate-senior';
+        }
+        return null;
+    }
+
+    function getDebateBandLevels(band) {
+        return (DEBATE_BAND_LEVELS[band] || []).slice();
+    }
+
     const LEVEL_GROUP_META = {
         redOrangeYellow: { order: 1, label: { en: 'Red / Orange / Yellow', ko: 'Red / Orange / Yellow' } },
         greenBlueNavy: { order: 2, label: { en: 'Green / Blue / Navy', ko: 'Green / Blue / Navy' } },
@@ -1132,6 +1280,42 @@ Homework: ${homework}`;
             homeworkImportMode: 'nonDebate',
             defaultSyllabusRowTemplates: sessionsFromTitles(TOEFL_TRC_TITLES, RC_SAEMMUL_DETAIL)
         }),
+        debateCurriculum({
+            id: 'preset-debate-purple',
+            name: 'Debate — Purple',
+            fallbackName: 'Debate — Purple',
+            levelGroup: 'purple',
+            level: 'Purple',
+            subjectTrack: 'debate',
+            debateBand: 'purple',
+            defaultBook: 'Debate Purple',
+            defaultSyllabusRowTemplates: buildDebateRowTemplates('purple'),
+            syllabusGeneralNotes: 'Month 2 book outlines may be blank — provide explicit modeling and guidance.'
+        }),
+        debateCurriculum({
+            id: 'preset-debate-yeoul-saemmul',
+            name: 'Debate — Yeoul / Saemmul',
+            fallbackName: 'Debate — Yeoul / Saemmul',
+            levelGroup: 'yeoulSaemmul',
+            level: 'Saemmul',
+            subjectTrack: 'debate',
+            debateBand: 'yeoulSaemmul',
+            defaultBook: 'Debate Yeoul Saemmul',
+            defaultSyllabusRowTemplates: buildDebateRowTemplates('yeoulSaemmul'),
+            syllabusGeneralNotes: 'Month 2 book outlines may be blank — provide explicit modeling and guidance.'
+        }),
+        debateCurriculum({
+            id: 'preset-debate-senior',
+            name: 'Debate — Garam+ (elem. & middle school)',
+            fallbackName: 'Debate — Garam+',
+            levelGroup: 'badaGaram',
+            level: 'Garam',
+            subjectTrack: 'debate',
+            debateBand: 'senior',
+            defaultBook: 'Debate Garam Plus',
+            defaultSyllabusRowTemplates: buildDebateRowTemplates('senior'),
+            syllabusGeneralNotes: 'Garam and above pagination (includes middle-school debate). Month 2 outlines may be blank.'
+        }),
         curriculum({
             id: 'preset-animation-junior',
             name: 'Animation (stub)',
@@ -1168,6 +1352,11 @@ Homework: ${homework}`;
     };
 
     global.CCPCurriculaData = {
+        buildDebateRowTemplates,
+        resolveDebateHomeworkBand,
+        resolveDebatePresetId,
+        getDebateBandLevels,
+        DEBATE_BAND_LEVELS,
         buildWriteRightTemplates,
         buildEarlyWritersTemplates,
         buildBestWritingStarterTemplates,

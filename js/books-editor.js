@@ -278,7 +278,11 @@
             }
             const book = byKey.get(key);
             book.presetIds.push(preset.id);
-            if (preset.level && !book.levels.includes(preset.level)) {
+            if (preset.debateBand && global.CCPCurriculaData && global.CCPCurriculaData.getDebateBandLevels) {
+                book.debateBand = preset.debateBand;
+                book.programTrack = 'debate';
+                book.levels = global.CCPCurriculaData.getDebateBandLevels(preset.debateBand);
+            } else if (preset.level && !book.levels.includes(preset.level)) {
                 book.levels.push(preset.level);
             }
             if (preset.defaultTotalLessons > (book.defaultTotalLessons || 0)) {
@@ -318,7 +322,6 @@
                 levelsLabel: applicable.levelsLabel
             });
         });
-        appendVirtualDebateBook(byKey, appData);
         return [...byKey.values()]
             .map((book) => {
                 if (book.isCustom || book.isVirtualDebate) {
@@ -431,6 +434,37 @@
         return true;
     }
 
+    function resolveDebatePresetIdForLevel(level) {
+        const api = global.CCPCurriculaData;
+        return api && api.resolveDebatePresetId
+            ? api.resolveDebatePresetId(level)
+            : null;
+    }
+
+    function resolveDebateBookIdForLevel(level, appData) {
+        const presetId = resolveDebatePresetIdForLevel(level);
+        if (!presetId) {
+            return null;
+        }
+        const preset = getFactoryPresetById(presetId);
+        if (!preset) {
+            return null;
+        }
+        return deriveBookKey(preset);
+    }
+
+    function normalizeDebateCurriculumId(curriculumId, level, appData) {
+        const cid = (curriculumId || '').trim();
+        if (cid === DEBATE_CURRICULUM_ID || !cid) {
+            return resolveDebateBookIdForLevel(level, appData) || cid;
+        }
+        return cid;
+    }
+
+    function isDebateBookRecord(book) {
+        return !!(book && (book.programTrack === 'debate' || book.debateBand));
+    }
+
     function getCurriculumDisplayName(curriculumId, appData) {
         const id = (curriculumId || '').trim();
         if (id === DEBATE_CURRICULUM_ID) {
@@ -460,6 +494,14 @@
             return normalizeRowTemplates(overrides[bookId].defaultSyllabusRowTemplates);
         }
         if (isDebateCurriculum(bookId)) {
+            const book = getBookById(bookId, appData);
+            if (book && !book.isVirtualDebate) {
+                const cur = getCurriculumRecord(bookId, appData);
+                if (cur && cur.sessions.length) {
+                    return cur.sessions;
+                }
+                return getFactoryTemplatesForBook(book);
+            }
             const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData);
             return cur && cur.sessions.length ? cur.sessions : getFactoryDebateSessions();
         }
@@ -498,7 +540,12 @@
     }
 
     function isDebateCurriculum(curriculumId) {
-        return (curriculumId || '').trim() === DEBATE_CURRICULUM_ID;
+        const cid = (curriculumId || '').trim();
+        if (cid === DEBATE_CURRICULUM_ID) {
+            return true;
+        }
+        const book = getBookById(cid, getAppData());
+        return isDebateBookRecord(book);
     }
 
     function isMiddleSchoolSimsonLevel(level) {
@@ -547,6 +594,9 @@
         if (!levelTrim) {
             return false;
         }
+        if (resolveDebatePresetIdForLevel(levelTrim)) {
+            return true;
+        }
         const applicable = getStoredApplicableLevels(
             DEBATE_CURRICULUM_ID,
             appData || getAppData(),
@@ -573,6 +623,10 @@
         if (book.isVirtualDebate) {
             return levelSupportsDebateCurriculum(levelTrim, appData);
         }
+        if (isDebateBookRecord(book) && global.CCPCurriculaData && global.CCPCurriculaData.resolveDebateHomeworkBand) {
+            const band = global.CCPCurriculaData.resolveDebateHomeworkBand(levelTrim);
+            return band != null && book.debateBand === band;
+        }
         const applicable = getStoredApplicableLevels(book.id, appData, book.levels, false);
         if (applicable.isAllLevels || !applicable.levels.length) {
             return true;
@@ -580,52 +634,20 @@
         return applicable.levels.includes(levelTrim);
     }
 
-    function getFactoryDebateSessions() {
+    function getFactoryDebateSessions(level) {
+        const api = global.CCPCurriculaData;
+        const band = api && api.resolveDebateHomeworkBand
+            ? api.resolveDebateHomeworkBand(level)
+            : null;
+        if (band && api.buildDebateRowTemplates) {
+            return normalizeRowTemplates(api.buildDebateRowTemplates(band));
+        }
         return [1, 2, 3, 4].map((n) => ({
             sessionNumber: n,
             planTitle: `Day ${n}`,
             planDetail: '',
             note: ''
         }));
-    }
-
-    function appendVirtualDebateBook(byKey, appData) {
-        if (byKey.has(DEBATE_CURRICULUM_ID)) {
-            return;
-        }
-        const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData);
-        const factoryRows = getFactoryDebateSessions();
-        let effectiveRows = factoryRows;
-        const hasCurSessions = !!(cur && cur.sessions && cur.sessions.length);
-        if (hasCurSessions) {
-            effectiveRows = cur.sessions;
-        }
-        const hasOverride = hasCurSessions
-            && JSON.stringify(normalizeRowTemplates(effectiveRows))
-                !== JSON.stringify(factoryRows);
-        const title = getCurriculumDisplayName(DEBATE_CURRICULUM_ID, appData);
-        const applicable = getStoredApplicableLevels(
-            DEBATE_CURRICULUM_ID,
-            appData,
-            getDebateDefaultApplicableLevels(),
-            true
-        );
-        byKey.set(DEBATE_CURRICULUM_ID, {
-            id: DEBATE_CURRICULUM_ID,
-            name: title,
-            displayName: title,
-            presetIds: [DEBATE_PRESET_ID],
-            levels: applicable.levels,
-            isVirtualDebate: true,
-            applicableIsAllLevels: applicable.isAllLevels,
-            defaultTotalLessons: 4,
-            lessonLabelMode: '',
-            programTrack: 'debate',
-            sessionCount: effectiveRows.length,
-            factorySessionCount: factoryRows.length,
-            hasOverride,
-            levelsLabel: applicable.levelsLabel
-        });
     }
 
     function getLevelOnlyPresetId(level) {
@@ -635,17 +657,23 @@
         return LEVEL_ONLY_PRESET_ID;
     }
 
-    function buildDebateMergedDefaults(level, appData) {
+    function buildDebateMergedDefaults(level, appData, curriculumId) {
         const levelTrim = (level || '').trim();
+        const bookId = normalizeDebateCurriculumId(curriculumId, levelTrim, appData);
+        const presetId = resolveDebatePresetIdForLevel(levelTrim);
+        const preset = presetId ? getFactoryPresetById(presetId) : null;
         const base = {
             levelPreset: levelTrim,
             defaultTotalLessons: 4,
             scheduleModel: 'debateMonthly',
             defaultCompressionMode: 'autoWhenNeeded',
             homeworkImportMode: 'debate',
-            defaultBook: 'Debate'
+            defaultBook: preset
+                ? (preset.defaultBook || preset.fallbackName || 'Debate')
+                : 'Debate'
         };
-        const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData)
+        const cur = getCurriculumRecord(bookId, appData)
+            || getCurriculumRecord(DEBATE_CURRICULUM_ID, appData)
             || getCurriculumRecord(`level:${levelTrim}`, appData);
         if (cur && cur.classDefaults) {
             return mergeClassDefaults(base, cur.classDefaults);
@@ -674,8 +702,20 @@
     function resolvePresetFromLevelAndBook(level, curriculumId, appData) {
         const levelTrim = (level || '').trim();
         const cid = (curriculumId || '').trim();
-        if (isDebateCurriculum(cid)) {
-            return levelTrim && levelSupportsDebateCurriculum(levelTrim, appData) ? DEBATE_PRESET_ID : null;
+        if (isDebateCurriculum(cid) || cid === DEBATE_CURRICULUM_ID) {
+            if (!levelTrim || !levelSupportsDebateCurriculum(levelTrim, appData)) {
+                return null;
+            }
+            const presetId = resolveDebatePresetIdForLevel(levelTrim);
+            if (!presetId) {
+                return null;
+            }
+            const expectedBookId = deriveBookKey(getFactoryPresetById(presetId));
+            const normalizedCid = normalizeDebateCurriculumId(cid, levelTrim, appData);
+            if (normalizedCid && normalizedCid !== DEBATE_CURRICULUM_ID && normalizedCid !== expectedBookId) {
+                return null;
+            }
+            return presetId;
         }
         if (isNoBookCurriculum(cid)) {
             return levelTrim ? getLevelOnlyPresetId(levelTrim) : null;
@@ -714,7 +754,7 @@
     function buildMergedClassDefaults(curriculumId, presetId, appData, level) {
         const levelTrim = (level || '').trim();
         if (isDebateCurriculum(curriculumId) && levelTrim) {
-            return buildDebateMergedDefaults(level, appData);
+            return buildDebateMergedDefaults(level, appData, curriculumId);
         }
         if (isNoBookCurriculum(curriculumId) && levelTrim) {
             return buildLevelOnlyMergedDefaults(level, appData);
@@ -777,11 +817,11 @@
         if (!normalized.length) {
             return false;
         }
-        const saveId = isDebateCurriculum(bookId) ? DEBATE_CURRICULUM_ID : bookId;
+        const saveId = bookId;
         const curricula = ensureCurriculumOverrides(appData);
         const prev = curricula[saveId] || {};
-        const factoryRows = book.isVirtualDebate
-            ? getFactoryDebateSessions()
+        const factoryRows = isDebateBookRecord(book)
+            ? getFactoryTemplatesForBook(book)
             : getFactoryTemplatesForBook(book);
         const sessionsMatchFactory = JSON.stringify(normalized) === JSON.stringify(factoryRows || []);
         const opt = options || {};
@@ -806,7 +846,7 @@
         if (book.isCustom) {
             next.isCustom = true;
         }
-        if (book.isVirtualDebate) {
+        if (isDebateBookRecord(book)) {
             next.isBuiltinDebate = true;
         }
         if (opt.applicableLevels !== undefined) {
@@ -820,18 +860,18 @@
             next.applicableLevels = prev.applicableLevels || prev.levels || book.levels || [];
             next.levels = next.applicableLevels;
         }
-        if (!sessionsMatchFactory || book.isCustom) {
+        if (!sessionsMatchFactory || book.isCustom || isDebateBookRecord(book)) {
             next.sessions = normalized;
         } else {
             delete next.sessions;
         }
         const hasMeta = curriculumRecordHasMeta(next);
-        if (!next.sessions && !hasMeta && !book.isCustom && !book.isVirtualDebate) {
+        if (!next.sessions && !hasMeta && !book.isCustom && !isDebateBookRecord(book)) {
             delete curricula[saveId];
         } else {
             curricula[saveId] = next;
         }
-        if (!book.isCustom && !book.isVirtualDebate) {
+        if (!book.isCustom && !isDebateBookRecord(book)) {
             syncLegacyBookOverride(bookId, normalized, appData);
         }
         hooks.saveData();
@@ -845,7 +885,8 @@
             return deleteCustomCurriculum(bookId, appData);
         }
         const curricula = ensureCurriculumOverrides(appData);
-        if (book && book.isVirtualDebate) {
+        if (book && (book.isVirtualDebate || isDebateBookRecord(book))) {
+            delete curricula[bookId];
             delete curricula[DEBATE_CURRICULUM_ID];
             hooks.saveData();
             hooks.onBooksSaved();
@@ -1029,10 +1070,11 @@
     function renderApplicabilityPanelHtml(prefix, book, curriculumId, appData) {
         const cur = getCurriculumRecord(curriculumId, appData) || {};
         const cd = cur.classDefaults || {};
-        const factoryLevels = book.isVirtualDebate
-            ? getDebateDefaultApplicableLevels()
+        const isDebateBook = isDebateBookRecord(book) || book.isVirtualDebate;
+        const factoryLevels = isDebateBook
+            ? (book.levels && book.levels.length ? book.levels : getDebateDefaultApplicableLevels())
             : (book.levels || []);
-        const applicable = getStoredApplicableLevels(curriculumId, appData, factoryLevels, !!book.isVirtualDebate);
+        const applicable = getStoredApplicableLevels(curriculumId, appData, factoryLevels, isDebateBook);
         const checkedSet = applicable.isAllLevels
             ? null
             : new Set(applicable.levels);
@@ -1242,10 +1284,12 @@
             return;
         }
         const books = discoverBooks(getAppData()).slice().sort((a, b) => {
-            if (a.isVirtualDebate && !b.isVirtualDebate) {
+            const aDebate = a.programTrack === 'debate' || a.isVirtualDebate;
+            const bDebate = b.programTrack === 'debate' || b.isVirtualDebate;
+            if (aDebate && !bDebate) {
                 return -1;
             }
-            if (b.isVirtualDebate && !a.isVirtualDebate) {
+            if (bDebate && !aDebate) {
                 return 1;
             }
             return (a.displayName || a.name).localeCompare(b.displayName || b.name);
@@ -1257,12 +1301,12 @@
             btn.className = 'workspace-book-list-item'
                 + (book.id === selectedId ? ' is-selected' : '')
                 + (book.isCustom ? ' is-custom' : '')
-                + (book.isVirtualDebate ? ' is-debate' : '');
+                + (book.programTrack === 'debate' || book.isVirtualDebate ? ' is-debate' : '');
             btn.dataset.curriculumId = book.id;
             btn.dataset.bookId = book.id;
             const title = document.createElement('span');
             title.className = 'workspace-book-list-title';
-            title.textContent = book.isVirtualDebate
+            title.textContent = book.programTrack === 'debate' || book.isVirtualDebate
                 ? `${book.displayName || book.name} (${hooks.t('curriculumDebateListTag')})`
                 : (book.displayName || book.name);
             const meta = document.createElement('span');
@@ -1390,6 +1434,9 @@
         isDebateCurriculum,
         isMiddleSchoolSimsonLevel,
         levelSupportsDebateCurriculum,
+        resolveDebateBookIdForLevel,
+        resolveDebatePresetIdForLevel,
+        normalizeDebateCurriculumId,
         DEBATE_ELIGIBLE_LEVEL_IDS,
         getLevelOnlyPresetId,
         buildLevelOnlyMergedDefaults,

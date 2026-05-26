@@ -2359,6 +2359,16 @@ function syncClassCurriculumBookSelect() {
         bookSel.value = prevBook;
     } else if (!list.length) {
         bookSel.value = noBookId;
+    } else if (editor && level) {
+        const debateBooks = list.filter((b) => b.programTrack === 'debate');
+        if (debateBooks.length === 1) {
+            bookSel.value = debateBooks[0].id;
+        } else if (debateBooks.length > 1) {
+            const debateBookId = editor.resolveDebateBookIdForLevel(level, appData);
+            if (debateBookId && [...bookSel.options].some((o) => o.value === debateBookId)) {
+                bookSel.value = debateBookId;
+            }
+        }
     }
     syncClassCurriculumApplyState();
 }
@@ -2427,8 +2437,10 @@ function syncClassCurriculumPickersFromClass(classData) {
     } else if (level && window.CCPBooksEditor) {
         const editor = window.CCPBooksEditor;
         const typeId = classData && classData.classTypeId ? classData.classTypeId : '';
-        if (typeId === CLASS_TYPE_DEBATE_ID && editor.levelSupportsDebateCurriculum(level)) {
-            bookSel.value = editor.DEBATE_CURRICULUM_ID;
+        if ((typeId === CLASS_TYPE_DEBATE_ID || (typeId && typeId.startsWith('preset-debate-')))
+            && editor.levelSupportsDebateCurriculum(level)) {
+            const debateBookId = editor.resolveDebateBookIdForLevel(level, appData);
+            bookSel.value = debateBookId || editor.DEBATE_CURRICULUM_ID;
         } else {
             bookSel.value = editor.NO_BOOK_CURRICULUM_ID;
         }
@@ -2454,10 +2466,19 @@ function applyCurriculumClassDefaultsToForm(curriculumId, presetId, levelFromPic
     if (noBook) {
         defForForm.defaultSyllabusRowTemplates = [];
     } else if (isDebate || isCustom) {
-        const tpl = editor.getTemplatesForBookId(curriculumId, appData);
+        const tplBookId = isDebate
+            ? (editor.normalizeDebateCurriculumId(curriculumId, levelTrim, appData) || curriculumId)
+            : curriculumId;
+        const tpl = editor.getTemplatesForBookId(tplBookId, appData);
         defForForm.defaultSyllabusRowTemplates = tpl.length
             ? JSON.parse(JSON.stringify(tpl))
             : [];
+        if (isDebate && tplBookId && tplBookId !== curriculumId) {
+            const bookSel = document.getElementById('classCurriculumBook');
+            if (bookSel) {
+                bookSel.value = tplBookId;
+            }
+        }
     }
     if (noBook) {
         defForForm.defaultBook = '';
@@ -9059,6 +9080,23 @@ function lessonsForSyllabusBuild(classData) {
 function getSyllabusRowTemplatesForClass(classData) {
     if (!classData) {
         return [];
+    }
+    const editor = window.CCPBooksEditor;
+    if (editor) {
+        const level = (classData.levelPreset || classData.levelCustom || classData.level || '').trim();
+        let curriculumId = (classData.curriculumId || '').trim();
+        if (!curriculumId && classData.classTypeId) {
+            curriculumId = getBookIdForClass(classData) || '';
+        }
+        if (editor.isDebateCurriculum(curriculumId) || curriculumId === editor.DEBATE_CURRICULUM_ID) {
+            curriculumId = editor.normalizeDebateCurriculumId(curriculumId, level, appData) || curriculumId;
+        }
+        if (curriculumId && !editor.isNoBookCurriculum(curriculumId)) {
+            const fromBook = editor.getTemplatesForBookId(curriculumId, appData);
+            if (fromBook.length) {
+                return fromBook;
+            }
+        }
     }
     const def = getClassTypeDefinitionById(classData.classTypeId);
     return def && Array.isArray(def.defaultSyllabusRowTemplates)

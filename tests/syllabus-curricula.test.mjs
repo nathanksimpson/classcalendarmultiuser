@@ -162,4 +162,17 @@ function assert(cond, msg) {
     assert(groups.length >= 5, 'at least 5 level groups');
 }
 
+// Debate curricula (three homework bands)
+{
+    const purple = CCPSyllabusPresets.getById('preset-debate-purple');
+    const senior = CCPSyllabusPresets.getById('preset-debate-senior');
+    assert(purple && purple.scheduleModel === 'debateMonthly', 'debate purple schedule');
+    assert(purple.defaultSyllabusRowTemplates.length === 6, 'debate purple six rows');
+    assert(purple.defaultSyllabusRowTemplates[0].planTitle === 'Day 1', 'debate day 1 title');
+    assert(purple.defaultSyllabusRowTemplates[1].planDetail.includes('20-21'), 'purple day 2 pages');
+    assert(senior.defaultSyllabusRowTemplates[1].planDetail.includes('20-25'), 'senior day 2 pages');
+    assert(CCPCurriculaData.resolveDebatePresetId('\uD649\uC2A4') === 'preset-debate-senior', 'MS -> senior preset');
+    assert(CCPCurriculaData.getDebateBandLevels('senior').includes('\uD649\uC2A4'), 'senior band includes MS');
+}
+
 console.log('syllabus-curricula.test.mjs: all passed');
