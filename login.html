@@ -187,6 +187,13 @@
     <div class="login-theme-bar">
         <button
             type="button"
+            id="loginLangToggle"
+            class="btn btn-outline btn-small btn-lang"
+            title="Switch language"
+            style="margin-right: 0.5rem;"
+        >🌐 한국어</button>
+        <button
+            type="button"
             id="loginThemeToggle"
             class="btn btn-outline btn-small btn-header-theme"
             aria-pressed="false"
@@ -195,27 +202,27 @@
     </div>
     <div class="login-page">
         <div class="login-card">
-            <h1>Class Calendar — Team</h1>
-            <p>Sign in with your school Kakao account. First-time sign-in creates your account — you do not need to give your email to your admin. They grant calendar access after you sign in (waiting page until then).</p>
+            <h1 id="loginTitle">Class Calendar — Team</h1>
+            <p id="loginLead">Sign in with your school Kakao account. First-time sign-in creates your account — you do not need to give your email to your admin. They grant calendar access after you sign in (waiting page until then).</p>
 
             <div id="deniedBox" class="login-denied" style="display: none;">
-                <strong>Access not granted yet</strong>
-                <p>Send this to your calendar admin so they can add you:</p>
-                <p>Email: <code id="deniedEmail">—</code></p>
-                <p>Kakao ID (for admin only): <code id="deniedKakaoId">—</code></p>
+                <strong id="deniedTitle">Access not granted yet</strong>
+                <p id="deniedHint">Send this to your calendar admin so they can add you:</p>
+                <p><span id="deniedEmailLabel">Email</span>: <code id="deniedEmail">—</code></p>
+                <p><span id="deniedKakaoIdLabel">Kakao ID (for admin only)</span>: <code id="deniedKakaoId">—</code></p>
             </div>
 
             <fieldset class="login-device" id="loginDeviceFieldset">
-                <legend>Where are you signing in?</legend>
+                <legend id="loginDeviceLegend">Where are you signing in?</legend>
                 <label>
                     <input type="radio" name="loginDevice" value="personal" checked>
-                    <strong>My computer</strong>
-                    Stay signed in longer (up to your school’s limit). Idle sign-out uses your admin’s normal timeout.
+                    <strong id="loginDevicePersonalTitle">My computer</strong>
+                    <span id="loginDevicePersonalHint">Stay signed in longer (up to your school’s limit). Idle sign-out uses your admin’s normal timeout.</span>
                 </label>
                 <label>
                     <input type="radio" name="loginDevice" value="shared">
-                    <strong>Shared or public computer</strong>
-                    Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle. Kakao will ask you to log in again.
+                    <strong id="loginDeviceSharedTitle">Shared or public computer</strong>
+                    <span id="loginDeviceSharedHint">Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle. Kakao will ask you to log in again.</span>
                 </label>
             </fieldset>
 
@@ -226,15 +233,15 @@
             <p id="kakaoConfigHint" class="login-kakao-hint" style="display: none;"></p>
 
             <div class="login-fallback">
-                <p><strong>Password fallback</strong> (only if your admin gave you one)</p>
+                <p><strong id="passwordFallbackTitle">Password fallback</strong> <span id="passwordFallbackHint">(only if your admin gave you one)</span></p>
                 <form id="passwordForm" method="post" action="/api/auth/password">
                     <input type="hidden" name="return" id="passwordReturn" value="/">
                     <input type="hidden" name="device" id="passwordDevice" value="personal">
-                    <label for="loginEmail">Email</label>
+                    <label for="loginEmail" id="loginEmailLabel">Email</label>
                     <input type="email" id="loginEmail" name="email" autocomplete="username" required>
-                    <label for="loginPassword">Password</label>
+                    <label for="loginPassword" id="loginPasswordLabel">Password</label>
                     <input type="password" id="loginPassword" name="password" autocomplete="current-password" required>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Sign in</button>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;" id="passwordSignInBtn">Sign in</button>
                 </form>
                 <p id="loginError" class="login-error" style="display: none;"></p>
             </div>
@@ -243,6 +250,127 @@
     </div>
     <script>
         (function () {
+            const LANG_KEY = 'calendarLanguage';
+
+            const COPY = {
+                en: {
+                    langToggle: '🌐 한국어',
+                    langToggleTitle: 'Switch to Korean',
+                    title: 'Class Calendar — Team',
+                    lead: 'Sign in with your school Kakao account. First-time sign-in creates your account — you do not need to give your email to your admin. They grant calendar access after you sign in (waiting page until then).',
+                    deniedTitle: 'Access not granted yet',
+                    deniedHint: 'Send this to your calendar admin so they can add you:',
+                    deniedEmailLabel: 'Email',
+                    deniedKakaoIdLabel: 'Kakao ID (for admin only)',
+                    deviceLegend: 'Where are you signing in?',
+                    devicePersonalTitle: 'My computer',
+                    devicePersonalHint: 'Stay signed in longer (up to your school’s limit). Idle sign-out uses your admin’s normal timeout.',
+                    deviceSharedTitle: 'Shared or public computer',
+                    deviceSharedHint: 'Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle. Kakao will ask you to log in again.',
+                    kakaoLogin: 'Login with Kakao',
+                    kakaoSwitch: 'Use a different Kakao account',
+                    fallbackTitle: 'Password fallback',
+                    fallbackHint: '(only if your admin gave you one)',
+                    email: 'Email',
+                    password: 'Password',
+                    signIn: 'Sign in',
+                    idleSignedOut: 'You were signed out due to inactivity. Sign in again to continue.',
+                    kakaoNotConfigured:
+                        'Kakao login is not configured on this site yet. Use the password form below if your admin gave you one.',
+                    signInProblemPrefix: 'Sign-in problem: '
+                },
+                ko: {
+                    langToggle: '🌐 English',
+                    langToggleTitle: 'Switch to English',
+                    title: 'Class Calendar — 팀',
+                    lead: '학교 카카오 계정으로 로그인하세요. 처음 로그인하면 계정이 자동으로 만들어집니다. 이메일을 관리자에게 알려줄 필요는 없습니다. 로그인 후 관리자(담당 선생님)가 캘린더 접근 권한을 주면 사용할 수 있습니다(그 전에는 대기 페이지가 표시됩니다).',
+                    deniedTitle: '아직 접근 권한이 없습니다',
+                    deniedHint: '아래 정보를 관리자(담당 선생님)에게 보내 등록해 달라고 하세요:',
+                    deniedEmailLabel: '이메일',
+                    deniedKakaoIdLabel: '카카오 ID (관리자용)',
+                    deviceLegend: '어떤 기기에서 로그인하나요?',
+                    devicePersonalTitle: '내 컴퓨터',
+                    devicePersonalHint: '로그인 유지가 더 길게 됩니다(학교 설정 한도 내). 유휴(미사용) 로그아웃은 관리자 설정을 따릅니다.',
+                    deviceSharedTitle: '공용/다른 사람과 함께 쓰는 컴퓨터',
+                    deviceSharedHint: '짧게 로그인합니다(최대 1일). 15분 동안 미사용이면 자동 로그아웃됩니다. 카카오에서 다시 로그인하라고 할 수 있습니다.',
+                    kakaoLogin: '카카오로 로그인',
+                    kakaoSwitch: '다른 카카오 계정으로 로그인',
+                    fallbackTitle: '비밀번호 로그인(대체)',
+                    fallbackHint: '(관리자가 비밀번호를 준 경우에만)',
+                    email: '이메일',
+                    password: '비밀번호',
+                    signIn: '로그인',
+                    idleSignedOut: '오래 활동이 없어 자동 로그아웃되었습니다. 다시 로그인해 주세요.',
+                    kakaoNotConfigured:
+                        '이 사이트에 카카오 로그인이 아직 설정되어 있지 않습니다. 관리자가 준 비밀번호가 있으면 아래 폼을 사용하세요.',
+                    signInProblemPrefix: '로그인 문제: '
+                }
+            };
+
+            function getLang() {
+                try {
+                    const saved = localStorage.getItem(LANG_KEY);
+                    return saved === 'ko' ? 'ko' : 'en';
+                } catch (_) {
+                    return 'en';
+                }
+            }
+
+            function setLang(next) {
+                const lang = next === 'ko' ? 'ko' : 'en';
+                try {
+                    localStorage.setItem(LANG_KEY, lang);
+                } catch (_) { /* ignore */ }
+                applyLang();
+            }
+
+            function tLogin(key) {
+                const lang = getLang();
+                return (COPY[lang] && COPY[lang][key]) || COPY.en[key] || key;
+            }
+
+            function applyLang() {
+                document.documentElement.lang = getLang() === 'ko' ? 'ko' : 'en';
+                const btn = document.getElementById('loginLangToggle');
+                if (btn) {
+                    btn.textContent = tLogin('langToggle');
+                    btn.title = tLogin('langToggleTitle');
+                }
+                const map = [
+                    ['loginTitle', 'title'],
+                    ['loginLead', 'lead'],
+                    ['deniedTitle', 'deniedTitle'],
+                    ['deniedHint', 'deniedHint'],
+                    ['deniedEmailLabel', 'deniedEmailLabel'],
+                    ['deniedKakaoIdLabel', 'deniedKakaoIdLabel'],
+                    ['loginDeviceLegend', 'deviceLegend'],
+                    ['loginDevicePersonalTitle', 'devicePersonalTitle'],
+                    ['loginDevicePersonalHint', 'devicePersonalHint'],
+                    ['loginDeviceSharedTitle', 'deviceSharedTitle'],
+                    ['loginDeviceSharedHint', 'deviceSharedHint'],
+                    ['passwordFallbackTitle', 'fallbackTitle'],
+                    ['passwordFallbackHint', 'fallbackHint'],
+                    ['loginEmailLabel', 'email'],
+                    ['loginPasswordLabel', 'password'],
+                    ['passwordSignInBtn', 'signIn']
+                ];
+                map.forEach((pair) => {
+                    const el = document.getElementById(pair[0]);
+                    if (el) {
+                        el.textContent = tLogin(pair[1]);
+                    }
+                });
+                const kakaoBtn = document.getElementById('kakaoLoginBtn');
+                if (kakaoBtn) {
+                    kakaoBtn.textContent = tLogin('kakaoLogin');
+                }
+                const kakaoSwitch = document.getElementById('kakaoSwitchAccount');
+                if (kakaoSwitch) {
+                    kakaoSwitch.textContent = tLogin('kakaoSwitch');
+                }
+                // theme button label is handled by applyLoginTheme
+            }
+
             function getStoredTheme() {
                 try {
                     var saved = localStorage.getItem('calendarTheme');
@@ -281,6 +409,14 @@
                     applyLoginTheme(current === 'dark' ? 'light' : 'dark');
                 });
             }
+
+            const langBtn = document.getElementById('loginLangToggle');
+            if (langBtn) {
+                langBtn.addEventListener('click', function () {
+                    setLang(getLang() === 'ko' ? 'en' : 'ko');
+                });
+            }
+            applyLang();
 
             const params = new URLSearchParams(location.search);
             const returnTo = params.get('return') || '/';
@@ -411,6 +547,44 @@
                 sign_in_failed: 'Sign-in failed. Try again or use Kakao login.'
             };
 
+            const ERROR_MESSAGES_KO = {
+                oauth_failed: '카카오 로그인에 실패했습니다. 다시 시도하거나 관리자에게 문의하세요.',
+                oauth_denied: '카카오 로그인이 취소되었습니다.',
+                kakao_not_configured:
+                    '이 서버에 카카오 로그인이 설정되지 않았습니다. 아래 비밀번호 로그인을 사용하거나 관리자에게 문의하세요.',
+                redirect_uri_mismatch:
+                    '카카오 리디렉트 주소가 맞지 않습니다. 관리자에게 카카오 개발자 설정을 확인해 달라고 하세요.',
+                oauth_code_expired: '카카오 로그인 시간이 만료되었습니다. 다시 로그인 버튼을 눌러 주세요.',
+                missing_code: '카카오가 로그인 코드를 반환하지 않았습니다. 다시 시도해 주세요.',
+                email_required:
+                    '카카오가 이메일을 공유하지 않았습니다. 관리자가 이메일 대신 카카오 사용자 ID로 등록해야 합니다.',
+                account_disabled: '이 계정은 비활성화되었습니다. 관리자에게 문의하세요.',
+                kakao_client_secret:
+                    '카카오 Client Secret이 잘못되었거나 누락되었습니다. 관리자에게 설정을 확인해 달라고 하세요.',
+                invalid_scope:
+                    '카카오 동의 항목(scope) 설정 오류입니다(KOE205). 관리자에게 동의항목 설정을 확인해 달라고 하세요.',
+                missing_kakao_id: '카카오에서 사용자 ID를 받지 못했습니다. 다시 시도하거나 관리자에게 문의하세요.',
+                oauth_state_invalid: '로그인 세션이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.',
+                not_invited:
+                    '아직 선생님 목록에 등록되어 있지 않습니다. 관리자에게 이메일 또는 카카오 사용자 ID를 Admin에서 추가해 달라고 하세요.',
+                kakao_not_linked:
+                    '이메일은 등록되어 있지만 카카오 계정이 연결되지 않았습니다. 관리자에게 Admin(Users → Edit)에서 카카오 사용자 ID를 입력해 달라고 하세요.',
+                kakao_mismatch:
+                    '이 카카오 계정은 등록된 카카오 ID와 일치하지 않습니다. 관리자에게 문의하세요.',
+                invalid_password: '이메일 또는 비밀번호가 올바르지 않습니다.',
+                password_not_set:
+                    '이 계정에는 비밀번호가 설정되어 있지 않습니다. 카카오로 로그인하거나 관리자에게 비밀번호 설정을 요청하세요.',
+                too_many_requests: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+                sign_in_failed: '로그인에 실패했습니다. 다시 시도하거나 카카오 로그인을 사용하세요.'
+            };
+
+            function errorMessage(code) {
+                const lang = getLang();
+                const ko = ERROR_MESSAGES_KO[code];
+                const en = ERROR_MESSAGES[code];
+                return (lang === 'ko' ? ko : null) || en || (tLogin('signInProblemPrefix') + code);
+            }
+
             fetch('/api/health', { credentials: 'same-origin' })
                 .then(function (r) {
                     return r.ok ? r.json() : {};
@@ -423,22 +597,21 @@
                             kakaoSwitch.style.display = 'none';
                         }
                         kakaoHint.style.display = 'block';
-                        kakaoHint.textContent =
-                            'Kakao login is not configured on this site yet. Use the password form below if your admin gave you one.';
+                        kakaoHint.textContent = tLogin('kakaoNotConfigured');
                 })
                 .catch(function () { /* offline / file URL */ });
 
             if (params.get('signedOut') === 'idle') {
                 const el = document.getElementById('loginError');
                 el.style.display = 'block';
-                el.textContent = 'You were signed out due to inactivity. Sign in again to continue.';
+                el.textContent = tLogin('idleSignedOut');
             }
 
             const err = params.get('error');
             if (err) {
                 const el = document.getElementById('loginError');
                 el.style.display = 'block';
-                el.textContent = ERROR_MESSAGES[err] || 'Sign-in problem: ' + err;
+                el.textContent = errorMessage(err);
             }
 
             const passwordForm = document.getElementById('passwordForm');

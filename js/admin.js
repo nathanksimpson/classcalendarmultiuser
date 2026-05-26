@@ -312,10 +312,24 @@ function countActiveSuperAdmins(users) {
 }
 
 function roleDisplayLabel(role) {
-    const r = role === 'admin' ? 'super_admin' : role;
-    const key = 'role_' + r;
-    const translated = t(key);
-    return translated !== key ? translated : r;
+    const r = role === 'admin' ? 'super_admin' : (role || 'teacher');
+    const map = {
+        teacher: 'roleTeacher',
+        viewer: 'roleViewer',
+        head_teacher: 'roleHeadTeacher',
+        user_admin: 'roleUserAdmin',
+        settings_admin: 'roleSettingsAdmin',
+        super_admin: 'roleSuperAdmin'
+    };
+    const key = map[r] || null;
+    if (key) {
+        const translated = t(key);
+        if (translated && translated !== key) {
+            return translated;
+        }
+    }
+    // Fallback: readable slug
+    return String(r).replace(/_/g, ' ');
 }
 
 function applyAdminSectionVisibility() {

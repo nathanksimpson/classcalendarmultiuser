@@ -146,6 +146,7 @@
     <script>
         (function () {
             var LANG_KEY = 'pendingAccessLang';
+            var APP_LANG_KEY = 'calendarLanguage';
             var copy = {
                 en: {
                     title: 'Waiting for calendar access',
@@ -187,13 +188,23 @@
                     if (s === 'ko') {
                         return 'ko';
                     }
+                    if (s === 'en') {
+                        return 'en';
+                    }
+                    var appLang = localStorage.getItem(APP_LANG_KEY);
+                    if (appLang === 'ko' || appLang === 'en') {
+                        return appLang;
+                    }
                 } catch (_) { /* ignore */ }
                 return 'en';
             }
 
             function setLang(next) {
                 try {
-                    localStorage.setItem(LANG_KEY, next === 'ko' ? 'ko' : 'en');
+                    var v = next === 'ko' ? 'ko' : 'en';
+                    localStorage.setItem(LANG_KEY, v);
+                    // Keep consistent with the rest of the app (login/admin/index).
+                    localStorage.setItem(APP_LANG_KEY, v);
                 } catch (_) { /* ignore */ }
                 applyCopy();
             }
