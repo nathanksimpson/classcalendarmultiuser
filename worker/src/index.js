@@ -985,7 +985,8 @@ export default {
                     return json({ error: 'Calendar not found' }, 404);
                 }
             }
-            await touchPresence(env, user.id, calendarId, body.calendarName || '');
+            const displayName = user.displayName || user.email || user.id;
+            await touchPresence(env, user.id, displayName, calendarId, body.calendarName || '');
             return json({ ok: true });
         }
 

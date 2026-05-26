@@ -190,7 +190,8 @@ app.post('/api/presence/heartbeat', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    presence.touchPresence(req.user.id, calendarId, body.calendarName || '');
+    const displayName = req.user.displayName || req.user.email || req.user.id;
+    presence.touchPresence(req.user.id, displayName, calendarId, body.calendarName || '');
     res.json({ ok: true });
 });
 

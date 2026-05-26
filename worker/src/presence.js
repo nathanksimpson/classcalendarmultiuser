@@ -4,16 +4,18 @@ function nowIso() {
     return new Date().toISOString();
 }
 
-export async function touchPresence(env, userId, calendarId, calendarName) {
+export async function touchPresence(env, userId, displayName, calendarId, calendarName) {
+    const label = displayName || userId;
     await env.DB.prepare(
-        `INSERT INTO user_presence (user_id, calendar_id, calendar_name, updated_at)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO user_presence (user_id, display_name, calendar_id, calendar_name, last_seen_at)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
+           display_name = excluded.display_name,
            calendar_id = excluded.calendar_id,
            calendar_name = excluded.calendar_name,
-           updated_at = excluded.updated_at`
+           last_seen_at = excluded.last_seen_at`
     )
-        .bind(userId, calendarId || null, calendarName || '', nowIso())
+        .bind(userId, label, calendarId || null, calendarName || '', nowIso())
         .run();
 }
 
@@ -23,12 +25,10 @@ export async function listViewersForCalendar(env, calendarId, excludeUserId) {
     }
     const cutoff = new Date(Date.now() - PRESENCE_STALE_SEC * 1000).toISOString();
     const r = await env.DB.prepare(
-        `SELECT p.user_id AS userId,
-                COALESCE(u.display_name, u.email, p.user_id) AS displayName
-         FROM user_presence p
-         INNER JOIN users u ON u.id = p.user_id AND u.active = 1
-         WHERE p.calendar_id = ? AND p.updated_at >= ?
-         ORDER BY u.display_name COLLATE NOCASE`
+        `SELECT user_id AS userId, display_name AS displayName
+         FROM user_presence
+         WHERE calendar_id = ? AND last_seen_at >= ?
+         ORDER BY display_name COLLATE NOCASE`
     )
         .bind(calendarId, cutoff)
         .all();
