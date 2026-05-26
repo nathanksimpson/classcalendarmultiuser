@@ -928,6 +928,10 @@ export default {
         const kakaoId = (env.KAKAO_CLIENT_ID || '').trim();
 
         if (!path.startsWith('/api/')) {
+            // Support friendly admin URL and avoid broken relative asset paths.
+            if (path === '/admin' || path === '/admin/') {
+                return redirectTo('/admin.html');
+            }
             if (env.ASSETS) {
                 return env.ASSETS.fetch(request);
             }

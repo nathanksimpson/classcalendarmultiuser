@@ -1027,6 +1027,10 @@ app.get('*', (req, res) => {
         res.status(404).json({ error: 'Not found' });
         return;
     }
+    if (req.path === '/admin' || req.path === '/admin/') {
+        res.redirect('/admin.html');
+        return;
+    }
     const file = req.path === '/' || req.path === '' ? 'index.html' : req.path.replace(/^\//, '');
     const safe = path.normalize(file).replace(/^(\.\.(\/|\\|$))+/, '');
     const target = path.join(staticRoot, safe);
