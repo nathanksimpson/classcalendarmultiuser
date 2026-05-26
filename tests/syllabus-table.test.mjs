@@ -351,4 +351,26 @@ function assert(cond, msg) {
     assert(bridgeRow.planDetail.includes('HW-DAY-1'), 'march bridge day 1');
 }
 
+// Debate: last class of term (no following month) still gets Day 4 + Day 1
+{
+    const templates = [
+        { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
+        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const lessons = [
+        { date: '2026-05-07', monthKey: '2026-05', label: 'Day 1', group: { days: [1], start: 1, end: 1 } },
+        { date: '2026-05-28', monthKey: '2026-05', label: 'Day 4', group: { days: [4], start: 4, end: 4 } }
+    ];
+    lessons[1].__debateTemplateKey = 'day4and1bridge';
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(
+        { scheduleModel: 'debateMonthly', totalLessons: 4 },
+        lessons,
+        { isHolidayForClass: () => false, rowTemplates: templates, templateIndexes: indexes }
+    );
+    const mayLast = rows.find((r) => r.date === '2026-05-28');
+    assert(mayLast && mayLast.planDetail.includes('HW-DAY-4'), 'term-end day 4');
+    assert(mayLast.planDetail.includes('HW-DAY-1'), 'term-end day 1 preview');
+}
+
 console.log('All syllabus-table tests passed.');

@@ -9063,14 +9063,21 @@ function annotateDebateTemplateHints(classData, items) {
         }
         const last = inMonth[inMonth.length - 1];
         const nextMonthKey = monthKeys[monthIndex + 1];
-        if (!nextMonthKey) {
-            return;
-        }
-        const hasNextMonth = dated.some((item) => item.monthKey === nextMonthKey);
-        if (hasNextMonth && debateLessonGroupIncludesDay(last.group, 4)) {
+        const hasNextMonth = !!(nextMonthKey && dated.some((item) => item.monthKey === nextMonthKey));
+        const isLastMonthInTerm = monthIndex === monthKeys.length - 1;
+        if ((hasNextMonth || isLastMonthInTerm)
+            && debateLessonGroupIncludesDay(last.group, 4)
+            && last.__debateTemplateKey !== 'day2and3combined') {
             last.__debateTemplateKey = 'day4and1bridge';
         }
     });
+    if (dated.length) {
+        const termLast = dated[dated.length - 1];
+        if (debateLessonGroupIncludesDay(termLast.group, 4)
+            && termLast.__debateTemplateKey !== 'day2and3combined') {
+            termLast.__debateTemplateKey = 'day4and1bridge';
+        }
+    }
 }
 
 function lessonsForSyllabusBuild(classData) {
