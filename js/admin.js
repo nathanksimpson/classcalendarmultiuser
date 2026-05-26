@@ -1167,6 +1167,37 @@ function setupLockSettingsForm() {
     });
 }
 
+function setupAdminLanguageToggleFallback() {
+    const btn = document.getElementById('adminLangToggle');
+    if (!btn || btn.dataset.boundFallback === '1') {
+        return;
+    }
+    btn.dataset.boundFallback = '1';
+    btn.addEventListener('click', () => {
+        if (typeof AdminI18n !== 'undefined' && typeof AdminI18n.toggleAdminLang === 'function') {
+            AdminI18n.toggleAdminLang();
+        } else {
+            // Last-resort: flip the stored key and reload labels.
+            try {
+                const saved = localStorage.getItem('calendarLanguage');
+                localStorage.setItem('calendarLanguage', saved === 'ko' ? 'en' : 'ko');
+            } catch (_) {
+                /* ignore */
+            }
+            if (typeof AdminI18n !== 'undefined' && typeof AdminI18n.applyAdminLanguage === 'function') {
+                AdminI18n.applyAdminLanguage();
+            }
+        }
+
+        if (currentAdminDisplayName) {
+            setSessionStatus(t('signedInAs', { name: currentAdminDisplayName }));
+        }
+        if (currentAdminId) {
+            refreshAll().catch(() => {});
+        }
+    });
+}
+
 async function init() {
     setupActionMenuCloseOnOutside();
     setupEditUserModal();
@@ -1342,6 +1373,7 @@ async function init() {
 
 loadAdminTheme();
 setupAdminThemeToggle();
+setupAdminLanguageToggleFallback();
 if (typeof AdminI18n !== 'undefined') {
     AdminI18n.setupAdminLanguageToggle(() => {
         if (typeof AdminI18n.applyAdminLanguage === 'function') {
