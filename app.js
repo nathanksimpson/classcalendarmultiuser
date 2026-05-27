@@ -12781,15 +12781,15 @@ function measureMmToPxForPrint(doc) {
 /** Screen / print typography bounds for calendar class, holiday, and event tiles. */
 const CALENDAR_TILE_TYPO = {
     screen: {
-        min: 9,
-        max: 14,
+        min: 10,
+        max: 13,
         unit: 'px',
         lineHeight: 1.15,
-        heightRatio: 0.45,
-        widthRatio: 0.11,
+        heightRatio: 0.42,
+        widthRatio: 0.09,
         gap: 2,
         padding: 8,
-        bookWeight: 1.35
+        bookWeight: 1
     },
     print: {
         min: 6,
@@ -12818,26 +12818,22 @@ function resolveCalendarTileTypographyRoot(doc, root) {
     return root;
 }
 
-function countCalendarDayTileWeight(day, cfg) {
-    let weight = 0;
-    weight += day.querySelectorAll('.holiday-name').length;
-    weight += day.querySelectorAll('.calendar-event-chip').length;
-    day.querySelectorAll('.event-bar').forEach((bar) => {
-        weight += bar.querySelector('.event-book') ? cfg.bookWeight : 1;
-    });
-    return weight;
+function countCalendarDayTileWeight(day) {
+    return day.querySelectorAll('.holiday-name, .calendar-event-chip, .event-bar').length;
 }
 
 /** Stable row/column budget from grid layout (avoids content-inflated offsetHeight). */
 function getCalendarDayCellBudget(day, mode) {
     const grid = day.closest('.calendar-grid');
+    const cellW = day.clientWidth;
+
     if (!grid) {
-        return { cellH: day.clientHeight, cellW: day.clientWidth };
+        return { cellH: Math.max(day.clientHeight, day.offsetHeight), cellW };
     }
 
     const styledMinH = parseInt(day.style.minHeight, 10);
     if (mode === 'print' && styledMinH > 0) {
-        return { cellH: styledMinH, cellW: day.clientWidth };
+        return { cellH: styledMinH, cellW };
     }
 
     const cells = Array.from(grid.children);
@@ -12847,11 +12843,27 @@ function getCalendarDayCellBudget(day, mode) {
             headerRowH = Math.max(headerRowH, el.offsetHeight);
         }
     });
+
+    const weekRows = parseInt(day.closest('.month-calendar')?.dataset.weekRows || '6', 10) || 6;
     const rowCount = Math.max(1, Math.ceil(cells.length / 7));
-    const bodyRowCount = Math.max(1, rowCount - 1);
-    const bodyBudget = Math.max(1, grid.clientHeight - headerRowH);
-    const rowH = Math.floor(bodyBudget / bodyRowCount);
-    return { cellH: rowH, cellW: day.clientWidth };
+    const bodyRowCount = Math.max(1, rowCount - 1, weekRows);
+
+    let rowH = 0;
+    if (grid.clientHeight > 0) {
+        const bodyBudget = Math.max(1, grid.clientHeight - headerRowH);
+        rowH = Math.floor(bodyBudget / bodyRowCount);
+    }
+
+    const month = day.closest('.month-calendar');
+    if (rowH < 24 && month && month.clientHeight > 0) {
+        const monthHeader = month.querySelector('.month-header');
+        const monthHeaderH = monthHeader ? monthHeader.offsetHeight : 0;
+        const bodyBudget = Math.max(1, month.clientHeight - monthHeaderH - headerRowH);
+        rowH = Math.floor(bodyBudget / weekRows);
+    }
+
+    const measured = Math.max(day.clientHeight, day.offsetHeight);
+    return { cellH: Math.max(rowH, measured, 52), cellW };
 }
 
 function clearCalendarTileTypographyOnDay(day) {
@@ -12871,7 +12883,7 @@ function clearCalendarTileTypography(doc, root) {
 function fitCalendarDayTileTypography(day, cfg, mode) {
     clearCalendarTileTypographyOnDay(day);
 
-    const tileWeight = countCalendarDayTileWeight(day, cfg);
+    const tileWeight = countCalendarDayTileWeight(day);
     if (tileWeight <= 0) {
         return;
     }
@@ -12970,8 +12982,10 @@ function scheduleCalendarTileTypographyFit() {
     }
     calendarTileTypographyFitScheduled = true;
     requestAnimationFrame(() => {
-        calendarTileTypographyFitScheduled = false;
-        runCalendarTileTypographyFit();
+        requestAnimationFrame(() => {
+            calendarTileTypographyFitScheduled = false;
+            runCalendarTileTypographyFit();
+        });
     });
 }
 

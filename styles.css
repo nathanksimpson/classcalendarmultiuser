@@ -810,7 +810,7 @@ body {
 }
 
 .calendar-event-chip {
-    font-size: min(var(--cal-tile-font, 0.625rem), 14px);
+    font-size: min(var(--cal-tile-font, 0.625rem), 13px);
     padding: 2px 4px;
     border-radius: 3px;
     line-height: 1.2;
@@ -1339,45 +1339,16 @@ body:has(#panel-calendar:not([hidden])) {
     flex-direction: column;
 }
 
-#calendarContainer .calendar-day .day-number {
-    flex-shrink: 0;
-}
-
-#calendarContainer .calendar-day .holiday-name,
-#calendarContainer .calendar-day .calendar-event-chips {
-    flex-shrink: 0;
-}
-
 #calendarContainer .calendar-day .day-events {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-#calendarContainer .calendar-day .day-events .event-bar {
-    flex: 1 1 0;
-    min-height: 0;
-    justify-content: center;
+    overflow-y: auto;
 }
 
 #calendarContainer .calendar-day .calendar-event-chips {
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-#calendarContainer .calendar-day .calendar-event-chip {
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-}
-
-#calendarContainer .calendar-day .holiday-name {
-    display: flex;
-    align-items: center;
+    flex-shrink: 0;
+    max-height: 35%;
+    overflow-y: auto;
 }
 
 #calendarContainer .month-header {
@@ -1503,7 +1474,7 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .holiday-name {
-    font-size: min(var(--cal-tile-font, 0.7rem), 14px);
+    font-size: min(var(--cal-tile-font, 0.7rem), 13px);
     /* Color set dynamically via JS */
     font-weight: 600;
     padding: 0 6px 4px;
@@ -1529,7 +1500,7 @@ body:has(#panel-calendar:not([hidden])) {
    ============================================ */
 .event-bar {
     padding: 4px 6px;
-    font-size: min(var(--cal-tile-font, 0.7rem), 14px);
+    font-size: min(var(--cal-tile-font, 0.7rem), 13px);
     font-weight: 600;
     color: white;
     border-radius: 4px;
