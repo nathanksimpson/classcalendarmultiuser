@@ -2,7 +2,7 @@
  * Debate book periods: start-date granularity (book + Day 1–4 cycle boundaries).
  * Pure helpers — no DOM. Used by app.js and tests.
  */
-(function (global) {
+(function () {
     const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
     function parseISODateLocal(dateStr) {
@@ -307,5 +307,7 @@
         formatDebatePeriodsSummary
     };
 
-    global.CCPDebatePeriods = api;
-})(typeof window !== 'undefined' ? window : globalThis);
+    if (typeof globalThis !== 'undefined') {
+        globalThis.CCPDebatePeriods = api;
+    }
+})();

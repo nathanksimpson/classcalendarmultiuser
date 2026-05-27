@@ -5997,12 +5997,15 @@ function refreshBookRowsForTermRange() {
     const existing = collectDebateBookPeriodsFromForm().filter(p => p.startDate >= start && p.startDate <= end);
     if (existing.length > 0) {
         renderDebateBookPeriodRows(existing);
-    } else if (global.CCPDebatePeriods) {
-        renderDebateBookPeriodRows(
-            global.CCPDebatePeriods.suggestPeriodsFromCalendarMonths(start, end, elements.classBook.value || '')
-        );
     } else {
-        renderDebateBookPeriodRows([]);
+        const debateApi = getCCPDebatePeriods();
+        if (debateApi) {
+            renderDebateBookPeriodRows(
+                debateApi.suggestPeriodsFromCalendarMonths(start, end, elements.classBook.value || '')
+            );
+        } else {
+            renderDebateBookPeriodRows([]);
+        }
     }
     syncCompressionSectionsForMode();
 }
@@ -6060,18 +6063,26 @@ function getBookForMonthKey(classData, monthKey) {
     return (classData.book || '').trim();
 }
 
+function getCCPDebatePeriods() {
+    return typeof globalThis !== 'undefined' && globalThis.CCPDebatePeriods
+        ? globalThis.CCPDebatePeriods
+        : null;
+}
+
 function getBookForLesson(classData, dateStr, monthKey) {
-    if (classUsesDebateCompression(classData) && global.CCPDebatePeriods) {
-        return global.CCPDebatePeriods.getBookForDate(classData, dateStr);
+    const debateApi = getCCPDebatePeriods();
+    if (classUsesDebateCompression(classData) && debateApi) {
+        return debateApi.getBookForDate(classData, dateStr);
     }
     return getBookForMonthKey(classData, monthKey);
 }
 
 function ensureDebatePeriodsOnClass(classData) {
-    if (!classData || !classUsesDebateCompression(classData) || !global.CCPDebatePeriods) {
+    const debateApi = getCCPDebatePeriods();
+    if (!classData || !classUsesDebateCompression(classData) || !debateApi) {
         return [];
     }
-    return global.CCPDebatePeriods.ensureDebateBookPeriodsForClass(classData);
+    return debateApi.ensureDebateBookPeriodsForClass(classData);
 }
 
 function mergePlanToFit(availableSlots, totalLessons, userMerges, mode) {
@@ -6127,9 +6138,12 @@ function escapeAttr(s) {
 }
 
 function formatBooksByMonthSummary(classData) {
-    if (classUsesDebateCompression(classData) && global.CCPDebatePeriods) {
+    if (classUsesDebateCompression(classData)) {
         ensureDebatePeriodsOnClass(classData);
-        return global.CCPDebatePeriods.formatDebatePeriodsSummary(classData);
+        const debateApi = getCCPDebatePeriods();
+        if (debateApi) {
+            return debateApi.formatDebatePeriodsSummary(classData);
+        }
     }
     const m = classData.booksByMonth && typeof classData.booksByMonth === 'object'
         ? classData.booksByMonth
@@ -6183,8 +6197,9 @@ function collectDebateBookPeriodsFromForm() {
         book: elements.classBook ? elements.classBook.value : '',
         debateBookPeriods: periods
     };
-    if (global.CCPDebatePeriods) {
-        return global.CCPDebatePeriods.normalizeDebateBookPeriods(draft);
+    const debateApi = getCCPDebatePeriods();
+    if (debateApi) {
+        return debateApi.normalizeDebateBookPeriods(draft);
     }
     return periods;
 }
@@ -6266,8 +6281,9 @@ function fillBooksFromTermDefaultBook() {
         return;
     }
     elements.booksByMonthRows.innerHTML = '';
-    const suggested = global.CCPDebatePeriods
-        ? global.CCPDebatePeriods.suggestPeriodsFromCalendarMonths(start, end, defaultBook)
+    const debateApi = getCCPDebatePeriods();
+    const suggested = debateApi
+        ? debateApi.suggestPeriodsFromCalendarMonths(start, end, defaultBook)
         : enumerateMonthKeysBetween(start, end).map(k => ({
             startDate: `${k}-01`,
             book: defaultBook
@@ -8864,7 +8880,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateTeamSyncStatus('syncing');
     }
 
-    await initTeamSync();
+    try {
+        await initTeamSync();
+    } catch (err) {
+        console.error('initTeamSync failed:', err);
+        showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
+    }
 
     if (!teamSyncEnabled) {
         renderCalendar();
@@ -11516,8 +11537,9 @@ function calculateAutoLessonDates(classData) {
     }
 
     ensureDebatePeriodsOnClass(classData);
-    const periods = global.CCPDebatePeriods
-        ? global.CCPDebatePeriods.enumerateDebatePeriodsInTerm(classData)
+    const debateApi = getCCPDebatePeriods();
+    const periods = debateApi
+        ? debateApi.enumerateDebatePeriodsInTerm(classData)
         : [];
     const lessons = [];
     const periodDetails = [];
@@ -11696,7 +11718,7 @@ function getBooksUsedForClassTitle(classData) {
         /* fall through to static book fields */
     }
     if (list.length === 0) {
-        if (classUsesDebateCompression(classData) && global.CCPDebatePeriods) {
+        if (classUsesDebateCompression(classData)) {
             ensureDebatePeriodsOnClass(classData);
             (classData.debateBookPeriods || []).forEach(p => add(p.book));
         }
@@ -15650,15 +15672,22 @@ function migrateData(data) {
             if (!classData.booksByMonth || typeof classData.booksByMonth !== 'object') {
                 classData.booksByMonth = {};
             }
-            if (classUsesDebateCompression(classData) && global.CCPDebatePeriods) {
-                if (global.CCPDebatePeriods.migrateBooksByMonthToPeriods(classData)) {
-                    migrated = true;
+            const debateApi = getCCPDebatePeriods();
+            if (classUsesDebateCompression(classData) && debateApi) {
+                try {
+                    if (debateApi.migrateBooksByMonthToPeriods(classData)) {
+                        migrated = true;
+                    }
+                    debateApi.ensureDebateBookPeriodsForClass(classData);
+                    if (!classData.compressionMergesByPeriod || typeof classData.compressionMergesByPeriod !== 'object') {
+                        classData.compressionMergesByPeriod = {};
+                        migrated = true;
+                    }
+                } catch (debateMigrErr) {
+                    console.error('Debate book period migration skipped for class', classData.id, debateMigrErr);
                 }
-                global.CCPDebatePeriods.ensureDebateBookPeriodsForClass(classData);
-                if (!classData.compressionMergesByPeriod || typeof classData.compressionMergesByPeriod !== 'object') {
-                    classData.compressionMergesByPeriod = {};
-                    migrated = true;
-                }
+            } else if (classUsesDebateCompression(classData) && !debateApi) {
+                // `js/debate-periods.js` not loaded yet or failed — skip migration; calendars still load with legacy booksByMonth.
             }
 
             if (!classData.compressionMode) {

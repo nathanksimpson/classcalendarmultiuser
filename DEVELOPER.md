@@ -125,6 +125,18 @@ Do not commit `.env`, `data/`, `node_modules/`, or `.wrangler/`.
 
 ---
 
+## Calendar load recovery (debate migration & `global is not defined`)
+
+Older builds referenced Node’s **`global`** in the browser bundle, which threw **`ReferenceError: global is not defined`** during **`migrateData`** or when opening the class editor (`collectDebateBookPeriodsFromForm`). That prevented team calendars from loading and could block lazy-loaded modules (e.g. syllabus).
+
+**Fix in code:** Use **`globalThis`** (via **`getCCPDebatePeriods()`**) and **`js/debate-periods.js`** exporting **`globalThis.CCPDebatePeriods`**. **`migrateData`** only runs **`migrateBooksByMonthToPeriods`** when **`CCPDebatePeriods`** is present; migration errors per class are logged and skipped so one bad row does not break the whole calendar.
+
+**One-time client migration:** Debate classes with legacy **`booksByMonth`** gain **`debateBookPeriods`** when the app loads (`debateBookPeriodsMigrated` prevents repeat). After deploy, **`index.html`** script **`?v=`** must be bumped so browsers fetch the fixed **`app.js`** / **`debate-periods.js`**.
+
+**If the app errors on load after an update:** Hard refresh (**Ctrl+F5** / empty cache reload), reopen the calendar, confirm you’re on the intended team calendar. Do not wipe **D1** data; server-side calendars are intact once the client runs the fixed bundle.
+
+---
+
 ## Security
 
 See **[SECURITY-AUDIT.md](SECURITY-AUDIT.md)** for a pinned security review (Kakao OAuth, locks, bootstrap, rate limiting) and phased remediation plan. Auth/TOTP/Kakao removal are **not** implemented until explicitly scheduled.
