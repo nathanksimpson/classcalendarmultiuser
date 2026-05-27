@@ -166,9 +166,20 @@
                 }
             }
         }
+        if (typeof CCPLoader !== 'undefined' && CCPLoader.loadExtensionScripts) {
+            await CCPLoader.loadExtensionScripts();
+        }
         loadData();
-        initDefaultClassEditorModule();
-        initBooksEditorModule();
+        if (typeof initDefaultClassEditorModule === 'function') {
+            initDefaultClassEditorModule();
+        }
+        if (typeof initBooksEditorModule === 'function') {
+            initBooksEditorModule();
+        }
+        const teamStatus = document.getElementById('teamSyncStatus');
+        if (teamStatus && typeof updateTeamSyncStatus === 'function') {
+            updateTeamSyncStatus('syncing');
+        }
         await initTeamSync();
         applyLanguage();
         initHomeworkTabControls();

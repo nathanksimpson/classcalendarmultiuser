@@ -29,6 +29,7 @@ const translations = {
         teamCalendar: 'Team calendar:',
         teamNewCalendar: '+ New',
         syncConnecting: 'Connecting…',
+        syncSyncing: 'Syncing…',
         syncConnected: 'Connected — saved to team folder',
         syncOffline: 'Offline — changes saved in this browser only',
         syncSaving: 'Saving…',
@@ -683,6 +684,7 @@ const translations = {
         teamCalendar: '팀 캘린더:',
         teamNewCalendar: '+ 새로 만들기',
         syncConnecting: '연결 중…',
+        syncSyncing: '동기화 중…',
         syncConnected: '연결됨 — 팀 폴더에 저장',
         syncOffline: '오프라인 — 이 브라우저에만 저장',
         syncSaving: '저장 중…',
@@ -7037,10 +7039,66 @@ function updateEventEditorEmptyState() {
     empty.hidden = !onEventsTab || (hasForm && hasSelection);
 }
 
+const APP_EXTENSION_TAB_IDS = ['classes', 'syllabus', 'homework', 'curriculum', 'data'];
+
+let extensionModulesInited = false;
+
+async function ensureExtensionScriptsLoaded() {
+    if (typeof CCPLoader === 'undefined' || !CCPLoader.loadExtensionScripts) {
+        return;
+    }
+    await CCPLoader.loadExtensionScripts();
+    if (!extensionModulesInited) {
+        initDefaultClassEditorModule();
+        initBooksEditorModule();
+        extensionModulesInited = true;
+    }
+}
+
+function tabNeedsExtensionScripts(tabId) {
+    return APP_EXTENSION_TAB_IDS.includes(tabId);
+}
+
+function setupHowToLazyLoad() {
+    const btn = document.getElementById('howToBtn');
+    if (!btn || btn.dataset.howtoBound === '1') {
+        return;
+    }
+    btn.dataset.howtoBound = '1';
+    btn.addEventListener('click', async () => {
+        try {
+            if (typeof CCPLoader !== 'undefined' && CCPLoader.loadHowtoScript) {
+                await CCPLoader.loadHowtoScript();
+            }
+            if (window.CCPHowTo && typeof window.CCPHowTo.open === 'function') {
+                window.CCPHowTo.open(currentLanguage === 'ko' ? 'ko' : 'en');
+            }
+        } catch (err) {
+            console.error('Help failed to load', err);
+            if (typeof setAppStatusMessage === 'function') {
+                setAppStatusMessage(t('syllabusModuleMissing') || 'Help failed to load', true);
+            }
+        }
+    });
+}
+
 function navigateToTab(tabId, options = {}) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
     }
+    if (tabNeedsExtensionScripts(tabId) && typeof CCPLoader !== 'undefined' && !CCPLoader.extensionLoaded) {
+        void ensureExtensionScriptsLoaded()
+            .then(() => navigateToTabBody(tabId, options))
+            .catch((err) => {
+                console.error(err);
+                showSyncToast(t('syllabusModuleMissing'), true);
+            });
+        return;
+    }
+    navigateToTabBody(tabId, options);
+}
+
+function navigateToTabBody(tabId, options = {}) {
     ensureUiState();
     appData.ui.activeTab = tabId;
     // UI-only: viewer preference.
@@ -8049,6 +8107,15 @@ function openClassEditor(classData, context, options = {}) {
         showLockFlash(t('teamReadOnlySave'), false);
         return;
     }
+    void ensureExtensionScriptsLoaded()
+        .then(() => openClassEditorAfterLoad(classData, context, options))
+        .catch((err) => {
+            console.error(err);
+            showSyncToast(t('syllabusModuleMissing'), true);
+        });
+}
+
+function openClassEditorAfterLoad(classData, context, options = {}) {
     const ctx = context || (getActiveTab() === 'classes' ? 'tab' : 'calendar-popout');
     populateClassForm(classData, options);
     if (ctx === 'tab') {
@@ -8567,14 +8634,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupClassMeetingDaysUI();
     bindClassScheduleInputsForSyllabusDistribute();
     loadData();
-    initDefaultClassEditorModule();
-    initBooksEditorModule();
-    await initTeamSync();
     initializeTermStart();
     cleanupMisplacedKrHolidayControls();
     ensureKrHolidaysImportButton();
     ensureKrHolidaysSourceHint();
     setupEventListeners();
+    setupHowToLazyLoad();
     initAppTabs();
     initCalendarContextMenu();
     initTopBarToggle();
@@ -8582,6 +8647,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyLanguage();
     renderCalendar();
     requestAnimationFrame(syncAppChromeStickyTop);
+
+    const savedTab = getActiveTab();
+    if (savedTab !== 'calendar') {
+        navigateToTab(savedTab);
+    }
+
+    const useTeamSync =
+        location.protocol !== 'file:' &&
+        typeof CalendarSync !== 'undefined' &&
+        document.getElementById('teamSyncStatus');
+    if (useTeamSync) {
+        updateTeamSyncStatus('syncing');
+    }
+
+    await initTeamSync();
+
+    if (!teamSyncEnabled) {
+        renderCalendar();
+        requestAnimationFrame(syncAppChromeStickyTop);
+    }
 });
 
 function initializeTermStart() {
@@ -12539,7 +12624,14 @@ function setPrintFormSectionMode(mode) {
     }
 }
 
-function openPrintOptionsDialog() {
+async function openPrintOptionsDialog() {
+    try {
+        await ensureExtensionScriptsLoaded();
+    } catch (err) {
+        console.error(err);
+        showSyncToast(t('syllabusModuleMissing'), true);
+        return;
+    }
     syncPrintVisibilityFromUi();
     updatePrintLessonFilterHint();
     mountPrintForm();
@@ -14127,6 +14219,7 @@ function updateTeamSyncStatus(status, detail) {
     }
     const map = {
         connecting: 'syncConnecting',
+        syncing: 'syncSyncing',
         connected: 'syncConnected',
         offline: 'syncOffline',
         saving: 'syncSaving',

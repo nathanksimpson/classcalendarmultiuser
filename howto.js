@@ -493,7 +493,9 @@
         return saved === 'ko' ? 'ko' : 'en';
     }
 
-    document.getElementById('howToBtn')?.addEventListener('click', () => openHowTo(getAppLanguage()));
+    if (typeof window !== 'undefined') {
+        window.CCPHowTo = { open: openHowTo, close: closeHowTo };
+    }
 
     document.addEventListener('calendarLanguageChanged', (e) => {
         if (modal.classList.contains('active') && e.detail && (e.detail.lang === 'en' || e.detail.lang === 'ko')) {
