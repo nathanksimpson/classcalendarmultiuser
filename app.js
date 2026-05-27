@@ -2548,6 +2548,8 @@ function applyCurriculumClassDefaultsToForm(curriculumId, presetId, levelFromPic
     if (levelToSet && elements.classLevel && getSimsonLevelById(levelToSet)) {
         elements.classLevel.value = levelToSet;
         handleClassLevelPresetChange();
+    } else if (!elements.classId || !String(elements.classId.value || '').trim()) {
+        applyDefaultSimsonLevelColorsToNewClassForm(levelToSet);
     }
     if (merged.grade && elements.classGrade) {
         elements.classGrade.value = merged.grade;
@@ -3458,6 +3460,7 @@ function applyClassTypeDefinitionToForm(def) {
     }
     if (isNewClass && def.level && elements.classLevel && getSimsonLevelById(def.level)) {
         elements.classLevel.value = def.level;
+        handleClassLevelPresetChange();
     }
     if (isNewClass && Array.isArray(def.defaultSyllabusUnits) && def.defaultSyllabusUnits.length) {
         renderSyllabusUnitsRows(def.defaultSyllabusUnits);
@@ -8526,6 +8529,91 @@ function getSimsonLevelById(id) {
     return getAllSimsonLevels().find(l => l.id === v) || null;
 }
 
+/**
+ * Literal hex fills for elementary color-name presets (and shared green/blue used by overrides).
+ * Must be #rrggbb for <input type="color">.
+ */
+const SIMSON_LEVEL_NAMED_COLORS_HEX = {
+    Red: '#dc2626',
+    Orange: '#ea580c',
+    Yellow: '#facc15',
+    Green: '#16a34a',
+    Blue: '#2563eb',
+    Navy: '#1e3a8a',
+    Purple: '#9333ea'
+};
+
+/** Yeoul / Saemmul — desaturated pink / red */
+const SIMSON_LEVEL_YEOUL_BG = '#e8b8c4';
+const SIMSON_LEVEL_SAEMMUL_BG = '#d9a3a3';
+
+/**
+ * Defaults for calendar class strip when selecting a Simson preset on a NEW class only.
+ * @returns {({ color: string, textColor: string }) | null}
+ */
+function getDefaultSimsonLevelColors(levelId) {
+    const def = getSimsonLevelById(levelId);
+    if (!def) {
+        return null;
+    }
+    const mid = '\uC911';
+    const midGrade1 = mid + '1';
+    const midGrade2 = mid + '2';
+    const midGrade3 = mid + '3';
+
+    const band = (bgHex) => ({
+        color: bgHex,
+        textColor: getReadableTextOnBackground(bgHex, DEFAULT_CLASS_TEXT_COLOR)
+    });
+
+    if (def.grade) {
+        if (def.grade === midGrade1) {
+            return band('#fef08a');
+        }
+        if (def.grade === midGrade2) {
+            return band('#bbf7d0');
+        }
+        if (def.grade === midGrade3) {
+            return band('#bfdbfe');
+        }
+    }
+
+    const id = def.id;
+    if (id === 'Garam' || id === 'Bada') {
+        return band(SIMSON_LEVEL_NAMED_COLORS_HEX.Green);
+    }
+    if (id === 'Byeolmaru' || id === 'Mirinae') {
+        return band(SIMSON_LEVEL_NAMED_COLORS_HEX.Blue);
+    }
+    if (id === 'Yeoul') {
+        return band(SIMSON_LEVEL_YEOUL_BG);
+    }
+    if (id === 'Saemmul') {
+        return band(SIMSON_LEVEL_SAEMMUL_BG);
+    }
+    const named = SIMSON_LEVEL_NAMED_COLORS_HEX[id];
+    if (named) {
+        return band(named);
+    }
+    return null;
+}
+
+/** Apply preset-derived colors only while adding a class (never when editing saved data). */
+function applyDefaultSimsonLevelColorsToNewClassForm(levelId) {
+    if (!elements.classId || String(elements.classId.value || '').trim()) {
+        return;
+    }
+    if (!elements.classColor || !elements.classTextColor) {
+        return;
+    }
+    const pair = getDefaultSimsonLevelColors(levelId);
+    if (!pair) {
+        return;
+    }
+    elements.classColor.value = pair.color;
+    elements.classTextColor.value = pair.textColor;
+}
+
 function isSimsonLevelPreset(value) {
     return !!getSimsonLevelById(value);
 }
@@ -8607,6 +8695,7 @@ function handleClassLevelPresetChange() {
     if (def && def.grade) {
         elements.classGrade.value = def.grade;
     }
+    applyDefaultSimsonLevelColorsToNewClassForm(elements.classLevel.value);
 }
 
 function setupSimsonLevelControls() {
