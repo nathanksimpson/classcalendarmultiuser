@@ -72,4 +72,72 @@ const normalized = DP.normalizeDebateBookPeriods({
 assert(normalized.length === 2, 'duplicate start dates collapse');
 assert(normalized[0].startDate === '2026-01-15', 'sorted by date');
 
+// Multi-period schedule: saved debateBookPeriods must yield more than one Day 1–4 cycle
+await import(pathToFileURL(path.join(root, 'js', 'schedule-core.js')).href);
+const { CCPSchedule } = globalThis;
+
+function parseISODateLocal(dateStr) {
+    const parts = dateStr.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function countMeetingDaysInRange(rangeStartStr, rangeEndStr, meetingDays) {
+    const set = new Set(meetingDays);
+    const start = parseISODateLocal(rangeStartStr);
+    const end = parseISODateLocal(rangeEndStr);
+    let count = 0;
+    const cur = new Date(start);
+    while (cur <= end) {
+        if (set.has(cur.getDay())) {
+            count += 1;
+        }
+        cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+}
+
+function simulateDebatePeriodLessonCount(classData, meetingDays, totalLessons = 4) {
+    const periods = DP.enumerateDebatePeriodsInTerm(classData);
+    let scheduled = 0;
+    periods.forEach((period) => {
+        const eligible = countMeetingDaysInRange(
+            period.rangeStartDate,
+            period.rangeEndDate,
+            meetingDays
+        );
+        const { groups } = CCPSchedule.buildLessonGroups(totalLessons, []);
+        scheduled += Math.min(groups.length, eligible);
+    });
+    return scheduled;
+}
+
+const debateClass = {
+    startDate: '2026-01-06',
+    endDate: '2026-03-31',
+    book: 'Default Book',
+    meetingDays: [1, 3, 5],
+    totalLessons: 4,
+    debateBookPeriods: [
+        { id: 'p1', startDate: '2026-01-06', book: 'Book 1' },
+        { id: 'p2', startDate: '2026-01-27', book: 'Book 2' },
+        { id: 'p3', startDate: '2026-02-24', book: 'Book 3' }
+    ]
+};
+
+const multiPeriodLessons = simulateDebatePeriodLessonCount(debateClass, debateClass.meetingDays);
+assert(multiPeriodLessons > 4, 'multi-period granular schedule schedules more than one Day 1–4 cycle');
+
+const collapsedClass = {
+    startDate: debateClass.startDate,
+    endDate: debateClass.endDate,
+    book: debateClass.book,
+    meetingDays: debateClass.meetingDays,
+    totalLessons: 4,
+    debateBookPeriods: []
+};
+DP.ensureDebateBookPeriodsForClass(collapsedClass);
+const collapsedLessons = simulateDebatePeriodLessonCount(collapsedClass, debateClass.meetingDays);
+assert(collapsedLessons <= 4, 'single fallback period schedules at most one Day 1–4 cycle');
+assert(multiPeriodLessons > collapsedLessons, 'saved periods must out-schedule collapsed fallback');
+
 console.log('debate-periods.test.mjs: all passed');

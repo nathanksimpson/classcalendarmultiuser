@@ -9703,8 +9703,6 @@ function buildClassSnapshotFromForm() {
             days: getCustomLessonDatesFromInputs(totalLessons)
         } : (existing?.customSchedule || null),
         syllabusUnits: collectSyllabusUnitsFromForm(),
-        debateBookPeriods: isDebateSchedule ? collectDebateBookPeriodsFromForm() : (existingClass?.debateBookPeriods || []),
-        compressionMergesByPeriod: isDebateSchedule ? collectCompressionMergesByPeriodFromForm() : (existingClass?.compressionMergesByPeriod || {}),
         book: elements.classBook.value,
         grade: (elements.classGrade.value || '').trim(),
         levelPreset: elements.classLevel.value,
@@ -10441,11 +10439,11 @@ function populateClassForm(classData = null, options = {}) {
             }
         }
 
-        renderDebateBookPeriodRows(
-            classUsesDebateCompression(classData)
-                ? (classData.debateBookPeriods || [])
-                : (classData.booksByMonth || {})
-        );
+        if (classUsesDebateCompression(classData)) {
+            renderDebateBookPeriodRows(classData.debateBookPeriods || []);
+        } else {
+            renderBooksByMonthRows(classData.booksByMonth || {});
+        }
         if (classData.useAutoTermEnd === true && classData.startDate) {
             syncClassTermEndAndBooks();
         }
@@ -10904,6 +10902,10 @@ function handleClassSubmit(e) {
     const { period, periodByWeekday } = collectPeriodFieldsForSave();
     const existingId = elements.classId.value;
     const existingClass = existingId ? appData.classes.find((c) => c.id === existingId) : null;
+    const debateBookPeriods = isDebateSchedule ? collectDebateBookPeriodsFromForm() : [];
+    const compressionMergesByPeriod = isDebateSchedule
+        ? collectCompressionMergesByPeriodFromForm()
+        : (existingClass?.compressionMergesByPeriod || {});
 
     const classData = {
         id: elements.classId.value || generateId(),
@@ -10930,6 +10932,12 @@ function handleClassSubmit(e) {
         color: elements.classColor.value,
         textColor: elements.classTextColor.value || DEFAULT_CLASS_TEXT_COLOR,
         compressionMerges: compressionMerges,
+        ...(isDebateSchedule ? {
+            debateBookPeriods,
+            debateBookPeriodsMigrated: true,
+            compressionMergesByPeriod,
+            booksByMonth: collectBooksByMonthFromForm()
+        } : {}),
         customSchedule: isCustomSchedule ? {
             enabled: true,
             days: getCustomLessonDatesFromInputs(totalLessons)
@@ -10959,6 +10967,7 @@ function handleClassSubmit(e) {
     }
     
     const isUpdate = Boolean(existingId);
+    invalidateScheduleCache();
     saveData();
     renderCalendar();
     renderClassList();
@@ -11605,7 +11614,7 @@ function calculateAutoLessonDates(classData) {
     return {
         lessons,
         compressed: lessons.some(l => l.compressed),
-        availableCount: monthlyDetails.reduce((sum, d) => sum + d.eligibleCount, 0),
+        availableCount: periodDetails.reduce((sum, d) => sum + d.eligibleCount, 0),
         isCustom: false,
         groups: templateGroups,
         totalGroups: templateGroups.length,
