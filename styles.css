@@ -2728,6 +2728,8 @@ body.hide-summary-print .print-summary {
 }
 
 .book-month-row input[type="month"],
+.book-month-row input[type="date"],
+.book-month-row input.book-period-start,
 .book-month-row input[type="text"] {
     width: 100%;
     padding: 8px 10px;
@@ -2739,6 +2741,24 @@ body.hide-summary-print .print-summary {
 .btn-small {
     padding: 6px 12px;
     font-size: 0.85rem;
+}
+
+.compression-period-block {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.compression-period-label {
+    margin: 0 0 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.compression-period-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
 }
 
 .books-by-month-actions {

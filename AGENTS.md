@@ -52,6 +52,7 @@ Without `npm start`, the app cannot load or save calendar data.
 | Local server | `server/index.js`, `server/users.js`, `server/calendars.js`, `server/app-settings.js` |
 | Client sync | `js/calendar-sync.js`, `js/team-auth.js` |
 | Client UI | `app.js`, `index.html`, `styles.css` |
+| Debate book periods | `js/debate-periods.js` — start-date book periods (not calendar month only) |
 | Kakao / waiting | `login.html`, `pending-access.html`, `server/kakao.js`, `server/users.js` (`resolveKakaoLoginUser`) |
 | Admin | `admin.html`, `js/admin.js` |
 | Migrations | `worker/migrations/0001` … `0005` |
@@ -63,6 +64,7 @@ Without `npm start`, the app cannot load or save calendar data.
 3. `409`: revision conflict has `body.document`; duplicate name has `code: DUPLICATE_NAME`.
 4. Lock bugs: same `calendarId` on both browsers; `?lockDebug=1`; hard refresh after deploy.
 5. Do not edit Cursor plan files unless the user asks.
+6. Debate scheduling uses **`debateBookPeriods`** (start date per book), not `booksByMonth` alone. Bump `debate-periods.js` and `app.js` cache strings in `index.html` when changing period logic.
 
 ## Local dev processes (optional)
 

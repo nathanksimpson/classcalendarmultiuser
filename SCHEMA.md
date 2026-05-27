@@ -43,17 +43,20 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `levelCustom` | string | Optional custom level |
 | `grade` | string | Optional (e.g. 중1). **Empty grade:** does not match grade-specific holidays; “all elementary” / “all middle school” bands still apply |
 | `book` | string | Default book |
-| `booksByMonth` | object | `YYYY-MM` → book title |
+| `booksByMonth` | object | Legacy `YYYY-MM` → book title (migrated to `debateBookPeriods` on load) |
+| `debateBookPeriods` | array | Debate only: `{ id, startDate, book }[]` — book + Day 1–4 cycle from each `startDate` until the next period |
+| `debateBookPeriodsMigrated` | boolean | One-time migration flag from `booksByMonth` |
 | `meetingDays` | number[] | 0=Sun … 6=Sat |
 | `classTypeId` | string | Builtin or custom type |
 | `scheduleModel` | string | `debateMonthly` (weekly + day merges) or `sequentialTerm` (lessons 1…N across term) |
 | `startDate`, `endDate` | string | `YYYY-MM-DD` |
 | `termCalendarMonths` | number | |
 | `useAutoTermEnd` | boolean | |
-| `totalLessons` | number | Per month in auto schedule |
-| `compressionMode` | string | Debate: `autoWhenNeeded`, `manual`, `manualPerMonth`. Multi-day: `sequentialTerm` |
-| `compressionMerges` | number[] | Merge start days (global manual fallback) |
-| `compressionMergesByMonth` | object | `YYYY-MM` → merge start days (debate / per-month mode) |
+| `totalLessons` | number | Per book period in debate auto schedule (typically 4) |
+| `compressionMode` | string | Debate: `autoWhenNeeded`, `manual`, `manualPerMonth` (per book period). Multi-day: `sequentialTerm` |
+| `compressionMerges` | number[] | Merge start days (global manual / auto fallback) |
+| `compressionMergesByPeriod` | object | `periodId` → merge start days (`manualPerMonth` mode) |
+| `compressionMergesByMonth` | object | Legacy `YYYY-MM` → merges (migrated to `compressionMergesByPeriod`) |
 | `customSchedule` | object | Optional manual dates |
 | `syllabusUnits` | array | Optional planning units (see below) |
 | `syllabusGeneralNotes` | string | Optional general notes and instructions (shown at top of printed syllabus) |

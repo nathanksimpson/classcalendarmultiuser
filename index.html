@@ -445,7 +445,7 @@
                             <th data-i18n="level">Level</th>
                             <th data-i18n="grade">Grade</th>
                             <th data-i18n="defaultBook">Default book</th>
-                            <th data-i18n="booksByMonth">Books by month</th>
+                            <th data-i18n="debateBookPeriods">Book periods</th>
                             <th data-i18n="startDate">Start Date</th>
                             <th data-i18n="endDate">End Date</th>
                             <th data-i18n="day">Day</th>
@@ -584,13 +584,13 @@
                     <input type="text" id="classBook" required data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
                 </div>
 
-                <div class="form-group books-by-month-section">
-                    <label data-i18n="booksByMonth">Books by month</label>
-                    <p class="section-hint" data-i18n="booksByMonthHint">One book per calendar month (shown on lessons in that month). Leave a month blank to use the default book.</p>
-                    <p class="section-hint" data-i18n="termCalendarMonthsHint">One book unit per month. Default is 3 months = 3 books.</p>
-                    <div id="booksByMonthRows" class="books-by-month-rows"></div>
+                <div class="form-group books-by-month-section debate-book-periods-section">
+                    <label data-i18n="debateBookPeriods">Book periods (debate)</label>
+                    <p class="section-hint" data-i18n="debateBookPeriodsHint">Each row is when a new debate book starts (any date in the term). Lessons from that date through the next period use that book and restart Day 1–4.</p>
+                    <p class="section-hint" data-i18n="termCalendarMonthsHint">Suggested: one period per calendar month; adjust start dates (e.g. last week of the prior month).</p>
+                    <div id="booksByMonthRows" class="books-by-month-rows debate-book-period-rows"></div>
                     <div class="form-row books-by-month-actions">
-                        <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookMonth">Add month</button>
+                        <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookPeriod">Add book period</button>
                         <button type="button" id="fillBooksFromDefaultBtn" class="btn btn-outline btn-small" data-i18n="fillBooksFromDefault">Fill term from default book</button>
                     </div>
                 </div>
@@ -675,13 +675,13 @@
                         </label>
                         <label class="checkbox-label">
                             <input type="radio" name="compressionMode" id="compressionModeManualPerMonth" value="manualPerMonth">
-                            <span data-i18n="compressionModeManualPerMonth">Per month (choose merges for each calendar month)</span>
+                            <span data-i18n="compressionModeManualPerMonth">Per book period (choose merges for each period)</span>
                         </label>
                     </div>
                 </div>
 
                 <div id="compressionByMonthSection" class="compression-by-month-section" style="display: none;">
-                    <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each month (typical for weekly debate). Each month can differ when holidays shorten the schedule.</p>
+                    <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each book period (typical for weekly debate). Each period can differ when holidays shorten the schedule.</p>
                     <div id="compressionByMonthRows" class="compression-by-month-rows"></div>
                 </div>
 
@@ -1157,7 +1157,8 @@
     <script defer src="js/load-extension-scripts.js?v=20260527-perf-a"></script>
     <script defer src="js/team-auth.js?v=20260525-auth"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
-    <script defer src="app.js?v=20260527-phase1-ui"></script>
+    <script defer src="js/debate-periods.js?v=20260527-book-periods"></script>
+    <script defer src="app.js?v=20260527-debate-periods"></script>
 </body>
 </html>
 
