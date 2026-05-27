@@ -229,6 +229,9 @@ const translations = {
         curriculumEditorNameLabel: 'Curriculum name',
         curriculumDeleteBtn: 'Delete curriculum',
         curriculumDeleteConfirm: 'Delete this custom curriculum? Classes that used it keep their saved data; the book will no longer appear in the list.',
+        curriculumDuplicateBtn: 'Duplicate curriculum',
+        curriculumDuplicateDone: 'Duplicated as “{name}”.',
+        curriculumDuplicateFailed: 'Could not duplicate this curriculum.',
         curriculumEditorApplyHint: 'On the class form, pick Level and Book, then Apply from curriculum.',
         dataCurriculumLinkHint: 'Edit books, session pages, and program defaults using the Curriculum tab in the bar above.',
         classCurriculumLevel: 'Level',
@@ -893,6 +896,9 @@ const translations = {
         curriculumEditorNameLabel: '교재과정 이름',
         curriculumDeleteBtn: '교재과정 삭제',
         curriculumDeleteConfirm: '이 사용자 교재과정을 삭제할까요? 이미 쓰는 수업 데이터는 남고, 목록에서만 사라집니다.',
+        curriculumDuplicateBtn: '교재과정 복제',
+        curriculumDuplicateDone: '“{name}”(으)로 복제했습니다.',
+        curriculumDuplicateFailed: '교재과정을 복제할 수 없습니다.',
         curriculumEditorApplyHint: '수업 양식에서 레벨·교재 선택 후 교재과정에서 적용을 누르세요.',
         dataCurriculumLinkHint: '위 탭 바의 교재과정 탭에서 교재, 회차, 기본 설정을 편집하세요.',
         classCurriculumLevel: '레벨',
@@ -2647,6 +2653,16 @@ function handleAddCurriculum() {
     setAppStatusMessage(t('curriculumAddBtn') + ': ' + trimmed, false);
 }
 
+function handleDuplicateCurriculum(newId) {
+    if (!newId || !window.CCPBooksEditor) {
+        return;
+    }
+    curriculumTabSelectedId = newId;
+    initCurriculumTabPanel({ curriculumId: newId });
+    const name = window.CCPBooksEditor.getCurriculumDisplayName(newId, appData);
+    setAppStatusMessage(t('curriculumDuplicateDone').replace('{name}', name), false);
+}
+
 function initCurriculumTabPanel(options = {}) {
     if (options.curriculumId) {
         curriculumTabSelectedId = options.curriculumId;
@@ -2665,7 +2681,8 @@ function initCurriculumTabPanel(options = {}) {
                     curriculumTabSelectedId = null;
                     mount.innerHTML = `<p class="module-empty-hint" data-i18n="curriculumTabPick">${escapeHtml(t('curriculumTabPick'))}</p>`;
                 }
-            }
+            },
+            onDuplicated: handleDuplicateCurriculum
         });
     } else {
         mount.innerHTML = `<p class="module-empty-hint" data-i18n="curriculumTabPick">${escapeHtml(t('curriculumTabPick'))}</p>`;

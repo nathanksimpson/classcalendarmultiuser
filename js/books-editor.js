@@ -384,6 +384,25 @@
         return candidate;
     }
 
+    function uniqueCurriculumTitle(baseTitle, appData) {
+        const books = discoverBooks(appData || getAppData());
+        const names = new Set(
+            books.map((b) => (b.displayName || b.name || '').trim().toLowerCase()).filter(Boolean)
+        );
+        const base = (baseTitle || '').trim();
+        if (!base) {
+            return 'Curriculum';
+        }
+        if (!names.has(base.toLowerCase())) {
+            return base;
+        }
+        let n = 2;
+        while (names.has(`${base} (${n})`.toLowerCase())) {
+            n += 1;
+        }
+        return `${base} (${n})`;
+    }
+
     function createCurriculum(patch, appData) {
         const data = appData || getAppData();
         const title = (patch && (patch.bookTitle || patch.title) || '').trim();
@@ -432,6 +451,43 @@
         hooks.saveData();
         hooks.onBooksSaved();
         return true;
+    }
+
+    function duplicateCurriculum(sourceId, appData) {
+        const data = appData || getAppData();
+        const id = (sourceId || '').trim();
+        if (!id) {
+            return null;
+        }
+        const book = getBookById(id, data);
+        if (!book) {
+            return null;
+        }
+        const sessions = deepClone(getTemplatesForBookId(id, data));
+        const cur = getCurriculumRecord(id, data);
+        const classDefaults = deepClone(cur && cur.classDefaults ? cur.classDefaults : {});
+        const isDebate = isDebateBookRecord(book) || book.isVirtualDebate;
+        const factoryLevels = book.levels && book.levels.length
+            ? book.levels
+            : (isDebate ? getDebateDefaultApplicableLevels() : []);
+        const applicable = getStoredApplicableLevels(id, data, factoryLevels, isDebate);
+        const applicableLevels = applicable.isAllLevels ? [] : applicable.levels.slice();
+        const baseTitle = (cur && cur.bookTitle) || book.displayName || book.name || id;
+        const newTitle = uniqueCurriculumTitle(baseTitle, data);
+        const newId = createCurriculum({
+            bookTitle: newTitle,
+            sessions,
+            applicableLevels,
+            classDefaults
+        }, data);
+        if (newId) {
+            const rec = ensureCurriculumOverrides(data)[newId];
+            if (rec) {
+                rec.duplicatedFrom = id;
+                hooks.saveData();
+            }
+        }
+        return newId;
     }
 
     function resolveDebatePresetIdForLevel(level) {
@@ -1027,6 +1083,7 @@
 
     let fullPageEditingBookId = null;
     let fullPageAfterSave = null;
+    let fullPageAfterDuplicate = null;
 
     function getCheckedApplicableLevelIds(prefix) {
         const root = document.getElementById(`${prefix}ApplicabilityLevels`);
@@ -1176,6 +1233,7 @@
         }
         fullPageEditingBookId = curriculumId;
         fullPageAfterSave = options && typeof options.onSaved === 'function' ? options.onSaved : null;
+        fullPageAfterDuplicate = options && typeof options.onDuplicated === 'function' ? options.onDuplicated : null;
         const book = getBookById(curriculumId, getAppData());
         if (!book) {
             mountEl.innerHTML = '';
@@ -1186,6 +1244,7 @@
         const tbodyId = `${prefix}EditorTableBody`;
         const saveId = `${prefix}EditorSaveBtn`;
         const resetId = `${prefix}EditorResetBtn`;
+        const duplicateId = `${prefix}EditorDuplicateBtn`;
         const toolbarId = `${prefix}EditorToolbar`;
         const isCustom = !!book.isCustom;
         const applicabilityHtml = renderApplicabilityPanelHtml(prefix, book, curriculumId, getAppData());
@@ -1214,6 +1273,7 @@
             </div>
             <div class="form-actions books-editor-actions">
               <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${resetDefault}</button>
+              <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
               <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
             </div>
           </div>`;
@@ -1252,12 +1312,15 @@
                 }
             }
             if (e.target.id === resetId && fullPageEditingBookId) {
-                const confirmKey = isCustom ? 'curriculumDeleteConfirm' : 'booksEditorResetConfirm';
+                const activeBook = getBookById(fullPageEditingBookId, getAppData());
+                const confirmKey = activeBook && activeBook.isCustom
+                    ? 'curriculumDeleteConfirm'
+                    : 'booksEditorResetConfirm';
                 if (!confirm(hooks.t(confirmKey))) {
                     return;
                 }
                 resetBookToFactory(fullPageEditingBookId, getAppData());
-                if (isCustom) {
+                if (activeBook && activeBook.isCustom) {
                     fullPageEditingBookId = null;
                     mountEl.innerHTML = `<p class="module-empty-hint">${escapeHtml(hooks.t('curriculumTabPick'))}</p>`;
                     if (fullPageAfterSave) {
@@ -1271,6 +1334,16 @@
                     document.getElementById(metaId),
                     { toolbarEl: document.getElementById(toolbarId) }
                 );
+            }
+            if (e.target.id === duplicateId && fullPageEditingBookId) {
+                const newId = duplicateCurriculum(fullPageEditingBookId, getAppData());
+                if (!newId) {
+                    alert(hooks.t('curriculumDuplicateFailed'));
+                    return;
+                }
+                if (fullPageAfterDuplicate) {
+                    fullPageAfterDuplicate(newId);
+                }
             }
         });
     }
@@ -1449,6 +1522,7 @@
         buildMergedClassDefaults,
         isCustomCurriculum,
         createCurriculum,
+        duplicateCurriculum,
         deleteCustomCurriculum,
         migrateLegacyToCurriculum,
         ensureCurriculumOverrides,

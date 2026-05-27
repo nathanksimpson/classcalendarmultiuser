@@ -11,7 +11,7 @@
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260529-curriculum',
+        'js/books-editor.js?v=20260529-curriculum-duplicate',
         'js/homework-import.js',
         'js/homework-tab.js',
         'js/syllabus-templates.js?v=20260527-debate-templates'
