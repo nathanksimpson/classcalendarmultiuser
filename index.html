@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-tile-font-readability">
+    <link rel="stylesheet" href="styles.css?v=20260527-print-ui-font">
     <script>
         (function () {
             try {
@@ -1066,6 +1066,9 @@
 
     <template id="printFormTemplate">
             <form id="printForm" class="print-options-form" data-print-form-mode="all">
+                <div class="form-actions print-form-header-actions">
+                    <button type="submit" class="btn btn-primary" id="printRunBtn" data-i18n="printBtn">Print</button>
+                </div>
                 <div class="print-form-include-row form-group">
                     <span class="print-form-include-label" data-i18n="printIncludeLabel">Include in this print:</span>
                     <label class="checkbox-label"><input type="checkbox" id="printIncludeCalendar" checked><span data-i18n="printIncludeCalendar">Calendar (landscape)</span></label>
@@ -1127,9 +1130,6 @@
                     </div>
                     <p id="printLessonFilterHint" class="section-hint print-lesson-filter-hint" hidden></p>
                 </section>
-                <div class="form-actions print-form-footer-actions">
-                    <button type="submit" class="btn btn-primary" id="printRunBtn" data-i18n="printBtn">Print</button>
-                </div>
             </form>
     </template>
 
@@ -1158,7 +1158,7 @@
     <script defer src="js/team-auth.js?v=20260525-auth"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="app.js?v=20260527-tile-font-readability"></script>
+    <script defer src="app.js?v=20260527-print-ui-font"></script>
 </body>
 </html>
 

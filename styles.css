@@ -2319,7 +2319,7 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .holiday-name {
-        font-size: min(var(--cal-tile-font, 5.5pt), 14pt) !important;
+        font-size: min(var(--cal-tile-font, 5.5pt), 10pt) !important;
         padding: 0 2px 1px !important;
         line-height: 1.1;
     }
@@ -2336,7 +2336,7 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .event-bar {
-        font-size: min(var(--cal-tile-font, 5.5pt), 14pt);
+        font-size: min(var(--cal-tile-font, 5.5pt), 10pt);
         padding: 0 2px;
         line-height: 1.05;
         gap: 0;
@@ -2344,12 +2344,12 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .event-bar .event-book {
-        font-size: min(var(--cal-tile-font-sm, 5pt), 12pt);
+        font-size: min(var(--cal-tile-font-sm, 5pt), 8.5pt);
         line-height: 1.05;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-event-chip {
-        font-size: min(var(--cal-tile-font, 5pt), 14pt);
+        font-size: min(var(--cal-tile-font, 5pt), 10pt);
         padding: 0 2px;
         line-height: 1.05;
         border-radius: 2px;
@@ -2482,20 +2482,20 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     .event-bar {
-        font-size: min(var(--cal-tile-font, 7pt), 14pt);
+        font-size: min(var(--cal-tile-font, 7pt), 10pt);
         padding: 2px 4px;
     }
 
     .calendar-event-chip {
-        font-size: min(var(--cal-tile-font, 7pt), 14pt);
+        font-size: min(var(--cal-tile-font, 7pt), 10pt);
     }
 
     .event-bar .event-book {
-        font-size: min(var(--cal-tile-font-sm, 6pt), 12pt);
+        font-size: min(var(--cal-tile-font-sm, 6pt), 8.5pt);
     }
 
     .holiday-name {
-        font-size: min(var(--cal-tile-font, 7pt), 14pt);
+        font-size: min(var(--cal-tile-font, 7pt), 10pt);
     }
     
     /* Print Summary */
@@ -4515,6 +4515,12 @@ body[data-active-tab="events"] .app-term-quick-actions {
     font-size: 0.9rem;
     color: var(--text-primary);
     margin-right: 0.25rem;
+}
+
+.print-form-header-actions {
+    margin: 0 0 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .print-form-footer-actions {

@@ -12544,7 +12544,7 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     line-height: 1.1;
 }
 .app-print-document--calendar .holiday-name {
-    font-size: min(var(--cal-tile-font, 5.5pt), 14pt) !important;
+    font-size: min(var(--cal-tile-font, 5.5pt), 10pt) !important;
     padding: 0 2px 1px !important;
     line-height: 1.1;
 }
@@ -12560,7 +12560,7 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     margin-top: 0;
 }
 .app-print-document--calendar .event-bar {
-    font-size: min(var(--cal-tile-font, 5.5pt), 14pt);
+    font-size: min(var(--cal-tile-font, 5.5pt), 10pt);
     padding: 0 2px;
     line-height: 1.05;
     gap: 0;
@@ -12572,12 +12572,12 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     line-height: 1.05;
 }
 .app-print-document--calendar .event-bar .event-book {
-    font-size: min(var(--cal-tile-font-sm, 5pt), 12pt);
+    font-size: min(var(--cal-tile-font-sm, 5pt), 8.5pt);
     font-weight: 500;
     opacity: 0.95;
 }
 .app-print-document--calendar .calendar-event-chip {
-    font-size: min(var(--cal-tile-font, 5pt), 14pt);
+    font-size: min(var(--cal-tile-font, 5pt), 10pt);
     padding: 0 2px;
     line-height: 1.05;
     border-radius: 2px;
@@ -12792,15 +12792,15 @@ const CALENDAR_TILE_TYPO = {
         bookWeight: 1
     },
     print: {
-        min: 6,
-        max: 14,
+        min: 5,
+        max: 10,
         unit: 'pt',
         lineHeight: 1.05,
-        heightRatio: 0.45,
-        widthRatio: 0.11,
+        heightRatio: 0.36,
+        widthRatio: 0.09,
         gap: 1,
         padding: 4,
-        bookWeight: 1.35
+        bookWeight: 1
     }
 };
 
