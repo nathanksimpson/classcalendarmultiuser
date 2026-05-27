@@ -9140,6 +9140,7 @@ function setupEventListeners() {
     setupPrintSyllabusControls();
     setupPrintColorModeIsolation();
     setupAppPrintOpenerSafeties();
+    setupCalendarTileTypographyObserver();
 
     // Modal Close Buttons
     document.getElementById('closeClassModal').addEventListener('click', () => closeModal(elements.classModal));
@@ -12023,6 +12024,7 @@ function renderCalendar() {
     updatePrintSummary();
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
+    scheduleCalendarTileTypographyFit();
     if (isLessonFilterPopoverOpen()) {
         renderLessonFilterPopoverBody();
         updateLessonFilterStatusText();
@@ -12498,6 +12500,38 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     height: auto;
     overflow: hidden;
     padding: 1px !important;
+    display: flex;
+    flex-direction: column;
+}
+.app-print-document--calendar .calendar-day .day-number {
+    flex-shrink: 0;
+}
+.app-print-document--calendar .calendar-day .holiday-name,
+.app-print-document--calendar .calendar-day .calendar-event-chips {
+    flex-shrink: 0;
+}
+.app-print-document--calendar .calendar-day .day-events {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.app-print-document--calendar .calendar-day .event-bar {
+    flex: 1 1 0;
+    min-height: 0;
+    justify-content: center;
+}
+.app-print-document--calendar .calendar-day .calendar-event-chips {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.app-print-document--calendar .calendar-day .calendar-event-chip {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
 }
 .app-print-document--calendar .calendar-day-header {
     padding: 2px 1px !important;
@@ -12510,7 +12544,7 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     line-height: 1.1;
 }
 .app-print-document--calendar .holiday-name {
-    font-size: 5.5pt !important;
+    font-size: var(--cal-tile-font, 5.5pt) !important;
     padding: 0 2px 1px !important;
     line-height: 1.1;
 }
@@ -12520,14 +12554,13 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     padding: 0 1px;
 }
 .app-print-document--calendar .day-events {
-    max-height: 16mm;
     overflow: hidden;
     gap: 0 !important;
     padding: 0 1px !important;
     margin-top: 0;
 }
 .app-print-document--calendar .event-bar {
-    font-size: 5.5pt;
+    font-size: var(--cal-tile-font, 5.5pt);
     padding: 0 2px;
     line-height: 1.05;
     gap: 0;
@@ -12539,12 +12572,12 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     line-height: 1.05;
 }
 .app-print-document--calendar .event-bar .event-book {
-    font-size: 5pt;
+    font-size: var(--cal-tile-font-sm, 5pt);
     font-weight: 500;
     opacity: 0.95;
 }
 .app-print-document--calendar .calendar-event-chip {
-    font-size: 5pt;
+    font-size: var(--cal-tile-font, 5pt);
     padding: 0 2px;
     line-height: 1.05;
     border-radius: 2px;
@@ -12745,6 +12778,207 @@ function measureMmToPxForPrint(doc) {
     return px;
 }
 
+/** Screen / print typography bounds for calendar class, holiday, and event tiles. */
+const CALENDAR_TILE_TYPO = {
+    screen: {
+        min: 9,
+        max: 18,
+        lineHeight: 1.15,
+        heightRatio: 0.45,
+        widthRatio: 0.11,
+        gap: 2,
+        padding: 8,
+        bookWeight: 1.35
+    },
+    print: {
+        min: 8,
+        max: 19,
+        lineHeight: 1.05,
+        heightRatio: 0.45,
+        widthRatio: 0.11,
+        gap: 1,
+        padding: 4,
+        bookWeight: 1.35
+    }
+};
+
+function getCalendarTileTypographyConfig(mode) {
+    return mode === 'print' ? CALENDAR_TILE_TYPO.print : CALENDAR_TILE_TYPO.screen;
+}
+
+function resolveCalendarTileTypographyRoot(doc, root) {
+    if (!root) {
+        return null;
+    }
+    if (typeof root === 'string') {
+        return doc.querySelector(root);
+    }
+    return root;
+}
+
+function countCalendarDayTileWeight(day, cfg) {
+    let weight = 0;
+    weight += day.querySelectorAll('.holiday-name').length;
+    weight += day.querySelectorAll('.calendar-event-chip').length;
+    day.querySelectorAll('.event-bar').forEach((bar) => {
+        weight += bar.querySelector('.event-book') ? cfg.bookWeight : 1;
+    });
+    return weight;
+}
+
+function clearCalendarTileTypographyOnDay(day) {
+    day.style.removeProperty('--cal-tile-font');
+    day.style.removeProperty('--cal-tile-font-sm');
+    day.removeAttribute('data-cal-tile-lines');
+    day.querySelectorAll('.holiday-name, .calendar-event-chip, .event-bar, .calendar-event-chips, .day-events')
+        .forEach((el) => {
+            el.style.minHeight = '';
+        });
+}
+
+function clearCalendarTileTypography(doc, root) {
+    const scope = resolveCalendarTileTypographyRoot(doc, root);
+    if (!scope) {
+        return;
+    }
+    scope.querySelectorAll('.calendar-day').forEach(clearCalendarTileTypographyOnDay);
+}
+
+function fitCalendarDayTileTypography(day, cfg) {
+    clearCalendarTileTypographyOnDay(day);
+
+    const tileWeight = countCalendarDayTileWeight(day, cfg);
+    if (tileWeight <= 0) {
+        return;
+    }
+
+    const cellH = day.offsetHeight;
+    const cellW = day.clientWidth;
+    if (cellH < 4 || cellW < 4) {
+        return;
+    }
+
+    const dayNum = day.querySelector('.day-number');
+    const topH = (dayNum ? dayNum.offsetHeight : 0) + cfg.padding;
+    const contentH = Math.max(0, cellH - topH);
+    const totalGap = cfg.gap * Math.max(0, Math.ceil(tileWeight) - 1);
+    const perTileH = (contentH - totalGap) / tileWeight;
+    if (perTileH < 1) {
+        return;
+    }
+
+    const fontFromH = perTileH * cfg.heightRatio;
+    const fontFromW = cellW * cfg.widthRatio;
+    let fontSize = Math.min(fontFromH, fontFromW, cfg.max);
+    fontSize = Math.max(fontSize, cfg.min);
+
+    const tileCount = Math.ceil(tileWeight);
+    let allowTwoLines = false;
+    if (tileCount <= 2) {
+        const twoLineFont = Math.min(
+            perTileH / (2 * cfg.lineHeight),
+            fontFromW,
+            cfg.max
+        );
+        const clampedTwoLine = Math.max(twoLineFont, cfg.min);
+        const twoLineBlock = (2 * clampedTwoLine * cfg.lineHeight) + cfg.gap;
+        if (perTileH >= twoLineBlock) {
+            allowTwoLines = true;
+            fontSize = clampedTwoLine;
+        }
+    }
+
+    const tilePx = Math.max(1, Math.floor(perTileH));
+    day.style.setProperty('--cal-tile-font', `${fontSize.toFixed(2)}px`);
+    day.style.setProperty('--cal-tile-font-sm', `${(fontSize * 0.85).toFixed(2)}px`);
+    if (allowTwoLines) {
+        day.setAttribute('data-cal-tile-lines', '2');
+    }
+
+    day.querySelectorAll('.holiday-name, .calendar-event-chip').forEach((tile) => {
+        tile.style.minHeight = `${tilePx}px`;
+    });
+    day.querySelectorAll('.event-bar').forEach((bar) => {
+        const barWeight = bar.querySelector('.event-book') ? cfg.bookWeight : 1;
+        bar.style.minHeight = `${Math.max(1, Math.floor(perTileH * barWeight))}px`;
+    });
+
+    const chipsWrap = day.querySelector('.calendar-event-chips');
+    if (chipsWrap) {
+        const chipCount = chipsWrap.querySelectorAll('.calendar-event-chip').length;
+        if (chipCount > 0) {
+            chipsWrap.style.minHeight = `${Math.max(1, chipCount * tilePx + cfg.gap * Math.max(0, chipCount - 1))}px`;
+        }
+    }
+    const eventsWrap = day.querySelector('.day-events');
+    if (eventsWrap) {
+        const barCount = eventsWrap.querySelectorAll('.event-bar').length;
+        if (barCount > 0) {
+            let eventsMin = 0;
+            eventsWrap.querySelectorAll('.event-bar').forEach((bar) => {
+                const barWeight = bar.querySelector('.event-book') ? cfg.bookWeight : 1;
+                eventsMin += Math.max(1, Math.floor(perTileH * barWeight));
+            });
+            eventsMin += cfg.gap * Math.max(0, barCount - 1);
+            eventsWrap.style.minHeight = `${Math.max(1, eventsMin)}px`;
+        }
+    }
+}
+
+/**
+ * Scale class, holiday, and event tile fonts to fill each day cell.
+ * @param {Document} doc
+ * @param {Element|string} root
+ * @param {{ mode?: 'screen'|'print' }} [options]
+ */
+function fitCalendarTileTypography(doc, root, options = {}) {
+    const scope = resolveCalendarTileTypographyRoot(doc, root);
+    if (!scope) {
+        return;
+    }
+    const cfg = getCalendarTileTypographyConfig(options.mode || 'screen');
+    scope.querySelectorAll('.calendar-day').forEach((day) => {
+        fitCalendarDayTileTypography(day, cfg);
+    });
+}
+
+let calendarTileTypographyFitScheduled = false;
+let calendarTileTypographyResizeObserver = null;
+let calendarTileTypographyResizeTimer = null;
+
+function scheduleCalendarTileTypographyFit() {
+    if (calendarTileTypographyFitScheduled) {
+        return;
+    }
+    calendarTileTypographyFitScheduled = true;
+    requestAnimationFrame(() => {
+        calendarTileTypographyFitScheduled = false;
+        if (!elements.calendarContainer) {
+            return;
+        }
+        fitCalendarTileTypography(document, elements.calendarContainer, { mode: 'screen' });
+    });
+}
+
+function setupCalendarTileTypographyObserver() {
+    if (calendarTileTypographyResizeObserver || !elements.calendarContainer) {
+        return;
+    }
+    if (typeof ResizeObserver === 'undefined') {
+        return;
+    }
+    calendarTileTypographyResizeObserver = new ResizeObserver(() => {
+        if (calendarTileTypographyResizeTimer !== null) {
+            clearTimeout(calendarTileTypographyResizeTimer);
+        }
+        calendarTileTypographyResizeTimer = setTimeout(() => {
+            calendarTileTypographyResizeTimer = null;
+            scheduleCalendarTileTypographyFit();
+        }, 100);
+    });
+    calendarTileTypographyResizeObserver.observe(elements.calendarContainer);
+}
+
 function computeCalendarMonthScale(naturalH, naturalW, contentWpx, contentHpx) {
     if (!naturalH || naturalH < 1 || !naturalW || naturalW < 1) {
         return 1;
@@ -12800,6 +13034,14 @@ function layoutCalendarMonthForLandscapePrint(month, contentWpx, contentHpx) {
         }
         el.style.minHeight = `${rowMinPx}px`;
         el.style.boxSizing = 'border-box';
+    });
+
+    fitCalendarTileTypography(month.ownerDocument, month, { mode: 'print' });
+
+    cells.forEach((el) => {
+        if (!el.classList.contains('calendar-day')) {
+            return;
+        }
 
         let topH = 2;
         const num = el.querySelector('.day-number');

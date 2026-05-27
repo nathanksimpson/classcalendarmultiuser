@@ -810,7 +810,7 @@ body {
 }
 
 .calendar-event-chip {
-    font-size: 0.625rem;
+    font-size: var(--cal-tile-font);
     padding: 2px 4px;
     border-radius: 3px;
     line-height: 1.2;
@@ -1339,16 +1339,45 @@ body:has(#panel-calendar:not([hidden])) {
     flex-direction: column;
 }
 
+#calendarContainer .calendar-day .day-number {
+    flex-shrink: 0;
+}
+
+#calendarContainer .calendar-day .holiday-name,
+#calendarContainer .calendar-day .calendar-event-chips {
+    flex-shrink: 0;
+}
+
 #calendarContainer .calendar-day .day-events {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#calendarContainer .calendar-day .day-events .event-bar {
+    flex: 1 1 0;
+    min-height: 0;
+    justify-content: center;
 }
 
 #calendarContainer .calendar-day .calendar-event-chips {
-    flex-shrink: 0;
-    max-height: 35%;
-    overflow-y: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#calendarContainer .calendar-day .calendar-event-chip {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+}
+
+#calendarContainer .calendar-day .holiday-name {
+    display: flex;
+    align-items: center;
 }
 
 #calendarContainer .month-header {
@@ -1428,6 +1457,8 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .calendar-day {
+    --cal-tile-font: 0.7rem;
+    --cal-tile-font-sm: calc(var(--cal-tile-font) * 0.85);
     min-width: 0;
     min-height: 100px;
     padding: 4px;
@@ -1472,12 +1503,13 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .holiday-name {
-    font-size: 0.7rem;
+    font-size: var(--cal-tile-font);
     /* Color set dynamically via JS */
     font-weight: 600;
     padding: 0 6px 4px;
     text-transform: uppercase;
     letter-spacing: 0.02em;
+    line-height: 1.15;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1497,7 +1529,7 @@ body:has(#panel-calendar:not([hidden])) {
    ============================================ */
 .event-bar {
     padding: 4px 6px;
-    font-size: 0.7rem;
+    font-size: var(--cal-tile-font);
     font-weight: 600;
     color: white;
     border-radius: 4px;
@@ -1539,10 +1571,21 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .event-book {
-    font-size: 0.6rem;
+    font-size: var(--cal-tile-font-sm);
     font-weight: 400;
     opacity: 0.9;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-day[data-cal-tile-lines="2"] .event-title,
+.calendar-day[data-cal-tile-lines="2"] .holiday-name,
+.calendar-day[data-cal-tile-lines="2"] .calendar-event-chip {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -2253,6 +2296,44 @@ html.print-color-mode-light[data-theme="dark"] {
         height: auto;
         overflow: hidden;
         padding: 1px !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .day-number {
+        flex-shrink: 0;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .holiday-name,
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .calendar-event-chips {
+        flex-shrink: 0;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .day-events {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .event-bar {
+        flex: 1 1 0;
+        min-height: 0;
+        justify-content: center;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .calendar-event-chips {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .calendar-event-chip {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        align-items: center;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day-header {
@@ -2267,7 +2348,7 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .holiday-name {
-        font-size: 5.5pt !important;
+        font-size: var(--cal-tile-font, 5.5pt) !important;
         padding: 0 2px 1px !important;
         line-height: 1.1;
     }
@@ -2278,14 +2359,13 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .day-events {
-        max-height: 16mm;
         overflow: hidden;
         gap: 0 !important;
         padding: 0 1px !important;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .event-bar {
-        font-size: 5.5pt;
+        font-size: var(--cal-tile-font, 5.5pt);
         padding: 0 2px;
         line-height: 1.05;
         gap: 0;
@@ -2293,12 +2373,12 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .event-bar .event-book {
-        font-size: 5pt;
+        font-size: var(--cal-tile-font-sm, 5pt);
         line-height: 1.05;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-event-chip {
-        font-size: 5pt;
+        font-size: var(--cal-tile-font, 5pt);
         padding: 0 2px;
         line-height: 1.05;
         border-radius: 2px;
@@ -2431,8 +2511,20 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     .event-bar {
-        font-size: 7pt;
+        font-size: var(--cal-tile-font, 7pt);
         padding: 2px 4px;
+    }
+
+    .calendar-event-chip {
+        font-size: var(--cal-tile-font, 7pt);
+    }
+
+    .event-bar .event-book {
+        font-size: var(--cal-tile-font-sm, 6pt);
+    }
+
+    .holiday-name {
+        font-size: var(--cal-tile-font, 7pt);
     }
     
     /* Print Summary */
