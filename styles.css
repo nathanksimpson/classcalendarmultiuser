@@ -3136,6 +3136,62 @@ input.input-readonly {
     padding-right: 0;
 }
 
+.header-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.header-dropdown-trigger {
+    list-style: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.header-dropdown-trigger::-webkit-details-marker {
+    display: none;
+}
+
+.header-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 10.5rem;
+    padding: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+}
+
+.team-calendar-menu .header-dropdown-panel {
+    right: auto;
+    left: 0;
+}
+
+.header-dropdown-item {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.header-dropdown-user {
+    margin: 0 0 4px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+body[data-active-tab="classes"] .app-term-quick-actions,
+body[data-active-tab="events"] .app-term-quick-actions {
+    display: none;
+}
+
 .app-banner-stack {
     display: flex;
     flex-direction: column;
@@ -3190,6 +3246,10 @@ input.input-readonly {
     min-width: 0;
 }
 
+.team-account-menu {
+    flex-shrink: 0;
+}
+
 .team-account-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -3240,6 +3300,12 @@ input.input-readonly {
 
     .app-header-tool-group--print {
         border-top: none;
+    }
+
+    .header-dropdown-panel {
+        right: 0;
+        left: auto;
+        max-width: min(16rem, 92vw);
     }
 }
 

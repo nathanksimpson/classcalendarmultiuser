@@ -28,6 +28,9 @@ const translations = {
         topBarExpand: 'Expand toolbar',
         teamCalendar: 'Team calendar:',
         teamNewCalendar: '+ New',
+        teamCalendarMenu: 'Calendar',
+        teamAccountMenu: 'Account',
+        headerMore: 'More',
         syncConnecting: 'Connecting…',
         syncSyncing: 'Syncing…',
         syncConnected: 'Connected — saved to team folder',
@@ -227,8 +230,7 @@ const translations = {
         curriculumDeleteBtn: 'Delete curriculum',
         curriculumDeleteConfirm: 'Delete this custom curriculum? Classes that used it keep their saved data; the book will no longer appear in the list.',
         curriculumEditorApplyHint: 'On the class form, pick Level and Book, then Apply from curriculum.',
-        dataCurriculumLinkHint: 'Edit books, session pages, and program defaults on the Curriculum tab.',
-        dataOpenCurriculumTab: 'Open Curriculum tab',
+        dataCurriculumLinkHint: 'Edit books, session pages, and program defaults using the Curriculum tab in the bar above.',
         classCurriculumLevel: 'Level',
         classCurriculumBook: 'Book',
         classCurriculumBookPickLevel: 'Select level first',
@@ -683,6 +685,9 @@ const translations = {
         topBarExpand: '도구 모음 펼치기',
         teamCalendar: '팀 캘린더:',
         teamNewCalendar: '+ 새로 만들기',
+        teamCalendarMenu: '캘린더',
+        teamAccountMenu: '계정',
+        headerMore: '더보기',
         syncConnecting: '연결 중…',
         syncSyncing: '동기화 중…',
         syncConnected: '연결됨 — 팀 폴더에 저장',
@@ -882,8 +887,7 @@ const translations = {
         curriculumDeleteBtn: '교재과정 삭제',
         curriculumDeleteConfirm: '이 사용자 교재과정을 삭제할까요? 이미 쓰는 수업 데이터는 남고, 목록에서만 사라집니다.',
         curriculumEditorApplyHint: '수업 양식에서 레벨·교재 선택 후 교재과정에서 적용을 누르세요.',
-        dataCurriculumLinkHint: '교재과정 탭에서 교재, 회차, 기본값을 편집합니다.',
-        dataOpenCurriculumTab: '교재과정 탭 열기',
+        dataCurriculumLinkHint: '위 탭 바의 교재과정 탭에서 교재, 회차, 기본 설정을 편집하세요.',
         classCurriculumLevel: '레벨',
         classCurriculumBook: '교재',
         classCurriculumBookPickLevel: '먼저 레벨을 선택하세요',
@@ -2690,11 +2694,6 @@ function setupClassCurriculumControls() {
             curriculumTabSelectedId = btn.dataset.curriculumId || btn.dataset.bookId;
             initCurriculumTabPanel({ curriculumId: curriculumTabSelectedId });
         });
-    }
-    const openDataBtn = document.getElementById('openCurriculumTabBtn');
-    if (openDataBtn && openDataBtn.dataset.bound !== '1') {
-        openDataBtn.dataset.bound = '1';
-        openDataBtn.addEventListener('click', () => navigateToTab('curriculum'));
     }
     const addBtn = document.getElementById('curriculumAddBtn');
     if (addBtn && addBtn.dataset.bound !== '1') {
@@ -7099,6 +7098,7 @@ function navigateToTab(tabId, options = {}) {
 }
 
 function navigateToTabBody(tabId, options = {}) {
+    document.body.dataset.activeTab = tabId;
     ensureUiState();
     appData.ui.activeTab = tabId;
     // UI-only: viewer preference.
@@ -7338,6 +7338,7 @@ function renderEventList() {
         btn.type = 'button';
         btn.className = 'module-list-item' + (ev.id === selectedId ? ' is-selected' : '');
         btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', String(ev.id === selectedId));
         const dateStr = ev.isRange
             ? `${ev.startDate || ''} – ${ev.endDate || ''}`
             : (ev.date || '');
@@ -8641,6 +8642,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     setupHowToLazyLoad();
     initAppTabs();
+    setupAppModalA11y();
+    document.body.dataset.activeTab = getActiveTab();
     initCalendarContextMenu();
     initTopBarToggle();
     initAppChromeStickyTop();
@@ -8692,7 +8695,23 @@ function initializeTermStart() {
 // ============================================
 // Event Listeners Setup
 // ============================================
+function setupHeaderDropdowns() {
+    document.querySelectorAll('.header-dropdown-panel .header-dropdown-item').forEach((el) => {
+        if (el.dataset.dropdownBound === '1') {
+            return;
+        }
+        el.dataset.dropdownBound = '1';
+        el.addEventListener('click', () => {
+            const details = el.closest('details.header-dropdown');
+            if (details) {
+                details.open = false;
+            }
+        });
+    });
+}
+
 function setupEventListeners() {
+    setupHeaderDropdowns();
     const openWsHomework = document.getElementById('openWorkspaceHomeworkBtn');
     if (openWsHomework && openWsHomework.dataset.bound !== '1') {
         openWsHomework.dataset.bound = '1';
@@ -8979,26 +8998,103 @@ function closeExclusiveModalsExcept(keepModal) {
     });
 }
 
-function openModal(modal) {
+function getModalFocusables(modal) {
+    if (!modal) {
+        return [];
+    }
+    return Array.from(
+        modal.querySelectorAll(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+    ).filter((el) => el.offsetParent !== null || modal.contains(el));
+}
+
+function bindModalA11y(modal, onClose) {
+    if (!modal || modal.dataset.a11yBound === '1') {
+        return;
+    }
+    modal.dataset.a11yBound = '1';
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            onClose();
+        }
+        if (e.key === 'Tab') {
+            const focusables = getModalFocusables(modal);
+            if (focusables.length < 2) {
+                return;
+            }
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    });
+}
+
+function setupAppModalA11y() {
+    const pairs = [
+        [elements.classModal, () => closeModal(elements.classModal)],
+        [elements.holidayModal, () => closeModal(elements.holidayModal)],
+        [elements.printOptionsModal, () => closePrintOptionsModal()],
+        [document.getElementById('conflictModal'), () => closeModal(document.getElementById('conflictModal'))],
+        [elements.classTypeModal, () => closeModal(elements.classTypeModal)]
+    ];
+    pairs.forEach(([modal, onClose]) => {
+        if (modal && onClose) {
+            bindModalA11y(modal, onClose);
+        }
+    });
+}
+
+function openModal(modal, triggerEl) {
     if (!modal) {
         return;
     }
     if (modal.id && EXCLUSIVE_MODAL_IDS.includes(modal.id)) {
         closeExclusiveModalsExcept(modal);
     }
+    const trigger = triggerEl || document.activeElement;
+    if (trigger && trigger instanceof HTMLElement) {
+        modal._ccpTrigger = trigger;
+    }
     modal.style.removeProperty('display');
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    if (!modal.getAttribute('role')) {
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+    }
+    const focusables = getModalFocusables(modal);
+    if (focusables.length) {
+        focusables[0].focus();
+    }
 }
 
 function closeModal(modal) {
     if (!modal) {
         return;
     }
+    const trigger = modal._ccpTrigger;
     modal.classList.remove('active');
     modal.style.removeProperty('display');
+    modal.setAttribute('aria-hidden', 'true');
     if (modal === elements.holidayModal) {
         closeEventApplicabilityPopover();
     }
+    if (trigger && typeof trigger.focus === 'function') {
+        try {
+            trigger.focus();
+        } catch (_) {
+            /* ignore */
+        }
+    }
+    delete modal._ccpTrigger;
 }
 
 /**
@@ -13087,10 +13183,15 @@ function setupTeamLockDebugPanel() {
         return;
     }
 
+    toggleBtn.setAttribute('aria-controls', 'teamLockDebugPanel');
+    toggleBtn.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
+
     toggleBtn.addEventListener('click', () => {
         panel.hidden = !panel.hidden;
-        toggleBtn.setAttribute('aria-pressed', panel.hidden ? 'false' : 'true');
-        if (!panel.hidden) {
+        const open = !panel.hidden;
+        toggleBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+        toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
             refreshTeamLockDebugPanel({ action: 'panel-opened' });
         }
     });
@@ -13098,6 +13199,7 @@ function setupTeamLockDebugPanel() {
     document.getElementById('teamLockDebugCloseBtn')?.addEventListener('click', () => {
         panel.hidden = true;
         toggleBtn.setAttribute('aria-pressed', 'false');
+        toggleBtn.setAttribute('aria-expanded', 'false');
     });
 
     document.getElementById('teamLockDebugClearBtn')?.addEventListener('click', () => {
@@ -13196,7 +13298,11 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #howToModal, #teamLockStatus')) {
         return true;
     }
-    if (el.closest('.app-header-tool-group--print, .app-header-tool-group--help, .app-header-tool-group--locale')) {
+    if (
+        el.closest(
+            '.app-header-tool-group--print, .app-header-tool-group--locale, .header-dropdown, .app-more-menu'
+        )
+    ) {
         return true;
     }
     if (el.classList.contains('modal-close')) {
@@ -13216,7 +13322,6 @@ function shouldAllowTeamViewOnlyInteraction(el) {
         el.id === 'homeworkOpenClassBtn' ||
         el.id === 'openWorkspaceHomeworkBtn' ||
         el.id === 'homeworkReferenceTodayBtn' ||
-        el.id === 'openCurriculumTabBtn' ||
         el.id === 'openPrintBtn' ||
         el.id === 'exportBtn' ||
         el.id === 'topBarToggle'
@@ -14888,15 +14993,8 @@ async function reloadActiveCalendarFromServer() {
     }
     initializeTermStart();
     renderCalendar();
-    const remoteBanner = document.getElementById('remoteNewerBanner');
-    const teamReloadBtn = document.getElementById('teamReloadBtn');
-    if (remoteBanner) {
-        remoteBanner.style.display = 'none';
-    }
-    if (teamReloadBtn) {
-        teamReloadBtn.style.display = 'none';
-    }
     CalendarSync.state.remoteNewer = false;
+    updateTeamLockRoster(null);
 }
 
 async function initTeamSync() {
@@ -14954,10 +15052,6 @@ async function initTeamSync() {
                     wsBanner.hidden = false;
                 }
                 return;
-            }
-            const teamReloadBtn = document.getElementById('teamReloadBtn');
-            if (teamReloadBtn) {
-                teamReloadBtn.style.display = 'inline-flex';
             }
             updateTeamLockRoster(
                 meta
@@ -15071,18 +15165,8 @@ async function initTeamSync() {
         }
     });
 
-    document.getElementById('teamReloadBtn')?.addEventListener('click', reloadActiveCalendarFromServer);
-    document.getElementById('remoteNewerReloadBtn')?.addEventListener('click', reloadActiveCalendarFromServer);
     document.getElementById('teamLockUpdatesReloadBtn')?.addEventListener('click', reloadActiveCalendarFromServer);
     document.getElementById('teamLockUpdatesDismissBtn')?.addEventListener('click', () => {
-        CalendarSync.state.remoteNewer = false;
-        updateTeamLockRoster(null);
-        const teamReloadBtn = document.getElementById('teamReloadBtn');
-        if (teamReloadBtn) {
-            teamReloadBtn.style.display = 'none';
-        }
-    });
-    document.getElementById('remoteNewerDismissBtn')?.addEventListener('click', () => {
         CalendarSync.state.remoteNewer = false;
         updateTeamLockRoster(null);
     });

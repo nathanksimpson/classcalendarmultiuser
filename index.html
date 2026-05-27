@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-view-only-ui">
+    <link rel="stylesheet" href="styles.css?v=20260527-phase1-ui">
     <script>
         (function () {
             try {
@@ -62,7 +62,7 @@
                     </div>
                     <div id="teamLockLineExpiry" class="team-lock-line team-lock-line--muted" hidden></div>
                 </div>
-                <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden title="Lock sync debug">Debug</button>
+                <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden title="Lock sync debug" aria-expanded="false" aria-controls="teamLockDebugPanel">Debug</button>
             </div>
             <div id="teamLockDebugPanel" class="team-lock-debug-panel" hidden>
                 <div class="team-lock-debug-header">
@@ -84,20 +84,27 @@
                     <div class="team-calendar-row-main">
                         <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
                         <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
-                        <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small" data-i18n="teamNewCalendar">+ New</button>
-                        <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="teamDeleteCalendar">Remove</button>
-                        <button type="button" id="teamReloadBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="syncReload">Reload latest</button>
-                        <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="syncBackupNow">Backup</button>
+                        <details class="header-dropdown team-calendar-menu">
+                            <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="teamCalendarMenu">Calendar</summary>
+                            <div class="header-dropdown-panel" role="menu">
+                                <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendar">+ New</button>
+                                <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
+                                <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
+                            </div>
+                        </details>
                         <span id="teamSyncStatus" class="team-sync-status" role="status">Connecting…</span>
                     </div>
-                    <div class="app-header-tool-group app-header-tool-group--account team-account-toolbar" id="teamAccountGroup" hidden>
-                        <span id="teamUserLabel" class="team-user-label" hidden></span>
-                        <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamAdminLink">Admin</a>
-                        <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="editDisplayName">Edit name</button>
-                        <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="changePassword">Change password</button>
-                        <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOut">Sign out</button>
-                        <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
-                    </div>
+                    <details class="header-dropdown team-account-menu" id="teamAccountGroup" hidden>
+                        <summary class="btn btn-outline btn-small header-dropdown-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
+                        <div class="header-dropdown-panel" role="menu">
+                            <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
+                            <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
+                            <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
+                            <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
+                            <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
+                            <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
+                        </div>
+                    </details>
                 </div>
                 <details class="team-calendar-help">
                     <summary data-i18n="teamCalendarHelp">Team help</summary>
@@ -121,11 +128,6 @@
                     </div>
                 </div>
 
-                <div id="remoteNewerBanner" class="remote-newer-banner" style="display: none;" role="alert" hidden aria-hidden="true">
-                    <span data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
-                    <button type="button" id="remoteNewerReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
-                    <button type="button" id="remoteNewerDismissBtn" class="btn btn-outline btn-small" data-i18n="syncDismiss">Keep editing</button>
-                </div>
             </div>
 
             <div class="app-top-bar-compact">
@@ -150,14 +152,15 @@
                     <div class="app-header-tool-group app-header-tool-group--print">
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
-                    <div class="app-header-tool-group app-header-tool-group--data">
-                        <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="export">Export</button>
-                        <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data" data-i18n="import">Import</button>
-                    </div>
                     <input type="file" id="importFile" accept=".json" hidden>
-                    <div class="app-header-tool-group app-header-tool-group--help">
-                        <button type="button" id="howToBtn" class="btn btn-outline btn-small" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</button>
-                    </div>
+                    <details class="header-dropdown app-more-menu">
+                        <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="headerMore">More</summary>
+                        <div class="header-dropdown-panel" role="menu">
+                            <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data header-dropdown-item" role="menuitem" data-i18n="export">Export</button>
+                            <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data header-dropdown-item" role="menuitem" data-i18n="import">Import</button>
+                            <button type="button" id="howToBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</button>
+                        </div>
+                    </details>
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
                         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
@@ -404,8 +407,7 @@
                 <div class="print-data-layout">
                     <div class="print-data-section print-data-section--curriculum-link">
                         <h2 class="module-section-title" data-i18n="tabCurriculum">Curriculum</h2>
-                        <p class="section-hint" data-i18n="dataCurriculumLinkHint">Edit books, session pages, and program defaults on the Curriculum tab.</p>
-                        <button type="button" id="openCurriculumTabBtn" class="btn btn-outline btn-small" data-i18n="dataOpenCurriculumTab">Open Curriculum tab</button>
+                        <p class="section-hint" data-i18n="dataCurriculumLinkHint">Edit books, session pages, and program defaults using the Curriculum tab in the bar above.</p>
                     </div>
                     <div class="print-data-section print-data-section--lesson-plans print-syllabus-presets-section">
                         <h2 class="module-section-title" data-i18n="printSyllabusPresetsHeading">My lesson plans/books</h2>
@@ -494,7 +496,7 @@
     </div>
 
     <!-- Class quick edit (calendar pop-out) -->
-    <div id="classModal" class="modal calendar-popout" aria-hidden="true">
+    <div id="classModal" class="modal calendar-popout" role="dialog" aria-modal="true" aria-labelledby="classModalTitle" aria-hidden="true">
         <div class="modal-content class-modal-content calendar-popout-content">
             <div id="classFormMountModal" class="class-form-mount"></div>
         </div>
@@ -914,10 +916,10 @@
         </div>
     </div>
 
-    <div id="classTypeModal" class="modal">
+    <div id="classTypeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="classTypeModalTitle" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
-                <h2 data-i18n="classTypeCreateTitle">Create a class type</h2>
+                <h2 id="classTypeModalTitle" data-i18n="classTypeCreateTitle">Create a class type</h2>
                 <button type="button" class="modal-close" id="closeClassTypeModal" aria-label="Close">&times;</button>
             </div>
             <form id="classTypeForm">
@@ -945,7 +947,7 @@
     </div>
 
     <!-- Event quick edit (calendar pop-out) -->
-    <div id="holidayModal" class="modal calendar-popout" aria-hidden="true">
+    <div id="holidayModal" class="modal calendar-popout" role="dialog" aria-modal="true" aria-labelledby="holidayModalTitle" aria-hidden="true">
         <div class="modal-content calendar-popout-content">
             <div id="holidayFormMountModal" class="event-form-mount"></div>
         </div>
@@ -1155,7 +1157,7 @@
     <script defer src="js/load-extension-scripts.js?v=20260527-perf-a"></script>
     <script defer src="js/team-auth.js?v=20260525-auth"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
-    <script defer src="app.js?v=20260527-perf-a"></script>
+    <script defer src="app.js?v=20260527-phase1-ui"></script>
 </body>
 </html>
 

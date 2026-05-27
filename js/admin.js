@@ -430,6 +430,14 @@ function applyAdminSectionVisibility() {
             el.hidden = !adminHasPerm(map[id]);
         }
     });
+    const navPresence = document.getElementById('adminNavPresence');
+    const navActivity = document.getElementById('adminNavActivity');
+    if (navPresence) {
+        navPresence.hidden = !adminHasPerm('view_presence');
+    }
+    if (navActivity) {
+        navActivity.hidden = !adminHasPerm('view_audit');
+    }
 }
 
 function renderEmptyRow(body, colSpan, messageKey) {
