@@ -333,9 +333,16 @@ const translations = {
         classNotesSummary: '{notes} note(s) · {classes} class(es)',
         classNotesExportCopy: 'Copy export',
         classNotesExportDownload: 'Download .txt',
-        classNotesEmptyFiltered: 'No notes match these filters. Add notes from the calendar (right-click a class).',
+        classNotesEmptyFiltered: 'No notes match these filters. Add a note above or from the calendar (right-click a class).',
         classNotesExportHeader: 'Class notes export',
         classNotesNoClassSelected: 'Select at least one class in the filters.',
+        classNotesAddHeading: 'Add note',
+        classNotesAddClass: 'Class',
+        classNotesAddDatetime: 'Date & time',
+        classNotesAddNow: 'Now',
+        classNotesPickClass: 'Select a class.',
+        classNotesSaved: 'Note saved.',
+        classNotesInvalidDatetime: 'Enter a valid date and time.',
         confirmDeleteEvent: 'Are you sure you want to delete this event?',
         eventNotesPlaceholder: 'Optional notes...',
         syllabusUnits: 'Syllabus / curriculum units',
@@ -1164,9 +1171,16 @@ const translations = {
         classNotesSummary: '메모 {notes}개 · 수업 {classes}개',
         classNotesExportCopy: '전체 복사',
         classNotesExportDownload: '.txt 다운로드',
-        classNotesEmptyFiltered: '필터에 맞는 메모가 없습니다. 캘린더에서 수업을 우클릭하여 메모를 추가하세요.',
+        classNotesEmptyFiltered: '필터에 맞는 메모가 없습니다. 위에서 추가하거나 캘린더에서 수업을 우클릭하세요.',
         classNotesExportHeader: '수업 메모보내기',
         classNotesNoClassSelected: '필터에서 수업을 하나 이상 선택하세요.',
+        classNotesAddHeading: '메모 추가',
+        classNotesAddClass: '수업',
+        classNotesAddDatetime: '날짜 및 시간',
+        classNotesAddNow: '지금',
+        classNotesPickClass: '수업을 선택하세요.',
+        classNotesSaved: '메모를 저장했습니다.',
+        classNotesInvalidDatetime: '올바른 날짜와 시간을 입력하세요.',
         confirmDeleteEvent: '이 일정을 삭제하시겠습니까?',
         eventNotesPlaceholder: '메모 (선택)...',
         syllabusUnits: '교육과정 / 단원',
@@ -6591,42 +6605,199 @@ function closeClassDayNoteModal() {
     classDayNoteModalState = null;
 }
 
-function saveClassDayNoteFromModal() {
+function formatDatetimeLocalValue(date) {
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) {
+        return '';
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseDatetimeLocalValue(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return null;
+    }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) {
+        return null;
+    }
+    return {
+        dateStr: formatDateISO(d),
+        createdAt: d.toISOString()
+    };
+}
+
+function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     if (isTeamCalendarViewOnly()) {
         showLockFlash(t('teamReadOnlySave'), false);
-        return;
+        return false;
     }
+    const api = getDayNotesApi();
+    if (!api) {
+        return false;
+    }
+    ensureDayNotesArray();
+    const entry = api.normalizeDayNote({
+        id: generateId(),
+        classId,
+        date: dateStr,
+        text,
+        createdAt: createdAt || new Date().toISOString()
+    });
+    if (!entry) {
+        return false;
+    }
+    appData.dayNotes.push(entry);
+    saveData();
+    renderCalendar();
+    if (classesPanelSegment === 'notes') {
+        renderClassNotesTab();
+    }
+    return true;
+}
+
+function saveClassDayNoteFromModal() {
     const state = classDayNoteModalState;
     const textEl = document.getElementById('classDayNoteText');
     const text = textEl ? (textEl.value || '').trim() : '';
     if (!state || !text) {
         return;
     }
-    const api = getDayNotesApi();
-    if (!api) {
-        return;
-    }
-    ensureDayNotesArray();
-    const entry = api.normalizeDayNote({
-        id: generateId(),
+    const ok = appendClassDayNote({
         classId: state.classId,
-        date: state.dateStr,
+        dateStr: state.dateStr,
         text,
         createdAt: new Date().toISOString()
     });
-    if (!entry) {
+    if (!ok) {
         return;
     }
-    appData.dayNotes.push(entry);
-    saveData();
     renderClassDayNoteExistingList(state.classId, state.dateStr);
     if (textEl) {
         textEl.value = '';
     }
-    renderCalendar();
-    if (classesPanelSegment === 'notes') {
-        renderClassNotesTab();
+}
+
+function getPreferredClassIdForNotesAdd() {
+    const filters = collectClassNotesFilterState();
+    if (filters.classIds.length === 1) {
+        return filters.classIds[0];
     }
+    if (filters.classIds.length > 1) {
+        const order = getClassesInDisplayOrder().map((c) => c.id);
+        const pick = order.find((id) => filters.classIds.includes(id));
+        if (pick) {
+            return pick;
+        }
+        return filters.classIds[0];
+    }
+    const classes = getClassesInDisplayOrder();
+    return classes.length ? classes[0].id : '';
+}
+
+function populateClassNotesAddClassSelect() {
+    const select = document.getElementById('classNotesAddClass');
+    if (!select) {
+        return;
+    }
+    const prev = select.value;
+    const classes = getClassesInDisplayOrder();
+    select.replaceChildren();
+    if (!classes.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = t('lessonFilterNoClassesOnCalendar');
+        select.appendChild(opt);
+        select.disabled = true;
+        return;
+    }
+    select.disabled = false;
+    classes.forEach((classData) => {
+        const opt = document.createElement('option');
+        opt.value = classData.id;
+        opt.textContent = classData.name || classData.id;
+        select.appendChild(opt);
+    });
+    const preferred = getPreferredClassIdForNotesAdd();
+    if (preferred && classes.some((c) => c.id === preferred)) {
+        select.value = preferred;
+    } else if (prev && classes.some((c) => c.id === prev)) {
+        select.value = prev;
+    }
+}
+
+function resetClassNotesAddDatetime() {
+    const input = document.getElementById('classNotesAddDatetime');
+    if (input) {
+        input.value = formatDatetimeLocalValue(new Date());
+    }
+}
+
+function syncClassNotesAddFormChrome() {
+    const readOnly = isTeamCalendarViewOnly();
+    const readOnlyEl = document.getElementById('classNotesAddReadOnly');
+    const textEl = document.getElementById('classNotesAddText');
+    const saveBtn = document.getElementById('classNotesAddSaveBtn');
+    const classSelect = document.getElementById('classNotesAddClass');
+    const datetimeEl = document.getElementById('classNotesAddDatetime');
+    const nowBtn = document.getElementById('classNotesAddNowBtn');
+    if (readOnlyEl) {
+        readOnlyEl.hidden = !readOnly;
+        if (readOnly) {
+            readOnlyEl.textContent = t('dayNoteReadOnlyHint');
+        }
+    }
+    [textEl, saveBtn, classSelect, datetimeEl, nowBtn].forEach((el) => {
+        if (el) {
+            el.disabled = readOnly;
+        }
+    });
+}
+
+function resetClassNotesAddForm() {
+    populateClassNotesAddClassSelect();
+    resetClassNotesAddDatetime();
+    const textEl = document.getElementById('classNotesAddText');
+    if (textEl) {
+        textEl.value = '';
+    }
+    syncClassNotesAddFormChrome();
+}
+
+function saveClassNoteFromNotesTab() {
+    const classSelect = document.getElementById('classNotesAddClass');
+    const datetimeEl = document.getElementById('classNotesAddDatetime');
+    const textEl = document.getElementById('classNotesAddText');
+    const classId = classSelect ? (classSelect.value || '').trim() : '';
+    const text = textEl ? (textEl.value || '').trim() : '';
+    if (!classId) {
+        showClassNotesExportStatus(false, t('classNotesPickClass'));
+        return;
+    }
+    if (!text) {
+        return;
+    }
+    const parsed = parseDatetimeLocalValue(datetimeEl ? datetimeEl.value : '');
+    if (!parsed) {
+        showClassNotesExportStatus(false, t('classNotesInvalidDatetime'));
+        return;
+    }
+    const ok = appendClassDayNote({
+        classId,
+        dateStr: parsed.dateStr,
+        text,
+        createdAt: parsed.createdAt
+    });
+    if (!ok) {
+        return;
+    }
+    if (textEl) {
+        textEl.value = '';
+    }
+    resetClassNotesAddDatetime();
+    showClassNotesExportStatus(true, t('classNotesSaved'));
 }
 
 function renderDayNotesSummaryList(dateStr) {
@@ -6922,6 +7093,7 @@ function setClassesPanelSegment(segment, options = {}) {
     syncClassesPanelSegmentUi();
     if (next === 'notes') {
         initClassNotesTab();
+        resetClassNotesAddForm();
         renderClassNotesTab();
     } else {
         mountClassForm('tab');
@@ -7284,6 +7456,7 @@ function downloadClassNotesExport() {
 }
 
 function initClassNotesTab() {
+    syncClassNotesAddFormChrome();
     if (!classNotesFiltersBuilt) {
         classNotesFiltersBuilt = true;
         const saved = appData.ui && appData.ui.classNotesFilters;
@@ -7322,6 +7495,7 @@ function initClassNotesTab() {
             }
         }
     }
+    populateClassNotesAddClassSelect();
     renderClassNotesTab();
 }
 
@@ -7349,10 +7523,19 @@ function initClassesPanelSegments() {
         renderClassNotesTab();
         saveClassNotesFiltersToUi();
     });
+
+    document.getElementById('classNotesAddForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveClassNoteFromNotesTab();
+    });
+    document.getElementById('classNotesAddNowBtn')?.addEventListener('click', () => {
+        resetClassNotesAddDatetime();
+    });
     document.getElementById('classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
 
     document.getElementById('classNotesFilterClasses')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            populateClassNotesAddClassSelect();
             renderClassNotesTab();
             saveClassNotesFiltersToUi();
         }
@@ -7374,12 +7557,14 @@ function initClassesPanelSegments() {
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
             input.checked = true;
         });
+        populateClassNotesAddClassSelect();
         renderClassNotesTab();
     });
     document.getElementById('classNotesFilterClearClassesBtn')?.addEventListener('click', () => {
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
             input.checked = false;
         });
+        populateClassNotesAddClassSelect();
         renderClassNotesTab();
     });
     document.getElementById('classNotesResetFiltersBtn')?.addEventListener('click', resetClassNotesFilters);

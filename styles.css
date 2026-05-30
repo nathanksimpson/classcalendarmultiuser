@@ -4035,6 +4035,72 @@ body[data-active-tab="events"] .app-term-quick-actions {
     min-width: 0;
 }
 
+.class-notes-add-panel {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-card);
+    padding: 12px 14px;
+}
+
+.class-notes-add-title {
+    margin: 0 0 10px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.class-notes-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.class-notes-add-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 10px;
+}
+
+@media (max-width: 720px) {
+    .class-notes-add-fields {
+        grid-template-columns: 1fr;
+    }
+}
+
+.class-notes-add-select,
+.class-notes-datetime-input {
+    font-family: var(--font-main);
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    width: 100%;
+    min-width: 0;
+}
+
+.class-notes-add-datetime-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.class-notes-add-datetime-row .class-notes-datetime-input {
+    flex: 1 1 12rem;
+}
+
+.class-notes-add-textarea {
+    width: 100%;
+    min-height: 4.5rem;
+    resize: vertical;
+}
+
+.class-notes-add-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .class-notes-main-header {
     display: flex;
     flex-wrap: wrap;

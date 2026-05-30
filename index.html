@@ -311,6 +311,32 @@
                             </div>
                         </aside>
                         <div class="module-editor-panel class-notes-main-panel">
+                            <section class="class-notes-add-panel" aria-labelledby="classNotesAddHeading">
+                                <h2 id="classNotesAddHeading" class="class-notes-add-title" data-i18n="classNotesAddHeading">Add note</h2>
+                                <form id="classNotesAddForm" class="class-notes-add-form">
+                                    <div class="class-notes-add-fields">
+                                        <label class="class-notes-filter-field" for="classNotesAddClass">
+                                            <span data-i18n="classNotesAddClass">Class</span>
+                                            <select id="classNotesAddClass" class="class-notes-add-select" required></select>
+                                        </label>
+                                        <label class="class-notes-filter-field class-notes-add-datetime-field" for="classNotesAddDatetime">
+                                            <span data-i18n="classNotesAddDatetime">Date &amp; time</span>
+                                            <div class="class-notes-add-datetime-row">
+                                                <input type="datetime-local" id="classNotesAddDatetime" class="class-notes-datetime-input" required>
+                                                <button type="button" id="classNotesAddNowBtn" class="btn btn-outline btn-small" data-i18n="classNotesAddNow">Now</button>
+                                            </div>
+                                        </label>
+                                    </div>
+                                    <label class="class-notes-filter-field" for="classNotesAddText">
+                                        <span data-i18n="dayNoteTextLabel">What happened in this class?</span>
+                                        <textarea id="classNotesAddText" class="day-note-textarea class-notes-add-textarea" rows="3" spellcheck="true" required></textarea>
+                                    </label>
+                                    <p id="classNotesAddReadOnly" class="section-hint day-note-readonly-hint" hidden data-i18n="dayNoteReadOnlyHint"></p>
+                                    <div class="class-notes-add-actions">
+                                        <button type="submit" id="classNotesAddSaveBtn" class="btn btn-primary btn-small" data-i18n="dayNoteSave">Save note</button>
+                                    </div>
+                                </form>
+                            </section>
                             <header class="class-notes-main-header">
                                 <p id="classNotesSummaryLine" class="class-notes-summary-line" role="status"></p>
                                 <div class="class-notes-export-actions">
@@ -318,7 +344,7 @@
                                     <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
                                 </div>
                             </header>
-                            <p id="classNotesEmptyFiltered" class="module-empty-hint" hidden data-i18n="classNotesEmptyFiltered">No notes match these filters. Add notes from the calendar (right-click a class).</p>
+                            <p id="classNotesEmptyFiltered" class="module-empty-hint" hidden data-i18n="classNotesEmptyFiltered">No notes match these filters. Add a note above or from the calendar (right-click a class).</p>
                             <div id="classNotesPreview" class="class-notes-preview" role="list"></div>
                             <p id="classNotesExportStatus" class="day-notes-copy-status" role="status" hidden></p>
                         </div>
@@ -959,7 +985,7 @@
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260601-dino"></script>
     <script defer src="js/day-notes.js?v=20260604-class-notes-tab"></script>
-    <script defer src="app.js?v=20260605-boot-nav"></script>
+    <script defer src="app.js?v=20260531-notes-tab-add"></script>
 </body>
 </html>
 
