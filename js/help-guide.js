@@ -247,6 +247,9 @@
                     "Waiting teachers: a banner appears when someone signed in but has no calendar yet. Click Review waiting to open Accounts with the Waiting filter. The Accounts tab may show a count, e.g. Accounts (3).",
                     "Accounts tab — Search by name, email, or Kakao ID. Filter chips: All, Active, Waiting, Deactivated. Expand Account help for tips. The table shows role, which calendars they can open, and status.",
                     "Accounts tab — Actions menu (per row): Edit (display name, role, email, Kakao ID), Deactivate or Reactivate, Force sign-out all devices, Reset password. Delete permanently only for deactivated accounts. You cannot deactivate the last super admin.",
+                    "Super admin only — Edit user or Add teacher: Custom permissions checkboxes appear for non–super-admin accounts. Changing role refills the preset unless you already changed checkboxes. A Custom badge in the role column means stored permissions differ from the role preset.",
+                    "Super admin only — Promoting someone to Super admin, or checking all global permissions on another role, requires your own password in the confirmation box. You must have a password on your account (not Kakao-only). Only super admins can assign the Super admin role.",
+                    "Force-unlock (releasing a stale team lock) follows account role (Super admin or Head teacher), not permission checkboxes alone — even if checkboxes grant many powers.",
                     "Accounts tab — Add teacher at the bottom to pre-add someone before first Kakao sign-in; choose a role from the dropdown.",
                     "Groups tab — Create named groups, edit members, delete groups. Assign groups to calendars on the Calendars tab.",
                     "Calendars tab — Pick a calendar. For each teacher or group: check the box to grant access, then choose Viewer (read/print only), Suggester (propose changes), or Editor (edit when holding the team lock). Click Save access. Open Access levels for short definitions.",
@@ -508,6 +511,9 @@
                     "대기 중인 선생님: 로그인했지만 캘린더가 없으면 배너가 뜹니다. Review waiting → Accounts 탭 Waiting 필터. Accounts (3)처럼 개수가 표시될 수 있습니다.",
                     "Accounts 탭 — 이름·이메일·카카오 ID 검색. 필터: All, Active, Waiting, Deactivated. Account help 펼치기. 표에 역할, 열 수 있는 캘린더, 상태.",
                     "Accounts 탭 — Actions 메뉴: Edit(이름·역할·이메일·카카오 ID), Deactivate/Reactivate, Force sign-out all devices, Reset password. Delete permanently는 비활성만. 마지막 super admin은 비활성화 불가.",
+                    "최고 관리자만 — Edit user / Add teacher: super admin이 아닌 계정에 맞춤 권한 체크박스가 보입니다. 역할을 바꾸면 체크박스를 직접 수정하기 전까지 해당 역할 프리셋으로 채워집니다. 역할 열의 Custom 뱃지는 DB에 저장된 맞춤 권한이 있다는 뜻입니다.",
+                    "최고 관리자만 — Super admin 역할 부여, 또는 다른 역할에 전역 권한 13개를 모두 체크할 때는 확인란에 본인 비밀번호가 필요합니다. 본인 계정에 비밀번호가 있어야 합니다(카카오만으로는 불가). Super admin 역할 지정도 최고 관리자만 가능합니다.",
+                    "오래된 팀 잠금 해제(force-unlock)는 체크박스가 아니라 계정 역할(Super admin·Head teacher)을 따릅니다.",
                     "Accounts 탭 — 하단 Add teacher로 카카오 첫 로그인 전 미리 추가; 역할 선택.",
                     "Groups 탭 — 그룹 만들기, 멤버 편집, 삭제. Calendars 탭에서 그룹에 접근 지정.",
                     "Calendars 탭 — 캘린더 선택. 선생님·그룹마다 체크 후 Viewer(읽기·인쇄), Suggester(제안), Editor(팀 잠금 시 편집). Save access. Access levels에서 설명 확인.",
@@ -638,7 +644,8 @@
         "Calendar access level — set per person or group on Admin → Calendars tab for each calendar: Editor (edit with team lock), Suggester (propose changes; editor or head teacher applies), Viewer (read/print only for that calendar).",
         "Legacy admin role in the database is treated as Super admin.",
         "Super admin and Head teacher can release stale locks (canForceUnlock). There is still no force takeover of an active editor — only Allow, Release, or timeout.",
-        "Advanced: if permissions JSON is set on a user in the database, that list replaces the role preset below."
+        "Custom global permissions: Super admins set per-user checkboxes in Admin → Accounts → Edit (or Add teacher). If checkboxes match the chosen role exactly, the app stores the role preset only (no Custom badge). If they differ, the user keeps a custom list (Custom badge). The matrix below shows each role’s default preset; custom users follow their checkboxes instead.",
+        "Granting Super admin role or all 13 permissions on a non–super-admin role requires the acting super admin’s password. Kakao-only super admins must set a password first."
     ],
     "ko": [
         "두 가지 개념이 권한을 나눕니다:",
@@ -647,7 +654,8 @@
         "캘린더 접근 수준 — Admin → Calendars 탭에서 캘린더마다: Editor(팀 잠금 하에 편집), Suggester(제안; 편집자·담당 선생님이 적용), Viewer(해당 캘린더 읽기·인쇄만).",
         "DB의 예전 admin 역할은 Super admin과 같습니다.",
         "Super admin·Head teacher는 오래된 잠금 해제(canForceUnlock) 가능. 편집 중 강제 빼앗기 없음 — 허용, 잠금 해제, 만료만.",
-        "고급: DB에 permissions JSON이 있으면 아래 역할 프리셋 대신 그 목록이 적용됩니다."
+        "맞춤 전역 권한: 최고 관리자가 Admin → Accounts → Edit(또는 Add teacher)에서 사용자별 체크박스를 설정합니다. 체크가 선택한 역할 프리셋과 같으면 역할만 저장(Custom 뱃지 없음). 다르면 맞춤 목록이 저장됩니다(Custom 뱃지). 아래 표는 역할별 기본값이며, 맞춤 사용자는 체크박스를 따릅니다.",
+        "Super admin 역할 부여 또는 다른 역할에 권한 13개 전부 부여 시, 작업하는 최고 관리자의 비밀번호 확인이 필요합니다. 카카오만 쓰는 최고 관리자는 먼저 비밀번호를 설정해야 합니다."
     ]
 };
 
