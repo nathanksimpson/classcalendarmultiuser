@@ -993,15 +993,27 @@
             next.applicableLevels = prev.applicableLevels || prev.levels || book.levels || [];
             next.levels = next.applicableLevels;
         }
-        if (!sessionsMatchFactory || book.isCustom || isDebateBookRecord(book)) {
+        const hasTeamDefault = !!(prev.teamDefault && Array.isArray(prev.teamDefault.sessions)
+            && prev.teamDefault.sessions.length);
+        if (!sessionsMatchFactory || book.isCustom || isDebateBookRecord(book) || hasTeamDefault) {
             next.sessions = normalized;
         } else {
             delete next.sessions;
         }
         const hasMeta = curriculumRecordHasMeta(next);
         if (!next.sessions && !hasMeta && !book.isCustom && !isDebateBookRecord(book)) {
-            if (prevTeamDefault) {
-                curricula[saveId] = { teamDefault: prevTeamDefault };
+            if (prev.teamDefault) {
+                const kept = { teamDefault: prev.teamDefault };
+                if (prev.classDefaults && Object.keys(prev.classDefaults).length) {
+                    kept.classDefaults = prev.classDefaults;
+                }
+                if (prev.bookTitle) {
+                    kept.bookTitle = prev.bookTitle;
+                }
+                if (Array.isArray(prev.applicableLevels)) {
+                    kept.applicableLevels = prev.applicableLevels;
+                }
+                curricula[saveId] = kept;
             } else {
                 delete curricula[saveId];
             }
@@ -1056,14 +1068,19 @@
             : (Array.isArray(prev.applicableLevels) ? prev.applicableLevels.slice() : undefined);
         curricula[bookId] = {
             ...prev,
+            sessions: deepClone(normalized),
             teamDefault: {
                 sessions: deepClone(normalized),
                 classDefaults,
                 applicableLevels,
                 bookTitle: title || prev.bookTitle,
                 adoptedAt: new Date().toISOString()
-            }
+            },
+            updatedAt: new Date().toISOString()
         };
+        if (!book.isCustom && !isDebateBookRecord(book)) {
+            syncLegacyBookOverride(bookId, normalized, appData);
+        }
         hooks.saveData();
         hooks.onBooksSaved();
         return true;

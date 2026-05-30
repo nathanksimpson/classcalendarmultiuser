@@ -144,6 +144,28 @@ assert(customBook && customBook.isCustom, 'custom appears in discover');
 assert(customBook.sessionCount >= 1, 'custom starts with session row');
 
 const adoptData = { bookOverrides: {}, curriculumOverrides: {} };
+const factoryWriteNow = CCPBooksEditor.discoverBooks({}).find((b) => b.id === 'write-now');
+const factoryRowsForAdopt = [];
+for (let i = 0; i < (factoryWriteNow ? factoryWriteNow.factorySessionCount : 20); i += 1) {
+    factoryRowsForAdopt.push({
+        sessionNumber: i + 1,
+        planTitle: `Factory row ${i + 1}`,
+        planDetail: 'same-as-shipped',
+        note: ''
+    });
+}
+CCPBooksEditor.saveBookTemplates('write-now', factoryRowsForAdopt, adoptData);
+CCPBooksEditor.adoptTeamDefault('write-now', factoryRowsForAdopt, adoptData, {
+    classDefaults: { defaultTotalLessons: factoryRowsForAdopt.length }
+});
+const sameCountAdopt = CCPBooksEditor.discoverBooks(adoptData).find((b) => b.id === 'write-now');
+assert(
+    adoptData.curriculumOverrides['write-now'].sessions
+    && adoptData.curriculumOverrides['write-now'].sessions.length === factoryRowsForAdopt.length,
+    'adopt keeps curriculum sessions when count matches shipped factory'
+);
+assert(sameCountAdopt && !sameCountAdopt.hasOverride, 'no override when working copy matches team default');
+
 const adoptRows = buildWriteNowRows(22, 'ADOPT');
 CCPBooksEditor.saveBookTemplates('write-now', adoptRows, adoptData);
 let adoptBook = CCPBooksEditor.discoverBooks(adoptData).find((b) => b.id === 'write-now');
