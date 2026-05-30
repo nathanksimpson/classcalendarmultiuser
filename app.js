@@ -3609,6 +3609,16 @@ function hasScheduleAdjustmentTableInDom() {
     return Boolean(document.getElementById('scheduleAdjustmentRows'));
 }
 
+function pickFinalScheduleAdjustments(draft, formMerges, formSkips) {
+    if (window.CCPSchedule && window.CCPSchedule.pickFinalScheduleAdjustments) {
+        return window.CCPSchedule.pickFinalScheduleAdjustments(draft, formMerges, formSkips);
+    }
+    return {
+        compressionMerges: Array.isArray(formMerges) ? formMerges : [],
+        skippedLessons: Array.isArray(formSkips) ? formSkips : []
+    };
+}
+
 function getClassDataForScheduleGapCheck(baseClass) {
     const form = document.getElementById('classForm');
     const formClassId = elements.classId && elements.classId.value;
@@ -3695,12 +3705,15 @@ function focusScheduleAdjustmentForClass(classId) {
     });
 }
 
-function renderScheduleGapWarning(classData) {
+function renderScheduleGapWarning(classData, options) {
+    options = options || {};
     const el = document.getElementById('classScheduleGapWarning');
     if (!el) {
         return;
     }
-    const effective = getClassDataForScheduleGapCheck(classData);
+    const effective = options.useFormOverlay === false
+        ? classData
+        : getClassDataForScheduleGapCheck(classData);
     if (!effective || !effective.id || effective.id === 'draft-syllabus'
         || (effective.customSchedule && effective.customSchedule.enabled)) {
         el.hidden = true;
@@ -6608,6 +6621,31 @@ function computeScheduleCacheKey() {
     });
 }
 
+/** Cache bust when merges/skips/dates change (form overlay uses different adjustment than saved class). */
+function getScheduleCacheId(classData, options) {
+    options = options || {};
+    const base = options.sliceKey || classData.id || 'unknown';
+    const merges = Array.isArray(classData.compressionMerges)
+        ? classData.compressionMerges.join(',')
+        : '';
+    const skips = Array.isArray(classData.skippedLessons)
+        ? classData.skippedLessons.join(',')
+        : '';
+    const md = Array.isArray(classData.meetingDays) ? classData.meetingDays.join(',') : '';
+    const custom = classData.customSchedule && classData.customSchedule.enabled ? '1' : '0';
+    return [
+        base,
+        classData.compressionMode || '',
+        classData.totalLessons || '',
+        classData.startDate || '',
+        classData.endDate || '',
+        md,
+        custom,
+        merges,
+        skips
+    ].join('|');
+}
+
 function parseISODateLocal(dateStr) {
     if (window.CCPUtils && window.CCPUtils.parseISODateLocal) {
         return window.CCPUtils.parseISODateLocal(dateStr);
@@ -6776,7 +6814,7 @@ function ensureDebatePeriodsOnClass(classData) {
     return debateApi.ensureDebateBookPeriodsForClass(classData);
 }
 
-function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder) {
+function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder, skippedLessons) {
     const normalizedUser = normalizeCompressionMerges(userMerges, totalLessons);
     if (mode !== 'autoWhenNeeded') {
         return normalizedUser;
@@ -6787,7 +6825,8 @@ function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrd
             totalLessons,
             userMerges,
             mode,
-            startOrder || null
+            startOrder || null,
+            skippedLessons || []
         );
     }
     // Auto: start with no merges; only add merges when there are not enough class
@@ -13216,16 +13255,18 @@ function refreshSyllabusFromCalendar() {
     if (!snapshot.customSchedule?.enabled && !maybeConfirmScheduleAdjustments(snapshot)) {
         return;
     }
-    if (snapshot.compressionMerges || snapshot.skippedLessons) {
-        applyScheduleAdjustmentsToForm(
-            snapshot.compressionMerges || [],
-            snapshot.skippedLessons || []
+    if (Array.isArray(snapshot.compressionMerges) || Array.isArray(snapshot.skippedLessons)) {
+        const adj = pickFinalScheduleAdjustments(
+            snapshot,
+            snapshot.compressionMerges,
+            snapshot.skippedLessons
         );
+        applyScheduleAdjustmentsToForm(adj.compressionMerges, adj.skippedLessons);
         if (classId) {
             const idx = appData.classes.findIndex(c => c.id === classId);
             if (idx >= 0) {
-                appData.classes[idx].compressionMerges = snapshot.compressionMerges || [];
-                appData.classes[idx].skippedLessons = snapshot.skippedLessons || [];
+                appData.classes[idx].compressionMerges = adj.compressionMerges;
+                appData.classes[idx].skippedLessons = adj.skippedLessons;
             }
         }
     }
@@ -14313,8 +14354,9 @@ function handleClassSubmit(e) {
     if (!isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
         return;
     }
-    const compressionMergesFinal = draftForConfirm.compressionMerges || compressionMerges;
-    const skippedLessonsFinal = draftForConfirm.skippedLessons || skippedLessons;
+    const picked = pickFinalScheduleAdjustments(draftForConfirm, compressionMerges, skippedLessons);
+    const compressionMergesFinal = picked.compressionMerges;
+    const skippedLessonsFinal = picked.skippedLessons;
 
     const classData = {
         id: elements.classId.value || generateId(),
@@ -14402,7 +14444,7 @@ function handleClassSubmit(e) {
     refreshTimetablePanels();
     const savedTotal = sanitizeTotalLessons(classData.totalLessons || 4);
     renderScheduleAdjustmentRows(savedTotal, classData);
-    renderScheduleGapWarning(classData);
+    renderScheduleGapWarning(classData, { useFormOverlay: false });
     renderScheduleAdjustmentSummaryBlock(classData);
     syncSyllabusEditorChrome();
     if (isUpdate) {
@@ -15017,8 +15059,8 @@ function getCompressionMergesForPeriod(classData, period, totalLessons) {
 // ============================================
 function calculateLessonDates(classData, options) {
     options = options || {};
-    const cacheId = options.sliceKey || classData.id;
     const effective = options.effectiveClassData || classData;
+    const cacheId = getScheduleCacheId(effective, options);
     const key = computeScheduleCacheKey();
     if (key !== scheduleCacheKey) {
         scheduleCacheKey = key;
@@ -15118,8 +15160,23 @@ function calculateSequentialTermLessonDates(classData) {
         meetingDays,
         classData
     );
+    const userMerges = getCompressionMergesFromClass(classData, totalLessons);
+    const skips = getSkippedLessonsFromClass(classData, totalLessons);
+    const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
+    let mergesForSchedule = userMerges;
+    if (mode === 'autoWhenNeeded') {
+        mergesForSchedule = mergePlanToFit(
+            allEligible.length,
+            totalLessons,
+            userMerges,
+            mode,
+            getMergeStartOrderForClass(classData),
+            skips
+        );
+    }
+    const scheduleClass = { ...classData, compressionMerges: mergesForSchedule };
     const { groups, merges: selectedMerges, skipped: skippedLessons } = buildScheduleGroupsForClass(
-        classData,
+        scheduleClass,
         totalLessons
     );
     const monthKeys = enumerateMonthKeysBetween(classData.startDate, classData.endDate);
@@ -15260,12 +15317,14 @@ function calculateAutoLessonDates(classData) {
             ? getCompressionMergesForPeriod(classData, period, totalLessons)
             : userMerges;
         const effectiveMode = classData.compressionMode === 'manualPerMonth' ? 'manual' : mode;
+        const termSkips = getSkippedLessonsFromClass(classData, totalLessons);
         const mergesForPlan = mergePlanToFit(
             A,
             totalLessons,
             mergesForPeriod,
             effectiveMode,
-            getMergeStartOrderForClass(classData)
+            getMergeStartOrderForClass(classData),
+            termSkips
         );
         const { groups, merges: appliedMerges } = buildScheduleGroupsForClass(
             { ...classData, compressionMerges: mergesForPlan },

@@ -13,6 +13,7 @@ const dist = path.join(root, 'dist');
 const SKIP_DIRS = new Set([
     'node_modules',
     '.git',
+    '.cursor',
     '.wrangler',
     'dist',
     'data',

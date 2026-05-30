@@ -49,4 +49,21 @@ function assert(cond, msg) {
     assert(legacy.length === 2 && legacy[0] === 1, 'legacy path when no adjustment table');
 }
 
+{
+    const picked = CCPSchedule.pickFinalScheduleAdjustments(
+        { compressionMerges: [], skippedLessons: [11, 12] },
+        [1, 3],
+        []
+    );
+    assert(picked.compressionMerges.length === 0, 'empty draft merges stay [], not form fallback');
+    assert(picked.skippedLessons.length === 2, 'draft skips preserved');
+}
+
+{
+    const withUser = CCPSchedule.mergePlanToFit(3, 6, [1], 'autoWhenNeeded', [1, 3, 5, 2, 4], []);
+    assert(withUser.includes(1), 'auto mode keeps user merge at 1');
+    const { groups } = CCPSchedule.buildScheduleGroups(6, withUser, [], null);
+    assert(groups.length <= 3, 'user merge helps fit slots');
+}
+
 console.log('schedule-adjustment.test.mjs: ok');
