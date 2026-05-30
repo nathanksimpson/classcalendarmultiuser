@@ -3877,6 +3877,182 @@ body[data-active-tab="events"] .app-term-quick-actions {
     display: none;
 }
 
+.classes-panel-segments {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.classes-segment-btn {
+    flex: 0 1 auto;
+    min-width: 7rem;
+    font-family: var(--font-main);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.classes-segment-btn.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.classes-segment-panel[hidden] {
+    display: none;
+}
+
+.class-notes-segment-panel {
+    min-height: 320px;
+}
+
+.class-notes-layout {
+    align-items: stretch;
+}
+
+.class-notes-filters-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 280px;
+}
+
+.class-notes-filters-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.class-notes-date-range {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.class-notes-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.class-notes-date-input {
+    font-family: var(--font-main);
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+.class-notes-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.class-notes-filter-body {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.class-notes-filter-subtitle {
+    margin: 0 0 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.class-notes-filter-section-wrap {
+    margin-top: 4px;
+}
+
+.class-notes-filter-section-wrap[hidden] {
+    display: none;
+}
+
+.class-notes-main-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.class-notes-main-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.class-notes-summary-line {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.class-notes-export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.class-notes-preview {
+    flex: 1;
+    min-height: 120px;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.class-notes-preview-group {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+.class-notes-preview-group-title {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    background: var(--bg-subtle, var(--input-bg));
+    border-bottom: 1px solid var(--border-color);
+}
+
+.class-notes-preview-entry {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.class-notes-preview-entry:last-child {
+    border-bottom: none;
+}
+
+.class-notes-preview-entry-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.class-notes-preview-entry-body {
+    margin: 0;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+}
+
 .module-list-section-title {
     padding: 10px 12px 6px;
     font-size: 0.75rem;

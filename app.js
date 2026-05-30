@@ -315,6 +315,20 @@ const translations = {
         dayNotesCopyOk: 'Day notes copied.',
         dayNotesCopyFail: 'Could not copy. Select the text and copy manually.',
         dayNotesExportHeader: 'Daily class notes',
+        classesSegmentInfo: 'Class info',
+        classesSegmentNotes: 'Notes',
+        classNotesFiltersTitle: 'Filters',
+        classNotesDateFrom: 'From',
+        classNotesDateTo: 'To',
+        classNotesFilterSubject: 'Subject',
+        classNotesFilterGrade: 'Grade',
+        classNotesResetFilters: 'Reset filters',
+        classNotesSummary: '{notes} note(s) · {classes} class(es)',
+        classNotesExportCopy: 'Copy export',
+        classNotesExportDownload: 'Download .txt',
+        classNotesEmptyFiltered: 'No notes match these filters. Add notes from the calendar (right-click a class).',
+        classNotesExportHeader: 'Class notes export',
+        classNotesNoClassSelected: 'Select at least one class in the filters.',
         confirmDeleteEvent: 'Are you sure you want to delete this event?',
         eventNotesPlaceholder: 'Optional notes...',
         syllabusUnits: 'Syllabus / curriculum units',
@@ -1122,6 +1136,20 @@ const translations = {
         dayNotesCopyOk: '하루 메모를 복사했습니다.',
         dayNotesCopyFail: '복사할 수 없습니다. 텍스트를 선택해 직접 복사하세요.',
         dayNotesExportHeader: '수업 일지',
+        classesSegmentInfo: '수업 정보',
+        classesSegmentNotes: '메모',
+        classNotesFiltersTitle: '필터',
+        classNotesDateFrom: '시작',
+        classNotesDateTo: '끝',
+        classNotesFilterSubject: '과목',
+        classNotesFilterGrade: '학년',
+        classNotesResetFilters: '필터 초기화',
+        classNotesSummary: '메모 {notes}개 · 수업 {classes}개',
+        classNotesExportCopy: '전체 복사',
+        classNotesExportDownload: '.txt 다운로드',
+        classNotesEmptyFiltered: '필터에 맞는 메모가 없습니다. 캘린더에서 수업을 우클릭하여 메모를 추가하세요.',
+        classNotesExportHeader: '수업 메모보내기',
+        classNotesNoClassSelected: '필터에서 수업을 하나 이상 선택하세요.',
         confirmDeleteEvent: '이 일정을 삭제하시겠습니까?',
         eventNotesPlaceholder: '메모 (선택)...',
         syllabusUnits: '교육과정 / 단원',
@@ -4995,6 +5023,10 @@ function ensureUiState() {
     if (!syllabusListSegment) {
         syllabusListSegment = 'classes';
     }
+    if (appData.ui.classesPanelSegment !== 'notes' && appData.ui.classesPanelSegment !== 'info') {
+        appData.ui.classesPanelSegment = 'info';
+    }
+    classesPanelSegment = appData.ui.classesPanelSegment === 'notes' ? 'notes' : 'info';
 }
 
 function getCustomSyllabusTemplates() {
@@ -6550,6 +6582,9 @@ function saveClassDayNoteFromModal() {
         textEl.value = '';
     }
     renderCalendar();
+    if (classesPanelSegment === 'notes') {
+        renderClassNotesTab();
+    }
 }
 
 function renderDayNotesSummaryList(dateStr) {
@@ -6832,6 +6867,443 @@ function initDayNotesUi() {
             downloadDayNotesForDate(dateStr);
         }
     });
+}
+
+const CLASS_NOTES_FILTER_ATTR = 'data-class-notes-filter';
+
+function setClassesPanelSegment(segment, options = {}) {
+    const next = segment === 'notes' ? 'notes' : 'info';
+    classesPanelSegment = next;
+    ensureUiState();
+    appData.ui.classesPanelSegment = next;
+    saveUiStateToLocalStorage();
+    syncClassesPanelSegmentUi();
+    if (next === 'notes') {
+        initClassNotesTab();
+        renderClassNotesTab();
+    } else {
+        mountClassForm('tab');
+        renderClassList();
+        if (options.classId) {
+            const cls = appData.classes.find((c) => c.id === options.classId);
+            if (cls) {
+                populateClassForm(cls);
+            }
+        } else if (options.newClass) {
+            populateClassForm(null, options);
+        }
+        updateClassEditorEmptyState();
+    }
+}
+
+function syncClassesPanelSegmentUi() {
+    const infoPanel = document.getElementById('classesSegmentInfoPanel');
+    const notesPanel = document.getElementById('classesSegmentNotesPanel');
+    const btnInfo = document.getElementById('classesSegmentInfo');
+    const btnNotes = document.getElementById('classesSegmentNotes');
+    const toolbar = document.getElementById('classesInfoToolbar');
+    const isInfo = classesPanelSegment !== 'notes';
+    if (infoPanel) {
+        infoPanel.hidden = !isInfo;
+    }
+    if (notesPanel) {
+        notesPanel.hidden = isInfo;
+    }
+    if (btnInfo) {
+        btnInfo.classList.toggle('is-active', isInfo);
+        btnInfo.setAttribute('aria-selected', String(isInfo));
+    }
+    if (btnNotes) {
+        btnNotes.classList.toggle('is-active', !isInfo);
+        btnNotes.setAttribute('aria-selected', String(!isInfo));
+    }
+    if (toolbar) {
+        toolbar.hidden = !isInfo;
+    }
+}
+
+function getClassNotesFilterOptionGroups() {
+    const subjects = new Map();
+    const grades = new Map();
+    const classes = getClassesInDisplayOrder().map((classData) => {
+        const subject = getClassSubjectForDayNotes(classData) || '';
+        const subjectKey = subject || '__no_subject__';
+        subjects.set(subjectKey, subject || (currentLanguage === 'ko' ? '(과목 없음)' : '(No subject)'));
+        const gradeKey = (classData.grade || '').trim() || LESSON_FILTER_NO_GRADE;
+        grades.set(gradeKey, gradeKey === LESSON_FILTER_NO_GRADE
+            ? (currentLanguage === 'ko' ? '(학년 없음)' : '(No grade)')
+            : classData.grade);
+        return {
+            value: classData.id,
+            label: classData.name || classData.id,
+            searchHay: [classData.name, classData.grade, subject].join(' ').toLowerCase()
+        };
+    });
+    return {
+        classes,
+        subjects: [...subjects.entries()].map(([value, label]) => ({ value, label })),
+        grades: [...grades.entries()].map(([value, label]) => ({ value, label }))
+    };
+}
+
+function buildClassNotesFilterChipHtml(filterKey, options) {
+    if (!options.length) {
+        return '';
+    }
+    return options.map((opt) => `
+        <label class="checkbox-label lesson-filter-chip">
+            <input type="checkbox" ${CLASS_NOTES_FILTER_ATTR}="${filterKey}" value="${escapeAttr(opt.value)}" checked>
+            <span>${escapeHtml(opt.label)}</span>
+        </label>`).join('');
+}
+
+function renderClassNotesFilterClasses() {
+    const body = document.getElementById('classNotesFilterClasses');
+    if (!body) {
+        return;
+    }
+    const groups = getClassNotesFilterOptionGroups();
+    if (!groups.classes.length) {
+        body.innerHTML = `<p class="module-empty-hint">${escapeHtml(t('lessonFilterNoClassesOnCalendar'))}</p>`;
+        return;
+    }
+    body.innerHTML = groups.classes.map((opt) => `
+        <label class="checkbox-label lesson-filter-chip class-notes-class-chip" data-search-hay="${escapeAttr(opt.searchHay)}">
+            <input type="checkbox" ${CLASS_NOTES_FILTER_ATTR}="classIds" value="${escapeAttr(opt.value)}" checked>
+            <span>${escapeHtml(opt.label)}</span>
+        </label>`).join('');
+}
+
+function renderClassNotesFilterSubjectsAndGrades() {
+    const groups = getClassNotesFilterOptionGroups();
+    const subWrap = document.getElementById('classNotesFilterSubjectsWrap');
+    const subMount = document.getElementById('classNotesFilterSubjects');
+    const gradeWrap = document.getElementById('classNotesFilterGradesWrap');
+    const gradeMount = document.getElementById('classNotesFilterGrades');
+    if (subMount && subWrap) {
+        if (groups.subjects.length) {
+            subWrap.hidden = false;
+            subMount.innerHTML = buildClassNotesFilterChipHtml('subjects', groups.subjects);
+        } else {
+            subWrap.hidden = true;
+            subMount.innerHTML = '';
+        }
+    }
+    if (gradeMount && gradeWrap) {
+        if (groups.grades.length) {
+            gradeWrap.hidden = false;
+            gradeMount.innerHTML = buildClassNotesFilterChipHtml('grades', groups.grades);
+        } else {
+            gradeWrap.hidden = true;
+            gradeMount.innerHTML = '';
+        }
+    }
+}
+
+function applyDefaultClassNotesDateRange() {
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    const { start, end } = getTermDateRangeISO();
+    if (fromEl && start) {
+        fromEl.value = start;
+    }
+    if (toEl && end) {
+        toEl.value = end;
+    }
+}
+
+function resetClassNotesFilters() {
+    applyDefaultClassNotesDateRange();
+    renderClassNotesFilterClasses();
+    renderClassNotesFilterSubjectsAndGrades();
+    applyClassNotesClassSearch();
+    renderClassNotesTab();
+}
+
+function applyClassNotesClassSearch() {
+    const query = (document.getElementById('classNotesClassSearch')?.value || '').trim().toLowerCase();
+    document.querySelectorAll('.class-notes-class-chip').forEach((chip) => {
+        const hay = chip.getAttribute('data-search-hay') || '';
+        chip.style.display = !query || hay.includes(query) ? '' : 'none';
+    });
+}
+
+function getClassNotesPartialFilterSet(filterKey) {
+    const inputs = document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="${filterKey}"]`);
+    if (!inputs.length) {
+        return null;
+    }
+    const checked = [];
+    inputs.forEach((input) => {
+        if (input.checked) {
+            checked.push(input.value);
+        }
+    });
+    if (checked.length === 0 || checked.length === inputs.length) {
+        return null;
+    }
+    return new Set(checked);
+}
+
+function collectClassNotesFilterState() {
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    const classInputs = document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`);
+    const classIds = [];
+    classInputs.forEach((input) => {
+        if (input.checked) {
+            classIds.push(input.value);
+        }
+    });
+    const subjectSet = getClassNotesPartialFilterSet('subjects');
+    const gradeSet = getClassNotesPartialFilterSet('grades');
+    return {
+        dateFrom: fromEl ? (fromEl.value || '').trim() : '',
+        dateTo: toEl ? (toEl.value || '').trim() : '',
+        classIds,
+        subjectSet,
+        gradeSet
+    };
+}
+
+function getFilteredClassNotesForExport() {
+    const api = getDayNotesApi();
+    if (!api) {
+        return { notes: [], classOrderIds: [], filters: null };
+    }
+    ensureDayNotesArray();
+    const filters = collectClassNotesFilterState();
+    if (!filters.classIds.length) {
+        return { notes: [], classOrderIds: [], filters };
+    }
+    const notes = api.filterNotes(appData.dayNotes, {
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        classIds: filters.classIds,
+        matchesMeta: (classId) => {
+            const classData = appData.classes.find((c) => c.id === classId);
+            if (!classData) {
+                return false;
+            }
+            const subject = getClassSubjectForDayNotes(classData) || '__no_subject__';
+            const grade = (classData.grade || '').trim() || LESSON_FILTER_NO_GRADE;
+            if (filters.subjectSet && !filters.subjectSet.has(subject)) {
+                return false;
+            }
+            if (filters.gradeSet && !filters.gradeSet.has(grade)) {
+                return false;
+            }
+            return true;
+        }
+    });
+    const classOrderIds = getClassesInDisplayOrder()
+        .map((c) => c.id)
+        .filter((id) => filters.classIds.includes(id));
+    return { notes, classOrderIds, filters };
+}
+
+function buildClassNotesRangeExportText() {
+    const api = getDayNotesApi();
+    const { notes, classOrderIds, filters } = getFilteredClassNotesForExport();
+    if (!api || !filters || !filters.classIds.length) {
+        return '';
+    }
+    const from = filters.dateFrom || '…';
+    const to = filters.dateTo || '…';
+    const rangeLabel = `${from} – ${to}`;
+    return api.formatRangeExportByClass({
+        notes,
+        classOrderIds,
+        resolveMeta: (classId) => resolveDayNoteMeta(classId),
+        formatDate: (iso) => formatDateDisplay(iso),
+        locale: currentLanguage,
+        headerTitle: t('classNotesExportHeader'),
+        rangeLabel
+    });
+}
+
+function renderClassNotesTab() {
+    const summaryEl = document.getElementById('classNotesSummaryLine');
+    const emptyEl = document.getElementById('classNotesEmptyFiltered');
+    const previewEl = document.getElementById('classNotesPreview');
+    if (!previewEl) {
+        return;
+    }
+    const api = getDayNotesApi();
+    const { notes, classOrderIds, filters } = getFilteredClassNotesForExport();
+    previewEl.replaceChildren();
+    if (!filters || !filters.classIds.length) {
+        if (summaryEl) {
+            summaryEl.textContent = t('classNotesNoClassSelected');
+        }
+        if (emptyEl) {
+            emptyEl.hidden = true;
+        }
+        return;
+    }
+    const groups = api ? api.groupNotesByClass(notes, classOrderIds) : [];
+    if (summaryEl) {
+        summaryEl.textContent = t('classNotesSummary')
+            .replace('{notes}', String(notes.length))
+            .replace('{classes}', String(groups.length));
+    }
+    if (!notes.length) {
+        if (emptyEl) {
+            emptyEl.hidden = false;
+            emptyEl.textContent = t('classNotesEmptyFiltered');
+        }
+        return;
+    }
+    if (emptyEl) {
+        emptyEl.hidden = true;
+    }
+    groups.forEach((group) => {
+        const meta = resolveDayNoteMeta(group.classId);
+        const section = document.createElement('section');
+        section.className = 'class-notes-preview-group';
+        section.setAttribute('role', 'listitem');
+        const title = document.createElement('h3');
+        title.className = 'class-notes-preview-group-title';
+        title.textContent = meta.subject ? `${meta.className} — ${meta.subject}` : meta.className;
+        section.appendChild(title);
+        group.notes.forEach((note) => {
+            const entry = document.createElement('div');
+            entry.className = 'class-notes-preview-entry';
+            const metaLine = document.createElement('div');
+            metaLine.className = 'class-notes-preview-entry-meta';
+            const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
+            metaLine.textContent = [formatDateDisplay(note.date), time].filter(Boolean).join(' · ');
+            const body = document.createElement('p');
+            body.className = 'class-notes-preview-entry-body';
+            body.textContent = note.text;
+            entry.appendChild(metaLine);
+            entry.appendChild(body);
+            section.appendChild(entry);
+        });
+        previewEl.appendChild(section);
+    });
+}
+
+function showClassNotesExportStatus(ok, message) {
+    const el = document.getElementById('classNotesExportStatus');
+    if (!el) {
+        showDayNotesCopyStatus(ok, message);
+        return;
+    }
+    el.hidden = false;
+    el.textContent = message || (ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+    el.classList.toggle('is-ok', !!ok);
+    el.classList.toggle('is-error', !ok);
+    clearTimeout(showClassNotesExportStatus._timer);
+    showClassNotesExportStatus._timer = setTimeout(() => {
+        el.hidden = true;
+    }, 2800);
+}
+
+async function copyClassNotesExport() {
+    const text = buildClassNotesRangeExportText();
+    if (!text.trim()) {
+        const { filters } = getFilteredClassNotesForExport();
+        if (!filters || !filters.classIds.length) {
+            showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
+        } else {
+            showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
+        }
+        return;
+    }
+    const ok = await copyTextToClipboard(text);
+    showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+}
+
+function downloadClassNotesExport() {
+    const text = buildClassNotesRangeExportText();
+    if (!text.trim()) {
+        const { filters } = getFilteredClassNotesForExport();
+        if (!filters || !filters.classIds.length) {
+            showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
+        } else {
+            showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
+        }
+        return;
+    }
+    const filters = collectClassNotesFilterState();
+    const from = filters.dateFrom || 'start';
+    const to = filters.dateTo || 'end';
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `class-notes-${from}-to-${to}.txt`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function initClassNotesTab() {
+    if (!classNotesFiltersBuilt) {
+        classNotesFiltersBuilt = true;
+        applyDefaultClassNotesDateRange();
+        renderClassNotesFilterClasses();
+        renderClassNotesFilterSubjectsAndGrades();
+    }
+    renderClassNotesTab();
+}
+
+function initClassesPanelSegments() {
+    if (document.body.dataset.classesSegmentsBound === '1') {
+        return;
+    }
+    document.body.dataset.classesSegmentsBound = '1';
+    ensureUiState();
+    classesPanelSegment = appData.ui.classesPanelSegment === 'notes' ? 'notes' : 'info';
+    syncClassesPanelSegmentUi();
+
+    document.getElementById('classesSegmentInfo')?.addEventListener('click', () => {
+        setClassesPanelSegment('info');
+    });
+    document.getElementById('classesSegmentNotes')?.addEventListener('click', () => {
+        setClassesPanelSegment('notes');
+    });
+
+    document.getElementById('classNotesFilterFrom')?.addEventListener('change', renderClassNotesTab);
+    document.getElementById('classNotesFilterTo')?.addEventListener('change', renderClassNotesTab);
+    document.getElementById('classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
+
+    document.getElementById('classNotesFilterClasses')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            renderClassNotesTab();
+        }
+    });
+    document.getElementById('classNotesFilterSubjects')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            renderClassNotesTab();
+        }
+    });
+    document.getElementById('classNotesFilterGrades')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            renderClassNotesTab();
+        }
+    });
+
+    document.getElementById('classNotesFilterSelectAllBtn')?.addEventListener('click', () => {
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+            input.checked = true;
+        });
+        renderClassNotesTab();
+    });
+    document.getElementById('classNotesFilterClearClassesBtn')?.addEventListener('click', () => {
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+            input.checked = false;
+        });
+        renderClassNotesTab();
+    });
+    document.getElementById('classNotesResetFiltersBtn')?.addEventListener('click', resetClassNotesFilters);
+    document.getElementById('classNotesExportCopyBtn')?.addEventListener('click', () => {
+        void copyClassNotesExport();
+    });
+    document.getElementById('classNotesExportDownloadBtn')?.addEventListener('click', downloadClassNotesExport);
 }
 
 function groupKrPublicHolidayRows(rows) {
@@ -7661,6 +8133,9 @@ let calendarRenderForPrint = false;
 let syllabusEditorMounted = false;
 /** @type {'classes'|'templates'} */
 let syllabusListSegment = 'classes';
+/** @type {'info'|'notes'} */
+let classesPanelSegment = 'info';
+let classNotesFiltersBuilt = false;
 /** @type {'class'|'template'|null} */
 let syllabusEditorMode = null;
 
@@ -8724,17 +9199,27 @@ function navigateToTabBody(tabId, options = {}) {
     });
 
     if (tabId === 'classes') {
-        mountClassForm('tab');
-        renderClassList();
-        if (options.classId) {
-            const cls = appData.classes.find((c) => c.id === options.classId);
-            if (cls) {
-                populateClassForm(cls);
+        if (options.segment === 'notes' || options.segment === 'info') {
+            setClassesPanelSegment(options.segment, options);
+        } else {
+            syncClassesPanelSegmentUi();
+            if (classesPanelSegment === 'notes') {
+                initClassNotesTab();
+                renderClassNotesTab();
+            } else {
+                mountClassForm('tab');
+                renderClassList();
+                if (options.classId) {
+                    const cls = appData.classes.find((c) => c.id === options.classId);
+                    if (cls) {
+                        populateClassForm(cls);
+                    }
+                } else if (options.newClass) {
+                    populateClassForm(null, options);
+                }
+                updateClassEditorEmptyState();
             }
-        } else if (options.newClass) {
-            populateClassForm(null, options);
         }
-        updateClassEditorEmptyState();
     } else if (tabId === 'events') {
         mountHolidayForm('tab');
         renderEventList();
@@ -8831,6 +9316,7 @@ function initAppTabs() {
     }
     initHomeworkTabListeners();
     initTimetableTabListeners();
+    initClassesPanelSegments();
     const openSyllabusTabBtn = document.getElementById('openSyllabusTabBtn');
     if (openSyllabusTabBtn) {
         openSyllabusTabBtn.addEventListener('click', () => {

@@ -47,7 +47,7 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
 | Daily class log (calendar) | `js/day-notes.js`, `appData.dayNotes[]`, calendar context menus in `app.js` |
 
-**Day notes vs class Notes:** `classes[].notes` in the class editor is a static class memo. `dayNotes[]` is timestamped per-class, per-calendar-day entries (right-click a lesson bar on the calendar; copy/export via day right-click or **Day notes** in term settings).
+**Day notes vs class Notes:** `classes[].notes` in the class editor is a static class memo. `dayNotes[]` is timestamped per-class, per-calendar-day entries. **Entry:** calendar → right-click lesson → Add note. **Single day:** day right-click or **Day notes** in term settings. **Range export:** **Classes** tab → **Notes** sub-tab (date range, class/subject/grade filters; export grouped by class, chronological within each class). Helpers in `js/day-notes.js` (`filterNotes`, `formatRangeExportByClass`).
 
 ## Editing surfaces (popout vs tab vs workspace)
 
