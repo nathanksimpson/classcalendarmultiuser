@@ -6,9 +6,25 @@
         return String(v == null ? '' : v).trim();
     }
 
+    function normalizeMeetingDaysArray(days) {
+        if (!global.CCPTeacherTimetable || !global.CCPTeacherTimetable.getMeetingDaysFromClass) {
+            if (!Array.isArray(days)) {
+                return [];
+            }
+            return days.map((d) => parseInt(d, 10)).filter((n) => !Number.isNaN(n) && n >= 0 && n <= 6);
+        }
+        const tmp = { meetingDays: days };
+        return global.CCPTeacherTimetable.getMeetingDaysFromClass(
+            Array.isArray(days) && days.length ? tmp : { meetingDays: [] }
+        );
+    }
+
     function normalizeClassTeacherRow(row, classData) {
         const base = classData || {};
         const r = row || {};
+        const meetingDays = Array.isArray(r.meetingDays) && r.meetingDays.length
+            ? normalizeMeetingDaysArray(r.meetingDays)
+            : [];
         return {
             id: normalizeStr(r.id) || '',
             userId: normalizeStr(r.userId),
@@ -20,7 +36,8 @@
             scheduleModel: normalizeStr(r.scheduleModel) || normalizeStr(base.scheduleModel),
             totalLessons: r.totalLessons != null && r.totalLessons !== ''
                 ? parseInt(r.totalLessons, 10)
-                : null
+                : null,
+            meetingDays
         };
     }
 
@@ -139,6 +156,14 @@
             }
             if (merged.defaultBook && !row.book) {
                 effective.book = merged.defaultBook;
+            }
+        }
+        if (row.meetingDays && row.meetingDays.length) {
+            effective.meetingDays = row.meetingDays.slice();
+            if (effective.meetingDays.length === 1) {
+                effective.dayOfWeek = effective.meetingDays[0];
+            } else {
+                effective.dayOfWeek = null;
             }
         }
         return { effective, teacherRow: row };

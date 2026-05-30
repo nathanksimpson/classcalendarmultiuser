@@ -6309,6 +6309,50 @@ body.workspace-page #appStatus {
     margin-bottom: 0.5rem;
 }
 
+.class-teacher-schedule {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    margin-top: 0.35rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+}
+
+.class-teacher-schedule label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.class-teacher-placements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.35rem 0;
+}
+
+.class-teacher-placement-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timetable-cell-entry {
+    border-radius: 4px;
+}
+
+.timetable-view-section {
+    margin-bottom: 1.25rem;
+}
+
+.print-data-section--calendar-backup .data-calendar-name {
+    font-weight: 600;
+}
+
 .class-teacher-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));

@@ -121,16 +121,159 @@
         return !Number.isNaN(p) && p >= 1 && p <= 7 ? p : null;
     }
 
-    function resolveTimeSlotIdForClass(classData, weekday, appData) {
-        if (classData && classData.timeSlotId) {
-            return classData.timeSlotId;
+    function resolveTimeSlotIdFromPeriod(period, timeSlotIdOverride, appData) {
+        if (timeSlotIdOverride) {
+            return timeSlotIdOverride;
         }
-        const period = getClassPeriodNumber(classData, weekday);
         if (period == null) {
             return null;
         }
         const map = (appData && appData.periodSlotMap) || DEFAULT_PERIOD_SLOT_MAP;
         return map[String(period)] || null;
+    }
+
+    function resolveTimeSlotIdForClass(classData, weekday, appData) {
+        if (classData && classData.timeSlotId) {
+            return classData.timeSlotId;
+        }
+        const period = getClassPeriodNumber(classData, weekday);
+        return resolveTimeSlotIdFromPeriod(period, '', appData);
+    }
+
+    function normalizeTeacherRow(row) {
+        const r = row || {};
+        const placements = [];
+        if (Array.isArray(r.placements)) {
+            r.placements.forEach((p) => {
+                const dow = parseInt(p.dow, 10);
+                const period = parseInt(p.period, 10);
+                if (!Number.isNaN(dow) && dow >= 0 && dow <= 6 && !Number.isNaN(period) && period >= 1 && period <= 7) {
+                    placements.push({ dow, period });
+                }
+            });
+        }
+        return {
+            id: normalizeStr(r.id),
+            userId: normalizeStr(r.userId),
+            name: normalizeStr(r.name),
+            category: normalizeStr(r.category),
+            curriculumId: normalizeStr(r.curriculumId),
+            classTypeId: normalizeStr(r.classTypeId),
+            book: normalizeStr(r.book),
+            meetingDays: normalizeMeetingDaysArray(r.meetingDays || []),
+            period: r.period != null && r.period !== '' ? parseInt(r.period, 10) : null,
+            periodByWeekday: normalizePeriodByWeekday(r.periodByWeekday),
+            timeSlotId: normalizeStr(r.timeSlotId),
+            scheduleBlock: r.scheduleBlock === 'secondary' ? 'secondary' : (r.scheduleBlock === 'primary' ? 'primary' : ''),
+            placements
+        };
+    }
+
+    function getTeacherMeetingDays(classData, teacherRow) {
+        const row = normalizeTeacherRow(teacherRow);
+        if (row.meetingDays.length) {
+            return row.meetingDays;
+        }
+        return getMeetingDaysFromClass(classData);
+    }
+
+    function getTeacherPeriodNumber(teacherRow, classData, weekday) {
+        const row = normalizeTeacherRow(teacherRow);
+        if (weekday !== undefined && weekday !== null && row.periodByWeekday) {
+            const p = row.periodByWeekday[String(weekday)];
+            if (p !== undefined) {
+                return p;
+            }
+        }
+        if (row.period != null && !Number.isNaN(row.period) && row.period >= 1 && row.period <= 7) {
+            return row.period;
+        }
+        return getClassPeriodNumber(classData, weekday);
+    }
+
+    function resolveTimeSlotIdForTeacherRow(classData, teacherRow, weekday, appData) {
+        const row = normalizeTeacherRow(teacherRow);
+        if (row.timeSlotId) {
+            return row.timeSlotId;
+        }
+        const period = getTeacherPeriodNumber(row, classData, weekday);
+        return resolveTimeSlotIdFromPeriod(period, '', appData);
+    }
+
+    /**
+     * @returns {{ dow: number, period: number, timeSlotId: string }[]}
+     */
+    function getTeacherTimetablePlacements(classData, teacherRow, appData) {
+        const row = normalizeTeacherRow(teacherRow);
+        const effectiveDays = getTeacherMeetingDays(classData, row).filter((d) => d >= 1 && d <= 5);
+        const out = [];
+        const seen = new Set();
+
+        function addPlacement(dow, period) {
+            if (dow < 1 || dow > 5 || period == null || period < 1 || period > 7) {
+                return;
+            }
+            if (effectiveDays.length && !effectiveDays.includes(dow)) {
+                return;
+            }
+            const slotId = resolveTimeSlotIdFromPeriod(period, row.timeSlotId, appData)
+                || resolveTimeSlotIdForTeacherRow(classData, row, dow, appData);
+            if (!slotId) {
+                return;
+            }
+            const key = `${dow}|${slotId}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            out.push({ dow, period, timeSlotId: slotId });
+        }
+
+        if (row.placements.length) {
+            row.placements.forEach((p) => addPlacement(p.dow, p.period));
+            return out;
+        }
+
+        if (row.periodByWeekday) {
+            const days = effectiveDays.length ? effectiveDays : Object.keys(row.periodByWeekday).map((k) => parseInt(k, 10));
+            days.forEach((dow) => {
+                const p = row.periodByWeekday[String(dow)];
+                if (p !== undefined) {
+                    addPlacement(dow, p);
+                }
+            });
+            if (out.length) {
+                return out;
+            }
+        }
+
+        if (row.period != null && !Number.isNaN(row.period)) {
+            const days = effectiveDays.length ? effectiveDays : getMeetingDaysFromClass(classData).filter((d) => d >= 1 && d <= 5);
+            days.forEach((dow) => addPlacement(dow, row.period));
+            if (out.length) {
+                return out;
+            }
+        }
+
+        const classDays = effectiveDays.length ? effectiveDays : getMeetingDaysFromClass(classData).filter((d) => d >= 1 && d <= 5);
+        const classByWd = normalizePeriodByWeekday(classData && classData.periodByWeekday);
+        classDays.forEach((dow) => {
+            let period = null;
+            if (classByWd && classByWd[String(dow)] !== undefined) {
+                period = classByWd[String(dow)];
+            } else {
+                period = getClassPeriodNumber(classData, dow);
+            }
+            addPlacement(dow, period);
+        });
+
+        return out;
+    }
+
+    function findTeacherRowForSelector(classData, selector) {
+        return getClassTeachersList(classData).find((row) =>
+            teacherMatchesTeacherRef({ userId: row.userId, displayName: row.name }, selector)
+        ) || null;
     }
 
     function deriveTeacherCategory(classData) {
@@ -236,15 +379,7 @@
                 const userId = normalizeStr(row.userId);
                 const name = normalizeStr(row.name);
                 if (userId || name || normalizeStr(row.curriculumId)) {
-                    list.push({
-                        id: normalizeStr(row.id),
-                        userId,
-                        name,
-                        category: normalizeStr(row.category),
-                        curriculumId: normalizeStr(row.curriculumId),
-                        classTypeId: normalizeStr(row.classTypeId),
-                        book: normalizeStr(row.book)
-                    });
+                    list.push(normalizeTeacherRow(row));
                 }
             });
         }
@@ -252,15 +387,15 @@
             const userId = normalizeStr(classData.assignedTeacherUserId);
             const name = normalizeStr(classData.assignedTeacherName);
             if (userId || name || normalizeStr(classData.curriculumId)) {
-                list.push({
+                list.push(normalizeTeacherRow({
                     id: '',
                     userId,
                     name,
-                    category: normalizeStr(classData.teacherCategory),
-                    curriculumId: normalizeStr(classData.curriculumId),
-                    classTypeId: normalizeStr(classData.classTypeId),
-                    book: normalizeStr(classData.book)
-                });
+                    category: classData.teacherCategory,
+                    curriculumId: classData.curriculumId,
+                    classTypeId: classData.classTypeId,
+                    book: classData.book
+                }));
             }
         }
         return list;
@@ -337,14 +472,15 @@
         const seen = new Set();
         const items = [];
         (appData.classes || []).forEach((classData) => {
-            if (!teacherMatchesClass(classData, selector)) {
+            const teacherRow = findTeacherRowForSelector(classData, selector);
+            if (!teacherRow) {
                 return;
             }
             if (seen.has(classData.id)) {
                 return;
             }
             seen.add(classData.id);
-            items.push({ classData });
+            items.push({ classData, teacherRow: normalizeTeacherRow(teacherRow) });
         });
         return items;
     }
@@ -484,25 +620,29 @@
         });
 
         const scheduleItems = getClassesForTeacherSchedule(appData, selector);
-        scheduleItems.forEach(({ classData }) => {
-            const blockKey = classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary';
+        scheduleItems.forEach(({ classData, teacherRow }) => {
+            const rowNorm = normalizeTeacherRow(teacherRow);
+            const blockKey = rowNorm.scheduleBlock === 'secondary'
+                ? 'secondary'
+                : (rowNorm.scheduleBlock === 'primary'
+                    ? 'primary'
+                    : (classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary'));
             const block = blocks[blockKey];
-            const category = getTeacherCategoryForClass(classData, selector);
+            const category = rowNorm.category || getTeacherCategoryForClass(classData, selector);
             const homeroomLabel = resolveHomeroomLabel(classData, cohortsById);
-            const meetingDays = getMeetingDaysFromClass(classData);
-            meetingDays.forEach((dow) => {
-                if (dow < 1 || dow > 5) {
-                    return;
-                }
-                const slotId = resolveTimeSlotIdForClass(classData, dow, appData);
+            const placements = getTeacherTimetablePlacements(classData, rowNorm, appData);
+            const color = normalizeStr(classData.color) || '#6366f1';
+            const textColor = normalizeStr(classData.textColor) || '#ffffff';
+            placements.forEach((pl) => {
+                const slotId = pl.timeSlotId;
                 if (!slotId || !slotById[slotId]) {
                     return;
                 }
-                const row = block.rows.find((r) => r.timeSlotId === slotId);
-                if (!row) {
+                const gridRow = block.rows.find((r) => r.timeSlotId === slotId);
+                if (!gridRow) {
                     return;
                 }
-                const cell = row.cells.find((c) => c.dow === dow);
+                const cell = gridRow.cells.find((c) => c.dow === pl.dow);
                 if (!cell) {
                     return;
                 }
@@ -511,6 +651,8 @@
                     className: classData.name || '',
                     category,
                     homeroomLabel,
+                    color,
+                    textColor,
                     label: category ? `${classData.name}\n(${category})` : classData.name
                 });
             });
@@ -541,12 +683,21 @@
             || '';
 
         const resultBlocks = [];
-        if (scheduleItems.some(({ classData }) => classData.scheduleBlock !== 'secondary')) {
-            resultBlocks.push(blocks.primary);
-        } else if (!scheduleItems.length) {
+        function itemUsesBlock(item, blockId) {
+            const rowNorm = normalizeTeacherRow(item.teacherRow);
+            if (rowNorm.scheduleBlock === blockId) {
+                return true;
+            }
+            if (rowNorm.scheduleBlock) {
+                return false;
+            }
+            const onClass = item.classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary';
+            return onClass === blockId;
+        }
+        if (scheduleItems.some((item) => itemUsesBlock(item, 'primary')) || !scheduleItems.length) {
             resultBlocks.push(blocks.primary);
         }
-        if (scheduleItems.some(({ classData }) => classData.scheduleBlock === 'secondary')) {
+        if (scheduleItems.some((item) => itemUsesBlock(item, 'secondary'))) {
             resultBlocks.push(blocks.secondary);
         }
 
@@ -595,6 +746,11 @@
         getSortedTimeSlots,
         inferHomeroomDaySuffix,
         meetingDaysKey,
-        getMeetingDaysFromClass
+        getMeetingDaysFromClass,
+        normalizeTeacherRow,
+        getTeacherMeetingDays,
+        getTeacherTimetablePlacements,
+        findTeacherRowForSelector,
+        getTeacherPeriodNumber
     };
 })(typeof window !== 'undefined' ? window : globalThis);

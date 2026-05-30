@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-multi-curriculum">
+    <link rel="stylesheet" href="styles.css?v=20260530-timetable-exec">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -389,6 +389,7 @@
             </section>
 
             <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
+                <div class="print-data-section timetable-view-section">
                 <div class="module-toolbar timetable-tab-toolbar">
                     <label class="timetable-teacher-picker" for="timetableTeacherSelect">
                         <span data-i18n="timetableTeacherLabel">Teacher</span>
@@ -397,6 +398,7 @@
                         </select>
                     </label>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
+                    <button type="button" id="timetableExportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableExportExcel">Export Excel</button>
                     <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
                     <span id="timetableConflictBadge" class="timetable-conflict-badge" role="status" hidden></span>
                 </div>
@@ -413,7 +415,8 @@
                     </header>
                     <div id="timetableGridsMount" class="timetable-grids-mount"></div>
                 </div>
-                <section class="timetable-cohorts-section">
+                </div>
+                <section class="timetable-cohorts-section print-data-section">
                     <div class="timetable-cohorts-toolbar">
                         <h3 data-i18n="timetableCohortsHeading">Student cohorts (담임)</h3>
                         <button type="button" id="timetableSuggestCohortsBtn" class="btn btn-outline btn-small" data-i18n="timetableSuggestCohorts">Suggest cohorts from classes</button>
@@ -440,6 +443,19 @@
 
             <section id="panel-data" class="app-tab-panel" data-tab="data" role="tabpanel" aria-labelledby="tabBtn-data" hidden>
                 <div class="print-data-layout">
+                    <div class="print-data-section print-data-section--calendar-backup">
+                        <h2 class="module-section-title" data-i18n="dataCalendarBackupHeading">Calendar backup</h2>
+                        <p class="section-hint" data-i18n="dataCalendarBackupHint">Export a full backup of this calendar (classes, events, holidays, cohorts, timetable settings). Export before importing if unsure.</p>
+                        <p class="data-calendar-name-line section-hint">
+                            <span data-i18n="dataCalendarNameLabel">Current calendar</span>:
+                            <strong id="dataCalendarName" class="data-calendar-name"></strong>
+                        </p>
+                        <p id="dataCalendarReadOnlyHint" class="section-hint" hidden data-i18n="importReadOnlyHint">This calendar is locked by another teacher. Request to edit first, or choose “Create new team calendar from file”.</p>
+                        <div class="print-data-actions">
+                            <button type="button" id="dataExportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataExportCalendar">Export calendar</button>
+                            <button type="button" id="dataImportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataImportCalendar">Import calendar</button>
+                        </div>
+                    </div>
                     <div class="print-data-section print-data-section--curriculum-link">
                         <h2 class="module-section-title" data-i18n="tabCurriculum">Curriculum</h2>
                         <p class="section-hint" data-i18n="dataCurriculumLinkHint">Edit books, session pages, and program defaults using the Curriculum tab in the bar above.</p>
@@ -1247,9 +1263,10 @@
     <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="js/teacher-timetable.js?v=20260530-team-accounts"></script>
-    <script defer src="js/class-curriculum-slices.js?v=20260530-team-accounts"></script>
-    <script defer src="app.js?v=20260530-team-accounts"></script>
+    <script defer src="js/teacher-timetable.js?v=20260530-timetable-exec"></script>
+    <script defer src="js/class-curriculum-slices.js?v=20260530-timetable-exec"></script>
+    <script defer src="js/timetable-export.js?v=20260530-timetable-exec"></script>
+    <script defer src="app.js?v=20260530-timetable-exec"></script>
 </body>
 </html>
 

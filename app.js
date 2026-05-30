@@ -433,6 +433,20 @@ const translations = {
         classTeacherLegacyUnlinked: 'link account',
         classAddTeacher: '+ Add teacher',
         classRemoveTeacher: 'Remove',
+        classRemoveTeacherHint: 'Remove a teacher row, then Save Class, to unassign them from this class.',
+        classTeacherDaysInherit: 'Same meeting days as class',
+        classTeacherDaysCustom: 'Custom meeting days',
+        classTeacherPeriodInherit: 'Same period as class',
+        classTeacherPeriodCustom: 'Custom period',
+        classTeacherAddTimeSlot: '+ Add time slot',
+        classTeacherScheduleBlock: 'Schedule block',
+        timetableExportExcel: 'Export Excel',
+        timetableExportExcelFailed: 'Could not export timetable.',
+        dataCalendarBackupHeading: 'Calendar backup',
+        dataCalendarBackupHint: 'Export a full backup of this calendar (classes, events, holidays, cohorts, timetable settings). Export before importing if unsure.',
+        dataExportCalendar: 'Export calendar',
+        dataImportCalendar: 'Import calendar',
+        dataCalendarNameLabel: 'Current calendar',
         classTeacherCategory: 'Teacher category',
         classTeacherCategoryAuto: 'Auto from class type',
         classHomeroomLabel: 'Homeroom teacher (담임)',
@@ -1151,6 +1165,20 @@ const translations = {
         classTeacherLegacyUnlinked: '계정 연결 필요',
         classAddTeacher: '+ 선생님 추가',
         classRemoveTeacher: '삭제',
+        classRemoveTeacherHint: '선생님 행을 삭제한 뒤 수업 저장을 누르면 이 수업에서 배정이 해제됩니다.',
+        classTeacherDaysInherit: '수업과 같은 요일',
+        classTeacherDaysCustom: '요일 직접 지정',
+        classTeacherPeriodInherit: '수업과 같은 교시',
+        classTeacherPeriodCustom: '교시 직접 지정',
+        classTeacherAddTimeSlot: '+ 시간 추가',
+        classTeacherScheduleBlock: '시간표 블록',
+        timetableExportExcel: '엑셀보내기',
+        timetableExportExcelFailed: '시간표를보낼 수 없습니다.',
+        dataCalendarBackupHeading: '캘린더 백업',
+        dataCalendarBackupHint: '이 캘린더 전체(수업, 일정, 휴일, 반, 시간표 설정)를 백업합니다. 불확실하면 가져오기 전에 먼저보내세요.',
+        dataExportCalendar: '캘린더보내기',
+        dataImportCalendar: '캘린더 가져오기',
+        dataCalendarNameLabel: '현재 캘린더',
         classTeacherCategory: '선생님 구분',
         classTeacherCategoryAuto: '수업 유형에서 자동',
         classHomeroomLabel: '담임 선생님',
@@ -7660,6 +7688,7 @@ function navigateToTabBody(tabId, options = {}) {
         initCurriculumTabPanel(options);
     } else if (tabId === 'data') {
         requestAnimationFrame(() => {
+            updateDataTabCalendarSection();
             renderPrintSyllabusManager();
         });
     } else if (tabId === 'calendar' && options.focusClassId) {
@@ -8673,6 +8702,169 @@ function parseTeacherPickerValue(raw) {
     };
 }
 
+const TEACHER_ROW_MEETING_CLASS = 'class-teacher-meeting-day';
+
+function buildTeacherRowMeetingDayCheckboxes(container, selectedDays) {
+    if (!container) {
+        return;
+    }
+    container.innerHTML = '';
+    const short = t('dayNamesShort');
+    const set = new Set(normalizeMeetingDaysArray(selectedDays || []));
+    for (let d = 1; d <= 5; d += 1) {
+        const label = document.createElement('label');
+        label.className = 'meeting-day-chip';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = TEACHER_ROW_MEETING_CLASS;
+        cb.value = String(d);
+        cb.checked = set.has(d);
+        const span = document.createElement('span');
+        span.className = 'meeting-day-chip-text';
+        span.textContent = short[d] != null ? short[d] : String(d);
+        label.appendChild(cb);
+        label.appendChild(span);
+        container.appendChild(label);
+    }
+}
+
+function readTeacherRowMeetingDays(rowEl) {
+    if (!rowEl) {
+        return [];
+    }
+    return normalizeMeetingDaysArray(
+        Array.from(rowEl.querySelectorAll(`input.${TEACHER_ROW_MEETING_CLASS}:checked`))
+            .map((cb) => parseInt(cb.value, 10))
+    );
+}
+
+function syncTeacherRowDaysUi(rowEl) {
+    const mode = rowEl.querySelector('.class-teacher-days-mode');
+    const wrap = rowEl.querySelector('.class-teacher-days-wrap');
+    if (!mode || !wrap) {
+        return;
+    }
+    wrap.hidden = mode.value !== 'custom';
+}
+
+function syncTeacherRowPeriodUi(rowEl) {
+    const mode = rowEl.querySelector('.class-teacher-period-mode');
+    const wrap = rowEl.querySelector('.class-teacher-period-wrap');
+    if (!mode || !wrap) {
+        return;
+    }
+    wrap.hidden = mode.value !== 'custom';
+}
+
+function addTeacherPlacementRow(rowEl, placement) {
+    const list = rowEl.querySelector('.class-teacher-placements-list');
+    if (!list) {
+        return;
+    }
+    const p = placement || { dow: 1, period: 1 };
+    const line = document.createElement('div');
+    line.className = 'class-teacher-placement-row form-row';
+    const dowSel = document.createElement('select');
+    dowSel.className = 'class-teacher-placement-dow';
+    const short = t('dayNamesShort');
+    for (let d = 1; d <= 5; d += 1) {
+        const opt = document.createElement('option');
+        opt.value = String(d);
+        opt.textContent = short[d] != null ? short[d] : String(d);
+        dowSel.appendChild(opt);
+    }
+    dowSel.value = String(p.dow || 1);
+    const periodSel = document.createElement('select');
+    periodSel.className = 'class-teacher-placement-period';
+    periodSel.innerHTML = buildClassPeriodSelectInnerHtml(p.period || 1);
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-outline btn-small';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => line.remove());
+    line.appendChild(dowSel);
+    line.appendChild(periodSel);
+    line.appendChild(removeBtn);
+    list.appendChild(line);
+}
+
+function applyTeacherRowScheduleToForm(rowEl, data) {
+    const row = data || {};
+    const daysMode = rowEl.querySelector('.class-teacher-days-mode');
+    const periodMode = rowEl.querySelector('.class-teacher-period-mode');
+    const daysWrap = rowEl.querySelector('.class-teacher-days-wrap');
+    const periodWrap = rowEl.querySelector('.class-teacher-period-wrap');
+    const periodSel = rowEl.querySelector('.class-teacher-row-period');
+    const blockSel = rowEl.querySelector('.class-teacher-schedule-block');
+    const placementsList = rowEl.querySelector('.class-teacher-placements-list');
+    const hasCustomDays = Array.isArray(row.meetingDays) && row.meetingDays.length > 0;
+    const hasPlacements = Array.isArray(row.placements) && row.placements.length > 0;
+    const hasCustomPeriod = row.period != null && row.period !== ''
+        || hasPlacements
+        || (row.periodByWeekday && Object.keys(row.periodByWeekday).length);
+    if (daysMode) {
+        daysMode.value = hasCustomDays ? 'custom' : 'inherit';
+    }
+    if (periodMode) {
+        periodMode.value = hasCustomPeriod ? 'custom' : 'inherit';
+    }
+    if (daysWrap) {
+        buildTeacherRowMeetingDayCheckboxes(daysWrap, hasCustomDays ? row.meetingDays : []);
+    }
+    if (placementsList) {
+        placementsList.innerHTML = '';
+        if (hasPlacements) {
+            row.placements.forEach((p) => addTeacherPlacementRow(rowEl, p));
+        }
+    }
+    if (periodSel) {
+        periodSel.innerHTML = buildClassPeriodSelectInnerHtml(row.period || CLASS_PERIOD_MIN);
+    }
+    if (blockSel) {
+        blockSel.value = row.scheduleBlock === 'secondary' ? 'secondary' : (row.scheduleBlock === 'primary' ? 'primary' : '');
+    }
+    syncTeacherRowDaysUi(rowEl);
+    syncTeacherRowPeriodUi(rowEl);
+}
+
+function collectTeacherRowScheduleFields(rowEl) {
+    const out = {
+        meetingDays: [],
+        period: null,
+        periodByWeekday: null,
+        placements: [],
+        scheduleBlock: ''
+    };
+    const daysMode = rowEl.querySelector('.class-teacher-days-mode');
+    if (daysMode && daysMode.value === 'custom') {
+        out.meetingDays = readTeacherRowMeetingDays(rowEl);
+    }
+    const periodMode = rowEl.querySelector('.class-teacher-period-mode');
+    if (periodMode && periodMode.value === 'custom') {
+        const placementRows = rowEl.querySelectorAll('.class-teacher-placement-row');
+        if (placementRows.length) {
+            placementRows.forEach((pr) => {
+                const dow = parseInt(pr.querySelector('.class-teacher-placement-dow')?.value, 10);
+                const period = parseClassPeriodFromInput(pr.querySelector('.class-teacher-placement-period'));
+                if (!Number.isNaN(dow) && period != null) {
+                    out.placements.push({ dow, period });
+                }
+            });
+        } else {
+            const periodSel = rowEl.querySelector('.class-teacher-row-period');
+            const p = periodSel ? parseClassPeriodFromInput(periodSel) : null;
+            if (p != null) {
+                out.period = p;
+            }
+        }
+    }
+    const blockSel = rowEl.querySelector('.class-teacher-schedule-block');
+    if (blockSel && blockSel.value) {
+        out.scheduleBlock = blockSel.value;
+    }
+    return out;
+}
+
 function populateClassCohortSelect(selectedId) {
     const sel = document.getElementById('classCohort');
     if (!sel) {
@@ -8794,7 +8986,12 @@ function getClassTeachersForForm(classData) {
             category: row.category || '',
             curriculumId: row.curriculumId || '',
             classTypeId: row.classTypeId || '',
-            book: row.book || ''
+            book: row.book || '',
+            meetingDays: Array.isArray(row.meetingDays) ? row.meetingDays.slice() : [],
+            period: row.period,
+            periodByWeekday: row.periodByWeekday,
+            placements: Array.isArray(row.placements) ? row.placements.slice() : [],
+            scheduleBlock: row.scheduleBlock || ''
         }));
     }
     if (!classData) {
@@ -8964,13 +9161,89 @@ function addClassTeacherRow(rowData) {
         }
     });
 
+    const scheduleWrap = document.createElement('div');
+    scheduleWrap.className = 'class-teacher-schedule form-group--full-only';
+
+    const daysLabel = document.createElement('label');
+    daysLabel.textContent = t('meetingDays');
+    const daysMode = document.createElement('select');
+    daysMode.className = 'class-teacher-days-mode';
+    const daysInherit = document.createElement('option');
+    daysInherit.value = 'inherit';
+    daysInherit.textContent = t('classTeacherDaysInherit');
+    const daysCustom = document.createElement('option');
+    daysCustom.value = 'custom';
+    daysCustom.textContent = t('classTeacherDaysCustom');
+    daysMode.appendChild(daysInherit);
+    daysMode.appendChild(daysCustom);
+    daysMode.addEventListener('change', () => syncTeacherRowDaysUi(row));
+    daysLabel.appendChild(daysMode);
+
+    const daysWrap = document.createElement('div');
+    daysWrap.className = 'class-teacher-days-wrap meeting-days-checkbox-row';
+    daysWrap.hidden = true;
+
+    const periodLabel = document.createElement('label');
+    periodLabel.textContent = t('classPeriod');
+    const periodMode = document.createElement('select');
+    periodMode.className = 'class-teacher-period-mode';
+    const periodInherit = document.createElement('option');
+    periodInherit.value = 'inherit';
+    periodInherit.textContent = t('classTeacherPeriodInherit');
+    const periodCustom = document.createElement('option');
+    periodCustom.value = 'custom';
+    periodCustom.textContent = t('classTeacherPeriodCustom');
+    periodMode.appendChild(periodInherit);
+    periodMode.appendChild(periodCustom);
+    periodMode.addEventListener('change', () => syncTeacherRowPeriodUi(row));
+    periodLabel.appendChild(periodMode);
+
+    const periodWrap = document.createElement('div');
+    periodWrap.className = 'class-teacher-period-wrap';
+    periodWrap.hidden = true;
+    const periodSel = document.createElement('select');
+    periodSel.className = 'class-teacher-row-period';
+    periodSel.innerHTML = buildClassPeriodSelectInnerHtml(CLASS_PERIOD_MIN);
+    periodWrap.appendChild(periodSel);
+    const placementsList = document.createElement('div');
+    placementsList.className = 'class-teacher-placements-list';
+    periodWrap.appendChild(placementsList);
+    const addSlotBtn = document.createElement('button');
+    addSlotBtn.type = 'button';
+    addSlotBtn.className = 'btn btn-outline btn-small';
+    addSlotBtn.textContent = t('classTeacherAddTimeSlot');
+    addSlotBtn.addEventListener('click', () => addTeacherPlacementRow(row, null));
+    periodWrap.appendChild(addSlotBtn);
+
+    const blockLabel = document.createElement('label');
+    blockLabel.textContent = t('classTeacherScheduleBlock');
+    const blockSel = document.createElement('select');
+    blockSel.className = 'class-teacher-schedule-block';
+    const bp = document.createElement('option');
+    bp.value = '';
+    bp.textContent = t('classScheduleBlockPrimary');
+    const bs = document.createElement('option');
+    bs.value = 'secondary';
+    bs.textContent = t('classScheduleBlockSecondary');
+    blockSel.appendChild(bp);
+    blockSel.appendChild(bs);
+    blockLabel.appendChild(blockSel);
+
+    scheduleWrap.appendChild(daysLabel);
+    scheduleWrap.appendChild(daysWrap);
+    scheduleWrap.appendChild(periodLabel);
+    scheduleWrap.appendChild(periodWrap);
+    scheduleWrap.appendChild(blockLabel);
+
     row.appendChild(teacherLabel);
     row.appendChild(nameLabel);
     row.appendChild(categoryLabel);
     row.appendChild(curriculumLabel);
     row.appendChild(applyRowBtn);
+    row.appendChild(scheduleWrap);
     row.appendChild(removeBtn);
     mount.appendChild(row);
+    applyTeacherRowScheduleToForm(row, data);
 }
 
 async function refreshClassTeacherPickersFromAccounts() {
@@ -9010,6 +9283,14 @@ function renderClassTeachersRows(classData) {
         addClassTeacherRow(null);
     } else {
         teachers.forEach((row) => addClassTeacherRow(row));
+    }
+    let hint = document.getElementById('classRemoveTeacherHint');
+    if (!hint && mount.parentElement) {
+        hint = document.createElement('p');
+        hint.id = 'classRemoveTeacherHint';
+        hint.className = 'section-hint';
+        hint.textContent = t('classRemoveTeacherHint');
+        mount.parentElement.insertBefore(hint, mount.nextSibling);
     }
 }
 
@@ -9095,12 +9376,18 @@ function collectClassTeachersFromForm() {
         }
         const rowId = rowEl.dataset.rowId || generateId();
         rowEl.dataset.rowId = rowId;
+        const scheduleFields = collectTeacherRowScheduleFields(rowEl);
         rows.push(enrichTeacherRowForSave({
             id: rowId,
             userId,
             name,
             category,
-            curriculumId
+            curriculumId,
+            meetingDays: scheduleFields.meetingDays,
+            period: scheduleFields.period,
+            periodByWeekday: scheduleFields.periodByWeekday,
+            placements: scheduleFields.placements,
+            scheduleBlock: scheduleFields.scheduleBlock
         }));
     });
     return rows;
@@ -9122,12 +9409,12 @@ function collectClassTeacherFieldsForSave() {
         || (document.getElementById('classCurriculumBook')?.value || '').trim();
     return {
         classTeachers,
-        assignedTeacherUserId: first.userId,
-        assignedTeacherName: first.name,
-        teacherCategory: first.category,
+        assignedTeacherUserId: classTeachers.length ? first.userId : '',
+        assignedTeacherName: classTeachers.length ? first.name : '',
+        teacherCategory: classTeachers.length ? first.category : '',
         curriculumId: primaryCurriculumId,
-        classTypeId: first.classTypeId || '',
-        book: first.book || '',
+        classTypeId: classTeachers.length ? (first.classTypeId || '') : '',
+        book: classTeachers.length ? (first.book || '') : '',
         cohortId: cohortSel ? (cohortSel.value || '').trim() : '',
         scheduleBlock: blockSel && blockSel.value === 'secondary' ? 'secondary' : 'primary'
     };
@@ -9167,9 +9454,36 @@ function renderTimetableGridTable(block, lang) {
                 td.classList.add('timetable-cell--conflict');
             }
             if (cell.entries.length) {
+                const entryColors = cell.entries.map((e) => e.color).filter(Boolean);
+                if (entryColors.length === 1 && cell.entries.length === 1) {
+                    td.style.backgroundColor = cell.entries[0].color || '';
+                    td.style.color = cell.entries[0].textColor || '';
+                }
                 cell.entries.forEach((entry, idx) => {
                     if (idx > 0) {
                         td.appendChild(document.createElement('br'));
+                    }
+                    if (cell.entries.length > 1 && entry.color) {
+                        const block = document.createElement('div');
+                        block.className = 'timetable-cell-entry';
+                        block.style.backgroundColor = entry.color;
+                        block.style.color = entry.textColor || '';
+                        block.style.padding = '0.2rem 0.35rem';
+                        block.style.marginBottom = '0.2rem';
+                        block.style.borderRadius = '4px';
+                        const nameLine = document.createElement('span');
+                        nameLine.className = 'timetable-cell-name';
+                        nameLine.textContent = entry.className;
+                        block.appendChild(nameLine);
+                        if (entry.category) {
+                            const catLine = document.createElement('span');
+                            catLine.className = 'timetable-cell-category';
+                            catLine.textContent = `(${entry.category})`;
+                            block.appendChild(document.createElement('br'));
+                            block.appendChild(catLine);
+                        }
+                        td.appendChild(block);
+                        return;
                     }
                     const nameLine = document.createElement('span');
                     nameLine.className = 'timetable-cell-name';
@@ -9506,7 +9820,48 @@ async function initTimetableTabControls(options) {
     }
 }
 
+function initTimetableExport() {
+    const btn = document.getElementById('timetableExportXlsBtn');
+    if (!btn || btn.dataset.timetableInit) {
+        return;
+    }
+    btn.dataset.timetableInit = '1';
+    btn.addEventListener('click', async () => {
+        const sel = document.getElementById('timetableTeacherSelect');
+        if (!sel || !sel.value) {
+            alert(t('timetableSelectTeacher'));
+            return;
+        }
+        const api = getTimetableApi();
+        const exportApi = typeof CCPTimetableExport !== 'undefined' ? CCPTimetableExport : null;
+        if (!api || !exportApi) {
+            alert(t('timetableExportExcelFailed'));
+            return;
+        }
+        const selector = parseTeacherPickerValue(sel.value);
+        const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+        const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
+        btn.disabled = true;
+        try {
+            await exportApi.exportTeacherTimetableXlsx(grid, {
+                lang,
+                filename: grid.teacherName || selector.displayName || 'timetable',
+                calendarName: appData.calendarName || '',
+                termStart: appData.termStart || '',
+                timeHeader: t('timetableTimeHeader'),
+                homeroomLineLabel: t('timetableHomeroomLabel')
+            });
+        } catch (err) {
+            console.error('Timetable export failed:', err);
+            alert(t('timetableExportExcelFailed'));
+        } finally {
+            btn.disabled = false;
+        }
+    });
+}
+
 function initTimetableTabListeners() {
+    initTimetableExport();
     const sel = document.getElementById('timetableTeacherSelect');
     if (sel && !sel.dataset.timetableInit) {
         sel.dataset.timetableInit = '1';
@@ -10492,6 +10847,7 @@ function setupEventListeners() {
     setupEventApplicabilityFilterUi();
     document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
     setupPrintSyllabusControls();
+    setupDataTabCalendarBackup();
     setupPrintColorModeIsolation();
     setupAppPrintOpenerSafeties();
     setupCalendarTileTypographyObserver();
@@ -12548,6 +12904,17 @@ function handleClassSubmit(e) {
     renderCalendar();
     renderClassList();
     updateClassSyllabusSummary(classData);
+    const timetableSel = document.getElementById('timetableTeacherSelect');
+    if (timetableSel) {
+        const prevPicker = timetableSel.value;
+        populateTeacherPickerSelect(timetableSel, null, true);
+        if (prevPicker) {
+            timetableSel.value = prevPicker;
+        }
+        if (timetableSel.value) {
+            renderTimetableView(parseTeacherPickerValue(timetableSel.value));
+        }
+    }
     if (isUpdate) {
         setAppStatusMessage(t('classSaved'), false);
     }
@@ -15607,6 +15974,7 @@ function applyTeamViewOnlyEditingState(viewOnly) {
         'fetchKrHolidaysBtn',
         'clearDataBtn',
         'importBtn',
+        'dataImportCalendarBtn',
         'syllabusNewTemplateBtn',
         'syllabusSaveClassBtn',
         'syllabusSaveTemplateBtn',
@@ -15789,6 +16157,7 @@ function applyTeamLockAccessState(lockState) {
 
     if (!statusBar || !btn) {
         applyTeamViewOnlyEditingState(readOnly);
+        updateDataTabCalendarSection();
         notifyLockStateChange(lockState);
         return;
     }
@@ -15850,6 +16219,7 @@ function applyTeamLockAccessState(lockState) {
 
     updateTeamLockRoster(lockState);
     applyTeamViewOnlyEditingState(readOnly);
+    updateDataTabCalendarSection();
     notifyLockStateChange(lockState);
 }
 
@@ -17687,6 +18057,20 @@ function migrateData(data) {
                     row.book = classData.book || '';
                     migrated = true;
                 }
+                if (!Array.isArray(row.meetingDays)) {
+                    row.meetingDays = [];
+                    migrated = true;
+                }
+                if (row.period === undefined) {
+                    row.period = null;
+                }
+                if (!Array.isArray(row.placements)) {
+                    row.placements = [];
+                    migrated = true;
+                }
+                if (row.scheduleBlock === undefined) {
+                    row.scheduleBlock = '';
+                }
             });
             if (classData.classTeachers.length === 0
                 && (classData.assignedTeacherUserId || classData.assignedTeacherName)) {
@@ -18014,6 +18398,51 @@ function renderPrintSyllabusManager() {
     });
 }
 
+function updateDataTabCalendarSection() {
+    const nameEl = document.getElementById('dataCalendarName');
+    if (nameEl) {
+        const parts = [];
+        if (appData.calendarName) {
+            parts.push(appData.calendarName);
+        }
+        if (appData.termStart) {
+            parts.push(appData.termStart);
+        }
+        nameEl.textContent = parts.length ? parts.join(' · ') : '—';
+    }
+    const readOnly = teamSyncEnabled
+        && typeof CalendarSync !== 'undefined'
+        && CalendarSync.isReadOnly();
+    const importBtn = document.getElementById('dataImportCalendarBtn');
+    const hint = document.getElementById('dataCalendarReadOnlyHint');
+    if (importBtn) {
+        importBtn.disabled = Boolean(readOnly);
+    }
+    if (hint) {
+        hint.hidden = !readOnly;
+    }
+}
+
+function setupDataTabCalendarBackup() {
+    const exportBtn = document.getElementById('dataExportCalendarBtn');
+    const importBtn = document.getElementById('dataImportCalendarBtn');
+    if (exportBtn && !exportBtn.dataset.bound) {
+        exportBtn.dataset.bound = '1';
+        exportBtn.addEventListener('click', exportData);
+    }
+    if (importBtn && !importBtn.dataset.bound) {
+        importBtn.dataset.bound = '1';
+        importBtn.addEventListener('click', () => {
+            if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly()) {
+                showSyncToast(t('importReadOnlyHint'), true);
+                return;
+            }
+            document.getElementById('importFile')?.click();
+        });
+    }
+    updateDataTabCalendarSection();
+}
+
 function setupPrintSyllabusControls() {
     const exportBtn = document.getElementById('printExportSyllabusBtn');
     const importBtn = document.getElementById('printImportSyllabusBtn');
@@ -18042,8 +18471,18 @@ function setupPrintSyllabusControls() {
     }
 }
 
+function getCalendarExportPayload() {
+    const payload = JSON.parse(JSON.stringify(appData));
+    if (payload && payload.ui) {
+        delete payload.ui;
+    }
+    payload.schemaVersion = SCHEMA_VERSION;
+    payload.termMonthCount = getTermMonthCount();
+    return payload;
+}
+
 function exportData() {
-    const dataStr = JSON.stringify(appData, null, 2);
+    const dataStr = JSON.stringify(getCalendarExportPayload(), null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     
