@@ -197,6 +197,29 @@ const restoredTpl = CCPBooksEditor.getTemplatesForBookId('write-now', adoptData)
 assert(restoredTpl.length === 22, 'restoreFromTeamDefault restores 22 sessions');
 assert(restoredTpl[0].planDetail === 'ADOPT-1', 'restored content matches team default');
 
+const orangeData = { bookOverrides: {}, curriculumOverrides: {} };
+const orangeId = CCPBooksEditor.createCurriculum({ bookTitle: 'Hand in Hand Orange' }, orangeData);
+assert(orangeId === 'hand-in-hand-orange', 'Hand in Hand Orange custom id slug');
+const orangeRows = buildWriteNowRows(12, 'ORANGE');
+CCPBooksEditor.saveBookTemplates(orangeId, orangeRows, orangeData);
+CCPBooksEditor.adoptTeamDefault(orangeId, orangeRows, orangeData, {
+    classDefaults: { defaultTotalLessons: 12 }
+});
+assert(
+    orangeData.curriculumOverrides[orangeId].teamDefault
+    && orangeData.curriculumOverrides[orangeId].teamDefault.sessions.length === 12,
+    'custom orange teamDefault stored'
+);
+assert(orangeData.curriculumOverrides[orangeId].isCustom, 'custom flag kept after adopt');
+assert(
+    orangeData.curriculumOverrides[orangeId].sessions
+    && orangeData.curriculumOverrides[orangeId].sessions.length === 12,
+    'sessions persisted on custom orange id'
+);
+const orangeBook = CCPBooksEditor.discoverBooks(orangeData).find((b) => b.id === orangeId);
+assert(orangeBook && !orangeBook.hasOverride, 'custom orange no override when matching team default');
+assert(orangeBook.baselineSessionCount === 12, 'custom orange baseline from team default');
+
 const teacherResetData = { bookOverrides: {}, curriculumOverrides: {} };
 CCPBooksEditor.adoptTeamDefault(
     'write-now',

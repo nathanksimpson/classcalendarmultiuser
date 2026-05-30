@@ -369,6 +369,14 @@
                 ? raw.applicableLevels.filter(Boolean)
                 : (Array.isArray(raw.levels) ? raw.levels.filter(Boolean) : []);
             const applicable = getStoredApplicableLevels(id, appData, levels, false);
+            const shippedFactoryRows = [];
+            const hasOverride = sessions.length
+                && sessionsDifferFromBaseline(sessions, id, appData, shippedFactoryRows);
+            const baselineSessionCount = getEffectiveSessionBaselineCount(
+                id,
+                appData,
+                sessions.length || (raw.classDefaults && raw.classDefaults.defaultTotalLessons) || 4
+            );
             byKey.set(id, {
                 id,
                 name: title,
@@ -384,14 +392,36 @@
                 programTrack: '',
                 sessionCount: sessions.length,
                 factorySessionCount: 0,
-                hasOverride: true,
+                baselineSessionCount,
+                hasOverride,
                 levelsLabel: applicable.levelsLabel
             });
         });
         return [...byKey.values()]
             .map((book) => {
-                if (book.isCustom || book.isVirtualDebate) {
+                if (book.isVirtualDebate) {
                     return { ...book };
+                }
+                if (book.isCustom) {
+                    const cur = getCurriculumRecord(book.id, appData);
+                    const effectiveSessions = cur && cur.sessions.length ? cur.sessions : [];
+                    return {
+                        ...book,
+                        sessionCount: effectiveSessions.length || book.sessionCount,
+                        hasOverride: effectiveSessions.length
+                            ? sessionsDifferFromBaseline(
+                                effectiveSessions,
+                                book.id,
+                                appData,
+                                []
+                            )
+                            : book.hasOverride,
+                        baselineSessionCount: getEffectiveSessionBaselineCount(
+                            book.id,
+                            appData,
+                            effectiveSessions.length || book.sessionCount
+                        )
+                    };
                 }
                 const cur = getCurriculumRecord(book.id, appData);
                 const legacySessions = bookOv[book.id] && bookOv[book.id].defaultSyllabusRowTemplates;
@@ -1045,7 +1075,7 @@
 
     function adoptTeamDefault(bookId, rowTemplates, appData, options) {
         const book = getBookById(bookId, appData);
-        if (!book || book.isCustom) {
+        if (!book) {
             return false;
         }
         const opt = options || {};
@@ -1078,6 +1108,12 @@
             },
             updatedAt: new Date().toISOString()
         };
+        if (book.isCustom) {
+            curricula[bookId].isCustom = true;
+            if (applicableLevels !== undefined) {
+                curricula[bookId].levels = curricula[bookId].applicableLevels;
+            }
+        }
         if (!book.isCustom && !isDebateBookRecord(book)) {
             syncLegacyBookOverride(bookId, normalized, appData);
         }
@@ -1214,7 +1250,7 @@
         const baselineCount = book.baselineSessionCount != null
             ? book.baselineSessionCount
             : getEffectiveSessionBaselineCount(bookId, appData, book.factorySessionCount);
-        const countWarn = !book.isCustom && !book.isVirtualDebate && rows.length !== baselineCount
+        const countWarn = !book.isVirtualDebate && rows.length !== baselineCount
             ? `<p class="section-hint books-editor-count-warn">${escapeHtml(
                 hooks.t('booksEditorSessionCountWarn')
                     .replace('{n}', String(rows.length))
@@ -1222,7 +1258,9 @@
             )}</p>`
             : '';
         const customBadge = book.isCustom
-            ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('curriculumCustomBadge'))}</p>`
+            ? (book.hasOverride
+                ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>`
+                : `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('curriculumCustomBadge'))}</p>`)
             : (book.hasOverride ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>` : '');
         meta.innerHTML = `
           <p><strong>${escapeHtml(book.displayName || book.name)}</strong></p>
@@ -1387,76 +1425,20 @@
         syncAll();
     }
 
-    function renderCurriculumEditorMount(mountEl, curriculumId, options) {
-        if (!mountEl || !curriculumId) {
-            return;
-        }
-        fullPageEditingBookId = curriculumId;
-        fullPageAfterSave = options && typeof options.onSaved === 'function' ? options.onSaved : null;
-        fullPageAfterDuplicate = options && typeof options.onDuplicated === 'function' ? options.onDuplicated : null;
-        const book = getBookById(curriculumId, getAppData());
-        if (!book) {
-            mountEl.innerHTML = '';
-            return;
-        }
-        const prefix = options && options.idPrefix ? options.idPrefix : 'curriculum';
-        const metaId = `${prefix}EditorMeta`;
-        const tbodyId = `${prefix}EditorTableBody`;
-        const saveId = `${prefix}EditorSaveBtn`;
-        const resetId = `${prefix}EditorResetBtn`;
-        const adoptId = `${prefix}EditorAdoptDefaultBtn`;
-        const duplicateId = `${prefix}EditorDuplicateBtn`;
-        const toolbarId = `${prefix}EditorToolbar`;
-        const isCustom = !!book.isCustom;
-        const showAdopt = !isCustom && hooks.canAdoptTeamCurriculumDefault();
-        const applicabilityHtml = renderApplicabilityPanelHtml(prefix, book, curriculumId, getAppData());
-        const resetLabelKey = isCustom ? 'curriculumDeleteBtn' : 'booksEditorReset';
-        const resetDefault = isCustom ? 'Delete curriculum' : 'Reset sessions to factory';
-        mountEl.innerHTML = `
-          <div class="books-editor-fullpage curriculum-editor-panel">
-            ${applicabilityHtml}
-            <div id="${metaId}" class="books-editor-meta"></div>
-            <p class="section-hint curriculum-editor-apply-hint" data-i18n="curriculumEditorApplyHint">On the class form, pick Level and Book, then Apply from curriculum.</p>
-            <div id="${toolbarId}" class="books-editor-toolbar">
-              <span data-i18n="booksEditorSessionsHeading">Sessions</span>
-              <button type="button" class="btn btn-outline btn-small" data-books-add-session data-i18n="booksEditorAddSession">Add session</button>
-            </div>
-            <div class="books-editor-table-wrap">
-              <table class="books-editor-table">
-                <thead><tr>
-                  <th class="books-col-num">#</th>
-                  <th data-i18n="booksEditorColPlan">Lesson plan</th>
-                  <th data-i18n="booksEditorColPages">Pages / detail</th>
-                  <th data-i18n="booksEditorColNote">Note</th>
-                  <th class="books-col-actions"><span class="sr-only">Remove</span></th>
-                </tr></thead>
-                <tbody id="${tbodyId}"></tbody>
-              </table>
-            </div>
-            <div class="form-actions books-editor-actions">
-              <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${resetDefault}</button>
-              ${showAdopt
-        ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="curriculumSaveToDefaults">Save to defaults</button>`
-        : ''}
-              <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
-              <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
-            </div>
-          </div>`;
-        if (typeof hooks.applyLanguage === 'function') {
-            hooks.applyLanguage();
-        }
-        bindApplicabilityPanel(prefix);
-        renderEditorTableInto(
-            curriculumId,
-            document.getElementById(tbodyId),
-            document.getElementById(metaId),
-            { toolbarEl: document.getElementById(toolbarId) }
-        );
-        if (mountEl.dataset.curriculumEditorBound === '1') {
+    function bindCurriculumEditorMount(mountEl) {
+        if (!mountEl || mountEl.dataset.curriculumEditorBound === '1') {
             return;
         }
         mountEl.dataset.curriculumEditorBound = '1';
         mountEl.addEventListener('click', (e) => {
+            const prefix = mountEl.dataset.curriculumEditorPrefix || 'curriculum';
+            const saveId = `${prefix}EditorSaveBtn`;
+            const resetId = `${prefix}EditorResetBtn`;
+            const adoptId = `${prefix}EditorAdoptDefaultBtn`;
+            const duplicateId = `${prefix}EditorDuplicateBtn`;
+            const tbodyId = `${prefix}EditorTableBody`;
+            const metaId = `${prefix}EditorMeta`;
+            const toolbarId = `${prefix}EditorToolbar`;
             if (e.target.id === saveId && fullPageEditingBookId) {
                 const tbody = document.getElementById(tbodyId);
                 const rows = collectEditorRowsFromTbody(tbody);
@@ -1482,6 +1464,23 @@
                 const teamTd = getTeamDefaultRecord(fullPageEditingBookId, appData);
                 const canAdopt = hooks.canAdoptTeamCurriculumDefault();
                 if (activeBook && activeBook.isCustom) {
+                    if (teamTd && canAdopt) {
+                        const dateLabel = formatTeamDefaultDate(teamTd.adoptedAt);
+                        if (!confirm(hooks.t('booksEditorResetTeamDefaultConfirm').replace('{date}', dateLabel))) {
+                            return;
+                        }
+                        restoreFromTeamDefault(fullPageEditingBookId, appData);
+                        renderEditorTableInto(
+                            fullPageEditingBookId,
+                            document.getElementById(tbodyId),
+                            document.getElementById(metaId),
+                            { toolbarEl: document.getElementById(toolbarId) }
+                        );
+                        if (fullPageAfterSave) {
+                            fullPageAfterSave(fullPageEditingBookId);
+                        }
+                        return;
+                    }
                     if (!confirm(hooks.t('curriculumDeleteConfirm'))) {
                         return;
                     }
@@ -1525,7 +1524,11 @@
                     alert(hooks.t('booksEditorNoRows'));
                     return;
                 }
-                if (!confirm(hooks.t('curriculumSaveToDefaultsConfirm'))) {
+                const activeBook = getBookById(fullPageEditingBookId, getAppData());
+                const confirmKey = activeBook && activeBook.isCustom
+                    ? 'curriculumSaveToDefaultsConfirmCustom'
+                    : 'curriculumSaveToDefaultsConfirm';
+                if (!confirm(hooks.t(confirmKey))) {
                     return;
                 }
                 const saveOpts = collectApplicabilitySettings(prefix);
@@ -1551,6 +1554,87 @@
                 }
             }
         });
+    }
+
+    function renderCurriculumEditorMount(mountEl, curriculumId, options) {
+        if (!mountEl || !curriculumId) {
+            return;
+        }
+        fullPageEditingBookId = curriculumId;
+        fullPageAfterSave = options && typeof options.onSaved === 'function' ? options.onSaved : null;
+        fullPageAfterDuplicate = options && typeof options.onDuplicated === 'function' ? options.onDuplicated : null;
+        const book = getBookById(curriculumId, getAppData());
+        if (!book) {
+            mountEl.innerHTML = '';
+            return;
+        }
+        const prefix = options && options.idPrefix ? options.idPrefix : 'curriculum';
+        mountEl.dataset.curriculumEditorPrefix = prefix;
+        const metaId = `${prefix}EditorMeta`;
+        const tbodyId = `${prefix}EditorTableBody`;
+        const saveId = `${prefix}EditorSaveBtn`;
+        const resetId = `${prefix}EditorResetBtn`;
+        const adoptId = `${prefix}EditorAdoptDefaultBtn`;
+        const duplicateId = `${prefix}EditorDuplicateBtn`;
+        const toolbarId = `${prefix}EditorToolbar`;
+        const isCustom = !!book.isCustom;
+        const showAdopt = hooks.canAdoptTeamCurriculumDefault();
+        const teamTd = getTeamDefaultRecord(curriculumId, getAppData());
+        const applicabilityHtml = renderApplicabilityPanelHtml(prefix, book, curriculumId, getAppData());
+        let resetLabelKey = 'booksEditorReset';
+        let resetDefault = 'Reset sessions to factory';
+        if (isCustom) {
+            if (teamTd && showAdopt) {
+                resetLabelKey = 'booksEditorReset';
+                resetDefault = hooks.t('booksEditorReset');
+            } else {
+                resetLabelKey = 'curriculumDeleteBtn';
+                resetDefault = hooks.t('curriculumDeleteBtn');
+            }
+        }
+        const adoptLabelKey = isCustom ? 'curriculumSaveToDefaultsCustom' : 'curriculumSaveToDefaults';
+        const adoptDefault = hooks.t(adoptLabelKey);
+        mountEl.innerHTML = `
+          <div class="books-editor-fullpage curriculum-editor-panel">
+            ${applicabilityHtml}
+            <div id="${metaId}" class="books-editor-meta"></div>
+            <p class="section-hint curriculum-editor-apply-hint" data-i18n="curriculumEditorApplyHint">On the class form, pick Level and Book, then Apply from curriculum.</p>
+            <div id="${toolbarId}" class="books-editor-toolbar">
+              <span data-i18n="booksEditorSessionsHeading">Sessions</span>
+              <button type="button" class="btn btn-outline btn-small" data-books-add-session data-i18n="booksEditorAddSession">Add session</button>
+            </div>
+            <div class="books-editor-table-wrap">
+              <table class="books-editor-table">
+                <thead><tr>
+                  <th class="books-col-num">#</th>
+                  <th data-i18n="booksEditorColPlan">Lesson plan</th>
+                  <th data-i18n="booksEditorColPages">Pages / detail</th>
+                  <th data-i18n="booksEditorColNote">Note</th>
+                  <th class="books-col-actions"><span class="sr-only">Remove</span></th>
+                </tr></thead>
+                <tbody id="${tbodyId}"></tbody>
+              </table>
+            </div>
+            <div class="form-actions books-editor-actions">
+              <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${escapeHtml(resetDefault)}</button>
+              ${showAdopt
+        ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="${adoptLabelKey}">${escapeHtml(adoptDefault)}</button>`
+        : ''}
+              <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
+              <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
+            </div>
+          </div>`;
+        if (typeof hooks.applyLanguage === 'function') {
+            hooks.applyLanguage();
+        }
+        bindApplicabilityPanel(prefix);
+        renderEditorTableInto(
+            curriculumId,
+            document.getElementById(tbodyId),
+            document.getElementById(metaId),
+            { toolbarEl: document.getElementById(toolbarId) }
+        );
+        bindCurriculumEditorMount(mountEl);
     }
 
     function renderFullPageEditor(mountEl, bookId, options) {
