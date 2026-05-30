@@ -9420,6 +9420,37 @@ function collectClassTeacherFieldsForSave() {
     };
 }
 
+function getTimetableEntryDisplayColors(entry) {
+    const bg = (entry && entry.color) ? entry.color : '#6366f1';
+    const preferred = (entry && entry.textColor) || DEFAULT_CLASS_TEXT_COLOR;
+    return {
+        bg,
+        text: getReadableTextOnBackground(bg, preferred)
+    };
+}
+
+function appendTimetableEntryContent(container, entry) {
+    const nameLine = document.createElement('span');
+    nameLine.className = 'timetable-cell-name';
+    nameLine.textContent = entry.className;
+    container.appendChild(nameLine);
+    if (entry.category) {
+        container.appendChild(document.createElement('br'));
+        const catLine = document.createElement('span');
+        catLine.className = 'timetable-cell-category';
+        catLine.textContent = `(${entry.category})`;
+        container.appendChild(catLine);
+    }
+    if (entry.homeroomLabel) {
+        container.appendChild(document.createElement('br'));
+        const hrLine = document.createElement('span');
+        hrLine.className = 'timetable-cell-hr';
+        const hrPrefix = currentLanguage === 'ko' ? t('timetableCellHomeroom') : 'HR';
+        hrLine.textContent = `${hrPrefix}: ${entry.homeroomLabel}`;
+        container.appendChild(hrLine);
+    }
+}
+
 function renderTimetableGridTable(block, lang) {
     const table = document.createElement('table');
     table.className = 'timetable-grid' + (block.id === 'secondary' ? ' timetable-grid--secondary' : '');
@@ -9453,57 +9484,22 @@ function renderTimetableGridTable(block, lang) {
             if (cell.conflict) {
                 td.classList.add('timetable-cell--conflict');
             }
-            if (cell.entries.length) {
-                const entryColors = cell.entries.map((e) => e.color).filter(Boolean);
-                if (entryColors.length === 1 && cell.entries.length === 1) {
-                    td.style.backgroundColor = cell.entries[0].color || '';
-                    td.style.color = cell.entries[0].textColor || '';
-                }
-                cell.entries.forEach((entry, idx) => {
-                    if (idx > 0) {
-                        td.appendChild(document.createElement('br'));
-                    }
-                    if (cell.entries.length > 1 && entry.color) {
-                        const block = document.createElement('div');
-                        block.className = 'timetable-cell-entry';
-                        block.style.backgroundColor = entry.color;
-                        block.style.color = entry.textColor || '';
-                        block.style.padding = '0.2rem 0.35rem';
-                        block.style.marginBottom = '0.2rem';
-                        block.style.borderRadius = '4px';
-                        const nameLine = document.createElement('span');
-                        nameLine.className = 'timetable-cell-name';
-                        nameLine.textContent = entry.className;
-                        block.appendChild(nameLine);
-                        if (entry.category) {
-                            const catLine = document.createElement('span');
-                            catLine.className = 'timetable-cell-category';
-                            catLine.textContent = `(${entry.category})`;
-                            block.appendChild(document.createElement('br'));
-                            block.appendChild(catLine);
-                        }
-                        td.appendChild(block);
-                        return;
-                    }
-                    const nameLine = document.createElement('span');
-                    nameLine.className = 'timetable-cell-name';
-                    nameLine.textContent = entry.className;
-                    td.appendChild(nameLine);
-                    if (entry.category) {
-                        td.appendChild(document.createElement('br'));
-                        const catLine = document.createElement('span');
-                        catLine.className = 'timetable-cell-category';
-                        catLine.textContent = `(${entry.category})`;
-                        td.appendChild(catLine);
-                    }
-                    if (entry.homeroomLabel) {
-                        td.appendChild(document.createElement('br'));
-                        const hrLine = document.createElement('span');
-                        hrLine.className = 'timetable-cell-hr';
-                        const hrPrefix = currentLanguage === 'ko' ? t('timetableCellHomeroom') : 'HR';
-                        hrLine.textContent = `${hrPrefix}: ${entry.homeroomLabel}`;
-                        td.appendChild(hrLine);
-                    }
+            if (cell.entries.length === 1) {
+                const entry = cell.entries[0];
+                const { bg, text } = getTimetableEntryDisplayColors(entry);
+                td.classList.add('timetable-cell--colored');
+                td.style.backgroundColor = bg;
+                td.style.color = text;
+                appendTimetableEntryContent(td, entry);
+            } else if (cell.entries.length > 1) {
+                cell.entries.forEach((entry) => {
+                    const { bg, text } = getTimetableEntryDisplayColors(entry);
+                    const entryBlock = document.createElement('div');
+                    entryBlock.className = 'timetable-cell-entry timetable-cell-entry--colored';
+                    entryBlock.style.backgroundColor = bg;
+                    entryBlock.style.color = text;
+                    appendTimetableEntryContent(entryBlock, entry);
+                    td.appendChild(entryBlock);
                 });
             }
             tr.appendChild(td);

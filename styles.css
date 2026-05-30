@@ -6302,6 +6302,42 @@ body.workspace-page #appStatus {
     font-style: italic;
 }
 
+/* Colored class cells: inherit readable fg; avoid gray secondary on pastel backgrounds (light mode). */
+.timetable-cell--colored .timetable-cell-name,
+.timetable-cell--colored .timetable-cell-category,
+.timetable-cell--colored .timetable-cell-hr,
+.timetable-cell-entry--colored .timetable-cell-name,
+.timetable-cell-entry--colored .timetable-cell-category,
+.timetable-cell-entry--colored .timetable-cell-hr {
+    color: inherit;
+}
+
+.timetable-cell--colored .timetable-cell-category,
+.timetable-cell--colored .timetable-cell-hr,
+.timetable-cell-entry--colored .timetable-cell-category,
+.timetable-cell-entry--colored .timetable-cell-hr {
+    opacity: 0.88;
+}
+
+.timetable-cell-entry--colored {
+    padding: 0.2rem 0.35rem;
+    margin-bottom: 0.2rem;
+    border-radius: 4px;
+}
+
+.timetable-cell-entry--colored:last-child {
+    margin-bottom: 0;
+}
+
+html:not([data-theme="dark"]) .timetable-grid .timetable-cell:not(.timetable-cell--colored) {
+    color: var(--text-primary);
+}
+
+html:not([data-theme="dark"]) .timetable-cell--colored,
+html:not([data-theme="dark"]) .timetable-cell-entry--colored {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 12%, transparent);
+}
+
 .class-teachers-rows {
     display: flex;
     flex-direction: column;

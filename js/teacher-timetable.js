@@ -632,7 +632,7 @@
             const homeroomLabel = resolveHomeroomLabel(classData, cohortsById);
             const placements = getTeacherTimetablePlacements(classData, rowNorm, appData);
             const color = normalizeStr(classData.color) || '#6366f1';
-            const textColor = normalizeStr(classData.textColor) || '#ffffff';
+            const textColor = normalizeStr(classData.textColor) || '';
             placements.forEach((pl) => {
                 const slotId = pl.timeSlotId;
                 if (!slotId || !slotById[slotId]) {
