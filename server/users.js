@@ -116,12 +116,21 @@ function provisionUserFromKakaoProfile(profile) {
     }
     try {
         const nickname = profile.nickname && String(profile.nickname).trim();
-        return createUser({
+        const created = createUser({
             email: profile.email || null,
             displayName: nickname || `Kakao ${kid}`,
             kakaoUserId: kid,
             role: 'teacher'
         });
+        if (created) {
+            try {
+                const AccessRequests = require('./access-requests');
+                AccessRequests.notifyUserNeedsAccess(created, { source: 'kakao_signup' });
+            } catch (_) {
+                /* ignore notification errors */
+            }
+        }
+        return created;
     } catch (err) {
         if (isUniqueConstraintError(err)) {
             const again = findUserForKakaoLogin(kid, profile.email);

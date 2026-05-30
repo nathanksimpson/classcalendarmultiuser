@@ -7,7 +7,7 @@
     <title>Admin — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
-    <link rel="stylesheet" href="admin.css?v=20260527-actions">
+    <link rel="stylesheet" href="admin.css?v=20260602-admin-tabs">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -24,23 +24,45 @@
         </nav>
         <h1 data-i18n="adminHeading">Admin</h1>
         <p class="admin-hint" data-i18n="adminIntro">Manage teachers, groups, and which calendars each person can open.</p>
-        <nav id="adminSectionNav" class="admin-section-nav" aria-label="Admin sections" hidden>
-            <a href="#usersSection" data-i18n="navUsers">Teachers</a>
-            <a href="#groupsSection" data-i18n="navGroups">Groups</a>
-            <a href="#calendarAccessSection" data-i18n="navCalendarAccess">Calendar access</a>
-            <a href="#lockSettingsSection" data-i18n="navLock">Lock &amp; sign-out</a>
-            <a href="#presenceSection" id="adminNavPresence" data-i18n="navPresence" hidden>Who is online</a>
-            <a href="#activitySection" id="adminNavActivity" data-i18n="navActivity" hidden>Activity</a>
-        </nav>
+        <div id="adminGlobalAccessBanner" class="admin-access-banner" hidden>
+            <p id="adminGlobalAccessBannerText"></p>
+            <button type="button" class="btn btn-primary btn-small" id="adminGlobalReviewWaitingBtn" data-i18n="reviewWaiting">Review waiting</button>
+        </div>
+        <div id="adminTabBar" class="admin-tab-bar" role="tablist" aria-label="Admin sections" hidden>
+            <button type="button" class="admin-tab" role="tab" id="adminTabAccounts" data-tab="accounts" aria-controls="accountsPanel" data-i18n="navAccounts">Accounts</button>
+            <button type="button" class="admin-tab" role="tab" id="adminTabGroups" data-tab="groups" aria-controls="groupsPanel" data-i18n="navGroups">Groups</button>
+            <button type="button" class="admin-tab" role="tab" id="adminTabCalendars" data-tab="calendars" aria-controls="calendarsPanel" data-i18n="navCalendars">Calendars</button>
+            <button type="button" class="admin-tab" role="tab" id="adminTabSystem" data-tab="system" aria-controls="systemPanel" data-i18n="navSystem">System</button>
+            <button type="button" class="admin-tab" role="tab" id="adminTabMonitor" data-tab="monitor" aria-controls="monitorPanel" data-i18n="navMonitor">Monitor</button>
+        </div>
         <div id="adminNotice" class="admin-notice" role="status" aria-live="polite" hidden></div>
         <p id="adminStatus" class="admin-status-line" role="status"></p>
 
-        <section class="admin-section" id="usersSection" hidden>
-            <h2 data-i18n="usersHeading">Teachers &amp; admins</h2>
-            <p class="admin-hint admin-hint--tight" data-i18n="usersHint1">Teachers can sign in with Kakao (first login creates their account). Use Edit to set a recognizable name. Grant calendar access via groups or per-calendar access.</p>
-            <p class="admin-hint admin-hint--tight" data-i18n="usersHint2">Deactivate blocks sign-in and signs them out. Use Reactivate to restore access. Delete permanently (deactivated accounts only) removes the user from the database and cannot be undone.</p>
-            <p class="admin-hint admin-hint--tight" data-i18n="usersWaitingHint">Waiting = signed in but no calendar access yet (assign via Groups or Calendar access below).</p>
-            <div class="admin-table-wrap">
+        <section class="admin-tab-panel admin-section" id="accountsPanel" role="tabpanel" aria-labelledby="adminTabAccounts" hidden>
+            <h2 data-i18n="usersHeading">Accounts</h2>
+            <p class="admin-hint" data-i18n="accountsIntro">Manage teacher accounts, roles, and who can open each calendar.</p>
+            <div id="accountsAccessBanner" class="admin-access-banner" hidden>
+                <p id="accountsAccessBannerText"></p>
+                <button type="button" class="btn btn-primary btn-small" id="accountsReviewWaitingBtn" data-i18n="reviewWaiting">Review waiting</button>
+            </div>
+            <div class="admin-accounts-toolbar" id="accountsToolbar">
+                <label class="admin-search-label">
+                    <span class="visually-hidden" data-i18n="searchAccounts">Search accounts</span>
+                    <input type="search" id="accountsSearchInput" class="admin-search-input" autocomplete="off" data-i18n-placeholder="searchAccountsPlaceholder" placeholder="Search name, email, Kakao ID">
+                </label>
+                <div class="admin-filter-chips" role="group" aria-label="Filter accounts">
+                    <button type="button" class="admin-filter-chip is-active" data-filter="all" data-i18n="filterAll">All</button>
+                    <button type="button" class="admin-filter-chip" data-filter="active" data-i18n="filterActive">Active</button>
+                    <button type="button" class="admin-filter-chip" data-filter="waiting" data-i18n="filterWaiting">Waiting</button>
+                    <button type="button" class="admin-filter-chip" data-filter="inactive" data-i18n="filterInactive">Deactivated</button>
+                </div>
+            </div>
+            <details class="admin-help-details">
+                <summary data-i18n="accountsHelpSummary">Account help</summary>
+                <p class="admin-hint admin-hint--tight" data-i18n="usersHint1">Teachers can sign in with Kakao (first login creates their account). Use Edit to set a recognizable name. Grant calendar access via Groups or Calendars tab.</p>
+                <p class="admin-hint admin-hint--tight" data-i18n="usersHint2">Deactivate blocks sign-in and signs them out. Delete permanently (deactivated accounts only) cannot be undone.</p>
+            </details>
+            <div class="admin-table-wrap admin-table-wrap--sticky">
                 <table class="admin-table" id="usersTable">
                     <caption class="visually-hidden" data-i18n="captionUsers">Teachers and administrators</caption>
                     <thead>
@@ -82,7 +104,7 @@
             </form>
         </section>
 
-        <section class="admin-section" id="groupsSection" hidden>
+        <section class="admin-tab-panel admin-section" id="groupsPanel" role="tabpanel" aria-labelledby="adminTabGroups" hidden>
             <h2 data-i18n="groupsHeading">Groups</h2>
             <p class="admin-hint" data-i18n="groupsHint">Put teachers in groups, then assign groups to calendars when creating or editing access.</p>
             <div class="admin-table-wrap">
@@ -106,50 +128,32 @@
             </form>
         </section>
 
-        <section class="admin-section" id="calendarAccessSection" hidden>
-            <h2 data-i18n="calendarAccessHeading">Calendar access</h2>
-            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then pick teachers and groups who may open it. Admins always see every calendar.</p>
+        <section class="admin-tab-panel admin-section" id="calendarsPanel" role="tabpanel" aria-labelledby="adminTabCalendars" hidden>
+            <h2 data-i18n="calendarAccessHeading">Calendars</h2>
+            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then set each teacher or group to Viewer, Suggester, or Editor. Head teachers with “all calendars” are not listed here.</p>
+            <details class="admin-help-details">
+                <summary data-i18n="calendarsHelpSummary">Access levels</summary>
+                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelViewerHint">Viewer — open and print only.</p>
+                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelSuggesterHint">Suggester — view only; changes via suggestions (API).</p>
+                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelEditorHint">Editor — can edit when holding the team lock.</p>
+            </details>
             <form class="admin-form" id="calendarAccessForm">
                 <label><span data-i18n="calendarLabel">Calendar</span>
                     <select id="accessCalendarSelect" required></select>
                 </label>
                 <fieldset>
                     <legend data-i18n="teachersDirectLegend">Teachers (direct access)</legend>
-                    <div id="accessTeachersGrid" class="admin-checkbox-grid"></div>
+                    <div id="accessTeachersGrid" class="admin-access-grid"></div>
                 </fieldset>
                 <fieldset>
                     <legend data-i18n="groupsLegend">Groups</legend>
-                    <div id="accessGroupsGrid" class="admin-checkbox-grid"></div>
+                    <div id="accessGroupsGrid" class="admin-access-grid"></div>
                 </fieldset>
                 <button type="submit" class="btn btn-primary" data-i18n="saveAccess">Save access</button>
             </form>
         </section>
 
-        <section class="admin-section" id="presenceSection" hidden>
-            <h2 data-i18n="presenceTitle">Who is online</h2>
-            <p class="section-hint" data-i18n="presenceHint">Teachers who sent a heartbeat in the last ~90 seconds.</p>
-            <ul id="presenceList" class="admin-presence-list"></ul>
-        </section>
-
-        <section class="admin-section" id="activitySection" hidden>
-            <h2 data-i18n="activityTitle">Activity log</h2>
-            <p class="section-hint" data-i18n="activityHint">Recent saves and admin actions (not full calendar snapshots).</p>
-            <div class="admin-table-wrap">
-                <table class="admin-table" id="activityTable">
-                    <thead>
-                        <tr>
-                            <th data-i18n="activityWhen">When</th>
-                            <th data-i18n="activityWho">Who</th>
-                            <th data-i18n="activityAction">Action</th>
-                            <th data-i18n="activitySummary">Summary</th>
-                        </tr>
-                    </thead>
-                    <tbody id="activityBody"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="admin-section" id="lockSettingsSection" hidden>
+        <section class="admin-tab-panel admin-section" id="systemPanel" role="tabpanel" aria-labelledby="adminTabSystem" hidden>
             <h2 data-i18n="lockSettingsHeading">Security &amp; lock settings</h2>
             <p class="admin-hint" data-i18n="lockSettingsHint">Control edit-lock expiry and automatic sign-out when a teacher is inactive (no mouse, keyboard, or touch).</p>
             <form class="admin-form" id="lockSettingsForm" style="max-width: 28rem;">
@@ -175,6 +179,32 @@
                 </label>
                 <button type="submit" class="btn btn-primary" data-i18n="saveSettings">Save settings</button>
             </form>
+        </section>
+
+        <section class="admin-tab-panel admin-section" id="monitorPanel" role="tabpanel" aria-labelledby="adminTabMonitor" hidden>
+            <h2 data-i18n="monitorHeading">Monitor</h2>
+            <div id="monitorPresenceBlock" hidden>
+                <h3 data-i18n="presenceTitle">Who is online</h3>
+                <p class="section-hint" data-i18n="presenceHint">Teachers who sent a heartbeat in the last ~90 seconds.</p>
+                <ul id="presenceList" class="admin-presence-list"></ul>
+            </div>
+            <div id="monitorActivityBlock" hidden>
+                <h3 data-i18n="activityTitle">Activity log</h3>
+                <p class="section-hint" data-i18n="activityHint">Recent saves and admin actions (not full calendar snapshots).</p>
+                <div class="admin-table-wrap">
+                    <table class="admin-table" id="activityTable">
+                        <thead>
+                            <tr>
+                                <th data-i18n="activityWhen">When</th>
+                                <th data-i18n="activityWho">Who</th>
+                                <th data-i18n="activityAction">Action</th>
+                                <th data-i18n="activitySummary">Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <div id="editUserModal" class="modal" role="dialog" aria-labelledby="editUserModalTitle" aria-modal="true" hidden>
@@ -250,8 +280,8 @@
             <button type="button" class="btn btn-primary" id="bootstrapBtn" data-i18n="bootstrapCreate">Create admin account</button>
         </section>
     </div>
-    <script charset="utf-8" src="js/admin-i18n.js?v=20260527-toggle-capture"></script>
+    <script charset="utf-8" src="js/admin-i18n.js?v=20260602-admin-tabs"></script>
     <script charset="utf-8" src="js/team-auth.js?v=20260525-auth"></script>
-    <script charset="utf-8" src="js/admin.js?v=20260527-phase1-ui"></script>
+    <script charset="utf-8" src="js/admin.js?v=20260602-admin-tabs"></script>
 </body>
 </html>

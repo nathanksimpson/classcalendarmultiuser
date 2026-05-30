@@ -1,5 +1,6 @@
 /**
  * Global role presets and permission checks (mirror server/auth-permissions.js).
+ * Keep ROLE_PRESETS in sync with js/help-guide.js for the Help roles matrix.
  */
 export const PERMS = {
     MANAGE_USERS: 'manage_users',

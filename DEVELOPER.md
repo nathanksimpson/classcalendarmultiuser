@@ -1,6 +1,6 @@
 # Developer guide — Class Calendar Multi User
 
-Quick reference for editing this repo and pushing updates. Teachers use [FOR TEACHERS.md](FOR%20TEACHERS.md) and [FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md); in-app Help is in `howto.js`. Production setup uses [CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md).
+Quick reference for editing this repo and pushing updates. Teachers use [FOR TEACHERS.md](FOR%20TEACHERS.md) and [FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md); in-app Help is at `help.html` (`js/help-guide.js`, `js/help-page.js`). Production setup uses [CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md).
 
 ## Local setup
 
@@ -38,10 +38,11 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Team sync / locks | `js/calendar-sync.js`, hooks in `app.js` |
 | Login / session | `js/team-auth.js`, `login.html`, `pending-access.html` |
 | Admin UI | `admin.html`, `js/admin.js` |
+| Help page | `help.html`, `help.css`, `js/help-guide.js`, `js/help-page.js` |
 | REST / Kakao / sessions | `server/index.js` **and** `worker/src/index.js` |
 | Users, passwords, locks | `server/users.js` + Worker mirror in `worker/src/index.js` |
 | Calendar CRUD | `server/calendars.js` |
-| Access control | `server/calendar-access.js`, `worker/src/calendar-access.js` |
+| Access control | `server/calendar-access.js`, `worker/src/calendar-access.js`, `server/access-requests.js`, `worker/src/access-requests.js` |
 | App settings | `server/app-settings.js`, `worker/src/app-settings.js` |
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
 
@@ -85,6 +86,8 @@ UI-only changes still need **`npx wrangler deploy`** for production (see deploy 
 **Lock / sync API notes:** Server returns explicit `holdsLock` on meta/lock/load — do not infer only from `lock.holderUserId`. `409` revision conflict includes `body.document`; duplicate name uses `code: DUPLICATE_NAME` (no conflict modal).
 
 **Kakao auth:** First Kakao login auto-creates a teacher (`resolveKakaoLoginUser` in `server/users.js` / `worker/src/index.js`). Teachers with zero accessible calendars are sent to `pending-access.html` (`TeamAuth.ensure` + `app.js` team init). Only admins may `POST /api/calendars`. Setup: [KAKAO-SETUP.md](KAKAO-SETUP.md). `GET /api/auth/me` includes `hasCalendarAccess`. Signed-in users may update their own display name via `PATCH /api/auth/profile` (`{ displayName }`); UI on `index.html` (Edit name) and `pending-access.html`.
+
+**Per-calendar access:** Each grant on `calendar_members` / `calendar_groups` has `access_level`: `viewer` (read-only), `suggester` (read-only + suggestions API), or `editor` (normal lock + save). Admin **Calendars** tab saves `{ userAccess, groupAccess }` via `PUT /api/admin/calendars/:id/access`. Calendar meta includes `canEdit`, `accessLevel`, and `readOnly` merges permission + lock. New/waiting teachers log `user_needs_access` and appear in `GET /api/admin/access-requests` (in-app admin banner; no email in v1).
 
 ---
 

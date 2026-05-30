@@ -54,7 +54,7 @@ const translations = {
         newCalendarFailed: 'Could not create calendar',
         duplicateCalendarName: 'A calendar named "{name}" already exists. Choose a different name.',
         teamDeleteCalendar: 'Remove',
-        teamCalendarHint: 'Pick a calendar from the list, or click + New. Changes auto-save to the cloud. Edit Calendar Name below to rename. Open Help (sections 17–19) for sign-in, locks, and collaboration.',
+        teamCalendarHint: 'Pick a calendar from the list, or click + New. Changes auto-save to the cloud. Edit Calendar Name below to rename. Open Help (sections 17–21) for sign-in, locks, roles, and collaboration.',
         newCalendarCreating: 'Creating…',
         deleteCalendarRemoving: 'Removing…',
         teamCalendarNameLabel: 'Calendar name (saved):',
@@ -117,6 +117,8 @@ const translations = {
         teamReleaseLock: 'Release lock',
         teamReadOnlySave: 'Someone else is editing. Take over the lock to save.',
         teamViewOnlyBrowse: 'View only — browse, open details, print, and copy. Request edit access to change the calendar.',
+        teamPermissionViewer: 'View only on this calendar — you cannot edit or request the team lock.',
+        teamPermissionSuggester: 'Suggester on this calendar — view only in the app; submit changes through your admin.',
         teamSignOut: 'Sign out',
         teamSignOutAll: 'Sign out all devices',
         teamAdminLink: 'Admin',
@@ -465,7 +467,7 @@ const translations = {
         timetableNoClassesForTeacher: 'No classes assigned to this teacher yet. Assign them on the Classes tab.',
         timetableHomeroomOnlyTeacher: 'Homeroom teacher (담임) only — no teaching slots yet. To show classes on the grid, add this teacher under Class teachers on each class they teach (with the subject they teach).',
         timetableTeachersListEmpty: 'No teachers found. Assign teachers on classes or add team accounts.',
-        timetableCohortsScopeHint: 'Cohorts apply to the whole calendar, not only the teacher shown above. 담임 is a role here; teaching slots come from Class teachers on the Classes tab.',
+        timetableCohortsScopeHint: 'Cohorts belong to this calendar only (not shared across team calendars). 담임 is a cohort role here; teaching slots come from Class teachers on the Classes tab.',
         timetableHomeroomRoleHint: '담임 is a cohort role (student contact, retests), not a teaching subject. If this teacher also teaches, add them on each class under Class teachers with the subject they teach.',
         timetableCohortHomeroomOnlySaved: 'Cohort saved. This teacher is 담임 only — add them as a class teacher on subjects they teach when ready.',
         timetableEmptyHint: 'Assign teachers on the Classes tab to build a weekly timetable.',
@@ -811,7 +813,7 @@ const translations = {
         newCalendarFailed: '캘린더를 만들지 못했습니다',
         duplicateCalendarName: '"{name}"(이)라는 이름의 캘린더가 이미 있습니다. 다른 이름을 사용하세요.',
         teamDeleteCalendar: '삭제',
-        teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·협업은 도움말 17–19절을 보세요.',
+        teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·역할·협업은 도움말 17–21절을 보세요.',
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
         teamSyncOffline: '팀 서버에 연결되지 않음',
@@ -874,6 +876,8 @@ const translations = {
         teamReleaseLock: '잠금 해제',
         teamReadOnlySave: '다른 사람이 편집 중입니다. 저장하려면 잠금을 인수하세요.',
         teamViewOnlyBrowse: '보기 전용 — 둘러보기, 세부 정보, 인쇄, 복사는 가능합니다. 수정하려면 편집 권한을 요청하세요.',
+        teamPermissionViewer: '이 캘린더는 보기 전용입니다. 수정하거나 팀 잠금을 요청할 수 없습니다.',
+        teamPermissionSuggester: '이 캘린더는 제안자 권한입니다. 앱에서는 보기만 가능하며 변경은 관리자에게 요청하세요.',
         teamSignOut: '로그아웃',
         teamSignOutAll: '모든 기기에서 로그아웃',
         teamAdminLink: '관리',
@@ -1222,7 +1226,7 @@ const translations = {
         timetableNoClassesForTeacher: '이 선생님에게 배정된 수업이 없습니다. 수업 탭에서 배정하세요.',
         timetableHomeroomOnlyTeacher: '담임만 배정됨 — 가르치는 수업이 아직 없습니다. 시간표에 표시하려면 각 수업의 Class teachers에서 이 선생님과 담당 과목을 추가하세요.',
         timetableTeachersListEmpty: '선생님이 없습니다. 수업에 선생님을 배정하거나 팀 계정을 추가하세요.',
-        timetableCohortsScopeHint: '반(담임) 설정은 캘린더 전체에 적용됩니다. 담임은 역할이며, 수업 시간표는 수업 탭의 Class teachers에서 정합니다.',
+        timetableCohortsScopeHint: '반(담임) 설정은 이 캘린더에만 적용됩니다(팀 캘린더 간 공유되지 않음). 담임은 역할이며, 수업 시간표는 수업 탭의 Class teachers에서 정합니다.',
         timetableHomeroomRoleHint: '담임은 반 역할(학생 연락·재시험)이며 가르치는 과목이 아닙니다. 수업도 담당하면 각 수업의 Class teachers에 담당 과목과 함께 추가하세요.',
         timetableCohortHomeroomOnlySaved: '반을 저장했습니다. 담임만 지정됨 — 수업도 담당하면 Class teachers에 추가하세요.',
         timetableEmptyHint: '수업 탭에서 선생님을 배정하면 주간 시간표가 표시됩니다.',
@@ -7632,29 +7636,6 @@ function tabNeedsExtensionScripts(tabId) {
     return APP_EXTENSION_TAB_IDS.includes(tabId);
 }
 
-function setupHowToLazyLoad() {
-    const btn = document.getElementById('howToBtn');
-    if (!btn || btn.dataset.howtoBound === '1') {
-        return;
-    }
-    btn.dataset.howtoBound = '1';
-    btn.addEventListener('click', async () => {
-        try {
-            if (typeof CCPLoader !== 'undefined' && CCPLoader.loadHowtoScript) {
-                await CCPLoader.loadHowtoScript();
-            }
-            if (window.CCPHowTo && typeof window.CCPHowTo.open === 'function') {
-                window.CCPHowTo.open(currentLanguage === 'ko' ? 'ko' : 'en');
-            }
-        } catch (err) {
-            console.error('Help failed to load', err);
-            if (typeof setAppStatusMessage === 'function') {
-                setAppStatusMessage(t('syllabusModuleMissing') || 'Help failed to load', true);
-            }
-        }
-    });
-}
-
 function navigateToTab(tabId, options = {}) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
@@ -9523,8 +9504,25 @@ function selectTimetableTeacher(selector) {
     }
 }
 
+function updateTimetableCohortsCalendarName() {
+    const el = document.getElementById('timetableCohortsCalendarName');
+    if (!el) {
+        return;
+    }
+    const name = (appData.calendarName || '').trim();
+    if (name) {
+        el.hidden = false;
+        el.textContent = `${t('dataCalendarNameLabel')}: ${name}`;
+    } else {
+        el.hidden = true;
+        el.textContent = '';
+    }
+}
+
 function refreshTimetablePanels() {
     renderTimetableTeacherList();
+    renderTimetableCohortsList();
+    updateTimetableCohortsCalendarName();
     const selector = getTimetableTeacherSelectorFromUi();
     if (selector) {
         renderTimetableClassList(selector);
@@ -9532,6 +9530,34 @@ function refreshTimetablePanels() {
     } else {
         renderTimetableClassList(null);
         renderTimetableView(null);
+    }
+}
+
+function refreshCalendarScopedUi() {
+    renderClassList();
+    renderEventList();
+    updateDataTabCalendarSection();
+    updateCalendarTitle();
+    updateTopBarCalendarLabel();
+    updateTimetableCohortsCalendarName();
+
+    if (getActiveTab() === 'timetable') {
+        refreshTimetablePanels();
+    }
+    if (isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab')) {
+        const classId = elements.classId && elements.classId.value ? elements.classId.value.trim() : '';
+        const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
+        populateClassCohortSelect(classData ? classData.cohortId : '');
+        updateClassHomeroomLabelDisplay();
+    }
+    if (getActiveTab() === 'homework') {
+        renderHomeworkClassList();
+        renderHomeworkEditor();
+        renderHomeworkReferenceMiniCalendar();
+    }
+    if (getActiveTab() === 'syllabus') {
+        renderSyllabusClassList();
+        renderSyllabusTemplateList();
     }
 }
 
@@ -11507,7 +11533,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     ensureKrHolidaysImportButton();
     ensureKrHolidaysSourceHint();
     setupEventListeners();
-    setupHowToLazyLoad();
     initAppTabs();
     setupAppModalA11y();
     document.body.dataset.activeTab = getActiveTab();
@@ -11879,7 +11904,6 @@ function setupEventListeners() {
 const EXCLUSIVE_MODAL_IDS = [
     'booksEditorModal',
     'defaultClassEditorModal',
-    'howToModal',
     'changePasswordModal',
     'editDisplayNameModal',
     'classModal',
@@ -16712,7 +16736,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     if (el.closest('[data-team-view-allow]')) {
         return true;
     }
-    if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #howToModal, #teamLockStatus')) {
+    if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #teamLockStatus')) {
         return true;
     }
     if (
@@ -16956,7 +16980,16 @@ function updateTeamLockRoster(lockState) {
 }
 
 function applyTeamLockAccessState(lockState) {
-    const readOnly = Boolean(lockState && lockState.readOnly);
+    const permissionReadOnly = Boolean(
+        lockState && lockState.permissionReadOnly != null
+            ? lockState.permissionReadOnly
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.canEdit === false
+    );
+    const accessLevel =
+        (lockState && lockState.accessLevel) ||
+        (typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.accessLevel) ||
+        'editor';
+    const readOnly = Boolean(lockState && lockState.readOnly) || permissionReadOnly;
     const lock = lockState && lockState.lock;
     const holdsLock = Boolean(lockState && lockState.holdsLock);
     const pendingEditRequest = Boolean(
@@ -17005,7 +17038,13 @@ function applyTeamLockAccessState(lockState) {
     let actionLabel = t('teamLockActionAcquire');
     let lockBtnDisabled = false;
 
-    if (pendingEditRequest && readOnly && lock) {
+    if (permissionReadOnly) {
+        mode = 'blocked';
+        summaryText =
+            accessLevel === 'suggester' ? t('teamPermissionSuggester') : t('teamPermissionViewer');
+        actionLabel = summaryText;
+        lockBtnDisabled = true;
+    } else if (pendingEditRequest && readOnly && lock) {
         mode = 'waiting';
         summaryText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
         actionLabel = t('teamLockActionWaiting');
@@ -17535,6 +17574,8 @@ function setupTeamUserBar() {
 // These UI preferences should never be written into the shared team calendar data.
 const UI_STORAGE_PREFIX = 'classCalendarUi:';
 const UI_STORAGE_LOCAL_ID = 'local';
+const DOMAIN_STORAGE_PREFIX = 'classCalendarData:';
+const DOMAIN_STORAGE_LEGACY_KEY = 'classCalendarData';
 
 function getUiStorageCalendarId() {
     try {
@@ -17552,6 +17593,20 @@ function getUiStorageCalendarId() {
 
 function getUiStorageKey() {
     return UI_STORAGE_PREFIX + getUiStorageCalendarId();
+}
+
+function getDomainStorageKey() {
+    try {
+        if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
+            const id = CalendarSync.getActiveCalendarId();
+            if (id) {
+                return DOMAIN_STORAGE_PREFIX + String(id);
+            }
+        }
+    } catch (_) {
+        /* ignore */
+    }
+    return DOMAIN_STORAGE_LEGACY_KEY;
 }
 
 function loadUiStateFromLocalStorageIntoData(data) {
@@ -17599,7 +17654,7 @@ function saveDataToLocalCache() {
     if (domain && domain.ui) {
         delete domain.ui;
     }
-    localStorage.setItem('classCalendarData', JSON.stringify(domain));
+    localStorage.setItem(getDomainStorageKey(), JSON.stringify(domain));
 }
 
 function saveData() {
@@ -17637,7 +17692,16 @@ function applyLoadedAppData(data) {
 }
 
 function loadDataFromLocalCache() {
-    const saved = localStorage.getItem('classCalendarData');
+    let saved = null;
+    try {
+        const key = getDomainStorageKey();
+        saved = localStorage.getItem(key);
+        if (!saved && key !== DOMAIN_STORAGE_LEGACY_KEY) {
+            saved = localStorage.getItem(DOMAIN_STORAGE_LEGACY_KEY);
+        }
+    } catch (_) {
+        saved = null;
+    }
     if (saved) {
         try {
             applyLoadedAppData(JSON.parse(saved));
@@ -17675,6 +17739,7 @@ function applyServerDocument(doc) {
     updateActiveTeamCalendarOptionLabel();
     updateCalendarTitle();
     updateTopBarCalendarLabel();
+    refreshCalendarScopedUi();
 }
 
 function updateActiveTeamCalendarOptionLabel() {
@@ -17853,6 +17918,16 @@ function populateCalendarSelect(calendars, activeId) {
 }
 
 async function switchToTeamCalendar(id, calendarsOptional) {
+    const previousId = typeof CalendarSync !== 'undefined' ? CalendarSync.getActiveCalendarId() : null;
+    if (previousId && id && previousId !== id && typeof CalendarSync !== 'undefined') {
+        try {
+            await CalendarSync.flushPendingSave();
+        } catch (err) {
+            if (err.status !== 423) {
+                console.warn('Flush before calendar switch failed:', err);
+            }
+        }
+    }
     if (teamLockPreviousCalendarId && teamLockPreviousCalendarId !== id) {
         await CalendarSync.releaseLock(teamLockPreviousCalendarId);
     }
@@ -17865,6 +17940,7 @@ async function switchToTeamCalendar(id, calendarsOptional) {
             loadUiStateFromLocalStorageIntoData(appData);
             initializeTermStart();
             renderCalendar();
+            refreshCalendarScopedUi();
         }
         return;
     }
@@ -17906,6 +17982,7 @@ async function switchToTeamCalendar(id, calendarsOptional) {
                 loadUiStateFromLocalStorageIntoData(appData);
                 initializeTermStart();
                 renderCalendar();
+                refreshCalendarScopedUi();
             }
             return;
         }
@@ -18158,6 +18235,7 @@ async function refreshTeamCalendarsAfterDelete(deletedId) {
         loadUiStateFromLocalStorageIntoData(appData);
         initializeTermStart();
         renderCalendar();
+        refreshCalendarScopedUi();
         applyTeamLockAccessState({ readOnly: false, lock: null, holdsLock: false });
         setTeamLockBarVisible(teamSyncEnabled);
         updateCalendarTitle();
@@ -18498,6 +18576,7 @@ async function initTeamSync() {
                 applyLoadedAppData(merged);
                 initializeTermStart();
                 renderCalendar();
+                refreshCalendarScopedUi();
                 const payload = JSON.parse(JSON.stringify(merged));
                 if (payload && payload.ui) {
                     delete payload.ui;
@@ -18577,7 +18656,6 @@ async function initTeamSync() {
             return;
         }
         try {
-            CalendarSync.cancelPendingSave();
             await switchToTeamCalendar(id);
         } catch (err) {
             showSyncToast(t('syncError') + ': ' + err.message, true);
@@ -19354,6 +19432,7 @@ function finishImportUiAfterApply(migrated) {
     renderCalendar();
     updateCalendarTitle();
     updateTopBarCalendarLabel();
+    refreshCalendarScopedUi();
     if (!migrated && !teamSyncEnabled) {
         alert(t('importSuccess'));
     }

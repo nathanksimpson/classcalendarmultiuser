@@ -18,6 +18,10 @@
         saving: false,
         pendingGetData: null,
         readOnly: false,
+        canEdit: true,
+        canSuggest: false,
+        accessLevel: 'editor',
+        permissionReadOnly: false,
         lock: null,
         holdsLock: false,
         pendingEditRequest: false,
@@ -202,10 +206,31 @@
         return json;
     }
 
+    function applyCalendarAccessFromMeta(json) {
+        if (!json || typeof json !== 'object') {
+            return;
+        }
+        if (typeof json.canEdit === 'boolean') {
+            state.canEdit = json.canEdit;
+        }
+        if (typeof json.canSuggest === 'boolean') {
+            state.canSuggest = json.canSuggest;
+        }
+        if (json.accessLevel) {
+            state.accessLevel = String(json.accessLevel);
+        }
+        state.permissionReadOnly =
+            typeof json.permissionReadOnly === 'boolean' ? json.permissionReadOnly : !state.canEdit;
+    }
+
     function applyLockFromResponse(json) {
         const wasReadOnly = state.readOnly;
         const wasHoldsLock = state.holdsLock;
+        applyCalendarAccessFromMeta(json);
         state.readOnly = Boolean(json && json.readOnly);
+        if (state.canEdit === false) {
+            state.readOnly = true;
+        }
         state.lock = (json && json.lock) || null;
         if (json && typeof json.holdsLock === 'boolean') {
             state.holdsLock = json.holdsLock;
@@ -227,6 +252,10 @@
         }
         const lockState = {
             readOnly: state.readOnly,
+            canEdit: state.canEdit,
+            canSuggest: state.canSuggest,
+            accessLevel: state.accessLevel,
+            permissionReadOnly: state.permissionReadOnly,
             lock: state.lock,
             holdsLock: state.holdsLock,
             pendingEditRequest: state.pendingEditRequest,
@@ -301,6 +330,9 @@
             local.customSyllabusTemplates,
             server.customSyllabusTemplates
         );
+        merged.cohorts = mergeArrayById(local.cohorts, server.cohorts);
+        merged.timetableTimeSlots = mergeArrayById(local.timetableTimeSlots, server.timetableTimeSlots);
+        merged.periodSlotMap = Object.assign({}, server.periodSlotMap || {}, local.periodSlotMap || {});
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -392,6 +424,11 @@
         },
 
         async acquireLock(id, opts) {
+            if (state.canEdit === false) {
+                const err = new Error('You do not have edit access to this calendar');
+                err.status = 403;
+                throw err;
+            }
             const force = Boolean(opts && opts.force);
             debugLog('api', 'POST /lock (acquire)', { calendarId: id, force });
             const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
@@ -556,9 +593,18 @@
 
         async saveCalendar(data, options) {
             assertSignedIn();
+            if (state.canEdit === false) {
+                const err = new Error('You do not have edit access to this calendar');
+                err.status = 403;
+                throw err;
+            }
             if (state.readOnly) {
-                const err = new Error('Calendar is locked by another teacher');
-                err.status = 423;
+                const err = new Error(
+                    state.permissionReadOnly
+                        ? 'You do not have edit access to this calendar'
+                        : 'Calendar is locked by another teacher'
+                );
+                err.status = state.permissionReadOnly ? 403 : 423;
                 throw err;
             }
             const id = CalendarSync.getActiveCalendarId();
@@ -620,7 +666,7 @@
             if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
                 return;
             }
-            if (state.readOnly) {
+            if (state.readOnly || state.canEdit === false) {
                 return;
             }
             state.pendingGetData = getDataFn;
@@ -693,9 +739,6 @@
                 }
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
-                    if (typeof meta.canEdit === 'boolean' && !meta.canEdit && meta.canSuggest) {
-                        state.readOnly = true;
-                    }
                     fetch('/api/presence/heartbeat', {
                         method: 'POST',
                         credentials: 'same-origin',

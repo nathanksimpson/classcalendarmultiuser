@@ -341,6 +341,25 @@ function listAdminCalendarsWithAccess() {
     return cals.map((cal) => Object.assign({}, cal, getCalendarAccess(cal.id)));
 }
 
+function getCalendarSummaryForUser(user) {
+    if (!user) {
+        return { calendarAccessMode: 'none', calendarSummary: [] };
+    }
+    if (canViewAllCalendars(user)) {
+        return { calendarAccessMode: 'all', calendarSummary: [] };
+    }
+    const cals = listCalendarsForUser(user);
+    const calendarSummary = cals.map((cal) => ({
+        calendarId: cal.id,
+        name: cal.name,
+        accessLevel: getUserAccessLevel(user, cal.id)
+    }));
+    return {
+        calendarAccessMode: calendarSummary.length ? 'some' : 'none',
+        calendarSummary
+    };
+}
+
 module.exports = {
     isAdmin,
     canViewAllCalendars,
@@ -361,5 +380,6 @@ module.exports = {
     getGroupMemberIds,
     setGroupMembers,
     listAdminCalendarsWithAccess,
+    getCalendarSummaryForUser,
     normalizeAccessLevel
 };

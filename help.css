@@ -1,0 +1,248 @@
+/* Help page — Class Calendar */
+.help-page {
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem 3rem;
+}
+
+.help-page h1 {
+    margin-bottom: 0.35rem;
+    color: var(--text-primary);
+}
+
+.help-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.help-nav a {
+    color: var(--primary);
+}
+
+.help-nav-spacer {
+    flex: 1 1 auto;
+    min-width: 0.5rem;
+}
+
+.help-intro {
+    margin: 0 0 1.25rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    font-size: 0.9375rem;
+}
+
+.help-search-wrap {
+    margin-bottom: 1rem;
+}
+
+.help-search-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.85rem;
+    font-size: 1rem;
+    font-family: inherit;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.help-search-input:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.help-toc {
+    margin: 0 0 1.5rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.help-toc-heading {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.help-toc-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    columns: 2;
+    column-gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+    .help-toc-list {
+        columns: 1;
+    }
+}
+
+.help-toc-list li {
+    margin-bottom: 0.35rem;
+    break-inside: avoid;
+}
+
+.help-toc-list a {
+    color: var(--primary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.help-toc-list a:hover {
+    text-decoration: underline;
+}
+
+.help-toc-list a.is-hidden-match {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.help-no-results {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+}
+
+.help-body {
+    color: var(--text-primary);
+}
+
+.help-section {
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border-color);
+    scroll-margin-top: 1rem;
+}
+
+.help-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.help-section.is-filtered-out {
+    display: none;
+}
+
+.help-section h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.help-where {
+    margin: 0 0 10px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.help-where-label {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.help-steps {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.help-steps li {
+    margin-bottom: 6px;
+}
+
+.help-steps li:last-child {
+    margin-bottom: 0;
+}
+
+.help-section mark,
+.help-toc-list mark {
+    background: color-mix(in srgb, var(--primary) 25%, transparent);
+    color: inherit;
+    padding: 0 0.1em;
+    border-radius: 2px;
+}
+
+.help-roles-intro {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.help-roles-intro li {
+    margin-bottom: 6px;
+}
+
+.help-matrix-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0.75rem 0 0;
+}
+
+.help-matrix {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.help-matrix th,
+.help-matrix td {
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.45rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.help-matrix th {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.help-matrix td:first-child,
+.help-matrix th:first-child {
+    text-align: left;
+    min-width: 12rem;
+}
+
+.help-matrix-yes {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.help-matrix-no {
+    color: var(--text-muted);
+}
+
+@media print {
+    .help-nav,
+    .help-search-wrap,
+    .help-toc {
+        display: none !important;
+    }
+
+    .help-page {
+        max-width: none;
+        margin: 0;
+    }
+}

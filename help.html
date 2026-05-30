@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/">
+    <title>Help — Class Calendar</title>
+    <script src="js/theme-init.js"></script>
+    <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
+    <link rel="stylesheet" href="help.css?v=20260601-help">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="help-page">
+        <nav class="help-nav" aria-label="Help toolbar">
+            <a href="/" id="helpBackLink" data-i18n="backToCalendar">← Back to calendar</a>
+            <span class="help-nav-spacer" aria-hidden="true"></span>
+            <button type="button" id="helpLangToggle" class="btn btn-outline btn-small btn-lang" data-i18n="langToggle" data-i18n-title="langToggleTitle" title="Switch to Korean">🌐 한국어</button>
+            <button type="button" id="helpThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
+        </nav>
+        <h1 id="helpTitle">Help</h1>
+        <p class="help-intro" id="helpIntro"></p>
+        <div class="help-search-wrap">
+            <label for="helpSearch" class="visually-hidden" id="helpSearchLabel">Search help</label>
+            <input type="search" id="helpSearch" class="help-search-input" autocomplete="off" spellcheck="false">
+        </div>
+        <nav id="helpToc" class="help-toc" aria-labelledby="helpTocHeading" hidden>
+            <h2 id="helpTocHeading" class="help-toc-heading" data-i18n="tocHeading">Contents</h2>
+            <ol id="helpTocList" class="help-toc-list"></ol>
+        </nav>
+        <p id="helpNoResults" class="help-no-results" role="status" hidden></p>
+        <div id="helpBody" class="help-body"></div>
+    </div>
+    <script charset="utf-8" src="js/help-guide.js?v=20260601-help"></script>
+    <script charset="utf-8" src="js/help-page.js?v=20260601-help"></script>
+</body>
+</html>

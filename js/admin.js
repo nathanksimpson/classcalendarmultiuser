@@ -93,6 +93,384 @@ let editUserTriggerEl = null;
 let resetPasswordTriggerEl = null;
 let sessionStatusText = '';
 let refreshInFlight = 0;
+let cachedAllUsers = [];
+let accountsFilter = 'all';
+let accountsSearchQuery = '';
+let lastAccessRequestCount = 0;
+let adminAccessPollTimer = null;
+let activeAdminTab = 'accounts';
+
+const ADMIN_TAB_CONFIG = {
+    accounts: { panelId: 'accountsPanel', tabId: 'adminTabAccounts', perms: ['manage_users'] },
+    groups: { panelId: 'groupsPanel', tabId: 'adminTabGroups', perms: ['manage_groups'] },
+    calendars: { panelId: 'calendarsPanel', tabId: 'adminTabCalendars', perms: ['manage_calendar_access'] },
+    system: { panelId: 'systemPanel', tabId: 'adminTabSystem', perms: ['manage_settings'] },
+    monitor: {
+        panelId: 'monitorPanel',
+        tabId: 'adminTabMonitor',
+        perms: ['view_presence', 'view_audit'],
+        anyPerm: true
+    }
+};
+
+const LEGACY_ADMIN_HASH = {
+    usersSection: 'accounts',
+    groupsSection: 'groups',
+    calendarAccessSection: 'calendars',
+    lockSettingsSection: 'system',
+    presenceSection: 'monitor',
+    activitySection: 'monitor'
+};
+
+function adminTabVisible(tabKey) {
+    const cfg = ADMIN_TAB_CONFIG[tabKey];
+    if (!cfg) {
+        return false;
+    }
+    if (cfg.anyPerm) {
+        return cfg.perms.some((p) => adminHasPerm(p));
+    }
+    return cfg.perms.every((p) => adminHasPerm(p));
+}
+
+function firstVisibleAdminTab() {
+    const order = ['accounts', 'groups', 'calendars', 'system', 'monitor'];
+    for (let i = 0; i < order.length; i++) {
+        if (adminTabVisible(order[i])) {
+            return order[i];
+        }
+    }
+    return null;
+}
+
+function switchAdminTab(tabKey, options) {
+    const opts = options || {};
+    const cfg = ADMIN_TAB_CONFIG[tabKey];
+    if (!cfg || !adminTabVisible(tabKey)) {
+        return;
+    }
+    activeAdminTab = tabKey;
+    Object.keys(ADMIN_TAB_CONFIG).forEach((key) => {
+        const c = ADMIN_TAB_CONFIG[key];
+        const panel = document.getElementById(c.panelId);
+        const tabBtn = document.getElementById(c.tabId);
+        const show = key === tabKey;
+        if (panel) {
+            panel.hidden = !show;
+        }
+        if (tabBtn) {
+            tabBtn.setAttribute('aria-selected', show ? 'true' : 'false');
+            tabBtn.tabIndex = show ? 0 : -1;
+        }
+    });
+    if (!opts.skipHash && typeof location !== 'undefined') {
+        const nextHash = '#' + tabKey;
+        if (location.hash !== nextHash) {
+            history.replaceState(null, '', nextHash);
+        }
+    }
+    if (tabKey === 'accounts' && adminHasPerm('manage_users')) {
+        loadAccessRequestsBanner().catch(() => {});
+    }
+    if (tabKey === 'monitor') {
+        loadPresence().catch(() => {});
+        loadActivity().catch(() => {});
+    }
+}
+
+function applyAdminTabVisibility() {
+    const bar = document.getElementById('adminTabBar');
+    let anyTab = false;
+    Object.keys(ADMIN_TAB_CONFIG).forEach((key) => {
+        const cfg = ADMIN_TAB_CONFIG[key];
+        const tabBtn = document.getElementById(cfg.tabId);
+        const panel = document.getElementById(cfg.panelId);
+        const visible = adminTabVisible(key);
+        if (tabBtn) {
+            tabBtn.hidden = !visible;
+        }
+        if (panel && !visible) {
+            panel.hidden = true;
+        }
+        if (visible) {
+            anyTab = true;
+        }
+    });
+    if (bar) {
+        bar.hidden = !anyTab;
+    }
+    const monPresence = document.getElementById('monitorPresenceBlock');
+    const monActivity = document.getElementById('monitorActivityBlock');
+    if (monPresence) {
+        monPresence.hidden = !adminHasPerm('view_presence');
+    }
+    if (monActivity) {
+        monActivity.hidden = !adminHasPerm('view_audit');
+    }
+    if (anyTab && !adminTabVisible(activeAdminTab)) {
+        const first = firstVisibleAdminTab();
+        if (first) {
+            switchAdminTab(first, { skipHash: true });
+        }
+    }
+}
+
+function resolveAdminTabFromHash() {
+    let raw = (location.hash || '').replace(/^#/, '');
+    if (LEGACY_ADMIN_HASH[raw]) {
+        raw = LEGACY_ADMIN_HASH[raw];
+    }
+    if (raw && adminTabVisible(raw)) {
+        return raw;
+    }
+    return firstVisibleAdminTab();
+}
+
+function setupAdminTabs() {
+    const bar = document.getElementById('adminTabBar');
+    if (!bar || bar.dataset.bound === '1') {
+        return;
+    }
+    bar.dataset.bound = '1';
+    bar.querySelectorAll('.admin-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const tab = btn.getAttribute('data-tab');
+            if (tab) {
+                switchAdminTab(tab);
+            }
+        });
+    });
+    window.addEventListener('hashchange', () => {
+        const tab = resolveAdminTabFromHash();
+        if (tab) {
+            switchAdminTab(tab, { skipHash: true });
+        }
+    });
+}
+
+function accessLevelLabel(level) {
+    const l = String(level || 'editor').toLowerCase();
+    if (l === 'viewer') {
+        return t('accessLevelViewer');
+    }
+    if (l === 'suggester') {
+        return t('accessLevelSuggester');
+    }
+    return t('accessLevelEditor');
+}
+
+function formatCalendarSummaryCell(u) {
+    if (!u || !u.active) {
+        return '—';
+    }
+    if (u.calendarAccessMode === 'all') {
+        return t('calendarsAllAccess');
+    }
+    if (!u.hasCalendarAccess) {
+        return '<span class="badge-inactive">' + escapeHtml(t('calendarsNoAccess')) + '</span>';
+    }
+    const items = u.calendarSummary || [];
+    if (!items.length) {
+        return escapeHtml(t('calendarsHasAccess'));
+    }
+    const max = 3;
+    const parts = items.slice(0, max).map((c) => {
+        const name = c.name || c.calendarId || '';
+        return escapeHtml(name) + ' (' + escapeHtml(accessLevelLabel(c.accessLevel)) + ')';
+    });
+    let text = parts.join(', ');
+    if (items.length > max) {
+        text += ' ' + escapeHtml(t('calendarsMore', { count: items.length - max }));
+    }
+    return '<span class="admin-calendars-cell">' + text + '</span>';
+}
+
+function userMatchesAccountsFilter(u) {
+    if (accountsFilter === 'active') {
+        return Boolean(u.active);
+    }
+    if (accountsFilter === 'inactive') {
+        return !u.active;
+    }
+    if (accountsFilter === 'waiting') {
+        return Boolean(u.active) && !u.hasCalendarAccess;
+    }
+    return true;
+}
+
+function userMatchesAccountsSearch(u) {
+    const q = accountsSearchQuery.trim().toLowerCase();
+    if (!q) {
+        return true;
+    }
+    const hay = [u.displayName, u.email, u.kakaoUserId, u.id].filter(Boolean).join(' ').toLowerCase();
+    return hay.indexOf(q) >= 0;
+}
+
+function updateAccountsTabBadge(waitingCount) {
+    const tab = document.getElementById('adminTabAccounts');
+    if (!tab) {
+        return;
+    }
+    const base = t('navAccounts');
+    tab.textContent = waitingCount > 0 ? base + ' (' + waitingCount + ')' : base;
+}
+
+async function loadAccessRequestsBanner() {
+    const canNotify =
+        adminHasPerm('manage_users') || adminHasPerm('manage_calendar_access');
+    if (!canNotify) {
+        return;
+    }
+    const banners = [
+        { el: document.getElementById('accountsAccessBanner'), text: document.getElementById('accountsAccessBannerText') },
+        { el: document.getElementById('adminGlobalAccessBanner'), text: document.getElementById('adminGlobalAccessBannerText') }
+    ];
+    try {
+        const data = await api('/admin/access-requests');
+        const count = data && data.count != null ? Number(data.count) : 0;
+        updateAccountsTabBadge(count);
+        const msg = count === 1 ? t('accessBannerOne') : count > 0 ? t('accessBannerMany', { count: String(count) }) : '';
+        if (count > lastAccessRequestCount && lastAccessRequestCount > 0) {
+            showAdminSaveNotice(t('accessBannerNew'), false);
+        }
+        lastAccessRequestCount = count;
+        banners.forEach((b) => {
+            if (!b.el || !b.text) {
+                return;
+            }
+            if (count > 0) {
+                b.el.hidden = false;
+                b.text.textContent = msg;
+            } else {
+                b.el.hidden = true;
+            }
+        });
+    } catch (_) {
+        banners.forEach((b) => {
+            if (b.el) {
+                b.el.hidden = true;
+            }
+        });
+    }
+}
+
+function setupAccountsToolbar() {
+    const search = document.getElementById('accountsSearchInput');
+    if (search && search.dataset.bound !== '1') {
+        search.dataset.bound = '1';
+        search.addEventListener('input', () => {
+            accountsSearchQuery = search.value || '';
+            renderUsersTable();
+        });
+    }
+    document.querySelectorAll('.admin-filter-chip').forEach((chip) => {
+        if (chip.dataset.bound === '1') {
+            return;
+        }
+        chip.dataset.bound = '1';
+        chip.addEventListener('click', () => {
+            accountsFilter = chip.getAttribute('data-filter') || 'all';
+            document.querySelectorAll('.admin-filter-chip').forEach((c) => {
+                c.classList.toggle('is-active', c === chip);
+            });
+            renderUsersTable();
+        });
+    });
+    function goReviewWaiting() {
+        accountsFilter = 'waiting';
+        document.querySelectorAll('.admin-filter-chip').forEach((c) => {
+            c.classList.toggle('is-active', c.getAttribute('data-filter') === 'waiting');
+        });
+        if (adminTabVisible('accounts')) {
+            switchAdminTab('accounts');
+            renderUsersTable();
+        } else if (adminTabVisible('calendars')) {
+            switchAdminTab('calendars');
+        }
+    }
+    ['accountsReviewWaitingBtn', 'adminGlobalReviewWaitingBtn'].forEach((id) => {
+        const reviewBtn = document.getElementById(id);
+        if (reviewBtn && reviewBtn.dataset.bound !== '1') {
+            reviewBtn.dataset.bound = '1';
+            reviewBtn.addEventListener('click', goReviewWaiting);
+        }
+    });
+}
+
+function startAdminAccessPoll() {
+    if (adminAccessPollTimer) {
+        clearInterval(adminAccessPollTimer);
+    }
+    adminAccessPollTimer = setInterval(() => {
+        if (document.hidden || !currentAdminId) {
+            return;
+        }
+        loadAccessRequestsBanner().catch(() => {});
+    }, 60000);
+}
+
+function renderAccessLevelGrid(container, items, namePrefix, accessPayload, labelKey, idField) {
+    container.innerHTML = '';
+    const key = labelKey || 'displayName';
+    const field = idField || (namePrefix.indexOf('Group') >= 0 ? 'groupId' : 'userId');
+    const accessById = new Map();
+    const listKey = field === 'groupId' ? 'groupAccess' : 'userAccess';
+    const legacyKey = field === 'groupId' ? 'groupIds' : 'userIds';
+    const rows = (accessPayload && accessPayload[listKey]) || [];
+    rows.forEach((a) => {
+        if (a && a[field]) {
+            accessById.set(a[field], a.accessLevel || 'editor');
+        }
+    });
+    const legacyIds = (accessPayload && accessPayload[legacyKey]) || [];
+    (items || []).forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'admin-access-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = namePrefix;
+        cb.value = item.id;
+        const hasDirect = accessById.has(item.id);
+        const legacyOn = legacyIds.includes(item.id);
+        cb.checked = hasDirect || legacyOn;
+        const levelSelect = document.createElement('select');
+        levelSelect.setAttribute('aria-label', t('accessLevelLabel'));
+        ['viewer', 'suggester', 'editor'].forEach((lvl) => {
+            const opt = document.createElement('option');
+            opt.value = lvl;
+            opt.textContent = accessLevelLabel(lvl);
+            levelSelect.appendChild(opt);
+        });
+        levelSelect.value = accessById.get(item.id) || 'editor';
+        levelSelect.disabled = !cb.checked;
+        cb.addEventListener('change', () => {
+            levelSelect.disabled = !cb.checked;
+        });
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = item[key] || item.name || item.email || item.id;
+        row.appendChild(cb);
+        row.appendChild(nameSpan);
+        row.appendChild(levelSelect);
+        container.appendChild(row);
+    });
+}
+
+function collectAccessPayloadFromGrid(container, idKey) {
+    const out = [];
+    container.querySelectorAll('.admin-access-row').forEach((row) => {
+        const cb = row.querySelector('input[type="checkbox"]');
+        const sel = row.querySelector('select');
+        if (!cb || !cb.checked || !cb.value) {
+            return;
+        }
+        const entry = {};
+        entry[idKey] = cb.value;
+        entry.accessLevel = sel && sel.value ? sel.value : 'editor';
+        out.push(entry);
+    });
+    return out;
+}
 
 function setSessionStatus(msg, loading) {
     sessionStatusText = msg || '';
@@ -416,28 +794,7 @@ function roleDisplayLabel(role) {
 }
 
 function applyAdminSectionVisibility() {
-    const map = {
-        usersSection: 'manage_users',
-        groupsSection: 'manage_groups',
-        calendarAccessSection: 'manage_calendar_access',
-        lockSettingsSection: 'manage_settings',
-        presenceSection: 'view_presence',
-        activitySection: 'view_audit'
-    };
-    Object.keys(map).forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.hidden = !adminHasPerm(map[id]);
-        }
-    });
-    const navPresence = document.getElementById('adminNavPresence');
-    const navActivity = document.getElementById('adminNavActivity');
-    if (navPresence) {
-        navPresence.hidden = !adminHasPerm('view_presence');
-    }
-    if (navActivity) {
-        navActivity.hidden = !adminHasPerm('view_audit');
-    }
+    applyAdminTabVisibility();
 }
 
 function renderEmptyRow(body, colSpan, messageKey) {
@@ -772,17 +1129,27 @@ function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
 }
 
 async function loadUsers() {
-    const users = await api('/admin/users');
-    const body = document.getElementById('usersBody');
-    body.innerHTML = '';
-    const activeSuperAdminCount = countActiveSuperAdmins(users);
+    cachedAllUsers = await api('/admin/users');
+    renderUsersTable();
+    await loadAccessRequestsBanner();
+}
 
-    if (!users.length) {
-        renderEmptyRow(body, 7, 'emptyUsers');
+function renderUsersTable() {
+    const body = document.getElementById('usersBody');
+    if (!body) {
+        return;
+    }
+    body.innerHTML = '';
+    const users = cachedAllUsers || [];
+    const activeSuperAdminCount = countActiveSuperAdmins(users);
+    const filtered = users.filter((u) => userMatchesAccountsFilter(u) && userMatchesAccountsSearch(u));
+
+    if (!filtered.length) {
+        renderEmptyRow(body, 7, users.length ? 'emptyUsersFilter' : 'emptyUsers');
         return;
     }
 
-    users.forEach((u) => {
+    filtered.forEach((u) => {
         const tr = document.createElement('tr');
         const roleLabel = roleDisplayLabel(u.role);
         tr.innerHTML =
@@ -795,9 +1162,7 @@ async function loadUsers() {
             '</td><td>' +
             escapeHtml(roleLabel) +
             '</td><td>' +
-            (u.hasCalendarAccess
-                ? escapeHtml(t('calendarsHasAccess'))
-                : '<span class="badge-inactive">' + escapeHtml(t('calendarsNoAccess')) + '</span>') +
+            formatCalendarSummaryCell(u) +
             '</td><td>' +
             (u.active ? t('statusActive') : '<span class="badge-inactive">' + escapeHtml(t('statusDeactivated')) + '</span>') +
             '</td><td class="admin-actions-cell"></td>';
@@ -955,21 +1320,23 @@ async function loadCalendarAccessForSelected() {
         return;
     }
     const access = await api('/admin/calendars/' + encodeURIComponent(calId) + '/access');
-    const allUsers = await api('/admin/users');
+    const allUsers = cachedAllUsers.length ? cachedAllUsers : await api('/admin/users');
     const teachers = allUsers.filter((u) => u.active);
-    renderCheckboxGrid(
+    renderAccessLevelGrid(
         document.getElementById('accessTeachersGrid'),
         teachers,
         'accessTeacher',
-        access.userIds || [],
-        'displayName'
+        access,
+        'displayName',
+        'userId'
     );
-    renderCheckboxGrid(
+    renderAccessLevelGrid(
         document.getElementById('accessGroupsGrid'),
         cachedGroups.length ? cachedGroups : await api('/admin/groups'),
         'accessGroup',
-        access.groupIds || [],
-        'name'
+        access,
+        'name',
+        'groupId'
     );
 }
 
@@ -1046,8 +1413,13 @@ async function refreshAll() {
         if (adminHasPerm('manage_calendar_access')) {
             await loadCalendarAccessUI();
         }
-        await loadPresence();
-        await loadActivity();
+        if (adminHasPerm('manage_users') || adminHasPerm('manage_calendar_access')) {
+            await loadAccessRequestsBanner();
+        }
+        if (adminTabVisible('monitor')) {
+            await loadPresence();
+            await loadActivity();
+        }
     } finally {
         refreshInFlight -= 1;
         setSessionStatus(sessionStatusText);
@@ -1057,9 +1429,9 @@ async function refreshAll() {
 function setupAdminNav(signedIn) {
     const nav = document.getElementById('adminNav');
     const signInLink = document.getElementById('adminSignInLink');
-    const sectionNav = document.getElementById('adminSectionNav');
-    if (sectionNav) {
-        sectionNav.hidden = !signedIn;
+    const tabBar = document.getElementById('adminTabBar');
+    if (tabBar) {
+        tabBar.hidden = !signedIn;
     }
     if (!nav) {
         return;
@@ -1097,22 +1469,23 @@ function setupAdminNav(signedIn) {
 
 function showAdminSections(visible) {
     if (!visible) {
-        [
-            'usersSection',
-            'groupsSection',
-            'calendarAccessSection',
-            'lockSettingsSection',
-            'presenceSection',
-            'activitySection'
-        ].forEach((id) => {
-            const el = document.getElementById(id);
+        Object.keys(ADMIN_TAB_CONFIG).forEach((key) => {
+            const el = document.getElementById(ADMIN_TAB_CONFIG[key].panelId);
             if (el) {
                 el.hidden = true;
             }
         });
+        const bar = document.getElementById('adminTabBar');
+        if (bar) {
+            bar.hidden = true;
+        }
         return;
     }
-    applyAdminSectionVisibility();
+    applyAdminTabVisibility();
+    const tab = resolveAdminTabFromHash() || firstVisibleAdminTab();
+    if (tab) {
+        switchAdminTab(tab, { skipHash: !location.hash });
+    }
 }
 
 async function loadLockSettings() {
@@ -1224,6 +1597,8 @@ async function init() {
     setupEditUserModal();
     setupResetPasswordModal();
     setupLockSettingsForm();
+    setupAdminTabs();
+    setupAccountsToolbar();
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && currentAdminId) {
             refreshAll().catch(() => {});
@@ -1246,7 +1621,8 @@ async function init() {
         }
         setupAdminNav(true);
         showAdminSections(true);
-        applyAdminSectionVisibility();
+        applyAdminTabVisibility();
+        startAdminAccessPoll();
         setSessionStatus(t('signedInAs', { name: currentAdminDisplayName }));
         document.getElementById('bootstrapBox').style.display = 'none';
         if (typeof AdminI18n !== 'undefined' && AdminI18n.applyAdminLanguage) {
@@ -1356,12 +1732,14 @@ async function init() {
                 showAdminSaveNotice(t('emptyCalendars'), true);
                 return;
             }
-            const userIds = getCheckedIds(document.getElementById('accessTeachersGrid'));
-            const groupIds = getCheckedIds(document.getElementById('accessGroupsGrid'));
+            const teachersGrid = document.getElementById('accessTeachersGrid');
+            const groupsGrid = document.getElementById('accessGroupsGrid');
+            const userAccess = collectAccessPayloadFromGrid(teachersGrid, 'userId');
+            const groupAccess = collectAccessPayloadFromGrid(groupsGrid, 'groupId');
             await api('/admin/calendars/' + encodeURIComponent(calId) + '/access', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userIds, groupIds })
+                body: JSON.stringify({ userAccess, groupAccess })
             });
             const calLabel =
                 document.getElementById('accessCalendarSelect')?.selectedOptions?.[0]?.textContent || calId;

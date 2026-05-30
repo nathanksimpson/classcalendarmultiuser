@@ -1,5 +1,5 @@
 /**
- * Lazy-loads syllabus/curriculum extension scripts and optional howto.js.
+ * Lazy-loads syllabus/curriculum extension scripts.
  * Critical path: schedule-core, utils, team-auth, calendar-sync, app.js only.
  */
 (function (global) {
@@ -17,10 +17,7 @@
         'js/syllabus-templates.js?v=20260527-debate-templates'
     ];
 
-    const HOWTO_SCRIPT = 'howto.js?v=20260530-header-help';
-
     let extensionPromise = null;
-    let howtoPromise = null;
     let extensionLoaded = false;
 
     function loadScript(src) {
@@ -69,22 +66,8 @@
         return extensionPromise;
     }
 
-    function loadHowtoScript() {
-        if (global.CCPHowTo) {
-            return Promise.resolve();
-        }
-        if (!howtoPromise) {
-            howtoPromise = loadScript(HOWTO_SCRIPT).catch((err) => {
-                howtoPromise = null;
-                throw err;
-            });
-        }
-        return howtoPromise;
-    }
-
     global.CCPLoader = {
         loadExtensionScripts,
-        loadHowtoScript,
         get extensionLoaded() {
             return extensionLoaded;
         }

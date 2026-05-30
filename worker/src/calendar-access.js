@@ -324,3 +324,25 @@ export async function listAdminCalendarsWithAccess(env) {
     }
     return out;
 }
+
+export async function getCalendarSummaryForUser(env, user) {
+    if (!user) {
+        return { calendarAccessMode: 'none', calendarSummary: [] };
+    }
+    if (canViewAllCalendars(user)) {
+        return { calendarAccessMode: 'all', calendarSummary: [] };
+    }
+    const cals = await listCalendarsForUser(env, user);
+    const calendarSummary = [];
+    for (const cal of cals) {
+        calendarSummary.push({
+            calendarId: cal.id,
+            name: cal.name,
+            accessLevel: await getUserAccessLevel(env, user, cal.id)
+        });
+    }
+    return {
+        calendarAccessMode: calendarSummary.length ? 'some' : 'none',
+        calendarSummary
+    };
+}

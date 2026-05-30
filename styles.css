@@ -428,73 +428,6 @@ body {
     font-weight: 500;
 }
 
-.modal-howto {
-    max-width: 640px;
-    max-height: min(85vh, 100dvh - 2rem, 720px);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.how-to-body {
-    overflow-y: auto;
-    padding: 0 24px 24px;
-    flex: 1;
-}
-
-.how-to-intro {
-    margin: 0 0 20px;
-    color: var(--text-secondary);
-    line-height: 1.55;
-    font-size: 0.9375rem;
-}
-
-.how-to-section {
-    margin-bottom: 22px;
-    padding-bottom: 18px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.how-to-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.how-to-section h3 {
-    margin: 0 0 8px;
-    font-size: 1rem;
-    color: var(--text-primary);
-}
-
-.how-to-where {
-    margin: 0 0 10px;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    line-height: 1.45;
-}
-
-.how-to-where-label {
-    font-weight: 600;
-    color: var(--primary);
-}
-
-.how-to-steps {
-    margin: 0;
-    padding-left: 1.25rem;
-    font-size: 0.875rem;
-    line-height: 1.55;
-    color: var(--text-primary);
-}
-
-.how-to-steps li {
-    margin-bottom: 6px;
-}
-
-.how-to-steps li:last-child {
-    margin-bottom: 0;
-}
-
 /* ============================================
    Term Selector
    ============================================ */
@@ -5101,8 +5034,7 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 [data-theme="dark"] .modal-content,
-[data-theme="dark"] .lesson-filter-popover-panel,
-[data-theme="dark"] .how-to-body {
+[data-theme="dark"] .lesson-filter-popover-panel {
     background: var(--bg-card);
     color: var(--text-primary);
 }

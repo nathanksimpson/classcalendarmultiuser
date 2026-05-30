@@ -142,7 +142,7 @@
                     </div>
                     <input type="file" id="importFile" accept=".json" hidden>
                     <div class="app-header-tool-group app-header-tool-group--help">
-                        <button type="button" id="howToBtn" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</button>
+                        <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
                     </div>
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
@@ -419,7 +419,8 @@
                 </div>
                 </div>
                 <section class="timetable-cohorts-section print-data-section">
-                    <p class="section-hint timetable-cohorts-scope-hint" data-i18n="timetableCohortsScopeHint">Cohorts apply to the whole calendar. 담임 is a cohort role here; teaching slots come from Class teachers on the Classes tab.</p>
+                    <p id="timetableCohortsCalendarName" class="section-hint timetable-cohorts-calendar-name" hidden></p>
+                    <p class="section-hint timetable-cohorts-scope-hint" data-i18n="timetableCohortsScopeHint">Cohorts belong to this calendar only (not shared across team calendars). 담임 is a cohort role here; teaching slots come from Class teachers on the Classes tab.</p>
                     <div class="timetable-cohorts-toolbar">
                         <h3 data-i18n="timetableCohortsHeading">Student cohorts (담임)</h3>
                         <button type="button" id="timetableSuggestCohortsBtn" class="btn btn-outline btn-small" data-i18n="timetableSuggestCohorts">Suggest cohorts from classes</button>
@@ -1189,17 +1190,6 @@
         </div>
     </div>
 
-    <!-- How to Use Modal -->
-    <div id="howToModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="howToTitle">
-        <div class="modal-content modal-howto">
-            <div class="modal-header">
-                <h2 id="howToTitle">How to Use</h2>
-                <button type="button" class="modal-close" id="closeHowToModal" aria-label="Close">&times;</button>
-            </div>
-            <div id="howToBody" class="how-to-body"></div>
-        </div>
-    </div>
-
     <template id="printFormTemplate">
             <form id="printForm" class="print-options-form" data-print-form-mode="all">
                 <div class="form-actions print-form-header-actions">
@@ -1301,14 +1291,14 @@
     <script defer src="js/utils.js?v=20260527-modal-ux"></script>
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
-    <script defer src="js/load-extension-scripts.js?v=20260527-perf-a"></script>
+    <script defer src="js/load-extension-scripts.js?v=20260601-help"></script>
     <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
-    <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
+    <script defer src="js/calendar-sync.js?v=20260602-permissions"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
     <script defer src="js/teacher-timetable.js?v=20260530-timetable-per-teacher"></script>
     <script defer src="js/class-curriculum-slices.js?v=20260530-timetable-exec"></script>
     <script defer src="js/timetable-export.js?v=20260530-timetable-exec"></script>
-    <script defer src="app.js?v=20260530-homeroom-hr"></script>
+    <script defer src="app.js?v=20260602-permissions"></script>
 </body>
 </html>
 

@@ -1,6 +1,6 @@
 /* Admin page — Class Calendar */
 .admin-page {
-    max-width: 900px;
+    max-width: 1100px;
     margin: 2rem auto;
     padding: 0 1rem 3rem;
 }
@@ -55,6 +55,144 @@
 }
 .admin-section-nav a:hover {
     text-decoration: underline;
+}
+.admin-tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0 0 1.25rem;
+    padding: 0.35rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+.admin-tab {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.45rem 0.85rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.admin-tab:hover {
+    color: var(--primary);
+    background: var(--bg-main);
+}
+.admin-tab[aria-selected='true'] {
+    color: var(--primary);
+    background: var(--bg-main);
+    box-shadow: inset 0 0 0 1px var(--border-color);
+}
+.admin-tab-panel[hidden] {
+    display: none !important;
+}
+.admin-access-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin: 0 0 1rem;
+    padding: 0.85rem 1rem;
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg-card));
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+}
+.admin-access-banner p {
+    margin: 0;
+    flex: 1 1 12rem;
+    font-size: 0.95rem;
+}
+.admin-accounts-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+.admin-search-input {
+    min-width: min(100%, 16rem);
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font: inherit;
+}
+.admin-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+.admin-filter-chip {
+    appearance: none;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.admin-filter-chip.is-active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+}
+.admin-help-details {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+.admin-help-details summary {
+    cursor: pointer;
+    color: var(--primary);
+    font-weight: 600;
+}
+.admin-table-wrap--sticky thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-card);
+}
+.admin-access-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 20rem;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+}
+.admin-access-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+.admin-access-row input[type='checkbox'] {
+    flex-shrink: 0;
+}
+.admin-access-row select {
+    min-width: 7.5rem;
+    padding: 0.2rem 0.35rem;
+    font: inherit;
+    font-size: 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+.admin-access-row select:disabled {
+    opacity: 0.55;
+}
+.admin-calendars-cell {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    max-width: 14rem;
 }
 .admin-table-wrap {
     overflow-x: auto;

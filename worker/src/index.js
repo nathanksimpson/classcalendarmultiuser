@@ -6,6 +6,7 @@ import * as Auth from './auth-permissions.js';
 import * as ActivityLog from './activity-log.js';
 import * as Presence from './presence.js';
 import * as Suggestions from './suggestions.js';
+import * as AccessRequests from './access-requests.js';
 import * as AppSettings from './app-settings.js';
 import {
     KAKAO_OAUTH_COOKIE,
@@ -423,19 +424,37 @@ async function lockPayloadForClient(env, calendarId, user, extra = {}) {
 async function calendarMetaExtras(env, user, calendarId, meta) {
     const lock = await lockStatus(env, calendarId, user.id, user);
     const accessLevel = await CalAccess.getUserAccessLevel(env, user, calendarId);
+    const canEdit = await CalAccess.canEditCalendar(env, user, calendarId);
+    const permissionReadOnly = !canEdit;
+    const lockReadOnly = Boolean(lock.readOnly);
     const viewers = await Presence.listViewersForCalendar(env, calendarId, user.id);
     return Object.assign({}, meta, {
         lock: lock.lock,
-        readOnly: lock.readOnly,
+        readOnly: permissionReadOnly || lockReadOnly,
+        permissionReadOnly,
         holdsLock: Boolean(lock.holdsLock),
         pendingEditRequest: lock.pendingEditRequest,
         lockStaleMinutes: lock.lockStaleMinutes,
         bypassLock: Boolean(lock.bypassLock),
         viewers,
         accessLevel,
-        canEdit: await CalAccess.canEditCalendar(env, user, calendarId),
+        canEdit,
         canSuggest: await CalAccess.canSuggestChanges(env, user, calendarId),
         pendingSuggestions: await Suggestions.countPendingSuggestions(env, calendarId)
+    });
+}
+
+async function enrichAdminUserRow(env, u) {
+    const summary = await CalAccess.getCalendarSummaryForUser(env, u);
+    const hasCalendarAccess =
+        Boolean(u.active) &&
+        (summary.calendarAccessMode === 'all' || summary.calendarAccessMode === 'some');
+    return Object.assign({}, u, {
+        hasCalendarAccess,
+        calendarAccessMode: summary.calendarAccessMode,
+        calendarSummary: summary.calendarSummary,
+        permissions: Auth.getEffectivePermissions(u),
+        role: Auth.normalizeRole(u.role)
     });
 }
 
@@ -700,12 +719,20 @@ async function provisionUserFromKakaoProfile(env, profile) {
     }
     try {
         const nickname = profile.nickname && String(profile.nickname).trim();
-        return await createUser(env, {
+        const created = await createUser(env, {
             email: profile.email || null,
             displayName: nickname || `Kakao ${kid}`,
             kakaoUserId: kid,
             role: 'teacher'
         });
+        if (created) {
+            try {
+                await AccessRequests.notifyUserNeedsAccess(env, created, { source: 'kakao_signup' });
+            } catch (_) {
+                /* ignore */
+            }
+        }
+        return created;
     } catch (err) {
         if (isUniqueConstraintError(err)) {
             const again = await findUserForKakao(env, profile.kakaoUserId, profile.email);
@@ -1421,11 +1448,26 @@ export default {
             }
 
             if (sub === '/lock/grant' && request.method === 'POST') {
+                const existingLock = await getLock(env, calId);
+                if (existingLock && existingLock.pending_requester_id) {
+                    const pendingUser = await dbOne(env, 'SELECT * FROM users WHERE id = ?', existingLock.pending_requester_id);
+                    if (pendingUser) {
+                        const pendingU = rowToUser(pendingUser);
+                        if (!(await CalAccess.canEditCalendar(env, pendingU, calId))) {
+                            return json({ error: 'That user cannot edit this calendar' }, 403);
+                        }
+                    }
+                }
                 const result = await grantLockToPending(env, calId, user.id);
                 if (result.error) {
                     return json({ error: result.error }, result.status || 400);
                 }
-                return json(await lockPayloadForClient(env, calId, user));
+                const metaRow = await dbOne(
+                    env,
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    calId
+                );
+                return json(await calendarMetaExtras(env, user, calId, metaRow || { id: calId }));
             }
 
             if (sub === '/lock/dismiss' && request.method === 'POST') {
@@ -1437,6 +1479,16 @@ export default {
             }
 
             if (sub === '/lock' && request.method === 'POST') {
+                if (!(await CalAccess.canEditCalendar(env, user, calId))) {
+                    return json(
+                        {
+                            error: 'You do not have edit access to this calendar',
+                            canEdit: false,
+                            accessLevel: await CalAccess.getUserAccessLevel(env, user, calId)
+                        },
+                        403
+                    );
+                }
                 let body = {};
                 try {
                     body = await readJson(request);
@@ -1447,22 +1499,34 @@ export default {
                 const existing = await getLock(env, calId);
                 let editRequestRecorded = false;
                 let forced = false;
+                let acquired = false;
                 if (force && Auth.canForceUnlock(user)) {
                     const name = user.displayName || user.email || 'Teacher';
                     await assignLockHolder(env, calId, user.id, name);
                     forced = true;
+                    acquired = true;
                 } else {
                     const stale = !existing || (await isLockStale(env, existing));
                     const heldByMe = existing && existing.holder_user_id === user.id;
                     if (stale || heldByMe) {
                         const name = user.displayName || user.email || 'Teacher';
                         await assignLockHolder(env, calId, user.id, name);
+                        acquired = true;
                     } else if (existing && existing.holder_user_id !== user.id) {
                         await recordLockEditRequest(env, calId, user);
                         editRequestRecorded = true;
                     }
                 }
-                return json(await lockPayloadForClient(env, calId, user, { editRequestRecorded, forced }));
+                const metaRow = await dbOne(
+                    env,
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    calId
+                );
+                const payload = await calendarMetaExtras(env, user, calId, metaRow || { id: calId });
+                payload.editRequestRecorded = editRequestRecorded;
+                payload.forced = forced;
+                payload.acquired = acquired;
+                return json(payload);
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
@@ -1774,6 +1838,15 @@ export default {
             }
         }
 
+        if (
+            path === '/api/admin/access-requests' &&
+            request.method === 'GET' &&
+            (Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS) ||
+                Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS))
+        ) {
+            return json(await AccessRequests.listAccessRequests(env));
+        }
+
         if (path === '/api/admin/users' && request.method === 'GET' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const rows = await dbAll(
                 env,
@@ -1781,17 +1854,7 @@ export default {
             );
             const list = [];
             for (const row of rows) {
-                const u = rowToUser(row);
-                const calendars = await CalAccess.listCalendarsForUser(env, u);
-                const hasCalendarAccess =
-                    Boolean(u.active) && (CalAccess.canViewAllCalendars(u) || calendars.length > 0);
-                list.push(
-                    Object.assign({}, u, {
-                        hasCalendarAccess,
-                        permissions: Auth.getEffectivePermissions(u),
-                        role: Auth.normalizeRole(u.role)
-                    })
-                );
+                list.push(await enrichAdminUserRow(env, rowToUser(row)));
             }
             return json(list);
         }
@@ -1809,7 +1872,14 @@ export default {
                 kakaoUserId: body.kakaoUserId || null,
                 passwordHash: body.password ? await hashPassword(body.password) : null
             });
-            return json(created, 201);
+            if (created && created.id !== user.id) {
+                await AccessRequests.notifyUserNeedsAccess(env, created, {
+                    source: 'admin_preadd',
+                    actorUserId: user.id,
+                    actorName: user.displayName || user.email || 'Admin'
+                });
+            }
+            return json(await enrichAdminUserRow(env, created), 201);
         }
 
         const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);

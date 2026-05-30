@@ -13,6 +13,7 @@ const Auth = require('./auth-permissions');
 const ActivityLog = require('./activity-log');
 const Presence = require('./presence');
 const Suggestions = require('./suggestions');
+const AccessRequests = require('./access-requests');
 const { getDb } = require('./schema');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -423,19 +424,41 @@ app.post('/api/admin/bootstrap', rateLimit.rateLimitMiddleware('admin_bootstrap'
     res.status(201).json({ ok: true, userId: user.id });
 });
 
-app.get('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (_req, res) => {
-    const list = users.listUsers().map((u) => {
-        const calendars = CalAccess.listCalendarsForUser(u);
-        const hasCalendarAccess =
-            Boolean(u.active) && (CalAccess.canViewAllCalendars(u) || calendars.length > 0);
-        return Object.assign({}, u, {
-            hasCalendarAccess,
-            permissions: Auth.getEffectivePermissions(u),
-            role: Auth.normalizeRole(u.role)
-        });
+function enrichAdminUserRow(u) {
+    const summary = CalAccess.getCalendarSummaryForUser(u);
+    const hasCalendarAccess =
+        Boolean(u.active) &&
+        (summary.calendarAccessMode === 'all' || summary.calendarAccessMode === 'some');
+    return Object.assign({}, u, {
+        hasCalendarAccess,
+        calendarAccessMode: summary.calendarAccessMode,
+        calendarSummary: summary.calendarSummary,
+        permissions: Auth.getEffectivePermissions(u),
+        role: Auth.normalizeRole(u.role)
     });
-    res.json(list);
+}
+
+app.get('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (_req, res) => {
+    res.json(users.listUsers().map(enrichAdminUserRow));
 });
+
+app.get(
+    '/api/admin/access-requests',
+    requireUser,
+    (req, res, next) => {
+        if (
+            !Auth.hasPermission(req.user, Auth.PERMS.MANAGE_USERS) &&
+            !Auth.hasPermission(req.user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)
+        ) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+        next();
+    },
+    (_req, res) => {
+        res.json(AccessRequests.listAccessRequests());
+    }
+);
 
 app.post('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
     const { email, displayName, role, password, kakaoUserId } = req.body || {};
@@ -451,7 +474,14 @@ app.post('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_US
         kakaoUserId: kakaoUserId || null,
         passwordHash: password ? users.hashPassword(password) : null
     });
-    res.status(201).json(user);
+    if (user && req.user && user.id !== req.user.id) {
+        AccessRequests.notifyUserNeedsAccess(user, {
+            source: 'admin_preadd',
+            actorUserId: req.user.id,
+            actorName: req.user.displayName || req.user.email || 'Admin'
+        });
+    }
+    res.status(201).json(enrichAdminUserRow(user));
 });
 
 app.post(
@@ -681,9 +711,13 @@ app.put('/api/admin/calendars/:id/access', requireUser, requirePermission(Auth.P
 function calendarMetaExtras(user, calendarId, meta) {
     const lock = users.lockStatusForClient(calendarId, user.id, user);
     const accessLevel = CalAccess.getUserAccessLevel(user, calendarId);
+    const canEdit = CalAccess.canEditCalendar(user, calendarId);
+    const permissionReadOnly = !canEdit;
+    const lockReadOnly = Boolean(lock.readOnly);
     return Object.assign({}, meta, {
         lock: lock.lock,
-        readOnly: lock.readOnly,
+        readOnly: permissionReadOnly || lockReadOnly,
+        permissionReadOnly,
         holdsLock: Boolean(lock.holdsLock),
         pendingEditRequest: lock.pendingEditRequest,
         lockStaleMinutes: lock.lockStaleMinutes,
@@ -692,7 +726,7 @@ function calendarMetaExtras(user, calendarId, meta) {
         bypassLock: Boolean(lock.bypassLock),
         viewers: Presence.listViewersForCalendar(calendarId, user.id),
         accessLevel,
-        canEdit: CalAccess.canEditCalendar(user, calendarId),
+        canEdit,
         canSuggest: CalAccess.canSuggestChanges(user, calendarId),
         pendingSuggestions: Suggestions.countPendingSuggestions(calendarId)
     });
@@ -751,6 +785,14 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
+    if (!CalAccess.canEditCalendar(req.user, req.params.id)) {
+        res.status(403).json({
+            error: 'You do not have edit access to this calendar',
+            canEdit: false,
+            accessLevel: CalAccess.getUserAccessLevel(req.user, req.params.id)
+        });
+        return;
+    }
     const cal = calendars.getCalendarMeta(req.params.id);
     if (!cal) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -758,7 +800,9 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
     }
     const name = req.user.displayName || req.user.email || 'Teacher';
     const result = users.acquireLock(req.params.id, req.user.id, name);
-    const payload = users.lockPayloadForClient(req.params.id, req.user.id, req.user);
+    const calId = req.params.id;
+    const meta = calendars.getCalendarMeta(calId) || { id: calId };
+    const payload = calendarMetaExtras(req.user, calId, meta);
     payload.editRequestRecorded = Boolean(result.editRequestRecorded);
     if (result.acquired) {
         payload.acquired = true;
@@ -767,13 +811,23 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
 });
 
 app.post('/api/calendars/:id/lock/grant', requireUser, (req, res) => {
-    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+    const calId = req.params.id;
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
     try {
-        users.grantLockToPending(req.params.id, req.user.id);
-        res.json(users.lockPayloadForClient(req.params.id, req.user.id, req.user));
+        const lock = users.getLock(calId);
+        if (lock && lock.pending_requester_id) {
+            const pendingUser = users.getUserById(lock.pending_requester_id);
+            if (pendingUser && !CalAccess.canEditCalendar(pendingUser, calId)) {
+                res.status(403).json({ error: 'That user cannot edit this calendar' });
+                return;
+            }
+        }
+        users.grantLockToPending(calId, req.user.id);
+        const meta = calendars.getCalendarMeta(calId) || { id: calId };
+        res.json(calendarMetaExtras(req.user, calId, meta));
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Grant failed' });
     }
