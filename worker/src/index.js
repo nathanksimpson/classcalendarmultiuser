@@ -8,6 +8,7 @@ import * as Presence from './presence.js';
 import * as Suggestions from './suggestions.js';
 import * as AccessRequests from './access-requests.js';
 import * as AdminUserPolicy from './admin-user-policy.js';
+import * as ViewAs from './view-as.js';
 import * as AppSettings from './app-settings.js';
 import {
     KAKAO_OAUTH_COOKIE,
@@ -138,32 +139,6 @@ async function dbRun(env, sql, ...params) {
     return env.DB.prepare(sql).bind(...params).run();
 }
 
-async function getSessionUser(env, token) {
-    if (!token) {
-        return null;
-    }
-    const row = await dbOne(
-        env,
-        `SELECT s.expires_at, s.login_context, s.idle_logout_minutes, s.idle_warning_minutes, u.*
-         FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.active = 1`,
-        token
-    );
-    if (!row) {
-        return null;
-    }
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-        await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
-        return null;
-    }
-    const admin = await AppSettings.getAdminSettings(env);
-    const policy = sessionPolicyFromRow(row, admin);
-    const user = rowToUser(row);
-    user.loginContext = policy.loginContext;
-    user.idleLogoutMinutes = policy.idleLogoutMinutes;
-    user.idleWarningMinutes = policy.idleWarningMinutes;
-    return user;
-}
-
 async function deleteAllSessionsForUser(env, userId) {
     if (userId) {
         await releaseAllLocksHeldByUser(env, userId);
@@ -205,22 +180,25 @@ async function permanentlyDeleteUser(env, targetId, actingAdminId) {
     return { ok: true };
 }
 
-async function createSession(env, userId, deviceContext) {
+async function createSession(env, userId, deviceContext, options) {
     const admin = await AppSettings.getAdminSettings(env);
     const profile = resolveLoginProfile(deviceContext, admin);
     const maxAgeSec = profile.sessionMaxAgeSec;
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
+    const viewAsUserId =
+        options && options.viewAsUserId ? String(options.viewAsUserId) : null;
     await dbRun(
         env,
-        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes, view_as_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         token,
         userId,
         expires,
         profile.loginContext,
         profile.idleLogoutMinutes,
-        profile.idleWarningMinutes
+        profile.idleWarningMinutes,
+        viewAsUserId
     );
     return {
         token,
@@ -229,6 +207,71 @@ async function createSession(env, userId, deviceContext) {
         idleLogoutMinutes: profile.idleLogoutMinutes,
         idleWarningMinutes: profile.idleWarningMinutes
     };
+}
+
+async function createViewAsSession(env, actorUserId, targetUserId, deviceContext) {
+    return createSession(env, actorUserId, deviceContext, { viewAsUserId: targetUserId });
+}
+
+function applySessionPolicyToUser(user, sessionRow, admin) {
+    const policy = sessionPolicyFromRow(sessionRow, admin);
+    user.loginContext = policy.loginContext;
+    user.idleLogoutMinutes = policy.idleLogoutMinutes;
+    user.idleWarningMinutes = policy.idleWarningMinutes;
+    return user;
+}
+
+async function getSessionContext(env, token) {
+    if (!token) {
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    const sessionRow = await dbOne(
+        env,
+        `SELECT token, user_id, expires_at, view_as_user_id, login_context, idle_logout_minutes, idle_warning_minutes
+         FROM sessions WHERE token = ?`,
+        token
+    );
+    if (!sessionRow) {
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    if (new Date(sessionRow.expires_at).getTime() < Date.now()) {
+        await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    const actorRow = await dbOne(env, 'SELECT * FROM users WHERE id = ? AND active = 1', sessionRow.user_id);
+    if (!actorRow) {
+        await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    const admin = await AppSettings.getAdminSettings(env);
+    const actor = applySessionPolicyToUser(rowToUser(actorRow), sessionRow, admin);
+    if (sessionRow.view_as_user_id) {
+        if (!Auth.isSuperAdminRole(actor)) {
+            await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+            return { effective: null, actor: null, viewAsActive: false, token: null };
+        }
+        const targetRow = await dbOne(
+            env,
+            'SELECT * FROM users WHERE id = ? AND active = 1',
+            sessionRow.view_as_user_id
+        );
+        if (!targetRow) {
+            await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+            return { effective: null, actor: null, viewAsActive: false, token: null };
+        }
+        const effective = applySessionPolicyToUser(rowToUser(targetRow), sessionRow, admin);
+        effective.viewAsActive = true;
+        effective.actorUserId = actor.id;
+        effective.actorDisplayName = actor.displayName || actor.email || 'Admin';
+        effective.sessionToken = token;
+        return { effective, actor, viewAsActive: true, token };
+    }
+    return { effective: actor, actor, viewAsActive: false, token };
+}
+
+async function getSessionUser(env, token) {
+    const ctx = await getSessionContext(env, token);
+    return ctx.effective;
 }
 
 async function createLoginSession(env, userId, deviceContext) {
@@ -915,12 +958,49 @@ function kakaoRedirectUri(env, request) {
 }
 
 async function requireUser(request, env) {
-    const token = parseCookies(request)[SESSION_COOKIE];
-    const user = await getSessionUser(env, token);
-    if (user) {
-        return user;
+    const ctx = await resolveRequestContext(env, request);
+    if (!ctx || !ctx.effective) {
+        return null;
     }
-    return null;
+    return ctx.effective;
+}
+
+async function resolveRequestContext(env, request) {
+    const viewAsToken = ViewAs.getViewAsSessionHeader(request);
+    if (viewAsToken) {
+        return getSessionContext(env, viewAsToken);
+    }
+    return getSessionContext(env, parseCookies(request)[SESSION_COOKIE] || '');
+}
+
+async function requireCookieUser(request, env) {
+    const ctx = await getSessionContext(env, parseCookies(request)[SESSION_COOKIE] || '');
+    if (!ctx || !ctx.effective || ctx.viewAsActive) {
+        return null;
+    }
+    return ctx.effective;
+}
+
+function buildAuthMePayload(user, actorUser) {
+    const payload = {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: Auth.normalizeRole(user.role),
+        roleRaw: user.role,
+        permissions: Auth.getEffectivePermissions(user),
+        canAccessAdmin: Auth.canAccessAdminPage(user),
+        canForceUnlock: Auth.canForceUnlock(user),
+        hasCalendarAccess: false,
+        loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
+        idleLogoutMinutes: user.idleLogoutMinutes,
+        idleWarningMinutes: user.idleWarningMinutes
+    };
+    const viewAsMeta = ViewAs.buildAuthMeViewAs(user, actorUser);
+    if (viewAsMeta) {
+        payload.viewAs = viewAsMeta;
+    }
+    return payload;
 }
 
 function requestBodyTooLarge(request, maxBytes) {
@@ -1025,26 +1105,15 @@ export default {
         }
 
         if (path === '/api/auth/me' && request.method === 'GET') {
-            const user = await requireUser(request, env);
-            if (!user) {
+            const ctx = await resolveRequestContext(env, request);
+            if (!ctx || !ctx.effective) {
                 return json({ error: 'Not signed in' }, 401);
             }
+            const user = ctx.effective;
             const calendars = await CalAccess.listCalendarsForUser(env, user);
-            const hasCalendarAccess = CalAccess.canViewAllCalendars(user) || calendars.length > 0;
-            return json({
-                id: user.id,
-                email: user.email,
-                displayName: user.displayName,
-                role: Auth.normalizeRole(user.role),
-                roleRaw: user.role,
-                permissions: Auth.getEffectivePermissions(user),
-                canAccessAdmin: Auth.canAccessAdminPage(user),
-                canForceUnlock: Auth.canForceUnlock(user),
-                hasCalendarAccess,
-                loginContext: user.loginContext || LOGIN_CONTEXT_PERSONAL,
-                idleLogoutMinutes: user.idleLogoutMinutes,
-                idleWarningMinutes: user.idleWarningMinutes
-            });
+            const payload = buildAuthMePayload(user, ctx.actor);
+            payload.hasCalendarAccess = CalAccess.canViewAllCalendars(user) || calendars.length > 0;
+            return json(payload);
         }
 
         if (path === '/api/auth/logout' && request.method === 'POST') {
@@ -1255,12 +1324,107 @@ export default {
             );
         }
 
-        const user = await requireUser(request, env);
-        if (!user) {
+        if (path === '/api/admin/view-as/activate' && request.method === 'POST') {
+            const body = await readJson(request);
+            const viewAsSessionToken = await ViewAs.redeemExchange(env, body.exchangeToken);
+            if (!viewAsSessionToken) {
+                return json({ error: 'Invalid or expired View As link' }, 400);
+            }
+            const ctx = await getSessionContext(env, viewAsSessionToken);
+            if (!ctx || !ctx.viewAsActive || !ctx.effective) {
+                return json({ error: 'Invalid View As session' }, 400);
+            }
+            return json({ viewAsSessionToken });
+        }
+
+        if (path === '/api/admin/view-as/exit' && request.method === 'POST') {
+            const viewAsToken = ViewAs.getViewAsSessionHeader(request);
+            if (!viewAsToken) {
+                return json({ error: 'Not in View As mode' }, 400);
+            }
+            const ctx = await getSessionContext(env, viewAsToken);
+            if (!ctx || !ctx.viewAsActive) {
+                return json({ error: 'Not in View As mode' }, 400);
+            }
+            await ViewAs.exitViewAsSession(env, viewAsToken);
+            if (ctx.actor) {
+                await ActivityLog.recordActivityForUser(env, ctx.actor, {
+                    action: 'view_as_exit',
+                    summary: `Stopped viewing as ${ctx.effective.displayName || ctx.effective.email || ctx.effective.id}`,
+                    detail: { targetUserId: ctx.effective.id }
+                });
+            }
+            return json({ ok: true });
+        }
+
+        if (path === '/api/admin/view-as' && request.method === 'POST') {
+            const actor = await requireCookieUser(request, env);
+            if (!actor) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            if (!Auth.isSuperAdminRole(actor)) {
+                return json({ error: 'Super admin only' }, 403);
+            }
+            try {
+                const body = await readJson(request);
+                const target = await dbOne(env, 'SELECT * FROM users WHERE id = ?', String(body.userId || ''));
+                ViewAs.assertViewAsTargetAllowed(actor, target ? rowToUser(target) : null);
+                const device = sanitizeLoginContext(body.device || body.loginContext || '');
+                const session = await createViewAsSession(env, actor.id, String(body.userId), device);
+                const exchangeToken = await ViewAs.createExchange(env, session.token);
+                const targetUser = rowToUser(target);
+                await ActivityLog.recordActivityForUser(env, actor, {
+                    action: 'view_as_start',
+                    summary: `View as ${targetUser.displayName || targetUser.email || targetUser.id}`,
+                    detail: { targetUserId: targetUser.id }
+                });
+                return json({
+                    exchangeToken,
+                    target: {
+                        id: targetUser.id,
+                        displayName: targetUser.displayName,
+                        email: targetUser.email
+                    }
+                });
+            } catch (err) {
+                return json({ error: err.message || 'View As failed' }, err.status || 500);
+            }
+        }
+
+        const isAdminApi =
+            path.startsWith('/api/admin/') &&
+            path !== '/api/admin/view-as/activate' &&
+            !(path === '/api/admin/view-as' && request.method === 'POST') &&
+            !(path === '/api/admin/view-as/exit' && request.method === 'POST');
+
+        let userCtx;
+        if (isAdminApi) {
+            const cookieToken = parseCookies(request)[SESSION_COOKIE] || '';
+            userCtx = await getSessionContext(env, cookieToken);
+            if (!userCtx || !userCtx.effective || userCtx.viewAsActive) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+        } else {
+            userCtx = await resolveRequestContext(env, request);
+        }
+        if (!userCtx || !userCtx.effective) {
             return json({ error: 'Not signed in' }, 401);
+        }
+        const user = userCtx.effective;
+        const viewAsSession = Boolean(userCtx.viewAsActive);
+
+        function rejectViewAsJson() {
+            if (viewAsSession) {
+                return json({ error: 'Changes are not saved in View As mode', code: 'VIEW_AS_MODE' }, 403);
+            }
+            return null;
         }
 
         if (path === '/api/auth/change-password' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             const body = await readJson(request);
             const current = String(body.currentPassword || '');
             const newPwd = String(body.newPassword || '');
@@ -1291,6 +1455,10 @@ export default {
 
         const MAX_DISPLAY_NAME_LENGTH = 120;
         if (path === '/api/auth/profile' && request.method === 'PATCH') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             const body = await readJson(request);
             const name = String((body && body.displayName) || '').trim();
             if (!name) {
@@ -1341,6 +1509,10 @@ export default {
         }
 
         if (path === '/api/presence/heartbeat' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             const body = await readJson(request);
             await Presence.upsertPresence(env, user, body);
             return json({ ok: true });
@@ -1366,6 +1538,10 @@ export default {
                 return json(await Suggestions.listPendingSuggestions(env, calId));
             }
             if (!suggestionId && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 if (!(await CalAccess.canSuggestChanges(env, user, calId))) {
                     return json({ error: 'You cannot submit suggestions for this calendar' }, 403);
                 }
@@ -1395,6 +1571,10 @@ export default {
                 return json(created, 201);
             }
             if (suggestionId && suggestionAction === '/apply' && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 if (!Auth.hasPermission(user, Auth.PERMS.APPLY_SUGGESTIONS)) {
                     return json({ error: 'Forbidden' }, 403);
                 }
@@ -1431,6 +1611,10 @@ export default {
                 return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }));
             }
             if (suggestionId && suggestionAction === '/dismiss' && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 if (!Auth.hasPermission(user, Auth.PERMS.APPLY_SUGGESTIONS)) {
                     return json({ error: 'Forbidden' }, 403);
                 }
@@ -1468,6 +1652,10 @@ export default {
             }
 
             if (sub === '/lock/touch' && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const touched = await touchLockHolder(env, calId, user.id);
                 if (!touched) {
                     return json({ error: 'Only the current editor can refresh the lock', touched: false }, 403);
@@ -1476,6 +1664,10 @@ export default {
             }
 
             if (sub === '/lock/grant' && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const existingLock = await getLock(env, calId);
                 if (existingLock && existingLock.pending_requester_id) {
                     const pendingUser = await dbOne(env, 'SELECT * FROM users WHERE id = ?', existingLock.pending_requester_id);
@@ -1499,6 +1691,10 @@ export default {
             }
 
             if (sub === '/lock/dismiss' && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const result = await dismissLockRequest(env, calId, user.id);
                 if (result.error) {
                     return json({ error: result.error }, result.status || 400);
@@ -1507,6 +1703,10 @@ export default {
             }
 
             if (sub === '/lock' && request.method === 'POST') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 if (!(await CalAccess.canEditCalendar(env, user, calId))) {
                     return json(
                         {
@@ -1558,6 +1758,10 @@ export default {
             }
 
             if (sub === '/lock' && request.method === 'DELETE') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const lock = await getLock(env, calId);
                 if (!lock) {
                     return json({ ok: true, released: false });
@@ -1583,6 +1787,10 @@ export default {
             }
 
             if (!sub && request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 let body;
                 try {
                     body = await readJson(request);
@@ -1673,6 +1881,10 @@ export default {
             }
 
             if (!sub && request.method === 'DELETE') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 if (!(await CalAccess.canDeleteCalendarAsync(env, user, calId))) {
                     return json({ error: 'Forbidden' }, 403);
                 }
@@ -1692,6 +1904,10 @@ export default {
         }
 
         if (path === '/api/calendars' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             if (!Auth.hasPermission(user, Auth.PERMS.CREATE_CALENDARS)) {
                 return json({ error: 'Forbidden' }, 403);
             }

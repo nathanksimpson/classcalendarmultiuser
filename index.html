@@ -4,13 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-toolbar-sections">
+    <link rel="stylesheet" href="styles.css?v=20260530-view-as">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
+        <div class="view-as-banner-inner">
+            <div class="view-as-banner-text">
+                <strong id="viewAsBannerPrimary" class="view-as-banner-primary"></strong>
+                <span id="viewAsBannerSecondary" class="view-as-banner-secondary"></span>
+            </div>
+            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit">Exit View As</button>
+        </div>
+    </div>
     <div class="app-container">
         <header class="app-top-bar app-top-bar--global" id="appTopBar">
             <div id="appStatus" class="app-status" role="status" aria-live="polite"></div>
@@ -1304,13 +1313,14 @@
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/load-extension-scripts.js?v=20260601-help"></script>
-    <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
-    <script defer src="js/calendar-sync.js?v=20260602-permissions"></script>
+    <script defer src="js/view-as-banner.js?v=20260530-view-as"></script>
+    <script defer src="js/team-auth.js?v=20260530-view-as"></script>
+    <script defer src="js/calendar-sync.js?v=20260530-view-as"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
     <script defer src="js/teacher-timetable.js?v=20260530-timetable-per-teacher"></script>
     <script defer src="js/class-curriculum-slices.js?v=20260530-timetable-exec"></script>
     <script defer src="js/timetable-export.js?v=20260530-timetable-exec"></script>
-    <script defer src="app.js?v=20260602-creator-scope"></script>
+    <script defer src="app.js?v=20260530-view-as"></script>
 </body>
 </html>
 

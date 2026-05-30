@@ -24,6 +24,7 @@
         permissionReadOnly: false,
         lock: null,
         holdsLock: false,
+        simulatedLock: false,
         pendingEditRequest: false,
         lockStaleMinutes: 20,
         lockExpiresAt: null,
@@ -172,10 +173,26 @@
         }
     }
 
+    function isViewAsMode() {
+        return typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode();
+    }
+
+    function viewAsNotice(message) {
+        setStatus('error', message || 'View As: change not saved');
+        if (typeof handlers.onViewAsBlocked === 'function') {
+            handlers.onViewAsBlocked(message);
+        }
+    }
+
     async function apiFetch(path, options) {
         assertSignedIn();
         const opts = Object.assign({ credentials: 'same-origin' }, options || {});
         const headers = Object.assign({}, opts.headers || {});
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.authHeaders) {
+            Object.assign(headers, TeamAuth.authHeaders());
+        } else if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.authFetchHeaders) {
+            Object.assign(headers, ViewAsBanner.authFetchHeaders());
+        }
         if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
             headers['Content-Type'] = 'application/json';
             opts.body = JSON.stringify(opts.body);
@@ -429,6 +446,29 @@
                 err.status = 403;
                 throw err;
             }
+            if (isViewAsMode()) {
+                const calId = id || CalendarSync.getActiveCalendarId();
+                const meta = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/meta');
+                if (meta.readOnly && !meta.holdsLock) {
+                    const err = new Error(
+                        meta.permissionReadOnly
+                            ? 'You do not have edit access to this calendar'
+                            : 'Calendar is locked by another teacher'
+                    );
+                    err.status = meta.permissionReadOnly ? 403 : 423;
+                    throw err;
+                }
+                state.simulatedLock = true;
+                state.holdsLock = true;
+                state.readOnly = false;
+                applyLockFromResponse(
+                    tagLockDebugSource(
+                        Object.assign({}, meta, { holdsLock: true, readOnly: false, simulatedLock: true }),
+                        'acquireLockSimulated'
+                    )
+                );
+                return { acquired: true, simulated: true };
+            }
             const force = Boolean(opts && opts.force);
             debugLog('api', 'POST /lock (acquire)', { calendarId: id, force });
             const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
@@ -533,6 +573,9 @@
         },
 
         async touchLock(id) {
+            if (isViewAsMode() && state.simulatedLock) {
+                return { touched: true, simulated: true };
+            }
             const calId = id || CalendarSync.getActiveCalendarId();
             if (!calId || !state.holdsLock) {
                 return { touched: false };
@@ -551,6 +594,15 @@
         },
 
         async releaseLock(id) {
+            if (isViewAsMode() && state.simulatedLock) {
+                state.simulatedLock = false;
+                state.holdsLock = false;
+                const calId = id || CalendarSync.getActiveCalendarId();
+                if (calId) {
+                    await CalendarSync.refreshLockMeta(calId);
+                }
+                return { released: true, simulated: true };
+            }
             const calId = id || CalendarSync.getActiveCalendarId();
             if (!calId) {
                 return { released: false };
@@ -593,6 +645,11 @@
 
         async saveCalendar(data, options) {
             assertSignedIn();
+            if (isViewAsMode()) {
+                viewAsNotice('View As: change not saved');
+                setStatus('saved');
+                return { simulated: true, data, revision: state.revision };
+            }
             if (state.canEdit === false) {
                 const err = new Error('You do not have edit access to this calendar');
                 err.status = 403;
@@ -739,15 +796,21 @@
                 }
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
-                    fetch('/api/presence/heartbeat', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            calendarId: id,
-                            calendarName: meta.name || ''
-                        })
-                    }).catch(() => {});
+                    if (!isViewAsMode()) {
+                        const hbHeaders = { 'Content-Type': 'application/json' };
+                        if (typeof TeamAuth !== 'undefined' && TeamAuth.authHeaders) {
+                            Object.assign(hbHeaders, TeamAuth.authHeaders());
+                        }
+                        fetch('/api/presence/heartbeat', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: hbHeaders,
+                            body: JSON.stringify({
+                                calendarId: id,
+                                calendarName: meta.name || ''
+                            })
+                        }).catch(() => {});
+                    }
                     const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
                     if (state.holdsLock) {
                         await CalendarSync.touchLock(id);

@@ -6561,3 +6561,60 @@ html:not([data-theme="dark"]) .timetable-cell-entry--colored {
     gap: 0.5rem;
 }
 
+.view-as-banner {
+    position: sticky;
+    top: 0;
+    z-index: 10050;
+    background: #b45309;
+    color: #fffbeb;
+    border-bottom: 2px solid #92400e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.view-as-banner-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0.55rem 1rem;
+    flex-wrap: wrap;
+}
+
+.view-as-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.view-as-banner-primary {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.view-as-banner-secondary {
+    font-size: 0.82rem;
+    opacity: 0.95;
+}
+
+.view-as-banner-exit {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    flex-shrink: 0;
+}
+
+.view-as-banner-exit:hover {
+    background: #fef3c7;
+}
+
+html.view-as-active .app-top-bar--global {
+    top: 0;
+}
+
+html.view-as-active.workspace-page .workspace-header {
+    margin-top: 0;
+}
+

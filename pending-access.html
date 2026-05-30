@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Waiting for access — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
+    <link rel="stylesheet" href="styles.css?v=20260530-view-as">
     <style>
         .pending-page {
             min-height: 100vh;
@@ -102,6 +102,15 @@
     </style>
 </head>
 <body>
+    <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
+        <div class="view-as-banner-inner">
+            <div class="view-as-banner-text">
+                <strong id="viewAsBannerPrimary" class="view-as-banner-primary"></strong>
+                <span id="viewAsBannerSecondary" class="view-as-banner-secondary"></span>
+            </div>
+            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit">Exit View As</button>
+        </div>
+    </div>
     <div class="pending-page">
         <div class="pending-card">
             <h1 id="pendingTitle">Waiting for calendar access</h1>
@@ -130,8 +139,15 @@
             </p>
         </div>
     </div>
+    <script defer src="js/view-as-banner.js?v=20260530-view-as"></script>
     <script>
         (function () {
+            function authHeaders(extra) {
+                if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.authFetchHeaders) {
+                    return ViewAsBanner.authFetchHeaders(extra);
+                }
+                return Object.assign({}, extra || {});
+            }
             var LANG_KEY = 'pendingAccessLang';
             var APP_LANG_KEY = 'calendarLanguage';
             var copy = {
@@ -225,7 +241,10 @@
             }
 
             async function fetchMe() {
-                var res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+                var res = await fetch('/api/auth/me', {
+                    credentials: 'same-origin',
+                    headers: authHeaders()
+                });
                 if (res.status === 401) {
                     return null;
                 }
@@ -246,7 +265,10 @@
                     location.replace('/');
                     return;
                 }
-                var calRes = await fetch('/api/calendars', { credentials: 'same-origin' });
+                var calRes = await fetch('/api/calendars', {
+                    credentials: 'same-origin',
+                    headers: authHeaders()
+                });
                 if (!calRes.ok) {
                     throw new Error('calendars');
                 }
@@ -287,7 +309,7 @@
                     var res = await fetch('/api/auth/profile', {
                         method: 'PATCH',
                         credentials: 'same-origin',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify({ displayName: name })
                     });
                     var json = await res.json().catch(function () {
@@ -316,6 +338,14 @@
                     return;
                 }
                 try {
+                    if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.activateViewAsFromUrl) {
+                        await ViewAsBanner.activateViewAsFromUrl();
+                    }
+                } catch (err) {
+                    showError((err && err.message) || 'View As link expired.');
+                    return;
+                }
+                try {
                     var me = await fetchMe();
                     if (!me) {
                         location.replace('/login.html?return=' + encodeURIComponent('/pending-access.html'));
@@ -339,6 +369,9 @@
                     editBox.hidden = false;
                     document.getElementById('pendingDisplayNameInput').value =
                         me.displayName || me.email || '';
+                    if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
+                        ViewAsBanner.renderViewAsBanner(me);
+                    }
                 } catch (_) {
                     showError(t('checkFailed'));
                 }
@@ -353,6 +386,12 @@
                 });
             });
             document.getElementById('pendingSignOutBtn').addEventListener('click', function () {
+                if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.getViewAsToken && ViewAsBanner.getViewAsToken()) {
+                    ViewAsBanner.exitViewAs().catch(function () {
+                        location.href = '/login.html';
+                    });
+                    return;
+                }
                 fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
                     .catch(function () { /* ignore */ })
                     .finally(function () {

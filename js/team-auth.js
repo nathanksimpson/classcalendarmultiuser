@@ -113,6 +113,9 @@
         if (!currentUser || !idleWatching || location.protocol === 'file:') {
             return;
         }
+        if (TeamAuth.isViewAsMode && TeamAuth.isViewAsMode()) {
+            return;
+        }
         idleWarningTimer = setTimeout(() => {
             if (currentUser && idleWatching) {
                 showIdleWarning();
@@ -135,6 +138,9 @@
         if (!currentUser) {
             return;
         }
+        if (TeamAuth.isViewAsMode && TeamAuth.isViewAsMode()) {
+            return;
+        }
         idleWatching = true;
         ACTIVITY_EVENTS.forEach((ev) => {
             document.addEventListener(ev, onActivity, { passive: true });
@@ -153,8 +159,18 @@
         }
     }
 
+    function authHeaders(extra) {
+        if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.authFetchHeaders) {
+            return ViewAsBanner.authFetchHeaders(extra);
+        }
+        return Object.assign({}, extra || {});
+    }
+
     async function fetchMe() {
-        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        const res = await fetch('/api/auth/me', {
+            credentials: 'same-origin',
+            headers: authHeaders()
+        });
         if (res.status === 401) {
             return null;
         }
@@ -203,6 +219,33 @@
             return Boolean(currentUser);
         },
 
+        isViewAsMode() {
+            return Boolean(
+                currentUser &&
+                    currentUser.viewAs &&
+                    currentUser.viewAs.active &&
+                    typeof ViewAsBanner !== 'undefined' &&
+                    ViewAsBanner.getViewAsToken &&
+                    ViewAsBanner.getViewAsToken()
+            );
+        },
+
+        getViewAsTargetName() {
+            if (!currentUser || !currentUser.viewAs) {
+                return '';
+            }
+            return currentUser.viewAs.targetDisplayName || currentUser.displayName || '';
+        },
+
+        getViewAsActorName() {
+            if (!currentUser || !currentUser.viewAs) {
+                return '';
+            }
+            return currentUser.viewAs.actorDisplayName || '';
+        },
+
+        authHeaders,
+
         hasPermission(perm) {
             if (!perm) {
                 return false;
@@ -236,6 +279,9 @@
             if (checked) {
                 if (currentUser) {
                     attachIdleWatch();
+                    if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
+                        ViewAsBanner.renderViewAsBanner(currentUser);
+                    }
                 }
                 return currentUser;
             }
@@ -244,13 +290,25 @@
                 return null;
             }
             try {
+                if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.activateViewAsFromUrl) {
+                    await ViewAsBanner.activateViewAsFromUrl();
+                }
+            } catch (err) {
+                checked = true;
+                alert(err.message || 'View As link expired. Close this tab and try again from Admin.');
+                throw err;
+            }
+            try {
                 const health = await fetch('/api/health', { credentials: 'same-origin' });
                 if (!health.ok) {
                     checked = true;
                     return null;
                 }
                 const healthJson = await health.json().catch(() => ({}));
-                if (healthJson.openAccess) {
+                if (
+                    healthJson.openAccess &&
+                    !(typeof ViewAsBanner !== 'undefined' && ViewAsBanner.getViewAsToken && ViewAsBanner.getViewAsToken())
+                ) {
                     checked = true;
                     return null;
                 }
@@ -283,6 +341,9 @@
                     throw new Error('redirect');
                 }
             }
+            if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
+                ViewAsBanner.renderViewAsBanner(currentUser);
+            }
             attachIdleWatch();
             return currentUser;
         },
@@ -292,6 +353,9 @@
             applyIdlePolicy(currentUser);
             if (currentUser) {
                 attachIdleWatch();
+                if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
+                    ViewAsBanner.renderViewAsBanner(currentUser);
+                }
             } else {
                 detachIdleWatch();
             }
@@ -299,10 +363,17 @@
         },
 
         async logoutAll() {
+            if (TeamAuth.isViewAsMode()) {
+                return ViewAsBanner.exitViewAs();
+            }
             detachIdleWatch();
             await releaseCalendarLocksBeforeLogout();
             try {
-                await fetch('/api/auth/logout-all', { method: 'POST', credentials: 'same-origin' });
+                await fetch('/api/auth/logout-all', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders()
+                });
             } catch (_) {
                 /* proceed to login */
             }
@@ -313,6 +384,9 @@
         },
 
         async logout(options) {
+            if (TeamAuth.isViewAsMode()) {
+                return ViewAsBanner.exitViewAs();
+            }
             const idleReason = options && options.reason === 'idle';
             detachIdleWatch();
             await releaseCalendarLocksBeforeLogout();

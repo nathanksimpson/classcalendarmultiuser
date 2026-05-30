@@ -15,6 +15,7 @@ const Presence = require('./presence');
 const Suggestions = require('./suggestions');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
+const ViewAs = require('./view-as');
 const { getDb } = require('./schema');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -85,25 +86,107 @@ function clearSessionCookie(res) {
     res.append('Set-Cookie', parts.join('; '));
 }
 
+function getViewAsSessionHeader(req) {
+    const raw = req.headers['x-view-as-session'];
+    return raw ? String(raw).trim() : '';
+}
+
+function resolveUserContext(req) {
+    const viewAsToken = getViewAsSessionHeader(req);
+    if (viewAsToken) {
+        return users.getSessionContext(viewAsToken);
+    }
+    return users.getSessionContext(getSessionToken(req));
+}
+
+function applyUserContext(req, ctx) {
+    if (!ctx || !ctx.effective) {
+        req.user = null;
+        req.actorUser = null;
+        req.viewAsSession = false;
+        req.sessionToken = null;
+        return;
+    }
+    req.user = ctx.effective;
+    req.actorUser = ctx.actor;
+    req.viewAsSession = Boolean(ctx.viewAsActive);
+    req.sessionToken = ctx.token;
+}
+
+function buildAuthMePayload(user, actorUser) {
+    const calendars = CalAccess.listCalendarsForUser(user);
+    const hasCalendarAccess = CalAccess.canViewAllCalendars(user) || calendars.length > 0;
+    const permissions = Auth.getEffectivePermissions(user);
+    const payload = {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: Auth.normalizeRole(user.role),
+        roleRaw: user.role,
+        permissions,
+        canAccessAdmin: Auth.canAccessAdminPage(user),
+        canForceUnlock: Auth.canForceUnlock(user),
+        hasCalendarAccess,
+        loginContext: user.loginContext || loginContext.LOGIN_CONTEXT_PERSONAL,
+        idleLogoutMinutes: user.idleLogoutMinutes,
+        idleWarningMinutes: user.idleWarningMinutes
+    };
+    if (user.viewAsActive && actorUser) {
+        payload.viewAs = {
+            active: true,
+            targetDisplayName: user.displayName || user.email || 'User',
+            targetEmail: user.email || null,
+            actorId: actorUser.id,
+            actorDisplayName: actorUser.displayName || actorUser.email || 'Admin'
+        };
+    }
+    return payload;
+}
+
 function optionalUser(req, _res, next) {
-    const token = getSessionToken(req);
-    req.user = users.getSessionUser(token) || null;
+    applyUserContext(req, resolveUserContext(req));
     next();
 }
 
 function requireUser(req, res, next) {
-    if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID) {
+    if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && !getViewAsSessionHeader(req)) {
         req.user = DEV_USER;
+        req.actorUser = DEV_USER;
+        req.viewAsSession = false;
         next();
         return;
     }
-    const token = getSessionToken(req);
-    const user = users.getSessionUser(token);
-    if (!user) {
+    const ctx = resolveUserContext(req);
+    if (!ctx || !ctx.effective) {
         res.status(401).json({ error: 'Not signed in' });
         return;
     }
-    req.user = user;
+    applyUserContext(req, ctx);
+    next();
+}
+
+function requireCookieUser(req, res, next) {
+    if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID) {
+        req.user = DEV_USER;
+        req.actorUser = DEV_USER;
+        req.viewAsSession = false;
+        next();
+        return;
+    }
+    const ctx = users.getSessionContext(getSessionToken(req));
+    if (!ctx || !ctx.effective || ctx.viewAsActive) {
+        res.status(401).json({ error: 'Not signed in' });
+        return;
+    }
+    applyUserContext(req, ctx);
+    next();
+}
+
+function rejectViewAsWrites(req, res, next) {
+    if (req.viewAsSession) {
+        res.status(403).json({ error: 'Changes are not saved in View As mode', code: 'VIEW_AS_MODE' });
+        return;
+    }
     next();
 }
 
@@ -185,23 +268,7 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
         res.status(401).json({ error: 'Not signed in' });
         return;
     }
-    const calendars = CalAccess.listCalendarsForUser(req.user);
-    const hasCalendarAccess = CalAccess.canViewAllCalendars(req.user) || calendars.length > 0;
-    const permissions = Auth.getEffectivePermissions(req.user);
-    res.json({
-        id: req.user.id,
-        email: req.user.email,
-        displayName: req.user.displayName,
-        role: Auth.normalizeRole(req.user.role),
-        roleRaw: req.user.role,
-        permissions,
-        canAccessAdmin: Auth.canAccessAdminPage(req.user),
-        canForceUnlock: Auth.canForceUnlock(req.user),
-        hasCalendarAccess,
-        loginContext: req.user.loginContext || loginContext.LOGIN_CONTEXT_PERSONAL,
-        idleLogoutMinutes: req.user.idleLogoutMinutes,
-        idleWarningMinutes: req.user.idleWarningMinutes
-    });
+    res.json(buildAuthMePayload(req.user, req.actorUser));
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -276,7 +343,7 @@ app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25
     });
 });
 
-app.post('/api/auth/change-password', requireUser, (req, res) => {
+app.post('/api/auth/change-password', requireUser, rejectViewAsWrites, (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body || {};
         const session = users.changeOwnPassword(
@@ -292,7 +359,7 @@ app.post('/api/auth/change-password', requireUser, (req, res) => {
     }
 });
 
-app.patch('/api/auth/profile', requireUser, (req, res) => {
+app.patch('/api/auth/profile', requireUser, rejectViewAsWrites, (req, res) => {
     try {
         const updated = users.updateOwnDisplayName(req.user.id, req.body && req.body.displayName);
         const calendars = CalAccess.listCalendarsForUser(updated);
@@ -441,9 +508,68 @@ function enrichAdminUserRow(u) {
     });
 }
 
+app.post('/api/admin/view-as/activate', (req, res) => {
+    const { exchangeToken } = req.body || {};
+    const viewAsSessionToken = ViewAs.redeemExchange(exchangeToken);
+    if (!viewAsSessionToken) {
+        res.status(400).json({ error: 'Invalid or expired View As link' });
+        return;
+    }
+    const ctx = users.getSessionContext(viewAsSessionToken);
+    if (!ctx || !ctx.viewAsActive || !ctx.effective) {
+        res.status(400).json({ error: 'Invalid View As session' });
+        return;
+    }
+    res.json({ viewAsSessionToken });
+});
+
+app.post('/api/admin/view-as', requireCookieUser, (req, res) => {
+    if (!Auth.isSuperAdminRole(req.user)) {
+        res.status(403).json({ error: 'Super admin only' });
+        return;
+    }
+    try {
+        const { userId } = req.body || {};
+        const device = loginContext.sanitizeLoginContext(
+            (req.body && (req.body.device || req.body.loginContext)) || ''
+        );
+        const result = ViewAs.startViewAs(req.user, userId, device);
+        ActivityLog.recordActivityForUser(req.user, {
+            action: 'view_as_start',
+            summary: `View as ${result.target.displayName || result.target.email || result.target.id}`,
+            detail: { targetUserId: result.target.id }
+        });
+        res.json({ exchangeToken: result.exchangeToken, target: result.target });
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'View As failed' });
+    }
+});
+
+app.post('/api/admin/view-as/exit', (req, res) => {
+    const viewAsToken = getViewAsSessionHeader(req);
+    if (!viewAsToken) {
+        res.status(400).json({ error: 'Not in View As mode' });
+        return;
+    }
+    const ctx = users.getSessionContext(viewAsToken);
+    if (!ctx || !ctx.viewAsActive) {
+        res.status(400).json({ error: 'Not in View As mode' });
+        return;
+    }
+    ViewAs.exitViewAsSession(viewAsToken);
+    if (ctx.actor) {
+        ActivityLog.recordActivityForUser(ctx.actor, {
+            action: 'view_as_exit',
+            summary: `Stopped viewing as ${ctx.effective.displayName || ctx.effective.email || ctx.effective.id}`,
+            detail: { targetUserId: ctx.effective.id }
+        });
+    }
+    res.json({ ok: true });
+});
+
 app.get(
     '/api/admin/permission-meta',
-    requireUser,
+    requireCookieUser,
     requirePermission(Auth.PERMS.MANAGE_USERS),
     (req, res) => {
         if (!Auth.isSuperAdminRole(req.user)) {
@@ -454,13 +580,13 @@ app.get(
     }
 );
 
-app.get('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (_req, res) => {
+app.get('/api/admin/users', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_USERS), (_req, res) => {
     res.json(users.listUsers().map(enrichAdminUserRow));
 });
 
 app.get(
     '/api/admin/access-requests',
-    requireUser,
+    requireCookieUser,
     (req, res, next) => {
         if (
             !Auth.hasPermission(req.user, Auth.PERMS.MANAGE_USERS) &&
@@ -476,7 +602,7 @@ app.get(
     }
 );
 
-app.post('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
+app.post('/api/admin/users', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
     try {
         const { email, displayName, role, password, kakaoUserId } = req.body || {};
         const em = users.normalizeEmail(email);
@@ -516,7 +642,7 @@ app.post('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_US
 
 app.post(
     '/api/admin/users/:id/force-logout',
-    requireUser,
+    requireCookieUser,
     requirePermission(Auth.PERMS.MANAGE_USERS),
     (req, res) => {
         const target = users.getUserById(req.params.id);
@@ -534,7 +660,7 @@ app.post(
     }
 );
 
-app.delete('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
+app.delete('/api/admin/users/:id', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
     try {
         const ok = users.permanentlyDeleteUser(req.params.id, req.user.id);
         if (!ok) {
@@ -547,7 +673,7 @@ app.delete('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MAN
     }
 });
 
-app.patch('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
+app.patch('/api/admin/users/:id', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
     try {
     const targetId = req.params.id;
     const targetRow = getDb().prepare('SELECT * FROM users WHERE id = ?').get(targetId);
@@ -628,25 +754,25 @@ app.patch('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANA
     }
 });
 
-app.get('/api/admin/settings', requireUser, requirePermission(Auth.PERMS.MANAGE_SETTINGS), (_req, res) => {
+app.get('/api/admin/settings', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_SETTINGS), (_req, res) => {
     res.json(appSettings.getAdminSettings());
 });
 
-app.patch('/api/admin/settings', requireUser, requirePermission(Auth.PERMS.MANAGE_SETTINGS), (req, res) => {
+app.patch('/api/admin/settings', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_SETTINGS), (req, res) => {
     res.json(appSettings.patchAdminSettings(req.body || {}));
 });
 
-app.get('/api/admin/activity', requireUser, requirePermission(Auth.PERMS.VIEW_AUDIT), (req, res) => {
+app.get('/api/admin/activity', requireCookieUser, requirePermission(Auth.PERMS.VIEW_AUDIT), (req, res) => {
     const limit = req.query.limit;
     const calendarId = req.query.calendarId;
     res.json(ActivityLog.listActivity({ limit, calendarId }));
 });
 
-app.get('/api/admin/presence', requireUser, requirePermission(Auth.PERMS.VIEW_PRESENCE), (_req, res) => {
+app.get('/api/admin/presence', requireCookieUser, requirePermission(Auth.PERMS.VIEW_PRESENCE), (_req, res) => {
     res.json(Presence.listOnlinePresence());
 });
 
-app.post('/api/presence/heartbeat', requireUser, (req, res) => {
+app.post('/api/presence/heartbeat', requireUser, rejectViewAsWrites, (req, res) => {
     Presence.upsertPresence(req.user, req.body || {});
     res.json({ ok: true });
 });
@@ -666,14 +792,14 @@ app.get('/api/groups', requireUser, (req, res) => {
     res.json(CalAccess.listGroups());
 });
 
-app.get('/api/admin/groups', requireUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
+app.get('/api/admin/groups', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
     const groups = CalAccess.listGroups();
     res.json(
         groups.map((g) => Object.assign({}, g, { memberIds: CalAccess.getGroupMemberIds(g.id) }))
     );
 });
 
-app.post('/api/admin/groups', requireUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
+app.post('/api/admin/groups', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
     const name = req.body.name && String(req.body.name).trim();
     if (!name) {
         res.status(400).json({ error: 'name is required' });
@@ -687,7 +813,7 @@ app.post('/api/admin/groups', requireUser, requirePermission(Auth.PERMS.MANAGE_G
     res.status(201).json(Object.assign({}, created, { memberIds: CalAccess.getGroupMemberIds(gid) }));
 });
 
-app.put('/api/admin/groups/:id/members', requireUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
+app.put('/api/admin/groups/:id/members', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
     const groupId = req.params.id;
     if (!CalAccess.getGroup(groupId)) {
         res.status(404).json({ error: 'Group not found' });
@@ -697,7 +823,7 @@ app.put('/api/admin/groups/:id/members', requireUser, requirePermission(Auth.PER
     res.json({ id: groupId, memberIds });
 });
 
-app.patch('/api/admin/groups/:id', requireUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
+app.patch('/api/admin/groups/:id', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
     const groupId = req.params.id;
     const existing = CalAccess.getGroup(groupId);
     if (!existing) {
@@ -708,7 +834,7 @@ app.patch('/api/admin/groups/:id', requireUser, requirePermission(Auth.PERMS.MAN
     res.json(Object.assign({}, updated, { memberIds: CalAccess.getGroupMemberIds(groupId) }));
 });
 
-app.delete('/api/admin/groups/:id', requireUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
+app.delete('/api/admin/groups/:id', requireCookieUser, requirePermission(Auth.PERMS.MANAGE_GROUPS), (req, res) => {
     const groupId = req.params.id;
     if (!CalAccess.getGroup(groupId)) {
         res.status(404).json({ error: 'Group not found' });
@@ -720,7 +846,7 @@ app.delete('/api/admin/groups/:id', requireUser, requirePermission(Auth.PERMS.MA
 
 app.get(
     '/api/admin/calendars',
-    requireUser,
+    requireCookieUser,
     requireAnyPermission([
         Auth.PERMS.MANAGE_CALENDAR_ACCESS,
         Auth.PERMS.VIEW_ALL_CALENDARS,
@@ -731,7 +857,7 @@ app.get(
     }
 );
 
-app.get('/api/admin/calendars/:id/access', requireUser, (req, res) => {
+app.get('/api/admin/calendars/:id/access', requireCookieUser, (req, res) => {
     if (!CalAccess.canManageCalendarAccess(req.user, req.params.id)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
@@ -744,7 +870,7 @@ app.get('/api/admin/calendars/:id/access', requireUser, (req, res) => {
     res.json(CalAccess.getCalendarAccess(req.params.id));
 });
 
-app.put('/api/admin/calendars/:id/access', requireUser, (req, res) => {
+app.put('/api/admin/calendars/:id/access', requireCookieUser, (req, res) => {
     const calId = req.params.id;
     if (!CalAccess.canManageCalendarAccess(req.user, calId)) {
         res.status(403).json({ error: 'Forbidden' });
@@ -796,7 +922,7 @@ function calendarMetaExtras(user, calendarId, meta) {
     });
 }
 
-app.post('/api/backup', requireUser, (_req, res) => {
+app.post('/api/backup', requireUser, rejectViewAsWrites, (_req, res) => {
     res.json({ skipped: true, reason: 'Use Synology or export from Print & data tab for backups' });
 });
 
@@ -830,7 +956,7 @@ app.get('/api/calendars/:id', requireUser, (req, res) => {
     res.json(calendarMetaExtras(req.user, req.params.id, doc));
 });
 
-app.post('/api/calendars/:id/lock/touch', requireUser, (req, res) => {
+app.post('/api/calendars/:id/lock/touch', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
@@ -844,7 +970,7 @@ app.post('/api/calendars/:id/lock/touch', requireUser, (req, res) => {
     );
 });
 
-app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
+app.post('/api/calendars/:id/lock', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
@@ -874,7 +1000,7 @@ app.post('/api/calendars/:id/lock', requireUser, (req, res) => {
     res.json(payload);
 });
 
-app.post('/api/calendars/:id/lock/grant', requireUser, (req, res) => {
+app.post('/api/calendars/:id/lock/grant', requireUser, rejectViewAsWrites, (req, res) => {
     const calId = req.params.id;
     if (!CalAccess.canAccessCalendar(req.user, calId)) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -897,7 +1023,7 @@ app.post('/api/calendars/:id/lock/grant', requireUser, (req, res) => {
     }
 });
 
-app.post('/api/calendars/:id/lock/dismiss', requireUser, (req, res) => {
+app.post('/api/calendars/:id/lock/dismiss', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
@@ -910,7 +1036,7 @@ app.post('/api/calendars/:id/lock/dismiss', requireUser, (req, res) => {
     }
 });
 
-app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
+app.delete('/api/calendars/:id/lock', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
@@ -924,7 +1050,7 @@ app.delete('/api/calendars/:id/lock', requireUser, (req, res) => {
     res.json({ ok: true, released: Boolean(result.released) });
 });
 
-app.post('/api/calendars', requireUser, requirePermission(Auth.PERMS.CREATE_CALENDARS), (req, res) => {
+app.post('/api/calendars', requireUser, rejectViewAsWrites, requirePermission(Auth.PERMS.CREATE_CALENDARS), (req, res) => {
     const { name, data, memberUserIds, groupIds } = req.body || {};
     if (!name || !data) {
         res.status(400).json({ error: 'name and data are required' });
@@ -972,7 +1098,7 @@ app.get('/api/calendars/:id/suggestions', requireUser, (req, res) => {
     res.json(Suggestions.listPendingSuggestions(calId));
 });
 
-app.post('/api/calendars/:id/suggestions', requireUser, (req, res) => {
+app.post('/api/calendars/:id/suggestions', requireUser, rejectViewAsWrites, (req, res) => {
     const calId = req.params.id;
     if (!CalAccess.canAccessCalendar(req.user, calId)) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -1007,7 +1133,7 @@ app.post('/api/calendars/:id/suggestions', requireUser, (req, res) => {
     res.status(201).json(created);
 });
 
-app.post('/api/calendars/:id/suggestions/:suggestionId/apply', requireUser, (req, res) => {
+app.post('/api/calendars/:id/suggestions/:suggestionId/apply', requireUser, rejectViewAsWrites, (req, res) => {
     const calId = req.params.id;
     const suggestionId = req.params.suggestionId;
     if (!Auth.hasPermission(req.user, Auth.PERMS.APPLY_SUGGESTIONS)) {
@@ -1049,7 +1175,7 @@ app.post('/api/calendars/:id/suggestions/:suggestionId/apply', requireUser, (req
     res.json(result.document);
 });
 
-app.post('/api/calendars/:id/suggestions/:suggestionId/dismiss', requireUser, (req, res) => {
+app.post('/api/calendars/:id/suggestions/:suggestionId/dismiss', requireUser, rejectViewAsWrites, (req, res) => {
     const calId = req.params.id;
     const suggestionId = req.params.suggestionId;
     if (!Auth.hasPermission(req.user, Auth.PERMS.APPLY_SUGGESTIONS)) {
@@ -1065,7 +1191,7 @@ app.post('/api/calendars/:id/suggestions/:suggestionId/dismiss', requireUser, (r
     res.json({ ok: true });
 });
 
-app.put('/api/calendars/:id', requireUser, (req, res) => {
+app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
@@ -1110,7 +1236,7 @@ app.put('/api/calendars/:id', requireUser, (req, res) => {
     res.json(result.document);
 });
 
-app.delete('/api/calendars/:id', requireUser, (req, res) => {
+app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canDeleteCalendar(req.user, req.params.id)) {
         res.status(403).json({ error: 'Forbidden' });
         return;

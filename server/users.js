@@ -319,23 +319,26 @@ function findUserByEmailPassword(email, password) {
     return rowToUser(row);
 }
 
-function createSession(userId, deviceContext) {
+function createSession(userId, deviceContext, options) {
     const db = getDb();
     const admin = appSettings.getAdminSettings();
     const profile = loginContext.resolveLoginProfile(deviceContext, admin);
     const maxAgeSec = profile.sessionMaxAgeSec;
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
+    const viewAsUserId =
+        options && options.viewAsUserId ? String(options.viewAsUserId) : null;
     db.prepare(
-        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes, view_as_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).run(
         token,
         userId,
         expires,
         profile.loginContext,
         profile.idleLogoutMinutes,
-        profile.idleWarningMinutes
+        profile.idleWarningMinutes,
+        viewAsUserId
     );
     return {
         token,
@@ -347,36 +350,74 @@ function createSession(userId, deviceContext) {
     };
 }
 
+function createViewAsSession(actorUserId, targetUserId, deviceContext) {
+    return createSession(actorUserId, deviceContext, { viewAsUserId: targetUserId });
+}
+
 function createLoginSession(userId, deviceContext) {
     deleteAllSessionsForUser(userId);
     return createSession(userId, deviceContext);
 }
 
-function getSessionUser(token) {
-    if (!token) {
-        return null;
-    }
-    const db = getDb();
-    const row = db
-        .prepare(
-            `SELECT s.token, s.expires_at, s.login_context, s.idle_logout_minutes, s.idle_warning_minutes, u.*
-             FROM sessions s JOIN users u ON u.id = s.user_id
-             WHERE s.token = ? AND u.active = 1`
-        )
-        .get(token);
-    if (!row) {
-        return null;
-    }
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-        db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
-        return null;
-    }
-    const policy = loginContext.sessionPolicyFromRow(row, appSettings.getAdminSettings());
-    const user = rowToUser(row);
+function applySessionPolicyToUser(user, sessionRow) {
+    const policy = loginContext.sessionPolicyFromRow(sessionRow, appSettings.getAdminSettings());
     user.loginContext = policy.loginContext;
     user.idleLogoutMinutes = policy.idleLogoutMinutes;
     user.idleWarningMinutes = policy.idleWarningMinutes;
     return user;
+}
+
+function getSessionContext(token) {
+    if (!token) {
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    const db = getDb();
+    const sessionRow = db
+        .prepare(
+            `SELECT token, user_id, expires_at, view_as_user_id, login_context, idle_logout_minutes, idle_warning_minutes
+             FROM sessions WHERE token = ?`
+        )
+        .get(token);
+    if (!sessionRow) {
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    if (new Date(sessionRow.expires_at).getTime() < Date.now()) {
+        db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    const actorRow = db
+        .prepare('SELECT * FROM users WHERE id = ? AND active = 1')
+        .get(sessionRow.user_id);
+    if (!actorRow) {
+        db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        return { effective: null, actor: null, viewAsActive: false, token: null };
+    }
+    const actor = applySessionPolicyToUser(rowToUser(actorRow), sessionRow);
+    if (sessionRow.view_as_user_id) {
+        if (!Auth.isSuperAdminRole(actor)) {
+            db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+            return { effective: null, actor: null, viewAsActive: false, token: null };
+        }
+        const targetRow = db
+            .prepare('SELECT * FROM users WHERE id = ? AND active = 1')
+            .get(sessionRow.view_as_user_id);
+        if (!targetRow) {
+            db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+            return { effective: null, actor: null, viewAsActive: false, token: null };
+        }
+        const effective = applySessionPolicyToUser(rowToUser(targetRow), sessionRow);
+        effective.viewAsActive = true;
+        effective.actorUserId = actor.id;
+        effective.actorDisplayName = actor.displayName || actor.email || 'Admin';
+        effective.sessionToken = token;
+        return { effective, actor, viewAsActive: true, token };
+    }
+    return { effective: actor, actor, viewAsActive: false, token };
+}
+
+function getSessionUser(token) {
+    const ctx = getSessionContext(token);
+    return ctx.effective;
 }
 
 function deleteSession(token) {
@@ -761,8 +802,10 @@ module.exports = {
     findUserByEmailPassword,
     activeUserHasNoPassword,
     createSession,
+    createViewAsSession,
     createLoginSession,
     getSessionUser,
+    getSessionContext,
     deleteSession,
     deleteAllSessionsForUser,
     setUserPassword,

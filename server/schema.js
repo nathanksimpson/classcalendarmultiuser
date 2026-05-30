@@ -78,6 +78,7 @@ function migrate(db) {
     migrateSuggestionsPresence(db);
     migrateActivityLog(db);
     migrateCalendarsCreatedBy(db);
+    migrateSessionViewAs(db);
 }
 
 function migrateCalendarsCreatedBy(db) {
@@ -86,6 +87,22 @@ function migrateCalendarsCreatedBy(db) {
     if (!names.has('created_by_user_id')) {
         db.exec('ALTER TABLE calendars ADD COLUMN created_by_user_id TEXT');
     }
+}
+
+function migrateSessionViewAs(db) {
+    const cols = db.prepare('PRAGMA table_info(sessions)').all();
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('view_as_user_id')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN view_as_user_id TEXT');
+    }
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS view_as_exchanges (
+            token TEXT PRIMARY KEY,
+            session_token TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_view_as_exchanges_expires ON view_as_exchanges(expires_at);
+    `);
 }
 
 function migrateSessionLoginContext(db) {

@@ -5,9 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curriculum workspace — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260602-homework-day-sort2">
+    <link rel="stylesheet" href="styles.css?v=20260530-view-as">
 </head>
 <body class="workspace-page">
+    <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
+        <div class="view-as-banner-inner">
+            <div class="view-as-banner-text">
+                <strong id="viewAsBannerPrimary" class="view-as-banner-primary"></strong>
+                <span id="viewAsBannerSecondary" class="view-as-banner-secondary"></span>
+            </div>
+            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit">Exit View As</button>
+        </div>
+    </div>
     <header class="workspace-header">
         <div class="workspace-header-main">
             <a href="/" class="workspace-back-link" data-i18n="workspaceBackCalendar">← Back to calendar</a>
@@ -113,9 +122,10 @@
     <script defer src="js/utils.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/load-extension-scripts.js?v=20260527-perf-a"></script>
-    <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
-    <script defer src="js/calendar-sync.js?v=20260528-workspace"></script>
-    <script defer src="app.js?v=20260527-modal-ux"></script>
-    <script defer src="js/workspace.js?v=20260527-modal-ux"></script>
+    <script defer src="js/view-as-banner.js?v=20260530-view-as"></script>
+    <script defer src="js/team-auth.js?v=20260530-view-as"></script>
+    <script defer src="js/calendar-sync.js?v=20260530-view-as"></script>
+    <script defer src="app.js?v=20260530-view-as"></script>
+    <script defer src="js/workspace.js?v=20260530-view-as"></script>
 </body>
 </html>

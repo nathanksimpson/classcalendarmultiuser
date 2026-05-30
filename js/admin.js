@@ -1363,6 +1363,24 @@ function setupResetPasswordModal() {
     });
 }
 
+async function openViewAsUser(u) {
+    const name = u.displayName || u.email || u.id;
+    if (!confirm(t('confirmViewAs', { name }))) {
+        return;
+    }
+    try {
+        const result = await api('/admin/view-as', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: u.id })
+        });
+        const url = '/index.html?viewAsExchange=' + encodeURIComponent(result.exchangeToken);
+        window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (ex) {
+        showAdminSaveNotice(ex.message, true);
+    }
+}
+
 function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
     const items = [
         {
@@ -1384,6 +1402,16 @@ function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
                 disabled: deactDisabled,
                 onClick: () => deactivateUser(u).catch((ex) => showAdminSaveNotice(ex.message, true))
             });
+        }
+        if (!isSelf && isCurrentUserSuperAdmin()) {
+            const isSuperTarget = u.role === 'admin' || u.role === 'super_admin';
+            if (!isSuperTarget) {
+                items.push({
+                    label: t('viewAs'),
+                    title: t('viewAsTitle'),
+                    onClick: () => openViewAsUser(u)
+                });
+            }
         }
         if (!isSelf && adminHasPerm('manage_users')) {
             items.push({
