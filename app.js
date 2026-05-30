@@ -296,6 +296,25 @@ const translations = {
         editEvent: 'Edit Event',
         addEventTitle: 'Add Event',
         contextAddEventOnDate: 'Add event on {date}',
+        contextOpenClass: 'Open class',
+        contextAddClassNote: 'Add note',
+        contextViewDayNotes: 'View day notes ({date})',
+        contextCopyDayNotes: 'Copy day notes ({date})',
+        contextDownloadDayNotes: 'Download day notes (.txt)',
+        dayNoteModalTitle: 'Class day note',
+        dayNoteTextLabel: 'What happened in this class?',
+        dayNoteSave: 'Save note',
+        dayNoteExistingHeading: 'Earlier notes today',
+        dayNoteReadOnlyHint: 'Someone else is editing. Take over the lock to add notes.',
+        dayNotesSummaryTitle: 'Day notes',
+        dayNotesSummaryDate: 'Date',
+        dayNotesEmpty: 'No notes for this day yet. Right-click a class on the calendar to add one.',
+        dayNotesCopy: 'Copy all',
+        dayNotesDownload: 'Download .txt',
+        dayNotesToolbarBtn: 'Day notes',
+        dayNotesCopyOk: 'Day notes copied.',
+        dayNotesCopyFail: 'Could not copy. Select the text and copy manually.',
+        dayNotesExportHeader: 'Daily class notes',
         confirmDeleteEvent: 'Are you sure you want to delete this event?',
         eventNotesPlaceholder: 'Optional notes...',
         syllabusUnits: 'Syllabus / curriculum units',
@@ -332,7 +351,8 @@ const translations = {
         syllabusOverflowNote: 'Not scheduled in term — extend dates or reduce holidays to fit.',
         syllabusSkippedDetail: 'Skipped this term — not on calendar',
         scheduleAdjustmentSectionTitle: 'Schedule adjustment',
-        scheduleAdjustmentHint: 'Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan).',
+        scheduleAdjustmentHint: 'Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan). Debate classes can also use auto-compress per book period above.',
+        scheduleAdjustmentNonDebateHint: 'Skip or combine lessons below to fit this term\'s class days. Auto-compress is only for debate classes.',
         scheduleAdjustmentSummaryTitle: 'This term\'s schedule adjustments',
         scheduleAdjustmentSummaryEmpty: 'No lessons skipped or combined for this term.',
         scheduleAdjustmentSkipping: 'Skipping',
@@ -1083,6 +1103,25 @@ const translations = {
         editEvent: '일정 편집',
         addEventTitle: '일정 추가',
         contextAddEventOnDate: '{date}에 일정 추가',
+        contextOpenClass: '수업 열기',
+        contextAddClassNote: '메모 추가',
+        contextViewDayNotes: '하루 메모 보기 ({date})',
+        contextCopyDayNotes: '하루 메모 복사 ({date})',
+        contextDownloadDayNotes: '하루 메모 다운로드 (.txt)',
+        dayNoteModalTitle: '수업 일지',
+        dayNoteTextLabel: '오늘 수업에서 있었던 일',
+        dayNoteSave: '메모 저장',
+        dayNoteExistingHeading: '오늘 이전 메모',
+        dayNoteReadOnlyHint: '다른 사람이 편집 중입니다. 메모를 추가하려면 잠금을 인수하세요.',
+        dayNotesSummaryTitle: '하루 메모',
+        dayNotesSummaryDate: '날짜',
+        dayNotesEmpty: '이 날짜에 메모가 없습니다. 캘린더에서 수업을 우클릭하여 추가하세요.',
+        dayNotesCopy: '전체 복사',
+        dayNotesDownload: '.txt 다운로드',
+        dayNotesToolbarBtn: '하루 메모',
+        dayNotesCopyOk: '하루 메모를 복사했습니다.',
+        dayNotesCopyFail: '복사할 수 없습니다. 텍스트를 선택해 직접 복사하세요.',
+        dayNotesExportHeader: '수업 일지',
         confirmDeleteEvent: '이 일정을 삭제하시겠습니까?',
         eventNotesPlaceholder: '메모 (선택)...',
         syllabusUnits: '교육과정 / 단원',
@@ -1119,7 +1158,8 @@ const translations = {
         syllabusOverflowNote: '학기 내 미배정 — 기간 연장 또는 공휴일 조정이 필요합니다.',
         syllabusSkippedDetail: '이번 학기 생략 — 달력에 없음',
         scheduleAdjustmentSectionTitle: '일정 조정',
-        scheduleAdjustmentHint: '이 수업·이번 학기만 적용됩니다 (교육과정 계획은 변경되지 않음). 수업 생략 또는 인접 수업 합치기.',
+        scheduleAdjustmentHint: '이 수업·이번 학기만 적용됩니다 (교육과정 계획은 변경되지 않음). 수업 생략 또는 인접 수업 합치기. 토론 수업은 위에서 기간별 자동 압축도 사용할 수 있습니다.',
+        scheduleAdjustmentNonDebateHint: '아래에서 수업을 생략하거나 합쳐 이번 학기 수업일에 맞추세요. 자동 압축은 토론 수업만 해당됩니다.',
         scheduleAdjustmentSummaryTitle: '이번 학기 일정 조정',
         scheduleAdjustmentSummaryEmpty: '생략·합친 수업 없음.',
         scheduleAdjustmentSkipping: '생략',
@@ -1915,6 +1955,7 @@ function getDefaultAppData() {
         termStart: null,
         termMonthCount: 3,
         calendarName: '',
+        dayNotes: [],
         ui: {
             visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
             printVisibility: { ...DEFAULT_VISIBILITY_FILTERS },
@@ -3368,6 +3409,12 @@ function updateCompressionUiForScheduleModel() {
         byMonthSection.style.display = debate ? '' : 'none';
     }
     syncCompressionSectionsForMode();
+    const debateHint = document.getElementById('scheduleAdjustmentDebateHint');
+    const sequentialHint = document.getElementById('scheduleAdjustmentSequentialHint');
+    if (debateHint && sequentialHint) {
+        debateHint.hidden = !debate;
+        sequentialHint.hidden = debate;
+    }
     const total = getTotalLessonsValue();
     const draft = buildClassSnapshotFromForm();
     renderScheduleAdjustmentRows(total, draft);
@@ -3546,6 +3593,40 @@ function buildScheduleGroupsForClass(classData, totalLessons) {
     return buildLessonGroups(totalLessons, merges);
 }
 
+/**
+ * Build lesson groups for available slots. Debate periods may auto-compress; sequential uses saved merges/skips only.
+ * @param {object} classData
+ * @param {number} availableSlots
+ * @param {{ period?: object }} options
+ */
+function resolveScheduleGroupsForClass(classData, availableSlots, options) {
+    options = options || {};
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const period = options.period || null;
+
+    if (classUsesDebateCompression(classData) && period) {
+        const userMerges = getCompressionMergesFromClass(classData, totalLessons);
+        const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
+        const mergesForPeriod = classData.compressionMode === 'manualPerMonth'
+            ? getCompressionMergesForPeriod(classData, period, totalLessons)
+            : userMerges;
+        const effectiveMode = classData.compressionMode === 'manualPerMonth' ? 'manual' : mode;
+        const mergesForPlan = mergePlanToFit(
+            availableSlots,
+            totalLessons,
+            mergesForPeriod,
+            effectiveMode,
+            getMergeStartOrderForClass(classData)
+        );
+        return buildScheduleGroupsForClass(
+            { ...classData, compressionMerges: mergesForPlan },
+            totalLessons
+        );
+    }
+
+    return buildScheduleGroupsForClass(classData, totalLessons);
+}
+
 function getMergeStartOrderForClass(classData) {
     const total = sanitizeTotalLessons(classData.totalLessons || 8);
     if (classUsesUnitPairLessonLabels(classData)
@@ -3607,16 +3688,6 @@ function formatScheduleAdjustmentSummary(classData) {
 
 function hasScheduleAdjustmentTableInDom() {
     return Boolean(document.getElementById('scheduleAdjustmentRows'));
-}
-
-function pickFinalScheduleAdjustments(draft, formMerges, formSkips) {
-    if (window.CCPSchedule && window.CCPSchedule.pickFinalScheduleAdjustments) {
-        return window.CCPSchedule.pickFinalScheduleAdjustments(draft, formMerges, formSkips);
-    }
-    return {
-        compressionMerges: Array.isArray(formMerges) ? formMerges : [],
-        skippedLessons: Array.isArray(formSkips) ? formSkips : []
-    };
 }
 
 function getClassDataForScheduleGapCheck(baseClass) {
@@ -3705,15 +3776,12 @@ function focusScheduleAdjustmentForClass(classId) {
     });
 }
 
-function renderScheduleGapWarning(classData, options) {
-    options = options || {};
+function renderScheduleGapWarning(classData) {
     const el = document.getElementById('classScheduleGapWarning');
     if (!el) {
         return;
     }
-    const effective = options.useFormOverlay === false
-        ? classData
-        : getClassDataForScheduleGapCheck(classData);
+    const effective = getClassDataForScheduleGapCheck(classData);
     if (!effective || !effective.id || effective.id === 'draft-syllabus'
         || (effective.customSchedule && effective.customSchedule.enabled)) {
         el.hidden = true;
@@ -6227,24 +6295,74 @@ function applyDefaultClassDatesForNewClass(defaultStartDate) {
 }
 
 let calendarContextMenuDate = null;
+let lessonContextMenuState = null;
+let lastDayNotesSummaryDate = null;
+let classDayNoteModalState = null;
 
-function hideCalendarContextMenu() {
-    const menu = document.getElementById('calendarContextMenu');
-    if (menu) {
-        menu.hidden = true;
-    }
-    calendarContextMenuDate = null;
+function getDayNotesApi() {
+    return typeof window !== 'undefined' ? window.CCPDayNotes : null;
 }
 
-function showCalendarContextMenu(clientX, clientY, dateStr) {
-    let menu = document.getElementById('calendarContextMenu');
+function ensureDayNotesArray() {
+    if (!Array.isArray(appData.dayNotes)) {
+        appData.dayNotes = [];
+    }
+}
+
+function getClassSubjectForDayNotes(classData) {
+    if (!classData) {
+        return '';
+    }
+    const effective = getEffectiveClassForViewer(classData) || classData;
+    const teachers = effective.classTeachers;
+    if (Array.isArray(teachers) && teachers.length) {
+        const cat = (teachers[0].category || '').trim();
+        if (cat) {
+            return cat;
+        }
+    }
+    return (effective.teacherCategory || '').trim();
+}
+
+function resolveDayNoteMeta(classId, displayNameOverride) {
+    const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
+    if (!classData) {
+        return { className: displayNameOverride || classId || '', subject: '' };
+    }
+    return {
+        className: displayNameOverride || classData.name || '',
+        subject: getClassSubjectForDayNotes(classData)
+    };
+}
+
+function classHasDayNoteOnDate(classId, dateStr) {
+    const api = getDayNotesApi();
+    if (!api) {
+        return false;
+    }
+    ensureDayNotesArray();
+    return api.hasNotesForClassOnDate(appData.dayNotes, classId, dateStr);
+}
+
+function buildDayNotesExportForDate(dateStr) {
+    const api = getDayNotesApi();
+    if (!api) {
+        return '';
+    }
+    ensureDayNotesArray();
+    const notes = api.getNotesForDate(appData.dayNotes, dateStr);
+    return api.formatExportText({
+        dateStr,
+        notes,
+        resolveMeta: (classId) => resolveDayNoteMeta(classId),
+        locale: currentLanguage,
+        headerTitle: t('dayNotesExportHeader')
+    });
+}
+
+function positionFixedContextMenu(menu, clientX, clientY) {
     if (!menu) {
         return;
-    }
-    calendarContextMenuDate = dateStr;
-    const btn = menu.querySelector('[data-action="add-event"]');
-    if (btn) {
-        btn.textContent = t('contextAddEventOnDate').replace('{date}', formatDateDisplay(dateStr));
     }
     menu.hidden = false;
     const pad = 8;
@@ -6261,7 +6379,345 @@ function showCalendarContextMenu(clientX, clientY, dateStr) {
     menu.style.top = `${Math.max(pad, top)}px`;
 }
 
+function hideLessonContextMenu() {
+    const menu = document.getElementById('lessonContextMenu');
+    if (menu) {
+        menu.hidden = true;
+    }
+    lessonContextMenuState = null;
+}
+
+function hideCalendarContextMenu() {
+    const menu = document.getElementById('calendarContextMenu');
+    if (menu) {
+        menu.hidden = true;
+    }
+    calendarContextMenuDate = null;
+    hideLessonContextMenu();
+}
+
+function showLessonContextMenu(clientX, clientY, state) {
+    const dayMenu = document.getElementById('calendarContextMenu');
+    if (dayMenu) {
+        dayMenu.hidden = true;
+    }
+    calendarContextMenuDate = null;
+    const menu = document.getElementById('lessonContextMenu');
+    if (!menu || !state) {
+        return;
+    }
+    lessonContextMenuState = state;
+    menu.hidden = false;
+    positionFixedContextMenu(menu, clientX, clientY);
+}
+
+function showCalendarContextMenu(clientX, clientY, dateStr) {
+    hideLessonContextMenu();
+    const menu = document.getElementById('calendarContextMenu');
+    if (!menu) {
+        return;
+    }
+    calendarContextMenuDate = dateStr;
+    const dateLabel = formatDateDisplay(dateStr);
+    menu.querySelectorAll('[data-action]').forEach((btn) => {
+        const action = btn.dataset.action;
+        if (action === 'add-event') {
+            btn.textContent = t('contextAddEventOnDate').replace('{date}', dateLabel);
+        } else if (action === 'view-day-notes') {
+            btn.textContent = t('contextViewDayNotes').replace('{date}', dateLabel);
+        } else if (action === 'copy-day-notes') {
+            btn.textContent = t('contextCopyDayNotes').replace('{date}', dateLabel);
+        }
+    });
+    positionFixedContextMenu(menu, clientX, clientY);
+}
+
+function renderClassDayNoteExistingList(classId, dateStr) {
+    const mount = document.getElementById('classDayNoteExisting');
+    if (!mount) {
+        return;
+    }
+    const api = getDayNotesApi();
+    ensureDayNotesArray();
+    const notes = api ? api.getNotesForClassOnDate(appData.dayNotes, classId, dateStr) : [];
+    mount.replaceChildren();
+    if (!notes.length) {
+        mount.hidden = true;
+        return;
+    }
+    mount.hidden = false;
+    const heading = document.createElement('h3');
+    heading.textContent = t('dayNoteExistingHeading');
+    mount.appendChild(heading);
+    notes.forEach((note) => {
+        const item = document.createElement('div');
+        item.className = 'day-note-existing-item';
+        const timeEl = document.createElement('time');
+        timeEl.dateTime = note.createdAt || '';
+        timeEl.textContent = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
+        const body = document.createElement('p');
+        body.textContent = note.text;
+        item.appendChild(timeEl);
+        item.appendChild(body);
+        mount.appendChild(item);
+    });
+}
+
+function openClassDayNoteModal(classId, dateStr, displayNameOverride) {
+    const classData = appData.classes.find((c) => c.id === classId);
+    if (!classData || !dateStr) {
+        return;
+    }
+    const modal = document.getElementById('classDayNoteModal');
+    if (!modal) {
+        return;
+    }
+    classDayNoteModalState = { classId, dateStr, displayName: displayNameOverride || '' };
+    lastDayNotesSummaryDate = dateStr;
+    const meta = resolveDayNoteMeta(classId, displayNameOverride);
+    const metaEl = document.getElementById('classDayNoteMeta');
+    if (metaEl) {
+        const parts = [formatDateDisplay(dateStr), meta.className];
+        if (meta.subject) {
+            parts.push(meta.subject);
+        }
+        metaEl.textContent = parts.join(' · ');
+    }
+    renderClassDayNoteExistingList(classId, dateStr);
+    const textEl = document.getElementById('classDayNoteText');
+    if (textEl) {
+        textEl.value = '';
+    }
+    const readOnly = isTeamCalendarViewOnly();
+    const readOnlyEl = document.getElementById('classDayNoteReadOnly');
+    const saveBtn = document.getElementById('classDayNoteSaveBtn');
+    if (readOnlyEl) {
+        readOnlyEl.hidden = !readOnly;
+        if (readOnly) {
+            readOnlyEl.textContent = t('dayNoteReadOnlyHint');
+        }
+    }
+    if (textEl) {
+        textEl.disabled = readOnly;
+    }
+    if (saveBtn) {
+        saveBtn.disabled = readOnly;
+    }
+    openModal(modal);
+    if (textEl && !readOnly) {
+        textEl.focus();
+    }
+}
+
+function closeClassDayNoteModal() {
+    const modal = document.getElementById('classDayNoteModal');
+    if (modal) {
+        closeModal(modal);
+    }
+    classDayNoteModalState = null;
+}
+
+function saveClassDayNoteFromModal() {
+    if (isTeamCalendarViewOnly()) {
+        showLockFlash(t('teamReadOnlySave'), false);
+        return;
+    }
+    const state = classDayNoteModalState;
+    const textEl = document.getElementById('classDayNoteText');
+    const text = textEl ? (textEl.value || '').trim() : '';
+    if (!state || !text) {
+        return;
+    }
+    const api = getDayNotesApi();
+    if (!api) {
+        return;
+    }
+    ensureDayNotesArray();
+    const entry = api.normalizeDayNote({
+        id: generateId(),
+        classId: state.classId,
+        date: state.dateStr,
+        text,
+        createdAt: new Date().toISOString()
+    });
+    if (!entry) {
+        return;
+    }
+    appData.dayNotes.push(entry);
+    saveData();
+    renderClassDayNoteExistingList(state.classId, state.dateStr);
+    if (textEl) {
+        textEl.value = '';
+    }
+    renderCalendar();
+}
+
+function renderDayNotesSummaryList(dateStr) {
+    const listEl = document.getElementById('dayNotesSummaryList');
+    const emptyEl = document.getElementById('dayNotesSummaryEmpty');
+    const previewEl = document.getElementById('dayNotesSummaryPreview');
+    if (!listEl) {
+        return;
+    }
+    const api = getDayNotesApi();
+    ensureDayNotesArray();
+    const notes = api ? api.getNotesForDate(appData.dayNotes, dateStr) : [];
+    listEl.replaceChildren();
+    if (emptyEl) {
+        emptyEl.hidden = notes.length > 0;
+        if (!notes.length) {
+            emptyEl.textContent = t('dayNotesEmpty');
+        }
+    }
+    if (previewEl) {
+        previewEl.textContent = buildDayNotesExportForDate(dateStr);
+    }
+    notes.forEach((note) => {
+        const meta = resolveDayNoteMeta(note.classId);
+        const card = document.createElement('article');
+        card.className = 'day-note-summary-card';
+        card.setAttribute('role', 'listitem');
+        const header = document.createElement('div');
+        header.className = 'day-note-summary-card-header';
+        header.textContent = meta.className;
+        const metaLine = document.createElement('div');
+        metaLine.className = 'day-note-summary-card-meta';
+        const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
+        metaLine.textContent = [time, meta.subject].filter(Boolean).join(' · ');
+        const body = document.createElement('p');
+        body.className = 'day-note-summary-card-body';
+        body.textContent = note.text;
+        card.appendChild(header);
+        card.appendChild(metaLine);
+        card.appendChild(body);
+        listEl.appendChild(card);
+    });
+}
+
+function openDayNotesSummaryModal(dateStr) {
+    const modal = document.getElementById('dayNotesSummaryModal');
+    const dateInput = document.getElementById('dayNotesSummaryDate');
+    if (!modal) {
+        return;
+    }
+    const resolved = dateStr || lastDayNotesSummaryDate || formatDateISO(new Date());
+    lastDayNotesSummaryDate = resolved;
+    if (dateInput) {
+        dateInput.value = resolved;
+    }
+    renderDayNotesSummaryList(resolved);
+    hideDayNotesCopyStatus();
+    openModal(modal);
+}
+
+function closeDayNotesSummaryModal() {
+    const modal = document.getElementById('dayNotesSummaryModal');
+    if (modal) {
+        closeModal(modal);
+    }
+}
+
+function showDayNotesCopyStatus(ok, message) {
+    const el = document.getElementById('dayNotesCopyStatus');
+    if (!el) {
+        if (ok) {
+            showHomeworkCopyStatus(true);
+        }
+        return;
+    }
+    el.hidden = false;
+    el.textContent = message || (ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+    el.classList.toggle('is-ok', !!ok);
+    el.classList.toggle('is-error', !ok);
+    clearTimeout(showDayNotesCopyStatus._timer);
+    showDayNotesCopyStatus._timer = setTimeout(() => {
+        el.hidden = true;
+    }, 2800);
+}
+
+function hideDayNotesCopyStatus() {
+    const el = document.getElementById('dayNotesCopyStatus');
+    if (el) {
+        el.hidden = true;
+    }
+}
+
+async function copyDayNotesForDate(dateStr) {
+    const text = buildDayNotesExportForDate(dateStr);
+    if (!text.trim()) {
+        showDayNotesCopyStatus(false, t('dayNotesEmpty'));
+        return false;
+    }
+    const ok = await copyTextToClipboard(text);
+    showDayNotesCopyStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+    return ok;
+}
+
+function downloadDayNotesForDate(dateStr) {
+    const text = buildDayNotesExportForDate(dateStr);
+    if (!text.trim()) {
+        showDayNotesCopyStatus(false, t('dayNotesEmpty'));
+        return;
+    }
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `day-notes-${dateStr}.txt`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function initLessonContextMenu() {
+    if (document.getElementById('lessonContextMenu')) {
+        return;
+    }
+    const menu = document.createElement('div');
+    menu.id = 'lessonContextMenu';
+    menu.className = 'calendar-context-menu';
+    menu.hidden = true;
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'calendar-context-menu-item';
+    openBtn.dataset.action = 'open-class';
+    openBtn.textContent = t('contextOpenClass');
+    openBtn.addEventListener('click', () => {
+        const state = lessonContextMenuState;
+        hideLessonContextMenu();
+        if (!state) {
+            return;
+        }
+        const classData = appData.classes.find((c) => c.id === state.classId);
+        if (classData) {
+            openClassEditor(classData, 'calendar-popout');
+        }
+    });
+
+    const noteBtn = document.createElement('button');
+    noteBtn.type = 'button';
+    noteBtn.className = 'calendar-context-menu-item';
+    noteBtn.dataset.action = 'add-note';
+    noteBtn.textContent = t('contextAddClassNote');
+    noteBtn.addEventListener('click', () => {
+        const state = lessonContextMenuState;
+        hideLessonContextMenu();
+        if (!state) {
+            return;
+        }
+        openClassDayNoteModal(state.classId, state.dateStr, state.displayName);
+    });
+
+    menu.appendChild(openBtn);
+    menu.appendChild(noteBtn);
+    document.body.appendChild(menu);
+}
+
 function initCalendarContextMenu() {
+    initLessonContextMenu();
     if (document.getElementById('calendarContextMenu')) {
         return;
     }
@@ -6269,23 +6725,60 @@ function initCalendarContextMenu() {
     menu.id = 'calendarContextMenu';
     menu.className = 'calendar-context-menu';
     menu.hidden = true;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'calendar-context-menu-item';
-    btn.dataset.action = 'add-event';
-    btn.addEventListener('click', () => {
-        const dateStr = calendarContextMenuDate;
-        hideCalendarContextMenu();
-        if (dateStr) {
-            openEventEditor(null, 'calendar-popout', { defaultDate: dateStr });
+
+    const actions = [
+        { action: 'view-day-notes', handler: () => {
+            const dateStr = calendarContextMenuDate;
+            hideCalendarContextMenu();
+            if (dateStr) {
+                openDayNotesSummaryModal(dateStr);
+            }
+        } },
+        { action: 'copy-day-notes', handler: async () => {
+            const dateStr = calendarContextMenuDate;
+            hideCalendarContextMenu();
+            if (dateStr) {
+                await copyDayNotesForDate(dateStr);
+            }
+        } },
+        { action: 'download-day-notes', handler: () => {
+            const dateStr = calendarContextMenuDate;
+            hideCalendarContextMenu();
+            if (dateStr) {
+                downloadDayNotesForDate(dateStr);
+            }
+        } },
+        { action: 'add-event', handler: () => {
+            const dateStr = calendarContextMenuDate;
+            hideCalendarContextMenu();
+            if (dateStr) {
+                openEventEditor(null, 'calendar-popout', { defaultDate: dateStr });
+            }
+        } }
+    ];
+
+    actions.forEach(({ action, handler }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'calendar-context-menu-item';
+        btn.dataset.action = action;
+        if (action === 'download-day-notes') {
+            btn.textContent = t('contextDownloadDayNotes');
         }
+        btn.addEventListener('click', handler);
+        menu.appendChild(btn);
     });
-    menu.appendChild(btn);
+
     document.body.appendChild(menu);
 
     document.addEventListener('click', (e) => {
-        if (!menu.contains(e.target)) {
+        const dayMenu = document.getElementById('calendarContextMenu');
+        const lessonMenu = document.getElementById('lessonContextMenu');
+        if (dayMenu && !dayMenu.contains(e.target) && dayMenu.hidden === false) {
             hideCalendarContextMenu();
+        }
+        if (lessonMenu && !lessonMenu.contains(e.target) && lessonMenu.hidden === false) {
+            hideLessonContextMenu();
         }
     });
     document.addEventListener('keydown', (e) => {
@@ -6295,6 +6788,50 @@ function initCalendarContextMenu() {
     });
     document.addEventListener('scroll', hideCalendarContextMenu, true);
     window.addEventListener('resize', hideCalendarContextMenu);
+}
+
+function initDayNotesUi() {
+    if (document.body.dataset.dayNotesUiBound === '1') {
+        return;
+    }
+    document.body.dataset.dayNotesUiBound = '1';
+
+    document.getElementById('classDayNoteModalClose')?.addEventListener('click', closeClassDayNoteModal);
+    document.getElementById('classDayNoteSaveBtn')?.addEventListener('click', saveClassDayNoteFromModal);
+    document.getElementById('dayNotesSummaryModalClose')?.addEventListener('click', closeDayNotesSummaryModal);
+    document.getElementById('dayNotesToolbarBtn')?.addEventListener('click', () => {
+        openDayNotesSummaryModal(lastDayNotesSummaryDate || formatDateISO(new Date()));
+    });
+    document.getElementById('dayNotesSummaryTodayBtn')?.addEventListener('click', () => {
+        const input = document.getElementById('dayNotesSummaryDate');
+        const today = formatDateISO(new Date());
+        if (input) {
+            input.value = today;
+        }
+        lastDayNotesSummaryDate = today;
+        renderDayNotesSummaryList(today);
+    });
+    document.getElementById('dayNotesSummaryDate')?.addEventListener('change', (e) => {
+        const dateStr = e.target.value;
+        if (dateStr) {
+            lastDayNotesSummaryDate = dateStr;
+            renderDayNotesSummaryList(dateStr);
+        }
+    });
+    document.getElementById('dayNotesSummaryCopyBtn')?.addEventListener('click', async () => {
+        const input = document.getElementById('dayNotesSummaryDate');
+        const dateStr = input?.value || lastDayNotesSummaryDate;
+        if (dateStr) {
+            await copyDayNotesForDate(dateStr);
+        }
+    });
+    document.getElementById('dayNotesSummaryDownloadBtn')?.addEventListener('click', () => {
+        const input = document.getElementById('dayNotesSummaryDate');
+        const dateStr = input?.value || lastDayNotesSummaryDate;
+        if (dateStr) {
+            downloadDayNotesForDate(dateStr);
+        }
+    });
 }
 
 function groupKrPublicHolidayRows(rows) {
@@ -6621,31 +7158,6 @@ function computeScheduleCacheKey() {
     });
 }
 
-/** Cache bust when merges/skips/dates change (form overlay uses different adjustment than saved class). */
-function getScheduleCacheId(classData, options) {
-    options = options || {};
-    const base = options.sliceKey || classData.id || 'unknown';
-    const merges = Array.isArray(classData.compressionMerges)
-        ? classData.compressionMerges.join(',')
-        : '';
-    const skips = Array.isArray(classData.skippedLessons)
-        ? classData.skippedLessons.join(',')
-        : '';
-    const md = Array.isArray(classData.meetingDays) ? classData.meetingDays.join(',') : '';
-    const custom = classData.customSchedule && classData.customSchedule.enabled ? '1' : '0';
-    return [
-        base,
-        classData.compressionMode || '',
-        classData.totalLessons || '',
-        classData.startDate || '',
-        classData.endDate || '',
-        md,
-        custom,
-        merges,
-        skips
-    ].join('|');
-}
-
 function parseISODateLocal(dateStr) {
     if (window.CCPUtils && window.CCPUtils.parseISODateLocal) {
         return window.CCPUtils.parseISODateLocal(dateStr);
@@ -6814,7 +7326,7 @@ function ensureDebatePeriodsOnClass(classData) {
     return debateApi.ensureDebateBookPeriodsForClass(classData);
 }
 
-function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder, skippedLessons) {
+function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder) {
     const normalizedUser = normalizeCompressionMerges(userMerges, totalLessons);
     if (mode !== 'autoWhenNeeded') {
         return normalizedUser;
@@ -6825,8 +7337,7 @@ function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrd
             totalLessons,
             userMerges,
             mode,
-            startOrder || null,
-            skippedLessons || []
+            startOrder || null
         );
     }
     // Auto: start with no merges; only add merges when there are not enough class
@@ -6916,6 +7427,26 @@ function getCompressionModeFromForm() {
         return 'manualPerMonth';
     }
     return 'autoWhenNeeded';
+}
+
+/** Debate: form radios. Sequential/WR+SP: manual only (same fields as debate manual global). */
+function getCompressionModeForSaveAndSchedule({ isCustomSchedule, isDebateSchedule }) {
+    if (isCustomSchedule) {
+        return 'sequentialTerm';
+    }
+    if (isDebateSchedule) {
+        return getCompressionModeFromForm();
+    }
+    return 'manual';
+}
+
+function collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule }) {
+    return {
+        compressionMode: getCompressionModeForSaveAndSchedule({ isCustomSchedule, isDebateSchedule }),
+        compressionMerges: isCustomSchedule ? [] : getSelectedCompressionMerges(),
+        skippedLessons: isCustomSchedule ? [] : collectSkippedLessonsFromForm(),
+        compressionMergesByPeriod: isDebateSchedule ? collectCompressionMergesByPeriodFromForm() : {}
+    };
 }
 
 function collectDebateBookPeriodsFromForm() {
@@ -12109,6 +12640,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupAppModalA11y();
     document.body.dataset.activeTab = getActiveTab();
     initCalendarContextMenu();
+    initDayNotesUi();
     initTopBarToggle();
     initAppChromeStickyTop();
     applyLanguage();
@@ -13030,6 +13562,7 @@ function buildClassSnapshotFromForm() {
     const scheduleModel = getScheduleModelFromForm();
     const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
     const isCustomSchedule = elements.customScheduleEnabled.checked;
+    const compressionFields = collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule });
     const totalLessons = getTotalLessonsValue();
     const meetingDays = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
     const normalizedMeetings = isCustomSchedule ? [] : normalizeMeetingDaysArray(meetingDays);
@@ -13044,13 +13577,13 @@ function buildClassSnapshotFromForm() {
         totalLessons,
         meetingDays: normalizedMeetings,
         dayOfWeek: !isCustomSchedule && normalizedMeetings.length === 1 ? normalizedMeetings[0] : null,
-        compressionMode: isCustomSchedule
-            ? 'sequentialTerm'
-            : getCompressionModeFromForm(),
-        compressionMerges: isCustomSchedule ? [] : getSelectedCompressionMerges(),
-        skippedLessons: isCustomSchedule ? [] : collectSkippedLessonsFromForm(),
+        compressionMode: compressionFields.compressionMode,
+        compressionMerges: compressionFields.compressionMerges,
+        skippedLessons: compressionFields.skippedLessons,
         compressionMergesByMonth: existing?.compressionMergesByMonth,
-        compressionMergesByPeriod: isDebateSchedule ? collectCompressionMergesByPeriodFromForm() : (existing?.compressionMergesByPeriod || {}),
+        compressionMergesByPeriod: isDebateSchedule
+            ? compressionFields.compressionMergesByPeriod
+            : (existing?.compressionMergesByPeriod || {}),
         debateBookPeriods: isDebateSchedule ? collectDebateBookPeriodsFromForm() : (existing?.debateBookPeriods || []),
         customSchedule: isCustomSchedule ? {
             enabled: true,
@@ -13255,18 +13788,16 @@ function refreshSyllabusFromCalendar() {
     if (!snapshot.customSchedule?.enabled && !maybeConfirmScheduleAdjustments(snapshot)) {
         return;
     }
-    if (Array.isArray(snapshot.compressionMerges) || Array.isArray(snapshot.skippedLessons)) {
-        const adj = pickFinalScheduleAdjustments(
-            snapshot,
-            snapshot.compressionMerges,
-            snapshot.skippedLessons
+    if (snapshot.compressionMerges || snapshot.skippedLessons) {
+        applyScheduleAdjustmentsToForm(
+            snapshot.compressionMerges || [],
+            snapshot.skippedLessons || []
         );
-        applyScheduleAdjustmentsToForm(adj.compressionMerges, adj.skippedLessons);
         if (classId) {
             const idx = appData.classes.findIndex(c => c.id === classId);
             if (idx >= 0) {
-                appData.classes[idx].compressionMerges = adj.compressionMerges;
-                appData.classes[idx].skippedLessons = adj.skippedLessons;
+                appData.classes[idx].compressionMerges = snapshot.compressionMerges || [];
+                appData.classes[idx].skippedLessons = snapshot.skippedLessons || [];
             }
         }
     }
@@ -13792,21 +14323,6 @@ function populateClassForm(classData = null, options = {}) {
         syncDeleteCustomClassTypeButtonVisibility();
 
         if (classUsesDebateCompression(classData)) {
-            ensureDebatePeriodsOnClass(classData);
-            const compressionMode = classData.compressionMode || 'autoWhenNeeded';
-            const modeAuto = document.getElementById('compressionModeAuto');
-            const modeManual = document.getElementById('compressionModeManual');
-            const modePerPeriod = document.getElementById('compressionModeManualPerMonth');
-            if (compressionMode === 'manual' && modeManual) {
-                modeManual.checked = true;
-            } else if (compressionMode === 'manualPerMonth' && modePerPeriod) {
-                modePerPeriod.checked = true;
-            } else if (modeAuto) {
-                modeAuto.checked = true;
-            }
-        }
-
-        if (classUsesDebateCompression(classData)) {
             renderDebateBookPeriodRows(classData.debateBookPeriods || []);
         } else {
             renderBooksByMonthRows(classData.booksByMonth || {});
@@ -13825,12 +14341,23 @@ function populateClassForm(classData = null, options = {}) {
         updateMeetingDayChipLabels();
         const customDates = getCustomScheduleDaysFromClass(classData, totalLessons);
         const compressionMerges = getCompressionMergesFromClass(classData, totalLessons);
-        const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
         const modeAuto = document.getElementById('compressionModeAuto');
         const modeManual = document.getElementById('compressionModeManual');
-        if (modeAuto && modeManual) {
-            modeAuto.checked = mode !== 'manual';
-            modeManual.checked = mode === 'manual';
+        const modePerPeriod = document.getElementById('compressionModeManualPerMonth');
+        if (classUsesDebateCompression(classData)) {
+            const compressionMode = classData.compressionMode || 'autoWhenNeeded';
+            if (compressionMode === 'manual' && modeManual) {
+                modeManual.checked = true;
+            } else if (compressionMode === 'manualPerMonth' && modePerPeriod) {
+                modePerPeriod.checked = true;
+            } else if (modeAuto) {
+                modeAuto.checked = true;
+            }
+        } else if (modeManual) {
+            modeManual.checked = true;
+            if (modeAuto) {
+                modeAuto.checked = false;
+            }
         }
         renderCustomLessonDates(totalLessons, customDates);
         renderCompressionOptions(totalLessons, compressionMerges);
@@ -14269,17 +14796,14 @@ function handleClassSubmit(e) {
     const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
     const isCustomSchedule = elements.customScheduleEnabled.checked;
     const totalLessons = getTotalLessonsValue();
-    const compressionMerges = isCustomSchedule ? [] : getSelectedCompressionMerges();
-    const skippedLessons = isCustomSchedule ? [] : collectSkippedLessonsFromForm();
+    const compressionFields = collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule });
     const levelPreset = elements.classLevel.value;
     const levelCustom = (elements.classLevelCustom.value || '').trim();
     if (!levelPreset && !levelCustom) {
         alert(t('levelRequired'));
         return;
     }
-    const compressionMode = isCustomSchedule
-        ? 'sequentialTerm'
-        : getCompressionModeFromForm();
+    const compressionMode = compressionFields.compressionMode;
     const levelDisplay = getClassLevelDisplayFromParts(levelPreset, levelCustom);
     
     let termCalendarMonths = parseInt(elements.classTermMonths.value, 10);
@@ -14333,7 +14857,7 @@ function handleClassSubmit(e) {
     const existingClass = existingId ? appData.classes.find((c) => c.id === existingId) : null;
     const debateBookPeriods = isDebateSchedule ? collectDebateBookPeriodsFromForm() : [];
     const compressionMergesByPeriod = isDebateSchedule
-        ? collectCompressionMergesByPeriodFromForm()
+        ? compressionFields.compressionMergesByPeriod
         : (existingClass?.compressionMergesByPeriod || {});
 
     const draftForConfirm = {
@@ -14345,8 +14869,8 @@ function handleClassSubmit(e) {
         totalLessons,
         meetingDays: normalizedMeetings,
         compressionMode,
-        compressionMerges,
-        skippedLessons,
+        compressionMerges: compressionFields.compressionMerges,
+        skippedLessons: compressionFields.skippedLessons,
         classTypeId,
         scheduleModel,
         customSchedule: isCustomSchedule ? { enabled: true } : null
@@ -14354,9 +14878,8 @@ function handleClassSubmit(e) {
     if (!isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
         return;
     }
-    const picked = pickFinalScheduleAdjustments(draftForConfirm, compressionMerges, skippedLessons);
-    const compressionMergesFinal = picked.compressionMerges;
-    const skippedLessonsFinal = picked.skippedLessons;
+    const compressionMergesFinal = draftForConfirm.compressionMerges ?? compressionFields.compressionMerges;
+    const skippedLessonsFinal = draftForConfirm.skippedLessons ?? compressionFields.skippedLessons;
 
     const classData = {
         id: elements.classId.value || generateId(),
@@ -14444,7 +14967,7 @@ function handleClassSubmit(e) {
     refreshTimetablePanels();
     const savedTotal = sanitizeTotalLessons(classData.totalLessons || 4);
     renderScheduleAdjustmentRows(savedTotal, classData);
-    renderScheduleGapWarning(classData, { useFormOverlay: false });
+    renderScheduleGapWarning(classData);
     renderScheduleAdjustmentSummaryBlock(classData);
     syncSyllabusEditorChrome();
     if (isUpdate) {
@@ -14940,6 +15463,9 @@ function maybeConfirmScheduleAdjustments(classSnapshot) {
     if (!classSnapshot || (classSnapshot.customSchedule && classSnapshot.customSchedule.enabled)) {
         return true;
     }
+    if (!classUsesDebateCompression(classSnapshot)) {
+        return true;
+    }
     const mode = classSnapshot.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
     if (mode !== 'autoWhenNeeded') {
         return true;
@@ -15059,8 +15585,8 @@ function getCompressionMergesForPeriod(classData, period, totalLessons) {
 // ============================================
 function calculateLessonDates(classData, options) {
     options = options || {};
+    const cacheId = options.sliceKey || classData.id;
     const effective = options.effectiveClassData || classData;
-    const cacheId = getScheduleCacheId(effective, options);
     const key = computeScheduleCacheKey();
     if (key !== scheduleCacheKey) {
         scheduleCacheKey = key;
@@ -15160,24 +15686,9 @@ function calculateSequentialTermLessonDates(classData) {
         meetingDays,
         classData
     );
-    const userMerges = getCompressionMergesFromClass(classData, totalLessons);
-    const skips = getSkippedLessonsFromClass(classData, totalLessons);
-    const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
-    let mergesForSchedule = userMerges;
-    if (mode === 'autoWhenNeeded') {
-        mergesForSchedule = mergePlanToFit(
-            allEligible.length,
-            totalLessons,
-            userMerges,
-            mode,
-            getMergeStartOrderForClass(classData),
-            skips
-        );
-    }
-    const scheduleClass = { ...classData, compressionMerges: mergesForSchedule };
-    const { groups, merges: selectedMerges, skipped: skippedLessons } = buildScheduleGroupsForClass(
-        scheduleClass,
-        totalLessons
+    const { groups, merges: selectedMerges, skipped: skippedLessons } = resolveScheduleGroupsForClass(
+        classData,
+        allEligible.length
     );
     const monthKeys = enumerateMonthKeysBetween(classData.startDate, classData.endDate);
     const monthlyDetails = monthKeys.map(monthKey => ({
@@ -15313,22 +15824,11 @@ function calculateAutoLessonDates(classData) {
         );
 
         const A = eligible.length;
-        const mergesForPeriod = classData.compressionMode === 'manualPerMonth'
-            ? getCompressionMergesForPeriod(classData, period, totalLessons)
-            : userMerges;
         const effectiveMode = classData.compressionMode === 'manualPerMonth' ? 'manual' : mode;
-        const termSkips = getSkippedLessonsFromClass(classData, totalLessons);
-        const mergesForPlan = mergePlanToFit(
+        const { groups, merges: appliedMerges } = resolveScheduleGroupsForClass(
+            classData,
             A,
-            totalLessons,
-            mergesForPeriod,
-            effectiveMode,
-            getMergeStartOrderForClass(classData),
-            termSkips
-        );
-        const { groups, merges: appliedMerges } = buildScheduleGroupsForClass(
-            { ...classData, compressionMerges: mergesForPlan },
-            totalLessons
+            { period }
         );
         const autoAdjusted = effectiveMode === 'autoWhenNeeded' && appliedMerges.length > 0;
         const scheduleCount = Math.min(groups.length, A);
@@ -15861,6 +16361,10 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
                     lesson.monthKey || lessonDateStr.slice(0, 7)
                 );
             const displayName = calendarTitle || classData.name;
+            const noteDateStr = lessonDateStr || dateStr;
+            if (noteDateStr && classHasDayNoteOnDate(classData.id, noteDateStr)) {
+                eventBar.classList.add('event-bar--has-day-note');
+            }
             eventBar.innerHTML = `
                 <span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lesson.label)}</span>
                 <span class="event-book">${escapeHtml(bookLabel)}</span>
@@ -15878,6 +16382,19 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
             eventBar.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openClassEditor(classData, 'calendar-popout');
+            });
+
+            eventBar.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!noteDateStr) {
+                    return;
+                }
+                showLessonContextMenu(e.clientX, e.clientY, {
+                    classId: classData.id,
+                    dateStr: noteDateStr,
+                    displayName
+                });
             });
             
             // Hover for popup
@@ -19712,6 +20229,21 @@ function migrateData(data) {
         migrated = true;
     }
 
+    if (!Array.isArray(data.dayNotes)) {
+        data.dayNotes = [];
+        migrated = true;
+    } else {
+        const dayNotesApi = getDayNotesApi();
+        if (dayNotesApi && dayNotesApi.normalizeDayNotesList) {
+            const normalized = dayNotesApi.normalizeDayNotesList(data.dayNotes);
+            if (normalized.length !== data.dayNotes.length
+                || normalized.some((n, i) => JSON.stringify(n) !== JSON.stringify(data.dayNotes[i]))) {
+                data.dayNotes = normalized;
+                migrated = true;
+            }
+        }
+    }
+
     if (!data.schemaVersion || data.schemaVersion < SCHEMA_VERSION) {
         data.schemaVersion = SCHEMA_VERSION;
         migrated = true;
@@ -19797,11 +20329,8 @@ function migrateData(data) {
                 migrated = true;
             }
             if (classData.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {
-                if (classData.compressionMode === 'manualPerMonth') {
-                    classData.compressionMode = 'autoWhenNeeded';
-                    migrated = true;
-                } else if (classData.compressionMode === 'sequentialTerm') {
-                    classData.compressionMode = 'autoWhenNeeded';
+                if (classData.compressionMode !== 'manual') {
+                    classData.compressionMode = 'manual';
                     migrated = true;
                 }
             } else if (!classData.compressionMode) {

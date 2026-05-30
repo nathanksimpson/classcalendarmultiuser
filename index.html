@@ -191,7 +191,9 @@
                             </select>
                         </div>
                     </div>
-                    <div id="termSelectorFooter" class="term-selector__footer"></div>
+                    <div id="termSelectorFooter" class="term-selector__footer">
+                        <button type="button" id="dayNotesToolbarBtn" class="btn btn-outline btn-small" data-i18n="dayNotesToolbarBtn">Day notes</button>
+                    </div>
                 </section>
 
                 <section id="calendarVisibilityBar" class="calendar-visibility-bar calendar-toolbar-section" aria-labelledby="toolbarVisibilityHeading">
@@ -800,6 +802,49 @@
         </div>
     </div>
 
+    <!-- Class day note (calendar) -->
+    <div id="classDayNoteModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="classDayNoteModalTitle" aria-hidden="true">
+        <div class="modal-content day-note-modal-content">
+            <div class="modal-header">
+                <h2 id="classDayNoteModalTitle" data-i18n="dayNoteModalTitle">Class day note</h2>
+                <button type="button" class="modal-close" id="classDayNoteModalClose" aria-label="Close">&times;</button>
+            </div>
+            <p id="classDayNoteMeta" class="day-note-meta"></p>
+            <div id="classDayNoteExisting" class="day-note-existing-list" hidden></div>
+            <label for="classDayNoteText" data-i18n="dayNoteTextLabel">What happened in this class?</label>
+            <textarea id="classDayNoteText" class="day-note-textarea" rows="5" spellcheck="true"></textarea>
+            <p id="classDayNoteReadOnly" class="section-hint day-note-readonly-hint" hidden data-i18n="dayNoteReadOnlyHint"></p>
+            <div class="form-actions">
+                <button type="button" id="classDayNoteSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day notes summary (copy / download) -->
+    <div id="dayNotesSummaryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="dayNotesSummaryTitle" aria-hidden="true">
+        <div class="modal-content day-notes-summary-modal-content">
+            <div class="modal-header">
+                <h2 id="dayNotesSummaryTitle" data-i18n="dayNotesSummaryTitle">Day notes</h2>
+                <button type="button" class="modal-close" id="dayNotesSummaryModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="day-notes-summary-controls">
+                <label class="day-notes-summary-date-label" for="dayNotesSummaryDate">
+                    <span data-i18n="dayNotesSummaryDate">Date</span>
+                    <input type="date" id="dayNotesSummaryDate" class="day-notes-summary-date-input">
+                </label>
+                <button type="button" id="dayNotesSummaryTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
+            </div>
+            <p id="dayNotesSummaryEmpty" class="module-empty-hint" hidden data-i18n="dayNotesEmpty"></p>
+            <div id="dayNotesSummaryList" class="day-notes-summary-list" role="list"></div>
+            <pre id="dayNotesSummaryPreview" class="day-notes-summary-preview" hidden></pre>
+            <div class="form-actions day-notes-summary-actions">
+                <button type="button" id="dayNotesSummaryCopyBtn" class="btn btn-outline btn-small" data-i18n="dayNotesCopy">Copy all</button>
+                <button type="button" id="dayNotesSummaryDownloadBtn" class="btn btn-outline btn-small" data-i18n="dayNotesDownload">Download .txt</button>
+            </div>
+            <p id="dayNotesCopyStatus" class="day-notes-copy-status" role="status" hidden></p>
+        </div>
+    </div>
+
     <!-- Event quick edit (calendar pop-out) -->
     <div id="holidayModal" class="modal calendar-popout" role="dialog" aria-modal="true" aria-labelledby="holidayModalTitle" aria-hidden="true">
         <div class="modal-content calendar-popout-content">
@@ -849,7 +894,8 @@
     <script defer src="js/team-auth.js?v=20260602-footprint"></script>
     <script defer src="js/calendar-sync.js?v=20260602-footprint"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
-    <script defer src="app.js?v=20260603-merge-cache-fix"></script>
+    <script defer src="js/day-notes.js?v=20260603-day-notes"></script>
+    <script defer src="app.js?v=20260603-compression-unified"></script>
 </body>
 </html>
 

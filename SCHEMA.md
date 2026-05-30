@@ -19,8 +19,23 @@
 | `cohorts` | array | Student groups (same students); homeroom teacher (담임) per cohort — see below |
 | `timetableTimeSlots` | array | Clock times for weekly timetable rows — see below |
 | `periodSlotMap` | object | Maps class period `"1"`…`"7"` to `timetableTimeSlots[].id` |
+| `dayNotes` | array | Daily class log entries from the calendar (see below) |
 
 `holidays` may appear in old exports; on load they are merged into `events`. New saves omit `holidays` (derived in memory from `events`).
+
+### `dayNotes[]` (optional)
+
+Timestamped notes about what happened in class on a given calendar day. Entered from the calendar (right-click a lesson). Class name and subject are resolved at display/export time from `classes[]`, not stored on each entry.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `classId` | string | Links to `classes[].id` |
+| `date` | string | Calendar day `YYYY-MM-DD` |
+| `text` | string | Note body |
+| `createdAt` | string | ISO-8601 datetime when saved |
+
+**Not the same as** `classes[].notes` (static class memo in the class editor).
 
 ### `cohorts[]` (optional)
 

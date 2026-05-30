@@ -139,17 +139,12 @@
         return [...odd, ...even];
     }
 
-    function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder, skippedLessons) {
+    function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder) {
         const normalizedUser = normalizeCompressionMerges(userMerges, totalLessons);
-        const skipped = normalizeSkippedLessons(skippedLessons, totalLessons);
-        if (mode !== 'autoWhenNeeded') {
-            return normalizedUser;
-        }
-        let merges = normalizedUser.slice();
-        let { groups } = buildScheduleGroups(totalLessons, merges, skipped, null);
-        if (groups.length <= availableSlots) {
-            return merges;
-        }
+        if (mode !== 'autoWhenNeeded') return normalizedUser;
+        let merges = [];
+        let { groups } = buildScheduleGroups(totalLessons, merges, [], null);
+        if (groups.length <= availableSlots) return merges;
         let guard = 0;
         const orderFn = Array.isArray(startOrder)
             ? () => startOrder
@@ -165,11 +160,9 @@
             let bestCount = groups.length;
             let bestRank = 9999;
             for (const start of startOrderList) {
-                if (merges.includes(start)) {
-                    continue;
-                }
+                if (merges.includes(start)) continue;
                 const trial = normalizeCompressionMerges([...merges, start], totalLessons);
-                const cnt = buildScheduleGroups(totalLessons, trial, skipped, null).groups.length;
+                const cnt = buildScheduleGroups(totalLessons, trial, [], null).groups.length;
                 const rnk = startRank[start];
                 if (cnt < bestCount || (cnt === bestCount && rnk < bestRank)) {
                     bestCount = cnt;
@@ -177,11 +170,9 @@
                     bestRank = rnk;
                 }
             }
-            if (!bestTrial) {
-                break;
-            }
+            if (!bestTrial) break;
             merges = bestTrial;
-            ({ groups } = buildScheduleGroups(totalLessons, merges, skipped, null));
+            ({ groups } = buildScheduleGroups(totalLessons, merges, [], null));
         }
         return merges;
     }
@@ -198,8 +189,7 @@
             totalLessons,
             [],
             'autoWhenNeeded',
-            mergeOrder,
-            []
+            mergeOrder
         );
         let { groups } = buildScheduleGroups(totalLessons, merges, [], null);
         let skipped = [];
@@ -233,18 +223,6 @@
         return normalizeCompressionMerges(legacyMerges, total);
     }
 
-    /** Prefer draft arrays when present; never treat [] as “missing” (unlike ||). */
-    function pickFinalScheduleAdjustments(draft, formMerges, formSkips) {
-        return {
-            compressionMerges: Array.isArray(draft?.compressionMerges)
-                ? draft.compressionMerges
-                : (Array.isArray(formMerges) ? formMerges : []),
-            skippedLessons: Array.isArray(draft?.skippedLessons)
-                ? draft.skippedLessons
-                : (Array.isArray(formSkips) ? formSkips : [])
-        };
-    }
-
     global.CCPSchedule = {
         SCHEDULE_CONFIG,
         sanitizeTotalLessons,
@@ -252,7 +230,6 @@
         normalizeSkippedLessons,
         skippedLessonsToRanges,
         resolveCompressionMergesFromSources,
-        pickFinalScheduleAdjustments,
         buildLessonGroups,
         buildScheduleGroups,
         getAutoMergeStartPreferenceOrder,

@@ -217,7 +217,8 @@
                     <div id="scheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
 
                     <div class="compression-options" id="compressionGlobalSection">
-                        <p class="section-hint" data-i18n="scheduleAdjustmentHint">Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan).</p>
+                        <p id="scheduleAdjustmentDebateHint" class="section-hint schedule-adjustment-hint" data-i18n="scheduleAdjustmentHint">Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan). Debate classes can also use auto-compress per book period above.</p>
+                        <p id="scheduleAdjustmentSequentialHint" class="section-hint schedule-adjustment-hint" hidden data-i18n="scheduleAdjustmentNonDebateHint">Skip or combine lessons below to fit this term's class days. Auto-compress is only for debate classes.</p>
                         <div class="schedule-skip-range-row">
                             <span class="schedule-skip-range-label" data-i18n="scheduleSkipRangeLabel">Skip lesson range</span>
                             <input type="number" id="scheduleSkipRangeFrom" class="schedule-skip-range-input" min="1" step="1" aria-label="From lesson">

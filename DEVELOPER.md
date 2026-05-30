@@ -45,6 +45,9 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Access control | `server/calendar-access.js`, `worker/src/calendar-access.js`, `server/access-requests.js`, `worker/src/access-requests.js` |
 | App settings | `server/app-settings.js`, `worker/src/app-settings.js` |
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
+| Daily class log (calendar) | `js/day-notes.js`, `appData.dayNotes[]`, calendar context menus in `app.js` |
+
+**Day notes vs class Notes:** `classes[].notes` in the class editor is a static class memo. `dayNotes[]` is timestamped per-class, per-calendar-day entries (right-click a lesson bar on the calendar; copy/export via day right-click or **Day notes** in term settings).
 
 ## Editing surfaces (popout vs tab vs workspace)
 
