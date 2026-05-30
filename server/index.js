@@ -14,6 +14,7 @@ const ActivityLog = require('./activity-log');
 const Presence = require('./presence');
 const Suggestions = require('./suggestions');
 const AccessRequests = require('./access-requests');
+const AdminUserPolicy = require('./admin-user-policy');
 const { getDb } = require('./schema');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -429,14 +430,29 @@ function enrichAdminUserRow(u) {
     const hasCalendarAccess =
         Boolean(u.active) &&
         (summary.calendarAccessMode === 'all' || summary.calendarAccessMode === 'some');
+    const stored = Auth.parseStoredPermissions(u);
     return Object.assign({}, u, {
         hasCalendarAccess,
         calendarAccessMode: summary.calendarAccessMode,
         calendarSummary: summary.calendarSummary,
         permissions: Auth.getEffectivePermissions(u),
+        customPermissions: stored,
         role: Auth.normalizeRole(u.role)
     });
 }
+
+app.get(
+    '/api/admin/permission-meta',
+    requireUser,
+    requirePermission(Auth.PERMS.MANAGE_USERS),
+    (req, res) => {
+        if (!Auth.isSuperAdminRole(req.user)) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+        res.json(Auth.getPermissionMetaForAdmin());
+    }
+);
 
 app.get('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (_req, res) => {
     res.json(users.listUsers().map(enrichAdminUserRow));
@@ -461,27 +477,41 @@ app.get(
 );
 
 app.post('/api/admin/users', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
-    const { email, displayName, role, password, kakaoUserId } = req.body || {};
-    const em = users.normalizeEmail(email);
-    if (!em && !kakaoUserId) {
-        res.status(400).json({ error: 'email or kakaoUserId is required' });
-        return;
-    }
-    const user = users.createUser({
-        email: em,
-        displayName: displayName || em || 'Teacher',
-        role: Auth.normalizeAssignableRole(role || 'teacher'),
-        kakaoUserId: kakaoUserId || null,
-        passwordHash: password ? users.hashPassword(password) : null
-    });
-    if (user && req.user && user.id !== req.user.id) {
-        AccessRequests.notifyUserNeedsAccess(user, {
-            source: 'admin_preadd',
-            actorUserId: req.user.id,
-            actorName: req.user.displayName || req.user.email || 'Admin'
+    try {
+        const { email, displayName, role, password, kakaoUserId } = req.body || {};
+        const em = users.normalizeEmail(email);
+        if (!em && !kakaoUserId) {
+            res.status(400).json({ error: 'email or kakaoUserId is required' });
+            return;
+        }
+        const nextRole = AdminUserPolicy.assertRoleAssignmentAllowed(
+            req.user,
+            role || 'teacher'
+        );
+        const permissionsField = AdminUserPolicy.permissionsFieldForCreate(
+            req.user,
+            req.body || {},
+            nextRole
+        );
+        const user = users.createUser({
+            email: em,
+            displayName: displayName || em || 'Teacher',
+            role: nextRole,
+            kakaoUserId: kakaoUserId || null,
+            passwordHash: password ? users.hashPassword(password) : null,
+            permissions: permissionsField
         });
+        if (user && req.user && user.id !== req.user.id) {
+            AccessRequests.notifyUserNeedsAccess(user, {
+                source: 'admin_preadd',
+                actorUserId: req.user.id,
+                actorName: req.user.displayName || req.user.email || 'Admin'
+            });
+        }
+        res.status(201).json(enrichAdminUserRow(user));
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Create failed' });
     }
-    res.status(201).json(enrichAdminUserRow(user));
 });
 
 app.post(
@@ -518,6 +548,7 @@ app.delete('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MAN
 });
 
 app.patch('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
+    try {
     const targetId = req.params.id;
     const targetRow = getDb().prepare('SELECT * FROM users WHERE id = ?').get(targetId);
     if (!targetRow) {
@@ -525,7 +556,9 @@ app.patch('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANA
         return;
     }
     const nextRole =
-        req.body.role !== undefined ? Auth.normalizeAssignableRole(req.body.role) : targetRow.role;
+        req.body.role !== undefined
+            ? AdminUserPolicy.assertRoleAssignmentAllowed(req.user, req.body.role)
+            : targetRow.role;
     const nextActive = req.body.active !== undefined ? (req.body.active ? 1 : 0) : targetRow.active;
     if (targetId === req.user.id && nextActive === 0) {
         res.status(403).json({ error: 'You cannot deactivate your own account' });
@@ -543,14 +576,23 @@ app.patch('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANA
         res.status(403).json({ error: 'Cannot demote the last super admin' });
         return;
     }
-    const updated = users.updateUser(targetId, {
+    const permissionsField = AdminUserPolicy.permissionsFieldForUpdate(
+        req.user,
+        targetRow,
+        req.body || {},
+        nextRole
+    );
+    const updatePayload = {
         email: req.body.email,
         displayName: req.body.displayName,
         role: req.body.role != null ? nextRole : undefined,
         active: req.body.active,
-        kakaoUserId: req.body.kakaoUserId,
-        permissions: req.body.permissions
-    });
+        kakaoUserId: req.body.kakaoUserId
+    };
+    if (permissionsField !== undefined) {
+        updatePayload.permissions = permissionsField;
+    }
+    const updated = users.updateUser(targetId, updatePayload);
     if (!updated) {
         res.status(404).json({ error: 'User not found' });
         return;
@@ -580,7 +622,10 @@ app.patch('/api/admin/users/:id', requireUser, requirePermission(Auth.PERMS.MANA
     } else if (passwordSecurityChange) {
         users.deleteAllSessionsForUser(targetId);
     }
-    res.json(users.getUserById(targetId));
+    res.json(enrichAdminUserRow(users.getUserById(targetId)));
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message || 'Update failed' });
+    }
 });
 
 app.get('/api/admin/settings', requireUser, requirePermission(Auth.PERMS.MANAGE_SETTINGS), (_req, res) => {

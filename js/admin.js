@@ -753,6 +753,291 @@ let cachedGroups = [];
 let cachedAdminCalendars = [];
 let currentAdminId = null;
 let currentAdminDisplayName = '';
+let permissionMeta = null;
+let editUserInitialRole = 'teacher';
+let editUserPermissionsTouched = false;
+let addUserPermissionsTouched = false;
+
+function isCurrentUserSuperAdmin() {
+    const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+    if (!me) {
+        return false;
+    }
+    return normalizeRoleKey(me.role) === 'super_admin';
+}
+
+function normalizeRoleKey(role) {
+    return role === 'admin' ? 'super_admin' : role || 'teacher';
+}
+
+async function ensurePermissionMeta() {
+    if (!isCurrentUserSuperAdmin()) {
+        return null;
+    }
+    if (permissionMeta) {
+        return permissionMeta;
+    }
+    try {
+        permissionMeta = await api('/admin/permission-meta');
+    } catch (_) {
+        permissionMeta = null;
+    }
+    return permissionMeta;
+}
+
+function applySuperAdminRoleOptionVisibility(selectEl) {
+    if (!selectEl) {
+        return;
+    }
+    const opt = selectEl.querySelector('option[value="super_admin"]');
+    if (opt) {
+        const show = isCurrentUserSuperAdmin();
+        opt.hidden = !show;
+        opt.disabled = !show;
+    }
+}
+
+function getRolePresetFromMeta(meta, role) {
+    if (!meta || !meta.rolePresets) {
+        return [];
+    }
+    const key = normalizeRoleKey(role);
+    return (meta.rolePresets[key] || meta.rolePresets.teacher || []).slice();
+}
+
+function buildPermissionCheckboxes(container, meta, selectedIds) {
+    if (!container || !meta || !meta.permissions) {
+        return;
+    }
+    container.innerHTML = '';
+    const selected = new Set(selectedIds || []);
+    meta.permissions.forEach((def) => {
+        const label = document.createElement('label');
+        label.className = 'admin-perm-check';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = def.id;
+        cb.checked = selected.has(def.id);
+        label.appendChild(cb);
+        const span = document.createElement('span');
+        span.textContent = t(def.labelKey);
+        label.appendChild(span);
+        container.appendChild(label);
+    });
+}
+
+function readPermissionCheckboxes(container) {
+    if (!container) {
+        return [];
+    }
+    const ids = [];
+    container.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
+        ids.push(cb.value);
+    });
+    return ids.sort();
+}
+
+function setPermissionCheckboxes(container, ids) {
+    if (!container) {
+        return;
+    }
+    const set = new Set(ids || []);
+    container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = set.has(cb.value);
+    });
+}
+
+function clientRequiresElevationConfirm(role, previousRole, selectedPerms, meta) {
+    const next = normalizeRoleKey(role);
+    const prev = normalizeRoleKey(previousRole);
+    if (next === 'super_admin' && prev !== 'super_admin') {
+        return true;
+    }
+    if (next === 'super_admin') {
+        return false;
+    }
+    if (!meta || !meta.superAdminPermissionIds) {
+        return false;
+    }
+    const sa = meta.superAdminPermissionIds.slice().sort();
+    const sel = (selectedPerms || []).slice().sort();
+    if (sel.length !== sa.length) {
+        return false;
+    }
+    for (let i = 0; i < sa.length; i++) {
+        if (sel[i] !== sa[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function updateEditUserElevationUi() {
+    const box = document.getElementById('editUserElevationBox');
+    const roleEl = document.getElementById('editUserRole');
+    const list = document.getElementById('editUserPermissionsList');
+    const section = document.getElementById('editUserPermissionsSection');
+    if (!box || !roleEl || !section || section.hidden) {
+        if (box) {
+            box.hidden = true;
+        }
+        return;
+    }
+    box.hidden = !clientRequiresElevationConfirm(
+        roleEl.value,
+        editUserInitialRole,
+        readPermissionCheckboxes(list),
+        permissionMeta
+    );
+}
+
+function updateAddUserElevationUi() {
+    const box = document.getElementById('addUserElevationBox');
+    const roleEl = document.getElementById('newRole');
+    const list = document.getElementById('addUserPermissionsList');
+    const section = document.getElementById('addUserPermissionsSection');
+    if (!box || !roleEl || !section || section.hidden) {
+        if (box) {
+            box.hidden = true;
+        }
+        return;
+    }
+    box.hidden = !clientRequiresElevationConfirm(
+        roleEl.value,
+        'teacher',
+        readPermissionCheckboxes(list),
+        permissionMeta
+    );
+}
+
+function appendPermissionsToBody(body, role, listEl, sectionEl, confirmEl, previousRole) {
+    if (!isCurrentUserSuperAdmin() || !sectionEl || sectionEl.hidden || !listEl) {
+        return;
+    }
+    const perms = readPermissionCheckboxes(listEl);
+    body.permissions = perms;
+    if (clientRequiresElevationConfirm(role, previousRole, perms, permissionMeta)) {
+        const pwd = confirmEl && confirmEl.value ? confirmEl.value : '';
+        if (!pwd) {
+            throw new Error(t('elevationPasswordRequired'));
+        }
+        body.confirmPassword = pwd;
+    }
+}
+
+async function prepareEditUserPermissions(user) {
+    const section = document.getElementById('editUserPermissionsSection');
+    const list = document.getElementById('editUserPermissionsList');
+    const elevation = document.getElementById('editUserElevationBox');
+    const confirmInput = document.getElementById('editUserConfirmPassword');
+    editUserInitialRole = normalizeRoleKey(user.role);
+    editUserPermissionsTouched = false;
+    if (confirmInput) {
+        confirmInput.value = '';
+    }
+    applySuperAdminRoleOptionVisibility(document.getElementById('editUserRole'));
+    if (!isCurrentUserSuperAdmin() || editUserInitialRole === 'super_admin') {
+        if (section) {
+            section.hidden = true;
+        }
+        if (elevation) {
+            elevation.hidden = true;
+        }
+        return;
+    }
+    const meta = await ensurePermissionMeta();
+    if (!meta || !section || !list) {
+        if (section) {
+            section.hidden = true;
+        }
+        return;
+    }
+    section.hidden = false;
+    const initialPerms =
+        user.customPermissions && user.customPermissions.length
+            ? user.customPermissions
+            : getRolePresetFromMeta(meta, editUserInitialRole);
+    buildPermissionCheckboxes(list, meta, initialPerms);
+    updateEditUserElevationUi();
+}
+
+async function prepareAddUserPermissions() {
+    const section = document.getElementById('addUserPermissionsSection');
+    const list = document.getElementById('addUserPermissionsList');
+    const elevation = document.getElementById('addUserElevationBox');
+    const confirmInput = document.getElementById('addUserConfirmPassword');
+    addUserPermissionsTouched = false;
+    applySuperAdminRoleOptionVisibility(document.getElementById('newRole'));
+    if (confirmInput) {
+        confirmInput.value = '';
+    }
+    if (!isCurrentUserSuperAdmin()) {
+        if (section) {
+            section.hidden = true;
+        }
+        if (elevation) {
+            elevation.hidden = true;
+        }
+        return;
+    }
+    const meta = await ensurePermissionMeta();
+    if (!meta || !section || !list) {
+        if (section) {
+            section.hidden = true;
+        }
+        return;
+    }
+    section.hidden = false;
+    const roleEl = document.getElementById('newRole');
+    const role = roleEl ? roleEl.value : 'teacher';
+    buildPermissionCheckboxes(list, meta, getRolePresetFromMeta(meta, role));
+    updateAddUserElevationUi();
+}
+
+function setupPermissionsUiHandlers() {
+    const editRole = document.getElementById('editUserRole');
+    const editList = document.getElementById('editUserPermissionsList');
+    if (editRole && editRole.dataset.permBound !== '1') {
+        editRole.dataset.permBound = '1';
+        editRole.addEventListener('change', () => {
+            if (!editUserPermissionsTouched && permissionMeta) {
+                setPermissionCheckboxes(
+                    editList,
+                    getRolePresetFromMeta(permissionMeta, editRole.value)
+                );
+            }
+            updateEditUserElevationUi();
+        });
+    }
+    if (editList && editList.dataset.permBound !== '1') {
+        editList.dataset.permBound = '1';
+        editList.addEventListener('change', () => {
+            editUserPermissionsTouched = true;
+            updateEditUserElevationUi();
+        });
+    }
+    const newRole = document.getElementById('newRole');
+    const addList = document.getElementById('addUserPermissionsList');
+    if (newRole && newRole.dataset.permBound !== '1') {
+        newRole.dataset.permBound = '1';
+        newRole.addEventListener('change', () => {
+            if (!addUserPermissionsTouched && permissionMeta) {
+                setPermissionCheckboxes(
+                    addList,
+                    getRolePresetFromMeta(permissionMeta, newRole.value)
+                );
+            }
+            updateAddUserElevationUi();
+        });
+    }
+    if (addList && addList.dataset.permBound !== '1') {
+        addList.dataset.permBound = '1';
+        addList.addEventListener('change', () => {
+            addUserPermissionsTouched = true;
+            updateAddUserElevationUi();
+        });
+    }
+}
 
 function adminHasPerm(perm) {
     if (typeof TeamAuth !== 'undefined' && TeamAuth.hasPermission) {
@@ -878,6 +1163,7 @@ function openEditUserModal(user, triggerEl) {
     document.getElementById('editUserDisplayName').value = user.displayName || '';
     document.getElementById('editUserEmail').value = user.email || '';
     document.getElementById('editUserKakaoId').value = user.kakaoUserId || '';
+    prepareEditUserPermissions(user).catch(() => {});
     openAdminModal(modal, editUserTriggerEl);
     document.getElementById('editUserDisplayName')?.focus();
 }
@@ -919,15 +1205,25 @@ function setupEditUserModal() {
                 submitBtn.disabled = true;
                 submitBtn.textContent = t('saving');
             }
+            const role = document.getElementById('editUserRole')?.value || 'teacher';
+            const patchBody = {
+                displayName,
+                email: document.getElementById('editUserEmail')?.value.trim() || null,
+                kakaoUserId: document.getElementById('editUserKakaoId')?.value.trim() || null,
+                role
+            };
+            appendPermissionsToBody(
+                patchBody,
+                role,
+                document.getElementById('editUserPermissionsList'),
+                document.getElementById('editUserPermissionsSection'),
+                document.getElementById('editUserConfirmPassword'),
+                editUserInitialRole
+            );
             await api('/admin/users/' + encodeURIComponent(id), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    displayName,
-                    email: document.getElementById('editUserEmail')?.value.trim() || null,
-                    kakaoUserId: document.getElementById('editUserKakaoId')?.value.trim() || null,
-                    role: document.getElementById('editUserRole')?.value || 'teacher'
-                })
+                body: JSON.stringify(patchBody)
             });
             editUserTargetId = null;
             close();
@@ -1152,6 +1448,11 @@ function renderUsersTable() {
     filtered.forEach((u) => {
         const tr = document.createElement('tr');
         const roleLabel = roleDisplayLabel(u.role);
+        let roleHtml = escapeHtml(roleLabel);
+        if (u.customPermissions && u.customPermissions.length) {
+            roleHtml +=
+                ' <span class="badge-custom-perms">' + escapeHtml(t('customPermissionsBadge')) + '</span>';
+        }
         tr.innerHTML =
             '<td>' +
             escapeHtml(u.displayName) +
@@ -1160,7 +1461,7 @@ function renderUsersTable() {
             '</td><td>' +
             escapeHtml(u.kakaoUserId || '—') +
             '</td><td>' +
-            escapeHtml(roleLabel) +
+            roleHtml +
             '</td><td>' +
             formatCalendarSummaryCell(u) +
             '</td><td>' +
@@ -1622,6 +1923,17 @@ async function init() {
         setupAdminNav(true);
         showAdminSections(true);
         applyAdminTabVisibility();
+        if (isCurrentUserSuperAdmin()) {
+            ensurePermissionMeta()
+                .then(() => {
+                    setupPermissionsUiHandlers();
+                    return prepareAddUserPermissions();
+                })
+                .catch(() => {});
+        } else {
+            applySuperAdminRoleOptionVisibility(document.getElementById('newRole'));
+            applySuperAdminRoleOptionVisibility(document.getElementById('editUserRole'));
+        }
         startAdminAccessPoll();
         setSessionStatus(t('signedInAs', { name: currentAdminDisplayName }));
         document.getElementById('bootstrapBox').style.display = 'none';
@@ -1678,16 +1990,26 @@ async function init() {
             return;
         }
         try {
+            const role = document.getElementById('newRole').value;
+            const createBody = {
+                displayName: document.getElementById('newDisplayName').value.trim(),
+                email: email || undefined,
+                kakaoUserId: kakaoUserId || undefined,
+                role,
+                password: document.getElementById('newPassword').value || undefined
+            };
+            appendPermissionsToBody(
+                createBody,
+                role,
+                document.getElementById('addUserPermissionsList'),
+                document.getElementById('addUserPermissionsSection'),
+                document.getElementById('addUserConfirmPassword'),
+                'teacher'
+            );
             await api('/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    displayName: document.getElementById('newDisplayName').value.trim(),
-                    email: email || undefined,
-                    kakaoUserId: kakaoUserId || undefined,
-                    role: document.getElementById('newRole').value,
-                    password: document.getElementById('newPassword').value || undefined
-                })
+                body: JSON.stringify(createBody)
             });
             document.getElementById('newDisplayName').value = '';
             document.getElementById('newEmail').value = '';

@@ -292,6 +292,17 @@ function activeUserHasNoPassword(email) {
     return Boolean(row && !row.password_hash);
 }
 
+function verifyUserPassword(userId, password) {
+    if (!userId || password == null || password === '') {
+        return false;
+    }
+    const row = getDb().prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+    if (!row || !row.password_hash) {
+        return false;
+    }
+    return verifyPassword(String(password), row.password_hash);
+}
+
 function findUserByEmailPassword(email, password) {
     const em = normalizeEmail(email);
     if (!em || !password) {
@@ -746,6 +757,7 @@ module.exports = {
     isSuperAdminRole,
     forceLogoutUser,
     hashPassword,
+    verifyUserPassword,
     findUserByEmailPassword,
     activeUserHasNoPassword,
     createSession,

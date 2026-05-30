@@ -7,7 +7,7 @@
     <title>Admin — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
-    <link rel="stylesheet" href="admin.css?v=20260602-admin-tabs">
+    <link rel="stylesheet" href="admin.css?v=20260602-perms">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -99,6 +99,17 @@
                         <option value="super_admin" data-i18n="roleSuperAdmin">Super admin</option>
                     </select>
                 </label>
+                <div id="addUserPermissionsSection" class="admin-permissions-section" hidden>
+                    <h3 class="admin-permissions-heading" data-i18n="customPermissionsHeading">Custom permissions</h3>
+                    <p class="section-hint" data-i18n="customPermissionsHint">Adjust checkboxes for this user. Changing role refills the preset unless you edit permissions first. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
+                    <div id="addUserPermissionsList" class="admin-permissions-list" role="group"></div>
+                </div>
+                <div id="addUserElevationBox" class="admin-elevation-box" hidden>
+                    <p class="admin-elevation-warning" data-i18n="elevationWarning">This grants full super-admin-level access. Enter your own password to confirm.</p>
+                    <label><span data-i18n="confirmYourPassword">Your password</span>
+                        <input type="password" id="addUserConfirmPassword" autocomplete="current-password">
+                    </label>
+                </div>
                 <label><span data-i18n="optionalTempPassword">Optional temp password</span><input type="password" id="newPassword" autocomplete="new-password"></label>
                 <button type="submit" class="btn btn-primary" data-i18n="addUser">Add user</button>
             </form>
@@ -230,6 +241,18 @@
                             <option value="super_admin" data-i18n="roleSuperAdmin">Super admin</option>
                         </select>
                     </div>
+                    <div id="editUserPermissionsSection" class="admin-permissions-section" hidden>
+                        <h3 class="admin-permissions-heading" data-i18n="customPermissionsHeading">Custom permissions</h3>
+                        <p class="section-hint" data-i18n="customPermissionsHint">Adjust checkboxes for this user. Changing role refills the preset unless you edit permissions first. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
+                        <div id="editUserPermissionsList" class="admin-permissions-list" role="group" aria-labelledby="editUserPermissionsHeading"></div>
+                    </div>
+                    <div id="editUserElevationBox" class="admin-elevation-box" hidden>
+                        <p class="admin-elevation-warning" data-i18n="elevationWarning">This grants full super-admin-level access. Enter your own password to confirm.</p>
+                        <div class="form-group">
+                            <label for="editUserConfirmPassword" data-i18n="confirmYourPassword">Your password</label>
+                            <input type="password" id="editUserConfirmPassword" autocomplete="current-password">
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="editUserEmail" data-i18n="email">Email</label>
                         <input type="email" id="editUserEmail" autocomplete="email">
@@ -280,8 +303,8 @@
             <button type="button" class="btn btn-primary" id="bootstrapBtn" data-i18n="bootstrapCreate">Create admin account</button>
         </section>
     </div>
-    <script charset="utf-8" src="js/admin-i18n.js?v=20260602-admin-tabs"></script>
+    <script charset="utf-8" src="js/admin-i18n.js?v=20260602-perms"></script>
     <script charset="utf-8" src="js/team-auth.js?v=20260525-auth"></script>
-    <script charset="utf-8" src="js/admin.js?v=20260602-admin-tabs"></script>
+    <script charset="utf-8" src="js/admin.js?v=20260602-perms"></script>
 </body>
 </html>

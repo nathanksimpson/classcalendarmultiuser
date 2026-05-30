@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-timetable-print">
+    <link rel="stylesheet" href="styles.css?v=20260530-toolbar-sections">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -161,52 +161,64 @@
                 </button>
 
             <div id="topBarDetails" class="app-top-bar-details calendar-options-details">
-                <div class="term-selector">
-                    <label for="calendarName" id="calendarNameLabel">Calendar Name:</label>
-                    <input type="text" id="calendarName" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
-                    <label for="termStart" data-i18n="termStartMonth">Term Start Month:</label>
-                    <input type="month" id="termStart" value="">
-                    <label for="termMonthCount" data-i18n="termMonthCount">Months to display:</label>
-                    <select id="termMonthCount" aria-label="Term month count">
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                    </select>
-                </div>
+                <section class="term-selector calendar-toolbar-section" aria-labelledby="toolbarTermHeading">
+                    <h2 id="toolbarTermHeading" class="calendar-toolbar-section__heading" data-i18n="toolbarTermSettings">Term settings</h2>
+                    <div class="term-selector__fields">
+                        <div class="toolbar-field">
+                            <label for="calendarName" id="calendarNameLabel" data-i18n="calendarName">Calendar Name:</label>
+                            <input type="text" id="calendarName" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
+                        </div>
+                        <div class="toolbar-field">
+                            <label for="termStart" data-i18n="termStartMonth">Term Start Month:</label>
+                            <input type="month" id="termStart" value="">
+                        </div>
+                        <div class="toolbar-field">
+                            <label for="termMonthCount" data-i18n="termMonthCount">Months to display:</label>
+                            <select id="termMonthCount" aria-label="Term month count">
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="termSelectorFooter" class="term-selector__footer"></div>
+                </section>
 
-                <div id="calendarVisibilityBar" class="calendar-visibility-bar">
-                    <span class="visibility-bar-label" data-i18n="calendarVisibility">Show on calendar:</span>
-                    <label class="checkbox-label visibility-chip">
-                        <input type="checkbox" id="visLessons" checked>
-                        <span data-i18n="showLessons">Lessons</span>
-                    </label>
-                    <label class="checkbox-label visibility-chip">
-                        <input type="checkbox" id="visHolidays" checked>
-                        <span data-i18n="showHolidays">Holidays</span>
-                    </label>
-                    <label class="checkbox-label visibility-chip">
-                        <input type="checkbox" id="visEvalDeadline" checked>
-                        <span data-i18n="showEvalDeadlines">Evaluation deadlines</span>
-                    </label>
-                    <label class="checkbox-label visibility-chip">
-                        <input type="checkbox" id="visHomeworkDeadline" checked>
-                        <span data-i18n="showHomeworkDeadlines">Homework deadlines</span>
-                    </label>
-                    <label class="checkbox-label visibility-chip">
-                        <input type="checkbox" id="visEvalPeriod" checked>
-                        <span data-i18n="showEvalPeriods">Evaluation periods</span>
-                    </label>
-                    <label class="checkbox-label visibility-chip">
-                        <input type="checkbox" id="visOther" checked>
-                        <span data-i18n="showOtherEvents">Other events</span>
-                    </label>
-                    <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="lessonFilterBtn">Filter lessons…</button>
-                    <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
-                        <input type="checkbox" id="showAllClassCurricula">
-                        <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
-                    </label>
-                </div>
+                <section id="calendarVisibilityBar" class="calendar-visibility-bar calendar-toolbar-section" aria-labelledby="toolbarVisibilityHeading">
+                    <h2 id="toolbarVisibilityHeading" class="calendar-toolbar-section__heading" data-i18n="calendarVisibility">Show on calendar:</h2>
+                    <div class="calendar-visibility-bar__controls">
+                        <label class="checkbox-label visibility-chip">
+                            <input type="checkbox" id="visLessons" checked>
+                            <span data-i18n="showLessons">Lessons</span>
+                        </label>
+                        <label class="checkbox-label visibility-chip">
+                            <input type="checkbox" id="visHolidays" checked>
+                            <span data-i18n="showHolidays">Holidays</span>
+                        </label>
+                        <label class="checkbox-label visibility-chip">
+                            <input type="checkbox" id="visEvalDeadline" checked>
+                            <span data-i18n="showEvalDeadlines">Evaluation deadlines</span>
+                        </label>
+                        <label class="checkbox-label visibility-chip">
+                            <input type="checkbox" id="visHomeworkDeadline" checked>
+                            <span data-i18n="showHomeworkDeadlines">Homework deadlines</span>
+                        </label>
+                        <label class="checkbox-label visibility-chip">
+                            <input type="checkbox" id="visEvalPeriod" checked>
+                            <span data-i18n="showEvalPeriods">Evaluation periods</span>
+                        </label>
+                        <label class="checkbox-label visibility-chip">
+                            <input type="checkbox" id="visOther" checked>
+                            <span data-i18n="showOtherEvents">Other events</span>
+                        </label>
+                        <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="lessonFilterBtn">Filter lessons…</button>
+                        <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
+                            <input type="checkbox" id="showAllClassCurricula">
+                            <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
+                        </label>
+                    </div>
+                </section>
                 <div id="lessonFilterPopover" class="lesson-filter-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
                     <div class="lesson-filter-popover-panel">
                         <div class="lesson-filter-header">
@@ -1298,7 +1310,7 @@
     <script defer src="js/teacher-timetable.js?v=20260530-timetable-per-teacher"></script>
     <script defer src="js/class-curriculum-slices.js?v=20260530-timetable-exec"></script>
     <script defer src="js/timetable-export.js?v=20260530-timetable-exec"></script>
-    <script defer src="app.js?v=20260602-permissions"></script>
+    <script defer src="app.js?v=20260530-toolbar-sections"></script>
 </body>
 </html>
 

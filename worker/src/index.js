@@ -7,6 +7,7 @@ import * as ActivityLog from './activity-log.js';
 import * as Presence from './presence.js';
 import * as Suggestions from './suggestions.js';
 import * as AccessRequests from './access-requests.js';
+import * as AdminUserPolicy from './admin-user-policy.js';
 import * as AppSettings from './app-settings.js';
 import {
     KAKAO_OAUTH_COOKIE,
@@ -449,11 +450,13 @@ async function enrichAdminUserRow(env, u) {
     const hasCalendarAccess =
         Boolean(u.active) &&
         (summary.calendarAccessMode === 'all' || summary.calendarAccessMode === 'some');
+    const stored = Auth.parseStoredPermissions(u);
     return Object.assign({}, u, {
         hasCalendarAccess,
         calendarAccessMode: summary.calendarAccessMode,
         calendarSummary: summary.calendarSummary,
         permissions: Auth.getEffectivePermissions(u),
+        customPermissions: stored,
         role: Auth.normalizeRole(u.role)
     });
 }
@@ -568,6 +571,24 @@ async function countSuperAdmins(env) {
 
 async function countAdmins(env) {
     return countSuperAdmins(env);
+}
+
+async function verifyUserPassword(env, userId, password) {
+    if (!userId || password == null || password === '') {
+        return false;
+    }
+    const row = await dbOne(env, 'SELECT password_hash FROM users WHERE id = ?', userId);
+    if (!row || !row.password_hash) {
+        return false;
+    }
+    return verifyPassword(String(password), row.password_hash);
+}
+
+function makeAdminPolicyDeps(env) {
+    return {
+        getActorRow: (id) => dbOne(env, 'SELECT password_hash FROM users WHERE id = ?', id),
+        verifyUserPassword: (id, pwd) => verifyUserPassword(env, id, pwd)
+    };
 }
 
 async function findUserByEmailPassword(env, email, password) {
@@ -1847,6 +1868,17 @@ export default {
             return json(await AccessRequests.listAccessRequests(env));
         }
 
+        if (
+            path === '/api/admin/permission-meta' &&
+            request.method === 'GET' &&
+            Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)
+        ) {
+            if (!Auth.isSuperAdminRole(user)) {
+                return json({ error: 'Forbidden' }, 403);
+            }
+            return json(Auth.getPermissionMetaForAdmin());
+        }
+
         if (path === '/api/admin/users' && request.method === 'GET' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const rows = await dbAll(
                 env,
@@ -1860,26 +1892,42 @@ export default {
         }
 
         if (path === '/api/admin/users' && request.method === 'POST' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
-            const body = await readJson(request);
-            const em = normalizeEmail(body.email);
-            if (!em && !body.kakaoUserId) {
-                return json({ error: 'email or kakaoUserId is required' }, 400);
-            }
-            const created = await createUser(env, {
-                email: em,
-                displayName: body.displayName || em || 'Teacher',
-                role: Auth.normalizeAssignableRole(body.role || 'teacher'),
-                kakaoUserId: body.kakaoUserId || null,
-                passwordHash: body.password ? await hashPassword(body.password) : null
-            });
-            if (created && created.id !== user.id) {
-                await AccessRequests.notifyUserNeedsAccess(env, created, {
-                    source: 'admin_preadd',
-                    actorUserId: user.id,
-                    actorName: user.displayName || user.email || 'Admin'
+            try {
+                const body = await readJson(request);
+                const em = normalizeEmail(body.email);
+                if (!em && !body.kakaoUserId) {
+                    return json({ error: 'email or kakaoUserId is required' }, 400);
+                }
+                const policyDeps = makeAdminPolicyDeps(env);
+                const nextRole = AdminUserPolicy.assertRoleAssignmentAllowed(
+                    user,
+                    body.role || 'teacher'
+                );
+                const permissionsField = await AdminUserPolicy.permissionsFieldForCreate(
+                    user,
+                    body,
+                    nextRole,
+                    policyDeps
+                );
+                const created = await createUser(env, {
+                    email: em,
+                    displayName: body.displayName || em || 'Teacher',
+                    role: nextRole,
+                    kakaoUserId: body.kakaoUserId || null,
+                    passwordHash: body.password ? await hashPassword(body.password) : null,
+                    permissions: permissionsField
                 });
+                if (created && created.id !== user.id) {
+                    await AccessRequests.notifyUserNeedsAccess(env, created, {
+                        source: 'admin_preadd',
+                        actorUserId: user.id,
+                        actorName: user.displayName || user.email || 'Admin'
+                    });
+                }
+                return json(await enrichAdminUserRow(env, created), 201);
+            } catch (err) {
+                return json({ error: err.message || 'Create failed' }, err.status || 500);
             }
-            return json(await enrichAdminUserRow(env, created), 201);
         }
 
         const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
@@ -1894,6 +1942,7 @@ export default {
             }
         }
         if (adminUserMatch && request.method === 'PATCH' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
+            try {
             const patchBody = await readJson(request);
             const targetId = adminUserMatch[1];
             const targetRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
@@ -1902,7 +1951,7 @@ export default {
             }
             const nextRole =
                 patchBody.role !== undefined
-                    ? Auth.normalizeAssignableRole(patchBody.role)
+                    ? AdminUserPolicy.assertRoleAssignmentAllowed(user, patchBody.role)
                     : targetRow.role;
             const nextActive = patchBody.active !== undefined ? (patchBody.active ? 1 : 0) : targetRow.active;
             if (targetId === user.id && nextActive === 0) {
@@ -1918,14 +1967,25 @@ export default {
             if (demotingSuper && (await countSuperAdmins(env)) <= 1) {
                 return json({ error: 'Cannot demote the last super admin' }, 403);
             }
-            const updated = await updateUser(env, targetId, {
+            const policyDeps = makeAdminPolicyDeps(env);
+            const permissionsField = await AdminUserPolicy.permissionsFieldForUpdate(
+                user,
+                targetRow,
+                patchBody,
+                nextRole,
+                policyDeps
+            );
+            const updateFields = {
                 email: patchBody.email,
                 displayName: patchBody.displayName,
                 role: patchBody.role != null ? nextRole : undefined,
                 active: patchBody.active,
-                kakaoUserId: patchBody.kakaoUserId,
-                permissions: patchBody.permissions
-            });
+                kakaoUserId: patchBody.kakaoUserId
+            };
+            if (permissionsField !== undefined) {
+                updateFields.permissions = permissionsField;
+            }
+            const updated = await updateUser(env, targetId, updateFields);
             if (!updated) {
                 return json({ error: 'User not found' }, 404);
             }
@@ -1953,7 +2013,10 @@ export default {
                 await deleteAllSessionsForUser(env, targetId);
             }
             const freshRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
-            return json(rowToUser(freshRow));
+            return json(await enrichAdminUserRow(env, rowToUser(freshRow)));
+            } catch (err) {
+                return json({ error: err.message || 'Update failed' }, err.status || 500);
+            }
         }
 
         return json({ error: 'Not found' }, 404);

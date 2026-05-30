@@ -423,3 +423,49 @@
 #groupEditPanel:empty {
     display: none;
 }
+.admin-permissions-section {
+    margin: 1rem 0;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border-subtle);
+}
+.admin-permissions-heading {
+    font-size: 1rem;
+    margin: 0 0 0.35rem;
+}
+.admin-permissions-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.35rem 0.75rem;
+    margin-top: 0.5rem;
+}
+.admin-perm-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.admin-perm-check input {
+    margin-top: 0.2rem;
+}
+.admin-elevation-box {
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    border-radius: 6px;
+    background: var(--status-error-bg);
+    border: 1px solid var(--status-error-border);
+}
+.admin-elevation-warning {
+    margin: 0 0 0.5rem;
+    color: var(--status-error-color);
+    font-size: 0.9rem;
+}
+.badge-custom-perms {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.1em 0.45em;
+    border-radius: 4px;
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    vertical-align: middle;
+}

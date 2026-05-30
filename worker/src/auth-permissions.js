@@ -20,6 +20,22 @@ export const PERMS = {
 
 const ALL_PERMS = Object.values(PERMS);
 
+export const PERM_DEFINITIONS = [
+    { id: PERMS.MANAGE_USERS, labelKey: 'permManageUsers' },
+    { id: PERMS.MANAGE_GROUPS, labelKey: 'permManageGroups' },
+    { id: PERMS.MANAGE_CALENDAR_ACCESS, labelKey: 'permManageCalendarAccess' },
+    { id: PERMS.MANAGE_SETTINGS, labelKey: 'permManageSettings' },
+    { id: PERMS.CREATE_CALENDARS, labelKey: 'permCreateCalendars' },
+    { id: PERMS.DELETE_CALENDARS, labelKey: 'permDeleteCalendars' },
+    { id: PERMS.VIEW_ALL_CALENDARS, labelKey: 'permViewAllCalendars' },
+    { id: PERMS.FORCE_SAVE, labelKey: 'permForceSave' },
+    { id: PERMS.BYPASS_COLLABORATIVE_LOCK, labelKey: 'permBypassLock' },
+    { id: PERMS.VIEW_PRESENCE, labelKey: 'permViewPresence' },
+    { id: PERMS.VIEW_AUDIT, labelKey: 'permViewAudit' },
+    { id: PERMS.APPLY_SUGGESTIONS, labelKey: 'permApplySuggestions' },
+    { id: PERMS.ACCESS_ADMIN_PAGE, labelKey: 'permAccessAdminPage' }
+];
+
 const ROLE_PRESETS = {
     super_admin: ALL_PERMS,
     admin: ALL_PERMS,
@@ -57,7 +73,7 @@ export function normalizeRole(role) {
     return r;
 }
 
-function parseStoredPermissions(user) {
+export function parseStoredPermissions(user) {
     if (!user || user.permissions == null || user.permissions === '') {
         return null;
     }
@@ -127,4 +143,96 @@ export function normalizeAssignableRole(role) {
         return 'super_admin';
     }
     return 'teacher';
+}
+
+export function getRolePreset(role) {
+    const r = normalizeRole(role);
+    const preset = ROLE_PRESETS[r] || ROLE_PRESETS.teacher;
+    return [...preset].sort();
+}
+
+export function sanitizePermissions(input) {
+    if (!Array.isArray(input)) {
+        return [];
+    }
+    const allowed = new Set(ALL_PERMS);
+    const out = [];
+    for (const item of input) {
+        const id = String(item || '').trim();
+        if (id && allowed.has(id) && !out.includes(id)) {
+            out.push(id);
+        }
+    }
+    return out.sort();
+}
+
+export function permissionsMatchRole(role, perms) {
+    const a = sanitizePermissions(perms);
+    const b = getRolePreset(role);
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+export function permissionsEquivalentToSuperAdmin(perms) {
+    return permissionsMatchRole('super_admin', perms);
+}
+
+export function isPromotingToSuperAdmin(previousRole, nextRole) {
+    const prev = normalizeRole(previousRole);
+    const next = normalizeRole(nextRole);
+    return next === 'super_admin' && prev !== 'super_admin';
+}
+
+export function requiresSuperAdminConfirmation(opts) {
+    const options = opts || {};
+    const nextRole = normalizeRole(options.nextRole);
+    const previousRole = normalizeRole(options.previousRole);
+    if (isPromotingToSuperAdmin(previousRole, nextRole)) {
+        return true;
+    }
+    if (nextRole === 'super_admin') {
+        return false;
+    }
+    const nextPerms =
+        options.nextPermissions !== undefined
+            ? sanitizePermissions(options.nextPermissions)
+            : null;
+    if (nextPerms === null) {
+        return false;
+    }
+    return permissionsEquivalentToSuperAdmin(nextPerms);
+}
+
+export function getPermissionMetaForAdmin() {
+    const rolePresets = {};
+    for (const role of Object.keys(ROLE_PRESETS)) {
+        if (role === 'admin') {
+            continue;
+        }
+        rolePresets[role] = getRolePreset(role);
+    }
+    return {
+        permissions: PERM_DEFINITIONS,
+        rolePresets,
+        superAdminPermissionIds: getRolePreset('super_admin')
+    };
+}
+
+export function resolvePermissionsForSave(role, permissionsInput) {
+    const sanitized = sanitizePermissions(permissionsInput);
+    const r = normalizeRole(role);
+    if (permissionsEquivalentToSuperAdmin(sanitized)) {
+        return sanitized;
+    }
+    if (permissionsMatchRole(r, sanitized)) {
+        return null;
+    }
+    return sanitized;
 }

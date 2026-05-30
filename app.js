@@ -162,6 +162,7 @@ const translations = {
         calendarNamePlaceholder: 'e.g., Fall 2025 Term',
         termStartMonth: 'Term Start Month:',
         termMonthCount: 'Months to display:',
+        toolbarTermSettings: 'Term settings',
         calendarVisibility: 'Show on calendar:',
         showLessons: 'Lessons',
         showHolidays: 'Holidays',
@@ -921,6 +922,7 @@ const translations = {
         calendarNamePlaceholder: '예: 2025 가을 학기',
         termStartMonth: '학기 시작 월:',
         termMonthCount: '표시할 개월 수:',
+        toolbarTermSettings: '학기 설정',
         calendarVisibility: '캘린더에 표시:',
         showLessons: '수업',
         showHolidays: '휴일',
@@ -11364,7 +11366,8 @@ function ensureKrHolidaysSourceHint() {
     hint.className = 'kr-holidays-source-hint';
     hint.setAttribute('data-i18n', 'krHolidaysSourceHint');
     hint.textContent = t('krHolidaysSourceHint');
-    termSelector.appendChild(hint);
+    const footer = document.getElementById('termSelectorFooter') || termSelector;
+    footer.appendChild(hint);
 }
 
 function ensureKrHolidaysImportButton() {
@@ -11382,7 +11385,8 @@ function ensureKrHolidaysImportButton() {
     btn.setAttribute('data-i18n', 'fetchKrHolidays');
     btn.textContent = t('fetchKrHolidays');
     btn.addEventListener('click', importKoreanPublicHolidays);
-    termSelector.appendChild(btn);
+    const footer = document.getElementById('termSelectorFooter') || termSelector;
+    footer.appendChild(btn);
 }
 
 function warnIfOpenedFromNetworkFile() {
