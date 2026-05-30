@@ -231,6 +231,7 @@ const translations = {
         tabCurriculum: 'Curriculum',
         curriculumTabIntro: 'Edit session pages and default schedule for each program book, or add your own curriculum. On the class form, pick Level and Book, then Apply from curriculum.',
         curriculumTabPick: 'Select a curriculum to edit sessions and defaults.',
+        curriculumTabListSearchPlaceholder: 'Search curricula…',
         curriculumAddBtn: 'Add curriculum',
         curriculumAddPrompt: 'Name for the new curriculum (e.g. Middle school reading):',
         curriculumAddTitleRequired: 'Enter a name for the curriculum.',
@@ -1058,6 +1059,7 @@ const translations = {
         tabCurriculum: '교재과정',
         curriculumTabIntro: '프로그램 교재를 편집하거나 새 교재과정을 추가할 수 있습니다. 수업 양식에서 레벨·교재 선택 후 적용하세요.',
         curriculumTabPick: '편집할 교재과정을 선택하세요.',
+        curriculumTabListSearchPlaceholder: '교재과정 검색…',
         curriculumAddBtn: '교재과정 추가',
         curriculumAddPrompt: '새 교재과정 이름 (예: 중등 리딩):',
         curriculumAddTitleRequired: '교재과정 이름을 입력하세요.',
@@ -3016,7 +3018,8 @@ function refreshCurriculumTabList() {
     if (!listEl || !window.CCPBooksEditor) {
         return;
     }
-    window.CCPBooksEditor.renderCurriculumList(listEl, curriculumTabSelectedId);
+    const searchQuery = (document.getElementById('curriculumTabListSearch')?.value || '').trim();
+    window.CCPBooksEditor.renderCurriculumList(listEl, curriculumTabSelectedId, { searchQuery });
 }
 
 function handleAddCurriculum() {
@@ -5032,8 +5035,28 @@ function ensureUiState() {
     if (typeof appData.ui.syllabusTabTemplateId !== 'string') {
         appData.ui.syllabusTabTemplateId = '';
     }
+    if (typeof appData.ui.classesTabClassId !== 'string') {
+        appData.ui.classesTabClassId = '';
+    }
+    if (typeof appData.ui.eventsTabEventId !== 'string') {
+        appData.ui.eventsTabEventId = '';
+    }
+    if (appData.ui.syllabusListSegment !== 'templates' && appData.ui.syllabusListSegment !== 'classes') {
+        appData.ui.syllabusListSegment = 'classes';
+    }
+    if (typeof appData.ui.homeworkReferenceDate !== 'string') {
+        appData.ui.homeworkReferenceDate = '';
+    }
+    if (!appData.ui.classNotesFilters || typeof appData.ui.classNotesFilters !== 'object') {
+        appData.ui.classNotesFilters = null;
+    }
+    if (!appData.ui.printSummaryVisibility || typeof appData.ui.printSummaryVisibility !== 'object') {
+        appData.ui.printSummaryVisibility = null;
+    }
     if (!syllabusListSegment) {
-        syllabusListSegment = 'classes';
+        syllabusListSegment = appData.ui.syllabusListSegment === 'templates' ? 'templates' : 'classes';
+    } else if (appData.ui.syllabusListSegment === 'templates' || appData.ui.syllabusListSegment === 'classes') {
+        syllabusListSegment = appData.ui.syllabusListSegment;
     }
     if (appData.ui.classesPanelSegment !== 'notes' && appData.ui.classesPanelSegment !== 'info') {
         appData.ui.classesPanelSegment = 'info';
@@ -6125,6 +6148,7 @@ function setPrintSummaryOptionCheckboxes(checked) {
             el.checked = checked;
         }
     });
+    savePrintSummaryVisibilityToUi();
 }
 
 function setupLessonFilterUi() {
@@ -7256,9 +7280,41 @@ function downloadClassNotesExport() {
 function initClassNotesTab() {
     if (!classNotesFiltersBuilt) {
         classNotesFiltersBuilt = true;
-        applyDefaultClassNotesDateRange();
+        const saved = appData.ui && appData.ui.classNotesFilters;
+        if (saved && typeof saved === 'object' && (saved.dateFrom || saved.dateTo)) {
+            const fromEl = document.getElementById('classNotesFilterFrom');
+            const toEl = document.getElementById('classNotesFilterTo');
+            if (fromEl && saved.dateFrom) {
+                fromEl.value = saved.dateFrom;
+            }
+            if (toEl && saved.dateTo) {
+                toEl.value = saved.dateTo;
+            }
+        } else {
+            applyDefaultClassNotesDateRange();
+        }
         renderClassNotesFilterClasses();
         renderClassNotesFilterSubjectsAndGrades();
+        if (saved && typeof saved === 'object') {
+            if (Array.isArray(saved.classIds) && saved.classIds.length) {
+                const set = new Set(saved.classIds);
+                document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+                    input.checked = set.has(input.value);
+                });
+            }
+            if (Array.isArray(saved.subjects)) {
+                const set = new Set(saved.subjects);
+                document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="subjects"]`).forEach((input) => {
+                    input.checked = set.has(input.value);
+                });
+            }
+            if (Array.isArray(saved.grades)) {
+                const set = new Set(saved.grades);
+                document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="grades"]`).forEach((input) => {
+                    input.checked = set.has(input.value);
+                });
+            }
+        }
     }
     renderClassNotesTab();
 }
@@ -7279,23 +7335,32 @@ function initClassesPanelSegments() {
         setClassesPanelSegment('notes');
     });
 
-    document.getElementById('classNotesFilterFrom')?.addEventListener('change', renderClassNotesTab);
-    document.getElementById('classNotesFilterTo')?.addEventListener('change', renderClassNotesTab);
+    document.getElementById('classNotesFilterFrom')?.addEventListener('change', () => {
+        renderClassNotesTab();
+        saveClassNotesFiltersToUi();
+    });
+    document.getElementById('classNotesFilterTo')?.addEventListener('change', () => {
+        renderClassNotesTab();
+        saveClassNotesFiltersToUi();
+    });
     document.getElementById('classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
 
     document.getElementById('classNotesFilterClasses')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
             renderClassNotesTab();
+            saveClassNotesFiltersToUi();
         }
     });
     document.getElementById('classNotesFilterSubjects')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
             renderClassNotesTab();
+            saveClassNotesFiltersToUi();
         }
     });
     document.getElementById('classNotesFilterGrades')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
             renderClassNotesTab();
+            saveClassNotesFiltersToUi();
         }
     });
 
@@ -8581,6 +8646,7 @@ function renderSyllabusClassList() {
             isSelected: c.id === selectedId && syllabusEditorMode === 'class',
             onClick: () => {
                 syllabusListSegment = 'classes';
+                saveSyllabusListSegmentToUi('classes');
                 syncSyllabusListSegmentUi();
                 populateSyllabusEditorForClass(c);
             }
@@ -8620,6 +8686,7 @@ function renderSyllabusTemplateList() {
         btn.innerHTML = `<span>${escapeHtml(tpl.name)}</span>`;
         btn.addEventListener('click', () => {
             syllabusListSegment = 'templates';
+            saveSyllabusListSegmentToUi('templates');
             syncSyllabusListSegmentUi();
             populateSyllabusEditorForTemplate(tpl);
         });
@@ -8911,12 +8978,14 @@ function initSyllabusEditorListeners() {
     if (segClass) {
         segClass.addEventListener('click', () => {
             syllabusListSegment = 'classes';
+            saveSyllabusListSegmentToUi('classes');
             syncSyllabusListSegmentUi();
         });
     }
     if (segTpl) {
         segTpl.addEventListener('click', () => {
             syllabusListSegment = 'templates';
+            saveSyllabusListSegmentToUi('templates');
             syncSyllabusListSegmentUi();
             renderSyllabusTemplateList();
         });
@@ -9324,6 +9393,10 @@ function initAppTabs() {
     if (eventSearch) {
         eventSearch.addEventListener('input', () => renderEventList());
     }
+    const curriculumSearch = document.getElementById('curriculumTabListSearch');
+    if (curriculumSearch) {
+        curriculumSearch.addEventListener('input', () => refreshCurriculumTabList());
+    }
     const classesTabAddBtn = document.getElementById('classesTabAddBtn');
     if (classesTabAddBtn) {
         classesTabAddBtn.addEventListener('click', () => openClassEditor(null, 'tab'));
@@ -9530,6 +9603,9 @@ function setHomeworkReferenceDate(isoDate, options = {}) {
         return;
     }
     input.value = isoDate;
+    ensureUiState();
+    appData.ui.homeworkReferenceDate = isoDate;
+    saveUiStateToLocalStorage();
     if (options.syncView !== false) {
         syncHomeworkRefCalendarViewToDate(isoDate);
     }
@@ -9638,7 +9714,11 @@ function initHomeworkTabControls() {
         return;
     }
     const mod = getHomeworkTabModule();
-    if (!input.value) {
+    ensureUiState();
+    const savedDate = appData.ui.homeworkReferenceDate;
+    if (savedDate && /^\d{4}-\d{2}-\d{2}$/.test(savedDate)) {
+        input.value = savedDate;
+    } else if (!input.value) {
         input.value = mod ? mod.formatISO(new Date()) : formatDateISO(new Date());
     }
     syncHomeworkRefCalendarViewToDate(input.value);
@@ -9646,6 +9726,9 @@ function initHomeworkTabControls() {
     if (input.dataset.homeworkInit !== '1') {
         input.dataset.homeworkInit = '1';
         input.addEventListener('change', () => {
+            ensureUiState();
+            appData.ui.homeworkReferenceDate = input.value || '';
+            saveUiStateToLocalStorage();
             syncHomeworkRefCalendarViewToDate(input.value);
             renderHomeworkReferenceMiniCalendar();
             renderHomeworkClassList();
@@ -13162,9 +13245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     requestAnimationFrame(syncAppChromeStickyTop);
 
     const savedTab = getActiveTab();
-    if (savedTab !== 'calendar') {
-        navigateToTab(savedTab);
-    }
+    showSavedTabPanelsOnly(savedTab);
 
     const useTeamSync =
         location.protocol !== 'file:' &&
@@ -13197,6 +13278,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!teamSyncEnabled) {
         renderCalendar();
         requestAnimationFrame(syncAppChromeStickyTop);
+    }
+
+    restoreAppSessionState();
+    if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
+        CCPSessionRestore.capturePageSession();
     }
 
     scheduleIdleTabPrefetch();
@@ -13339,6 +13425,13 @@ function setupEventListeners() {
         printSummaryClearAll.dataset.bound = '1';
         printSummaryClearAll.addEventListener('click', () => setPrintSummaryOptionCheckboxes(false));
     }
+    PRINT_SUMMARY_OPTION_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && !el.dataset.summaryVisBound) {
+            el.dataset.summaryVisBound = '1';
+            el.addEventListener('change', savePrintSummaryVisibilityToUi);
+        }
+    });
     setupLessonFilterUi();
     setupEventApplicabilityFilterUi();
     document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
@@ -14916,11 +15009,21 @@ function populateClassForm(classData = null, options = {}) {
 
         syncClassDeleteButtonVisibility(true);
         applyClassTeacherFieldsToForm(classData);
+        if (getActiveTab() === 'classes' && classEditorMount === 'tab') {
+            ensureUiState();
+            appData.ui.classesTabClassId = classData.id;
+            saveUiStateToLocalStorage();
+        }
     } else {
         // Add mode
         elements.classModalTitle.textContent = t('addNewClass');
         elements.classForm.reset();
         elements.classId.value = '';
+        if (getActiveTab() === 'classes' && classEditorMount === 'tab') {
+            ensureUiState();
+            appData.ui.classesTabClassId = '';
+            saveUiStateToLocalStorage();
+        }
         if (elements.classPeriod) {
             elements.classPeriod.value = String(getNextSuggestedClassPeriod());
         }
@@ -14984,6 +15087,11 @@ function populateHolidayForm(holidayData = null, options = {}) {
     if (holidayData) {
         elements.holidayModalTitle.textContent = t('editEvent');
         elements.holidayId.value = holidayData.id;
+        if (getActiveTab() === 'events' && eventEditorMount === 'tab') {
+            ensureUiState();
+            appData.ui.eventsTabEventId = holidayData.id;
+            saveUiStateToLocalStorage();
+        }
         elements.holidayName.value = getEventDisplayName(holidayData);
         
         // Handle date range
@@ -15015,6 +15123,11 @@ function populateHolidayForm(holidayData = null, options = {}) {
         elements.holidayModalTitle.textContent = t('addEventTitle');
         elements.holidayForm.reset();
         elements.holidayId.value = '';
+        if (getActiveTab() === 'events' && eventEditorMount === 'tab') {
+            ensureUiState();
+            appData.ui.eventsTabEventId = '';
+            saveUiStateToLocalStorage();
+        }
         if (elements.eventType) elements.eventType.value = EVENT_TYPES.HOLIDAY;
         if (elements.eventNotes) elements.eventNotes.value = '';
         elements.holidayIsRange.checked = false;
@@ -19655,7 +19768,14 @@ function getUiStorageCalendarId() {
 }
 
 function getUiStorageKey() {
-    return UI_STORAGE_PREFIX + getUiStorageCalendarId();
+    const calId =
+        typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId
+            ? CalendarSync.getActiveCalendarId()
+            : null;
+    if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getUiStorageKey) {
+        return CCPSessionRestore.getUiStorageKey(calId || UI_STORAGE_LOCAL_ID);
+    }
+    return UI_STORAGE_PREFIX + (calId || UI_STORAGE_LOCAL_ID);
 }
 
 function getDomainStorageKey() {
@@ -19682,6 +19802,18 @@ function loadUiStateFromLocalStorageIntoData(data) {
         if (raw) {
             saved = JSON.parse(raw);
         }
+        if (!saved && typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getLegacyUiStorageKey) {
+            const legacyRaw = localStorage.getItem(
+                CCPSessionRestore.getLegacyUiStorageKey(
+                    typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId
+                        ? CalendarSync.getActiveCalendarId()
+                        : UI_STORAGE_LOCAL_ID
+                )
+            );
+            if (legacyRaw) {
+                saved = JSON.parse(legacyRaw);
+            }
+        }
     } catch (_) {
         saved = null;
     }
@@ -19692,6 +19824,177 @@ function loadUiStateFromLocalStorageIntoData(data) {
         data.ui = Object.assign({}, legacyUi, saved);
     }
     return data;
+}
+
+function buildTabRestoreOptions(tabId) {
+    ensureUiState();
+    const ui = appData.ui;
+    if (tabId === 'classes') {
+        const opts = { segment: ui.classesPanelSegment === 'notes' ? 'notes' : 'info' };
+        if (ui.classesTabClassId) {
+            opts.classId = ui.classesTabClassId;
+        }
+        return opts;
+    }
+    if (tabId === 'events' && ui.eventsTabEventId) {
+        return { eventId: ui.eventsTabEventId };
+    }
+    if (tabId === 'syllabus') {
+        if (ui.syllabusListSegment === 'templates' && ui.syllabusTabTemplateId) {
+            return { templateId: ui.syllabusTabTemplateId };
+        }
+        if (ui.syllabusTabClassId) {
+            return { classId: ui.syllabusTabClassId };
+        }
+        return {};
+    }
+    if (tabId === 'homework' && ui.homeworkTabClassId) {
+        return { classId: ui.homeworkTabClassId };
+    }
+    return {};
+}
+
+function showSavedTabPanelsOnly(tabId) {
+    if (!APP_TAB_IDS.includes(tabId)) {
+        tabId = 'calendar';
+    }
+    document.body.dataset.activeTab = tabId;
+    APP_TAB_IDS.forEach((id) => {
+        const panel = document.getElementById(`panel-${id}`);
+        const btn = document.getElementById(`tabBtn-${id}`);
+        const active = id === tabId;
+        if (panel) {
+            panel.hidden = !active;
+            panel.classList.toggle('is-active', active);
+        }
+        if (btn) {
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-selected', String(active));
+        }
+    });
+}
+
+function saveClassNotesFiltersToUi() {
+    ensureUiState();
+    const filters = collectClassNotesFilterState();
+    appData.ui.classNotesFilters = {
+        dateFrom: filters.dateFrom || '',
+        dateTo: filters.dateTo || '',
+        classIds: filters.classIds.slice(),
+        subjects: filters.subjectSet ? Array.from(filters.subjectSet) : null,
+        grades: filters.gradeSet ? Array.from(filters.gradeSet) : null
+    };
+    saveUiStateToLocalStorage();
+}
+
+function applyClassNotesFiltersFromUi() {
+    ensureUiState();
+    const saved = appData.ui.classNotesFilters;
+    if (!saved || typeof saved !== 'object') {
+        return;
+    }
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    if (fromEl && saved.dateFrom) {
+        fromEl.value = saved.dateFrom;
+    }
+    if (toEl && saved.dateTo) {
+        toEl.value = saved.dateTo;
+    }
+    if (!classNotesFiltersBuilt) {
+        return;
+    }
+    renderClassNotesFilterClasses();
+    renderClassNotesFilterSubjectsAndGrades();
+    if (Array.isArray(saved.classIds) && saved.classIds.length) {
+        const set = new Set(saved.classIds);
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+            input.checked = set.has(input.value);
+        });
+    }
+    if (Array.isArray(saved.subjects)) {
+        const set = new Set(saved.subjects);
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="subjects"]`).forEach((input) => {
+            input.checked = set.has(input.value);
+        });
+    }
+    if (Array.isArray(saved.grades)) {
+        const set = new Set(saved.grades);
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="grades"]`).forEach((input) => {
+            input.checked = set.has(input.value);
+        });
+    }
+}
+
+function savePrintSummaryVisibilityToUi() {
+    ensureUiState();
+    const map = {};
+    PRINT_SUMMARY_OPTION_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            map[id] = el.checked;
+        }
+    });
+    appData.ui.printSummaryVisibility = map;
+    saveUiStateToLocalStorage();
+}
+
+function applyPrintSummaryVisibilityFromUi() {
+    ensureUiState();
+    const saved = appData.ui.printSummaryVisibility;
+    if (!saved || typeof saved !== 'object') {
+        return;
+    }
+    PRINT_SUMMARY_OPTION_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && saved[id] !== undefined) {
+            el.checked = Boolean(saved[id]);
+        }
+    });
+}
+
+function saveSyllabusListSegmentToUi(segment) {
+    ensureUiState();
+    appData.ui.syllabusListSegment = segment === 'templates' ? 'templates' : 'classes';
+    saveUiStateToLocalStorage();
+}
+
+function restoreAppSessionState() {
+    ensureUiState();
+    if (isWorkspacePage()) {
+        if (typeof initHomeworkTabControls === 'function') {
+            initHomeworkTabControls();
+        }
+        if (typeof renderHomeworkClassList === 'function') {
+            renderHomeworkClassList();
+        }
+        if (typeof renderHomeworkEditor === 'function') {
+            renderHomeworkEditor();
+        }
+        return;
+    }
+    if (appData.ui.syllabusListSegment === 'templates' || appData.ui.syllabusListSegment === 'classes') {
+        syllabusListSegment = appData.ui.syllabusListSegment;
+    }
+    const tab = getActiveTab();
+    navigateToTab(tab, buildTabRestoreOptions(tab));
+    applyPrintSummaryVisibilityFromUi();
+    if (classesPanelSegment === 'notes') {
+        applyClassNotesFiltersFromUi();
+    }
+}
+
+function captureAppSessionExtras() {
+    if (typeof CCPSessionRestore === 'undefined' || !CCPSessionRestore.capturePageSession) {
+        return;
+    }
+    if (getActiveTab() === 'classes' && classesPanelSegment === 'notes') {
+        saveClassNotesFiltersToUi();
+    }
+    if (getActiveTab() === 'data') {
+        savePrintSummaryVisibilityToUi();
+    }
+    CCPSessionRestore.capturePageSession();
 }
 
 function saveUiStateToLocalStorage() {
@@ -20568,6 +20871,9 @@ async function initTeamSync() {
         onStatusChange: updateTeamSyncStatus,
         onPrepareLogout() {
             saveDataToLocalCache();
+            if (typeof captureAppSessionExtras === 'function') {
+                captureAppSessionExtras();
+            }
             if (CalendarSync.isReadOnly()) {
                 return;
             }

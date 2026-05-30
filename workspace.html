@@ -111,6 +111,7 @@
             <p class="section-hint workspace-books-intro" data-i18n="workspaceBooksIntro">Edit shared page blocks for each curriculum book. Save, then refresh syllabi on the Homework copy tab.</p>
             <div class="workspace-books-layout">
                 <aside class="workspace-books-sidebar">
+                    <input type="search" id="workspaceBooksListSearch" class="module-list-search workspace-books-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="curriculumTabListSearchPlaceholder" placeholder="Search curricula…">
                     <div id="workspaceBooksList" class="workspace-books-list" role="listbox"></div>
                 </aside>
                 <div id="workspaceBooksEditorMount" class="workspace-books-editor-mount">
@@ -126,12 +127,13 @@
     <script defer src="js/utils.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/storage-prune.js?v=20260602-footprint"></script>
+    <script defer src="js/session-restore.js?v=20260604-session"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-hw-seq"></script>
     <script defer src="js/view-as-banner.js?v=20260602-footprint"></script>
-    <script defer src="js/team-auth.js?v=20260602-footprint"></script>
-    <script defer src="js/calendar-sync.js?v=20260602-footprint"></script>
+    <script defer src="js/team-auth.js?v=20260604-session"></script>
+    <script defer src="js/calendar-sync.js?v=20260604-session"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
-    <script defer src="app.js?v=20260531-hw-seq"></script>
-    <script defer src="js/workspace.js?v=20260602-workspace-fix"></script>
+    <script defer src="app.js?v=20260604-session"></script>
+    <script defer src="js/workspace.js?v=20260602-curriculum-search"></script>
 </body>
 </html>

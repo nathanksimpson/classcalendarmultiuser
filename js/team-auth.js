@@ -345,6 +345,9 @@
                 ViewAsBanner.renderViewAsBanner(currentUser);
             }
             attachIdleWatch();
+            if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.onUserAuthenticated) {
+                CCPSessionRestore.onUserAuthenticated();
+            }
             return currentUser;
         },
 
@@ -368,6 +371,9 @@
             }
             detachIdleWatch();
             await releaseCalendarLocksBeforeLogout();
+            if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.captureBeforeLogout) {
+                CCPSessionRestore.captureBeforeLogout();
+            }
             if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnLogout) {
                 CCPStoragePrune.pruneOnLogout();
             }
@@ -383,7 +389,10 @@
             currentUser = null;
             checked = false;
             idleLoggingOut = false;
-            location.href = '/login.html';
+            location.href =
+                typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.buildLoginRedirect
+                    ? CCPSessionRestore.buildLoginRedirect(false)
+                    : '/login.html';
         },
 
         async logout(options) {
@@ -393,6 +402,9 @@
             const idleReason = options && options.reason === 'idle';
             detachIdleWatch();
             await releaseCalendarLocksBeforeLogout();
+            if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.captureBeforeLogout) {
+                CCPSessionRestore.captureBeforeLogout();
+            }
             if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnLogout) {
                 CCPStoragePrune.pruneOnLogout();
             }
@@ -404,12 +416,12 @@
             currentUser = null;
             checked = false;
             idleLoggingOut = false;
-            if (idleReason) {
-                const q = new URLSearchParams({ signedOut: 'idle' });
-                location.href = '/login.html?' + q.toString();
-            } else {
-                location.href = '/login.html';
-            }
+            location.href =
+                typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.buildLoginRedirect
+                    ? CCPSessionRestore.buildLoginRedirect(idleReason)
+                    : idleReason
+                      ? '/login.html?signedOut=idle'
+                      : '/login.html';
         }
     };
 

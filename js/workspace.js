@@ -56,6 +56,22 @@
         }
     }
 
+    function saveWorkspaceSessionState() {
+        if (typeof CCPSessionRestore === 'undefined') {
+            return;
+        }
+        const activeTab = document.querySelector('.workspace-tab-btn.is-active')?.dataset.wsTab || 'homework';
+        if (CCPSessionRestore.saveWorkspaceSession) {
+            CCPSessionRestore.saveWorkspaceSession({
+                tab: activeTab,
+                bookId: workspaceBooksSelectedId || ''
+            });
+        }
+        if (CCPSessionRestore.capturePageSession) {
+            CCPSessionRestore.capturePageSession();
+        }
+    }
+
     function switchWorkspaceTab(tabId) {
         document.querySelectorAll('.workspace-tab-btn').forEach((btn) => {
             const on = btn.dataset.wsTab === tabId;
@@ -72,6 +88,7 @@
         } else if (tabId === 'homework' && typeof renderHomeworkEditor === 'function') {
             renderHomeworkEditor();
         }
+        saveWorkspaceSessionState();
     }
 
     function refreshWorkspaceBooksPanel() {
@@ -85,7 +102,8 @@
         if (bookParam && !workspaceBooksSelectedId) {
             workspaceBooksSelectedId = bookParam;
         }
-        window.CCPBooksEditor.renderFullPageBookList(list, workspaceBooksSelectedId);
+        const searchQuery = (document.getElementById('workspaceBooksListSearch')?.value || '').trim();
+        window.CCPBooksEditor.renderFullPageBookList(list, workspaceBooksSelectedId, { searchQuery });
         if (workspaceBooksSelectedId) {
             window.CCPBooksEditor.renderFullPageEditor(mount, workspaceBooksSelectedId, {
                 onSaved: () => {
@@ -106,6 +124,11 @@
                 }
             });
         });
+        const booksSearch = document.getElementById('workspaceBooksListSearch');
+        if (booksSearch && booksSearch.dataset.bound !== '1') {
+            booksSearch.dataset.bound = '1';
+            booksSearch.addEventListener('input', () => refreshWorkspaceBooksPanel());
+        }
         const list = document.getElementById('workspaceBooksList');
         if (list && list.dataset.bound !== '1') {
             list.dataset.bound = '1';
@@ -116,6 +139,7 @@
                 }
                 workspaceBooksSelectedId = item.dataset.bookId;
                 refreshWorkspaceBooksPanel();
+                saveWorkspaceSessionState();
             });
         }
         const editBookBtn = document.getElementById('homeworkEditBookBtn');
@@ -267,11 +291,32 @@
             bindWorkspaceTabs();
             setupWorkspaceChrome();
 
-            const tab = params.get('tab') === 'books' ? 'books' : 'homework';
+            let tab = params.get('tab') === 'books' ? 'books' : 'homework';
             if (params.get('book')) {
                 workspaceBooksSelectedId = params.get('book');
+            } else if (
+                !params.get('tab')
+                && typeof CCPSessionRestore !== 'undefined'
+                && CCPSessionRestore.getWorkspaceSession
+            ) {
+                const wsSaved = CCPSessionRestore.getWorkspaceSession();
+                if (wsSaved) {
+                    if (wsSaved.tab === 'books' || wsSaved.tab === 'homework') {
+                        tab = wsSaved.tab;
+                    }
+                    if (wsSaved.bookId && !workspaceBooksSelectedId) {
+                        workspaceBooksSelectedId = wsSaved.bookId;
+                    }
+                }
             }
             switchWorkspaceTab(tab);
+
+            if (typeof restoreAppSessionState === 'function') {
+                restoreAppSessionState();
+            }
+            if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
+                CCPSessionRestore.capturePageSession();
+            }
 
             if (initError) {
                 showWorkspaceInitError(initError);

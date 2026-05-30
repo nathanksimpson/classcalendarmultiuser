@@ -181,6 +181,46 @@ function switchAdminTab(tabKey, options) {
         loadPresence().catch(() => {});
         loadActivity().catch(() => {});
     }
+    saveAdminSessionState();
+}
+
+function saveAdminSessionState() {
+    if (typeof CCPSessionRestore === 'undefined') {
+        return;
+    }
+    if (CCPSessionRestore.saveAdminSession) {
+        CCPSessionRestore.saveAdminSession({
+            activeTab: activeAdminTab,
+            accountsFilter,
+            accountsSearchQuery
+        });
+    }
+    if (CCPSessionRestore.capturePageSession) {
+        CCPSessionRestore.capturePageSession();
+    }
+}
+
+function restoreAdminSessionState() {
+    if (typeof CCPSessionRestore === 'undefined' || !CCPSessionRestore.getAdminSession) {
+        return;
+    }
+    const saved = CCPSessionRestore.getAdminSession();
+    if (!saved || typeof saved !== 'object') {
+        return;
+    }
+    if (saved.accountsFilter) {
+        accountsFilter = saved.accountsFilter;
+    }
+    if (typeof saved.accountsSearchQuery === 'string') {
+        accountsSearchQuery = saved.accountsSearchQuery;
+    }
+    if (saved.activeTab && adminTabVisible(saved.activeTab)) {
+        activeAdminTab = saved.activeTab;
+    }
+    const search = document.getElementById('accountsSearchInput');
+    if (search && typeof saved.accountsSearchQuery === 'string') {
+        search.value = saved.accountsSearchQuery;
+    }
 }
 
 function applyAdminTabVisibility() {
@@ -332,6 +372,7 @@ function setAccountsFilter(nextFilter) {
     });
     syncReviewWaitingButtons();
     renderUsersTable();
+    saveAdminSessionState();
 }
 
 function updateAccountsTabBadge(waitingCount) {
@@ -389,6 +430,7 @@ function setupAccountsToolbar() {
         search.addEventListener('input', () => {
             accountsSearchQuery = search.value || '';
             renderUsersTable();
+            saveAdminSessionState();
         });
     }
     document.querySelectorAll('.admin-filter-chip').forEach((chip) => {
@@ -1858,9 +1900,12 @@ function showAdminSections(visible) {
         return;
     }
     applyAdminTabVisibility();
-    const tab = resolveAdminTabFromHash() || firstVisibleAdminTab();
+    const tab =
+        (adminTabVisible(activeAdminTab) && activeAdminTab) ||
+        resolveAdminTabFromHash() ||
+        firstVisibleAdminTab();
     if (tab) {
-        switchAdminTab(tab, { skipHash: !location.hash });
+        switchAdminTab(tab, { skipHash: false });
     }
 }
 
@@ -1968,6 +2013,66 @@ function setupAdminLanguageToggleFallback() {
     });
 }
 
+async function fetchAdminHealth() {
+    try {
+        const res = await fetch('/api/health', { credentials: 'same-origin' });
+        if (res.ok) {
+            return await res.json();
+        }
+    } catch (_) {
+        /* ignore */
+    }
+    return {};
+}
+
+function getDevOpenAccessAdminUser() {
+    return {
+        id: 'dev-open',
+        email: 'dev@local',
+        displayName: 'Dev Teacher',
+        role: 'admin',
+        canAccessAdmin: true
+    };
+}
+
+function showBootstrapSetup() {
+    setupAdminNav(false);
+    showAdminSections(false);
+    setSessionStatus('');
+    document.getElementById('bootstrapBox').style.display = 'block';
+}
+
+async function resolveAdminUser() {
+    const health = await fetchAdminHealth();
+
+    if (health.needsBootstrap) {
+        try {
+            const me = await api('/auth/me');
+            if (me && me.id) {
+                return me;
+            }
+        } catch (_) {
+            /* no session yet — show first-time setup */
+        }
+        return { needsBootstrap: true };
+    }
+
+    let me = null;
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.ensure) {
+        me = await TeamAuth.ensure();
+    }
+
+    if (!me && health.openAccess) {
+        return getDevOpenAccessAdminUser();
+    }
+
+    if (!me) {
+        return await api('/auth/me');
+    }
+
+    return me;
+}
+
 async function init() {
     setupActionMenuCloseOnOutside();
     setupEditUserModal();
@@ -1981,11 +2086,14 @@ async function init() {
         }
     });
     try {
-        let me;
-        if (typeof TeamAuth !== 'undefined' && TeamAuth.ensure) {
-            me = await TeamAuth.ensure();
-        } else {
-            me = await api('/auth/me');
+        const resolved = await resolveAdminUser();
+        if (resolved && resolved.needsBootstrap) {
+            showBootstrapSetup();
+            return;
+        }
+        const me = resolved;
+        if (!me || !me.id) {
+            throw new Error('Not signed in');
         }
         currentAdminId = me.id;
         currentAdminDisplayName = me.displayName || me.email || me.id;
@@ -1996,6 +2104,7 @@ async function init() {
             return;
         }
         setupAdminNav(true);
+        restoreAdminSessionState();
         showAdminSections(true);
         applyAdminTabVisibility();
         if (isCurrentUserSuperAdmin()) {
@@ -2019,6 +2128,9 @@ async function init() {
             TeamAuth.startIdleWatch();
         }
         await refreshAll();
+        if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
+            CCPSessionRestore.capturePageSession();
+        }
     } catch (err) {
         if (err && err.message === 'redirect') {
             return;
@@ -2026,20 +2138,9 @@ async function init() {
         setupAdminNav(false);
         showAdminSections(false);
         if (err.message.includes('Not signed in') || err.message.includes('401')) {
-            let needsBootstrap = false;
-            try {
-                const healthRes = await fetch('/api/health', { credentials: 'same-origin' });
-                if (healthRes.ok) {
-                    const health = await healthRes.json();
-                    needsBootstrap = Boolean(health.needsBootstrap);
-                }
-            } catch (_) {
-                /* ignore */
-            }
-            if (needsBootstrap) {
-                showAdminSaveNotice(t('signInFirst'), true);
-                setSessionStatus('');
-                document.getElementById('bootstrapBox').style.display = 'block';
+            const health = await fetchAdminHealth();
+            if (health.needsBootstrap) {
+                showBootstrapSetup();
             } else {
                 location.replace(
                     '/login.html?return=' + encodeURIComponent('/admin.html')

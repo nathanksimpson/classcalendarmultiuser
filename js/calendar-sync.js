@@ -383,6 +383,9 @@
                 return state.activeCalendarId;
             }
             try {
+                if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getActiveCalendarIdFromStorage) {
+                    return CCPSessionRestore.getActiveCalendarIdFromStorage();
+                }
                 return localStorage.getItem(STORAGE_ACTIVE);
             } catch (_) {
                 return null;
@@ -392,7 +395,9 @@
         setActiveCalendarId(id) {
             state.activeCalendarId = id;
             try {
-                if (id) {
+                if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.setActiveCalendarIdInStorage) {
+                    CCPSessionRestore.setActiveCalendarIdInStorage(id);
+                } else if (id) {
                     localStorage.setItem(STORAGE_ACTIVE, id);
                 } else {
                     localStorage.removeItem(STORAGE_ACTIVE);

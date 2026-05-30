@@ -121,15 +121,9 @@
         });
     }
 
+    /** Domain cache only — user-scoped UI prefs and session keys are kept for restore. */
     function pruneOnLogout() {
         clearAllCalendarDomainStorage();
-        ACTIVE_IDS.forEach((k) => {
-            try {
-                localStorage.removeItem(k);
-            } catch (_) {
-                /* ignore */
-            }
-        });
     }
 
     global.CCPStoragePrune = {

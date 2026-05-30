@@ -1650,10 +1650,34 @@
         renderCurriculumEditorMount(mountEl, bookId, { ...options, idPrefix: 'workspaceBooks' });
     }
 
-    function renderCurriculumList(listEl, selectedId) {
+    function curriculumBookSearchHaystack(book) {
+        const isDebate = book.programTrack === 'debate' || book.isVirtualDebate;
+        const parts = [
+            book.displayName,
+            book.name,
+            book.id,
+            book.levelsLabel,
+            Array.isArray(book.levels) ? book.levels.join(' ') : '',
+            isDebate ? hooks.t('curriculumDebateListTag') : '',
+            book.isCustom ? 'custom' : ''
+        ];
+        return parts.filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function curriculumBookMatchesSearch(book, query) {
+        const q = (query || '').trim().toLowerCase();
+        if (!q) {
+            return true;
+        }
+        return curriculumBookSearchHaystack(book).includes(q);
+    }
+
+    function renderCurriculumList(listEl, selectedId, options) {
         if (!listEl) {
             return;
         }
+        const opts = options && typeof options === 'object' ? options : {};
+        const searchQuery = (opts.searchQuery != null ? String(opts.searchQuery) : '').trim().toLowerCase();
         const appData = getAppData();
         const books = discoverBooks(appData).slice().sort((a, b) => {
             const aDebate = a.programTrack === 'debate' || a.isVirtualDebate;
@@ -1665,8 +1689,21 @@
                 return 1;
             }
             return (a.displayName || a.name).localeCompare(b.displayName || b.name);
-        });
+        }).filter((book) => curriculumBookMatchesSearch(book, searchQuery));
         listEl.innerHTML = '';
+        if (books.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'module-list-empty workspace-books-list-empty';
+            empty.style.padding = '12px';
+            empty.style.color = 'var(--text-secondary)';
+            const emptyKey = searchQuery ? 'lessonFilterSearchEmpty' : 'curriculumTabPick';
+            const emptyText = hooks.t(emptyKey);
+            empty.textContent = emptyText && emptyText !== emptyKey ? emptyText : (
+                searchQuery ? 'No matches. Try a different search.' : 'Select a curriculum to edit.'
+            );
+            listEl.appendChild(empty);
+            return;
+        }
         books.forEach((book) => {
             const btn = document.createElement('button');
             btn.type = 'button';

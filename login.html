@@ -221,16 +221,17 @@
 
             <div class="login-fallback">
                 <p><strong id="passwordFallbackTitle">Password fallback</strong> <span id="passwordFallbackHint">(only if your admin gave you one)</span></p>
-                <form id="passwordForm" method="post" action="/api/auth/password">
+                <form id="loginForm" method="post" action="/api/auth/password" autocomplete="on">
                     <input type="hidden" name="return" id="passwordReturn" value="/">
                     <input type="hidden" name="device" id="passwordDevice" value="personal">
                     <label for="loginEmail" id="loginEmailLabel">Email</label>
-                    <input type="email" id="loginEmail" name="email" autocomplete="username" required>
+                    <input type="email" id="loginEmail" name="email" autocomplete="username" inputmode="email" spellcheck="false" required>
                     <label for="loginPassword" id="loginPasswordLabel">Password</label>
                     <input type="password" id="loginPassword" name="password" autocomplete="current-password" required>
                     <button type="submit" class="btn btn-primary" style="width: 100%;" id="passwordSignInBtn">Sign in</button>
                 </form>
                 <p id="loginError" class="login-error" style="display: none;"></p>
+                <p id="loginBootstrapHint" class="login-kakao-hint" style="display: none;"></p>
             </div>
 
         </div>
@@ -264,7 +265,9 @@
                     idleSignedOut: 'You were signed out due to inactivity. Sign in again to continue.',
                     kakaoNotConfigured:
                         'Kakao login is not configured on this site yet. Use the password form below if your admin gave you one.',
-                    signInProblemPrefix: 'Sign-in problem: '
+                    signInProblemPrefix: 'Sign-in problem: ',
+                    bootstrapAdminHint:
+                        'No admin account exists yet. Open Admin and use First-time setup with your BOOTSTRAP_ADMIN_SECRET from .env.'
                 },
                 ko: {
                     langToggle: '🌐 English',
@@ -290,7 +293,9 @@
                     idleSignedOut: '오래 활동이 없어 자동 로그아웃되었습니다. 다시 로그인해 주세요.',
                     kakaoNotConfigured:
                         '이 사이트에 카카오 로그인이 아직 설정되어 있지 않습니다. 관리자가 준 비밀번호가 있으면 아래 폼을 사용하세요.',
-                    signInProblemPrefix: '로그인 문제: '
+                    signInProblemPrefix: '로그인 문제: ',
+                    bootstrapAdminHint:
+                        '관리자 계정이 아직 없습니다. Admin 페이지에서 .env의 BOOTSTRAP_ADMIN_SECRET으로 최초 설정을 진행하세요.'
                 }
             };
 
@@ -585,6 +590,19 @@
                         }
                         kakaoHint.style.display = 'block';
                         kakaoHint.textContent = tLogin('kakaoNotConfigured');
+                    }
+                    const bootstrapHint = document.getElementById('loginBootstrapHint');
+                    if (
+                        bootstrapHint &&
+                        h &&
+                        h.needsBootstrap &&
+                        (returnTo.indexOf('admin') >= 0 || returnTo === '/admin.html')
+                    ) {
+                        bootstrapHint.style.display = 'block';
+                        bootstrapHint.innerHTML =
+                            tLogin('bootstrapAdminHint') +
+                            ' <a href="/admin.html">Admin</a>';
+                    }
                 })
                 .catch(function () { /* offline / file URL */ });
 
@@ -601,7 +619,7 @@
                 el.textContent = errorMessage(err);
             }
 
-            const passwordForm = document.getElementById('passwordForm');
+            const passwordForm = document.getElementById('loginForm') || document.getElementById('passwordForm');
             if (passwordForm) {
                 passwordForm.addEventListener('submit', function () {
                     syncLoginDeviceToForms();
