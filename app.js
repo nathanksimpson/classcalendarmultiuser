@@ -696,6 +696,7 @@ const translations = {
         homeworkTabGradingHint: 'Copy this block, open your Simson grading webpage in another tab, and paste there. This is homework due at the current class (from the previous session’s Pages / detail).',
         homeworkTabAssignHint: 'Copy this block, open your homework assignment webpage in another tab, and paste there. Due on the next in-person class (skips holidays and no-class days).',
         homeworkTabCopy: 'Copy',
+        homeworkTabCopyDate: 'Copy date',
         homeworkTabCopyBoth: 'Copy both blocks',
         homeworkTabSyllabiRefreshed: 'Syllabi updated from calendar.',
         homeworkTabCopied: 'Copied to clipboard.',
@@ -1524,6 +1525,7 @@ const translations = {
         homeworkTabGradingHint: '이 블록을 복사한 뒤, 다른 탭에서 Simson 채점 웹페이지를 열고 붙여넣으세요. 이번 수업에 제출할 숙제입니다(이전 회차의 페이지/세부).',
         homeworkTabAssignHint: '이 블록을 복사한 뒤, 다른 탭에서 숙제 배정 웹페이지를 열고 붙여넣으세요. 다음 대면 수업일까지 (휴일·수업 없는 날 제외).',
         homeworkTabCopy: '복사',
+        homeworkTabCopyDate: '날짜 복사',
         homeworkTabCopyBoth: '두 블록 모두 복사',
         homeworkTabSyllabiRefreshed: '캘린더에서 강의 계획표를 업데이트했습니다.',
         homeworkTabCopied: '클립보드에 복사했습니다.',
@@ -9986,7 +9988,7 @@ function formatHomeworkPasteBlock(text, classData, packet, kind) {
     };
     if (kind === 'assign') {
         opts.dueLabel = t('homeworkTabDueLabel');
-        opts.dueDateLabel = packet.dueDate ? formatDateDisplay(packet.dueDate) : '';
+        opts.dueDateLabel = packet.dueDate || '';
     }
     return mod.formatHomeworkBlock(text, opts);
 }
@@ -10028,6 +10030,7 @@ function renderHomeworkEditor() {
     const gradingEl = document.getElementById('homeworkGradingText');
     const assignEl = document.getElementById('homeworkAssignText');
     const dueEl = document.getElementById('homeworkDueDateDisplay');
+    const dueCopyBtn = document.getElementById('homeworkCopyDueDateBtn');
     const metaEl = document.getElementById('homeworkTargetLessonMeta');
     const msgEl = document.getElementById('homeworkTabMessage');
     const titleEl = document.getElementById('homeworkClassTitle');
@@ -10081,7 +10084,10 @@ function renderHomeworkEditor() {
     }
     updateHomeworkSourceHints(packet);
     if (dueEl) {
-        dueEl.textContent = packet.dueDate ? formatDateDisplay(packet.dueDate) : '—';
+        dueEl.textContent = packet.dueDate || '—';
+    }
+    if (dueCopyBtn) {
+        dueCopyBtn.disabled = !packet.dueDate;
     }
     renderHomeworkDueDateSkips(packet);
     if (metaEl) {
@@ -12532,6 +12538,17 @@ function initHomeworkTabListeners() {
             showHomeworkCopyStatus(await copyTextToClipboard(formatted));
         });
     }
+    const copyDueDate = document.getElementById('homeworkCopyDueDateBtn');
+    if (copyDueDate && !copyDueDate.dataset.homeworkInit) {
+        copyDueDate.dataset.homeworkInit = '1';
+        copyDueDate.addEventListener('click', async () => {
+            const dueDate = homeworkEditorState?.packet?.dueDate || '';
+            if (!dueDate) {
+                return;
+            }
+            showHomeworkCopyStatus(await copyTextToClipboard(dueDate));
+        });
+    }
     const copyBoth = document.getElementById('homeworkCopyBothBtn');
     if (copyBoth && !copyBoth.dataset.homeworkInit) {
         copyBoth.dataset.homeworkInit = '1';
@@ -12549,7 +12566,7 @@ function initHomeworkTabListeners() {
             const a = classData && packet
                 ? formatHomeworkPasteBlock(aBody, classData, packet, 'assign')
                 : aBody.trim();
-            const due = document.getElementById('homeworkDueDateDisplay')?.textContent || '';
+            const due = packet?.dueDate || '';
             const combined = [
                 '=== ' + t('homeworkTabGradingTitle') + ' ===',
                 g.trim(),

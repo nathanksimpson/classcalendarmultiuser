@@ -5332,10 +5332,29 @@ body[data-active-tab="events"] .app-term-quick-actions {
     color: var(--primary-dark);
 }
 
+.homework-due-block--assign {
+    margin: 4px 0 0;
+}
+
+.homework-due-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    flex: 1 1 100%;
+}
+
+.homework-due-value--iso {
+    font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
 .homework-target-meta {
     flex: 1 1 100%;
     font-size: 0.85rem;
     color: var(--text-secondary);
+    margin: 0 0 4px;
 }
 
 .homework-due-skips {

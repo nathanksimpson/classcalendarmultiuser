@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260531-dino">
+    <link rel="stylesheet" href="styles.css?v=20260531-hw-due">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -429,12 +429,7 @@
                             <p id="homeworkTabHint" class="section-hint" data-i18n="homeworkTabHint"></p>
                             <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
                             <p id="homeworkTabMessage" class="homework-tab-message" role="status" hidden></p>
-                            <div class="homework-due-block">
-                                <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
-                                <strong id="homeworkDueDateDisplay" class="homework-due-value"></strong>
-                                <span id="homeworkTargetLessonMeta" class="homework-target-meta"></span>
-                                <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>
-                            </div>
+                            <p id="homeworkTargetLessonMeta" class="homework-target-meta"></p>
                             <p class="section-hint homework-editable-hint" data-i18n="homeworkTabEditableHint">Edit the text areas below to update the syllabus (Pages / detail). Copy adds the class name and session header.</p>
                             <div class="homework-copy-section">
                                 <div class="homework-copy-header">
@@ -451,6 +446,14 @@
                                     <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopy">Copy</button>
                                 </div>
                                 <p class="section-hint" data-i18n="homeworkTabAssignHint">Copy this block, open your homework assignment webpage in another tab, and paste there.</p>
+                                <div class="homework-due-block homework-due-block--assign">
+                                    <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
+                                    <div class="homework-due-row">
+                                        <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
+                                        <button type="button" id="homeworkCopyDueDateBtn" class="btn btn-outline btn-small homework-copy-btn" data-i18n="homeworkTabCopyDate">Copy date</button>
+                                    </div>
+                                    <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>
+                                </div>
                                 <textarea id="homeworkAssignText" class="homework-copy-textarea" rows="8" spellcheck="false" aria-describedby="homeworkAssignSourceHint"></textarea>
                                 <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
                             </div>
@@ -954,7 +957,7 @@
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260601-dino"></script>
     <script defer src="js/day-notes.js?v=20260604-class-notes-tab"></script>
-    <script defer src="app.js?v=20260604-sync-boot"></script>
+    <script defer src="app.js?v=20260531-hw-due"></script>
 </body>
 </html>
 
