@@ -8,6 +8,7 @@
     const POLL_INTERVAL_MS = 3000;
     const LOCK_DEBUG_STORAGE = 'teamLockDebug';
     const LOCK_DEBUG_LOG_MAX = 100;
+    const API_FETCH_TIMEOUT_MS = 30000;
 
     const state = {
         revision: 0,
@@ -186,7 +187,13 @@
 
     async function apiFetch(path, options) {
         assertSignedIn();
-        const opts = Object.assign({ credentials: 'same-origin' }, options || {});
+        const raw = options || {};
+        const timeoutMs =
+            raw.timeoutMs != null && Number.isFinite(Number(raw.timeoutMs))
+                ? Number(raw.timeoutMs)
+                : API_FETCH_TIMEOUT_MS;
+        const opts = Object.assign({ credentials: 'same-origin' }, raw);
+        delete opts.timeoutMs;
         const headers = Object.assign({}, opts.headers || {});
         if (typeof TeamAuth !== 'undefined' && TeamAuth.authHeaders) {
             Object.assign(headers, TeamAuth.authHeaders());
@@ -198,7 +205,25 @@
             opts.body = JSON.stringify(opts.body);
         }
         opts.headers = headers;
-        const res = await fetch(API + path, opts);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        if (opts.signal) {
+            opts.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
+        opts.signal = controller.signal;
+        let res;
+        try {
+            res = await fetch(API + path, opts);
+        } catch (fetchErr) {
+            if (fetchErr && fetchErr.name === 'AbortError') {
+                const err = new Error('Request timed out');
+                err.status = 408;
+                throw err;
+            }
+            throw fetchErr;
+        } finally {
+            clearTimeout(timer);
+        }
         let json = null;
         const text = await res.text();
         if (text) {

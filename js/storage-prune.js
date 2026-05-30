@@ -36,6 +36,36 @@
         return set;
     }
 
+    /** Legacy: classCalendarUi:{calendarId}. User-scoped: classCalendarUi:{userId}:{calendarId}. */
+    function isLegacyUiKey(key) {
+        if (!key || !key.startsWith(UI_PREFIX)) {
+            return false;
+        }
+        return (key.match(/:/g) || []).length === 1;
+    }
+
+    function calendarIdFromUiKey(key) {
+        if (!key || !key.startsWith(UI_PREFIX)) {
+            return null;
+        }
+        const rest = key.slice(UI_PREFIX.length);
+        const sep = rest.lastIndexOf(':');
+        if (sep >= 0) {
+            return rest.slice(sep + 1);
+        }
+        return rest;
+    }
+
+    function removeDomainStorageKeys() {
+        listDomainStorageKeys().forEach((key) => {
+            try {
+                localStorage.removeItem(key);
+            } catch (_) {
+                /* ignore */
+            }
+        });
+    }
+
     /**
      * @param {object} [options]
      * @param {string[]} [options.keepCalendarIds] - calendar ids to retain domain copies for
@@ -80,8 +110,8 @@
                 if (!k || !k.startsWith(UI_PREFIX)) {
                     continue;
                 }
-                const id = k.slice(UI_PREFIX.length);
-                if (!keep.has(id)) {
+                const calId = calendarIdFromUiKey(k);
+                if (calId && !keep.has(calId)) {
                     localStorage.removeItem(k);
                 }
             }
@@ -92,13 +122,7 @@
 
     /** Remove all domain calendar blobs and UI prefs; keep theme/language unless caller clears those. */
     function clearAllCalendarDomainStorage() {
-        listDomainStorageKeys().forEach((key) => {
-            try {
-                localStorage.removeItem(key);
-            } catch (_) {
-                /* ignore */
-            }
-        });
+        removeDomainStorageKeys();
         try {
             for (let i = localStorage.length - 1; i >= 0; i--) {
                 const k = localStorage.key(i);
@@ -121,9 +145,19 @@
         });
     }
 
-    /** Domain cache only — user-scoped UI prefs and session keys are kept for restore. */
+    /** Domain cache only — per-user UI prefs (classCalendarUi:{userId}:…) and session keys are kept. */
     function pruneOnLogout() {
-        clearAllCalendarDomainStorage();
+        removeDomainStorageKeys();
+        try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && isLegacyUiKey(k)) {
+                    localStorage.removeItem(k);
+                }
+            }
+        } catch (_) {
+            /* ignore */
+        }
     }
 
     global.CCPStoragePrune = {

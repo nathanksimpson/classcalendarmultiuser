@@ -2042,6 +2042,42 @@ function showBootstrapSetup() {
     document.getElementById('bootstrapBox').style.display = 'block';
 }
 
+function setupBootstrapForm() {
+    const btn = document.getElementById('bootstrapBtn');
+    if (!btn || btn.dataset.bound === '1') {
+        return;
+    }
+    btn.dataset.bound = '1';
+    const defaultLabel = btn.textContent;
+    btn.addEventListener('click', async () => {
+        const email = document.getElementById('bootstrapEmail')?.value.trim() || '';
+        if (!email) {
+            showAdminSaveNotice(t('bootstrapEmailRequired') || 'Email is required.', true);
+            return;
+        }
+        btn.disabled = true;
+        btn.textContent = t('bootstrapCreating') || 'Creating…';
+        try {
+            await api('/admin/bootstrap', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    secret: document.getElementById('bootstrapSecret')?.value || '',
+                    email,
+                    displayName: document.getElementById('bootstrapName')?.value.trim() || '',
+                    password: document.getElementById('bootstrapPassword')?.value || undefined
+                })
+            });
+            showAdminSaveNotice(t('adminCreated'), false);
+            location.reload();
+        } catch (ex) {
+            showAdminSaveNotice(ex.message, true);
+            btn.disabled = false;
+            btn.textContent = defaultLabel;
+        }
+    });
+}
+
 async function resolveAdminUser() {
     const health = await fetchAdminHealth();
 
@@ -2080,6 +2116,7 @@ async function init() {
     setupLockSettingsForm();
     setupAdminTabs();
     setupAccountsToolbar();
+    setupBootstrapForm();
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && currentAdminId) {
             refreshAll().catch(() => {});
@@ -2243,25 +2280,6 @@ async function init() {
                 document.getElementById('accessCalendarSelect')?.selectedOptions?.[0]?.textContent || calId;
             await loadCalendarAccessUI();
             showAdminSaveNotice(t('savedCalendarAccess', { name: calLabel }), false);
-        } catch (ex) {
-            showAdminSaveNotice(ex.message, true);
-        }
-    });
-
-    document.getElementById('bootstrapBtn').addEventListener('click', async () => {
-        try {
-            await api('/admin/bootstrap', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    secret: document.getElementById('bootstrapSecret').value,
-                    email: document.getElementById('bootstrapEmail').value.trim(),
-                    displayName: document.getElementById('bootstrapName').value.trim(),
-                    password: document.getElementById('bootstrapPassword').value || undefined
-                })
-            });
-            showAdminSaveNotice(t('adminCreated'), false);
-            location.reload();
         } catch (ex) {
             showAdminSaveNotice(ex.message, true);
         }

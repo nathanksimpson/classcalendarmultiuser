@@ -244,7 +244,8 @@
         }
 
         const teamStatus = document.getElementById('teamSyncStatus');
-        if (teamStatus && typeof updateTeamSyncStatus === 'function') {
+        const useTeamSync = teamStatus && typeof updateTeamSyncStatus === 'function';
+        if (useTeamSync) {
             updateTeamSyncStatus('syncing');
         }
 
@@ -267,8 +268,14 @@
             console.error('Workspace team sync failed:', err);
             const syncMsg = typeof t === 'function' ? t('syncError') : 'Sync error';
             initError = initError || `${syncMsg}: ${err.message || err}`;
-            if (teamStatus && typeof updateTeamSyncStatus === 'function') {
+            if (useTeamSync) {
                 updateTeamSyncStatus('error', err.message || syncMsg);
+            }
+        } finally {
+            if (typeof finishTeamSyncBoot === 'function') {
+                finishTeamSyncBoot();
+            } else if (useTeamSync && typeof teamSyncEnabled !== 'undefined' && teamSyncEnabled) {
+                updateTeamSyncStatus('saved');
             }
         }
 

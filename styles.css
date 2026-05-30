@@ -6419,6 +6419,10 @@ body.workspace-page {
     border-bottom-color: var(--accent);
 }
 
+.workspace-dino-calendar-tab:not(.is-active):hover {
+    color: var(--text-primary);
+}
+
 .workspace-main {
     flex: 1;
     min-height: 0;
@@ -7079,5 +7083,188 @@ html.view-as-active .app-top-bar--global {
 
 html.view-as-active.workspace-page .workspace-header {
     margin-top: 0;
+}
+
+/* ============================================
+   Hidden snake game easter egg
+   ============================================ */
+.snake-game-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    padding: 1rem;
+}
+
+.snake-game-overlay:not([hidden]) {
+    display: flex;
+}
+
+body.snake-game-open {
+    overflow: hidden;
+}
+
+.snake-game-panel {
+    background: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    padding: 1rem 1.25rem 1.25rem;
+    max-width: calc(100vw - 2rem);
+    animation: modalSlideIn 0.2s ease;
+}
+
+.snake-game-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.snake-game-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.snake-game-hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.snake-game-hud strong {
+    color: var(--text-primary);
+}
+
+.snake-game-canvas {
+    display: block;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+    max-width: 100%;
+    height: auto;
+}
+
+.snake-game-status {
+    min-height: 1.25rem;
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.snake-game-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    color: var(--text-muted, var(--text-secondary));
+    text-align: center;
+}
+
+.workspace-snake-trigger {
+    color: #64748b;
+    border-color: var(--lock-btn-border);
+    background: var(--lock-btn-bg);
+}
+
+.workspace-header-actions .workspace-snake-trigger {
+    flex-shrink: 0;
+}
+
+[data-theme="dark"] .workspace-snake-trigger {
+    color: #94a3b8;
+    background: #334155;
+    border-color: #475569;
+}
+
+/* ============================================
+   Hidden dinosaur runner easter egg
+   ============================================ */
+.dino-game-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    padding: 1rem;
+}
+
+.dino-game-overlay:not([hidden]) {
+    display: flex;
+}
+
+body.dino-game-open {
+    overflow: hidden;
+}
+
+.dino-game-panel {
+    background: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    padding: 1rem 1.25rem 1.25rem;
+    max-width: calc(100vw - 2rem);
+    animation: modalSlideIn 0.2s ease;
+}
+
+.dino-game-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.dino-game-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.dino-game-hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.dino-game-hud strong {
+    color: var(--text-primary);
+}
+
+.dino-game-canvas {
+    display: block;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    max-width: 100%;
+    height: auto;
+}
+
+.dino-game-status {
+    min-height: 1.25rem;
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.dino-game-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    color: var(--text-muted, var(--text-secondary));
+    text-align: center;
 }
 

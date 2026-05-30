@@ -210,6 +210,17 @@
         }
     }
 
+    function openAccessDevUser() {
+        return {
+            id: 'dev-open',
+            email: 'dev@local',
+            displayName: 'Dev Teacher',
+            role: 'admin',
+            canAccessAdmin: true,
+            hasCalendarAccess: true
+        };
+    }
+
     const TeamAuth = {
         getUser() {
             return currentUser;
@@ -309,8 +320,14 @@
                     healthJson.openAccess &&
                     !(typeof ViewAsBanner !== 'undefined' && ViewAsBanner.getViewAsToken && ViewAsBanner.getViewAsToken())
                 ) {
+                    currentUser = (await fetchMe()) || openAccessDevUser();
+                    applyIdlePolicy(currentUser);
                     checked = true;
-                    return null;
+                    attachIdleWatch();
+                    if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.onUserAuthenticated) {
+                        CCPSessionRestore.onUserAuthenticated();
+                    }
+                    return currentUser;
                 }
             } catch (_) {
                 checked = true;

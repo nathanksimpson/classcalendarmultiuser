@@ -13174,118 +13174,110 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (document.body.classList.contains('workspace-page')) {
         return;
     }
-    const useTeamSyncEarly =
-        location.protocol !== 'file:' &&
-        typeof CalendarSync !== 'undefined' &&
-        document.getElementById('teamSyncStatus');
-    if (useTeamSyncEarly) {
-        updateTeamSyncStatus('syncing');
-    }
+    const useTeamSync = hasTeamSyncStatusEl();
     try {
-        if (typeof CCPTemplateLoader !== 'undefined' && CCPTemplateLoader.ensureTemplatesLoaded) {
-            await CCPTemplateLoader.ensureTemplatesLoaded();
-        }
-        initAppShellFromTemplates();
-        refreshMountedFormElementRefs();
-    } catch (err) {
-        console.error('Template load failed:', err);
-        if (useTeamSyncEarly) {
-            updateTeamSyncStatus('error', t('errorReadingFile'));
-        }
-        alert(t('errorReadingFile') || 'Could not load editor templates. Check your connection and refresh.');
-        return;
-    }
-    ensureClassFormExtendedMarkup();
-    repairCorruptedLangToggleButton();
-    setupTeamLockButtons();
-    setupTeamLockPendingButtons();
-    setupTeamLockDebugPanel();
-    loadLanguage();
-    loadTheme();
-    warnIfOpenedFromNetworkFile();
-    if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
         try {
-            await TeamAuth.ensure();
-            setupTeamUserBar();
-        } catch (e) {
-            if (e && e.message === 'redirect') {
-                return;
+            if (typeof CCPTemplateLoader !== 'undefined' && CCPTemplateLoader.ensureTemplatesLoaded) {
+                await CCPTemplateLoader.ensureTemplatesLoaded();
+            }
+            initAppShellFromTemplates();
+            refreshMountedFormElementRefs();
+        } catch (err) {
+            console.error('Template load failed:', err);
+            if (useTeamSync) {
+                updateTeamSyncStatus('error', t('errorReadingFile'));
+            }
+            alert(t('errorReadingFile') || 'Could not load editor templates. Check your connection and refresh.');
+            return;
+        }
+        ensureClassFormExtendedMarkup();
+        repairCorruptedLangToggleButton();
+        setupTeamLockButtons();
+        setupTeamLockPendingButtons();
+        setupTeamLockDebugPanel();
+        loadLanguage();
+        loadTheme();
+        warnIfOpenedFromNetworkFile();
+        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+            try {
+                await TeamAuth.ensure();
+                setupTeamUserBar();
+                if (
+                    typeof CCPSessionRestore !== 'undefined' &&
+                    CCPSessionRestore.maybeRestoreLastPath &&
+                    CCPSessionRestore.maybeRestoreLastPath()
+                ) {
+                    return;
+                }
+            } catch (e) {
+                if (e && e.message === 'redirect') {
+                    return;
+                }
             }
         }
-    }
-    setupSchoolGradeControls();
-    setupSimsonLevelControls();
-    setupClassMeetingDaysUI();
-    bindClassScheduleInputsForSyllabusDistribute();
-    loadData();
-    if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
-        try {
-            await ensureTeamTeacherAccountsLoaded();
-            if (linkClassTeachersToTeamAccounts()) {
-                saveData();
-            }
-        } catch (_) {
-            /* accounts list optional */
-        }
-    }
-    initializeTermStart();
-    cleanupMisplacedKrHolidayControls();
-    ensureKrHolidaysImportButton();
-    ensureKrHolidaysSourceHint();
-    setupEventListeners();
-    initAppTabs();
-    setupAppModalA11y();
-    document.body.dataset.activeTab = getActiveTab();
-    initCalendarContextMenu();
-    initDayNotesUi();
-    initTopBarToggle();
-    initAppChromeStickyTop();
-    applyLanguage();
-    renderCalendar();
-    requestAnimationFrame(syncAppChromeStickyTop);
-
-    const savedTab = getActiveTab();
-    showSavedTabPanelsOnly(savedTab);
-
-    const useTeamSync =
-        location.protocol !== 'file:' &&
-        typeof CalendarSync !== 'undefined' &&
-        document.getElementById('teamSyncStatus');
-    if (useTeamSync) {
-        updateTeamSyncStatus('syncing');
-    }
-
-    try {
-        await initTeamSync();
-    } catch (err) {
-        console.error('initTeamSync failed:', err);
-        updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
-        showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
-    } finally {
-        if (useTeamSyncEarly) {
-            const statusEl = document.getElementById('teamSyncStatus');
-            if (
-                statusEl &&
-                !teamSyncEnabled &&
-                (statusEl.classList.contains('status-syncing') ||
-                    statusEl.classList.contains('status-connecting'))
-            ) {
-                updateTeamSyncStatus('offline', t('teamSyncOffline'));
+        setupSchoolGradeControls();
+        setupSimsonLevelControls();
+        setupClassMeetingDaysUI();
+        bindClassScheduleInputsForSyllabusDistribute();
+        loadData();
+        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+            try {
+                await ensureTeamTeacherAccountsLoaded();
+                if (linkClassTeachersToTeamAccounts()) {
+                    saveData();
+                }
+            } catch (_) {
+                /* accounts list optional */
             }
         }
-    }
-
-    if (!teamSyncEnabled) {
+        initializeTermStart();
+        cleanupMisplacedKrHolidayControls();
+        ensureKrHolidaysImportButton();
+        ensureKrHolidaysSourceHint();
+        setupEventListeners();
+        initAppTabs();
+        setupAppModalA11y();
+        document.body.dataset.activeTab = getActiveTab();
+        initCalendarContextMenu();
+        initDayNotesUi();
+        initTopBarToggle();
+        initAppChromeStickyTop();
+        applyLanguage();
         renderCalendar();
         requestAnimationFrame(syncAppChromeStickyTop);
-    }
 
-    restoreAppSessionState();
-    if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
-        CCPSessionRestore.capturePageSession();
-    }
+        const savedTab = getActiveTab();
+        showSavedTabPanelsOnly(savedTab);
 
-    scheduleIdleTabPrefetch();
+        if (useTeamSync) {
+            updateTeamSyncStatus('syncing');
+        }
+        try {
+            await initTeamSync();
+        } catch (err) {
+            console.error('initTeamSync failed:', err);
+            if (useTeamSync) {
+                updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
+            }
+            showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
+        }
+
+        if (!teamSyncEnabled) {
+            renderCalendar();
+            requestAnimationFrame(syncAppChromeStickyTop);
+        }
+
+        restoreAppSessionState();
+        if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
+            CCPSessionRestore.capturePageSession();
+        }
+
+        scheduleIdleTabPrefetch();
+    } finally {
+        if (useTeamSync) {
+            finishTeamSyncBoot();
+        }
+    }
 });
 
 function initializeTermStart() {
@@ -20092,10 +20084,11 @@ function loadData() {
     loadDataFromLocalCache();
 }
 
-function applyServerDocument(doc) {
+function applyServerDocument(doc, options) {
     if (!doc || !doc.data) {
         return;
     }
+    const opts = options || {};
     const data = Object.assign({}, doc.data);
     const serverName = doc.name && String(doc.name).trim();
     if (serverName) {
@@ -20112,6 +20105,9 @@ function applyServerDocument(doc) {
     updateCalendarTitle();
     updateTopBarCalendarLabel();
     refreshCalendarScopedUi();
+    if (!opts.skipSessionRestore && typeof restoreAppSessionState === 'function') {
+        restoreAppSessionState();
+    }
 }
 
 function updateActiveTeamCalendarOptionLabel() {
@@ -20173,6 +20169,36 @@ function showConflictModal(serverDoc, localData) {
     });
 }
 
+function hasTeamSyncStatusEl() {
+    return (
+        location.protocol !== 'file:' &&
+        typeof CalendarSync !== 'undefined' &&
+        Boolean(document.getElementById('teamSyncStatus'))
+    );
+}
+
+/** Clear boot-time "Syncing…" if init exited without reaching a terminal status. */
+function finishTeamSyncBoot() {
+    const el = document.getElementById('teamSyncStatus');
+    if (!el) {
+        return;
+    }
+    const stuck =
+        el.classList.contains('status-syncing') || el.classList.contains('status-connecting');
+    if (!stuck) {
+        return;
+    }
+    if (teamSyncEnabled) {
+        const id =
+            typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId
+                ? CalendarSync.getActiveCalendarId()
+                : null;
+        updateTeamSyncStatus(id ? 'saved' : 'connected');
+    } else {
+        updateTeamSyncStatus('offline', t('teamSyncOffline'));
+    }
+}
+
 function updateTeamSyncStatus(status, detail) {
     const el = document.getElementById('teamSyncStatus');
     if (!el) {
@@ -20190,6 +20216,65 @@ function updateTeamSyncStatus(status, detail) {
     };
     el.textContent = detail || t(map[status] || 'syncConnecting');
     el.className = 'team-sync-status status-' + (status || 'connecting');
+}
+
+/** Recover team sync after bfcache or return from admin/other pages with stuck boot status. */
+async function ensureTeamSyncReady() {
+    if (document.body.classList.contains('workspace-page')) {
+        return;
+    }
+    const el = document.getElementById('teamSyncStatus');
+    if (!el || location.protocol === 'file:') {
+        return;
+    }
+    const stuck =
+        el.classList.contains('status-syncing') || el.classList.contains('status-connecting');
+    if (!stuck) {
+        return;
+    }
+    if (typeof CalendarSync === 'undefined') {
+        finishTeamSyncBoot();
+        return;
+    }
+    try {
+        if (!teamSyncEnabled) {
+            await initTeamSync();
+        } else {
+            const id = CalendarSync.getActiveCalendarId();
+            if (id) {
+                await CalendarSync.refreshLockMeta(id);
+                updateTeamSyncStatus('saved');
+            } else {
+                updateTeamSyncStatus('connected');
+            }
+        }
+    } catch (err) {
+        console.error('ensureTeamSyncReady failed:', err);
+        updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
+    }
+    finishTeamSyncBoot();
+}
+
+if (typeof window !== 'undefined' && !window.__ccpPageshowSyncInit) {
+    window.__ccpPageshowSyncInit = true;
+    window.addEventListener('pageshow', (ev) => {
+        if (document.body.classList.contains('workspace-page')) {
+            return;
+        }
+        const statusEl = document.getElementById('teamSyncStatus');
+        const stuck =
+            statusEl &&
+            (statusEl.classList.contains('status-syncing') ||
+                statusEl.classList.contains('status-connecting'));
+        if (ev.persisted || stuck) {
+            void ensureTeamSyncReady();
+        }
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.finishTeamSyncBoot = finishTeamSyncBoot;
+    window.ensureTeamSyncReady = ensureTeamSyncReady;
 }
 
 let syncToastTimer = null;
@@ -20284,7 +20369,8 @@ function populateCalendarSelect(calendars, activeId) {
     }
 }
 
-async function switchToTeamCalendar(id, calendarsOptional) {
+async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
+    const switchOpts = switchOptions || {};
     const previousId = typeof CalendarSync !== 'undefined' ? CalendarSync.getActiveCalendarId() : null;
     if (previousId && id && previousId !== id && typeof CalendarSync !== 'undefined') {
         try {
@@ -20329,7 +20415,7 @@ async function switchToTeamCalendar(id, calendarsOptional) {
             holdsLock: CalendarSync.state.holdsLock,
             pendingEditRequest: CalendarSync.state.pendingEditRequest
         });
-        applyServerDocument(doc);
+        applyServerDocument(doc, switchOpts);
         initializeTermStart();
         renderCalendar();
         updateTeamSyncStatus('saved');
@@ -20344,7 +20430,7 @@ async function switchToTeamCalendar(id, calendarsOptional) {
             showSyncToast(t('teamCalendarAccessLost'), true);
             const freshList = await CalendarSync.listCalendars();
             if (freshList.length > 0) {
-                await switchToTeamCalendar(freshList[0].id, freshList);
+                await switchToTeamCalendar(freshList[0].id, freshList, switchOpts);
             } else {
                 populateCalendarSelect([], null);
                 CalendarSync.setActiveCalendarId(null);
@@ -21015,7 +21101,7 @@ async function initTeamSync() {
         if (!activeId || !calendars.some((c) => c.id === activeId)) {
             activeId = calendars[0].id;
         }
-        await switchToTeamCalendar(activeId, calendars);
+        await switchToTeamCalendar(activeId, calendars, { skipSessionRestore: true });
     }
 
     document.getElementById('teamCalendarSelect')?.addEventListener('change', async (e) => {

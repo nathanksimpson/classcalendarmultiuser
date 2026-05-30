@@ -60,6 +60,8 @@ const MINIFY_JS = [
     'js/schedule-matrix-data.js',
     'js/theme-init.js',
     'js/theme-toggle.js',
+    'js/snake-game.js',
+    'js/dino-game.js',
     'js/admin-i18n.js'
 ];
 
@@ -82,7 +84,7 @@ function copyRecursive(srcDir, destDir) {
             copyRecursive(srcPath, destPath);
             continue;
         }
-        if (SKIP_FILES.has(ent.name) || ent.name.endsWith('.bat')) {
+        if (SKIP_FILES.has(ent.name) || ent.name.endsWith('.bat') || ent.name.startsWith('.tmp')) {
             continue;
         }
         fs.mkdirSync(path.dirname(destPath), { recursive: true });

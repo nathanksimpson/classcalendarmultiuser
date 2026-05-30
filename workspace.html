@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curriculum workspace — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260530-editor-order">
+    <link rel="stylesheet" href="styles.css?v=20260531-dino">
 </head>
 <body class="workspace-page">
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
@@ -24,6 +24,14 @@
             <p id="workspaceCalendarLabel" class="workspace-calendar-label section-hint"></p>
         </div>
         <div class="workspace-header-actions">
+            <button type="button" id="teamLockStatusBtn" class="team-lock-status-btn workspace-snake-trigger" aria-label="Lock" title="">
+                <span class="team-lock-icon team-lock-icon--open" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                    </svg>
+                </span>
+            </button>
             <button type="button" id="workspaceLangToggle" class="btn btn-outline btn-small btn-lang">🌐 한국어</button>
             <button type="button" id="workspaceThemeToggle" class="btn btn-outline btn-small btn-header-theme">🌙 Dark</button>
         </div>
@@ -35,6 +43,7 @@
     </div>
 
     <nav class="workspace-tab-nav" role="tablist">
+        <button type="button" id="tabBtn-calendar" class="workspace-tab-btn workspace-dino-calendar-tab" data-i18n="tabCalendar">Calendar</button>
         <button type="button" class="workspace-tab-btn is-active" data-ws-tab="homework" role="tab" aria-selected="true" data-i18n="workspaceTabHomework">Homework copy</button>
         <button type="button" class="workspace-tab-btn" data-ws-tab="books" role="tab" aria-selected="false" data-i18n="workspaceTabBooks">Curriculum</button>
     </nav>
@@ -126,14 +135,16 @@
     <script defer src="js/schedule-core.js"></script>
     <script defer src="js/utils.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
-    <script defer src="js/storage-prune.js?v=20260602-footprint"></script>
-    <script defer src="js/session-restore.js?v=20260604-session"></script>
+    <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
+    <script defer src="js/session-restore.js?v=20260604-session-restore"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-hw-seq"></script>
     <script defer src="js/view-as-banner.js?v=20260602-footprint"></script>
-    <script defer src="js/team-auth.js?v=20260604-session"></script>
-    <script defer src="js/calendar-sync.js?v=20260604-session"></script>
+    <script defer src="js/team-auth.js?v=20260604-admin-login"></script>
+    <script defer src="js/calendar-sync.js?v=20260604-sync-boot"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
-    <script defer src="app.js?v=20260604-session"></script>
-    <script defer src="js/workspace.js?v=20260602-curriculum-search"></script>
+    <script defer src="js/snake-game.js?v=20260531-star"></script>
+    <script defer src="js/dino-game.js?v=20260601-dino"></script>
+    <script defer src="app.js?v=20260604-sync-boot"></script>
+    <script defer src="js/workspace.js?v=20260604-sync-boot"></script>
 </body>
 </html>

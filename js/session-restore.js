@@ -291,6 +291,35 @@
         });
     }
 
+    function maybeRestoreLastPath() {
+        if (typeof location === 'undefined') {
+            return false;
+        }
+        const userId = getSessionUserId();
+        if (!userId) {
+            return false;
+        }
+        const sess = loadUserSession(userId);
+        const target = sess && sess.lastPath ? String(sess.lastPath).trim() : '';
+        if (!target || target === getCurrentPath()) {
+            return false;
+        }
+        const path = location.pathname || '/';
+        const isEntry =
+            path === '/' || path === '/index.html' || path.endsWith('/index.html');
+        if (!isEntry) {
+            return false;
+        }
+        if (
+            target.indexOf('login.html') >= 0 ||
+            target.indexOf('pending-access') >= 0
+        ) {
+            return false;
+        }
+        location.replace(target);
+        return true;
+    }
+
     global.CCPSessionRestore = {
         getSessionUserId,
         getUiStorageKey,
@@ -310,6 +339,7 @@
         saveWorkspaceSession,
         getWorkspaceSession,
         onUserAuthenticated,
+        maybeRestoreLastPath,
         isViewAsSkip
     };
 
