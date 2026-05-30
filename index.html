@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-view-as">
+    <link rel="stylesheet" href="styles.css?v=20260530-editor-order">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -605,6 +605,19 @@
                     <div id="classNameSuggestions" class="autocomplete-dropdown"></div>
                 </div>
 
+                <div class="form-group class-color-group editor-popout-colors">
+                    <div class="class-color-pickers">
+                        <div class="class-color-field">
+                            <label for="classColor" data-i18n="classBackgroundColor">Background color</label>
+                            <input type="color" id="classColor" value="#e67e22">
+                        </div>
+                        <div class="class-color-field">
+                            <label for="classTextColor" data-i18n="classTextColor">Text color</label>
+                            <input type="color" id="classTextColor" value="#ffffff">
+                        </div>
+                    </div>
+                </div>
+
                 <input type="hidden" id="classTypeIdHidden" value="">
                 <section class="class-curriculum-picker form-row">
                     <div class="form-group">
@@ -681,6 +694,21 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>
+                    <input type="number" id="classTotalLessons" min="1" value="4" required>
+                </div>
+                <div class="form-row form-row-meeting-days">
+                    <div class="form-group form-group-meeting-days">
+                        <label data-i18n="meetingDays">Meeting days</label>
+                        <p class="section-hint form-group--full-only" data-i18n="meetingDaysHint"></p>
+                        <div class="meeting-days-block">
+                            <div class="meeting-days-presets"></div>
+                            <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <section class="form-section class-teacher-section form-group--full-only">
                     <h3 class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
                     <p class="section-hint" data-i18n="classTeachersHint">Add each teacher who teaches this class (team accounts). Pick subject and curriculum per row. Homeroom (담임) is set on Timetable → Student cohorts.</p>
@@ -703,34 +731,6 @@
                         </div>
                     </div>
                 </section>
-
-                <div class="form-group">
-                    <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>
-                    <input type="number" id="classTotalLessons" min="1" value="4" required>
-                </div>
-                <div class="form-row form-row-meeting-days">
-                    <div class="form-group form-group-meeting-days">
-                        <label data-i18n="meetingDays">Meeting days</label>
-                        <p class="section-hint form-group--full-only" data-i18n="meetingDaysHint"></p>
-                        <div class="meeting-days-block">
-                            <div class="meeting-days-presets"></div>
-                            <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group class-color-group editor-popout-colors">
-                    <div class="class-color-pickers">
-                        <div class="class-color-field">
-                            <label for="classColor" data-i18n="classBackgroundColor">Background color</label>
-                            <input type="color" id="classColor" value="#e67e22">
-                        </div>
-                        <div class="class-color-field">
-                            <label for="classTextColor" data-i18n="classTextColor">Text color</label>
-                            <input type="color" id="classTextColor" value="#ffffff">
-                        </div>
-                    </div>
-                </div>
 
                 <div class="form-group form-group--full-only">
                     <label for="classBook" data-i18n="defaultBook">Default book (fallback)</label>
@@ -1126,6 +1126,17 @@
                     <input type="text" id="holidayName" required data-i18n-placeholder="holidayNamePlaceholder" placeholder="e.g., Thanksgiving">
                 </div>
 
+                <div class="form-row editor-popout-colors event-color-row">
+                    <div class="form-group">
+                        <label for="holidayBgColor" data-i18n="bgColor">Background Color</label>
+                        <input type="color" id="holidayBgColor" value="#fef3c7">
+                    </div>
+                    <div class="form-group">
+                        <label for="holidayTextColor" data-i18n="textColor">Text Color</label>
+                        <input type="color" id="holidayTextColor" value="#b45309">
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="holidayIsRange">
@@ -1158,17 +1169,6 @@
                         <option value="evaluation_period" data-i18n="eventTypeEvalPeriod">Evaluation period</option>
                         <option value="other" data-i18n="eventTypeOther">Other</option>
                     </select>
-                </div>
-
-                <div class="form-row editor-popout-colors event-color-row">
-                    <div class="form-group">
-                        <label for="holidayBgColor" data-i18n="bgColor">Background Color</label>
-                        <input type="color" id="holidayBgColor" value="#fef3c7">
-                    </div>
-                    <div class="form-group">
-                        <label for="holidayTextColor" data-i18n="textColor">Text Color</label>
-                        <input type="color" id="holidayTextColor" value="#b45309">
-                    </div>
                 </div>
 
                 <div class="form-group">

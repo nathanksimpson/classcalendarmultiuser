@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curriculum workspace — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260530-view-as">
+    <link rel="stylesheet" href="styles.css?v=20260530-editor-order">
 </head>
 <body class="workspace-page">
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
@@ -71,6 +71,8 @@
                             </p>
                         </header>
                         <p class="homework-external-banner" data-i18n="homeworkTabExternalBanner">Copy from here, then paste on your other websites.</p>
+                        <p id="homeworkTabHint" class="section-hint" data-i18n="homeworkTabHint"></p>
+                        <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
                         <p id="homeworkTabMessage" class="homework-tab-message" role="status" hidden></p>
                         <div class="homework-due-block">
                             <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
@@ -84,7 +86,8 @@
                                 <h3 data-i18n="homeworkTabGradingTitle">Previous week — grading site</h3>
                                 <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyGradingBtn" data-i18n="homeworkTabCopy">Copy</button>
                             </div>
-                            <textarea id="homeworkGradingText" class="homework-copy-textarea workspace-copy-textarea" rows="12" spellcheck="false"></textarea>
+                            <p class="section-hint" data-i18n="homeworkTabGradingHint">Copy this block, open your Simson grading webpage in another tab, and paste there.</p>
+                            <textarea id="homeworkGradingText" class="homework-copy-textarea workspace-copy-textarea" rows="12" spellcheck="false" aria-describedby="homeworkGradingSourceHint"></textarea>
                             <p id="homeworkGradingSourceHint" class="homework-source-hint section-hint" hidden></p>
                         </div>
                         <div class="homework-copy-section">
@@ -92,7 +95,8 @@
                                 <h3 data-i18n="homeworkTabAssignTitle">This week — assignment site</h3>
                                 <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopy">Copy</button>
                             </div>
-                            <textarea id="homeworkAssignText" class="homework-copy-textarea workspace-copy-textarea" rows="12" spellcheck="false"></textarea>
+                            <p class="section-hint" data-i18n="homeworkTabAssignHint">Copy this block, open your homework assignment webpage in another tab, and paste there.</p>
+                            <textarea id="homeworkAssignText" class="homework-copy-textarea workspace-copy-textarea" rows="12" spellcheck="false" aria-describedby="homeworkAssignSourceHint"></textarea>
                             <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
                         </div>
                         <div class="homework-copy-actions">

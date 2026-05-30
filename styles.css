@@ -6106,15 +6106,6 @@ body.workspace-page #appStatus {
     flex-direction: column;
 }
 
-[data-editor-mode="popout"] .class-modal-name-field,
-[data-editor-mode="popout"] .event-popout-name-field {
-    order: -100;
-}
-
-[data-editor-mode="popout"] .editor-popout-colors {
-    order: -99;
-}
-
 [data-editor-mode="popout"] .form-group--full-only,
 [data-editor-mode="popout"] .form-section-advanced {
     display: none !important;

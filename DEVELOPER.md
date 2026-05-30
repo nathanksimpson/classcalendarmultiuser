@@ -52,12 +52,17 @@ The main app uses **one movable form** per entity (`#classForm`, `#holidayForm`)
 
 | Surface | When to use | Visible fields |
 |---------|-------------|----------------|
-| **Calendar popout** | Quick edit from the grid | `data-editor-mode="popout"` — name, dates, period, level/grade, colors, curriculum Apply; Save in header |
-| **Classes / Events tab** | Full editor | `data-editor-mode="full"` — all sections, including book periods, compression, notes (in `<details>` when collapsed) |
+| **Calendar popout** | Quick edit from the grid | `data-editor-mode="popout"` — shared fields only (see order below); Save in header |
+| **Classes / Events tab** | Full editor | `data-editor-mode="full"` — same shared-field order as popout, then full-only sections (teacher/cohort, default book, book periods, notes, custom schedule, compression) |
 | **Syllabus tab** | Lesson table + notes/units | Table first; header Save + Refresh + ⋮ More |
 | **Workspace** (`workspace.html`) | Homework copy + books editor | Subset of `app.js`; revision banner uses `CalendarSync.onRemoteNewer` (no separate meta poll) |
 
-Field-order convention: put **calendar-visible fields first** (name, dates, type, colors) so popouts need little or no scrolling.
+Field-order convention (class and event — **same DOM order** in popout and full tab; popout hides `.form-group--full-only` and `.form-section-advanced`):
+
+- **Class:** name → colors → curriculum (level, book, Apply) → term dates → period / level / grade → total lessons → meeting days → *(full only)* teacher & cohort, default book, book periods, notes, custom schedule, compression
+- **Event:** name → colors → date range → dates → event type → applies to → *(full only)* notes
+
+Popouts need little or no scrolling because calendar-visible fields come first.
 
 Modal open/close/focus: `CCPModalRegistry` in `app.js` (class, event, print, conflict, team modals). Admin uses `bindAdminModalA11y` in `js/admin.js`.
 
