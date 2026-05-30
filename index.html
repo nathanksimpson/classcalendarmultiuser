@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-timetable">
+    <link rel="stylesheet" href="styles.css?v=20260530-multi-teacher-hr">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -403,6 +403,7 @@
                             <span id="timetableHomeroomChips" class="timetable-homeroom-chips"></span>
                         </p>
                         <p id="timetableTermLabel" class="timetable-term-label section-hint"></p>
+                        <div id="timetableCohortsSummary" class="timetable-cohorts-summary" hidden></div>
                     </header>
                     <div id="timetableGridsMount" class="timetable-grids-mount"></div>
                 </div>
@@ -635,25 +636,11 @@
 
                 <section class="form-section class-teacher-section form-group--full-only">
                     <h3 class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
+                    <p class="section-hint" data-i18n="classTeachersHint">Add each teacher who teaches this class. Homeroom (담임) is a separate label from the cohort.</p>
+                    <div id="classTeachersRows" class="class-teachers-rows" role="list"></div>
+                    <button type="button" id="classAddTeacherBtn" class="btn btn-outline btn-small class-add-teacher-btn" data-i18n="classAddTeacher">+ Add teacher</button>
+                    <p id="classHomeroomLabelDisplay" class="class-homeroom-label-display section-hint" role="status"></p>
                     <div class="form-row">
-                        <div class="form-group">
-                            <label for="classAssignedTeacher" data-i18n="classAssignedTeacher">Assigned teacher</label>
-                            <select id="classAssignedTeacher">
-                                <option value="" data-i18n="classAssignedTeacherNone">— Not assigned —</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="classAssignedTeacherName" data-i18n="classAssignedTeacherName">Teacher name (if not in list)</label>
-                            <input type="text" id="classAssignedTeacherName" autocomplete="off" placeholder="">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="classTeacherCategory" data-i18n="classTeacherCategory">Teacher category</label>
-                            <select id="classTeacherCategory">
-                                <option value="" data-i18n="classTeacherCategoryAuto">Auto from class type</option>
-                            </select>
-                        </div>
                         <div class="form-group">
                             <label for="classCohort" data-i18n="classCohort">Student cohort</label>
                             <select id="classCohort">
@@ -1254,8 +1241,8 @@
     <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="js/teacher-timetable.js?v=20260530-timetable"></script>
-    <script defer src="app.js?v=20260530-timetable"></script>
+    <script defer src="js/teacher-timetable.js?v=20260530-multi-teacher-hr"></script>
+    <script defer src="app.js?v=20260530-multi-teacher-hr"></script>
 </body>
 </html>
 

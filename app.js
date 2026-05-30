@@ -428,8 +428,15 @@ const translations = {
         classAssignedTeacherNone: '— Not assigned —',
         classAssignedTeacherCustom: 'Other (type name below)',
         classAssignedTeacherName: 'Teacher name (if not in list)',
+        classTeachersHint: 'Add each teacher who teaches this class. Homeroom (담임) is a separate label from the cohort.',
+        classAddTeacher: '+ Add teacher',
+        classRemoveTeacher: 'Remove',
         classTeacherCategory: 'Teacher category',
         classTeacherCategoryAuto: 'Auto from class type',
+        classHomeroomLabel: 'Homeroom teacher (담임)',
+        classHomeroomLabelNone: 'No homeroom teacher set for this cohort.',
+        classHomeroomLabelFromCohort: 'Homeroom (담임): {name}',
+        timetableCellHomeroom: '담임',
         classCohort: 'Student cohort',
         classCohortNone: '— No cohort —',
         classScheduleBlock: 'Schedule block',
@@ -455,6 +462,8 @@ const translations = {
         timetableCohortsSuggested: 'Suggested {n} cohort(s). Review and save homeroom teachers.',
         timetableMySchedule: 'My schedule',
         timetableCohortsEmpty: 'No cohorts yet. Use “Suggest cohorts from classes” or Add cohort.',
+        timetableHomeroomCohortsHeading: 'Homeroom cohorts on this schedule',
+        timetableHomeroomCohortClasses: '{n} classes',
         classTypeLabel: 'Class type',
         classTypeHint: 'Pick a preset for typical lesson counts and meeting days. You can still edit every field.',
         classTypeCustom: 'Custom (no preset)',
@@ -1130,8 +1139,15 @@ const translations = {
         classAssignedTeacherNone: '— 미배정 —',
         classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
         classAssignedTeacherName: '선생님 이름 (목록에 없을 때)',
+        classTeachersHint: '이 수업을 가르치는 선생님을 각각 추가하세요. 담임은 반(코호트)에서 따로 표시되는 라벨입니다.',
+        classAddTeacher: '+ 선생님 추가',
+        classRemoveTeacher: '삭제',
         classTeacherCategory: '선생님 구분',
         classTeacherCategoryAuto: '수업 유형에서 자동',
+        classHomeroomLabel: '담임 선생님',
+        classHomeroomLabelNone: '이 반에 담임 선생님이 없습니다.',
+        classHomeroomLabelFromCohort: '담임: {name}',
+        timetableCellHomeroom: '담임',
         classCohort: '학생 반(코호트)',
         classCohortNone: '— 반 없음 —',
         classScheduleBlock: '시간표 블록',
@@ -1157,6 +1173,8 @@ const translations = {
         timetableCohortsSuggested: '제안된 반 {n}개. 담임 선생님을 확인하고 저장하세요.',
         timetableMySchedule: '내 시간표',
         timetableCohortsEmpty: '아직 반이 없습니다. “수업에서 반 자동 제안” 또는 반 추가를 사용하세요.',
+        timetableHomeroomCohortsHeading: '이 시간표의 담임 반',
+        timetableHomeroomCohortClasses: '수업 {n}개',
         classTypeLabel: '수업 유형',
         classTypeHint: '미리 정해진 수업 횟수·요일을 불러옵니다. 아래 항목은 언제든 바꿀 수 있습니다.',
         classTypeCustom: '사용자 지정 (프리셋 없음)',
@@ -8417,94 +8435,217 @@ function populateClassCohortSelect(selectedId) {
     }
 }
 
-function populateClassTeacherCategorySelect(selected) {
-    const sel = document.getElementById('classTeacherCategory');
-    if (!sel) {
-        return;
-    }
-    const prev = selected != null ? selected : sel.value;
-    sel.innerHTML = '';
-    const auto = document.createElement('option');
-    auto.value = '';
-    auto.textContent = t('classTeacherCategoryAuto');
-    sel.appendChild(auto);
-    const presets = getTimetableApi()?.TEACHER_CATEGORY_PRESETS || [
+function getTeacherCategoryPresets() {
+    return getTimetableApi()?.TEACHER_CATEGORY_PRESETS || [
         'Debate', 'Wr&Spk', 'Spk&Wr', 'IPE', 'Conversation', 'RC', 'Grammar', 'News', 'Phonics', 'Reading', 'Animation', 'Other'
     ];
-    presets.forEach((label) => {
-        const opt = document.createElement('option');
-        opt.value = label;
-        opt.textContent = label;
-        sel.appendChild(opt);
-    });
-    if (prev) {
-        sel.value = prev;
-    }
 }
 
-function populateClassAssignedTeacherSelect(classData) {
-    const sel = document.getElementById('classAssignedTeacher');
-    const nameInput = document.getElementById('classAssignedTeacherName');
-    if (!sel) {
-        return;
+function getClassTeachersForForm(classData) {
+    const api = getTimetableApi();
+    if (api && classData) {
+        return api.getClassTeachersList(classData).map((row) => ({
+            userId: row.userId || '',
+            name: row.name || '',
+            category: row.category || ''
+        }));
     }
-    populateTeacherPickerSelect(sel, null, true);
+    if (!classData) {
+        return [];
+    }
+    if (classData.assignedTeacherUserId || classData.assignedTeacherName) {
+        return [{
+            userId: classData.assignedTeacherUserId || '',
+            name: classData.assignedTeacherName || '',
+            category: classData.teacherCategory || ''
+        }];
+    }
+    return [];
+}
+
+function fillTeacherSelectElement(sel, selectedUserId, selectedName) {
+    populateTeacherPickerSelect(sel, {
+        userId: selectedUserId || '',
+        displayName: selectedName || ''
+    }, true);
     const custom = document.createElement('option');
     custom.value = '__custom__';
     custom.textContent = t('classAssignedTeacherCustom');
     sel.appendChild(custom);
-
-    const uid = classData ? (classData.assignedTeacherUserId || '') : '';
-    const name = classData ? (classData.assignedTeacherName || '') : '';
+    const uid = selectedUserId || '';
+    const name = selectedName || '';
     if (uid) {
         const match = `${uid}|${name}`;
-        const has = Array.from(sel.options).some((o) => o.value === match);
-        sel.value = has ? match : '__custom__';
-        if (nameInput) {
-            nameInput.value = name;
-        }
+        sel.value = Array.from(sel.options).some((o) => o.value === match) ? match : '__custom__';
     } else if (name) {
         sel.value = '__custom__';
-        if (nameInput) {
-            nameInput.value = name;
-        }
     } else {
         sel.value = '';
-        if (nameInput) {
-            nameInput.value = '';
+    }
+}
+
+function createClassTeacherCategorySelect(selected) {
+    const categorySel = document.createElement('select');
+    categorySel.className = 'class-teacher-row-category';
+    const auto = document.createElement('option');
+    auto.value = '';
+    auto.textContent = t('classTeacherCategoryAuto');
+    categorySel.appendChild(auto);
+    getTeacherCategoryPresets().forEach((label) => {
+        const opt = document.createElement('option');
+        opt.value = label;
+        opt.textContent = label;
+        categorySel.appendChild(opt);
+    });
+    if (selected) {
+        categorySel.value = selected;
+    }
+    return categorySel;
+}
+
+function addClassTeacherRow(rowData) {
+    const mount = document.getElementById('classTeachersRows');
+    if (!mount) {
+        return;
+    }
+    const data = rowData || { userId: '', name: '', category: '' };
+    const row = document.createElement('div');
+    row.className = 'class-teacher-row';
+    row.setAttribute('role', 'listitem');
+
+    const teacherLabel = document.createElement('label');
+    teacherLabel.textContent = t('classAssignedTeacher');
+    const teacherSel = document.createElement('select');
+    teacherSel.className = 'class-teacher-row-select';
+    fillTeacherSelectElement(teacherSel, data.userId, data.name);
+    teacherLabel.appendChild(teacherSel);
+
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = t('classAssignedTeacherName');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'class-teacher-row-name';
+    nameInput.autocomplete = 'off';
+    nameInput.value = data.name || '';
+    nameLabel.appendChild(nameInput);
+
+    const categoryLabel = document.createElement('label');
+    categoryLabel.textContent = t('classTeacherCategory');
+    const categorySel = createClassTeacherCategorySelect(data.category || '');
+    categoryLabel.appendChild(categorySel);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-outline btn-small class-teacher-row-remove';
+    removeBtn.textContent = t('classRemoveTeacher');
+    removeBtn.addEventListener('click', () => {
+        row.remove();
+        if (!mount.querySelector('.class-teacher-row')) {
+            addClassTeacherRow(null);
         }
+    });
+
+    row.appendChild(teacherLabel);
+    row.appendChild(nameLabel);
+    row.appendChild(categoryLabel);
+    row.appendChild(removeBtn);
+    mount.appendChild(row);
+}
+
+function renderClassTeachersRows(classData) {
+    const mount = document.getElementById('classTeachersRows');
+    if (!mount) {
+        return;
+    }
+    mount.innerHTML = '';
+    const teachers = getClassTeachersForForm(classData);
+    if (!teachers.length) {
+        addClassTeacherRow(null);
+    } else {
+        teachers.forEach((row) => addClassTeacherRow(row));
+    }
+}
+
+function updateClassHomeroomLabelDisplay() {
+    const el = document.getElementById('classHomeroomLabelDisplay');
+    const cohortSel = document.getElementById('classCohort');
+    if (!el) {
+        return;
+    }
+    const cohortId = cohortSel ? (cohortSel.value || '').trim() : '';
+    const cohort = cohortId ? (appData.cohorts || []).find((c) => c.id === cohortId) : null;
+    const hrName = cohort
+        ? (cohort.homeroomTeacherName || cohort.homeroomTeacherUserId || '').trim()
+        : '';
+    if (hrName) {
+        el.textContent = t('classHomeroomLabelFromCohort').replace('{name}', hrName);
+    } else {
+        el.textContent = t('classHomeroomLabelNone');
+    }
+}
+
+function initClassTeachersFormListeners() {
+    const addBtn = document.getElementById('classAddTeacherBtn');
+    if (addBtn && !addBtn.dataset.classTeachersInit) {
+        addBtn.dataset.classTeachersInit = '1';
+        addBtn.addEventListener('click', () => addClassTeacherRow(null));
+    }
+    const cohortSel = document.getElementById('classCohort');
+    if (cohortSel && !cohortSel.dataset.homeroomLabelInit) {
+        cohortSel.dataset.homeroomLabelInit = '1';
+        cohortSel.addEventListener('change', () => updateClassHomeroomLabelDisplay());
     }
 }
 
 function applyClassTeacherFieldsToForm(classData) {
+    initClassTeachersFormListeners();
     populateClassCohortSelect(classData ? classData.cohortId : '');
-    populateClassTeacherCategorySelect(classData ? (classData.teacherCategory || '') : '');
-    populateClassAssignedTeacherSelect(classData || null);
+    renderClassTeachersRows(classData);
+    updateClassHomeroomLabelDisplay();
     const blockSel = document.getElementById('classScheduleBlock');
     if (blockSel) {
         blockSel.value = (classData && classData.scheduleBlock === 'secondary') ? 'secondary' : 'primary';
     }
 }
 
+function collectClassTeachersFromForm() {
+    const mount = document.getElementById('classTeachersRows');
+    const rows = [];
+    if (!mount) {
+        return rows;
+    }
+    mount.querySelectorAll('.class-teacher-row').forEach((rowEl) => {
+        const sel = rowEl.querySelector('.class-teacher-row-select');
+        const nameInput = rowEl.querySelector('.class-teacher-row-name');
+        const categorySel = rowEl.querySelector('.class-teacher-row-category');
+        let userId = '';
+        let name = (nameInput && nameInput.value ? nameInput.value : '').trim();
+        if (sel && sel.value && sel.value !== '__custom__') {
+            const parsed = parseTeacherPickerValue(sel.value);
+            userId = parsed.userId;
+            if (!name && parsed.displayName) {
+                name = parsed.displayName;
+            }
+        }
+        const category = categorySel ? (categorySel.value || '').trim() : '';
+        if (!userId && !name) {
+            return;
+        }
+        rows.push({ userId, name, category });
+    });
+    return rows;
+}
+
 function collectClassTeacherFieldsForSave() {
-    const sel = document.getElementById('classAssignedTeacher');
-    const nameInput = document.getElementById('classAssignedTeacherName');
-    const categorySel = document.getElementById('classTeacherCategory');
     const cohortSel = document.getElementById('classCohort');
     const blockSel = document.getElementById('classScheduleBlock');
-    let assignedTeacherUserId = '';
-    let assignedTeacherName = (nameInput && nameInput.value ? nameInput.value : '').trim();
-    if (sel && sel.value && sel.value !== '__custom__') {
-        const parsed = parseTeacherPickerValue(sel.value);
-        assignedTeacherUserId = parsed.userId;
-        if (!assignedTeacherName && parsed.displayName) {
-            assignedTeacherName = parsed.displayName;
-        }
-    }
+    const classTeachers = collectClassTeachersFromForm();
+    const first = classTeachers[0] || { userId: '', name: '', category: '' };
     return {
-        assignedTeacherUserId,
-        assignedTeacherName,
-        teacherCategory: categorySel ? (categorySel.value || '').trim() : '',
+        classTeachers,
+        assignedTeacherUserId: first.userId,
+        assignedTeacherName: first.name,
+        teacherCategory: first.category,
         cohortId: cohortSel ? (cohortSel.value || '').trim() : '',
         scheduleBlock: blockSel && blockSel.value === 'secondary' ? 'secondary' : 'primary'
     };
@@ -8558,6 +8699,14 @@ function renderTimetableGridTable(block, lang) {
                         catLine.className = 'timetable-cell-category';
                         catLine.textContent = `(${entry.category})`;
                         td.appendChild(catLine);
+                    }
+                    if (entry.homeroomLabel) {
+                        td.appendChild(document.createElement('br'));
+                        const hrLine = document.createElement('span');
+                        hrLine.className = 'timetable-cell-hr';
+                        const hrPrefix = currentLanguage === 'ko' ? t('timetableCellHomeroom') : 'HR';
+                        hrLine.textContent = `${hrPrefix}: ${entry.homeroomLabel}`;
+                        td.appendChild(hrLine);
                     }
                 });
             }
@@ -8628,6 +8777,29 @@ function renderTimetableView(selector) {
             termParts.push(appData.termStart);
         }
         termLabel.textContent = termParts.join(' · ');
+    }
+    const cohortsSummary = document.getElementById('timetableCohortsSummary');
+    if (cohortsSummary) {
+        cohortsSummary.innerHTML = '';
+        if (grid.homeroomCohorts && grid.homeroomCohorts.length) {
+            cohortsSummary.hidden = false;
+            const heading = document.createElement('h3');
+            heading.className = 'timetable-cohorts-summary-title';
+            heading.textContent = t('timetableHomeroomCohortsHeading');
+            cohortsSummary.appendChild(heading);
+            const list = document.createElement('ul');
+            list.className = 'timetable-cohorts-summary-list';
+            grid.homeroomCohorts.forEach((cohort) => {
+                const li = document.createElement('li');
+                const suffix = cohort.homeroomDaySuffix ? ` (${cohort.homeroomDaySuffix})` : '';
+                const count = (cohort.classIds || []).length;
+                li.textContent = `${cohort.name || cohort.level || cohort.id}${suffix} — ${t('timetableHomeroomCohortClasses').replace('{n}', String(count))}`;
+                list.appendChild(li);
+            });
+            cohortsSummary.appendChild(list);
+        } else {
+            cohortsSummary.hidden = true;
+        }
     }
     gridsMount.innerHTML = '';
     grid.blocks.forEach((block) => {
@@ -8744,6 +8916,7 @@ function buildCohortEditorCard(cohort) {
             cohort.homeroomTeacherUserId = parsed.userId;
             cohort.homeroomTeacherName = homeroomNameInput.value.trim() || parsed.displayName;
         }
+        syncClassCohortLinks(cohort);
         saveData();
         populateClassCohortSelect();
         renderTimetableCohortsList();
@@ -8780,6 +8953,25 @@ function buildCohortEditorCard(cohort) {
     return card;
 }
 
+function syncClassCohortLinks(cohort) {
+    if (!cohort || !cohort.id) {
+        return;
+    }
+    const ids = new Set(Array.isArray(cohort.classIds) ? cohort.classIds : []);
+    (appData.classes || []).forEach((cls) => {
+        if (cls.cohortId === cohort.id) {
+            ids.add(cls.id);
+        }
+    });
+    cohort.classIds = Array.from(ids);
+    cohort.classIds.forEach((classId) => {
+        const cls = appData.classes.find((c) => c.id === classId);
+        if (cls) {
+            cls.cohortId = cohort.id;
+        }
+    });
+}
+
 function suggestAndMergeCohorts() {
     const api = getTimetableApi();
     if (!api) {
@@ -8788,27 +8980,36 @@ function suggestAndMergeCohorts() {
     const suggestions = api.suggestCohortsFromClasses(appData.classes || []);
     let added = 0;
     suggestions.forEach((sug) => {
-        const exists = (appData.cohorts || []).some((c) =>
+        const existing = (appData.cohorts || []).find((c) =>
             c.level === sug.level
             && c.grade === sug.grade
             && api.meetingDaysKey(c.meetingDays) === api.meetingDaysKey(sug.meetingDays)
         );
-        if (exists) {
+        if (existing) {
+            sug.classIds.forEach((classId) => {
+                if (!existing.classIds.includes(classId)) {
+                    existing.classIds.push(classId);
+                }
+            });
+            syncClassCohortLinks(existing);
             return;
         }
-        appData.cohorts.push({
+        const cohort = {
             id: generateId(),
             name: sug.name,
             level: sug.level,
             grade: sug.grade,
             meetingDays: sug.meetingDays,
-            classIds: sug.classIds,
+            classIds: sug.classIds.slice(),
             homeroomTeacherUserId: '',
             homeroomTeacherName: '',
             homeroomDaySuffix: api.inferHomeroomDaySuffix(sug, {})
-        });
+        };
+        appData.cohorts.push(cohort);
+        syncClassCohortLinks(cohort);
         added += 1;
     });
+    (appData.cohorts || []).forEach((cohort) => syncClassCohortLinks(cohort));
     if (added) {
         saveData();
         populateClassCohortSelect();
@@ -8833,11 +9034,12 @@ function initTimetableTabControls(options) {
     } else {
         const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
         if (me && me.id && sel) {
-            const teachers = listTimetableTeachers();
-            const mine = teachers.find((row) => row.userId === me.id);
-            if (mine) {
-                sel.value = `${mine.userId}|${mine.displayName || ''}`;
-            }
+            const row = {
+                userId: me.id,
+                displayName: me.displayName || me.email || me.id
+            };
+            populateTeacherPickerSelect(sel, row, true);
+            sel.value = `${row.userId}|${row.displayName || ''}`;
         }
     }
     if (sel && sel.value) {
@@ -16934,6 +17136,25 @@ function migrateData(data) {
             if (classData.teacherCategory === undefined) {
                 classData.teacherCategory = '';
             }
+            if (!Array.isArray(classData.classTeachers)) {
+                classData.classTeachers = [];
+                migrated = true;
+            }
+            if (classData.classTeachers.length === 0
+                && (classData.assignedTeacherUserId || classData.assignedTeacherName)) {
+                classData.classTeachers = [{
+                    userId: classData.assignedTeacherUserId || '',
+                    name: classData.assignedTeacherName || '',
+                    category: classData.teacherCategory || ''
+                }];
+                migrated = true;
+            }
+            if (classData.homeroomTeacherUserId === undefined) {
+                classData.homeroomTeacherUserId = '';
+            }
+            if (classData.homeroomTeacherName === undefined) {
+                classData.homeroomTeacherName = '';
+            }
             if (!classData.scheduleBlock) {
                 classData.scheduleBlock = 'primary';
             }
@@ -16965,6 +17186,19 @@ function migrateData(data) {
             if (!Array.isArray(cohort.meetingDays)) {
                 cohort.meetingDays = [];
             }
+            (data.classes || []).forEach((cls) => {
+                if (cls.cohortId === cohort.id && !cohort.classIds.includes(cls.id)) {
+                    cohort.classIds.push(cls.id);
+                    migrated = true;
+                }
+            });
+            cohort.classIds.forEach((classId) => {
+                const cls = (data.classes || []).find((c) => c.id === classId);
+                if (cls && cls.cohortId !== cohort.id) {
+                    cls.cohortId = cohort.id;
+                    migrated = true;
+                }
+            });
         });
     }
     

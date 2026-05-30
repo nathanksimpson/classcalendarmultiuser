@@ -93,9 +93,12 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `syllabusRows` | array | Per-class syllabus table rows for print/export (see below) |
 | `color`, `textColor` | string | Hex colors |
 | `cohortId` | string | Links class to `cohorts[]` (same students) |
-| `assignedTeacherUserId` | string | Primary teacher (app user id) |
-| `assignedTeacherName` | string | Teacher name when not linked to a user |
-| `teacherCategory` | string | Timetable label: Debate, Wr&Spk, IPE, Conversation, … (empty = derive from class type) |
+| `classTeachers` | array | Teachers who teach this class: `{ userId?, name?, category? }[]` — each appears on that teacher’s timetable |
+| `assignedTeacherUserId` | string | Legacy: first teacher id (kept in sync with `classTeachers[0]`) |
+| `assignedTeacherName` | string | Legacy: first teacher name |
+| `teacherCategory` | string | Legacy: first teacher category |
+| `homeroomTeacherUserId` | string | Optional class-level HR override (usually use cohort 담임) |
+| `homeroomTeacherName` | string | Optional HR display name override |
 | `scheduleBlock` | string | `primary` (main grid) or `secondary` (Conversation / IPE / MS block) |
 | `timeSlotId` | string | Optional override linking to `timetableTimeSlots[].id` |
 

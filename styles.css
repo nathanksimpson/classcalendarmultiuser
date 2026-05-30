@@ -6296,6 +6296,50 @@ body.workspace-page #appStatus {
     font-size: 0.8125rem;
 }
 
+.timetable-cell-hr {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
+.class-teachers-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-bottom: 0.5rem;
+}
+
+.class-teacher-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.5rem;
+    align-items: end;
+    padding: 0.65rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--surface-elevated, var(--bg-card));
+}
+
+.class-teacher-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.class-teacher-row-remove {
+    justify-self: start;
+}
+
+.class-add-teacher-btn {
+    margin-bottom: 0.5rem;
+}
+
+.class-homeroom-label-display {
+    margin: 0.35rem 0 0.75rem;
+    font-weight: 600;
+}
+
 .timetable-cell--conflict {
     background: color-mix(in srgb, var(--danger-color, #dc2626) 10%, transparent);
     outline: 2px solid color-mix(in srgb, var(--danger-color, #dc2626) 45%, transparent);
@@ -6308,6 +6352,33 @@ body.workspace-page #appStatus {
 .class-teacher-section .form-section-title {
     margin: 0 0 0.5rem;
     font-size: 1rem;
+}
+
+.timetable-cell--cohort {
+    background: color-mix(in srgb, var(--accent-color, #3b82f6) 8%, transparent);
+}
+
+.timetable-cohorts-summary {
+    margin: 0 0 1rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--surface-elevated, var(--bg-card));
+}
+
+.timetable-cohorts-summary-title {
+    margin: 0 0 0.35rem;
+    font-size: 0.9375rem;
+}
+
+.timetable-cohorts-summary-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+}
+
+.timetable-cohorts-summary-list li {
+    margin: 0.2rem 0;
 }
 
 .timetable-cohorts-section {
