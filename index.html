@@ -419,7 +419,7 @@
                 </div>
                 </div>
                 <section class="timetable-cohorts-section print-data-section">
-                    <p class="section-hint timetable-cohorts-scope-hint" data-i18n="timetableCohortsScopeHint">Cohorts apply to the whole calendar, not only the teacher shown above.</p>
+                    <p class="section-hint timetable-cohorts-scope-hint" data-i18n="timetableCohortsScopeHint">Cohorts apply to the whole calendar. 담임 is a cohort role here; teaching slots come from Class teachers on the Classes tab.</p>
                     <div class="timetable-cohorts-toolbar">
                         <h3 data-i18n="timetableCohortsHeading">Student cohorts (담임)</h3>
                         <button type="button" id="timetableSuggestCohortsBtn" class="btn btn-outline btn-small" data-i18n="timetableSuggestCohorts">Suggest cohorts from classes</button>
@@ -661,7 +661,7 @@
 
                 <section class="form-section class-teacher-section form-group--full-only">
                     <h3 class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
-                    <p class="section-hint" data-i18n="classTeachersHint">Add each teacher who teaches this class. Homeroom (담임) is a separate label from the cohort.</p>
+                    <p class="section-hint" data-i18n="classTeachersHint">Add each teacher who teaches this class (team accounts). Pick subject and curriculum per row. Homeroom (담임) is set on Timetable → Student cohorts.</p>
                     <div id="classTeachersRows" class="class-teachers-rows" role="list"></div>
                     <button type="button" id="classAddTeacherBtn" class="btn btn-outline btn-small class-add-teacher-btn" data-i18n="classAddTeacher">+ Add teacher</button>
                     <p id="classHomeroomLabelDisplay" class="class-homeroom-label-display section-hint" role="status"></p>
@@ -1308,7 +1308,7 @@
     <script defer src="js/teacher-timetable.js?v=20260530-timetable-per-teacher"></script>
     <script defer src="js/class-curriculum-slices.js?v=20260530-timetable-exec"></script>
     <script defer src="js/timetable-export.js?v=20260530-timetable-exec"></script>
-    <script defer src="app.js?v=20260530-timetable-print"></script>
+    <script defer src="app.js?v=20260530-homeroom-hr"></script>
 </body>
 </html>
 

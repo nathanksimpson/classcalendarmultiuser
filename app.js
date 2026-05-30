@@ -427,7 +427,7 @@ const translations = {
         classAssignedTeacherNone: '— Not assigned —',
         classAssignedTeacherCustom: 'Other (type name below)',
         classAssignedTeacherName: 'Teacher name (if not in list)',
-        classTeachersHint: 'Add each teacher from team accounts (same logins as Accounts management). Pick a curriculum per teacher so their calendar and syllabus use that book. Homeroom (담임) is a separate label from the cohort.',
+        classTeachersHint: 'Add each teacher who teaches this class (team accounts). Pick subject and curriculum per row. Homeroom (담임) is set on Timetable → Student cohorts — it is a cohort role (contact, retests), not what they teach here.',
         classTeacherAccountRequired: 'Select a teacher account from the list (not only a typed name) so their login shows the right curriculum.',
         classTeacherLegacyUnlinked: 'link account',
         classAddTeacher: '+ Add teacher',
@@ -446,11 +446,11 @@ const translations = {
         dataExportCalendar: 'Export calendar',
         dataImportCalendar: 'Import calendar',
         dataCalendarNameLabel: 'Current calendar',
-        classTeacherCategory: 'Teacher category',
+        classTeacherCategory: 'Subject taught',
         classTeacherCategoryAuto: 'Auto from class type',
         classHomeroomLabel: 'Homeroom teacher (담임)',
-        classHomeroomLabelNone: 'No homeroom teacher set for this cohort.',
-        classHomeroomLabelFromCohort: 'Homeroom (담임): {name}',
+        classHomeroomLabelNone: 'No homeroom teacher for this cohort. Set 담임 on Timetable → Student cohorts.',
+        classHomeroomLabelFromCohort: 'Homeroom (담임): {name} — student contact and retests. If they also teach this class, add them above with the subject they teach.',
         timetableCellHomeroom: '담임',
         classCohort: 'Student cohort',
         classCohortNone: '— No cohort —',
@@ -463,8 +463,11 @@ const translations = {
         timetableTeacherSearchPlaceholder: 'Search teachers…',
         timetableTeacherClassesHeading: 'Classes',
         timetableNoClassesForTeacher: 'No classes assigned to this teacher yet. Assign them on the Classes tab.',
+        timetableHomeroomOnlyTeacher: 'Homeroom teacher (담임) only — no teaching slots yet. To show classes on the grid, add this teacher under Class teachers on each class they teach (with the subject they teach).',
         timetableTeachersListEmpty: 'No teachers found. Assign teachers on classes or add team accounts.',
-        timetableCohortsScopeHint: 'Cohorts apply to the whole calendar, not only the teacher shown above.',
+        timetableCohortsScopeHint: 'Cohorts apply to the whole calendar, not only the teacher shown above. 담임 is a role here; teaching slots come from Class teachers on the Classes tab.',
+        timetableHomeroomRoleHint: '담임 is a cohort role (student contact, retests), not a teaching subject. If this teacher also teaches, add them on each class under Class teachers with the subject they teach.',
+        timetableCohortHomeroomOnlySaved: 'Cohort saved. This teacher is 담임 only — add them as a class teacher on subjects they teach when ready.',
         timetableEmptyHint: 'Assign teachers on the Classes tab to build a weekly timetable.',
         timetableHomeroomLabel: 'Homeroom',
         timetableTimeHeader: 'Time',
@@ -1181,7 +1184,7 @@ const translations = {
         classAssignedTeacherNone: '— 미배정 —',
         classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
         classAssignedTeacherName: '선생님 이름 (목록에 없을 때)',
-        classTeachersHint: '계정 관리에 등록된 팀 계정에서 선생님을 선택하세요. 선생님마다 교재과정을 선택하면 로그인 시 캘린더·강의 계획표에 해당 교재가 표시됩니다. 담임은 반(코호트)에서 따로 표시되는 라벨입니다.',
+        classTeachersHint: '이 수업을 가르치는 선생님을 팀 계정에서 추가하세요. 행마다 담당 과목과 교재과정을 선택합니다. 담임은 시간표 → 학생 반에서 설정합니다(학생 연락·재시험 담당 역할이며, 여기서 가르치는 과목과는 별개).',
         classTeacherAccountRequired: '로그인 계정과 연결하려면 목록에서 선생님 계정을 선택하세요. 이름만 입력하면 안 됩니다.',
         classTeacherLegacyUnlinked: '계정 연결 필요',
         classAddTeacher: '+ 선생님 추가',
@@ -1200,11 +1203,11 @@ const translations = {
         dataExportCalendar: '캘린더보내기',
         dataImportCalendar: '캘린더 가져오기',
         dataCalendarNameLabel: '현재 캘린더',
-        classTeacherCategory: '선생님 구분',
+        classTeacherCategory: '담당 과목',
         classTeacherCategoryAuto: '수업 유형에서 자동',
         classHomeroomLabel: '담임 선생님',
-        classHomeroomLabelNone: '이 반에 담임 선생님이 없습니다.',
-        classHomeroomLabelFromCohort: '담임: {name}',
+        classHomeroomLabelNone: '이 반에 담임 선생님이 없습니다. 시간표 → 학생 반에서 담임을 설정하세요.',
+        classHomeroomLabelFromCohort: '담임: {name} — 학생 연락·재시험 담당. 이 수업도 가르치면 위에서 담당 과목과 함께 추가하세요.',
         timetableCellHomeroom: '담임',
         classCohort: '학생 반(코호트)',
         classCohortNone: '— 반 없음 —',
@@ -1217,8 +1220,11 @@ const translations = {
         timetableTeacherSearchPlaceholder: '선생님 검색…',
         timetableTeacherClassesHeading: '담당 수업',
         timetableNoClassesForTeacher: '이 선생님에게 배정된 수업이 없습니다. 수업 탭에서 배정하세요.',
+        timetableHomeroomOnlyTeacher: '담임만 배정됨 — 가르치는 수업이 아직 없습니다. 시간표에 표시하려면 각 수업의 Class teachers에서 이 선생님과 담당 과목을 추가하세요.',
         timetableTeachersListEmpty: '선생님이 없습니다. 수업에 선생님을 배정하거나 팀 계정을 추가하세요.',
-        timetableCohortsScopeHint: '반(담임) 설정은 위에서 선택한 선생님뿐 아니라 캘린더 전체에 적용됩니다.',
+        timetableCohortsScopeHint: '반(담임) 설정은 캘린더 전체에 적용됩니다. 담임은 역할이며, 수업 시간표는 수업 탭의 Class teachers에서 정합니다.',
+        timetableHomeroomRoleHint: '담임은 반 역할(학생 연락·재시험)이며 가르치는 과목이 아닙니다. 수업도 담당하면 각 수업의 Class teachers에 담당 과목과 함께 추가하세요.',
+        timetableCohortHomeroomOnlySaved: '반을 저장했습니다. 담임만 지정됨 — 수업도 담당하면 Class teachers에 추가하세요.',
         timetableEmptyHint: '수업 탭에서 선생님을 배정하면 주간 시간표가 표시됩니다.',
         timetableHomeroomLabel: '담임반',
         timetableTimeHeader: '시간',
@@ -9621,7 +9627,17 @@ function renderTimetableClassList(selector) {
         empty.className = 'module-list-empty';
         empty.style.padding = '12px';
         empty.style.color = 'var(--text-secondary)';
-        empty.textContent = q ? t('lessonFilterSearchEmpty') : t('timetableNoClassesForTeacher');
+        if (q) {
+            empty.textContent = t('lessonFilterSearchEmpty');
+        } else {
+            const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+            const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
+            const homeroomOnly = grid.homeroomCohorts && grid.homeroomCohorts.length > 0
+                && !grid.assignedClassCount;
+            empty.textContent = homeroomOnly
+                ? t('timetableHomeroomOnlyTeacher')
+                : t('timetableNoClassesForTeacher');
+        }
         list.appendChild(empty);
         return;
     }
@@ -9991,18 +10007,44 @@ body.app-print-timetable-doc { font-family: "DM Sans", "Noto Sans KR", sans-seri
 }
 `;
 
-function getTimetablePrintGridForSelectedTeacher() {
-    const sel = document.getElementById('timetableTeacherSelect');
-    if (!sel || !sel.value) {
+function homeroomTeacherHasClassAssignments(cohort) {
+    const api = getTimetableApi();
+    if (!cohort || !api) {
+        return true;
+    }
+    const hrUid = (cohort.homeroomTeacherUserId || '').trim();
+    const hrName = (cohort.homeroomTeacherName || '').trim();
+    if (!hrUid && !hrName) {
+        return true;
+    }
+    const selector = { userId: hrUid, displayName: hrName };
+    const classIds = api.getCohortClassIds
+        ? api.getCohortClassIds(appData, cohort)
+        : (cohort.classIds || []);
+    return classIds.some((id) => {
+        const classData = (appData.classes || []).find((c) => c.id === id);
+        return classData && api.findTeacherRowForSelector(classData, selector);
+    });
+}
+
+function getTimetablePrintContext() {
+    const view = document.getElementById('timetableView');
+    const selector = getTimetableTeacherSelectorFromUi();
+    if (!view || view.hidden || !selector) {
         return null;
     }
     const api = getTimetableApi();
     if (!api) {
         return null;
     }
-    const selector = parseTeacherPickerValue(sel.value);
     const lang = currentLanguage === 'ko' ? 'ko' : 'en';
-    return api.buildTeacherWeeklyGrid(appData, selector, { lang });
+    const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
+    return { selector, grid, lang };
+}
+
+function getTimetablePrintGridForSelectedTeacher() {
+    const ctx = getTimetablePrintContext();
+    return ctx ? ctx.grid : null;
 }
 
 function syncTimetablePrintOptionsUi() {
@@ -10053,9 +10095,7 @@ function getTimetablePrintOptionsFromForm() {
 }
 
 function openTimetablePrintOptionsModal() {
-    const view = document.getElementById('timetableView');
-    const sel = document.getElementById('timetableTeacherSelect');
-    if (!view || view.hidden || !sel || !sel.value) {
+    if (!getTimetablePrintContext()) {
         alert(t('timetableSelectTeacher'));
         return;
     }
@@ -10296,19 +10336,12 @@ function fitTimetableGridForPrint(doc) {
 }
 
 function runTimetablePrint(opts) {
-    const view = document.getElementById('timetableView');
-    const sel = document.getElementById('timetableTeacherSelect');
-    if (!view || view.hidden || !sel || !sel.value) {
+    const ctx = getTimetablePrintContext();
+    if (!ctx) {
         alert(t('timetableSelectTeacher'));
         return;
     }
-    const api = getTimetableApi();
-    if (!api) {
-        return;
-    }
-    const selector = parseTeacherPickerValue(sel.value);
-    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
-    const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
+    const { selector, grid } = ctx;
     const html = buildTimetablePrintDocumentHtml(opts, grid);
     if (!html) {
         alert(t('timetableSelectTeacher'));
@@ -10462,6 +10495,10 @@ function buildCohortEditorCard(cohort) {
     const homeroomSel = buildTeacherOptionsForCohort(cohort.homeroomTeacherUserId, cohort.homeroomTeacherName);
     homeroomLabel.appendChild(homeroomSel);
 
+    const homeroomRoleHint = document.createElement('p');
+    homeroomRoleHint.className = 'section-hint timetable-cohort-hr-hint';
+    homeroomRoleHint.textContent = t('timetableHomeroomRoleHint');
+
     const homeroomNameLabel = document.createElement('label');
     homeroomNameLabel.textContent = t('classAssignedTeacherName');
     const homeroomNameInput = document.createElement('input');
@@ -10501,7 +10538,10 @@ function buildCohortEditorCard(cohort) {
         populateClassCohortSelect();
         renderTimetableCohortsList();
         refreshTimetablePanels();
-        setAppStatusMessage(t('timetableCohortSaved'), false);
+        const savedMsg = homeroomTeacherHasClassAssignments(cohort)
+            ? t('timetableCohortSaved')
+            : t('timetableCohortHomeroomOnlySaved');
+        setAppStatusMessage(savedMsg, false);
     });
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
@@ -10523,6 +10563,7 @@ function buildCohortEditorCard(cohort) {
 
     card.appendChild(nameLabel);
     card.appendChild(homeroomLabel);
+    card.appendChild(homeroomRoleHint);
     card.appendChild(homeroomNameLabel);
     card.appendChild(suffixLabel);
     card.appendChild(meta);
