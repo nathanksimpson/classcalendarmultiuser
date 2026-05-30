@@ -11,7 +11,7 @@
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260602-tab-fast',
+        'js/books-editor.js?v=20260531-team-default',
         'js/homework-import.js',
         'js/homework-tab.js?v=20260531-hw-seq',
         'js/syllabus-templates.js?v=20260531-seq-compress'

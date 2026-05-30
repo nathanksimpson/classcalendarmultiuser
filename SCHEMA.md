@@ -13,6 +13,8 @@
 | `customClassTypes` | array | User-defined class type presets |
 | `customSyllabusTemplates` | array | Reusable syllabus templates (units + session row templates); see below |
 | `defaultClassTypeOverrides` | object | Per-id edits to built-in / PDF preset defaults (`preset-rc-yeoul-saemmul`, `builtin-wr-sp`, etc.) |
+| `bookOverrides` | object | Legacy per-book session templates (migrated into `curriculumOverrides` on load) |
+| `curriculumOverrides` | object | Per-book curriculum edits: `sessions`, `classDefaults`, `applicableLevels`, optional `teamDefault` (admin/head-teacher adopted baseline for warnings and reset) |
 
 **Syllabus data (not in saved calendar JSON):** `Reference/Syllabi/schedule-matrix.json` (Junior Rainbow / Senior Waterflow slots), session templates in `js/syllabus-curricula-data.js`. Presets include `programTrack`, `levelGroup`, `level`, `subjectTrack` for schedule suggestions; legacy IDs alias to new preset ids (e.g. `preset-rc-greenblue` → `preset-rc-green-blue`).
 | `ui` | object | `visibilityFilters`, `printVisibility`, `lessonFilters` (optional class/grade/level filters) |

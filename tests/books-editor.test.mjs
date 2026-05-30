@@ -15,8 +15,29 @@ await import(pathToFileURL(path.join(root, 'js', 'books-editor.js')).href);
 const { CCPBooksEditor } = globalThis;
 const { CCPCurriculaData } = globalThis;
 
+CCPBooksEditor.init({
+    getAppData: () => ({}),
+    saveData: () => {},
+    t: (k) => k,
+    getLang: () => 'en',
+    canAdoptTeamCurriculumDefault: () => true
+});
+
 function assert(cond, msg) {
     if (!cond) throw new Error(msg);
+}
+
+function buildWriteNowRows(n, detailPrefix) {
+    const rows = [];
+    for (let i = 0; i < n; i += 1) {
+        rows.push({
+            sessionNumber: i + 1,
+            planTitle: `Unit ${i + 1}`,
+            planDetail: `${detailPrefix || 'PAGES'}-${i + 1}`,
+            note: ''
+        });
+    }
+    return rows;
 }
 
 const books = CCPBooksEditor.discoverBooks({});
@@ -121,5 +142,60 @@ assert(customId, 'createCurriculum returns id');
 const customBook = CCPBooksEditor.discoverBooks(appData).find((b) => b.id === customId);
 assert(customBook && customBook.isCustom, 'custom appears in discover');
 assert(customBook.sessionCount >= 1, 'custom starts with session row');
+
+const adoptData = { bookOverrides: {}, curriculumOverrides: {} };
+const adoptRows = buildWriteNowRows(22, 'ADOPT');
+CCPBooksEditor.saveBookTemplates('write-now', adoptRows, adoptData);
+let adoptBook = CCPBooksEditor.discoverBooks(adoptData).find((b) => b.id === 'write-now');
+assert(adoptBook && adoptBook.hasOverride, '22 sessions differs from shipped factory before adopt');
+assert(
+    adoptBook.sessionCount === 22 && adoptBook.factorySessionCount === 20,
+    'write-now counts before adopt'
+);
+CCPBooksEditor.adoptTeamDefault('write-now', adoptRows, adoptData, {
+    classDefaults: { defaultTotalLessons: 22 }
+});
+adoptBook = CCPBooksEditor.discoverBooks(adoptData).find((b) => b.id === 'write-now');
+assert(adoptBook && !adoptBook.hasOverride, 'no edited badge when sessions match team default');
+assert(adoptBook.baselineSessionCount === 22, 'baseline session count is 22');
+assert(
+    CCPBooksEditor.getEffectiveSessionBaselineCount('write-now', adoptData, 20) === 22,
+    'effective baseline uses team default'
+);
+const teamRec = adoptData.curriculumOverrides['write-now'].teamDefault;
+assert(teamRec && teamRec.sessions.length === 22, 'teamDefault snapshot stored');
+
+const dirtyRows = buildWriteNowRows(23, 'DIRTY');
+CCPBooksEditor.saveBookTemplates('write-now', dirtyRows, adoptData);
+adoptBook = CCPBooksEditor.discoverBooks(adoptData).find((b) => b.id === 'write-now');
+assert(adoptBook && adoptBook.hasOverride, 'editing away from team default shows override again');
+
+CCPBooksEditor.restoreFromTeamDefault('write-now', adoptData);
+const restoredTpl = CCPBooksEditor.getTemplatesForBookId('write-now', adoptData);
+assert(restoredTpl.length === 22, 'restoreFromTeamDefault restores 22 sessions');
+assert(restoredTpl[0].planDetail === 'ADOPT-1', 'restored content matches team default');
+
+const teacherResetData = { bookOverrides: {}, curriculumOverrides: {} };
+CCPBooksEditor.adoptTeamDefault(
+    'write-now',
+    buildWriteNowRows(22, 'TEAM'),
+    teacherResetData,
+    {}
+);
+CCPBooksEditor.saveBookTemplates('write-now', buildWriteNowRows(23, 'WORK'), teacherResetData);
+CCPBooksEditor.init({
+    getAppData: () => teacherResetData,
+    saveData: () => {},
+    t: (k) => k,
+    getLang: () => 'en',
+    canAdoptTeamCurriculumDefault: () => false
+});
+CCPBooksEditor.resetBookToFactory('write-now', teacherResetData);
+const afterTeacherReset = CCPBooksEditor.getTemplatesForBookId('write-now', teacherResetData);
+assert(afterTeacherReset.length === 20, 'teacher reset restores shipped factory session count');
+assert(
+    teacherResetData.curriculumOverrides['write-now'].teamDefault.sessions.length === 22,
+    'teacher reset keeps teamDefault on calendar'
+);
 
 console.log('books-editor.test.mjs: all passed');

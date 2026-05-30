@@ -31,7 +31,8 @@
         onBooksSaved: () => {},
         navigateToCurriculumTab: null,
         getSimsonLevelGroups: () => [],
-        getSchoolGradeOptions: () => []
+        getSchoolGradeOptions: () => [],
+        canAdoptTeamCurriculumDefault: () => false
     };
 
     function init(options = {}) {
@@ -197,6 +198,71 @@
         };
     }
 
+    function getTeamDefaultRecord(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return null;
+        }
+        const raw = ensureCurriculumOverrides(appData)[id];
+        if (!raw || !raw.teamDefault || typeof raw.teamDefault !== 'object') {
+            return null;
+        }
+        const td = raw.teamDefault;
+        const sessions = Array.isArray(td.sessions) ? normalizeRowTemplates(td.sessions) : [];
+        if (!sessions.length) {
+            return null;
+        }
+        return {
+            sessions,
+            classDefaults: td.classDefaults && typeof td.classDefaults === 'object'
+                ? deepClone(td.classDefaults)
+                : {},
+            applicableLevels: Array.isArray(td.applicableLevels)
+                ? td.applicableLevels.filter(Boolean)
+                : undefined,
+            bookTitle: td.bookTitle != null ? String(td.bookTitle).trim() : '',
+            adoptedAt: td.adoptedAt || ''
+        };
+    }
+
+    function getBaselineSessionRows(bookId, appData, shippedFactoryRows) {
+        const team = getTeamDefaultRecord(bookId, appData);
+        if (team && team.sessions.length) {
+            return team.sessions;
+        }
+        return normalizeRowTemplates(shippedFactoryRows || []);
+    }
+
+    function sessionsDifferFromBaseline(effectiveRows, bookId, appData, shippedFactoryRows) {
+        const baseline = getBaselineSessionRows(bookId, appData, shippedFactoryRows);
+        const effective = normalizeRowTemplates(effectiveRows);
+        return JSON.stringify(effective) !== JSON.stringify(baseline);
+    }
+
+    function getEffectiveSessionBaselineCount(bookId, appData, shippedFactoryCount) {
+        const team = getTeamDefaultRecord(bookId, appData);
+        if (team && team.sessions.length) {
+            return team.sessions.length;
+        }
+        return shippedFactoryCount;
+    }
+
+    function formatTeamDefaultDate(iso) {
+        if (!iso) {
+            return '';
+        }
+        try {
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) {
+                return iso;
+            }
+            const lang = hooks.getLang();
+            return d.toLocaleDateString(lang === 'ko' ? 'ko-KR' : undefined);
+        } catch (_) {
+            return iso;
+        }
+    }
+
     function syncLegacyBookOverride(curriculumId, sessions, appData) {
         const overrides = ensureBookOverrides(appData);
         const book = getBookById(curriculumId, appData);
@@ -331,7 +397,6 @@
                 const legacySessions = bookOv[book.id] && bookOv[book.id].defaultSyllabusRowTemplates;
                 const hasCurSessions = !!(cur && cur.sessions && cur.sessions.length);
                 const hasLegacy = !!(legacySessions && legacySessions.length);
-                const hasOverride = hasCurSessions || hasLegacy;
                 const factoryRows = getFactoryTemplatesForBook(book);
                 let effectiveRows = factoryRows;
                 if (hasCurSessions) {
@@ -339,6 +404,13 @@
                 } else if (hasLegacy) {
                     effectiveRows = normalizeRowTemplates(legacySessions);
                 }
+                const hasOverride = (hasCurSessions || hasLegacy)
+                    && sessionsDifferFromBaseline(effectiveRows, book.id, appData, factoryRows);
+                const baselineSessionCount = getEffectiveSessionBaselineCount(
+                    book.id,
+                    appData,
+                    factoryRows.length
+                );
                 const displayName = (cur && cur.bookTitle) || book.name;
                 const factoryLevels = book.levels.slice();
                 const applicable = getStoredApplicableLevels(book.id, appData, factoryLevels, false);
@@ -350,6 +422,7 @@
                     applicableIsAllLevels: applicable.isAllLevels,
                     sessionCount: effectiveRows.length,
                     factorySessionCount: factoryRows.length,
+                    baselineSessionCount,
                     hasOverride,
                     levelsLabel: applicable.levelsLabel
                 };
@@ -876,6 +949,7 @@
         const saveId = bookId;
         const curricula = ensureCurriculumOverrides(appData);
         const prev = curricula[saveId] || {};
+        const prevTeamDefault = prev.teamDefault;
         const factoryRows = isDebateBookRecord(book)
             ? getFactoryTemplatesForBook(book)
             : getFactoryTemplatesForBook(book);
@@ -899,6 +973,9 @@
             types: prev.types || {},
             updatedAt: new Date().toISOString()
         };
+        if (prevTeamDefault) {
+            next.teamDefault = prevTeamDefault;
+        }
         if (book.isCustom) {
             next.isCustom = true;
         }
@@ -923,7 +1000,11 @@
         }
         const hasMeta = curriculumRecordHasMeta(next);
         if (!next.sessions && !hasMeta && !book.isCustom && !isDebateBookRecord(book)) {
-            delete curricula[saveId];
+            if (prevTeamDefault) {
+                curricula[saveId] = { teamDefault: prevTeamDefault };
+            } else {
+                delete curricula[saveId];
+            }
         } else {
             curricula[saveId] = next;
         }
@@ -935,12 +1016,67 @@
         return true;
     }
 
+    function restoreFromTeamDefault(bookId, appData) {
+        const team = getTeamDefaultRecord(bookId, appData);
+        if (!team || !team.sessions.length) {
+            return false;
+        }
+        const opts = {
+            classDefaults: team.classDefaults,
+            applicableLevels: team.applicableLevels
+        };
+        if (team.bookTitle) {
+            opts.bookTitle = team.bookTitle;
+        }
+        return saveBookTemplates(bookId, team.sessions, appData, opts);
+    }
+
+    function adoptTeamDefault(bookId, rowTemplates, appData, options) {
+        const book = getBookById(bookId, appData);
+        if (!book || book.isCustom) {
+            return false;
+        }
+        const opt = options || {};
+        if (!saveBookTemplates(bookId, rowTemplates, appData, opt)) {
+            return false;
+        }
+        const normalized = normalizeRowTemplates(rowTemplates);
+        const curricula = ensureCurriculumOverrides(appData);
+        const prev = curricula[bookId] || {};
+        const classDefaults = deepClone(prev.classDefaults || opt.classDefaults || {});
+        if (classDefaults.defaultTotalLessons == null) {
+            classDefaults.defaultTotalLessons = normalized.length;
+        }
+        const title = (prev.bookTitle || opt.bookTitle || book.displayName || '').trim();
+        if (title) {
+            classDefaults.defaultBook = title;
+        }
+        const applicableLevels = opt.applicableLevels !== undefined
+            ? (Array.isArray(opt.applicableLevels) ? opt.applicableLevels.filter(Boolean) : [])
+            : (Array.isArray(prev.applicableLevels) ? prev.applicableLevels.slice() : undefined);
+        curricula[bookId] = {
+            ...prev,
+            teamDefault: {
+                sessions: deepClone(normalized),
+                classDefaults,
+                applicableLevels,
+                bookTitle: title || prev.bookTitle,
+                adoptedAt: new Date().toISOString()
+            }
+        };
+        hooks.saveData();
+        hooks.onBooksSaved();
+        return true;
+    }
+
     function resetBookToFactory(bookId, appData) {
         const book = getBookById(bookId, appData);
         if (book && book.isCustom) {
             return deleteCustomCurriculum(bookId, appData);
         }
         const curricula = ensureCurriculumOverrides(appData);
+        const raw = curricula[bookId];
+        const teamSnapshot = raw && raw.teamDefault ? deepClone(raw.teamDefault) : null;
         if (book && (book.isVirtualDebate || isDebateBookRecord(book))) {
             delete curricula[bookId];
             delete curricula[DEBATE_CURRICULUM_ID];
@@ -951,8 +1087,12 @@
         delete curricula[bookId];
         const overrides = ensureBookOverrides(appData);
         delete overrides[bookId];
+        if (teamSnapshot) {
+            curricula[bookId] = { teamDefault: teamSnapshot };
+        }
         hooks.saveData();
         hooks.onBooksSaved();
+        return true;
     }
 
     function countBookOverrides(appData) {
@@ -1054,11 +1194,14 @@
             return;
         }
         const rows = getTemplatesForBookId(bookId, appData);
-        const countWarn = !book.isCustom && !book.isVirtualDebate && rows.length !== book.factorySessionCount
+        const baselineCount = book.baselineSessionCount != null
+            ? book.baselineSessionCount
+            : getEffectiveSessionBaselineCount(bookId, appData, book.factorySessionCount);
+        const countWarn = !book.isCustom && !book.isVirtualDebate && rows.length !== baselineCount
             ? `<p class="section-hint books-editor-count-warn">${escapeHtml(
                 hooks.t('booksEditorSessionCountWarn')
                     .replace('{n}', String(rows.length))
-                    .replace('{factory}', String(book.factorySessionCount))
+                    .replace('{factory}', String(baselineCount))
             )}</p>`
             : '';
         const customBadge = book.isCustom
@@ -1244,9 +1387,11 @@
         const tbodyId = `${prefix}EditorTableBody`;
         const saveId = `${prefix}EditorSaveBtn`;
         const resetId = `${prefix}EditorResetBtn`;
+        const adoptId = `${prefix}EditorAdoptDefaultBtn`;
         const duplicateId = `${prefix}EditorDuplicateBtn`;
         const toolbarId = `${prefix}EditorToolbar`;
         const isCustom = !!book.isCustom;
+        const showAdopt = !isCustom && hooks.canAdoptTeamCurriculumDefault();
         const applicabilityHtml = renderApplicabilityPanelHtml(prefix, book, curriculumId, getAppData());
         const resetLabelKey = isCustom ? 'curriculumDeleteBtn' : 'booksEditorReset';
         const resetDefault = isCustom ? 'Delete curriculum' : 'Reset sessions to factory';
@@ -1273,6 +1418,9 @@
             </div>
             <div class="form-actions books-editor-actions">
               <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${resetDefault}</button>
+              ${showAdopt
+        ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="curriculumSaveToDefaults">Save to defaults</button>`
+        : ''}
               <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
               <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
             </div>
@@ -1312,15 +1460,15 @@
                 }
             }
             if (e.target.id === resetId && fullPageEditingBookId) {
-                const activeBook = getBookById(fullPageEditingBookId, getAppData());
-                const confirmKey = activeBook && activeBook.isCustom
-                    ? 'curriculumDeleteConfirm'
-                    : 'booksEditorResetConfirm';
-                if (!confirm(hooks.t(confirmKey))) {
-                    return;
-                }
-                resetBookToFactory(fullPageEditingBookId, getAppData());
+                const appData = getAppData();
+                const activeBook = getBookById(fullPageEditingBookId, appData);
+                const teamTd = getTeamDefaultRecord(fullPageEditingBookId, appData);
+                const canAdopt = hooks.canAdoptTeamCurriculumDefault();
                 if (activeBook && activeBook.isCustom) {
+                    if (!confirm(hooks.t('curriculumDeleteConfirm'))) {
+                        return;
+                    }
+                    resetBookToFactory(fullPageEditingBookId, appData);
                     fullPageEditingBookId = null;
                     mountEl.innerHTML = `<p class="module-empty-hint">${escapeHtml(hooks.t('curriculumTabPick'))}</p>`;
                     if (fullPageAfterSave) {
@@ -1328,12 +1476,52 @@
                     }
                     return;
                 }
+                if (teamTd && canAdopt) {
+                    const dateLabel = formatTeamDefaultDate(teamTd.adoptedAt);
+                    if (!confirm(hooks.t('booksEditorResetTeamDefaultConfirm').replace('{date}', dateLabel))) {
+                        return;
+                    }
+                    restoreFromTeamDefault(fullPageEditingBookId, appData);
+                } else {
+                    if (!confirm(hooks.t('booksEditorResetConfirm'))) {
+                        return;
+                    }
+                    resetBookToFactory(fullPageEditingBookId, appData);
+                }
                 renderEditorTableInto(
                     fullPageEditingBookId,
                     document.getElementById(tbodyId),
                     document.getElementById(metaId),
                     { toolbarEl: document.getElementById(toolbarId) }
                 );
+                if (fullPageAfterSave) {
+                    fullPageAfterSave(fullPageEditingBookId);
+                }
+            }
+            if (e.target.id === adoptId && fullPageEditingBookId) {
+                if (!hooks.canAdoptTeamCurriculumDefault()) {
+                    return;
+                }
+                const tbody = document.getElementById(tbodyId);
+                const rows = collectEditorRowsFromTbody(tbody);
+                if (rows.length < MIN_SESSION_ROWS) {
+                    alert(hooks.t('booksEditorNoRows'));
+                    return;
+                }
+                if (!confirm(hooks.t('curriculumSaveToDefaultsConfirm'))) {
+                    return;
+                }
+                const saveOpts = collectApplicabilitySettings(prefix);
+                adoptTeamDefault(fullPageEditingBookId, rows, getAppData(), saveOpts);
+                renderEditorTableInto(
+                    fullPageEditingBookId,
+                    tbody,
+                    document.getElementById(metaId),
+                    { toolbarEl: document.getElementById(toolbarId) }
+                );
+                if (fullPageAfterSave) {
+                    fullPageAfterSave(fullPageEditingBookId);
+                }
             }
             if (e.target.id === duplicateId && fullPageEditingBookId) {
                 const newId = duplicateCurriculum(fullPageEditingBookId, getAppData());
@@ -1491,6 +1679,10 @@
         getTemplatesForPresetId,
         applyBookTemplatesToPreset,
         saveBookTemplates,
+        adoptTeamDefault,
+        restoreFromTeamDefault,
+        getTeamDefaultRecord,
+        getEffectiveSessionBaselineCount,
         resetBookToFactory,
         countBookOverrides,
         renderPrintBooksList,

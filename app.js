@@ -223,6 +223,9 @@ const translations = {
         booksEditorColNote: 'Note',
         booksEditorSaveCurriculum: 'Save curriculum',
         booksEditorSessionCountWarn: 'You have {n} sessions; factory default is {factory}. Update total lessons on the class form if needed.',
+        curriculumSaveToDefaults: 'Save to defaults',
+        curriculumSaveToDefaultsConfirm: 'Save these sessions and class defaults as this calendar’s default for this book? Warnings will clear. Reset will restore this version, not the original factory pages.',
+        booksEditorResetTeamDefaultConfirm: 'Restore this book to the team default saved on {date}? Unsaved edits will be lost.',
         tabCurriculum: 'Curriculum',
         curriculumTabIntro: 'Edit session pages and default schedule for each program book, or add your own curriculum. On the class form, pick Level and Book, then Apply from curriculum.',
         curriculumTabPick: 'Select a curriculum to edit sessions and defaults.',
@@ -1045,6 +1048,9 @@ const translations = {
         booksEditorColNote: '메모',
         booksEditorSaveCurriculum: '교재과정 저장',
         booksEditorSessionCountWarn: '회차 {n}개입니다. 공장 기본값은 {factory}개입니다. 필요하면 수업의 총 수업 수를 맞추세요.',
+        curriculumSaveToDefaults: '기본값으로 저장',
+        curriculumSaveToDefaultsConfirm: '이 회차·수업 기본값을 이 캘린더의 교재 기본값으로 저장할까요? 경고가 사라집니다. 초기화 시 공장 페이지가 아니라 이 버전으로 복원됩니다.',
+        booksEditorResetTeamDefaultConfirm: '{date}에 저장한 팀 기본값으로 되돌릴까요? 저장하지 않은 편집 내용은 사라집니다.',
         tabCurriculum: '교재과정',
         curriculumTabIntro: '프로그램 교재를 편집하거나 새 교재과정을 추가할 수 있습니다. 수업 양식에서 레벨·교재 선택 후 적용하세요.',
         curriculumTabPick: '편집할 교재과정을 선택하세요.',
@@ -2627,6 +2633,13 @@ function initBooksEditorModule() {
         },
         navigateToCurriculumTab: (curriculumId) => {
             navigateToTab('curriculum', { curriculumId });
+        },
+        canAdoptTeamCurriculumDefault: () => {
+            if (location.protocol === 'file:') {
+                return true;
+            }
+            const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+            return !!(user && user.canForceUnlock);
         }
     });
     window.CCPBooksEditor.bindEditorUI();
