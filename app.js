@@ -686,7 +686,7 @@ const translations = {
         homeworkTabDueDate: 'Homework due (next class)',
         homeworkTabGradingTitle: 'Previous week — for Simson grading site',
         homeworkTabAssignTitle: 'This week — for homework assignment site',
-        homeworkTabGradingHint: 'Copy this block, open your Simson grading webpage in another tab, and paste there. This is homework due at the current class (from that session’s Pages / detail).',
+        homeworkTabGradingHint: 'Copy this block, open your Simson grading webpage in another tab, and paste there. This is homework due at the current class (from the previous session’s Pages / detail).',
         homeworkTabAssignHint: 'Copy this block, open your homework assignment webpage in another tab, and paste there. Due on the next in-person class (skips holidays and no-class days).',
         homeworkTabCopy: 'Copy',
         homeworkTabCopyBoth: 'Copy both blocks',
@@ -1507,7 +1507,7 @@ const translations = {
         homeworkTabDueDate: '숙제 마감 (다음 수업)',
         homeworkTabGradingTitle: '지난주 — Simson 채점 사이트용',
         homeworkTabAssignTitle: '이번주 — 숙제 배정 사이트용',
-        homeworkTabGradingHint: '이 블록을 복사한 뒤, 다른 탭에서 Simson 채점 웹페이지를 열고 붙여넣으세요. 이번 수업에 제출할 숙제입니다(해당 회차의 페이지/세부).',
+        homeworkTabGradingHint: '이 블록을 복사한 뒤, 다른 탭에서 Simson 채점 웹페이지를 열고 붙여넣으세요. 이번 수업에 제출할 숙제입니다(이전 회차의 페이지/세부).',
         homeworkTabAssignHint: '이 블록을 복사한 뒤, 다른 탭에서 숙제 배정 웹페이지를 열고 붙여넣으세요. 다음 대면 수업일까지 (휴일·수업 없는 날 제외).',
         homeworkTabCopy: '복사',
         homeworkTabCopyBoth: '두 블록 모두 복사',
@@ -8460,7 +8460,13 @@ function populateSyllabusEditorForClass(classData) {
     setSyllabusEditorDataset(classData);
     setSyllabusGeneralNotesInForm(classData.syllabusGeneralNotes || '');
     renderSyllabusUnitsRows(classData.syllabusUnits || []);
-    const rows = getSyllabusRowsForClass(effective, { preferMerged: true });
+    let rows;
+    if (classData._syllabusNeedsCalendarSync === true) {
+        rows = syncClassSyllabusRowsFromCalendar(effective, { refreshScheduleTitles: true }) || [];
+        saveData();
+    } else {
+        rows = getSyllabusRowsForClass(effective, { preferMerged: true });
+    }
     renderSyllabusEditorTable(rows);
     const syllabusHint = document.getElementById('syllabusEditorCurriculumHint');
     if (syllabusHint) {
@@ -9676,7 +9682,13 @@ function computeHomeworkPacketForClass(classData) {
         return { messageKey: 'homeworkTabModuleMissing' };
     }
     syncHolidaysFromEvents();
-    const rows = getSyllabusRowsForClass(classData, { preferMerged: true });
+    let rows;
+    if (classData && classData._syllabusNeedsCalendarSync === true) {
+        rows = syncClassSyllabusRowsFromCalendar(classData, { refreshScheduleTitles: true })
+            || getSyllabusRowsForClass(classData, { preferMerged: true });
+    } else {
+        rows = getSyllabusRowsForClass(classData, { preferMerged: true });
+    }
     return mod.computeHomeworkForClass({
         classData,
         syllabusRows: rows,
@@ -9813,8 +9825,8 @@ function updateHomeworkSourceHints(packet) {
     if (gradingHint) {
         if (packet && packet.gradingSourceRowId) {
             gradingHint.textContent = t('homeworkTabSavesTo')
-                .replace('{n}', String(packet.targetSessionNumber || ''))
-                .replace('{title}', packet.targetLessonTitle || '');
+                .replace('{n}', String(packet.gradingSessionNumber || ''))
+                .replace('{title}', packet.gradingLessonTitle || '');
             gradingHint.hidden = false;
         } else {
             gradingHint.hidden = true;
@@ -9937,6 +9949,10 @@ function renderHomeworkEditor() {
         return;
     }
     const effective = getEffectiveClassForViewer(classData);
+    if (effective._syllabusNeedsCalendarSync === true) {
+        syncClassSyllabusRowsFromCalendar(effective, { refreshScheduleTitles: true });
+        saveData();
+    }
     empty.hidden = true;
     content.hidden = false;
     if (titleEl) {
@@ -9982,11 +9998,11 @@ function renderHomeworkEditor() {
                 title: packet.targetLessonTitle || ''
             }));
         }
-        if (packet.targetSessionNumber > 0 && packet.targetLessonDate) {
+        if (packet.gradingSessionNumber > 0 && packet.gradingLessonDate) {
             parts.push(t('homeworkTabGradingFrom', {
-                n: packet.targetSessionNumber,
-                date: formatDateDisplay(packet.targetLessonDate),
-                title: packet.targetLessonTitle || ''
+                n: packet.gradingSessionNumber,
+                date: formatDateDisplay(packet.gradingLessonDate),
+                title: packet.gradingLessonTitle || ''
             }));
         }
         metaEl.textContent = parts.join(' · ');
@@ -13983,13 +13999,15 @@ function localizeSyllabusRowsForCurrentLanguage(rows) {
 }
 
 function getSyllabusRowsForClass(classData, options = {}) {
+    invalidateScheduleCache();
     const generated = buildGeneratedSyllabusRows(classData);
     const saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
+    const mergeOpts = options.refreshScheduleTitles ? { refreshScheduleTitles: true } : undefined;
     let rows;
     if (options.preferMerged && saved.length > 0) {
         const mod = getSyllabusModule();
         if (mod) {
-            rows = mod.mergeSyllabusRows(saved, generated);
+            rows = mod.mergeSyllabusRows(saved, generated, mergeOpts);
         } else {
             rows = saved;
         }
@@ -14228,28 +14246,46 @@ function collectSyllabusRowsFromForm() {
  * Build syllabus rows from each class calendar schedule and save on the class record.
  */
 function syncAllClassSyllabusRowsFromCalendar() {
-    const mod = getSyllabusModule();
-    if (!mod) {
+    if (!getSyllabusModule()) {
         return false;
     }
     syncHolidaysFromEvents();
     let changed = false;
-    getClassesInDisplayOrder().forEach(classData => {
-        const generated = buildGeneratedSyllabusRows(classData);
-        if (!generated.length) {
-            return;
+    getClassesInDisplayOrder().forEach((classData) => {
+        const merged = syncClassSyllabusRowsFromCalendar(classData, { refreshScheduleTitles: true });
+        if (merged && merged.length) {
+            changed = true;
         }
-        const saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
-        const merged = saved.length > 0
-            ? mod.mergeSyllabusRows(saved, generated)
-            : generated;
-        classData.syllabusRows = merged;
-        changed = true;
     });
     if (changed) {
         saveData();
     }
     return true;
+}
+
+function syncClassSyllabusRowsFromCalendar(classData, options = {}) {
+    const mod = getSyllabusModule();
+    if (!mod || !classData || !classData.id) {
+        return null;
+    }
+    invalidateScheduleCache();
+    const generated = buildGeneratedSyllabusRows(classData);
+    if (!generated.length) {
+        return Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
+    }
+    const saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
+    const mergeOpts = { refreshScheduleTitles: options.refreshScheduleTitles !== false };
+    const merged = saved.length > 0
+        ? mod.mergeSyllabusRows(saved, generated, mergeOpts)
+        : generated;
+    const idx = appData.classes.findIndex(c => c.id === classData.id);
+    if (idx >= 0) {
+        appData.classes[idx].syllabusRows = merged;
+        appData.classes[idx]._syllabusNeedsCalendarSync = false;
+        classData.syllabusRows = merged;
+        classData._syllabusNeedsCalendarSync = false;
+    }
+    return merged;
 }
 
 function refreshSyllabusFromCalendar() {
@@ -14258,6 +14294,7 @@ function refreshSyllabusFromCalendar() {
         alert(t('syllabusModuleMissing'));
         return;
     }
+    invalidateScheduleCache();
     let snapshot;
     let classId;
     if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
@@ -14289,13 +14326,14 @@ function refreshSyllabusFromCalendar() {
     }
     const existing = collectSyllabusRowsFromForm();
     const generated = buildGeneratedSyllabusRows(snapshot);
-    const merged = mod.mergeSyllabusRows(existing, generated);
+    const merged = mod.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
     renderSyllabusEditorTable(merged);
 
     if (classId) {
         const index = appData.classes.findIndex(c => c.id === classId);
         if (index !== -1) {
             appData.classes[index].syllabusRows = merged;
+            appData.classes[index]._syllabusNeedsCalendarSync = false;
             saveData();
             updateClassSyllabusSummary(appData.classes[index]);
         }
@@ -15456,6 +15494,24 @@ function handleClassSubmit(e) {
     renderScheduleGapWarning(classData);
     renderScheduleAdjustmentSummaryBlock(classData);
     syncSyllabusEditorChrome();
+    classData._syllabusNeedsCalendarSync = true;
+    const syllabusClassIdx = appData.classes.findIndex(c => c.id === classData.id);
+    if (syllabusClassIdx >= 0) {
+        appData.classes[syllabusClassIdx]._syllabusNeedsCalendarSync = true;
+    }
+    if (getActiveTab() === 'syllabus' && appData.ui.syllabusTabClassId === classData.id) {
+        const effective = getEffectiveClassForViewer(classData);
+        const rows = syncClassSyllabusRowsFromCalendar(effective, { refreshScheduleTitles: true });
+        if (rows) {
+            renderSyllabusEditorTable(rows);
+        }
+    }
+    if (getActiveTab() === 'homework' && appData.ui.homeworkTabClassId === classData.id) {
+        const effective = getEffectiveClassForViewer(classData);
+        syncClassSyllabusRowsFromCalendar(effective, { refreshScheduleTitles: true });
+        saveData();
+        renderHomeworkEditor();
+    }
     if (isUpdate) {
         setAppStatusMessage(t('classSaved'), false);
     }

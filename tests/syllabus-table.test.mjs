@@ -400,4 +400,48 @@ function assert(cond, msg) {
     assert(mayLast.planDetail.includes('HW-DAY-1'), 'term-end day 1 preview');
 }
 
+// Refresh from calendar updates plan titles even when plan detail was edited (source manual)
+{
+    const existing = [{
+        id: 'r1',
+        kind: 'lesson',
+        date: '2026-03-02',
+        sessionNumber: 1,
+        lessonNumber: 1,
+        planTitle: 'Unit 1 WR',
+        planDetail: 'p. 10',
+        source: 'manual'
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-03-02',
+        sessionNumber: 1,
+        lessonNumber: 1,
+        planTitle: 'Unit 1 WR + Unit 1 SP',
+        planDetail: 'p. 10',
+        source: 'generated',
+        scheduleCompressed: true
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
+    assert(merged[0].planTitle.includes('+'), 'compressed title from calendar');
+    assert(merged[0].planDetail === 'p. 10', 'manual detail preserved');
+}
+
+// Merged schedule uses curriculum lesson number for row key
+{
+    const lessons = [{
+        date: '2026-03-02',
+        monthKey: '2026-03',
+        label: 'A + B',
+        compressed: true,
+        group: { start: 1, end: 2, days: [1, 2] }
+    }];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule({ syllabusUnits: [] }, lessons, {
+        isHolidayForClass: () => false
+    });
+    assert(rows[0].lessonNumber === 1, 'curriculum lesson number is group start');
+    assert(rows[0].sessionNumber === 1, 'session order still chronological');
+}
+
 console.log('All syllabus-table tests passed.');

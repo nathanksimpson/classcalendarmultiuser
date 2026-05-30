@@ -1,5 +1,6 @@
 /**
  * Homework tab: previous week (grading) and this week (assignment) from syllabus rows.
+ * Row N planDetail = homework assigned at class N; row N-1 planDetail = homework graded at class N.
  * Due date = next in-person class after the assignment lesson (skips holidays).
  */
 (function (global) {
@@ -175,30 +176,20 @@
 
         const detailFrom = (row) => (row && row.planDetail ? String(row.planDetail).trim() : '');
 
-        // Grade homework due at this class (usually on this session's syllabus row).
-        let gradingSourceRowId = assignRow.id || '';
-        let gradingText = detailFrom(assignRow);
-        if (!gradingText && gradingRow) {
-            gradingText = detailFrom(gradingRow);
-            gradingSourceRowId = gradingRow.id || gradingSourceRowId;
-        }
+        // Grade homework from the previous session (empty on first lesson of term).
+        const gradingSourceRowId = gradingRow ? (gradingRow.id || '') : '';
+        const gradingText = detailFrom(gradingRow);
 
-        // Assign homework due at the following class (usually on the next session row).
-        let assignSourceRowId = nextLessonRow ? (nextLessonRow.id || '') : (assignRow.id || '');
-        let assignText = detailFrom(nextLessonRow);
-        if (!assignText) {
-            assignText = detailFrom(assignRow);
-            if (!nextLessonRow) {
-                assignSourceRowId = assignRow.id || '';
-            }
-        }
+        // Assign homework from the current session row.
+        const assignSourceRowId = assignRow.id || '';
+        const assignText = detailFrom(assignRow);
 
         let messageKey = '';
         if (!assignText && !gradingText) {
             messageKey = 'homeworkTabNoHomeworkText';
         } else if (!assignText) {
             messageKey = 'homeworkTabNoAssignText';
-        } else if (!gradingText && idx > 0) {
+        } else if (!gradingText) {
             messageKey = 'homeworkTabNoGradingText';
         }
         if (!dueDate && assignText) {
@@ -217,17 +208,13 @@
             targetLessonTitle: assignRow.planTitle || '',
             gradingHomework: gradingText,
             gradingSourceRowId,
-            gradingSessionNumber: assignRow.sessionNumber || 0,
-            gradingLessonTitle: assignRow.planTitle || '',
-            gradingLessonDate: assignRow.date || '',
+            gradingSessionNumber: gradingRow ? (gradingRow.sessionNumber || 0) : 0,
+            gradingLessonTitle: gradingRow ? (gradingRow.planTitle || '') : '',
+            gradingLessonDate: gradingRow ? (gradingRow.date || '') : '',
             assignHomework: assignText,
             assignSourceRowId,
-            assignSourceSessionNumber: nextLessonRow
-                ? (nextLessonRow.sessionNumber || 0)
-                : (assignRow.sessionNumber || 0),
-            assignSourceTitle: nextLessonRow
-                ? (nextLessonRow.planTitle || '')
-                : (assignRow.planTitle || ''),
+            assignSourceSessionNumber: assignRow.sessionNumber || 0,
+            assignSourceTitle: assignRow.planTitle || '',
             dueDate,
             dueSessionNumber,
             skippedClassDates,

@@ -317,17 +317,20 @@
             }
 
             lessonNumber += 1;
+            const curriculumLessonNumber = lesson.group && lesson.group.start != null
+                ? lesson.group.start
+                : lessonNumber;
             let planTitle = lesson.label || `Lesson ${lessonNumber}`;
             const rowForTemplate = {
                 planTitle,
-                lessonNumber,
+                lessonNumber: curriculumLessonNumber,
                 sessionNumber: lessonNumber,
                 debateTemplateKey: lesson.__debateTemplateKey || '',
                 debateCompressed: lesson.compressed === true,
                 debateGroupStart: lesson.group && lesson.group.start != null ? lesson.group.start : null,
                 debateGroupEnd: lesson.group && lesson.group.end != null ? lesson.group.end : null
             };
-            let planDetail = planDetailFromUnits(lessonNumber, units, planTitle);
+            let planDetail = planDetailFromUnits(curriculumLessonNumber, units, planTitle);
             if (resolveRowTemplate) {
                 const tpl = resolveRowTemplate(rowForTemplate);
                 if (tpl) {
@@ -359,7 +362,8 @@
                 monthKey,
                 weekLabel,
                 sessionNumber: lessonNumber,
-                lessonNumber,
+                lessonNumber: curriculumLessonNumber,
+                scheduleCompressed: lesson.compressed === true,
                 planTitle,
                 planDetail,
                 note: '',
@@ -451,7 +455,9 @@
         return gen != null ? gen : '';
     }
 
-    function mergeSyllabusRows(existing, generated) {
+    function mergeSyllabusRows(existing, generated, options) {
+        options = options || {};
+        const refreshScheduleTitles = options.refreshScheduleTitles === true;
         const existingList = Array.isArray(existing) ? existing : [];
         const isTailRow = g => g.kind === 'overflow' || g.kind === 'extra' || g.kind === 'skipped'
             || g.overflowIntro === true;
@@ -483,12 +489,16 @@
                 return { ...gen };
             }
             const keepEdits = prev.source === 'manual' || prev.source === 'imported';
+            const forceTitle = refreshScheduleTitles
+                && (gen.kind === 'lesson' || gen.kind === 'holiday' || gen.kind === 'event');
             return {
                 ...gen,
                 id: prev.id || gen.id,
-                planTitle: keepEdits && (prev.planTitle || '').trim()
-                    ? prev.planTitle
-                    : gen.planTitle,
+                planTitle: forceTitle
+                    ? gen.planTitle
+                    : (keepEdits && (prev.planTitle || '').trim()
+                        ? prev.planTitle
+                        : gen.planTitle),
                 planDetail: preserveText(prev.planDetail, gen.planDetail, keepEdits),
                 note: preserveText(prev.note, gen.note, keepEdits),
                 weekLabel: gen.weekLabel || prev.weekLabel,

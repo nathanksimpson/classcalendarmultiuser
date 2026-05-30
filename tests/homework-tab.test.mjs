@@ -60,11 +60,11 @@ const rows = [
         referenceDate: '2026-05-08',
         hooks
     });
-    assert(pkt.gradingHomework === 'HW week 2', 'on 5/8 class, grade homework due this session');
-    assert(pkt.assignHomework === 'HW week 3', 'assign homework for next session');
+    assert(pkt.gradingHomework === 'HW week 1', 'on 5/8 class, grade homework from previous session');
+    assert(pkt.assignHomework === 'HW week 2', 'assign homework for current session');
     assert(pkt.dueDate === '2026-05-11', 'due next lesson date');
-    assert(pkt.gradingSourceRowId === 'row-2', 'grading links to current session syllabus row');
-    assert(pkt.assignSourceRowId === 'row-3', 'assign links to next session row');
+    assert(pkt.gradingSourceRowId === 'row-1', 'grading links to previous session syllabus row');
+    assert(pkt.assignSourceRowId === 'row-2', 'assign links to current session row');
     assert(Array.isArray(pkt.skippedClassDates) && pkt.skippedClassDates.length === 0,
         'no skipped days between Fri 5/8 and Mon 5/11');
 }
@@ -76,6 +76,9 @@ const rows = [
         referenceDate: '2026-05-04',
         hooks
     });
+    assert(pkt.gradingHomework === '', 'first lesson has no previous homework to grade');
+    assert(pkt.assignHomework === 'HW week 1', 'first lesson assigns week 1 homework');
+    assert(pkt.messageKey === 'homeworkTabNoGradingText', 'first lesson shows no-grading message');
     assert(pkt.dueDate === '2026-05-08', 'due after holiday gap');
     assert(pkt.skippedClassDates.length === 1, 'explains Wed holiday before due');
     assert(pkt.skippedClassDates[0].date === '2026-05-06', 'skipped date is holiday');
