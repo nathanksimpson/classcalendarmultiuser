@@ -225,6 +225,10 @@
         };
     }
 
+    function customCurriculumAdoptedAsTeamDefault(bookId, book, appData) {
+        return !!(book && book.isCustom && !book.hasOverride && getTeamDefaultRecord(bookId, appData));
+    }
+
     function getBaselineSessionRows(bookId, appData, shippedFactoryRows) {
         const team = getTeamDefaultRecord(bookId, appData);
         if (team && team.sessions.length) {
@@ -1259,13 +1263,11 @@
             : '';
         let customBadge = '';
         if (book.isCustom) {
-            let badgeKey = 'curriculumCustomBadge';
             if (book.hasOverride) {
-                badgeKey = 'booksEditorCustomBadge';
-            } else if (getTeamDefaultRecord(bookId, appData)) {
-                badgeKey = 'curriculumCustomTeamDefaultBadge';
+                customBadge = `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>`;
+            } else if (!customCurriculumAdoptedAsTeamDefault(bookId, book, appData)) {
+                customBadge = `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('curriculumCustomBadge'))}</p>`;
             }
-            customBadge = `<p class="books-editor-custom-badge">${escapeHtml(hooks.t(badgeKey))}</p>`;
         } else if (book.hasOverride) {
             customBadge = `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>`;
         }
@@ -1652,7 +1654,8 @@
         if (!listEl) {
             return;
         }
-        const books = discoverBooks(getAppData()).slice().sort((a, b) => {
+        const appData = getAppData();
+        const books = discoverBooks(appData).slice().sort((a, b) => {
             const aDebate = a.programTrack === 'debate' || a.isVirtualDebate;
             const bDebate = b.programTrack === 'debate' || b.isVirtualDebate;
             if (aDebate && !bDebate) {
@@ -1669,7 +1672,7 @@
             btn.type = 'button';
             btn.className = 'workspace-book-list-item'
                 + (book.id === selectedId ? ' is-selected' : '')
-                + (book.isCustom ? ' is-custom' : '')
+                + (book.isCustom && !customCurriculumAdoptedAsTeamDefault(book.id, book, appData) ? ' is-custom' : '')
                 + (book.programTrack === 'debate' || book.isVirtualDebate ? ' is-debate' : '');
             btn.dataset.curriculumId = book.id;
             btn.dataset.bookId = book.id;

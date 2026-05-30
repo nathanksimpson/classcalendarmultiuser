@@ -11,6 +11,8 @@ Quick reference for editing this repo and pushing updates. Teachers use [FOR TEA
 3. `npm install` then `npm start` → http://localhost:8080
 4. SQLite DB: `data/calendars.db` (created on first run).
 
+**Windows + Node 24:** Local server needs `better-sqlite3` ^12.10 (prebuilt for Node 24). If `npm install` works but `npm start` fails with `NODE_MODULE_VERSION`, Cursor may have installed native modules for its bundled Node — close integrated terminals, open **Windows PowerShell**, `cd` to the project, delete `node_modules`, and run `npm install` again (system `node -v` should match the Node you use to start the server).
+
 | Variable | Purpose |
 |----------|---------|
 | `PORT` | Default 8080 |
