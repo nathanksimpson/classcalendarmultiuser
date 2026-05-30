@@ -1166,9 +1166,6 @@ export default {
             if (path === '/admin' || path === '/admin/') {
                 return redirectTo('/admin.html');
             }
-            if (path === '/login' && request.method === 'POST') {
-                return handlePasswordLogin(request, env, secure, true);
-            }
             if (env.ASSETS) {
                 return env.ASSETS.fetch(request);
             }
@@ -1330,6 +1327,10 @@ export default {
                 console.error('Kakao callback error:', kakaoErrorDetail(err));
                 return redirectTo(loginRedirectForKakaoError(err));
             }
+        }
+
+        if (path === '/api/login' && request.method === 'POST') {
+            return handlePasswordLogin(request, env, secure, true);
         }
 
         if (path === '/api/auth/password' && request.method === 'POST') {

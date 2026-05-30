@@ -150,6 +150,14 @@ function optionalUser(req, _res, next) {
 }
 
 function requireUser(req, res, next) {
+    if (!getViewAsSessionHeader(req)) {
+        const ctx = resolveUserContext(req);
+        if (ctx && ctx.effective) {
+            applyUserContext(req, ctx);
+            next();
+            return;
+        }
+    }
     if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && !getViewAsSessionHeader(req)) {
         req.user = DEV_USER;
         req.actorUser = DEV_USER;
@@ -167,6 +175,12 @@ function requireUser(req, res, next) {
 }
 
 function requireCookieUser(req, res, next) {
+    const ctx = users.getSessionContext(getSessionToken(req));
+    if (ctx && ctx.effective && !ctx.viewAsActive) {
+        applyUserContext(req, ctx);
+        next();
+        return;
+    }
     if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID) {
         req.user = DEV_USER;
         req.actorUser = DEV_USER;
@@ -174,7 +188,6 @@ function requireCookieUser(req, res, next) {
         next();
         return;
     }
-    const ctx = users.getSessionContext(getSessionToken(req));
     if (!ctx || !ctx.effective || ctx.viewAsActive) {
         res.status(401).json({ error: 'Not signed in' });
         return;
@@ -375,6 +388,10 @@ function handlePasswordLogin(req, res, options) {
 }
 
 const passwordLoginRateLimit = rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000);
+
+app.post('/api/login', passwordLoginRateLimit, (req, res) => {
+    handlePasswordLogin(req, res, { htmlSuccess: true });
+});
 
 app.post('/login', passwordLoginRateLimit, (req, res) => {
     handlePasswordLogin(req, res, { htmlSuccess: true });
