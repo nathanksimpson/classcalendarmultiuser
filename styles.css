@@ -2820,6 +2820,79 @@ body.hide-summary-print .print-summary {
     margin-top: 6px;
 }
 
+.schedule-gap-warning {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    font-size: 0.9rem;
+}
+
+.schedule-gap-warning-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.schedule-adjustment-summary {
+    margin: 8px 0 12px;
+    padding: 8px 10px;
+    background: var(--bg-secondary, #f3f4f6);
+    border-radius: 6px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.schedule-skip-range-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.schedule-skip-range-input {
+    width: 4rem;
+}
+
+.schedule-adjustment-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin-bottom: 8px;
+}
+
+.schedule-adjustment-table th,
+.schedule-adjustment-table td {
+    border: 1px solid var(--border-color, #e5e7eb);
+    padding: 6px 8px;
+    vertical-align: top;
+}
+
+.schedule-adjustment-table th {
+    background: var(--bg-secondary, #f9fafb);
+    text-align: left;
+}
+
+.module-list-schedule-gap-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 5px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    background: #d97706;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
 .compression-mode-group {
     margin-bottom: 8px;
 }

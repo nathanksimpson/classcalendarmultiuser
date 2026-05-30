@@ -453,8 +453,17 @@
 
     function mergeSyllabusRows(existing, generated) {
         const existingList = Array.isArray(existing) ? existing : [];
+        const isTailRow = g => g.kind === 'overflow' || g.kind === 'extra' || g.kind === 'skipped'
+            || g.overflowIntro === true;
+        const mainGenerated = generated.filter(g => !isTailRow(g));
+        const tailGenerated = generated.filter(isTailRow);
+        const overflowIntroTitle = tailGenerated.find(g => g.overflowIntro)?.planTitle || '';
+
         const noteRows = existingList.filter(r => {
             if (r.kind !== 'note' || r.overflowIntro) {
+                return false;
+            }
+            if (overflowIntroTitle && (r.planTitle || '').trim() === overflowIntroTitle.trim()) {
                 return false;
             }
             return true;
@@ -466,11 +475,6 @@
                 byKey.set(rowKey(r), r);
             }
         });
-
-        const isTailRow = g => g.kind === 'overflow' || g.kind === 'extra' || g.kind === 'skipped'
-            || g.overflowIntro === true;
-        const mainGenerated = generated.filter(g => !isTailRow(g));
-        const tailGenerated = generated.filter(isTailRow);
 
         const mergedLessons = mainGenerated.map(gen => {
             const key = rowKey(gen);

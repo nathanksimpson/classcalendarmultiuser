@@ -4250,14 +4250,6 @@ function syncClassDeleteButtonVisibility(isEditing) {
     btn.hidden = !isEditing;
     btn.style.display = isEditing ? 'inline-flex' : 'none';
     btn.setAttribute('aria-hidden', isEditing ? 'false' : 'true');
-
-    ['printClassSyllabusBtn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) {
-            btn.style.display = isEditing ? 'inline-flex' : 'none';
-            btn.hidden = !isEditing;
-        }
-    });
 }
 
 /**
@@ -7238,9 +7230,10 @@ function syncSyllabusEditorChrome() {
     const applySelect = document.getElementById('syllabusApplyTemplateSelect');
     const saveAsBtn = document.getElementById('syllabusSaveAsTemplateBtn');
     const delTplBtn = document.getElementById('syllabusDeleteTemplateBtn');
+    const refreshHeaderBtn = document.getElementById('syllabusRefreshHeaderBtn');
+    const printHeaderBtn = document.getElementById('syllabusPrintHeaderBtn');
     const refreshBtn = elements.refreshSyllabusBtn;
     const blankBtn = elements.startBlankSyllabusBtn;
-    const printBtn = elements.printClassSyllabusBtn;
 
     if (titleEl) {
         titleEl.textContent = hasClass ? classData.name : (hasTemplate ? template.name : '');
@@ -7260,6 +7253,32 @@ function syncSyllabusEditorChrome() {
         if (hasTemplate) {
             bannerEl.hidden = false;
             bannerEl.textContent = t('syllabusModeTemplate', { name: template.name });
+        } else if (hasClass) {
+            const gap = getClassScheduleGapStatus(classData);
+            const adj = formatScheduleAdjustmentSummary(classData);
+            if (gap.incomplete) {
+                bannerEl.hidden = false;
+                const msg = t('scheduleGapWarning')
+                    .replace('{name}', classData.name || '')
+                    .replace('{unplaced}', gap.unplacedLessonNumbers.length)
+                    .replace('{total}', gap.totalLessons);
+                bannerEl.innerHTML = '';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'schedule-gap-warning-btn';
+                btn.textContent = `${msg} — ${t('scheduleGapAdjustAction')}`;
+                btn.addEventListener('click', () => focusScheduleAdjustmentForClass(classData.id));
+                bannerEl.appendChild(btn);
+            } else if (adj.hasAdjustments) {
+                bannerEl.hidden = false;
+                bannerEl.textContent = [
+                    adj.skippingLines.length ? `${t('scheduleAdjustmentSkipping')}: ${adj.skippingLines.join('; ')}` : '',
+                    adj.combiningLines.length ? `${t('scheduleAdjustmentCombining')}: ${adj.combiningLines.join('; ')}` : ''
+                ].filter(Boolean).join(' · ');
+            } else {
+                bannerEl.hidden = true;
+                bannerEl.textContent = '';
+            }
         } else {
             bannerEl.hidden = true;
             bannerEl.textContent = '';
@@ -7299,14 +7318,17 @@ function syncSyllabusEditorChrome() {
     if (delTplBtn) {
         delTplBtn.hidden = !hasTemplate;
     }
+    if (refreshHeaderBtn) {
+        refreshHeaderBtn.hidden = !hasClass;
+    }
+    if (printHeaderBtn) {
+        printHeaderBtn.hidden = !hasClass;
+    }
     if (refreshBtn) {
         refreshBtn.hidden = hasTemplate;
     }
     if (blankBtn) {
         blankBtn.hidden = hasTemplate;
-    }
-    if (printBtn) {
-        printBtn.hidden = hasTemplate;
     }
 
     populateSyllabusApplyTemplateSelect();
@@ -7416,9 +7438,20 @@ function updateClassSyllabusSummary(classData) {
     }
     wrap.hidden = false;
     const count = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.length : 0;
-    text.textContent = count > 0
+    let summary = count > 0
         ? t('syllabusClassSummary', { rows: count })
         : t('syllabusClassSummaryEmpty');
+    const gap = getClassScheduleGapStatus(classData);
+    if (gap.incomplete) {
+        summary += ` — ${t('scheduleGapWarning')
+            .replace('{name}', '')
+            .replace('{unplaced}', gap.unplacedLessonNumbers.length)
+            .replace('{total}', gap.totalLessons)
+            .replace(/^: /, '')}`;
+    }
+    text.textContent = summary;
+    renderScheduleGapWarning(classData);
+    renderScheduleAdjustmentSummaryBlock(classData);
 }
 
 function renderSyllabusClassList() {
@@ -7804,6 +7837,7 @@ function initSyllabusEditorListeners() {
     document.getElementById('syllabusNewTemplateBtn')?.addEventListener('click', createBlankSyllabusTemplate);
     document.getElementById('syllabusSaveClassBtn')?.addEventListener('click', saveSyllabusForSelectedClass);
     document.getElementById('syllabusSaveTemplateBtn')?.addEventListener('click', saveSyllabusTemplateFromEditor);
+    document.getElementById('syllabusPrintHeaderBtn')?.addEventListener('click', printClassSyllabusFromModal);
     document.getElementById('syllabusOpenClassSettingsBtn')?.addEventListener('click', () => {
         const id = appData.ui.syllabusTabClassId;
         if (id) {
@@ -7846,9 +7880,6 @@ function initSyllabusEditorListeners() {
     }
     if (elements.addSyllabusNoteRowBtn) {
         elements.addSyllabusNoteRowBtn.addEventListener('click', addSyllabusNoteRow);
-    }
-    if (elements.printClassSyllabusBtn) {
-        elements.printClassSyllabusBtn.addEventListener('click', printClassSyllabusFromModal);
     }
     if (elements.homeworkImportPreviewBtn) {
         elements.homeworkImportPreviewBtn.addEventListener('click', previewHomeworkImport);
@@ -8250,7 +8281,11 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
     btn.className = 'module-list-item' + (isSelected ? ' is-selected' : '');
     btn.setAttribute('role', 'option');
     btn.setAttribute('aria-selected', String(isSelected));
-    btn.innerHTML = `<span>${escapeHtml(classData.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
+    const gap = getClassScheduleGapStatus(classData);
+    const badge = gap.incomplete
+        ? `<span class="module-list-schedule-gap-badge" title="${escapeAttr(t('scheduleGapWarning').replace('{name}', classData.name || '').replace('{unplaced}', gap.unplacedLessonNumbers.length).replace('{total}', gap.totalLessons))}">!</span>`
+        : '';
+    btn.innerHTML = `<span>${escapeHtml(classData.name)}${badge}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
     btn.addEventListener('click', onClick);
     return btn;
 }
@@ -12936,8 +12971,11 @@ function buildClassSnapshotFromForm() {
         totalLessons,
         meetingDays: normalizedMeetings,
         dayOfWeek: !isCustomSchedule && normalizedMeetings.length === 1 ? normalizedMeetings[0] : null,
-        compressionMode: isDebateSchedule ? getCompressionModeFromForm() : 'sequentialTerm',
-        compressionMerges: isDebateSchedule ? getSelectedCompressionMerges() : [],
+        compressionMode: isCustomSchedule
+            ? 'sequentialTerm'
+            : getCompressionModeFromForm(),
+        compressionMerges: isCustomSchedule ? [] : getSelectedCompressionMerges(),
+        skippedLessons: isCustomSchedule ? [] : collectSkippedLessonsFromForm(),
         compressionMergesByMonth: existing?.compressionMergesByMonth,
         compressionMergesByPeriod: isDebateSchedule ? collectCompressionMergesByPeriodFromForm() : (existing?.compressionMergesByPeriod || {}),
         debateBookPeriods: isDebateSchedule ? collectDebateBookPeriodsFromForm() : (existing?.debateBookPeriods || []),
@@ -12987,6 +13025,9 @@ function renderSyllabusEditorTable(rows) {
         }
         if (row.sessionNumber != null) {
             tr.dataset.rowSession = String(row.sessionNumber);
+        }
+        if (row.overflowIntro === true) {
+            tr.dataset.overflowIntro = '1';
         }
         const weekDisplay = row.weekLabel || (row.date && mod ? mod.getSchoolWeekLabel(row.date) : '');
         const isNote = row.kind === 'note';
@@ -13072,6 +13113,9 @@ function collectSyllabusRowsFromForm() {
             note,
             source
         };
+        if (tr.dataset.overflowIntro === '1') {
+            row.overflowIntro = true;
+        }
         if (mod && row.date && !row.weekLabel) {
             row.weekLabel = mod.getSchoolWeekLabel(row.date);
         }
@@ -13134,6 +13178,22 @@ function refreshSyllabusFromCalendar() {
     } else {
         snapshot = buildClassSnapshotFromForm();
         classId = elements.classId && elements.classId.value;
+    }
+    if (!snapshot.customSchedule?.enabled && !maybeConfirmScheduleAdjustments(snapshot)) {
+        return;
+    }
+    if (snapshot.compressionMerges || snapshot.skippedLessons) {
+        applyScheduleAdjustmentsToForm(
+            snapshot.compressionMerges || [],
+            snapshot.skippedLessons || []
+        );
+        if (classId) {
+            const idx = appData.classes.findIndex(c => c.id === classId);
+            if (idx >= 0) {
+                appData.classes[idx].compressionMerges = snapshot.compressionMerges || [];
+                appData.classes[idx].skippedLessons = snapshot.skippedLessons || [];
+            }
+        }
     }
     const existing = collectSyllabusRowsFromForm();
     const generated = buildGeneratedSyllabusRows(snapshot);
@@ -13690,10 +13750,20 @@ function populateClassForm(classData = null, options = {}) {
         updateMeetingDayChipLabels();
         const customDates = getCustomScheduleDaysFromClass(classData, totalLessons);
         const compressionMerges = getCompressionMergesFromClass(classData, totalLessons);
+        const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
+        const modeAuto = document.getElementById('compressionModeAuto');
+        const modeManual = document.getElementById('compressionModeManual');
+        if (modeAuto && modeManual) {
+            modeAuto.checked = mode !== 'manual';
+            modeManual.checked = mode === 'manual';
+        }
         renderCustomLessonDates(totalLessons, customDates);
         renderCompressionOptions(totalLessons, compressionMerges);
         updateCompressionUiForScheduleModel();
         syncCompressionSectionsForMode();
+        renderScheduleAdjustmentRows(totalLessons, classData);
+        renderScheduleGapWarning(classData);
+        renderScheduleAdjustmentSummaryBlock(classData);
         updateClassSyllabusSummary(classData);
 
         syncClassDeleteButtonVisibility(true);
@@ -14124,14 +14194,17 @@ function handleClassSubmit(e) {
     const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
     const isCustomSchedule = elements.customScheduleEnabled.checked;
     const totalLessons = getTotalLessonsValue();
-    const compressionMerges = isDebateSchedule ? getSelectedCompressionMerges() : [];
+    const compressionMerges = isCustomSchedule ? [] : getSelectedCompressionMerges();
+    const skippedLessons = isCustomSchedule ? [] : collectSkippedLessonsFromForm();
     const levelPreset = elements.classLevel.value;
     const levelCustom = (elements.classLevelCustom.value || '').trim();
     if (!levelPreset && !levelCustom) {
         alert(t('levelRequired'));
         return;
     }
-    const compressionMode = isDebateSchedule ? getCompressionModeFromForm() : 'sequentialTerm';
+    const compressionMode = isCustomSchedule
+        ? 'sequentialTerm'
+        : getCompressionModeFromForm();
     const levelDisplay = getClassLevelDisplayFromParts(levelPreset, levelCustom);
     
     let termCalendarMonths = parseInt(elements.classTermMonths.value, 10);
@@ -14188,6 +14261,27 @@ function handleClassSubmit(e) {
         ? collectCompressionMergesByPeriodFromForm()
         : (existingClass?.compressionMergesByPeriod || {});
 
+    const draftForConfirm = {
+        ...(existingClass || {}),
+        id: elements.classId.value || existingClass?.id || '',
+        name: elements.className.value,
+        startDate,
+        endDate,
+        totalLessons,
+        meetingDays: normalizedMeetings,
+        compressionMode,
+        compressionMerges,
+        skippedLessons,
+        classTypeId,
+        scheduleModel,
+        customSchedule: isCustomSchedule ? { enabled: true } : null
+    };
+    if (!isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
+        return;
+    }
+    const compressionMergesFinal = draftForConfirm.compressionMerges || compressionMerges;
+    const skippedLessonsFinal = draftForConfirm.skippedLessons || skippedLessons;
+
     const classData = {
         id: elements.classId.value || generateId(),
         name: elements.className.value,
@@ -14212,7 +14306,8 @@ function handleClassSubmit(e) {
         scheduleModel: scheduleModel,
         color: elements.classColor.value,
         textColor: elements.classTextColor.value || DEFAULT_CLASS_TEXT_COLOR,
-        compressionMerges: compressionMerges,
+        compressionMerges: compressionMergesFinal,
+        skippedLessons: skippedLessonsFinal,
         ...(isDebateSchedule ? {
             debateBookPeriods,
             debateBookPeriodsMigrated: true,
@@ -17178,12 +17273,27 @@ function updatePrintSummary() {
             const label = slice.calendarTitle || formatClassLabelWithPeriod(classData);
 
         if (schedule.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {
-            if (scheduledCount < totalGroups) {
+            const effective = slice.classData || classData;
+            const adj = formatScheduleAdjustmentSummary(effective);
+            const gap = getClassScheduleGapStatus(effective, scheduleOpts);
+            const parts = [];
+            if (adj.skippingLines.length) {
+                parts.push(`${t('scheduleAdjustmentSkipping')}: ${adj.skippingLines.join('; ')}`);
+            }
+            if (adj.combiningLines.length) {
+                parts.push(`${t('scheduleAdjustmentCombining')}: ${adj.combiningLines.join('; ')}`);
+            }
+            if (gap.incomplete) {
+                parts.push(
+                    t('termLessonsIncompleteHint')
+                        .replace('{name}', label)
+                        .replace('{scheduled}', gap.scheduledCount)
+                        .replace('{total}', gap.requiredCount)
+                );
+            }
+            if (parts.length) {
                 const li = document.createElement('li');
-                li.textContent = t('termLessonsIncompleteHint')
-                    .replace('{name}', label)
-                    .replace('{scheduled}', scheduledCount)
-                    .replace('{total}', totalGroups);
+                li.textContent = `${label}: ${parts.join(' | ')}`;
                 elements.compressionNotes.appendChild(li);
             }
             return;
@@ -19563,6 +19673,10 @@ function migrateData(data) {
                 classData.totalLessons = 4;
             }
 
+            if (!Array.isArray(classData.skippedLessons)) {
+                classData.skippedLessons = [];
+            }
+
             if (!Array.isArray(classData.compressionMerges)) {
                 classData.compressionMerges = getCompressionMergesFromClass(
                     classData,
@@ -19575,10 +19689,11 @@ function migrateData(data) {
                 migrated = true;
             }
             if (classData.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {
-                if (classData.compressionMode === 'manualPerMonth'
-                    || classData.compressionMode === 'manual'
-                    || classData.compressionMode === 'autoWhenNeeded') {
-                    classData.compressionMode = 'sequentialTerm';
+                if (classData.compressionMode === 'manualPerMonth') {
+                    classData.compressionMode = 'autoWhenNeeded';
+                    migrated = true;
+                } else if (classData.compressionMode === 'sequentialTerm') {
+                    classData.compressionMode = 'autoWhenNeeded';
                     migrated = true;
                 }
             } else if (!classData.compressionMode) {

@@ -98,8 +98,9 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `termCalendarMonths` | number | |
 | `useAutoTermEnd` | boolean | |
 | `totalLessons` | number | Per book period in debate auto schedule (typically 4) |
-| `compressionMode` | string | Debate: `autoWhenNeeded`, `manual`, `manualPerMonth` (per book period). Multi-day: `sequentialTerm` |
-| `compressionMerges` | number[] | Merge start days (global manual / auto fallback) |
+| `compressionMode` | string | `autoWhenNeeded`, `manual`, `manualPerMonth` (debate per period). Legacy `sequentialTerm` migrates to `autoWhenNeeded` |
+| `compressionMerges` | number[] | Merge start days N+(N+1) on **this class’s** term schedule only |
+| `skippedLessons` | number[] | Lesson numbers omitted from calendar this term (e.g. skip 11–15) |
 | `compressionMergesByPeriod` | object | `periodId` → merge start days (`manualPerMonth` mode) |
 | `compressionMergesByMonth` | object | Legacy `YYYY-MM` → merges (migrated to `compressionMergesByPeriod`) |
 | `customSchedule` | object | Optional manual dates |

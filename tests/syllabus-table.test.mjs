@@ -112,6 +112,33 @@ function assert(cond, msg) {
     assert(overflow[0].note.includes('Extend'), 'overflow note');
 }
 
+// Merge must not duplicate overflow intro notes
+{
+    const classData = { syllabusUnits: [] };
+    const hooks = {
+        isHolidayForClass: () => false,
+        overflowIntro: 'Not placed:',
+        overflowNote: 'Extend term.'
+    };
+    const generated = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, [
+        { date: '2026-03-05', monthKey: '2026-03', label: 'Unit 1' },
+        { __syllabusOverflowIntro: true },
+        { __syllabusUnscheduled: true, lessonNum: 2, label: 'Unit 2' }
+    ], hooks);
+    const saved = [{
+        id: 'note1',
+        kind: 'note',
+        planTitle: 'Not placed:',
+        planDetail: '',
+        note: '',
+        source: 'manual'
+    }];
+    const merged1 = CCPSyllabus.mergeSyllabusRows(saved, generated);
+    const merged2 = CCPSyllabus.mergeSyllabusRows(merged1, generated);
+    const intros = merged2.filter(r => r.overflowIntro || (r.kind === 'note' && r.planTitle === 'Not placed:'));
+    assert(intros.length === 1, 'single overflow intro after double merge');
+}
+
 // Session numbering and lesson rows
 {
     const classData = {
