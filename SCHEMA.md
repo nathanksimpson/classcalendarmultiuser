@@ -49,6 +49,19 @@
 
 Object mapping period number strings (`"1"` … `"7"`) to a `timetableTimeSlots[].id`.
 
+### `ui` viewer preferences (optional)
+
+Stored in calendar JSON and mirrored to `localStorage` for quick restore. Not required for team sync document integrity.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `activeTab` | string | Last main tab (`calendar`, `classes`, `timetable`, …) |
+| `homeworkTabClassId` | string | Selected class on Homework tab |
+| `syllabusTabClassId` | string | Selected class on Syllabus tab |
+| `timetableTabTeacherUserId` | string | Selected teacher on Timetable tab (team account id) |
+| `timetableTabTeacherName` | string | Fallback display name when matching legacy assignments |
+| `lessonFilters` | object | See below |
+
 ### `ui.lessonFilters` (optional)
 
 Each key is `null` (no filter — show all) or a string array (only matching classes are shown on the calendar and in class-related print sections). Dimensions are combined with **AND** logic.

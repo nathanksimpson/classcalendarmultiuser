@@ -17,7 +17,7 @@
         'js/syllabus-templates.js?v=20260527-debate-templates'
     ];
 
-    const HOWTO_SCRIPT = 'howto.js?v=20260528-howto-team';
+    const HOWTO_SCRIPT = 'howto.js?v=20260530-header-help';
 
     let extensionPromise = null;
     let howtoPromise = null;

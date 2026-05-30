@@ -30,7 +30,6 @@ const translations = {
         teamNewCalendar: '+ New',
         teamCalendarMenu: 'Calendar',
         teamAccountMenu: 'Account',
-        headerMore: 'More',
         syncConnecting: 'Connecting…',
         syncSyncing: 'Syncing…',
         syncConnected: 'Connected — saved to team folder',
@@ -55,7 +54,7 @@ const translations = {
         newCalendarFailed: 'Could not create calendar',
         duplicateCalendarName: 'A calendar named "{name}" already exists. Choose a different name.',
         teamDeleteCalendar: 'Remove',
-        teamCalendarHint: 'Pick a calendar from the list, or click + New. Changes auto-save to the cloud. Edit Calendar Name below to rename. Open Help (sections 15–17) for sign-in, locks, and collaboration.',
+        teamCalendarHint: 'Pick a calendar from the list, or click + New. Changes auto-save to the cloud. Edit Calendar Name below to rename. Open Help (sections 17–19) for sign-in, locks, and collaboration.',
         newCalendarCreating: 'Creating…',
         deleteCalendarRemoving: 'Removing…',
         teamCalendarNameLabel: 'Calendar name (saved):',
@@ -460,10 +459,33 @@ const translations = {
         classScheduleBlockSecondary: 'Secondary (Conversation / IPE / MS)',
         timetableTeacherLabel: 'Teacher',
         timetableSelectTeacher: 'Select a teacher',
+        timetablePickTeacher: 'Select a teacher from the list to view their classes and weekly timetable.',
+        timetableTeacherSearchPlaceholder: 'Search teachers…',
+        timetableTeacherClassesHeading: 'Classes',
+        timetableNoClassesForTeacher: 'No classes assigned to this teacher yet. Assign them on the Classes tab.',
+        timetableTeachersListEmpty: 'No teachers found. Assign teachers on classes or add team accounts.',
+        timetableCohortsScopeHint: 'Cohorts apply to the whole calendar, not only the teacher shown above.',
         timetableEmptyHint: 'Assign teachers on the Classes tab to build a weekly timetable.',
         timetableHomeroomLabel: 'Homeroom',
         timetableTimeHeader: 'Time',
         timetablePrint: 'Print timetable',
+        timetablePrintOptionsTitle: 'Print timetable',
+        timetablePrintSectionPage1: 'Page 1 — weekly grid (landscape)',
+        timetablePrintSectionPage1Hint: 'The timetable grid is scaled to fit one A4 landscape page.',
+        timetablePrintSectionPage2: 'Page 2 — optional extras (portrait)',
+        timetablePrintSectionPage2Hint: 'Only included when at least one option below is checked.',
+        timetablePrintIncludeTeacher: 'Teacher name',
+        timetablePrintIncludeHomeroom: 'Homeroom day letters',
+        timetablePrintIncludeTerm: 'Calendar / term label',
+        timetablePrintIncludeConflicts: 'Schedule conflict notice',
+        timetablePrintIncludeSecondary: 'Secondary schedule block',
+        timetablePrintIncludeHomeroomSummary: 'Homeroom cohorts summary',
+        timetablePrintIncludeCohortDirectory: 'Cohort directory (all cohorts)',
+        timetablePrintCohortDirectoryHeading: 'Student cohorts',
+        timetablePrintColCohort: 'Cohort',
+        timetablePrintColHomeroomTeacher: 'Homeroom teacher',
+        timetablePrintColDaySuffix: 'Day letter',
+        timetablePrintColClassCount: 'Classes',
         timetableConflicts: 'Schedule conflicts detected',
         timetableNoConflicts: 'No conflicts',
         timetableSuggestCohorts: 'Suggest cohorts from classes',
@@ -762,7 +784,6 @@ const translations = {
         teamNewCalendar: '+ 새로 만들기',
         teamCalendarMenu: '캘린더',
         teamAccountMenu: '계정',
-        headerMore: '더보기',
         syncConnecting: '연결 중…',
         syncSyncing: '동기화 중…',
         syncConnected: '연결됨 — 팀 폴더에 저장',
@@ -787,7 +808,7 @@ const translations = {
         newCalendarFailed: '캘린더를 만들지 못했습니다',
         duplicateCalendarName: '"{name}"(이)라는 이름의 캘린더가 이미 있습니다. 다른 이름을 사용하세요.',
         teamDeleteCalendar: '삭제',
-        teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·협업은 도움말 15–17절을 보세요.',
+        teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·협업은 도움말 17–19절을 보세요.',
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
         teamSyncOffline: '팀 서버에 연결되지 않음',
@@ -1192,10 +1213,33 @@ const translations = {
         classScheduleBlockSecondary: '보조 (Conversation / IPE / 중등 등)',
         timetableTeacherLabel: '선생님',
         timetableSelectTeacher: '선생님 선택',
+        timetablePickTeacher: '목록에서 선생님을 선택하면 담당 수업과 주간 시간표가 표시됩니다.',
+        timetableTeacherSearchPlaceholder: '선생님 검색…',
+        timetableTeacherClassesHeading: '담당 수업',
+        timetableNoClassesForTeacher: '이 선생님에게 배정된 수업이 없습니다. 수업 탭에서 배정하세요.',
+        timetableTeachersListEmpty: '선생님이 없습니다. 수업에 선생님을 배정하거나 팀 계정을 추가하세요.',
+        timetableCohortsScopeHint: '반(담임) 설정은 위에서 선택한 선생님뿐 아니라 캘린더 전체에 적용됩니다.',
         timetableEmptyHint: '수업 탭에서 선생님을 배정하면 주간 시간표가 표시됩니다.',
         timetableHomeroomLabel: '담임반',
         timetableTimeHeader: '시간',
         timetablePrint: '시간표 인쇄',
+        timetablePrintOptionsTitle: '시간표 인쇄',
+        timetablePrintSectionPage1: '1쪽 — 주간 시간표 (가로)',
+        timetablePrintSectionPage1Hint: '시간표 격자는 A4 가로 한 페이지에 맞게 축소됩니다.',
+        timetablePrintSectionPage2: '2쪽 — 선택 항목 (세로)',
+        timetablePrintSectionPage2Hint: '아래에서 하나 이상 선택한 경우에만 인쇄됩니다.',
+        timetablePrintIncludeTeacher: '선생님 이름',
+        timetablePrintIncludeHomeroom: '담임반 요일 글자',
+        timetablePrintIncludeTerm: '캘린더 / 학기 표시',
+        timetablePrintIncludeConflicts: '시간표 충돌 안내',
+        timetablePrintIncludeSecondary: '보조 시간표 블록',
+        timetablePrintIncludeHomeroomSummary: '담임 반 요약',
+        timetablePrintIncludeCohortDirectory: '반 목록 (전체 반)',
+        timetablePrintCohortDirectoryHeading: '학생 반',
+        timetablePrintColCohort: '반',
+        timetablePrintColHomeroomTeacher: '담임 선생님',
+        timetablePrintColDaySuffix: '요일 글자',
+        timetablePrintColClassCount: '수업 수',
         timetableConflicts: '시간표 충돌이 있습니다',
         timetableNoConflicts: '충돌 없음',
         timetableSuggestCohorts: '수업에서 반 자동 제안',
@@ -1551,6 +1595,9 @@ function applyLanguage() {
     syncEventOpenEditorButton();
     if (getActiveTab() === 'homework') {
         renderHomeworkReferenceMiniCalendar();
+    }
+    if (getActiveTab() === 'timetable') {
+        refreshTimetablePanels();
     }
     const eventAppSearchEl = document.getElementById('eventApplicabilitySearch');
     if (eventAppSearchEl && translations[currentLanguage].lessonFilterSearchPlaceholder) {
@@ -4522,6 +4569,12 @@ function ensureUiState() {
     appData.ui.lessonFilters = normalizeLessonFilters(appData.ui.lessonFilters);
     if (typeof appData.ui.homeworkTabClassId !== 'string') {
         appData.ui.homeworkTabClassId = '';
+    }
+    if (typeof appData.ui.timetableTabTeacherUserId !== 'string') {
+        appData.ui.timetableTabTeacherUserId = '';
+    }
+    if (typeof appData.ui.timetableTabTeacherName !== 'string') {
+        appData.ui.timetableTabTeacherName = '';
     }
     if (typeof appData.ui.syllabusTabClassId !== 'string') {
         appData.ui.syllabusTabClassId = '';
@@ -9264,12 +9317,7 @@ async function refreshClassTeacherPickersFromAccounts() {
             nameInput ? nameInput.value : parsed.displayName
         );
     });
-    const timetableSel = document.getElementById('timetableTeacherSelect');
-    if (timetableSel && timetableSel.value) {
-        const parsed = parseTeacherPickerValue(timetableSel.value);
-        populateTeacherPickerSelect(timetableSel, parsed, true);
-        timetableSel.value = `${parsed.userId}|${parsed.displayName}`;
-    }
+    refreshTimetablePanels();
 }
 
 function renderClassTeachersRows(classData) {
@@ -9420,6 +9468,170 @@ function collectClassTeacherFieldsForSave() {
     };
 }
 
+function getTimetableTeacherSelectorFromUi() {
+    ensureUiState();
+    const userId = (appData.ui.timetableTabTeacherUserId || '').trim();
+    const displayName = (appData.ui.timetableTabTeacherName || '').trim();
+    if (!userId && !displayName) {
+        return null;
+    }
+    if (userId) {
+        const teachers = listTimetableTeachers();
+        const match = teachers.find((row) => row.userId === userId);
+        if (match) {
+            return { userId: match.userId, displayName: match.displayName || displayName };
+        }
+    }
+    return { userId, displayName };
+}
+
+function timetableTeacherMatchesUi(teacherRow, selector) {
+    const api = getTimetableApi();
+    if (!api || !teacherRow || !selector) {
+        return false;
+    }
+    return api.teacherMatchesTeacherRef(
+        { userId: teacherRow.userId, displayName: teacherRow.displayName },
+        selector
+    );
+}
+
+function selectTimetableTeacher(selector) {
+    ensureUiState();
+    if (!selector || (!selector.userId && !selector.displayName)) {
+        appData.ui.timetableTabTeacherUserId = '';
+        appData.ui.timetableTabTeacherName = '';
+    } else {
+        appData.ui.timetableTabTeacherUserId = selector.userId || '';
+        appData.ui.timetableTabTeacherName = selector.displayName || '';
+    }
+    saveUiStateToLocalStorage();
+    const active = getTimetableTeacherSelectorFromUi();
+    renderTimetableTeacherList();
+    if (active) {
+        renderTimetableClassList(active);
+        renderTimetableView(active);
+    } else {
+        renderTimetableClassList(null);
+        renderTimetableView(null);
+    }
+}
+
+function refreshTimetablePanels() {
+    renderTimetableTeacherList();
+    const selector = getTimetableTeacherSelectorFromUi();
+    if (selector) {
+        renderTimetableClassList(selector);
+        renderTimetableView(selector);
+    } else {
+        renderTimetableClassList(null);
+        renderTimetableView(null);
+    }
+}
+
+function renderTimetableTeacherList() {
+    const list = document.getElementById('timetableTeacherList');
+    if (!list) {
+        return;
+    }
+    const q = (document.getElementById('timetableTeacherSearch')?.value || '').trim().toLowerCase();
+    const active = getTimetableTeacherSelectorFromUi();
+    list.innerHTML = '';
+    const teachers = listTimetableTeachers().filter((row) => {
+        if (!q) {
+            return true;
+        }
+        const hay = [row.displayName, row.userId, row.email].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+    });
+    if (!teachers.length) {
+        const empty = document.createElement('p');
+        empty.className = 'module-list-empty';
+        empty.style.padding = '12px';
+        empty.style.color = 'var(--text-secondary)';
+        empty.textContent = q ? t('lessonFilterSearchEmpty') : t('timetableTeachersListEmpty');
+        list.appendChild(empty);
+        return;
+    }
+    teachers.forEach((row) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isSelected = active && timetableTeacherMatchesUi(row, active);
+        btn.className = 'module-list-item' + (isSelected ? ' is-selected' : '');
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', String(isSelected));
+        const label = formatTeacherAccountOptionLabel(row);
+        btn.innerHTML = `<span>${escapeHtml(label)}</span>`;
+        btn.addEventListener('click', () => {
+            selectTimetableTeacher({ userId: row.userId, displayName: row.displayName });
+        });
+        list.appendChild(btn);
+    });
+}
+
+function createTimetableClassListButton(classData, teacherRow, onClick) {
+    const api = getTimetableApi();
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    const category = (teacherRow && teacherRow.category)
+        || (api ? api.getTeacherCategoryForClass(classData, {
+            userId: teacherRow.userId,
+            displayName: teacherRow.name
+        }) : '');
+    const schedule = api && teacherRow
+        ? api.formatTeacherRowScheduleSummary(classData, teacherRow, appData, lang)
+        : '';
+    const metaParts = [category, schedule].filter(Boolean);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'module-list-item';
+    btn.setAttribute('role', 'option');
+    btn.innerHTML = `<span>${escapeHtml(classData.name || '')}</span><span class="module-list-item-meta">${escapeHtml(metaParts.join(' · '))}</span>`;
+    btn.addEventListener('click', onClick);
+    return btn;
+}
+
+function renderTimetableClassList(selector) {
+    const list = document.getElementById('timetableClassList');
+    if (!list) {
+        return;
+    }
+    list.innerHTML = '';
+    if (!selector || (!selector.userId && !selector.displayName)) {
+        return;
+    }
+    const api = getTimetableApi();
+    if (!api) {
+        return;
+    }
+    const q = (document.getElementById('timetableClassListSearch')?.value || '').trim().toLowerCase();
+    let items = api.getClassesForTeacherSchedule(appData, selector);
+    items = items.slice().sort((a, b) =>
+        (a.classData.name || '').localeCompare(b.classData.name || '', undefined, { sensitivity: 'base' })
+    );
+    if (q) {
+        items = items.filter(({ classData, teacherRow }) => {
+            const category = teacherRow.category
+                || api.getTeacherCategoryForClass(classData, selector);
+            const hay = [classData.name, classData.grade, category].filter(Boolean).join(' ').toLowerCase();
+            return hay.includes(q);
+        });
+    }
+    if (!items.length) {
+        const empty = document.createElement('p');
+        empty.className = 'module-list-empty';
+        empty.style.padding = '12px';
+        empty.style.color = 'var(--text-secondary)';
+        empty.textContent = q ? t('lessonFilterSearchEmpty') : t('timetableNoClassesForTeacher');
+        list.appendChild(empty);
+        return;
+    }
+    items.forEach(({ classData, teacherRow }) => {
+        list.appendChild(createTimetableClassListButton(classData, teacherRow, () => {
+            navigateToTab('classes', { classId: classData.id });
+        }));
+    });
+}
+
 function getTimetableEntryDisplayColors(entry) {
     const bg = (entry && entry.color) ? entry.color : '#6366f1';
     const preferred = (entry && entry.textColor) || DEFAULT_CLASS_TEXT_COLOR;
@@ -9512,7 +9724,7 @@ function renderTimetableGridTable(block, lang) {
 
 function renderTimetableView(selector) {
     const api = getTimetableApi();
-    const emptyHint = document.getElementById('timetableEmptyHint');
+    const pickHint = document.getElementById('timetablePickTeacherHint');
     const view = document.getElementById('timetableView');
     const titleEl = document.getElementById('timetableTeacherTitle');
     const homeroomLine = document.getElementById('timetableHomeroomLine');
@@ -9524,8 +9736,8 @@ function renderTimetableView(selector) {
         return;
     }
     if (!selector || (!selector.userId && !selector.displayName)) {
-        if (emptyHint) {
-            emptyHint.hidden = false;
+        if (pickHint) {
+            pickHint.hidden = false;
         }
         if (view) {
             view.hidden = true;
@@ -9537,8 +9749,8 @@ function renderTimetableView(selector) {
     }
     const lang = currentLanguage === 'ko' ? 'ko' : 'en';
     const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
-    if (emptyHint) {
-        emptyHint.hidden = true;
+    if (pickHint) {
+        pickHint.hidden = true;
     }
     if (view) {
         view.hidden = false;
@@ -9601,6 +9813,608 @@ function renderTimetableView(selector) {
         conflictBadge.hidden = false;
         conflictBadge.textContent = grid.hasConflicts ? t('timetableConflicts') : t('timetableNoConflicts');
         conflictBadge.classList.toggle('timetable-conflict-badge--warn', grid.hasConflicts);
+    }
+}
+
+const TIMETABLE_PRINT_LANDSCAPE = {
+    pageW: 297,
+    pageH: 210,
+    margin: 10,
+    fitSafety: 2,
+    get contentW() {
+        return this.pageW - this.margin * 2;
+    },
+    get contentH() {
+        return this.pageH - this.margin * 2;
+    },
+    get fitContentH() {
+        return this.contentH - this.fitSafety;
+    }
+};
+
+const APP_PRINT_TIMETABLE_INLINE_CSS = `
+@page timetable-landscape {
+    size: A4 landscape;
+    margin: 0;
+}
+@media print {
+    @page timetable-landscape {
+        size: A4 landscape;
+        margin: 0;
+    }
+    @page timetable-extras-portrait {
+        size: A4 portrait;
+        margin: 10mm;
+    }
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+html.app-print-timetable-root,
+body.app-print-timetable-doc {
+    width: ${TIMETABLE_PRINT_LANDSCAPE.pageW}mm;
+    min-width: ${TIMETABLE_PRINT_LANDSCAPE.pageW}mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #1e293b;
+}
+body.app-print-timetable-doc { font-family: "DM Sans", "Noto Sans KR", sans-serif; font-size: 10pt; }
+.app-print-document--timetable { max-width: 100%; padding: 0; }
+.timetable-print-sheet {
+    page: timetable-landscape;
+    width: ${TIMETABLE_PRINT_LANDSCAPE.pageW}mm;
+    height: ${TIMETABLE_PRINT_LANDSCAPE.pageH}mm;
+    max-height: ${TIMETABLE_PRINT_LANDSCAPE.pageH}mm;
+    box-sizing: border-box;
+    padding: ${TIMETABLE_PRINT_LANDSCAPE.margin}mm;
+    margin: 0 auto;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    position: relative;
+    display: block;
+}
+.timetable-print-sheet:last-of-type.timetable-print-sheet--landscape {
+    page-break-after: auto;
+    break-after: auto;
+}
+.timetable-print-header {
+    margin: 0 0 3mm;
+}
+.timetable-print-title {
+    margin: 0 0 2mm;
+    font-size: 14pt;
+    line-height: 1.2;
+}
+.timetable-print-homeroom-line {
+    margin: 0 0 2mm;
+    font-size: 10pt;
+}
+.timetable-print-term {
+    margin: 0 0 2mm;
+    font-size: 9pt;
+    color: #64748b;
+}
+.timetable-print-conflict {
+    margin: 0 0 2mm;
+    font-size: 9pt;
+    font-weight: 600;
+    color: #b91c1c;
+}
+.timetable-print-fit-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+    margin: 0 auto;
+}
+.timetable-print-fit-inner {
+    transform-origin: top center;
+}
+.timetable-print-grids {
+    display: flex;
+    flex-direction: column;
+    gap: 4mm;
+}
+.timetable-print-grids .timetable-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+}
+.timetable-print-grids .timetable-grid th,
+.timetable-print-grids .timetable-grid td {
+    border: 1px solid #cbd5e1;
+    padding: 2px 4px;
+    vertical-align: top;
+}
+.timetable-print-grids .timetable-grid thead th {
+    background: #f1f5f9;
+    font-weight: 600;
+    text-align: center;
+}
+.timetable-print-grids .timetable-col-time {
+    white-space: nowrap;
+    font-weight: 600;
+    background: #f8fafc;
+}
+.timetable-print-grids .timetable-cell-name { font-weight: 600; }
+.timetable-print-grids .timetable-cell-category,
+.timetable-print-grids .timetable-cell-hr {
+    font-size: 8pt;
+    color: #475569;
+}
+.timetable-print-grids .timetable-cell--conflict {
+    outline: 2px solid #dc2626;
+}
+.timetable-print-extras-sheet {
+    page: timetable-extras-portrait;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0 auto;
+    page-break-before: always;
+    break-before: page;
+}
+.timetable-print-extras-section {
+    margin-bottom: 8mm;
+}
+.timetable-print-extras-section h3 {
+    margin: 0 0 3mm;
+    font-size: 12pt;
+}
+.timetable-print-cohort-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+}
+.timetable-print-cohort-table th,
+.timetable-print-cohort-table td {
+    border: 1px solid #cbd5e1;
+    padding: 3px 6px;
+    text-align: left;
+}
+.timetable-print-cohort-table th {
+    background: #f1f5f9;
+    font-weight: 600;
+}
+.timetable-print-empty {
+    margin: 0;
+    color: #64748b;
+    font-size: 9pt;
+}
+.timetable-print-extras-sheet .timetable-cohorts-summary {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+`;
+
+function getTimetablePrintGridForSelectedTeacher() {
+    const sel = document.getElementById('timetableTeacherSelect');
+    if (!sel || !sel.value) {
+        return null;
+    }
+    const api = getTimetableApi();
+    if (!api) {
+        return null;
+    }
+    const selector = parseTeacherPickerValue(sel.value);
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    return api.buildTeacherWeeklyGrid(appData, selector, { lang });
+}
+
+function syncTimetablePrintOptionsUi() {
+    const grid = getTimetablePrintGridForSelectedTeacher();
+    const conflictsRow = document.getElementById('timetablePrintIncludeConflictsRow');
+    const conflictsCb = document.getElementById('timetablePrintIncludeConflicts');
+    if (conflictsRow && conflictsCb) {
+        const show = !!(grid && grid.hasConflicts);
+        conflictsRow.hidden = !show;
+        if (show) {
+            conflictsCb.checked = true;
+        }
+    }
+    const secondaryRow = document.getElementById('timetablePrintIncludeSecondaryRow');
+    const secondaryCb = document.getElementById('timetablePrintIncludeSecondary');
+    const hasSecondary = !!document.querySelector('#timetableGridsMount .timetable-grid--secondary');
+    if (secondaryRow && secondaryCb) {
+        secondaryRow.hidden = !hasSecondary;
+        if (!hasSecondary) {
+            secondaryCb.checked = false;
+        } else if (!secondaryCb.dataset.userTouched) {
+            secondaryCb.checked = true;
+        }
+    }
+}
+
+function setTimetablePrintExtrasCheckboxes(all) {
+    const summary = document.getElementById('timetablePrintIncludeHomeroomSummary');
+    const directory = document.getElementById('timetablePrintIncludeCohortDirectory');
+    if (summary) {
+        summary.checked = !!all;
+    }
+    if (directory) {
+        directory.checked = !!all;
+    }
+}
+
+function getTimetablePrintOptionsFromForm() {
+    return {
+        includeTeacherName: document.getElementById('timetablePrintIncludeTeacher')?.checked !== false,
+        includeHomeroom: document.getElementById('timetablePrintIncludeHomeroom')?.checked !== false,
+        includeTerm: document.getElementById('timetablePrintIncludeTerm')?.checked !== false,
+        includeConflicts: document.getElementById('timetablePrintIncludeConflicts')?.checked !== false,
+        includeSecondary: document.getElementById('timetablePrintIncludeSecondary')?.checked !== false,
+        includeHomeroomSummary: document.getElementById('timetablePrintIncludeHomeroomSummary')?.checked === true,
+        includeCohortDirectory: document.getElementById('timetablePrintIncludeCohortDirectory')?.checked === true
+    };
+}
+
+function openTimetablePrintOptionsModal() {
+    const view = document.getElementById('timetableView');
+    const sel = document.getElementById('timetableTeacherSelect');
+    if (!view || view.hidden || !sel || !sel.value) {
+        alert(t('timetableSelectTeacher'));
+        return;
+    }
+    syncTimetablePrintOptionsUi();
+    const modal = document.getElementById('timetablePrintOptionsModal');
+    if (modal) {
+        openModal(modal);
+    }
+}
+
+function closeTimetablePrintOptionsModal() {
+    const modal = document.getElementById('timetablePrintOptionsModal');
+    if (modal) {
+        closeModal(modal);
+    }
+}
+
+function cloneTimetableGridsHtml(opts) {
+    const mount = document.getElementById('timetableGridsMount');
+    if (!mount) {
+        return '';
+    }
+    const clone = mount.cloneNode(true);
+    if (!opts.includeSecondary) {
+        clone.querySelectorAll('.timetable-grid--secondary').forEach((el) => el.remove());
+    }
+    return clone.innerHTML;
+}
+
+function buildTimetablePrintHeaderHtml(opts, grid) {
+    const parts = [];
+    if (opts.includeTeacherName) {
+        const titleEl = document.getElementById('timetableTeacherTitle');
+        const text = titleEl ? titleEl.textContent.trim() : (grid && grid.teacherName) || '';
+        if (text) {
+            parts.push(`<h2 class="timetable-print-title">${escapeHtml(text)}</h2>`);
+        }
+    }
+    if (opts.includeHomeroom) {
+        const homeroomLine = document.getElementById('timetableHomeroomLine');
+        if (homeroomLine && !homeroomLine.hidden) {
+            const clone = homeroomLine.cloneNode(true);
+            clone.id = '';
+            clone.className = 'timetable-print-homeroom-line';
+            parts.push(clone.outerHTML);
+        }
+    }
+    if (opts.includeTerm) {
+        const termEl = document.getElementById('timetableTermLabel');
+        const text = termEl ? termEl.textContent.trim() : '';
+        if (text) {
+            parts.push(`<p class="timetable-print-term">${escapeHtml(text)}</p>`);
+        }
+    }
+    if (opts.includeConflicts && grid && grid.hasConflicts) {
+        parts.push(`<p class="timetable-print-conflict">${escapeHtml(t('timetableConflicts'))}</p>`);
+    }
+    if (!parts.length) {
+        return '';
+    }
+    return `<header class="timetable-print-header">${parts.join('')}</header>`;
+}
+
+function buildTimetableHomeroomSummaryExtrasHtml() {
+    const summary = document.getElementById('timetableCohortsSummary');
+    if (!summary || summary.hidden || !summary.innerHTML.trim()) {
+        return '';
+    }
+    const clone = summary.cloneNode(true);
+    clone.id = '';
+    clone.hidden = false;
+    return `<section class="timetable-print-extras-section">
+<h3>${escapeHtml(t('timetableHomeroomCohortsHeading'))}</h3>
+${clone.outerHTML}
+</section>`;
+}
+
+function buildTimetableCohortDirectoryHtml() {
+    const api = getTimetableApi();
+    const cohorts = (appData.cohorts || []).slice().sort((a, b) =>
+        (a.name || a.level || a.id || '').localeCompare(b.name || b.level || b.id || '', undefined, { sensitivity: 'base' })
+    );
+    if (!cohorts.length) {
+        return `<section class="timetable-print-extras-section">
+<h3>${escapeHtml(t('timetablePrintCohortDirectoryHeading'))}</h3>
+<p class="timetable-print-empty">${escapeHtml(t('timetableCohortsEmpty'))}</p>
+</section>`;
+    }
+    const rows = cohorts.map((cohort) => {
+        const name = cohort.name || cohort.level || cohort.id || '';
+        const teacher = cohort.homeroomTeacherName || cohort.homeroomTeacherUserId || '—';
+        const suffix = cohort.homeroomDaySuffix || '—';
+        const count = api
+            ? api.getCohortClassIds(appData, cohort).length
+            : (cohort.classIds || []).length;
+        return `<tr>
+<td>${escapeHtml(name)}</td>
+<td>${escapeHtml(teacher)}</td>
+<td>${escapeHtml(suffix)}</td>
+<td>${escapeHtml(String(count))}</td>
+</tr>`;
+    }).join('');
+    return `<section class="timetable-print-extras-section">
+<h3>${escapeHtml(t('timetablePrintCohortDirectoryHeading'))}</h3>
+<table class="timetable-print-cohort-table">
+<thead><tr>
+<th>${escapeHtml(t('timetablePrintColCohort'))}</th>
+<th>${escapeHtml(t('timetablePrintColHomeroomTeacher'))}</th>
+<th>${escapeHtml(t('timetablePrintColDaySuffix'))}</th>
+<th>${escapeHtml(t('timetablePrintColClassCount'))}</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+</section>`;
+}
+
+function buildTimetablePrintExtrasPageHtml(opts) {
+    const sections = [];
+    if (opts.includeHomeroomSummary) {
+        const html = buildTimetableHomeroomSummaryExtrasHtml();
+        if (html) {
+            sections.push(html);
+        }
+    }
+    if (opts.includeCohortDirectory) {
+        sections.push(buildTimetableCohortDirectoryHtml());
+    }
+    if (!sections.length) {
+        return '';
+    }
+    return `<div class="timetable-print-extras-sheet">${sections.join('')}</div>`;
+}
+
+function buildTimetablePrintDocumentHtml(opts, grid) {
+    const gridsHtml = cloneTimetableGridsHtml(opts);
+    if (!gridsHtml.trim()) {
+        return '';
+    }
+    const headerHtml = buildTimetablePrintHeaderHtml(opts, grid);
+    const extrasHtml = buildTimetablePrintExtrasPageHtml(opts);
+    const teacherName = escapeHtml((grid && grid.teacherName) || '');
+    const title = escapeHtml(`${t('timetablePrint')} — ${teacherName}`);
+    const cssHref = escapeHtml(getAppStylesheetHref());
+    const lang = escapeHtml(document.documentElement.lang || 'en');
+    const page1 = `<div class="timetable-print-sheet timetable-print-sheet--landscape">
+${headerHtml}
+<div class="timetable-print-fit-wrap" data-timetable-fit-wrap="1">
+<div class="timetable-print-fit-inner" data-timetable-fit-inner="1">
+<div class="timetable-print-grids">${gridsHtml}</div>
+</div>
+</div>
+</div>`;
+    return `<!DOCTYPE html>
+<html lang="${lang}" data-theme="light" class="print-color-mode-light app-print-timetable-root">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<link rel="stylesheet" href="${cssHref}">
+<style>
+${APP_PRINT_TIMETABLE_INLINE_CSS}
+</style>
+</head>
+<body class="app-print-timetable-doc">
+<div class="app-print-document app-print-document--timetable">
+${page1}
+${extrasHtml}
+</div>
+</body>
+</html>`;
+}
+
+function computeTimetableGridScale(naturalH, naturalW, contentWpx, contentHpx) {
+    if (!naturalH || naturalH < 1 || !naturalW || naturalW < 1) {
+        return 1;
+    }
+    const scaleW = contentWpx / naturalW;
+    const scaleH = contentHpx / naturalH;
+    return Math.min(scaleW, scaleH, 1);
+}
+
+function fitTimetableGridForPrint(doc) {
+    const a4 = TIMETABLE_PRINT_LANDSCAPE;
+    const sheet = doc.querySelector('.timetable-print-sheet--landscape');
+    const wrap = doc.querySelector('[data-timetable-fit-wrap="1"]');
+    const inner = doc.querySelector('[data-timetable-fit-inner="1"]');
+    const grids = doc.querySelector('.timetable-print-grids');
+    if (!sheet || !wrap || !inner || !grids) {
+        return;
+    }
+
+    const mmPx = measureMmToPxForPrint(doc);
+    const contentWpx = Math.round(a4.contentW * mmPx);
+    const header = sheet.querySelector('.timetable-print-header');
+    const headerH = header ? header.offsetHeight : 0;
+    const contentHpx = Math.max(1, Math.round(a4.fitContentH * mmPx) - headerH - 4);
+
+    wrap.style.width = `${contentWpx}px`;
+    wrap.style.height = `${contentHpx}px`;
+    wrap.style.maxHeight = `${contentHpx}px`;
+
+    inner.style.transform = '';
+    inner.style.width = '';
+    grids.querySelectorAll('.timetable-grid').forEach((table) => {
+        table.style.fontSize = '';
+    });
+
+    void doc.body.offsetHeight;
+
+    let naturalH = inner.scrollHeight;
+    let naturalW = inner.scrollWidth || inner.offsetWidth;
+    let scale = computeTimetableGridScale(naturalH, naturalW, contentWpx, contentHpx);
+
+    if (scale < 0.85) {
+        grids.querySelectorAll('.timetable-grid').forEach((table) => {
+            table.style.fontSize = '8pt';
+        });
+        void doc.body.offsetHeight;
+        naturalH = inner.scrollHeight;
+        naturalW = inner.scrollWidth || inner.offsetWidth;
+        scale = computeTimetableGridScale(naturalH, naturalW, contentWpx, contentHpx);
+    }
+
+    const scaledH = Math.ceil(naturalH * scale);
+    if (scale < 0.999) {
+        inner.style.transformOrigin = 'top center';
+        inner.style.transform = `scale(${scale})`;
+        inner.style.width = `${naturalW}px`;
+        wrap.style.display = 'flex';
+        wrap.style.justifyContent = 'center';
+        wrap.style.alignItems = 'flex-start';
+        wrap.style.paddingTop = scaledH < contentHpx
+            ? `${Math.floor((contentHpx - scaledH) / 2)}px`
+            : '0';
+    } else {
+        inner.style.width = '100%';
+        wrap.style.paddingTop = '0';
+    }
+}
+
+function runTimetablePrint(opts) {
+    const view = document.getElementById('timetableView');
+    const sel = document.getElementById('timetableTeacherSelect');
+    if (!view || view.hidden || !sel || !sel.value) {
+        alert(t('timetableSelectTeacher'));
+        return;
+    }
+    const api = getTimetableApi();
+    if (!api) {
+        return;
+    }
+    const selector = parseTeacherPickerValue(sel.value);
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
+    const html = buildTimetablePrintDocumentHtml(opts, grid);
+    if (!html) {
+        alert(t('timetableSelectTeacher'));
+        return;
+    }
+
+    beginPrintColorMode();
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+        alert(t('printSyllabusBlocked'));
+        endPrintColorMode();
+        return;
+    }
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    const teacherLabel = grid.teacherName || selector.displayName || 'timetable';
+    printWin.document.title = `${t('timetablePrint')} — ${teacherLabel}`;
+    printWin.document.documentElement.classList.add('print-color-mode-light');
+
+    whenPrintWindowReady(printWin, () => {
+        fitTimetableGridForPrint(printWin.document);
+        const orient = printWin.document.createElement('style');
+        orient.setAttribute('data-timetable-print-orient', '1');
+        orient.textContent = '@page timetable-landscape { size: A4 landscape; margin: 0; }';
+        printWin.document.head.appendChild(orient);
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                let finished = false;
+                let closedPoll = null;
+                const finish = () => {
+                    if (finished) {
+                        return;
+                    }
+                    finished = true;
+                    if (closedPoll !== null) {
+                        clearInterval(closedPoll);
+                        closedPoll = null;
+                    }
+                    try {
+                        printWin.close();
+                    } catch (e) { /* ignore */ }
+                    endPrintColorMode();
+                };
+                printWin.addEventListener('afterprint', finish, { once: true });
+                printWin.addEventListener('pagehide', finish, { once: true });
+                closedPoll = setInterval(() => {
+                    if (finished) {
+                        return;
+                    }
+                    let closed = false;
+                    try {
+                        closed = printWin.closed;
+                    } catch (e) {
+                        closed = true;
+                    }
+                    if (closed) {
+                        finish();
+                    }
+                }, 250);
+                try {
+                    printWin.print();
+                } catch (e) { /* user may print manually */ }
+                setTimeout(finish, 120000);
+            });
+        });
+    });
+}
+
+function handleTimetablePrintSubmit(e) {
+    e.preventDefault();
+    const opts = getTimetablePrintOptionsFromForm();
+    const modal = document.getElementById('timetablePrintOptionsModal');
+    if (modal && modal.classList.contains('active')) {
+        closeTimetablePrintOptionsModal();
+    }
+    runTimetablePrint(opts);
+}
+
+function initTimetablePrintControls() {
+    const form = document.getElementById('timetablePrintForm');
+    if (form && !form.dataset.timetablePrintInit) {
+        form.dataset.timetablePrintInit = '1';
+        form.addEventListener('submit', handleTimetablePrintSubmit);
+    }
+    const closeBtn = document.getElementById('closeTimetablePrintOptionsModal');
+    if (closeBtn && !closeBtn.dataset.timetablePrintInit) {
+        closeBtn.dataset.timetablePrintInit = '1';
+        closeBtn.addEventListener('click', closeTimetablePrintOptionsModal);
+    }
+    const selectAll = document.getElementById('timetablePrintExtrasSelectAllBtn');
+    if (selectAll && !selectAll.dataset.timetablePrintInit) {
+        selectAll.dataset.timetablePrintInit = '1';
+        selectAll.addEventListener('click', () => setTimetablePrintExtrasCheckboxes(true));
+    }
+    const clearAll = document.getElementById('timetablePrintExtrasClearAllBtn');
+    if (clearAll && !clearAll.dataset.timetablePrintInit) {
+        clearAll.dataset.timetablePrintInit = '1';
+        clearAll.addEventListener('click', () => setTimetablePrintExtrasCheckboxes(false));
+    }
+    const secondaryCb = document.getElementById('timetablePrintIncludeSecondary');
+    if (secondaryCb && !secondaryCb.dataset.timetablePrintInit) {
+        secondaryCb.dataset.timetablePrintInit = '1';
+        secondaryCb.addEventListener('change', () => {
+            secondaryCb.dataset.userTouched = '1';
+        });
     }
 }
 
@@ -9686,10 +10500,7 @@ function buildCohortEditorCard(cohort) {
         saveData();
         populateClassCohortSelect();
         renderTimetableCohortsList();
-        const teacherSel = document.getElementById('timetableTeacherSelect');
-        if (teacherSel && teacherSel.value) {
-            renderTimetableView(parseTeacherPickerValue(teacherSel.value));
-        }
+        refreshTimetablePanels();
         setAppStatusMessage(t('timetableCohortSaved'), false);
     });
     const deleteBtn = document.createElement('button');
@@ -9787,31 +10598,22 @@ function suggestAndMergeCohorts() {
 async function initTimetableTabControls(options) {
     await ensureTeamTeacherAccountsLoaded();
     initTimetableTabListeners();
-    populateTeacherPickerSelect(document.getElementById('timetableTeacherSelect'), null, true);
     renderTimetableCohortsList();
-    const sel = document.getElementById('timetableTeacherSelect');
     if (options && options.teacherUserId) {
         const teachers = listTimetableTeachers();
         const match = teachers.find((row) => row.userId === options.teacherUserId);
-        if (match && sel) {
-            sel.value = `${match.userId}|${match.displayName || ''}`;
-        }
-    } else if (sel && sel.value) {
-        // keep selection
-    } else {
-        const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-        if (me && me.id && sel) {
-            const row = {
-                userId: me.id,
-                displayName: me.displayName || me.email || me.id
-            };
-            populateTeacherPickerSelect(sel, row, true);
-            sel.value = `${row.userId}|${row.displayName || ''}`;
+        if (match) {
+            selectTimetableTeacher({ userId: match.userId, displayName: match.displayName });
+            return;
         }
     }
-    if (sel && sel.value) {
-        renderTimetableView(parseTeacherPickerValue(sel.value));
+    const saved = getTimetableTeacherSelectorFromUi();
+    renderTimetableTeacherList();
+    if (saved) {
+        renderTimetableClassList(saved);
+        renderTimetableView(saved);
     } else {
+        renderTimetableClassList(null);
         renderTimetableView(null);
     }
 }
@@ -9823,8 +10625,8 @@ function initTimetableExport() {
     }
     btn.dataset.timetableInit = '1';
     btn.addEventListener('click', async () => {
-        const sel = document.getElementById('timetableTeacherSelect');
-        if (!sel || !sel.value) {
+        const selector = getTimetableTeacherSelectorFromUi();
+        if (!selector) {
             alert(t('timetableSelectTeacher'));
             return;
         }
@@ -9834,7 +10636,6 @@ function initTimetableExport() {
             alert(t('timetableExportExcelFailed'));
             return;
         }
-        const selector = parseTeacherPickerValue(sel.value);
         const lang = currentLanguage === 'ko' ? 'ko' : 'en';
         const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
         btn.disabled = true;
@@ -9858,11 +10659,19 @@ function initTimetableExport() {
 
 function initTimetableTabListeners() {
     initTimetableExport();
-    const sel = document.getElementById('timetableTeacherSelect');
-    if (sel && !sel.dataset.timetableInit) {
-        sel.dataset.timetableInit = '1';
-        sel.addEventListener('change', () => {
-            renderTimetableView(parseTeacherPickerValue(sel.value));
+    const teacherSearch = document.getElementById('timetableTeacherSearch');
+    if (teacherSearch && !teacherSearch.dataset.timetableInit) {
+        teacherSearch.dataset.timetableInit = '1';
+        teacherSearch.addEventListener('input', () => renderTimetableTeacherList());
+    }
+    const classSearch = document.getElementById('timetableClassListSearch');
+    if (classSearch && !classSearch.dataset.timetableInit) {
+        classSearch.dataset.timetableInit = '1';
+        classSearch.addEventListener('input', () => {
+            const selector = getTimetableTeacherSelectorFromUi();
+            if (selector) {
+                renderTimetableClassList(selector);
+            }
         });
     }
     const myBtn = document.getElementById('timetableMyScheduleBtn');
@@ -9878,26 +10687,15 @@ function initTimetableTabListeners() {
             if (!row) {
                 row = { userId: me.id, displayName: me.displayName || me.email || me.id };
             }
-            if (sel) {
-                populateTeacherPickerSelect(sel, row, true);
-                sel.value = `${row.userId}|${row.displayName || ''}`;
-            }
-            renderTimetableView(row);
+            selectTimetableTeacher({ userId: row.userId, displayName: row.displayName });
         });
     }
     const printBtn = document.getElementById('timetablePrintBtn');
     if (printBtn && !printBtn.dataset.timetableInit) {
         printBtn.dataset.timetableInit = '1';
-        printBtn.addEventListener('click', () => {
-            const view = document.getElementById('timetableView');
-            if (!view || view.hidden) {
-                return;
-            }
-            document.body.classList.add('print-timetable');
-            window.print();
-            window.setTimeout(() => document.body.classList.remove('print-timetable'), 500);
-        });
+        printBtn.addEventListener('click', () => openTimetablePrintOptionsModal());
     }
+    initTimetablePrintControls();
     const suggestBtn = document.getElementById('timetableSuggestCohortsBtn');
     if (suggestBtn && !suggestBtn.dataset.timetableInit) {
         suggestBtn.dataset.timetableInit = '1';
@@ -10152,6 +10950,7 @@ const elements = {
     // Print (tab panel + options modal)
     printForm: document.getElementById('printForm'),
     printOptionsModal: document.getElementById('printOptionsModal'),
+    timetablePrintOptionsModal: document.getElementById('timetablePrintOptionsModal'),
     
     // Popup
     classPopup: document.getElementById('classPopup'),
@@ -10813,11 +11612,9 @@ function setupEventListeners() {
     // Button Clicks
     document.getElementById('addClassBtn').addEventListener('click', () => openClassEditor(null, 'calendar-popout'));
     document.getElementById('addHolidayBtn').addEventListener('click', () => openEventEditor(null, 'calendar-popout'));
-    document.getElementById('exportBtn').addEventListener('click', exportData);
     setupImportDestinationModal();
     setupChangePasswordModal();
     setupEditDisplayNameModal();
-    document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importData);
     const printCalVisSelectAll = document.getElementById('printCalVisSelectAllBtn');
     const printCalVisClearAll = document.getElementById('printCalVisClearAllBtn');
@@ -11004,7 +11801,8 @@ function setupEventListeners() {
     });
     
     // Close modals on backdrop click (safe for text selection dragging)
-    [elements.classModal, elements.holidayModal, elements.classTypeModal, elements.printOptionsModal]
+    [elements.classModal, elements.holidayModal, elements.classTypeModal, elements.printOptionsModal,
+        elements.timetablePrintOptionsModal]
         .filter(Boolean)
         .forEach(bindModalBackdropClose);
 
@@ -11023,6 +11821,9 @@ function setupEventListeners() {
             }
             if (elements.printOptionsModal) {
                 closePrintOptionsModal();
+            }
+            if (elements.timetablePrintOptionsModal) {
+                closeTimetablePrintOptionsModal();
             }
         }
     });
@@ -11043,6 +11844,7 @@ const EXCLUSIVE_MODAL_IDS = [
     'classModal',
     'holidayModal',
     'printOptionsModal',
+    'timetablePrintOptionsModal',
     'conflictModal',
     'newCalendarModal',
     'classTypeModal'
@@ -11085,6 +11887,7 @@ const CCPModalRegistry = {
         this.register('classModal', { onClose: () => closeModal(elements.classModal) });
         this.register('holidayModal', { onClose: () => closeModal(elements.holidayModal) });
         this.register('printOptionsModal', { onClose: () => closePrintOptionsModal() });
+        this.register('timetablePrintOptionsModal', { onClose: () => closeTimetablePrintOptionsModal() });
         this.register('conflictModal', {
             onClose: () => closeModal(document.getElementById('conflictModal'))
         });
@@ -12900,17 +13703,7 @@ function handleClassSubmit(e) {
     renderCalendar();
     renderClassList();
     updateClassSyllabusSummary(classData);
-    const timetableSel = document.getElementById('timetableTeacherSelect');
-    if (timetableSel) {
-        const prevPicker = timetableSel.value;
-        populateTeacherPickerSelect(timetableSel, null, true);
-        if (prevPicker) {
-            timetableSel.value = prevPicker;
-        }
-        if (timetableSel.value) {
-            renderTimetableView(parseTeacherPickerValue(timetableSel.value));
-        }
-    }
+    refreshTimetablePanels();
     if (isUpdate) {
         setAppStatusMessage(t('classSaved'), false);
     }
@@ -15883,7 +16676,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     }
     if (
         el.closest(
-            '.app-header-tool-group--print, .app-header-tool-group--locale, .header-dropdown, .app-more-menu'
+            '.app-header-tool-group--print, .app-header-tool-group--help, .app-header-tool-group--locale, .header-dropdown'
         )
     ) {
         return true;
@@ -15906,7 +16699,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
         el.id === 'openWorkspaceHomeworkBtn' ||
         el.id === 'homeworkReferenceTodayBtn' ||
         el.id === 'openPrintBtn' ||
-        el.id === 'exportBtn' ||
+        el.id === 'dataExportCalendarBtn' ||
         el.id === 'topBarToggle'
     ) {
         return true;
@@ -15969,7 +16762,6 @@ function applyTeamViewOnlyEditingState(viewOnly) {
         'eventsTabAddBtn',
         'fetchKrHolidaysBtn',
         'clearDataBtn',
-        'importBtn',
         'dataImportCalendarBtn',
         'syllabusNewTemplateBtn',
         'syllabusSaveClassBtn',

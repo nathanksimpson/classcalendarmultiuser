@@ -270,6 +270,21 @@
         return out;
     }
 
+    function formatTeacherRowScheduleSummary(classData, teacherRow, appData, lang) {
+        const placements = getTeacherTimetablePlacements(classData, teacherRow, appData);
+        if (!placements.length) {
+            return '';
+        }
+        const useKo = lang === 'ko';
+        const periodLabel = useKo ? '교시' : 'P';
+        const parts = placements.map((pl) => {
+            const col = WEEKDAY_COLUMNS.find((c) => c.dow === pl.dow);
+            const day = col ? (useKo ? col.ko : col.en) : String(pl.dow);
+            return `${day} ${periodLabel}${pl.period}`;
+        });
+        return parts.join(', ');
+    }
+
     function findTeacherRowForSelector(classData, selector) {
         return getClassTeachersList(classData).find((row) =>
             teacherMatchesTeacherRef({ userId: row.userId, displayName: row.name }, selector)
@@ -750,6 +765,7 @@
         normalizeTeacherRow,
         getTeacherMeetingDays,
         getTeacherTimetablePlacements,
+        formatTeacherRowScheduleSummary,
         findTeacherRowForSelector,
         getTeacherPeriodNumber
     };

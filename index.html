@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-timetable-light-readability">
+    <link rel="stylesheet" href="styles.css?v=20260530-timetable-print">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -141,14 +141,9 @@
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
                     <input type="file" id="importFile" accept=".json" hidden>
-                    <details class="header-dropdown app-more-menu">
-                        <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="headerMore">More</summary>
-                        <div class="header-dropdown-panel" role="menu">
-                            <button type="button" id="exportBtn" class="btn btn-outline btn-small btn-header-data header-dropdown-item" role="menuitem" data-i18n="export">Export</button>
-                            <button type="button" id="importBtn" class="btn btn-outline btn-small btn-header-data header-dropdown-item" role="menuitem" data-i18n="import">Import</button>
-                            <button type="button" id="howToBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</button>
-                        </div>
-                    </details>
+                    <div class="app-header-tool-group app-header-tool-group--help">
+                        <button type="button" id="howToBtn" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</button>
+                    </div>
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
                         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
@@ -391,32 +386,40 @@
             <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
                 <div class="print-data-section timetable-view-section">
                 <div class="module-toolbar timetable-tab-toolbar">
-                    <label class="timetable-teacher-picker" for="timetableTeacherSelect">
-                        <span data-i18n="timetableTeacherLabel">Teacher</span>
-                        <select id="timetableTeacherSelect">
-                            <option value="" data-i18n="timetableSelectTeacher">Select a teacher</option>
-                        </select>
-                    </label>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
                     <button type="button" id="timetableExportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableExportExcel">Export Excel</button>
                     <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
                     <span id="timetableConflictBadge" class="timetable-conflict-badge" role="status" hidden></span>
                 </div>
-                <div id="timetableEmptyHint" class="module-empty-hint" data-i18n="timetableEmptyHint">Assign teachers on the Classes tab to build a weekly timetable.</div>
-                <div id="timetableView" class="timetable-view" hidden>
-                    <header class="timetable-header">
-                        <h2 id="timetableTeacherTitle" class="timetable-teacher-title"></h2>
-                        <p id="timetableHomeroomLine" class="timetable-homeroom-line" hidden>
-                            <span data-i18n="timetableHomeroomLabel">Homeroom</span>
-                            <span id="timetableHomeroomChips" class="timetable-homeroom-chips"></span>
-                        </p>
-                        <p id="timetableTermLabel" class="timetable-term-label section-hint"></p>
-                        <div id="timetableCohortsSummary" class="timetable-cohorts-summary" hidden></div>
-                    </header>
-                    <div id="timetableGridsMount" class="timetable-grids-mount"></div>
+                <div class="timetable-layout module-split-layout">
+                    <aside class="module-list-panel timetable-teacher-panel" aria-label="Teachers">
+                        <input type="search" id="timetableTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
+                        <div id="timetableTeacherList" class="module-list" role="listbox" aria-label="Teachers"></div>
+                    </aside>
+                    <div class="module-editor-panel timetable-main-panel">
+                        <p id="timetablePickTeacherHint" class="module-empty-hint" data-i18n="timetablePickTeacher">Select a teacher from the list to view their classes and weekly timetable.</p>
+                        <div id="timetableView" class="timetable-view" hidden>
+                            <header class="timetable-header">
+                                <h2 id="timetableTeacherTitle" class="timetable-teacher-title"></h2>
+                                <p id="timetableHomeroomLine" class="timetable-homeroom-line" hidden>
+                                    <span data-i18n="timetableHomeroomLabel">Homeroom</span>
+                                    <span id="timetableHomeroomChips" class="timetable-homeroom-chips"></span>
+                                </p>
+                                <p id="timetableTermLabel" class="timetable-term-label section-hint"></p>
+                                <div id="timetableCohortsSummary" class="timetable-cohorts-summary" hidden></div>
+                            </header>
+                            <section class="timetable-classes-section" aria-labelledby="timetableClassesHeading">
+                                <h3 id="timetableClassesHeading" class="timetable-classes-heading" data-i18n="timetableTeacherClassesHeading">Classes</h3>
+                                <input type="search" id="timetableClassListSearch" class="module-list-search timetable-class-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
+                                <div id="timetableClassList" class="module-list timetable-class-list" role="listbox" aria-label="Classes for selected teacher"></div>
+                            </section>
+                            <div id="timetableGridsMount" class="timetable-grids-mount"></div>
+                        </div>
+                    </div>
                 </div>
                 </div>
                 <section class="timetable-cohorts-section print-data-section">
+                    <p class="section-hint timetable-cohorts-scope-hint" data-i18n="timetableCohortsScopeHint">Cohorts apply to the whole calendar, not only the teacher shown above.</p>
                     <div class="timetable-cohorts-toolbar">
                         <h3 data-i18n="timetableCohortsHeading">Student cohorts (담임)</h3>
                         <button type="button" id="timetableSuggestCohortsBtn" class="btn btn-outline btn-small" data-i18n="timetableSuggestCohorts">Suggest cohorts from classes</button>
@@ -1000,6 +1003,45 @@
         </div>
     </div>
 
+    <div id="timetablePrintOptionsModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="timetablePrintOptionsModalTitle">
+        <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
+            <div class="modal-header">
+                <h2 id="timetablePrintOptionsModalTitle" data-i18n="timetablePrintOptionsTitle">Print timetable</h2>
+                <button type="button" class="modal-close" id="closeTimetablePrintOptionsModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll">
+                <form id="timetablePrintForm" class="print-options-form">
+                    <div class="form-actions print-form-header-actions">
+                        <button type="submit" class="btn btn-primary" data-i18n="printBtn">Print</button>
+                    </div>
+                    <section class="print-form-section" aria-labelledby="timetablePrintSectionPage1Title">
+                        <h3 id="timetablePrintSectionPage1Title" class="print-form-section-title" data-i18n="timetablePrintSectionPage1">Page 1 — weekly grid (landscape)</h3>
+                        <p class="section-hint" data-i18n="timetablePrintSectionPage1Hint">The timetable grid is scaled to fit one A4 landscape page.</p>
+                        <div class="form-group print-cal-vis">
+                            <label class="checkbox-label"><input type="checkbox" id="timetablePrintIncludeTeacher" checked><span data-i18n="timetablePrintIncludeTeacher">Teacher name</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="timetablePrintIncludeHomeroom" checked><span data-i18n="timetablePrintIncludeHomeroom">Homeroom day letters</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="timetablePrintIncludeTerm" checked><span data-i18n="timetablePrintIncludeTerm">Calendar / term label</span></label>
+                            <label class="checkbox-label" id="timetablePrintIncludeConflictsRow" hidden><input type="checkbox" id="timetablePrintIncludeConflicts" checked><span data-i18n="timetablePrintIncludeConflicts">Schedule conflict notice</span></label>
+                            <label class="checkbox-label" id="timetablePrintIncludeSecondaryRow"><input type="checkbox" id="timetablePrintIncludeSecondary" checked><span data-i18n="timetablePrintIncludeSecondary">Secondary schedule block</span></label>
+                        </div>
+                    </section>
+                    <section class="print-form-section" aria-labelledby="timetablePrintSectionPage2Title">
+                        <h3 id="timetablePrintSectionPage2Title" class="print-form-section-title" data-i18n="timetablePrintSectionPage2">Page 2 — optional extras (portrait)</h3>
+                        <p class="section-hint" data-i18n="timetablePrintSectionPage2Hint">Only included when at least one option below is checked.</p>
+                        <div class="print-summary-bulk-actions print-options-bulk-actions">
+                            <button type="button" class="btn btn-outline btn-small" id="timetablePrintExtrasSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
+                            <button type="button" class="btn btn-outline btn-small" id="timetablePrintExtrasClearAllBtn" data-i18n="filterClearAll">Clear all</button>
+                        </div>
+                        <div class="form-group print-cal-vis">
+                            <label class="checkbox-label"><input type="checkbox" id="timetablePrintIncludeHomeroomSummary"><span data-i18n="timetablePrintIncludeHomeroomSummary">Homeroom cohorts summary</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="timetablePrintIncludeCohortDirectory"><span data-i18n="timetablePrintIncludeCohortDirectory">Cohort directory (all cohorts)</span></label>
+                        </div>
+                    </section>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="classTypeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="classTypeModalTitle" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -1263,10 +1305,10 @@
     <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="js/teacher-timetable.js?v=20260530-timetable-light-readability"></script>
+    <script defer src="js/teacher-timetable.js?v=20260530-timetable-per-teacher"></script>
     <script defer src="js/class-curriculum-slices.js?v=20260530-timetable-exec"></script>
     <script defer src="js/timetable-export.js?v=20260530-timetable-exec"></script>
-    <script defer src="app.js?v=20260530-timetable-light-readability"></script>
+    <script defer src="app.js?v=20260530-timetable-print"></script>
 </body>
 </html>
 

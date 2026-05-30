@@ -3,20 +3,22 @@
     const GUIDE = {
         en: {
             title: 'Help — Class Calendar Planner',
-            intro: 'This app builds a term calendar for your classes: lesson days, holidays, deadlines, syllabus tables, and printouts. Everything is organized in tabs at the top. When your school uses the team cloud link, you also share calendars with colleagues (sections 15–18). Use this guide in order when you are new, or jump to a section you need.',
+            intro: 'This app builds a term calendar for your classes: lesson days, holidays, deadlines, syllabus tables, timetables, curriculum books, and printouts. Everything is organized in tabs at the top. When your school uses the team cloud link, you also share calendars with colleagues (sections 17–20). Use this guide in order when you are new, or jump to a section you need.',
             sections: [
                 {
                     heading: '1. The tabs',
-                    where: 'Top header — Calendar | Classes | Syllabus | Events | Homework | Data',
+                    where: 'Top header — Calendar | Classes | Syllabus | Events | Homework | Timetable | Curriculum | Data',
                     steps: [
                         'Calendar — view the month grid, set term dates, show/hide items, filter classes, and use quick add/edit pop-outs.',
-                        'Classes — schedule and settings: meeting days, term dates, compression, colors, books (no long syllabus table here).',
+                        'Classes — schedule and settings: meeting days, term dates, assigned teachers, compression, colors, books (no long syllabus table here).',
                         'Syllabus — edit each class syllabus table, custom reusable syllabi (My syllabi), refresh from calendar, import homework paste, print.',
                         'Events — search holidays and deadlines and use the full event editor.',
                         'Homework — copy previous-week and this-week homework from each class syllabus to paste into your separate Simson grading and homework assignment websites (not inside this app).',
-                        'Data — books catalog, lesson-plan packs, clear all data, and edit default class types.',
+                        'Timetable — weekly schedule per teacher, student cohorts (담임), conflict warnings, print, and Excel export.',
+                        'Curriculum — edit program books: session pages and default schedule settings; apply to classes from the class form.',
+                        'Data — calendar backup (export/import full calendar), lesson-plan and books pack, link to Curriculum, and Clear All Data.',
                         'The app remembers which tab you last used in this browser.',
-                        'Header (always visible): + Add Class / + Add Event (under the title), Print, Export, Import, Help, theme, and language (English ↔ Korean).'
+                        'Header (always visible): + Add Class / + Add Event (under the title), Print, Help, theme, and language (English ↔ Korean).'
                     ]
                 },
                 {
@@ -126,17 +128,40 @@
                     ]
                 },
                 {
-                    heading: '11. Edit default class types',
-                    where: 'Data tab → Edit defaults (also available inside the class form)',
+                    heading: '11. Timetable tab',
+                    where: 'Timetable tab — teacher picker and cohort list',
                     steps: [
-                        'Click Edit defaults to change factory settings for built-in and PDF preset class types (lesson count, default book, labels, homework paste mode). Existing saved classes keep their own values; new classes use your edited defaults.',
+                        'On the Classes tab, assign teachers to each class (and save). The timetable builds from those assignments.',
+                        'Pick a teacher from the dropdown, or click My schedule to jump to your own account when signed in.',
+                        'The weekly grid shows that teacher’s classes; homeroom (담임) cohorts appear when configured.',
+                        'Use Suggest cohorts from classes or Add cohort to set cohort names and homeroom teachers (담임).',
+                        'A conflict badge appears if the same teacher is double-booked; fix times on the Classes tab.',
+                        'Print timetable opens a print-friendly view. Export Excel downloads a spreadsheet of the current teacher’s timetable.'
+                    ]
+                },
+                {
+                    heading: '12. Curriculum tab',
+                    where: 'Curriculum tab — book list and editor',
+                    steps: [
+                        'Select a curriculum (program book) from the list, or click Add curriculum for a new book.',
+                        'Edit session pages, default lesson counts, and schedule defaults for that program.',
+                        'On the class form (Classes tab), choose Level and Book, then Apply from curriculum to pull pages and settings into that class.',
+                        'The Data tab has a short link to open the Curriculum tab for the same work.',
+                        'Custom books you edit here can be included in the lesson plans/books pack on the Data tab (see section 15).'
+                    ]
+                },
+                {
+                    heading: '13. Edit default class types',
+                    where: 'Classes tab → class form → Edit defaults',
+                    steps: [
+                        'Open any class (or + Add Class), then click Edit defaults to change factory settings for built-in and PDF preset class types (lesson count, default book, labels, homework paste mode). Existing saved classes keep their own values; new classes use your edited defaults.',
                         'Use Reset on one type or Reset all to restore factory settings for presets.',
                         'Duplicate a preset to make a copy you can customize.',
                         'In the class form, click New class type to save your own reusable type (name, lesson count, meeting days). Delete type removes a custom type you created (not built-in presets).'
                     ]
                 },
                 {
-                    heading: '12. Print or save as PDF',
+                    heading: '14. Print or save as PDF',
                     where: 'Header → Print',
                     steps: [
                         'Click Print in the top header.',
@@ -152,51 +177,51 @@
                     ]
                 },
                 {
-                    heading: '13. Save a backup (Export) or load one (Import)',
-                    where: 'Top header → Export / Import',
+                    heading: '15. Data tab — backups and packs',
+                    where: 'Data tab — Calendar backup and My lesson plans/books',
                     steps: [
-                        'Export downloads a .json file with all classes, events, settings, syllabus tables, and custom class types.',
-                        'Import lets you pick a previously exported .json file to restore a calendar (replaces current data after confirmation).',
-                        'Use Export before clearing data or moving to another computer.',
-                        'Team mode: Export is still useful as a personal backup copy. Import can replace the current team calendar or create a new one from the file — if another teacher is editing, you must Request to edit first or choose Create new (see section 17).'
+                        'Calendar backup — Export calendar downloads a .json file with classes, events, holidays, cohorts, timetable settings, syllabus tables, and related data for this calendar.',
+                        'Import calendar restores from a previously exported .json file. You choose whether to replace the current team calendar or create a new one (see section 19 for lock rules).',
+                        'Export before importing or clearing data if you are unsure.',
+                        'My lesson plans/books — Export lesson plans/books pack backs up custom syllabi (My syllabi), edited curriculum books, and class-type default overrides. Import pack merges that pack — it does not replace the whole calendar.',
+                        'These two exports are different: use Calendar backup for a full calendar copy; use the lesson plans pack to move templates and book edits between calendars or browsers.'
                     ]
                 },
                 {
-                    heading: '14. Clear all data',
+                    heading: '16. Clear all data',
                     where: 'Data tab → Clear All Data (red button)',
                     steps: [
                         'Removes all classes and events from this browser.',
-                        'Export first if you might need the data later.',
+                        'Export a calendar backup on the Data tab first if you might need the data later.',
                         'Team mode: this clears only what you see locally until the next reload; prefer admin Remove calendar or edit the shared calendar on the server.'
                     ]
                 },
                 {
-                    heading: '15. Sign in and your account (team)',
-                    where: 'School bookmark → login page → header after sign-in',
+                    heading: '17. Sign in and your account (team)',
+                    where: 'School bookmark → login page → Account menu after sign-in',
                     steps: [
                         'Open the team URL your school gave you in the browser (bookmark it). Do not double-click index.html from a folder.',
                         'Click Login with Kakao. First sign-in creates your account — you do not need to give your email to your admin.',
                         'If you see a waiting page, your admin must grant calendar access (they can find you in Admin → Users by Kakao ID or display name).',
                         'Password fallback: only if your admin gave you email + temporary password — use the form below Kakao on the login page.',
-                        'After sign-in: Change password in the header (min 8 characters) if you use password login.',
-                        'Sign out from the header when finished. On shared PCs the site signs you out after idle time (admin sets minutes; default 30 with a 2-minute warning). Move the mouse or press a key when warned to stay signed in.'
+                        'After sign-in: Account menu → Change password (min 8 characters) if you use password login. Edit name updates how colleagues see you.',
+                        'Sign out from Account menu when finished. On shared PCs the site signs you out after idle time (admin sets minutes; default 30 with a 2-minute warning). Move the mouse or press a key when warned to stay signed in.'
                     ]
                 },
                 {
-                    heading: '16. Team calendars (cloud save)',
+                    heading: '18. Team calendars (cloud save)',
                     where: 'Header — Team calendar row (when signed in)',
                     steps: [
-                        'Pick a calendar from the Team calendar dropdown, or click + New to create one.',
+                        'Pick a calendar from the Team calendar dropdown. Calendar menu → + New creates one; Remove deletes (admins only).',
                         'Rename using Calendar name (saved) on the Calendar tab — the name updates for everyone.',
                         'Edits auto-save to the server. Watch the status line (Saved, Saving…, etc.).',
-                        'Backup runs a server-side backup. Export in the header still downloads a .json file to your computer.',
+                        'Calendar menu → Backup runs a server-side backup. Data tab → Export calendar downloads a .json copy to your computer.',
                         'If Someone else saved a newer version appears, click Reload latest to load their changes.',
-                        'When creating a calendar (+ New), check which teachers and/or groups may open it. You are always included. Admins can open every calendar.',
-                        'Remove deletes a team calendar — admins only.'
+                        'When creating a calendar (+ New), check which teachers and/or groups may open it. You are always included. Admins can open every calendar.'
                     ]
                 },
                 {
-                    heading: '17. Editing together (edit lock)',
+                    heading: '19. Editing together (edit lock)',
                     where: 'Header — lock icon and label next to Team calendar',
                     steps: [
                         'Only one person should edit at a time. The lock icon shows who may change the calendar.',
@@ -206,12 +231,13 @@
                         'If you requested: wait until they Allow (you can edit) or Dismiss (try again later).',
                         'If you are editing and someone requested: Allow hands them the lock after your pending save finishes, or Dismiss to keep editing.',
                         'There is no force takeover — only Allow, Release, or admin lock timeout (inactive lock expires after admin-set minutes, default 20).',
+                        'Import calendar is blocked while another teacher holds the lock unless you choose Create new team calendar from file.',
                         'Signing out releases any lock you hold.'
                     ]
                 },
                 {
-                    heading: '18. Admin: teachers, groups, and access (technical)',
-                    where: 'admin.html — Admin link in header (admins only)',
+                    heading: '20. Admin: teachers, groups, and access (technical)',
+                    where: 'admin.html — Account menu → Admin (admins only)',
                     steps: [
                         'Teachers & admins: add users by email; optional temporary password; Reset password anytime. Roles: teacher or admin. Deactivate blocks sign-in; Reactivate restores; Delete permanently only for deactivated accounts.',
                         'Groups: put teachers in named groups, then assign groups to calendars.',
@@ -225,20 +251,22 @@
         },
         ko: {
             title: '도움말 — Class Calendar Planner',
-            intro: '이 앱은 학기 캘린더를 만듭니다. 수업일, 공휴일, 마감일, 강의 계획표, 인쇄까지 한곳에서 관리할 수 있습니다. 상단 탭으로 기능이 나뉩니다. 학교 팀 클라우드 링크를 쓰면 동료와 캘린더를 공유합니다(15–18절). 처음에는 아래 순서대로, 필요한 항목만 골라 읽어도 됩니다.',
+            intro: '이 앱은 학기 캘린더를 만듭니다. 수업일, 공휴일, 마감일, 강의 계획표, 시간표, 교재 과정, 인쇄까지 한곳에서 관리할 수 있습니다. 상단 탭으로 기능이 나뉩니다. 학교 팀 클라우드 링크를 쓰면 동료와 캘린더를 공유합니다(17–20절). 처음에는 아래 순서대로, 필요한 항목만 골라 읽어도 됩니다.',
             sections: [
                 {
                     heading: '1. 탭',
-                    where: '상단 헤더 — Calendar | Classes | Syllabus | Events | Homework | Data',
+                    where: '상단 헤더 — Calendar | Classes | Syllabus | Events | Homework | Timetable | Curriculum | Data',
                     steps: [
                         'Calendar(캘린더) — 월별 격자, 학기 설정, 표시/숨김, 수업 필터, 빠른 추가·수정 팝업.',
-                        'Classes(수업) — 일정·설정(수업 요일, 학기, 압축, 색상 등).',
+                        'Classes(수업) — 일정·설정(수업 요일, 학기, 담당 선생님, 압축, 색상 등).',
                         'Syllabus(강의 계획표) — 수업별 표 편집, 사용자 강의 계획표(내 템플릿), 새로고침·붙여넣기·인쇄.',
                         'Events(이벤트) — 공휴일·마감일 목록 검색 및 전체 편집기.',
                         'Homework(숙제) — 강의 계획표에서 지난주·이번주 숙제를 복사해, 이 앱 밖의 Simson 채점·숙제 배정 웹사이트에 붙여넣기.',
-                        'Data(데이터) — 도서, 강의계획 팩, 전체 삭제, 기본 수업 유형 편집.',
+                        'Timetable(시간표) — 선생님별 주간 시간표, 학생 반(담임), 충돌 표시, 인쇄, 엑셀보내기.',
+                        'Curriculum(교재 과정) — 프로그램 교재의 회차·기본 일정 편집; 수업 폼에서 적용.',
+                        'Data(데이터) — 캘린더 백업(보내기/가져오기), 강의계획·교재 팩, Curriculum 안내, 전체 삭제.',
                         '마지막으로 연 탭은 이 브라우저에 저장됩니다.',
-                        '헤더(항상 표시): + 수업 추가 / + 일정 추가, Print, Export, Import, 도움말, 테마, 언어(영어 ↔ 한국어).'
+                        '헤더(항상 표시): + 수업 추가 / + 일정 추가, Print, 도움말, 테마, 언어(영어 ↔ 한국어).'
                     ]
                 },
                 {
@@ -347,17 +375,40 @@
                     ]
                 },
                 {
-                    heading: '11. 기본 수업 유형 편집',
-                    where: 'Data 탭 → Edit defaults (수업 폼에서도 가능)',
+                    heading: '11. Timetable(시간표) 탭',
+                    where: 'Timetable 탭 — 선생님 선택 및 반 목록',
                     steps: [
-                        'Edit defaults로 내장·PDF 프리셋의 기본값(수업 횟수, 교재, 라벨, 과제 붙여넣기 모드)을 바꿉니다. 이미 저장된 수업은 그대로이고, 새로 만드는 수업에 적용됩니다.',
+                        'Classes 탭에서 각 수업에 선생님을 지정하고 저장하면 시간표가 만들어집니다.',
+                        '선생님 목록에서 선택하거나, 로그인 후 내 일정으로 본인 시간표로 이동할 수 있습니다.',
+                        '주간 격자에 해당 선생님 수업이 표시됩니다. 반(담임) 설정이 있으면 담임 정보도 보입니다.',
+                        '수업에서 반 제안 또는 반 추가로 반 이름과 담임 선생님(담임)을 설정하세요.',
+                        '같은 선생님이 겹치면 충돌 배지가 나타납니다. Classes 탭에서 시간을 조정하세요.',
+                        '시간표 인쇄는 인쇄용 화면을 엽니다. 엑셀보내기는 현재 선생님 시간표를 스프레드시트로 받습니다.'
+                    ]
+                },
+                {
+                    heading: '12. Curriculum(교재 과정) 탭',
+                    where: 'Curriculum 탭 — 교재 목록 및 편집기',
+                    steps: [
+                        '목록에서 교재(프로그램)를 선택하거나 교재 과정 추가로 새 교재를 만듭니다.',
+                        '회차별 페이지, 기본 수업 횟수, 일정 기본값을 편집합니다.',
+                        'Classes 탭 수업 폼에서 Level·Book을 고른 뒤 Apply from curriculum으로 수업에 반영합니다.',
+                        'Data 탭에도 Curriculum 탭으로 가는 안내가 있습니다.',
+                        '여기서 편집한 교재는 Data 탭의 강의계획·교재 팩에 포함할 수 있습니다(15절).'
+                    ]
+                },
+                {
+                    heading: '13. 기본 수업 유형 편집',
+                    where: 'Classes 탭 → 수업 폼 → Edit defaults(기본값 편집)',
+                    steps: [
+                        '수업을 열거나 + Add Class 후 Edit defaults를 클릭해 내장·PDF 프리셋 기본값(수업 횟수, 교재, 라벨, 과제 붙여넣기 모드)을 바꿉니다. 이미 저장된 수업은 그대로이고, 새 수업에 적용됩니다.',
                         '한 유형 또는 전체 초기화로 공장 설정을 되돌릴 수 있습니다.',
                         '복제로 프리셋 사본을 만들어 수정할 수 있습니다.',
                         '수업 폼에서 New class type으로 나만의 유형을 저장. Delete type은 직접 만든 유형만 삭제합니다(내장 프리셋 아님).'
                     ]
                 },
                 {
-                    heading: '12. 인쇄 또는 PDF 저장',
+                    heading: '14. 인쇄 또는 PDF 저장',
                     where: '상단 → Print',
                     steps: [
                         '상단 Print 버튼을 클릭합니다.',
@@ -373,51 +424,51 @@
                     ]
                 },
                 {
-                    heading: '13. 백업 저장(보내기) / 불러오기(가져오기)',
-                    where: '상단 헤더 → Export / Import',
+                    heading: '15. Data 탭 — 백업 및 팩',
+                    where: 'Data 탭 — 캘린더 백업 및 My lesson plans/books',
                     steps: [
-                        'Export는 모든 수업, 이벤트, 설정, 강의 계획표, 사용자 정의 수업 유형이 담긴 .json 파일을 다운로드합니다.',
-                        'Import는 이전에 보낸 .json 파일을 선택해 캘린더를 복원합니다 (확인 후 현재 데이터를 대체).',
-                        '데이터 삭제나 다른 PC로 옮기기 전에 Export 하세요.',
-                        '팀 모드: Export는 개인 백업용으로 계속 유용합니다. Import는 현재 팀 캘린더를 바꾸거나 파일로 새 캘린더를 만들 수 있습니다. 다른 선생님이 편집 중이면 먼저 편집 요청을 하거나 새로 만들기를 선택하세요(17절).'
+                        '캘린더 백업 — 캘린더보내기는 수업, 일정, 공휴일, 반, 시간표 설정, 강의 계획표 등 이 캘린더 전체가 담긴 .json 파일을 받습니다.',
+                        '캘린더 가져오기는 이전에 보낸 .json으로 복원합니다. 현재 팀 캘린더를 바꿀지, 파일로 새 캘린더를 만들지 선택합니다(잠금 규칙은 19절).',
+                        '불확실하면 가져오기·삭제 전에 먼저보내세요.',
+                        'My lesson plans/books — 강의계획·교재 팩보내기는 사용자 강의 계획표(내 템플릿), 편집한 교재, 수업 유형 기본값 덮어쓰기를 백업합니다. 팩 가져오기는 병합이며 캘린더 전체를 대체하지 않습니다.',
+                        '두 종류의 백업이 다릅니다: 전체 복사는 캘린더 백업, 템플릿·교재 편집 이동은 강의계획·교재 팩을 사용하세요.'
                     ]
                 },
                 {
-                    heading: '14. 모든 데이터 삭제',
+                    heading: '16. 모든 데이터 삭제',
                     where: 'Data 탭 → Clear All Data (빨간 버튼)',
                     steps: [
                         '이 브라우저의 모든 수업과 이벤트를 삭제합니다.',
-                        '나중에 필요할 수 있으면 먼저 Export 하세요.',
+                        '나중에 필요할 수 있으면 Data 탭에서 캘린더 백업을 먼저 하세요.',
                         '팀 모드: 로컬 화면만 지워질 수 있으며, 다음 불러오기 시 서버 데이터가 다시 나타납니다. 공유 캘린더 삭제는 관리자 Remove를 사용하세요.'
                     ]
                 },
                 {
-                    heading: '15. 로그인 및 계정 (팀)',
-                    where: '학교 북마크 → 로그인 페이지 → 로그인 후 헤더',
+                    heading: '17. 로그인 및 계정 (팀)',
+                    where: '학교 북마크 → 로그인 페이지 → 로그인 후 Account(계정) 메뉴',
                     steps: [
                         '학교에서 준 팀 URL을 브라우저에서 여세요(북마크 권장). 폴더의 index.html을 더블클릭하지 마세요.',
-                        'Login with Kakao를 클릭하세요. 카카오 로그인 전에 관리자가 Admin에서 이메일을 등록해야 합니다.',
-                        'Access not granted가 보이면 화면의 이메일을 관리자에게 보내세요. 카카오 ID를 직접 찾을 필요는 없습니다.',
+                        'Login with Kakao를 클릭하세요. 첫 로그인 시 계정이 만들어집니다.',
+                        '대기 페이지가 보이면 관리자가 캘린더 접근 권한을 부여해야 합니다(Admin → Users에서 카카오 ID 또는 표시 이름으로 찾을 수 있음).',
                         '비밀번호 로그인: 관리자가 이메일과 임시 비밀번호를 준 경우에만 카카오 아래 양식을 사용하세요.',
-                        '로그인 후: 비밀번호 로그인을 쓰면 헤더의 Change password로 변경할 수 있습니다(8자 이상).',
-                        '끝나면 Sign out하세요. 공용 PC에서는 일정 시간 동안 입력이 없으면 자동 로그아웃됩니다(관리자 설정, 기본 30분, 2분 전 경고). 경고가 뜨면 마우스를 움직이거나 키를 눌러 유지하세요.'
+                        '로그인 후: Account 메뉴 → Change password(8자 이상). Edit name으로 동료에게 보이는 이름을 바꿀 수 있습니다.',
+                        '끝나면 Account 메뉴에서 Sign out하세요. 공용 PC에서는 유휴 시간 후 자동 로그아웃됩니다(관리자 설정, 기본 30분, 2분 전 경고). 경고 시 마우스·키 입력으로 유지하세요.'
                     ]
                 },
                 {
-                    heading: '16. 팀 캘린더 (클라우드 저장)',
+                    heading: '18. 팀 캘린더 (클라우드 저장)',
                     where: '헤더 — 팀 캘린더 줄 (로그인 후)',
                     steps: [
-                        '팀 캘린더 목록에서 선택하거나 + 새로 만들기로 만드세요.',
+                        '팀 캘린더 목록에서 선택합니다. Calendar 메뉴 → + 새로 만들기로 생성, Remove는 삭제(관리자만).',
                         'Calendar 탭의 캘린더 이름(저장됨)으로 이름을 바꾸면 모두에게 반영됩니다.',
                         '수정 내용은 서버에 자동 저장됩니다. 상태 줄(Saved, Saving… 등)을 확인하세요.',
-                        'Backup은 서버 백업입니다. 헤더 Export는 PC로 .json을 받습니다.',
+                        'Calendar 메뉴 → Backup은 서버 백업입니다. Data 탭 → 캘린더보내기로 PC에 .json을 받습니다.',
                         '다른 사람이 더 최신 버전을 저장했다는 배너가 뜨면 Reload latest를 누르세요.',
-                        '+ 새로 만들기 때 접근할 선생님·그룹을 선택하세요. 본인은 항상 포함됩니다. 관리자는 모든 캘린더를 볼 수 있습니다.',
-                        'Remove는 팀 캘린더 삭제 — 관리자만 가능합니다.'
+                        '+ 새로 만들기 때 접근할 선생님·그룹을 선택하세요. 본인은 항상 포함됩니다. 관리자는 모든 캘린더를 볼 수 있습니다.'
                     ]
                 },
                 {
-                    heading: '17. 함께 편집하기 (편집 잠금)',
+                    heading: '19. 함께 편집하기 (편집 잠금)',
                     where: '헤더 — 팀 캘린더 옆 잠금 아이콘',
                     steps: [
                         '한 번에 한 명만 편집해야 합니다. 잠금 아이콘이 누가 수정할 수 있는지 보여 줍니다.',
@@ -427,12 +478,13 @@
                         '요청을 보냈으면: 허용될 때까지 기다리거나 거절되면 나중에 다시 요청하세요.',
                         '편집 중인데 요청이 오면: 허용(대기 중 저장 후 상대에게 잠금) 또는 거절(계속 편집).',
                         '강제로 빼앗을 수 없습니다 — 허용, 잠금 해제, 관리자 설정 시간 후 잠금 만료(기본 20분)만 가능합니다.',
+                        '다른 선생님이 잠금 중이면 캘린더 가져오기가 제한됩니다. 파일로 새 팀 캘린더 만들기를 선택할 수 있습니다.',
                         '로그아웃하면 본인이 잡은 잠금이 해제됩니다.'
                     ]
                 },
                 {
-                    heading: '18. 관리자: 선생님, 그룹, 접근 권한 (기술)',
-                    where: 'admin.html — 헤더 Admin 링크 (관리자만)',
+                    heading: '20. 관리자: 선생님, 그룹, 접근 권한 (기술)',
+                    where: 'admin.html — Account 메뉴 → Admin (관리자만)',
                     steps: [
                         'Teachers & admins: 이메일로 추가, 선택적 임시 비밀번호, Reset password. 역할 teacher/admin. Deactivate는 로그인 차단, Reactivate 복구, Delete permanently는 비활성 계정만.',
                         'Groups: 선생님을 그룹으로 묶고 캘린더에 그룹을 지정합니다.',

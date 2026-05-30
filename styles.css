@@ -6195,6 +6195,43 @@ body.workspace-page #appStatus {
     margin-bottom: 1rem;
 }
 
+.timetable-layout {
+    min-height: 22rem;
+}
+
+.timetable-teacher-panel {
+    min-width: 11rem;
+    max-width: 17rem;
+}
+
+.timetable-main-panel {
+    min-width: 0;
+}
+
+.timetable-classes-section {
+    margin-bottom: 1rem;
+}
+
+.timetable-classes-heading {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.timetable-class-list-search {
+    margin-bottom: 0.35rem;
+}
+
+.timetable-class-list {
+    max-height: 14rem;
+    margin-bottom: 1.25rem;
+    overflow-y: auto;
+}
+
+.timetable-cohorts-scope-hint {
+    margin: 0 0 0.65rem;
+}
+
 .timetable-teacher-picker {
     display: flex;
     align-items: center;
@@ -6514,27 +6551,5 @@ html:not([data-theme="dark"]) .timetable-cell-entry--colored {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-}
-
-@media print {
-    body.print-timetable .app-top-bar,
-    body.print-timetable .app-tab-nav,
-    body.print-timetable .timetable-tab-toolbar,
-    body.print-timetable .timetable-cohorts-section,
-    body.print-timetable .module-empty-hint {
-        display: none !important;
-    }
-
-    body.print-timetable .app-tab-panel {
-        display: none !important;
-    }
-
-    body.print-timetable #panel-timetable {
-        display: block !important;
-    }
-
-    body.print-timetable #timetableView {
-        display: block !important;
-    }
 }
 
