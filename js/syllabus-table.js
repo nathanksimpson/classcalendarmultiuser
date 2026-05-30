@@ -421,14 +421,22 @@
                 ? lesson.group.start
                 : lessonNumber;
             let planTitle = lesson.label || `Lesson ${lessonNumber}`;
+            const isDebateSchedule = classData && classData.scheduleModel === 'debateMonthly';
+            const isCompressed = lesson.compressed === true;
+            const groupStart = lesson.group && lesson.group.start != null ? lesson.group.start : null;
+            const groupEnd = lesson.group && lesson.group.end != null ? lesson.group.end : null;
             const rowForTemplate = {
                 planTitle,
                 lessonNumber: curriculumLessonNumber,
                 sessionNumber: lessonNumber,
+                scheduleModel: classData && classData.scheduleModel ? classData.scheduleModel : '',
                 debateTemplateKey: lesson.__debateTemplateKey || '',
-                debateCompressed: lesson.compressed === true,
-                debateGroupStart: lesson.group && lesson.group.start != null ? lesson.group.start : null,
-                debateGroupEnd: lesson.group && lesson.group.end != null ? lesson.group.end : null
+                debateCompressed: isDebateSchedule && isCompressed,
+                debateGroupStart: isDebateSchedule ? groupStart : null,
+                debateGroupEnd: isDebateSchedule ? groupEnd : null,
+                scheduleCompressed: isCompressed,
+                compressedGroupStart: groupStart,
+                compressedGroupEnd: groupEnd
             };
             let planDetail = lesson.compressed === true
                 && lesson.group
@@ -596,6 +604,9 @@
             const keepEdits = prev.source === 'manual' || prev.source === 'imported';
             const forceTitle = refreshScheduleTitles
                 && (gen.kind === 'lesson' || gen.kind === 'holiday' || gen.kind === 'event');
+            const forceDetail = refreshScheduleTitles
+                && gen.scheduleCompressed === true
+                && prev.source !== 'imported';
             return {
                 ...gen,
                 id: prev.id || gen.id,
@@ -604,7 +615,9 @@
                     : (keepEdits && (prev.planTitle || '').trim()
                         ? prev.planTitle
                         : gen.planTitle),
-                planDetail: preserveText(prev.planDetail, gen.planDetail, keepEdits),
+                planDetail: forceDetail
+                    ? gen.planDetail
+                    : preserveText(prev.planDetail, gen.planDetail, keepEdits),
                 note: preserveText(prev.note, gen.note, keepEdits),
                 weekLabel: gen.weekLabel || prev.weekLabel,
                 source: keepEdits ? prev.source : 'generated',

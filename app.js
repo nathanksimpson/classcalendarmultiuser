@@ -8118,7 +8118,7 @@ function collectCompressionMergesByPeriodFromForm() {
 // ============================================
 // App shell: templates, tabs, form mounts
 // ============================================
-const APP_TAB_IDS = ['calendar', 'classes', 'syllabus', 'events', 'homework', 'timetable', 'curriculum', 'data'];
+const APP_TAB_IDS = ['calendar', 'homework', 'classes', 'syllabus', 'curriculum', 'timetable', 'events', 'data'];
 
 let curriculumTabSelectedId = null;
 let classEditorMount = 'modal';

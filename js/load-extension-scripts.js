@@ -4,7 +4,7 @@
  */
 (function (global) {
     const EXTENSION_SCRIPTS = [
-        'js/syllabus-table.js?v=20260531-syllabus-timeline',
+        'js/syllabus-table.js?v=20260531-seq-compress',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
         'js/syllabus-curricula-data.js?v=20260602-tab-fast',
@@ -14,7 +14,7 @@
         'js/books-editor.js?v=20260602-tab-fast',
         'js/homework-import.js',
         'js/homework-tab.js?v=20260531-hw-seq',
-        'js/syllabus-templates.js?v=20260602-tab-fast'
+        'js/syllabus-templates.js?v=20260531-seq-compress'
     ];
 
     let extensionPromise = null;

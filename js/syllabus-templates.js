@@ -69,6 +69,27 @@
         return `Day ${dayNum}`;
     }
 
+    function mergeTemplatesBySessionRange(indexes, start, end, combinedPlanTitle) {
+        if (!indexes || start == null || end == null || end <= start) {
+            return null;
+        }
+        const parts = [];
+        for (let n = start; n <= end; n += 1) {
+            const tpl = indexes.bySession.get(n);
+            if (tpl) {
+                parts.push(tpl);
+            }
+        }
+        if (!parts.length) {
+            return null;
+        }
+        return {
+            planTitle: combinedPlanTitle || parts.map((p) => p.planTitle).filter(Boolean).join(' + '),
+            planDetail: parts.map((p) => (p.planDetail || '').trim()).filter(Boolean).join('\n\n'),
+            note: parts.map((p) => (p.note || '').trim()).filter(Boolean).join(' ')
+        };
+    }
+
     function mergeDebateTemplates(indexes, titles, combinedPlanTitle) {
         const parts = (titles || []).map((t) => templateByTitle(indexes, t)).filter(Boolean);
         if (!parts.length) {
@@ -119,20 +140,36 @@
             return templateByTitle(indexes, 'Day 2 & 3 Combined')
                 || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
         }
-        return resolveRowTemplate(indexes, row);
+        return resolveRowTemplate(indexes, row, { skipDebate: true });
     }
 
     /**
      * Find preset row: plan title / unit block first, then curriculum lesson #.
      */
-    function resolveRowTemplate(indexes, row) {
+    function resolveRowTemplate(indexes, row, options) {
+        options = options || {};
         if (!indexes || !row) {
             return null;
         }
-        if (row.debateTemplateKey || row.debateCompressed) {
+        const isDebate = row.scheduleModel === 'debateMonthly';
+        if (!options.skipDebate && (row.debateTemplateKey || (row.debateCompressed && isDebate))) {
             const debateTpl = resolveDebateRowTemplate(indexes, row);
             if (debateTpl) {
                 return debateTpl;
+            }
+        }
+        if (row.scheduleCompressed
+            && row.compressedGroupStart != null
+            && row.compressedGroupEnd != null
+            && row.compressedGroupEnd > row.compressedGroupStart) {
+            const merged = mergeTemplatesBySessionRange(
+                indexes,
+                row.compressedGroupStart,
+                row.compressedGroupEnd,
+                row.planTitle
+            );
+            if (merged) {
+                return merged;
             }
         }
         const title = (row.planTitle || '').trim();
@@ -278,6 +315,7 @@
         parseCurriculumBlockKey,
         buildTemplateIndexes,
         templateByTitle,
+        mergeTemplatesBySessionRange,
         mergeDebateTemplates,
         resolveDebateRowTemplate,
         resolveRowTemplate,

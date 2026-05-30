@@ -529,4 +529,83 @@ function assert(cond, msg) {
     assert(detail.includes('SPEAK-B'), 'session 3 speaking');
 }
 
+// Non-debate compressed: merge preset templates by session range
+{
+    const templates = [
+        { sessionNumber: 1, planTitle: 'Unit 1 Part 1', planDetail: 'SB p. 8-11' },
+        { sessionNumber: 2, planTitle: 'Unit 1 Part 2', planDetail: 'SB p. 12-15' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const merged = globalThis.CCPSyllabusTemplates.mergeTemplatesBySessionRange(
+        indexes, 1, 2, 'Unit 1 Part 1 + Unit 1 Part 2'
+    );
+    assert(merged && merged.planDetail.includes('8-11'), 'merged detail session 1');
+    assert(merged.planDetail.includes('12-15'), 'merged detail session 2');
+    const classData = { scheduleModel: 'sequentialTerm', syllabusUnits: [] };
+    const lessons = [{
+        date: '2026-03-05',
+        monthKey: '2026-03',
+        label: 'Unit 1 Part 1 + Unit 1 Part 2',
+        compressed: true,
+        group: { start: 1, end: 2, days: [1, 2] }
+    }];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, lessons, {
+        isHolidayForClass: () => false,
+        rowTemplates: templates,
+        templateIndexes: indexes
+    });
+    assert(rows[0].planTitle.includes('Part 1'), 'merged title includes part 1');
+    assert(rows[0].planTitle.includes('Part 2'), 'merged title includes part 2');
+    assert(rows[0].planDetail.includes('8-11'), 'syllabus row detail session 1');
+    assert(rows[0].planDetail.includes('12-15'), 'syllabus row detail session 2');
+}
+
+// Sequential compressed does not resolve via debate Day titles
+{
+    const templates = [
+        { sessionNumber: 1, planTitle: 'Unit 1 Part 1', planDetail: 'WR-PAGES' },
+        { sessionNumber: 2, planTitle: 'Unit 1 Part 2', planDetail: 'SP-PAGES' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const tpl = globalThis.CCPSyllabusTemplates.resolveRowTemplate(indexes, {
+        planTitle: 'Unit 1 Part 1 + Unit 1 Part 2',
+        scheduleModel: 'sequentialTerm',
+        scheduleCompressed: true,
+        compressedGroupStart: 1,
+        compressedGroupEnd: 2,
+        lessonNumber: 1,
+        sessionNumber: 1
+    });
+    assert(tpl && tpl.planDetail.includes('WR-PAGES'), 'uses session templates not Day 1');
+    assert(tpl.planDetail.includes('SP-PAGES'), 'includes second session pages');
+}
+
+// Refresh from calendar updates compressed planDetail
+{
+    const existing = [{
+        id: 'r1',
+        kind: 'lesson',
+        date: '2026-03-05',
+        sessionNumber: 1,
+        lessonNumber: 1,
+        planTitle: 'Unit 1 Part 1',
+        planDetail: 'SB p. 8-11 only',
+        source: 'manual'
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-03-05',
+        sessionNumber: 1,
+        lessonNumber: 1,
+        planTitle: 'Unit 1 Part 1 + Unit 1 Part 2',
+        planDetail: 'SB p. 8-11\n\nSB p. 12-15',
+        source: 'generated',
+        scheduleCompressed: true
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
+    assert(merged[0].planTitle.includes('+'), 'compressed title refreshed');
+    assert(merged[0].planDetail.includes('12-15'), 'compressed planDetail refreshed');
+}
+
 console.log('All syllabus-table tests passed.');
