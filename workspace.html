@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curriculum workspace — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260531-hw-due">
+    <link rel="stylesheet" href="styles.css?v=20260531-hw-copy">
 </head>
 <body class="workspace-page">
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
@@ -97,14 +97,14 @@
                         <div class="homework-copy-section">
                             <div class="homework-copy-header">
                                 <h3 data-i18n="homeworkTabAssignTitle">This week — assignment site</h3>
-                                <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopy">Copy</button>
                             </div>
-                            <p class="section-hint" data-i18n="homeworkTabAssignHint">Copy this block, open your homework assignment webpage in another tab, and paste there.</p>
                             <div class="homework-due-block homework-due-block--assign">
                                 <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
-                                <div class="homework-due-row">
-                                    <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
+                                <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
+                                <p class="homework-copy-homework-title" data-i18n="homeworkTabCopyHomeworkTitle">Homework text — paste into the description field on your homework assignment site.</p>
+                                <div class="homework-copy-actions-stack">
                                     <button type="button" id="homeworkCopyDueDateBtn" class="btn btn-outline btn-small homework-copy-btn" data-i18n="homeworkTabCopyDate">Copy date</button>
+                                    <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopyHomework">Copy homework</button>
                                 </div>
                                 <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>
                             </div>
@@ -147,7 +147,7 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260601-dino"></script>
-    <script defer src="app.js?v=20260531-hw-due"></script>
-    <script defer src="js/workspace.js?v=20260604-sync-boot"></script>
+    <script defer src="app.js?v=20260604-connecting-fix"></script>
+    <script defer src="js/workspace.js?v=20260604-connecting-fix"></script>
 </body>
 </html>

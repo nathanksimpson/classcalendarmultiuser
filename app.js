@@ -697,6 +697,8 @@ const translations = {
         homeworkTabAssignHint: 'Copy this block, open your homework assignment webpage in another tab, and paste there. Due on the next in-person class (skips holidays and no-class days).',
         homeworkTabCopy: 'Copy',
         homeworkTabCopyDate: 'Copy date',
+        homeworkTabCopyHomework: 'Copy homework',
+        homeworkTabCopyHomeworkTitle: 'Homework text — paste into the description field on your homework assignment site.',
         homeworkTabCopyBoth: 'Copy both blocks',
         homeworkTabSyllabiRefreshed: 'Syllabi updated from calendar.',
         homeworkTabCopied: 'Copied to clipboard.',
@@ -1526,6 +1528,8 @@ const translations = {
         homeworkTabAssignHint: '이 블록을 복사한 뒤, 다른 탭에서 숙제 배정 웹페이지를 열고 붙여넣으세요. 다음 대면 수업일까지 (휴일·수업 없는 날 제외).',
         homeworkTabCopy: '복사',
         homeworkTabCopyDate: '날짜 복사',
+        homeworkTabCopyHomework: '숙제 복사',
+        homeworkTabCopyHomeworkTitle: '숙제 내용 — 숙제 배정 사이트의 설명란에 붙여넣으세요.',
         homeworkTabCopyBoth: '두 블록 모두 복사',
         homeworkTabSyllabiRefreshed: '캘린더에서 강의 계획표를 업데이트했습니다.',
         homeworkTabCopied: '클립보드에 복사했습니다.',
@@ -13207,6 +13211,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert(t('errorReadingFile') || 'Could not load editor templates. Check your connection and refresh.');
             return;
         }
+        if (useTeamSync) {
+            updateTeamSyncStatus('connecting');
+        }
         ensureClassFormExtendedMarkup();
         repairCorruptedLangToggleButton();
         setupTeamLockButtons();
@@ -13270,6 +13277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateTeamSyncStatus('syncing');
         }
         try {
+            teamSyncBootInProgress = true;
             await initTeamSync();
         } catch (err) {
             console.error('initTeamSync failed:', err);
@@ -13277,6 +13285,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
             }
             showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
+        } finally {
+            teamSyncBootInProgress = false;
         }
 
         if (!teamSyncEnabled) {
@@ -18691,8 +18701,11 @@ function updatePrintSummary() {
 // Data Persistence
 // ============================================
 let teamSyncEnabled = false;
+let teamSyncBootInProgress = false;
 let teamLockPreviousCalendarId = null;
 let lastLockNotifySignature = '';
+
+const TEAM_SYNC_TERMINAL_STATUSES = ['saved', 'connected', 'offline', 'error', 'saving', 'conflict'];
 
 function formatLockParty(party) {
     if (!party) {
@@ -20194,15 +20207,17 @@ function hasTeamSyncStatusEl() {
     );
 }
 
-/** Clear boot-time "Syncing…" if init exited without reaching a terminal status. */
+function isTeamSyncBootIncomplete(el) {
+    if (!el) {
+        return false;
+    }
+    return !TEAM_SYNC_TERMINAL_STATUSES.some((status) => el.classList.contains('status-' + status));
+}
+
+/** Clear boot-time Connecting/Syncing if init exited without reaching a terminal status. */
 function finishTeamSyncBoot() {
     const el = document.getElementById('teamSyncStatus');
-    if (!el) {
-        return;
-    }
-    const stuck =
-        el.classList.contains('status-syncing') || el.classList.contains('status-connecting');
-    if (!stuck) {
+    if (!el || !isTeamSyncBootIncomplete(el)) {
         return;
     }
     if (teamSyncEnabled) {
@@ -20244,9 +20259,10 @@ async function ensureTeamSyncReady() {
     if (!el || location.protocol === 'file:') {
         return;
     }
-    const stuck =
-        el.classList.contains('status-syncing') || el.classList.contains('status-connecting');
-    if (!stuck) {
+    if (!isTeamSyncBootIncomplete(el)) {
+        return;
+    }
+    if (teamSyncBootInProgress) {
         return;
     }
     if (typeof CalendarSync === 'undefined') {
@@ -20255,6 +20271,7 @@ async function ensureTeamSyncReady() {
     }
     try {
         if (!teamSyncEnabled) {
+            teamSyncBootInProgress = true;
             await initTeamSync();
         } else {
             const id = CalendarSync.getActiveCalendarId();
@@ -20268,6 +20285,8 @@ async function ensureTeamSyncReady() {
     } catch (err) {
         console.error('ensureTeamSyncReady failed:', err);
         updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
+    } finally {
+        teamSyncBootInProgress = false;
     }
     finishTeamSyncBoot();
 }
@@ -20279,11 +20298,10 @@ if (typeof window !== 'undefined' && !window.__ccpPageshowSyncInit) {
             return;
         }
         const statusEl = document.getElementById('teamSyncStatus');
-        const stuck =
-            statusEl &&
-            (statusEl.classList.contains('status-syncing') ||
-                statusEl.classList.contains('status-connecting'));
-        if (ev.persisted || stuck) {
+        const teamRow = document.getElementById('teamCalendarRow');
+        const incomplete = statusEl && isTeamSyncBootIncomplete(statusEl);
+        const rowVisible = teamRow && !teamRow.hidden;
+        if (ev.persisted || incomplete || (rowVisible && incomplete)) {
             void ensureTeamSyncReady();
         }
     });
@@ -20292,6 +20310,7 @@ if (typeof window !== 'undefined' && !window.__ccpPageshowSyncInit) {
 if (typeof window !== 'undefined') {
     window.finishTeamSyncBoot = finishTeamSyncBoot;
     window.ensureTeamSyncReady = ensureTeamSyncReady;
+    window.isTeamSyncBootIncomplete = isTeamSyncBootIncomplete;
 }
 
 let syncToastTimer = null;

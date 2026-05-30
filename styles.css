@@ -5336,18 +5336,29 @@ body[data-active-tab="events"] .app-term-quick-actions {
     margin: 4px 0 0;
 }
 
-.homework-due-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 12px;
-    flex: 1 1 100%;
-}
-
 .homework-due-value--iso {
+    flex: 1 1 100%;
     font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
+}
+
+.homework-copy-homework-title {
+    flex: 1 1 100%;
+    margin: 2px 0 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.homework-copy-actions-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    flex: 1 1 100%;
+    margin-top: 4px;
 }
 
 .homework-target-meta {

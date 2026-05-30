@@ -246,10 +246,13 @@
         const teamStatus = document.getElementById('teamSyncStatus');
         const useTeamSync = teamStatus && typeof updateTeamSyncStatus === 'function';
         if (useTeamSync) {
-            updateTeamSyncStatus('syncing');
+            updateTeamSyncStatus('connecting');
         }
 
         try {
+            if (useTeamSync) {
+                updateTeamSyncStatus('syncing');
+            }
             if (typeof initTeamSync === 'function') {
                 await initTeamSync();
             }
