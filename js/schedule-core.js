@@ -211,12 +211,25 @@
         };
     }
 
+    /**
+     * When the schedule-adjustment table is shown, use only its merges (including []).
+     * Otherwise fall back to legacy compression checkboxes.
+     */
+    function resolveCompressionMergesFromSources(hasScheduleAdjustmentTable, adjustmentTableMerges, legacyMerges, totalLessons) {
+        const total = sanitizeTotalLessons(totalLessons);
+        if (hasScheduleAdjustmentTable) {
+            return normalizeCompressionMerges(adjustmentTableMerges, total);
+        }
+        return normalizeCompressionMerges(legacyMerges, total);
+    }
+
     global.CCPSchedule = {
         SCHEDULE_CONFIG,
         sanitizeTotalLessons,
         normalizeCompressionMerges,
         normalizeSkippedLessons,
         skippedLessonsToRanges,
+        resolveCompressionMergesFromSources,
         buildLessonGroups,
         buildScheduleGroups,
         getAutoMergeStartPreferenceOrder,

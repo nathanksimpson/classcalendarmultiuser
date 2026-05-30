@@ -3371,8 +3371,9 @@ function updateCompressionUiForScheduleModel() {
     const total = getTotalLessonsValue();
     const draft = buildClassSnapshotFromForm();
     renderScheduleAdjustmentRows(total, draft);
-    renderScheduleAdjustmentSummaryBlock(draft.id ? appData.classes.find(c => c.id === draft.id) || draft : draft);
-    renderScheduleGapWarning(draft.id ? appData.classes.find(c => c.id === draft.id) : null);
+    const effective = getClassDataForScheduleGapCheck(draft);
+    renderScheduleAdjustmentSummaryBlock(effective || draft);
+    renderScheduleGapWarning(draft);
 }
 
 function syncCompressionSectionsForMode() {
@@ -3604,6 +3605,37 @@ function formatScheduleAdjustmentSummary(classData) {
     };
 }
 
+function hasScheduleAdjustmentTableInDom() {
+    return Boolean(document.getElementById('scheduleAdjustmentRows'));
+}
+
+function getClassDataForScheduleGapCheck(baseClass) {
+    const form = document.getElementById('classForm');
+    const formClassId = elements.classId && elements.classId.value;
+    let data = baseClass;
+    if (!data && formClassId) {
+        data = appData.classes.find(c => c.id === formClassId) || null;
+    }
+    if (!data && form) {
+        data = buildClassSnapshotFromForm();
+    }
+    if (!data) {
+        return null;
+    }
+    if (!form || !hasScheduleAdjustmentTableInDom()) {
+        return data;
+    }
+    const openForThisClass = !formClassId || !data.id || data.id === formClassId || data.id === 'draft-syllabus';
+    if (!openForThisClass) {
+        return data;
+    }
+    return {
+        ...data,
+        skippedLessons: collectSkippedLessonsFromForm(),
+        compressionMerges: getSelectedCompressionMerges()
+    };
+}
+
 function getClassScheduleGapStatus(classData, options) {
     options = options || {};
     if (!classData || (classData.customSchedule && classData.customSchedule.enabled)) {
@@ -3659,7 +3691,7 @@ function focusScheduleAdjustmentForClass(classId) {
             details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
         renderScheduleGapWarning(cls);
-        renderScheduleAdjustmentSummaryBlock(cls);
+        renderScheduleAdjustmentSummaryBlock(getClassDataForScheduleGapCheck(cls) || cls);
     });
 }
 
@@ -3668,18 +3700,20 @@ function renderScheduleGapWarning(classData) {
     if (!el) {
         return;
     }
-    if (!classData || !classData.id || (classData.customSchedule && classData.customSchedule.enabled)) {
+    const effective = getClassDataForScheduleGapCheck(classData);
+    if (!effective || !effective.id || effective.id === 'draft-syllabus'
+        || (effective.customSchedule && effective.customSchedule.enabled)) {
         el.hidden = true;
         el.innerHTML = '';
         return;
     }
-    const gap = getClassScheduleGapStatus(classData);
+    const gap = getClassScheduleGapStatus(effective);
     if (!gap.incomplete) {
         el.hidden = true;
         el.innerHTML = '';
         return;
     }
-    const name = (classData.name || '').trim() || t('editClass');
+    const name = (effective.name || '').trim() || t('editClass');
     const msg = t('scheduleGapWarning')
         .replace('{name}', name)
         .replace('{unplaced}', gap.unplacedLessonNumbers.length)
@@ -3690,7 +3724,7 @@ function renderScheduleGapWarning(classData) {
     btn.type = 'button';
     btn.className = 'schedule-gap-warning-btn btn-link-like';
     btn.textContent = `${msg} ${t('scheduleGapAdjustAction')}`;
-    btn.addEventListener('click', () => focusScheduleAdjustmentForClass(classData.id));
+    btn.addEventListener('click', () => focusScheduleAdjustmentForClass(effective.id));
     el.appendChild(btn);
 }
 
@@ -14366,6 +14400,11 @@ function handleClassSubmit(e) {
     renderClassList();
     updateClassSyllabusSummary(classData);
     refreshTimetablePanels();
+    const savedTotal = sanitizeTotalLessons(classData.totalLessons || 4);
+    renderScheduleAdjustmentRows(savedTotal, classData);
+    renderScheduleGapWarning(classData);
+    renderScheduleAdjustmentSummaryBlock(classData);
+    syncSyllabusEditorChrome();
     if (isUpdate) {
         setAppStatusMessage(t('classSaved'), false);
     }
@@ -14641,25 +14680,36 @@ function updateCompressionCheckboxStates() {
 
 function getSelectedCompressionMerges() {
     const container = document.getElementById('scheduleAdjustmentRows');
+    const hasTable = hasScheduleAdjustmentTableInDom();
+    const fromTable = [];
     if (container) {
-        const fromTable = [];
         container.querySelectorAll('input.schedule-merge-next:checked').forEach(cb => {
             const start = parseInt(cb.dataset.mergeStart, 10);
             if (!Number.isNaN(start)) {
                 fromTable.push(start);
             }
         });
-        if (fromTable.length) {
-            return fromTable.sort((a, b) => a - b);
-        }
     }
     const checkboxes = elements.compressionCheckboxes
         ? elements.compressionCheckboxes.querySelectorAll('input[type="checkbox"]')
         : [];
-    return Array.from(checkboxes)
+    const fromLegacy = Array.from(checkboxes)
         .filter(cb => cb.checked)
         .map(cb => parseInt(cb.dataset.mergeStart, 10))
-        .sort((a, b) => a - b);
+        .filter(n => !Number.isNaN(n));
+    const total = getTotalLessonsValue();
+    if (window.CCPSchedule && window.CCPSchedule.resolveCompressionMergesFromSources) {
+        return window.CCPSchedule.resolveCompressionMergesFromSources(
+            hasTable,
+            fromTable,
+            fromLegacy,
+            total
+        );
+    }
+    if (hasTable) {
+        return fromTable.sort((a, b) => a - b);
+    }
+    return fromLegacy.sort((a, b) => a - b);
 }
 
 function collectSkippedLessonsFromForm() {
@@ -14729,10 +14779,9 @@ function renderScheduleAdjustmentRows(totalLessons, classData) {
     container.appendChild(table);
     const refreshUi = () => {
         const snap = buildClassSnapshotFromForm();
-        snap.skippedLessons = collectSkippedLessonsFromForm();
-        snap.compressionMerges = getSelectedCompressionMerges();
-        renderScheduleAdjustmentSummaryBlock(snap);
-        renderScheduleGapWarning(snap.id ? appData.classes.find(c => c.id === snap.id) : snap);
+        const effective = getClassDataForScheduleGapCheck(snap);
+        renderScheduleAdjustmentSummaryBlock(effective || snap);
+        renderScheduleGapWarning(snap);
     };
     container.querySelectorAll('input.schedule-skip-lesson, input.schedule-merge-next').forEach(inp => {
         inp.addEventListener('change', () => {

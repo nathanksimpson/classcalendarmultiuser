@@ -2821,8 +2821,11 @@ body.hide-summary-print .print-summary {
 }
 
 .schedule-gap-warning {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     padding: 10px 12px;
-    margin-bottom: 8px;
+    margin: 0 0 12px;
     border-radius: 6px;
     background: #fef3c7;
     border: 1px solid #f59e0b;

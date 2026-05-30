@@ -18,6 +18,8 @@
                 </div>
 
                 <div class="class-modal-body">
+                <div id="classScheduleGapWarning" class="schedule-gap-warning form-group--full-only" hidden role="alert"></div>
+
                 <div class="form-group autocomplete-wrapper class-modal-name-field">
                     <label for="className" data-i18n="className">Class Name</label>
                     <input type="text" id="className" required data-i18n-placeholder="classNamePlaceholder" placeholder="e.g., Debate" autocomplete="off">
@@ -187,8 +189,6 @@
                         <div id="customLessonDates" class="custom-lesson-dates"></div>
                     </div>
                 </details>
-
-                <div id="classScheduleGapWarning" class="schedule-gap-warning form-group--full-only" hidden role="alert"></div>
 
                 <details class="form-section-advanced form-group--full-only" id="classCompressionDetails">
                     <summary data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</summary>

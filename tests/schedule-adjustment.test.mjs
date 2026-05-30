@@ -42,4 +42,11 @@ function assert(cond, msg) {
     assert(groups.length <= 3, 'fits in 3 slots');
 }
 
+{
+    const empty = CCPSchedule.resolveCompressionMergesFromSources(true, [], [1, 3], 8);
+    assert(empty.length === 0, 'adjustment table with no merges returns [], not legacy');
+    const legacy = CCPSchedule.resolveCompressionMergesFromSources(false, [], [1, 3], 8);
+    assert(legacy.length === 2 && legacy[0] === 1, 'legacy path when no adjustment table');
+}
+
 console.log('schedule-adjustment.test.mjs: ok');
