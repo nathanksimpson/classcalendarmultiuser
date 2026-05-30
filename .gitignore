@@ -19,6 +19,7 @@ scripts/.seed-admin-query.sql
 .env
 .env.*
 !.env.example
+.tmp-cookies.txt
 
 # Team calendar database (created at runtime)
 data/
