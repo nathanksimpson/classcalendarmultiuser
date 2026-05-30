@@ -622,9 +622,7 @@
     ],
     "head_teacher": [
         "view_calendars",
-        "view_all_calendars",
         "create_calendars",
-        "manage_calendar_access",
         "bypass_collaborative_lock",
         "force_save",
         "view_presence",
@@ -636,7 +634,7 @@
         "manage_settings",
         "access_admin_page"
     ],
-    "teacher": ["view_calendars"],
+    "teacher": ["view_calendars", "create_calendars"],
     "viewer": ["view_calendars"]
 };
 
@@ -647,6 +645,7 @@
         "Admin tabs map to permissions: Accounts (manage_users), Groups (manage_groups), Calendars (manage_calendar_access), System (manage_settings), Monitor (view_presence and/or view_audit).",
         "View calendars (global) — open team calendars you are assigned to on Admin → Calendars. View all calendars — open any team calendar without a separate assignment (head teacher preset).",
         "Calendar access level — set per person or group on Admin → Calendars tab for each calendar: Editor (edit with team lock), Suggester (propose changes; editor or head teacher applies), Viewer (read/print only for that calendar).",
+        "Manage calendar access / delete: by default, teachers and head teachers only manage calendars they created (+ New). Super admins (or anyone with Manage calendar access / Delete calendars / View all calendars checkboxes) can manage any calendar.",
         "Legacy admin role in the database is treated as Super admin.",
         "Super admin and Head teacher can release stale locks (canForceUnlock). There is still no force takeover of an active editor — only Allow, Release, or timeout.",
         "Custom global permissions: Super admins set per-user checkboxes in Admin → Accounts → Edit (or Add teacher). If checkboxes match the chosen role exactly, the app stores the role preset only (no Custom badge). If they differ, the user keeps a custom list (Custom badge). The matrix below shows each role’s default preset; custom users follow their checkboxes instead.",
@@ -658,6 +657,7 @@
         "Admin 탭과 권한: Accounts(manage_users), Groups(manage_groups), Calendars(manage_calendar_access), System(manage_settings), Monitor(view_presence·view_audit).",
         "캘린더 보기(전역) — Admin → Calendars에서 지정한 팀 캘린더를 엽니다. 모든 캘린더 보기 — 별도 지정 없이 모든 팀 캘린더를 엽니다(head teacher 프리셋).",
         "캘린더 접근 수준 — Admin → Calendars 탭에서 캘린더마다: Editor(팀 잠금 하에 편집), Suggester(제안; 편집자·담당 선생님이 적용), Viewer(해당 캘린더 읽기·인쇄만).",
+        "캘린더 접근 관리/삭제: 기본적으로 선생님·head teacher는 본인이 만든 캘린더(+ New)만 관리합니다. 최고 관리자 또는 Manage calendar access / Delete calendars / View all calendars 권한이 있으면 모든 캘린더를 관리할 수 있습니다.",
         "DB의 예전 admin 역할은 Super admin과 같습니다.",
         "Super admin·Head teacher는 오래된 잠금 해제(canForceUnlock) 가능. 편집 중 강제 빼앗기 없음 — 허용, 잠금 해제, 만료만.",
         "맞춤 전역 권한: 최고 관리자가 Admin → Accounts → Edit(또는 Add teacher)에서 사용자별 체크박스를 설정합니다. 체크가 선택한 역할 프리셋과 같으면 역할만 저장(Custom 뱃지 없음). 다르면 맞춤 목록이 저장됩니다(Custom 뱃지). 아래 표는 역할별 기본값이며, 맞춤 사용자는 체크박스를 따릅니다.",

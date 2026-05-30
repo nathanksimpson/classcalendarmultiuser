@@ -441,7 +441,14 @@ async function calendarMetaExtras(env, user, calendarId, meta) {
         accessLevel,
         canEdit,
         canSuggest: await CalAccess.canSuggestChanges(env, user, calendarId),
-        pendingSuggestions: await Suggestions.countPendingSuggestions(env, calendarId)
+        pendingSuggestions: await Suggestions.countPendingSuggestions(env, calendarId),
+        createdByUserId: meta.createdByUserId || null,
+        canManageAccess: CalAccess.canManageCalendarAccess(
+            user,
+            calendarId,
+            meta.createdByUserId
+        ),
+        canDeleteCalendar: CalAccess.canDeleteCalendar(user, calendarId, meta.createdByUserId)
     });
 }
 
@@ -1451,7 +1458,7 @@ export default {
             if (sub === '/meta' && request.method === 'GET') {
                 const meta = await dbOne(
                     env,
-                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars WHERE id = ?',
                     calId
                 );
                 if (!meta) {
@@ -1485,7 +1492,7 @@ export default {
                 }
                 const metaRow = await dbOne(
                     env,
-                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars WHERE id = ?',
                     calId
                 );
                 return json(await calendarMetaExtras(env, user, calId, metaRow || { id: calId }));
@@ -1540,7 +1547,7 @@ export default {
                 }
                 const metaRow = await dbOne(
                     env,
-                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars WHERE id = ?',
                     calId
                 );
                 const payload = await calendarMetaExtras(env, user, calId, metaRow || { id: calId });
@@ -1666,7 +1673,7 @@ export default {
             }
 
             if (!sub && request.method === 'DELETE') {
-                if (!Auth.hasPermission(user, Auth.PERMS.DELETE_CALENDARS)) {
+                if (!(await CalAccess.canDeleteCalendarAsync(env, user, calId))) {
                     return json({ error: 'Forbidden' }, 403);
                 }
                 const meta = await dbOne(env, 'SELECT name FROM calendars WHERE id = ?', calId);
@@ -1701,12 +1708,13 @@ export default {
             const label = user.displayName || user.email || 'Teacher';
             await dbRun(
                 env,
-                'INSERT INTO calendars (id, name, data, revision, updated_at, updated_by) VALUES (?, ?, ?, 1, ?, ?)',
+                'INSERT INTO calendars (id, name, data, revision, updated_at, updated_by, created_by_user_id) VALUES (?, ?, ?, 1, ?, ?, ?)',
                 id,
                 trimmedName,
                 JSON.stringify(body.data),
                 nowIso(),
-                label
+                label,
+                user.id
             );
             const memberIds = Array.isArray(body.memberUserIds) ? body.memberUserIds.map(String) : [];
             if (!memberIds.includes(user.id)) {
@@ -1830,17 +1838,24 @@ export default {
         if (
             path === '/api/admin/calendars' &&
             request.method === 'GET' &&
-            Auth.hasAnyPermission(user, [Auth.PERMS.MANAGE_CALENDAR_ACCESS, Auth.PERMS.VIEW_ALL_CALENDARS])
+            Auth.hasAnyPermission(user, [
+                Auth.PERMS.MANAGE_CALENDAR_ACCESS,
+                Auth.PERMS.VIEW_ALL_CALENDARS,
+                Auth.PERMS.CREATE_CALENDARS
+            ])
         ) {
-            return json(await CalAccess.listAdminCalendarsWithAccess(env));
+            return json(await CalAccess.listAdminCalendarsForUser(env, user));
         }
 
         const adminCalAccessMatch = path.match(/^\/api\/admin\/calendars\/([^/]+)\/access$/);
-        if (adminCalAccessMatch && Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)) {
+        if (adminCalAccessMatch) {
             const calId = adminCalAccessMatch[1];
             const meta = await dbOne(env, 'SELECT id FROM calendars WHERE id = ?', calId);
             if (!meta) {
                 return json({ error: 'Calendar not found' }, 404);
+            }
+            if (!(await CalAccess.canManageCalendarAccessAsync(env, user, calId))) {
+                return json({ error: 'Forbidden' }, 403);
             }
             if (request.method === 'GET') {
                 return json(await CalAccess.getCalendarAccess(env, calId));

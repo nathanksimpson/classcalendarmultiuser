@@ -91,6 +91,8 @@ UI-only changes still need **`npx wrangler deploy`** for production (see deploy 
 
 **Global permissions (super admin):** `users.permissions` JSON overrides role presets when set. Super admins edit checkboxes in the Accounts **Edit user** / **Add teacher** forms (`GET /api/admin/permission-meta`). Promoting to **Super admin** role or granting all global permissions on another role requires the actor’s `confirmPassword`. Only super admins may assign the super admin role or custom permissions. `canForceUnlock` remains role-based (`super_admin` / `head_teacher`), not checkbox-based. Logic: `server/admin-user-policy.js` (mirror `worker/src/admin-user-policy.js`).
 
+**Calendar creator scope:** `calendars.created_by_user_id` (migration `0012_calendars_created_by.sql`). By default, **teacher** and **head_teacher** presets include `create_calendars` and `view_calendars` but not `manage_calendar_access`, `view_all_calendars`, or `delete_calendars`. Creators may manage access and delete only calendars they created; global checkboxes grant any calendar. New calendars set `created_by_user_id` on create.
+
 ---
 
 ## Deploy verification checklist (production)

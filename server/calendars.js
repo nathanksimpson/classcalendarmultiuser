@@ -36,7 +36,9 @@ function getCalendar(id) {
 function getCalendarMeta(id) {
     const db = getDb();
     return db
-        .prepare('SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?')
+        .prepare(
+            'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars WHERE id = ?'
+        )
         .get(id);
 }
 
@@ -73,16 +75,16 @@ function assertNameAvailable(name, excludeId) {
     }
 }
 
-function createCalendar(id, name, data, editorLabel) {
+function createCalendar(id, name, data, editorLabel, createdByUserId) {
     assertNameAvailable(name);
     const db = getDb();
     const trimmed = normalizeCalendarName(name);
     const now = nowIso();
     const dataJson = JSON.stringify(data);
     db.prepare(
-        `INSERT INTO calendars (id, name, data, revision, updated_at, updated_by)
-         VALUES (?, ?, ?, 1, ?, ?)`
-    ).run(id, trimmed, dataJson, now, editorLabel || '');
+        `INSERT INTO calendars (id, name, data, revision, updated_at, updated_by, created_by_user_id)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+    ).run(id, trimmed, dataJson, now, editorLabel || '', createdByUserId || null);
     return getCalendar(id);
 }
 

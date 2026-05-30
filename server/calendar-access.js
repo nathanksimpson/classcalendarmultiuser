@@ -33,6 +33,66 @@ function canViewCalendars(user) {
     );
 }
 
+function getCalendarCreatedByUserId(calendarId) {
+    if (!calendarId) {
+        return null;
+    }
+    const db = getDb();
+    const row = db
+        .prepare('SELECT created_by_user_id FROM calendars WHERE id = ?')
+        .get(calendarId);
+    return row && row.created_by_user_id ? String(row.created_by_user_id) : null;
+}
+
+function isCalendarCreator(user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    const creatorId =
+        createdByUserId !== undefined ? createdByUserId : getCalendarCreatedByUserId(calendarId);
+    return Boolean(creatorId && creatorId === user.id);
+}
+
+function canManageCalendarAccess(user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    if (Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)) {
+        return true;
+    }
+    return isCalendarCreator(user, calendarId, createdByUserId);
+}
+
+function canDeleteCalendar(user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    if (Auth.hasPermission(user, Auth.PERMS.DELETE_CALENDARS)) {
+        return true;
+    }
+    return isCalendarCreator(user, calendarId, createdByUserId);
+}
+
+function canListAdminCalendars(user) {
+    if (!user) {
+        return false;
+    }
+    return Auth.hasAnyPermission(user, [
+        Auth.PERMS.MANAGE_CALENDAR_ACCESS,
+        Auth.PERMS.VIEW_ALL_CALENDARS,
+        Auth.PERMS.CREATE_CALENDARS
+    ]);
+}
+
+function calendarListRowExtras(user, row) {
+    const createdByUserId = row.createdByUserId != null ? row.createdByUserId : null;
+    return {
+        createdByUserId,
+        canManageAccess: canManageCalendarAccess(user, row.id, createdByUserId),
+        canDelete: canDeleteCalendar(user, row.id, createdByUserId)
+    };
+}
+
 function getUserAccessLevel(user, calendarId) {
     if (!user || !calendarId) {
         return null;
@@ -91,19 +151,20 @@ function canSuggestChanges(user, calendarId) {
 
 function listCalendarsForUser(user) {
     const db = getDb();
+    const selectCols =
+        'id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId';
     if (canViewAllCalendars(user)) {
         return db
-            .prepare(
-                'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
-            )
-            .all();
+            .prepare(`SELECT ${selectCols} FROM calendars ORDER BY name COLLATE NOCASE`)
+            .all()
+            .map((row) => Object.assign({}, row, calendarListRowExtras(user, row)));
     }
     if (!canViewCalendars(user)) {
         return [];
     }
     return db
         .prepare(
-            `SELECT DISTINCT c.id, c.name, c.revision, c.updated_at AS updatedAt, c.updated_by AS updatedBy
+            `SELECT DISTINCT c.id, c.name, c.revision, c.updated_at AS updatedAt, c.updated_by AS updatedBy, c.created_by_user_id AS createdByUserId
              FROM calendars c
              WHERE EXISTS (SELECT 1 FROM calendar_members cm WHERE cm.calendar_id = c.id AND cm.user_id = ?)
                 OR EXISTS (
@@ -113,7 +174,8 @@ function listCalendarsForUser(user) {
                 )
              ORDER BY c.name COLLATE NOCASE`
         )
-        .all(user.id, user.id);
+        .all(user.id, user.id)
+        .map((row) => Object.assign({}, row, calendarListRowExtras(user, row)));
 }
 
 function getCalendarAccess(calendarId) {
@@ -347,10 +409,36 @@ function listAdminCalendarsWithAccess() {
     const db = getDb();
     const cals = db
         .prepare(
-            'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
+            'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars ORDER BY name COLLATE NOCASE'
         )
         .all();
     return cals.map((cal) => Object.assign({}, cal, getCalendarAccess(cal.id)));
+}
+
+function listAdminCalendarsForUser(user) {
+    const all = listAdminCalendarsWithAccess();
+    if (
+        Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS) ||
+        canViewAllCalendars(user)
+    ) {
+        return all.map((cal) =>
+            Object.assign({}, cal, {
+                canManageAccess: canManageCalendarAccess(user, cal.id, cal.createdByUserId),
+                canDelete: canDeleteCalendar(user, cal.id, cal.createdByUserId)
+            })
+        );
+    }
+    if (!Auth.hasPermission(user, Auth.PERMS.CREATE_CALENDARS)) {
+        return [];
+    }
+    return all
+        .filter((cal) => isCalendarCreator(user, cal.id, cal.createdByUserId))
+        .map((cal) =>
+            Object.assign({}, cal, {
+                canManageAccess: true,
+                canDelete: canDeleteCalendar(user, cal.id, cal.createdByUserId)
+            })
+        );
 }
 
 function getCalendarSummaryForUser(user) {
@@ -376,6 +464,11 @@ module.exports = {
     isAdmin,
     canViewAllCalendars,
     canViewCalendars,
+    getCalendarCreatedByUserId,
+    isCalendarCreator,
+    canManageCalendarAccess,
+    canDeleteCalendar,
+    canListAdminCalendars,
     getUserAccessLevel,
     canAccessCalendar,
     canEditCalendar,
@@ -393,6 +486,7 @@ module.exports = {
     getGroupMemberIds,
     setGroupMembers,
     listAdminCalendarsWithAccess,
+    listAdminCalendarsForUser,
     getCalendarSummaryForUser,
     normalizeAccessLevel
 };

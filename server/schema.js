@@ -77,6 +77,15 @@ function migrate(db) {
     migrateAuthPermissions(db);
     migrateSuggestionsPresence(db);
     migrateActivityLog(db);
+    migrateCalendarsCreatedBy(db);
+}
+
+function migrateCalendarsCreatedBy(db) {
+    const cols = db.prepare('PRAGMA table_info(calendars)').all();
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('created_by_user_id')) {
+        db.exec('ALTER TABLE calendars ADD COLUMN created_by_user_id TEXT');
+    }
 }
 
 function migrateSessionLoginContext(db) {

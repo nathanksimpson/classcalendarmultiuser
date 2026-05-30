@@ -103,7 +103,12 @@ let activeAdminTab = 'accounts';
 const ADMIN_TAB_CONFIG = {
     accounts: { panelId: 'accountsPanel', tabId: 'adminTabAccounts', perms: ['manage_users'] },
     groups: { panelId: 'groupsPanel', tabId: 'adminTabGroups', perms: ['manage_groups'] },
-    calendars: { panelId: 'calendarsPanel', tabId: 'adminTabCalendars', perms: ['manage_calendar_access'] },
+    calendars: {
+        panelId: 'calendarsPanel',
+        tabId: 'adminTabCalendars',
+        perms: ['manage_calendar_access', 'create_calendars'],
+        anyPerm: true
+    },
     system: { panelId: 'systemPanel', tabId: 'adminTabSystem', perms: ['manage_settings'] },
     monitor: {
         panelId: 'monitorPanel',

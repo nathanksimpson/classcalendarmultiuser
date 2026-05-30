@@ -31,6 +31,98 @@ export function canViewCalendars(user) {
     );
 }
 
+export async function getCalendarCreatedByUserId(env, calendarId) {
+    if (!calendarId) {
+        return null;
+    }
+    const row = await env.DB.prepare('SELECT created_by_user_id FROM calendars WHERE id = ?')
+        .bind(calendarId)
+        .first();
+    return row && row.created_by_user_id ? String(row.created_by_user_id) : null;
+}
+
+export function isCalendarCreator(user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    const creatorId = createdByUserId !== undefined ? createdByUserId : null;
+    if (creatorId === null && createdByUserId === undefined) {
+        return false;
+    }
+    return Boolean(creatorId && creatorId === user.id);
+}
+
+export async function isCalendarCreatorAsync(env, user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    const creatorId =
+        createdByUserId !== undefined
+            ? createdByUserId
+            : await getCalendarCreatedByUserId(env, calendarId);
+    return Boolean(creatorId && creatorId === user.id);
+}
+
+export function canManageCalendarAccess(user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    if (Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)) {
+        return true;
+    }
+    return isCalendarCreator(user, calendarId, createdByUserId);
+}
+
+export async function canManageCalendarAccessAsync(env, user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    if (Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)) {
+        return true;
+    }
+    return isCalendarCreatorAsync(env, user, calendarId, createdByUserId);
+}
+
+export function canDeleteCalendar(user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    if (Auth.hasPermission(user, Auth.PERMS.DELETE_CALENDARS)) {
+        return true;
+    }
+    return isCalendarCreator(user, calendarId, createdByUserId);
+}
+
+export async function canDeleteCalendarAsync(env, user, calendarId, createdByUserId) {
+    if (!user || !calendarId) {
+        return false;
+    }
+    if (Auth.hasPermission(user, Auth.PERMS.DELETE_CALENDARS)) {
+        return true;
+    }
+    return isCalendarCreatorAsync(env, user, calendarId, createdByUserId);
+}
+
+export function canListAdminCalendars(user) {
+    if (!user) {
+        return false;
+    }
+    return Auth.hasAnyPermission(user, [
+        Auth.PERMS.MANAGE_CALENDAR_ACCESS,
+        Auth.PERMS.VIEW_ALL_CALENDARS,
+        Auth.PERMS.CREATE_CALENDARS
+    ]);
+}
+
+function calendarListRowExtras(user, row) {
+    const createdByUserId = row.createdByUserId != null ? row.createdByUserId : null;
+    return {
+        createdByUserId,
+        canManageAccess: canManageCalendarAccess(user, row.id, createdByUserId),
+        canDelete: canDeleteCalendar(user, row.id, createdByUserId)
+    };
+}
+
 export async function getUserAccessLevel(env, user, calendarId) {
     if (!user || !calendarId) {
         return null;
@@ -80,17 +172,19 @@ export async function canSuggestChanges(env, user, calendarId) {
 }
 
 export async function listCalendarsForUser(env, user) {
+    const selectCols =
+        'id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId';
     if (canViewAllCalendars(user)) {
         const r = await env.DB.prepare(
-            'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
+            `SELECT ${selectCols} FROM calendars ORDER BY name COLLATE NOCASE`
         ).all();
-        return r.results || [];
+        return (r.results || []).map((row) => Object.assign({}, row, calendarListRowExtras(user, row)));
     }
     if (!canViewCalendars(user)) {
         return [];
     }
     const r = await env.DB.prepare(
-        `SELECT DISTINCT c.id, c.name, c.revision, c.updated_at AS updatedAt, c.updated_by AS updatedBy
+        `SELECT DISTINCT c.id, c.name, c.revision, c.updated_at AS updatedAt, c.updated_by AS updatedBy, c.created_by_user_id AS createdByUserId
          FROM calendars c
          WHERE EXISTS (SELECT 1 FROM calendar_members cm WHERE cm.calendar_id = c.id AND cm.user_id = ?)
             OR EXISTS (
@@ -102,7 +196,7 @@ export async function listCalendarsForUser(env, user) {
     )
         .bind(user.id, user.id)
         .all();
-    return r.results || [];
+    return (r.results || []).map((row) => Object.assign({}, row, calendarListRowExtras(user, row)));
 }
 
 export async function getCalendarAccess(env, calendarId) {
@@ -327,7 +421,7 @@ export async function setGroupMembers(env, groupId, userIds) {
 
 export async function listAdminCalendarsWithAccess(env) {
     const cals = await env.DB.prepare(
-        'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
+        'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars ORDER BY name COLLATE NOCASE'
     ).all();
     const out = [];
     for (const cal of cals.results || []) {
@@ -335,6 +429,32 @@ export async function listAdminCalendarsWithAccess(env) {
         out.push(Object.assign({}, cal, access));
     }
     return out;
+}
+
+export async function listAdminCalendarsForUser(env, user) {
+    const all = await listAdminCalendarsWithAccess(env);
+    if (
+        Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS) ||
+        canViewAllCalendars(user)
+    ) {
+        return all.map((cal) =>
+            Object.assign({}, cal, {
+                canManageAccess: canManageCalendarAccess(user, cal.id, cal.createdByUserId),
+                canDelete: canDeleteCalendar(user, cal.id, cal.createdByUserId)
+            })
+        );
+    }
+    if (!Auth.hasPermission(user, Auth.PERMS.CREATE_CALENDARS)) {
+        return [];
+    }
+    return all
+        .filter((cal) => isCalendarCreator(user, cal.id, cal.createdByUserId))
+        .map((cal) =>
+            Object.assign({}, cal, {
+                canManageAccess: true,
+                canDelete: canDeleteCalendar(user, cal.id, cal.createdByUserId)
+            })
+        );
 }
 
 export async function getCalendarSummaryForUser(env, user) {

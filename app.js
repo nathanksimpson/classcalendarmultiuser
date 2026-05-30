@@ -17564,12 +17564,20 @@ function setupTeamUserBar() {
         adminLink.hidden = typeof TeamAuth === 'undefined' || !TeamAuth.canAccessAdmin();
     }
     if (deleteCalBtn) {
-        deleteCalBtn.hidden =
-            typeof TeamAuth === 'undefined' || !TeamAuth.hasPermission('delete_calendars');
-        if (typeof TeamAuth === 'undefined' || !TeamAuth.hasPermission('delete_calendars')) {
-            deleteCalBtn.disabled = true;
-        }
+        deleteCalBtn.hidden = true;
+        deleteCalBtn.disabled = true;
     }
+}
+
+function updateTeamDeleteCalendarButton(list, activeId) {
+    const delBtn = document.getElementById('teamDeleteCalendarBtn');
+    if (!delBtn) {
+        return;
+    }
+    const active = (list || []).find((c) => c.id === activeId);
+    const canDelete = Boolean(active && active.canDelete);
+    delBtn.hidden = !canDelete;
+    delBtn.disabled = !canDelete;
 }
 
 // ============================================
@@ -17896,9 +17904,7 @@ function populateCalendarSelect(calendars, activeId) {
         sel.appendChild(empty);
         if (delBtn) {
             delBtn.disabled = true;
-            const user = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-            delBtn.hidden =
-                typeof TeamAuth === 'undefined' || !TeamAuth.hasPermission('delete_calendars');
+            delBtn.hidden = true;
         }
         return;
     }
@@ -17914,10 +17920,7 @@ function populateCalendarSelect(calendars, activeId) {
         sel.value = list[0].id;
     }
     if (delBtn) {
-        const canDelete =
-            typeof TeamAuth !== 'undefined' && TeamAuth.hasPermission('delete_calendars');
-        delBtn.hidden = !canDelete;
-        delBtn.disabled = !canDelete;
+        updateTeamDeleteCalendarButton(list, sel.value);
     }
 }
 

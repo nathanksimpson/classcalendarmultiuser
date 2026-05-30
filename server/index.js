@@ -721,13 +721,21 @@ app.delete('/api/admin/groups/:id', requireUser, requirePermission(Auth.PERMS.MA
 app.get(
     '/api/admin/calendars',
     requireUser,
-    requireAnyPermission([Auth.PERMS.MANAGE_CALENDAR_ACCESS, Auth.PERMS.VIEW_ALL_CALENDARS]),
+    requireAnyPermission([
+        Auth.PERMS.MANAGE_CALENDAR_ACCESS,
+        Auth.PERMS.VIEW_ALL_CALENDARS,
+        Auth.PERMS.CREATE_CALENDARS
+    ]),
     (req, res) => {
-        res.json(CalAccess.listAdminCalendarsWithAccess());
+        res.json(CalAccess.listAdminCalendarsForUser(req.user));
     }
 );
 
-app.get('/api/admin/calendars/:id/access', requireUser, requirePermission(Auth.PERMS.MANAGE_CALENDAR_ACCESS), (req, res) => {
+app.get('/api/admin/calendars/:id/access', requireUser, (req, res) => {
+    if (!CalAccess.canManageCalendarAccess(req.user, req.params.id)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
     const meta = calendars.getCalendarMeta(req.params.id);
     if (!meta) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -736,8 +744,12 @@ app.get('/api/admin/calendars/:id/access', requireUser, requirePermission(Auth.P
     res.json(CalAccess.getCalendarAccess(req.params.id));
 });
 
-app.put('/api/admin/calendars/:id/access', requireUser, requirePermission(Auth.PERMS.MANAGE_CALENDAR_ACCESS), (req, res) => {
+app.put('/api/admin/calendars/:id/access', requireUser, (req, res) => {
     const calId = req.params.id;
+    if (!CalAccess.canManageCalendarAccess(req.user, calId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
     const meta = calendars.getCalendarMeta(calId);
     if (!meta) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -773,7 +785,14 @@ function calendarMetaExtras(user, calendarId, meta) {
         accessLevel,
         canEdit,
         canSuggest: CalAccess.canSuggestChanges(user, calendarId),
-        pendingSuggestions: Suggestions.countPendingSuggestions(calendarId)
+        pendingSuggestions: Suggestions.countPendingSuggestions(calendarId),
+        createdByUserId: meta.createdByUserId || null,
+        canManageAccess: CalAccess.canManageCalendarAccess(
+            user,
+            calendarId,
+            meta.createdByUserId
+        ),
+        canDeleteCalendar: CalAccess.canDeleteCalendar(user, calendarId, meta.createdByUserId)
     });
 }
 
@@ -920,7 +939,7 @@ app.post('/api/calendars', requireUser, requirePermission(Auth.PERMS.CREATE_CALE
     }
     const id = calendars.newId();
     const label = req.user.displayName || req.user.email || 'Teacher';
-    const doc = calendars.createCalendar(id, trimmed, data, label);
+    const doc = calendars.createCalendar(id, trimmed, data, label, req.user.id);
     const memberIds = Array.isArray(memberUserIds) ? memberUserIds.map(String) : [];
     if (!memberIds.includes(req.user.id)) {
         memberIds.push(req.user.id);
@@ -1091,7 +1110,11 @@ app.put('/api/calendars/:id', requireUser, (req, res) => {
     res.json(result.document);
 });
 
-app.delete('/api/calendars/:id', requireUser, requirePermission(Auth.PERMS.DELETE_CALENDARS), (req, res) => {
+app.delete('/api/calendars/:id', requireUser, (req, res) => {
+    if (!CalAccess.canDeleteCalendar(req.user, req.params.id)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
     const meta = calendars.getCalendarMeta(req.params.id);
     const removed = calendars.deleteCalendar(req.params.id);
     if (!removed) {
