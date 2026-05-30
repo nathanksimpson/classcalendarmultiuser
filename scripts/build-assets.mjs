@@ -25,7 +25,7 @@ const SKIP_DIRS = new Set([
     'Example Calendars'
 ]);
 
-const SKIP_FILES = new Set(['package-lock.json', '.env', '.env.example']);
+const SKIP_FILES = new Set(['package-lock.json', '.env', '.env.example', '.tmp-cookies.txt']);
 
 const MINIFY_JS = [
     'app.js',

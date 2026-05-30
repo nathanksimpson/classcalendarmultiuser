@@ -13,3 +13,4 @@ Example Calendars
 .env.*
 .wrangler
 package-lock.json
+.tmp-cookies.txt
