@@ -3,10 +3,57 @@
  */
 (function () {
     let workspaceBooksSelectedId = null;
-    let workspacePollTimer = null;
 
     function getParams() {
         return new URLSearchParams(location.search);
+    }
+
+    function showWorkspaceInitError(message) {
+        const banner = document.getElementById('workspaceRemoteBanner');
+        if (!banner) {
+            return;
+        }
+        const textEl = banner.querySelector('[data-i18n="workspaceRemoteNewer"]')
+            || banner.querySelector('span');
+        if (textEl) {
+            textEl.textContent = message || '';
+        }
+        banner.hidden = false;
+    }
+
+    function hideWorkspaceInitError() {
+        const banner = document.getElementById('workspaceRemoteBanner');
+        if (!banner) {
+            return;
+        }
+        if (
+            typeof CalendarSync !== 'undefined'
+            && CalendarSync.state
+            && CalendarSync.state.remoteNewer
+        ) {
+            return;
+        }
+        banner.hidden = true;
+    }
+
+    function showWorkspaceEmptyState() {
+        if (typeof appData === 'undefined' || !Array.isArray(appData.classes) || appData.classes.length > 0) {
+            return;
+        }
+        const label = document.getElementById('workspaceCalendarLabel');
+        const failMsg = typeof t === 'function' ? t('workspaceLoadFailed') : 'Could not load calendar.';
+        if (label && !String(label.textContent || '').trim()) {
+            label.textContent = failMsg;
+        }
+        const empty = document.getElementById('homeworkEditorEmpty');
+        if (empty) {
+            empty.textContent = failMsg;
+            empty.hidden = false;
+        }
+        const content = document.getElementById('homeworkEditorContent');
+        if (content) {
+            content.hidden = true;
+        }
     }
 
     function switchWorkspaceTab(tabId) {
@@ -91,7 +138,7 @@
     function setupWorkspaceChrome() {
         const label = document.getElementById('workspaceCalendarLabel');
         if (label && typeof appData !== 'undefined') {
-            label.textContent = appData.calendarName || '';
+            label.textContent = appData.calendarName || label.textContent || '';
         }
         const langBtn = document.getElementById('workspaceLangToggle');
         if (langBtn && langBtn.dataset.bound !== '1') {
@@ -122,13 +169,28 @@
         }
     }
 
-    function startWorkspaceRevisionPoll() {
-        /* CalendarSync polling + onRemoteNewer in app.js shows workspaceRemoteBanner */
+    function renderWorkspaceHomeworkUi() {
+        if (typeof refreshWorkspaceHomeworkUi === 'function') {
+            refreshWorkspaceHomeworkUi();
+            return;
+        }
+        if (typeof initHomeworkTabControls === 'function') {
+            initHomeworkTabControls();
+        }
+        if (typeof renderHomeworkClassList === 'function') {
+            renderHomeworkClassList();
+        }
+        if (typeof renderHomeworkEditor === 'function') {
+            renderHomeworkEditor();
+        }
     }
 
     window.initWorkspacePage = async function initWorkspacePage() {
+        let initError = '';
+
         loadLanguage();
         loadTheme();
+
         if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
             try {
                 await TeamAuth.ensure();
@@ -138,34 +200,91 @@
                 }
             }
         }
-        if (typeof CCPLoader !== 'undefined' && CCPLoader.loadExtensionScripts) {
-            await CCPLoader.loadExtensionScripts();
+
+        try {
+            if (typeof CCPLoader !== 'undefined' && CCPLoader.loadExtensionScripts) {
+                await CCPLoader.loadExtensionScripts();
+            }
+        } catch (err) {
+            console.error('Workspace extension scripts failed:', err);
+            initError = typeof t === 'function' ? t('homeworkTabModuleMissing') : 'Homework module did not load.';
         }
+
         loadData();
+
         if (typeof initDefaultClassEditorModule === 'function') {
             initDefaultClassEditorModule();
         }
         if (typeof initBooksEditorModule === 'function') {
             initBooksEditorModule();
         }
+
         const teamStatus = document.getElementById('teamSyncStatus');
         if (teamStatus && typeof updateTeamSyncStatus === 'function') {
             updateTeamSyncStatus('syncing');
         }
-        await initTeamSync();
-        applyLanguage();
-        initHomeworkTabControls();
-        initHomeworkTabListeners();
-        renderHomeworkClassList();
-        renderHomeworkEditor();
-        bindWorkspaceTabs();
-        setupWorkspaceChrome();
-        const params = getParams();
-        const tab = params.get('tab') === 'books' ? 'books' : 'homework';
-        if (params.get('book')) {
-            workspaceBooksSelectedId = params.get('book');
+
+        try {
+            if (typeof initTeamSync === 'function') {
+                await initTeamSync();
+            }
+            if (
+                typeof appData !== 'undefined'
+                && Array.isArray(appData.classes)
+                && appData.classes.length === 0
+                && typeof CalendarSync !== 'undefined'
+                && CalendarSync.getActiveCalendarId
+                && CalendarSync.getActiveCalendarId()
+                && typeof reloadActiveCalendarFromServer === 'function'
+            ) {
+                await reloadActiveCalendarFromServer();
+            }
+        } catch (err) {
+            console.error('Workspace team sync failed:', err);
+            const syncMsg = typeof t === 'function' ? t('syncError') : 'Sync error';
+            initError = initError || `${syncMsg}: ${err.message || err}`;
+            if (teamStatus && typeof updateTeamSyncStatus === 'function') {
+                updateTeamSyncStatus('error', err.message || syncMsg);
+            }
         }
-        switchWorkspaceTab(tab);
+
+        try {
+            const params = getParams();
+            const classIdParam = params.get('classId');
+            if (classIdParam && typeof ensureUiState === 'function') {
+                ensureUiState();
+                appData.ui.homeworkTabClassId = classIdParam;
+                if (typeof saveUiStateToLocalStorage === 'function') {
+                    saveUiStateToLocalStorage();
+                }
+            }
+
+            applyLanguage();
+            if (typeof initHomeworkTabListeners === 'function') {
+                initHomeworkTabListeners();
+            }
+            renderWorkspaceHomeworkUi();
+            bindWorkspaceTabs();
+            setupWorkspaceChrome();
+
+            const tab = params.get('tab') === 'books' ? 'books' : 'homework';
+            if (params.get('book')) {
+                workspaceBooksSelectedId = params.get('book');
+            }
+            switchWorkspaceTab(tab);
+
+            if (initError) {
+                showWorkspaceInitError(initError);
+            } else {
+                hideWorkspaceInitError();
+            }
+            showWorkspaceEmptyState();
+        } catch (uiErr) {
+            console.error('Workspace UI render failed:', uiErr);
+            showWorkspaceInitError(
+                typeof t === 'function' ? t('workspaceLoadFailed') : 'Could not load workspace.'
+            );
+        }
     };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -173,7 +292,15 @@
             return;
         }
         if (typeof initWorkspacePage === 'function') {
-            initWorkspacePage();
+            initWorkspacePage().catch((err) => {
+                console.error('initWorkspacePage failed:', err);
+                const msg = typeof t === 'function' ? t('workspaceLoadFailed') : 'Could not load workspace.';
+                showWorkspaceInitError(msg);
+                if (typeof renderHomeworkClassList === 'function') {
+                    renderHomeworkClassList();
+                }
+                showWorkspaceEmptyState();
+            });
         }
     });
 })();

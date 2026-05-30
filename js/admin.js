@@ -312,6 +312,28 @@ function userMatchesAccountsSearch(u) {
     return hay.indexOf(q) >= 0;
 }
 
+function syncReviewWaitingButtons() {
+    const onWaiting = accountsFilter === 'waiting';
+    ['accountsReviewWaitingBtn', 'adminGlobalReviewWaitingBtn'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (!btn) {
+            return;
+        }
+        btn.textContent = t(onWaiting ? 'showAllAccounts' : 'reviewWaiting');
+        btn.title = t(onWaiting ? 'showAllAccountsTitle' : 'reviewWaitingTitle');
+        btn.setAttribute('aria-pressed', onWaiting ? 'true' : 'false');
+    });
+}
+
+function setAccountsFilter(nextFilter) {
+    accountsFilter = nextFilter || 'all';
+    document.querySelectorAll('.admin-filter-chip').forEach((c) => {
+        c.classList.toggle('is-active', c.getAttribute('data-filter') === accountsFilter);
+    });
+    syncReviewWaitingButtons();
+    renderUsersTable();
+}
+
 function updateAccountsTabBadge(waitingCount) {
     const tab = document.getElementById('adminTabAccounts');
     if (!tab) {
@@ -375,24 +397,19 @@ function setupAccountsToolbar() {
         }
         chip.dataset.bound = '1';
         chip.addEventListener('click', () => {
-            accountsFilter = chip.getAttribute('data-filter') || 'all';
-            document.querySelectorAll('.admin-filter-chip').forEach((c) => {
-                c.classList.toggle('is-active', c === chip);
-            });
-            renderUsersTable();
+            setAccountsFilter(chip.getAttribute('data-filter') || 'all');
         });
     });
     function goReviewWaiting() {
-        accountsFilter = 'waiting';
-        document.querySelectorAll('.admin-filter-chip').forEach((c) => {
-            c.classList.toggle('is-active', c.getAttribute('data-filter') === 'waiting');
-        });
-        if (adminTabVisible('accounts')) {
-            switchAdminTab('accounts');
-            renderUsersTable();
-        } else if (adminTabVisible('calendars')) {
-            switchAdminTab('calendars');
+        const nextFilter = accountsFilter === 'waiting' ? 'all' : 'waiting';
+        if (!adminTabVisible('accounts')) {
+            if (adminTabVisible('calendars')) {
+                switchAdminTab('calendars');
+            }
+            return;
         }
+        switchAdminTab('accounts');
+        setAccountsFilter(nextFilter);
     }
     ['accountsReviewWaitingBtn', 'adminGlobalReviewWaitingBtn'].forEach((id) => {
         const reviewBtn = document.getElementById(id);
@@ -401,6 +418,10 @@ function setupAccountsToolbar() {
             reviewBtn.addEventListener('click', goReviewWaiting);
         }
     });
+    if (typeof window !== 'undefined') {
+        window.syncAdminReviewWaitingButtons = syncReviewWaitingButtons;
+    }
+    syncReviewWaitingButtons();
 }
 
 function startAdminAccessPoll() {

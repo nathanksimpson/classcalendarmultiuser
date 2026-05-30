@@ -188,8 +188,10 @@
                     </div>
                 </details>
 
+                <div id="classScheduleGapWarning" class="schedule-gap-warning form-group--full-only" hidden role="alert"></div>
+
                 <details class="form-section-advanced form-group--full-only" id="classCompressionDetails">
-                    <summary data-i18n="compressionModeLabel">Compression</summary>
+                    <summary data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</summary>
                     <div class="form-group compression-mode-group">
                         <div class="radio-group">
                             <label class="checkbox-label">
@@ -212,10 +214,20 @@
                         <div id="compressionByMonthRows" class="compression-by-month-rows"></div>
                     </div>
 
+                    <div id="scheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
+
                     <div class="compression-options" id="compressionGlobalSection">
-                        <p class="section-hint" data-i18n="compressionHint">Compression groups (choose merges):</p>
+                        <p class="section-hint" data-i18n="scheduleAdjustmentHint">Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan).</p>
+                        <div class="schedule-skip-range-row">
+                            <span class="schedule-skip-range-label" data-i18n="scheduleSkipRangeLabel">Skip lesson range</span>
+                            <input type="number" id="scheduleSkipRangeFrom" class="schedule-skip-range-input" min="1" step="1" aria-label="From lesson">
+                            <span data-i18n="scheduleSkipRangeTo">to</span>
+                            <input type="number" id="scheduleSkipRangeTo" class="schedule-skip-range-input" min="1" step="1" aria-label="To lesson">
+                            <button type="button" id="scheduleSkipRangeAddBtn" class="btn btn-outline btn-small" data-i18n="scheduleSkipRangeAdd">Add range</button>
+                        </div>
                         <p class="section-hint" data-i18n="compressionMergeCheckboxesNote">Merge checkboxes apply in Manual mode only. Per month uses the section above. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.</p>
-                        <div id="compressionCheckboxes" class="compression-checkboxes"></div>
+                        <div id="scheduleAdjustmentRows" class="schedule-adjustment-rows"></div>
+                        <div id="compressionCheckboxes" class="compression-checkboxes" style="display: none;"></div>
                         <p class="section-hint" data-i18n="compressionOverlapHint">Only adjacent lessons can be merged. Overlapping merges are disabled.</p>
                     </div>
                 </details>

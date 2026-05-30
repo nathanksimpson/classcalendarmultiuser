@@ -47,6 +47,9 @@
             calendarsHelpSummary: 'Access levels',
             monitorHeading: 'Monitor',
             reviewWaiting: 'Review waiting',
+            showAllAccounts: 'Show all accounts',
+            reviewWaitingTitle: 'Show only teachers waiting for calendar access',
+            showAllAccountsTitle: 'Clear the waiting filter and show every account',
             accessBannerOne: '1 teacher is waiting for calendar access.',
             accessBannerMany: '{count} teachers are waiting for calendar access.',
             accessBannerNew: 'New teacher is waiting for calendar access.',
@@ -276,6 +279,9 @@
             calendarsHelpSummary: '접근 수준',
             monitorHeading: '모니터',
             reviewWaiting: '대기 목록 보기',
+            showAllAccounts: '전체 계정 보기',
+            reviewWaitingTitle: '캘린더 접근을 기다리는 선생님만 표시',
+            showAllAccountsTitle: '대기 필터를 해제하고 모든 계정 표시',
             accessBannerOne: '캘린더 접근을 기다리는 선생님이 1명 있습니다.',
             accessBannerMany: '캘린더 접근을 기다리는 선생님이 {count}명 있습니다.',
             accessBannerNew: '새 선생님이 접근을 기다리고 있습니다.',
@@ -552,6 +558,10 @@
         if (themeBtn) {
             themeBtn.textContent = theme === 'dark' ? t('themeLight') : t('themeDark');
             themeBtn.title = t('themeToggleTitle');
+        }
+
+        if (typeof global.syncAdminReviewWaitingButtons === 'function') {
+            global.syncAdminReviewWaitingButtons();
         }
     }
 

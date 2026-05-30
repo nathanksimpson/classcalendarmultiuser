@@ -330,6 +330,32 @@ const translations = {
         syllabusSlotEventDetail: 'Special session — not a regular lesson',
         syllabusOverflowIntro: 'Lessons below were not placed on the calendar before the term ended (holidays and special days used class periods).',
         syllabusOverflowNote: 'Not scheduled in term — extend dates or reduce holidays to fit.',
+        syllabusSkippedDetail: 'Skipped this term — not on calendar',
+        scheduleAdjustmentSectionTitle: 'Schedule adjustment',
+        scheduleAdjustmentHint: 'Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan).',
+        scheduleAdjustmentSummaryTitle: 'This term\'s schedule adjustments',
+        scheduleAdjustmentSummaryEmpty: 'No lessons skipped or combined for this term.',
+        scheduleAdjustmentSkipping: 'Skipping',
+        scheduleAdjustmentCombining: 'Combining',
+        scheduleAdjustmentSkipSingle: 'Lesson {n} ({label})',
+        scheduleAdjustmentSkipRange: 'Lessons {start}–{end} ({startLabel} … {endLabel})',
+        scheduleAdjustmentCombine: 'Lessons {start}+{end} ({startLabel} + {endLabel})',
+        scheduleSkipRangeLabel: 'Skip lesson range',
+        scheduleSkipRangeTo: 'to',
+        scheduleSkipRangeAdd: 'Add range',
+        scheduleSkipLesson: 'Skip',
+        scheduleCombineWithNext: 'Combine with next',
+        scheduleGapWarning: '{name}: {unplaced} of {total} curriculum sessions have no class day (holidays may have used meeting slots).',
+        scheduleGapAdjustAction: 'Adjust schedule',
+        scheduleConfirmTitle: 'Not enough class days for all lessons',
+        scheduleConfirmBody: '{name}: {eligible} class days in term, {needed} sessions need dates. Adjustments apply to this class this term only.',
+        scheduleConfirmCombining: 'Combine',
+        scheduleConfirmSkipping: 'Skip',
+        scheduleConfirmApply: 'Apply adjustments',
+        scheduleConfirmKeep: 'Keep as-is',
+        scheduleConfirmCancel: 'Cancel',
+        scheduleConfirmApplied: 'Schedule adjustments applied.',
+        scheduleConfirmCannotFit: 'Even with compression, not all lessons fit. Extend the term, skip more lessons, or reduce total lessons.',
         syllabusExtraPeriodTitle: 'Open class period',
         syllabusExtraPeriodDetail: 'No lesson scheduled — extra period at end of term',
         syllabusExtraPeriodNote: 'Use for review, extra class, or adjust the calendar.',
@@ -669,6 +695,7 @@ const translations = {
             'Book saved. Use Refresh syllabi from calendar on the Homework copy tab to update copy text.',
         workspaceRemoteNewer: 'Calendar was updated elsewhere.',
         workspaceReload: 'Reload',
+        workspaceLoadFailed: 'Could not load calendar data. Return to the main calendar or click Reload.',
 
         // Holiday Modal
         addHolidayTitle: 'Add Holiday',
@@ -1090,6 +1117,32 @@ const translations = {
         syllabusSlotEventDetail: '특별 일정 — 정규 수업 대신 진행',
         syllabusOverflowIntro: '아래 수업은 학기 종료 전에 달력에 배치되지 않았습니다 (공휴일·특별 일정이 수업일을 사용함).',
         syllabusOverflowNote: '학기 내 미배정 — 기간 연장 또는 공휴일 조정이 필요합니다.',
+        syllabusSkippedDetail: '이번 학기 생략 — 달력에 없음',
+        scheduleAdjustmentSectionTitle: '일정 조정',
+        scheduleAdjustmentHint: '이 수업·이번 학기만 적용됩니다 (교육과정 계획은 변경되지 않음). 수업 생략 또는 인접 수업 합치기.',
+        scheduleAdjustmentSummaryTitle: '이번 학기 일정 조정',
+        scheduleAdjustmentSummaryEmpty: '생략·합친 수업 없음.',
+        scheduleAdjustmentSkipping: '생략',
+        scheduleAdjustmentCombining: '합치기',
+        scheduleAdjustmentSkipSingle: '수업 {n} ({label})',
+        scheduleAdjustmentSkipRange: '수업 {start}–{end} ({startLabel} … {endLabel})',
+        scheduleAdjustmentCombine: '수업 {start}+{end} ({startLabel} + {endLabel})',
+        scheduleSkipRangeLabel: '수업 범위 생략',
+        scheduleSkipRangeTo: '~',
+        scheduleSkipRangeAdd: '범위 추가',
+        scheduleSkipLesson: '생략',
+        scheduleCombineWithNext: '다음과 합치기',
+        scheduleGapWarning: '{name}: {total}회 중 {unplaced}회에 수업일 없음 (공휴일 등으로 교시 사용).',
+        scheduleGapAdjustAction: '일정 조정',
+        scheduleConfirmTitle: '수업일이 부족합니다',
+        scheduleConfirmBody: '{name}: 수업 가능일 {eligible}일, 배치 필요 {needed}회. 이 수업·이번 학기만 적용.',
+        scheduleConfirmCombining: '합치기',
+        scheduleConfirmSkipping: '생략',
+        scheduleConfirmApply: '조정 적용',
+        scheduleConfirmKeep: '그대로 두기',
+        scheduleConfirmCancel: '취소',
+        scheduleConfirmApplied: '일정 조정이 적용되었습니다.',
+        scheduleConfirmCannotFit: '조정만으로는 모두 배치할 수 없습니다. 기간 연장, 더 생략, 또는 총 수업 수 줄이기.',
         syllabusExtraPeriodTitle: '여유 교시',
         syllabusExtraPeriodDetail: '배정된 수업 없음 — 학기 말 여유 교시',
         syllabusExtraPeriodNote: '복습, 보충 수업 등에 활용하거나 일정을 조정하세요.',
@@ -1429,6 +1482,7 @@ const translations = {
             '교재가 저장되었습니다. Homework copy 탭에서 강의 계획표 새로고침을 실행하세요.',
         workspaceRemoteNewer: '다른 곳에서 캘린더가 업데이트되었습니다.',
         workspaceReload: '다시 불러오기',
+        workspaceLoadFailed: '캘린더 데이터를 불러오지 못했습니다. 메인 캘린더로 돌아가거나 다시 불러오기를 누르세요.',
         
         // Holiday Modal
         addHolidayTitle: '휴일 추가',
@@ -3296,20 +3350,29 @@ function syncClassTypeHint() {
 
 function updateCompressionUiForScheduleModel() {
     const debate = classUsesDebateCompressionFromForm();
+    const customOn = elements.customScheduleEnabled && elements.customScheduleEnabled.checked;
+    const compressionDetails = document.getElementById('classCompressionDetails');
     const compressionGroup = document.querySelector('.compression-mode-group');
     const globalSection = document.getElementById('compressionGlobalSection');
     const byMonthSection = document.getElementById('compressionByMonthSection');
-    const display = debate ? '' : 'none';
+    if (compressionDetails) {
+        compressionDetails.style.display = customOn ? 'none' : '';
+    }
     if (compressionGroup) {
-        compressionGroup.style.display = display;
+        compressionGroup.style.display = debate ? '' : 'none';
     }
     if (globalSection) {
-        globalSection.style.display = display;
+        globalSection.style.display = customOn ? 'none' : '';
     }
     if (byMonthSection) {
-        byMonthSection.style.display = display;
+        byMonthSection.style.display = debate ? '' : 'none';
     }
     syncCompressionSectionsForMode();
+    const total = getTotalLessonsValue();
+    const draft = buildClassSnapshotFromForm();
+    renderScheduleAdjustmentRows(total, draft);
+    renderScheduleAdjustmentSummaryBlock(draft.id ? appData.classes.find(c => c.id === draft.id) || draft : draft);
+    renderScheduleGapWarning(draft.id ? appData.classes.find(c => c.id === draft.id) : null);
 }
 
 function syncCompressionSectionsForMode() {
@@ -3318,6 +3381,12 @@ function syncCompressionSectionsForMode() {
     const globalSection = document.getElementById('compressionGlobalSection');
     const byMonthSection = document.getElementById('compressionByMonthSection');
     if (!debate) {
+        if (globalSection) {
+            globalSection.style.display = '';
+        }
+        if (byMonthSection) {
+            byMonthSection.style.display = 'none';
+        }
         return;
     }
     const perPeriod = mode === 'manualPerMonth';
@@ -3439,16 +3508,238 @@ function enrichSyllabusRowColors(rows, classData) {
     });
 }
 
+function getSkippedLessonsFromClass(classData, totalLessons) {
+    if (!classData || !Array.isArray(classData.skippedLessons)) {
+        return [];
+    }
+    if (window.CCPSchedule && window.CCPSchedule.normalizeSkippedLessons) {
+        return window.CCPSchedule.normalizeSkippedLessons(classData.skippedLessons, totalLessons);
+    }
+    return classData.skippedLessons
+        .map(Number)
+        .filter(n => Number.isInteger(n) && n >= 1 && n <= totalLessons)
+        .sort((a, b) => a - b);
+}
+
+function getSequentialGroupLabel(classData, group) {
+    if (!group || !group.compressed || group.end === group.start) {
+        return getSequentialLessonLabel(classData, group.start);
+    }
+    return `${getSequentialLessonLabel(classData, group.start)} + ${getSequentialLessonLabel(classData, group.end)}`;
+}
+
+function buildScheduleGroupsForClass(classData, totalLessons) {
+    const merges = getCompressionMergesFromClass(classData, totalLessons);
+    const skips = getSkippedLessonsFromClass(classData, totalLessons);
+    const labelFn = (group) => {
+        if (classUsesDebateCompression(classData)) {
+            return group.compressed
+                ? formatMergeLabel(group.start, group.end)
+                : formatLessonDayLabel(group.start);
+        }
+        return getSequentialGroupLabel(classData, group);
+    };
+    if (window.CCPSchedule && window.CCPSchedule.buildScheduleGroups) {
+        return window.CCPSchedule.buildScheduleGroups(totalLessons, merges, skips, labelFn);
+    }
+    return buildLessonGroups(totalLessons, merges);
+}
+
+function getMergeStartOrderForClass(classData) {
+    const total = sanitizeTotalLessons(classData.totalLessons || 8);
+    if (classUsesUnitPairLessonLabels(classData)
+        || classUsesWrSpUnitLabels(classData)
+        || classUsesWriteNowUnitLabels(classData)) {
+        if (window.CCPSchedule && window.CCPSchedule.getUnitPairMergeStartPreferenceOrder) {
+            return window.CCPSchedule.getUnitPairMergeStartPreferenceOrder(total);
+        }
+    }
+    return null;
+}
+
+function formatScheduleAdjustmentSummary(classData) {
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const skipped = getSkippedLessonsFromClass(classData, totalLessons);
+    const merges = getCompressionMergesFromClass(classData, totalLessons);
+    const skippingLines = [];
+    const combiningLines = [];
+    const ranges = window.CCPSchedule && window.CCPSchedule.skippedLessonsToRanges
+        ? window.CCPSchedule.skippedLessonsToRanges(skipped)
+        : [];
+    ranges.forEach(r => {
+        const startLabel = getSequentialLessonLabel(classData, r.start);
+        const endLabel = getSequentialLessonLabel(classData, r.end);
+        if (r.start === r.end) {
+            skippingLines.push(
+                t('scheduleAdjustmentSkipSingle')
+                    .replace('{n}', r.start)
+                    .replace('{label}', startLabel)
+            );
+        } else {
+            skippingLines.push(
+                t('scheduleAdjustmentSkipRange')
+                    .replace('{start}', r.start)
+                    .replace('{end}', r.end)
+                    .replace('{startLabel}', startLabel)
+                    .replace('{endLabel}', endLabel)
+            );
+        }
+    });
+    merges.forEach(s => {
+        if (skipped.includes(s) || skipped.includes(s + 1)) {
+            return;
+        }
+        combiningLines.push(
+            t('scheduleAdjustmentCombine')
+                .replace('{start}', s)
+                .replace('{end}', s + 1)
+                .replace('{startLabel}', getSequentialLessonLabel(classData, s))
+                .replace('{endLabel}', getSequentialLessonLabel(classData, s + 1))
+        );
+    });
+    return {
+        skippingLines,
+        combiningLines,
+        hasAdjustments: skippingLines.length > 0 || combiningLines.length > 0
+    };
+}
+
+function getClassScheduleGapStatus(classData, options) {
+    options = options || {};
+    if (!classData || (classData.customSchedule && classData.customSchedule.enabled)) {
+        return {
+            incomplete: false,
+            scheduledCount: 0,
+            requiredCount: 0,
+            totalLessons: 0,
+            unplacedLessonNumbers: [],
+            unplacedLabels: [],
+            skippedLessons: [],
+            availableCount: 0
+        };
+    }
+    const scheduleOpts = options.sliceKey || options.effectiveClassData
+        ? options
+        : { effectiveClassData: classData };
+    const schedule = calculateLessonDates(classData, scheduleOpts);
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const skipped = getSkippedLessonsFromClass(classData, totalLessons);
+    const unplaced = getUnscheduledLessonNumbers(classData, schedule);
+    const { groups } = buildScheduleGroupsForClass(classData, totalLessons);
+    return {
+        incomplete: unplaced.length > 0,
+        scheduledCount: (schedule.lessons || []).length,
+        requiredCount: groups.length,
+        totalLessons,
+        unplacedLessonNumbers: unplaced,
+        unplacedLabels: unplaced.map(n => getSequentialLessonLabel(classData, n)),
+        skippedLessons: skipped,
+        availableCount: schedule.availableCount != null ? schedule.availableCount : 0
+    };
+}
+
+function focusScheduleAdjustmentForClass(classId) {
+    if (!classId) {
+        return;
+    }
+    const cls = appData.classes.find(c => c.id === classId);
+    if (!cls) {
+        return;
+    }
+    const inTab = getActiveTab() === 'classes' && classEditorMount === 'tab';
+    if (!inTab || elements.classId?.value !== classId) {
+        openClassEditor(cls, 'tab');
+    } else {
+        populateClassForm(cls);
+    }
+    requestAnimationFrame(() => {
+        const details = document.getElementById('classCompressionDetails');
+        if (details) {
+            details.open = true;
+            details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        renderScheduleGapWarning(cls);
+        renderScheduleAdjustmentSummaryBlock(cls);
+    });
+}
+
+function renderScheduleGapWarning(classData) {
+    const el = document.getElementById('classScheduleGapWarning');
+    if (!el) {
+        return;
+    }
+    if (!classData || !classData.id || (classData.customSchedule && classData.customSchedule.enabled)) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const gap = getClassScheduleGapStatus(classData);
+    if (!gap.incomplete) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const name = (classData.name || '').trim() || t('editClass');
+    const msg = t('scheduleGapWarning')
+        .replace('{name}', name)
+        .replace('{unplaced}', gap.unplacedLessonNumbers.length)
+        .replace('{total}', gap.totalLessons);
+    el.hidden = false;
+    el.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'schedule-gap-warning-btn btn-link-like';
+    btn.textContent = `${msg} ${t('scheduleGapAdjustAction')}`;
+    btn.addEventListener('click', () => focusScheduleAdjustmentForClass(classData.id));
+    el.appendChild(btn);
+}
+
+function renderScheduleAdjustmentSummaryBlock(classData) {
+    const el = document.getElementById('scheduleAdjustmentSummary');
+    if (!el) {
+        return;
+    }
+    if (!classData) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const summary = formatScheduleAdjustmentSummary(classData);
+    if (!summary.hasAdjustments) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    el.hidden = false;
+    const parts = [`<strong>${escapeHtml(t('scheduleAdjustmentSummaryTitle'))}</strong>`];
+    if (summary.skippingLines.length) {
+        parts.push(`<div>${escapeHtml(t('scheduleAdjustmentSkipping'))}: ${summary.skippingLines.map(l => escapeHtml(l)).join('; ')}</div>`);
+    }
+    if (summary.combiningLines.length) {
+        parts.push(`<div>${escapeHtml(t('scheduleAdjustmentCombining'))}: ${summary.combiningLines.map(l => escapeHtml(l)).join('; ')}</div>`);
+    }
+    el.innerHTML = parts.join('');
+}
+
 function getUnscheduledLessonNumbers(classData, schedule) {
     const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
-    const scheduledCount = schedule.scheduledCount != null
-        ? schedule.scheduledCount
-        : (schedule.lessons || []).length;
-    const totalGroups = schedule.totalGroups != null ? schedule.totalGroups : totalLessons;
-    const cap = Math.max(totalLessons, totalGroups);
+    const skippedSet = new Set(getSkippedLessonsFromClass(classData, totalLessons));
+    const placed = new Set();
+    (schedule.lessons || []).forEach(lesson => {
+        if (lesson.group && Array.isArray(lesson.group.days)) {
+            lesson.group.days.forEach(d => placed.add(d));
+        } else if (lesson.group && lesson.group.start) {
+            placed.add(lesson.group.start);
+            if (lesson.compressed && lesson.group.end) {
+                placed.add(lesson.group.end);
+            }
+        }
+    });
     const nums = [];
-    for (let n = scheduledCount + 1; n <= cap; n += 1) {
-        nums.push(n);
+    for (let n = 1; n <= totalLessons; n += 1) {
+        if (!skippedSet.has(n) && !placed.has(n)) {
+            nums.push(n);
+        }
     }
     return nums;
 }
@@ -6459,10 +6750,19 @@ function ensureDebatePeriodsOnClass(classData) {
     return debateApi.ensureDebateBookPeriodsForClass(classData);
 }
 
-function mergePlanToFit(availableSlots, totalLessons, userMerges, mode) {
+function mergePlanToFit(availableSlots, totalLessons, userMerges, mode, startOrder) {
     const normalizedUser = normalizeCompressionMerges(userMerges, totalLessons);
     if (mode !== 'autoWhenNeeded') {
         return normalizedUser;
+    }
+    if (window.CCPSchedule && window.CCPSchedule.mergePlanToFit) {
+        return window.CCPSchedule.mergePlanToFit(
+            availableSlots,
+            totalLessons,
+            userMerges,
+            mode,
+            startOrder || null
+        );
     }
     // Auto: start with no merges; only add merges when there are not enough class
     // meetings in this month for one group per lesson day.
@@ -9652,6 +9952,19 @@ function refreshTimetablePanels() {
     }
 }
 
+function isWorkspacePage() {
+    return document.body.classList.contains('workspace-page');
+}
+
+function refreshWorkspaceHomeworkUi() {
+    if (!isWorkspacePage()) {
+        return;
+    }
+    renderHomeworkClassList();
+    renderHomeworkEditor();
+    renderHomeworkReferenceMiniCalendar();
+}
+
 function refreshCalendarScopedUi() {
     renderClassList();
     renderEventList();
@@ -9669,7 +9982,7 @@ function refreshCalendarScopedUi() {
         populateClassCohortSelect(classData ? classData.cohortId : '');
         updateClassHomeroomLabelDisplay();
     }
-    if (getActiveTab() === 'homework') {
+    if (getActiveTab() === 'homework' || isWorkspacePage()) {
         renderHomeworkClassList();
         renderHomeworkEditor();
         renderHomeworkReferenceMiniCalendar();
@@ -11561,11 +11874,25 @@ function renderHomeworkSourceBook(classData) {
     }
 }
 
-function openWorkspacePage(tab, bookId) {
+async function openWorkspacePage(tab, bookId, options = {}) {
+    if (typeof CalendarSync !== 'undefined' && CalendarSync.flushPendingSave) {
+        try {
+            await CalendarSync.flushPendingSave();
+        } catch (err) {
+            if (err.status !== 423) {
+                console.warn('Flush before workspace open failed:', err);
+            }
+        }
+    }
     const params = new URLSearchParams();
     params.set('tab', tab === 'books' ? 'books' : 'homework');
     if (bookId) {
         params.set('book', String(bookId));
+    }
+    ensureUiState();
+    const classId = options.classId || appData.ui.homeworkTabClassId;
+    if (classId && tab !== 'books') {
+        params.set('classId', String(classId));
     }
     if (typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
         const calId = CalendarSync.getActiveCalendarId();
@@ -11590,12 +11917,7 @@ async function reloadWorkspaceCalendar() {
     }
     const doc = await CalendarSync.loadCalendar(id);
     applyServerDocument(doc);
-    if (typeof renderHomeworkClassList === 'function') {
-        renderHomeworkClassList();
-    }
-    if (typeof renderHomeworkEditor === 'function') {
-        renderHomeworkEditor();
-    }
+    refreshWorkspaceHomeworkUi();
     const banner = document.getElementById('workspaceRemoteBanner');
     if (banner) {
         banner.hidden = true;
@@ -11769,12 +12091,16 @@ function setupEventListeners() {
     const openWsHomework = document.getElementById('openWorkspaceHomeworkBtn');
     if (openWsHomework && openWsHomework.dataset.bound !== '1') {
         openWsHomework.dataset.bound = '1';
-        openWsHomework.addEventListener('click', () => openWorkspacePage('homework'));
+        openWsHomework.addEventListener('click', () => {
+            void openWorkspacePage('homework');
+        });
     }
     const openWsBooks = document.getElementById('openWorkspaceBooksBtn');
     if (openWsBooks && openWsBooks.dataset.bound !== '1') {
         openWsBooks.dataset.bound = '1';
-        openWsBooks.addEventListener('click', () => openWorkspacePage('books'));
+        openWsBooks.addEventListener('click', () => {
+            void openWorkspacePage('books');
+        });
     }
 
     // Calendar Name Change
@@ -12326,6 +12652,7 @@ function syllabusScheduleHooks() {
         slotEventDetail: t('syllabusSlotEventDetail'),
         overflowIntro: t('syllabusOverflowIntro'),
         overflowNote: t('syllabusOverflowNote'),
+        skippedDetail: t('syllabusSkippedDetail'),
         extraPeriodTitle: t('syllabusExtraPeriodTitle'),
         extraPeriodDetail: t('syllabusExtraPeriodDetail'),
         extraPeriodNote: t('syllabusExtraPeriodNote'),
@@ -12438,6 +12765,24 @@ function lessonsForSyllabusBuild(classData) {
             });
         });
     }
+
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const skipped = getSkippedLessonsFromClass(classData, totalLessons);
+    const placedNums = new Set();
+    items.forEach(item => {
+        if (item.group && item.group.days) {
+            item.group.days.forEach(d => placedNums.add(d));
+        }
+    });
+    skipped.forEach(lessonNum => {
+        if (!placedNums.has(lessonNum)) {
+            items.push({
+                __syllabusSkipped: true,
+                lessonNum,
+                label: getSequentialLessonLabel(classData, lessonNum)
+            });
+        }
+    });
 
     annotateDebateTemplateHints(classData, items);
     return items;
@@ -14200,11 +14545,265 @@ function updateCompressionCheckboxStates() {
 }
 
 function getSelectedCompressionMerges() {
-    const checkboxes = elements.compressionCheckboxes.querySelectorAll('input[type="checkbox"]');
+    const container = document.getElementById('scheduleAdjustmentRows');
+    if (container) {
+        const fromTable = [];
+        container.querySelectorAll('input.schedule-merge-next:checked').forEach(cb => {
+            const start = parseInt(cb.dataset.mergeStart, 10);
+            if (!Number.isNaN(start)) {
+                fromTable.push(start);
+            }
+        });
+        if (fromTable.length) {
+            return fromTable.sort((a, b) => a - b);
+        }
+    }
+    const checkboxes = elements.compressionCheckboxes
+        ? elements.compressionCheckboxes.querySelectorAll('input[type="checkbox"]')
+        : [];
     return Array.from(checkboxes)
         .filter(cb => cb.checked)
         .map(cb => parseInt(cb.dataset.mergeStart, 10))
         .sort((a, b) => a - b);
+}
+
+function collectSkippedLessonsFromForm() {
+    const container = document.getElementById('scheduleAdjustmentRows');
+    if (!container) {
+        return [];
+    }
+    const total = getTotalLessonsValue();
+    const skipped = [];
+    container.querySelectorAll('input.schedule-skip-lesson:checked').forEach(cb => {
+        const n = parseInt(cb.dataset.lessonNum, 10);
+        if (!Number.isNaN(n) && n >= 1 && n <= total) {
+            skipped.push(n);
+        }
+    });
+    return getSkippedLessonsFromClass({ skippedLessons: skipped }, total);
+}
+
+function renderScheduleAdjustmentRows(totalLessons, classData) {
+    const container = document.getElementById('scheduleAdjustmentRows');
+    if (!container) {
+        return;
+    }
+    classData = classData || buildClassSnapshotFromForm();
+    const total = sanitizeTotalLessons(totalLessons || classData.totalLessons || 8);
+    const skipped = getSkippedLessonsFromClass(classData, total);
+    const merges = getCompressionMergesFromClass(classData, total);
+    const skippedSet = new Set(skipped);
+    container.innerHTML = '';
+    const table = document.createElement('table');
+    table.className = 'schedule-adjustment-table';
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr><th>#</th><th>${escapeHtml(t('syllabusColPlan'))}</th><th>${escapeHtml(t('scheduleSkipLesson'))}</th><th></th></tr>`;
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (let n = 1; n <= total; n += 1) {
+        const tr = document.createElement('tr');
+        const label = getSequentialLessonLabel(classData, n);
+        const skipDisabled = false;
+        tr.innerHTML = `
+            <td class="schedule-adj-num">${n}</td>
+            <td class="schedule-adj-label">${escapeHtml(label)}</td>
+            <td class="schedule-adj-skip"><label class="checkbox-label">
+                <input type="checkbox" class="schedule-skip-lesson" data-lesson-num="${n}" ${skippedSet.has(n) ? 'checked' : ''}>
+            </label></td>
+            <td class="schedule-adj-merge"></td>`;
+        tbody.appendChild(tr);
+        if (n < total) {
+            const mergeTd = tr.querySelector('.schedule-adj-merge');
+            const canMerge = !skippedSet.has(n) && !skippedSet.has(n + 1);
+            const mergeLabel = document.createElement('label');
+            mergeLabel.className = 'checkbox-label schedule-merge-label';
+            const mergeInput = document.createElement('input');
+            mergeInput.type = 'checkbox';
+            mergeInput.className = 'schedule-merge-next';
+            mergeInput.dataset.mergeStart = String(n);
+            mergeInput.checked = merges.includes(n);
+            mergeInput.disabled = !canMerge;
+            mergeLabel.appendChild(mergeInput);
+            const span = document.createElement('span');
+            span.textContent = `${t('scheduleCombineWithNext')} (${formatMergeLabel(n, n + 1)})`;
+            mergeLabel.appendChild(span);
+            mergeTd.appendChild(mergeLabel);
+        }
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+    const refreshUi = () => {
+        const snap = buildClassSnapshotFromForm();
+        snap.skippedLessons = collectSkippedLessonsFromForm();
+        snap.compressionMerges = getSelectedCompressionMerges();
+        renderScheduleAdjustmentSummaryBlock(snap);
+        renderScheduleGapWarning(snap.id ? appData.classes.find(c => c.id === snap.id) : snap);
+    };
+    container.querySelectorAll('input.schedule-skip-lesson, input.schedule-merge-next').forEach(inp => {
+        inp.addEventListener('change', () => {
+            const snap = buildClassSnapshotFromForm();
+            renderScheduleAdjustmentRows(total, {
+                ...snap,
+                skippedLessons: collectSkippedLessonsFromForm(),
+                compressionMerges: getSelectedCompressionMerges()
+            });
+        });
+    });
+    const addRangeBtn = document.getElementById('scheduleSkipRangeAddBtn');
+    if (addRangeBtn && !addRangeBtn.dataset.bound) {
+        addRangeBtn.dataset.bound = '1';
+        addRangeBtn.addEventListener('click', () => {
+            const fromEl = document.getElementById('scheduleSkipRangeFrom');
+            const toEl = document.getElementById('scheduleSkipRangeTo');
+            const from = parseInt(fromEl && fromEl.value, 10);
+            const to = parseInt(toEl && toEl.value, 10);
+            if (Number.isNaN(from) || Number.isNaN(to)) {
+                return;
+            }
+            const lo = Math.min(from, to);
+            const hi = Math.max(from, to);
+            const cur = new Set(collectSkippedLessonsFromForm());
+            for (let i = lo; i <= hi && i <= total; i += 1) {
+                if (i >= 1) {
+                    cur.add(i);
+                }
+            }
+            const snap = buildClassSnapshotFromForm();
+            renderScheduleAdjustmentRows(total, { ...snap, skippedLessons: [...cur] });
+        });
+    }
+    refreshUi();
+}
+
+function proposeScheduleAdjustments(classData) {
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    if (classData.customSchedule && classData.customSchedule.enabled) {
+        return { merges: [], skipped: [], canFullyFit: true, mergeLabels: [], skipLabels: [] };
+    }
+    const meetingDays = getMeetingDaysFromClass(classData);
+    const classStart = parseISODateLocal(classData.startDate);
+    const classEnd = parseISODateLocal(classData.endDate);
+    if (meetingDays.length === 0
+        || Number.isNaN(classStart.getTime())
+        || Number.isNaN(classEnd.getTime())) {
+        return { merges: [], skipped: [], canFullyFit: true, mergeLabels: [], skipLabels: [] };
+    }
+    const eligible = collectEligibleMeetingDatesInMonth(classStart, classEnd, meetingDays, classData);
+    const { groups } = buildScheduleGroupsForClass(classData, totalLessons);
+    const needed = groups.length;
+    if (eligible.length >= needed) {
+        return { merges: [], skipped: [], canFullyFit: true, mergeLabels: [], skipLabels: [] };
+    }
+    const mergeOrder = getMergeStartOrderForClass(classData);
+    let result;
+    if (window.CCPSchedule && window.CCPSchedule.proposeScheduleFit) {
+        result = window.CCPSchedule.proposeScheduleFit(eligible.length, totalLessons, {
+            mergeStartOrder: mergeOrder
+        });
+    } else {
+        result = { merges: [], skipped: [], canFullyFit: false };
+    }
+    const mergeLabels = (result.merges || []).map(s => (
+        t('scheduleAdjustmentCombine')
+            .replace('{start}', s)
+            .replace('{end}', s + 1)
+            .replace('{startLabel}', getSequentialLessonLabel(classData, s))
+            .replace('{endLabel}', getSequentialLessonLabel(classData, s + 1))
+    ));
+    const skipLabels = [];
+    const ranges = window.CCPSchedule && window.CCPSchedule.skippedLessonsToRanges
+        ? window.CCPSchedule.skippedLessonsToRanges(result.skipped || [])
+        : [];
+    ranges.forEach(r => {
+        if (r.start === r.end) {
+            skipLabels.push(
+                t('scheduleAdjustmentSkipSingle')
+                    .replace('{n}', r.start)
+                    .replace('{label}', getSequentialLessonLabel(classData, r.start))
+            );
+        } else {
+            skipLabels.push(
+                t('scheduleAdjustmentSkipRange')
+                    .replace('{start}', r.start)
+                    .replace('{end}', r.end)
+                    .replace('{startLabel}', getSequentialLessonLabel(classData, r.start))
+                    .replace('{endLabel}', getSequentialLessonLabel(classData, r.end))
+            );
+        }
+    });
+    return {
+        merges: result.merges || [],
+        skipped: result.skipped || [],
+        canFullyFit: result.canFullyFit === true,
+        mergeLabels,
+        skipLabels
+    };
+}
+
+function applyScheduleAdjustmentsToForm(merges, skipped) {
+    const total = getTotalLessonsValue();
+    const snap = buildClassSnapshotFromForm();
+    renderScheduleAdjustmentRows(total, {
+        ...snap,
+        compressionMerges: merges,
+        skippedLessons: skipped
+    });
+}
+
+function maybeConfirmScheduleAdjustments(classSnapshot) {
+    if (!classSnapshot || (classSnapshot.customSchedule && classSnapshot.customSchedule.enabled)) {
+        return true;
+    }
+    const mode = classSnapshot.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
+    if (mode !== 'autoWhenNeeded') {
+        return true;
+    }
+    const gap = getClassScheduleGapStatus(classSnapshot);
+    if (!gap.incomplete) {
+        return true;
+    }
+    const existingSkips = getSkippedLessonsFromClass(classSnapshot, gap.totalLessons);
+    const existingMerges = getCompressionMergesFromClass(classSnapshot, gap.totalLessons);
+    if (existingSkips.length > 0 || existingMerges.length > 0) {
+        const trial = { ...classSnapshot, skippedLessons: existingSkips, compressionMerges: existingMerges };
+        if (!getClassScheduleGapStatus(trial).incomplete) {
+            return true;
+        }
+    }
+    const proposal = proposeScheduleAdjustments(classSnapshot);
+    const name = (classSnapshot.name || '').trim() || t('editClass');
+    let body = t('scheduleConfirmBody')
+        .replace('{name}', name)
+        .replace('{eligible}', gap.availableCount)
+        .replace('{needed}', gap.requiredCount);
+    if (proposal.mergeLabels.length) {
+        body += `\n\n${t('scheduleConfirmCombining')}:\n• ${proposal.mergeLabels.join('\n• ')}`;
+    }
+    if (proposal.skipLabels.length) {
+        body += `\n\n${t('scheduleConfirmSkipping')}:\n• ${proposal.skipLabels.join('\n• ')}`;
+    }
+    if (!proposal.canFullyFit) {
+        body += `\n\n${t('scheduleConfirmCannotFit')}`;
+    }
+    const apply = window.confirm(
+        `${t('scheduleConfirmTitle')}\n\n${body}\n\n[OK] ${t('scheduleConfirmApply')}\n[Cancel] ${t('scheduleConfirmKeep')}`
+    );
+    if (apply) {
+        classSnapshot.skippedLessons = proposal.skipped;
+        classSnapshot.compressionMerges = proposal.merges;
+        applyScheduleAdjustmentsToForm(proposal.merges, proposal.skipped);
+        if (elements.classId && classSnapshot.id) {
+            const idx = appData.classes.findIndex(c => c.id === classSnapshot.id);
+            if (idx >= 0) {
+                appData.classes[idx].skippedLessons = proposal.skipped;
+                appData.classes[idx].compressionMerges = proposal.merges;
+            }
+        }
+        invalidateScheduleCache();
+        showSyncToast(t('scheduleConfirmApplied'), false);
+        return true;
+    }
+    return true;
 }
 
 function getCustomScheduleDaysFromClass(classData, totalLessons) {
@@ -14375,6 +14974,10 @@ function calculateSequentialTermLessonDates(classData) {
         meetingDays,
         classData
     );
+    const { groups, merges: selectedMerges, skipped: skippedLessons } = buildScheduleGroupsForClass(
+        classData,
+        totalLessons
+    );
     const monthKeys = enumerateMonthKeysBetween(classData.startDate, classData.endDate);
     const monthlyDetails = monthKeys.map(monthKey => ({
         monthKey,
@@ -14390,22 +14993,15 @@ function calculateSequentialTermLessonDates(classData) {
     });
 
     const lessons = [];
-    const scheduleCount = Math.min(totalLessons, allEligible.length);
+    const scheduleCount = Math.min(groups.length, allEligible.length);
     for (let i = 0; i < scheduleCount; i += 1) {
+        const group = groups[i];
         const d = allEligible[i];
         const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const lessonNum = i + 1;
-        const group = {
-            start: lessonNum,
-            end: lessonNum,
-            days: [lessonNum],
-            label: getSequentialLessonLabel(classData, lessonNum),
-            compressed: false
-        };
         lessons.push({
             date: d,
             label: group.label,
-            compressed: false,
+            compressed: group.compressed,
             group,
             monthKey,
             book: getBookForLesson(classData, formatDateISO(d), monthKey)
@@ -14433,30 +15029,21 @@ function calculateSequentialTermLessonDates(classData) {
         );
         if (monthIndex[monthKey]) {
             monthIndex[monthKey].eligibleCount = eligible.length;
+            monthIndex[monthKey].totalGroups = groups.length;
         }
     });
 
-    const groups = [];
-    for (let n = 1; n <= totalLessons; n += 1) {
-        groups.push({
-            start: n,
-            end: n,
-            days: [n],
-            label: getSequentialLessonLabel(classData, n),
-            compressed: false
-        });
-    }
-
     return {
         lessons,
-        compressed: false,
+        compressed: lessons.some(l => l.compressed),
         availableCount: allEligible.length,
         isCustom: false,
         scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM,
         groups,
-        totalGroups: totalLessons,
+        totalGroups: groups.length,
         scheduledCount: lessons.length,
-        selectedMerges: [],
+        selectedMerges,
+        skippedLessons,
         monthlyDetails
     };
 }
@@ -14529,8 +15116,17 @@ function calculateAutoLessonDates(classData) {
             ? getCompressionMergesForPeriod(classData, period, totalLessons)
             : userMerges;
         const effectiveMode = classData.compressionMode === 'manualPerMonth' ? 'manual' : mode;
-        const mergesForPlan = mergePlanToFit(A, totalLessons, mergesForPeriod, effectiveMode);
-        const { groups, merges: appliedMerges } = buildLessonGroups(totalLessons, mergesForPlan);
+        const mergesForPlan = mergePlanToFit(
+            A,
+            totalLessons,
+            mergesForPeriod,
+            effectiveMode,
+            getMergeStartOrderForClass(classData)
+        );
+        const { groups, merges: appliedMerges } = buildScheduleGroupsForClass(
+            { ...classData, compressionMerges: mergesForPlan },
+            totalLessons
+        );
         const autoAdjusted = effectiveMode === 'autoWhenNeeded' && appliedMerges.length > 0;
         const scheduleCount = Math.min(groups.length, A);
         const book = period.book || getBookForLesson(classData, period.startDate, period.startDate.slice(0, 7));
@@ -17864,6 +18460,12 @@ function loadDataFromLocalCache() {
     try {
         const key = getDomainStorageKey();
         saved = localStorage.getItem(key);
+        if (!saved && key === DOMAIN_STORAGE_LEGACY_KEY) {
+            const storedId = localStorage.getItem('teamCalendarActiveId');
+            if (storedId) {
+                saved = localStorage.getItem(DOMAIN_STORAGE_PREFIX + String(storedId));
+            }
+        }
         if (!saved && key !== DOMAIN_STORAGE_LEGACY_KEY) {
             saved = localStorage.getItem(DOMAIN_STORAGE_LEGACY_KEY);
         }
@@ -18636,13 +19238,8 @@ async function reloadActiveCalendarFromServer() {
     }
     const doc = await CalendarSync.loadCalendar(id);
     applyServerDocument(doc);
-    if (document.body.classList.contains('workspace-page')) {
-        if (typeof renderHomeworkClassList === 'function') {
-            renderHomeworkClassList();
-        }
-        if (typeof renderHomeworkEditor === 'function') {
-            renderHomeworkEditor();
-        }
+    if (isWorkspacePage()) {
+        refreshWorkspaceHomeworkUi();
         const wsBanner = document.getElementById('workspaceRemoteBanner');
         if (wsBanner) {
             wsBanner.hidden = true;

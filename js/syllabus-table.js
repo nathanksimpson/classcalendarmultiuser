@@ -233,7 +233,7 @@
         const dated = [];
         const tail = [];
         (lessons || []).forEach(item => {
-            if (item.__syllabusOverflowIntro || item.__syllabusUnscheduled) {
+            if (item.__syllabusOverflowIntro || item.__syllabusUnscheduled || item.__syllabusSkipped) {
                 tail.push(item);
             } else {
                 dated.push(item);
@@ -263,6 +263,7 @@
         const extraNote = (hooks && hooks.extraPeriodNote) || '';
         const overflowIntro = (hooks && hooks.overflowIntro) || '';
         const overflowNote = (hooks && hooks.overflowNote) || '';
+        const skippedDetail = (hooks && hooks.skippedDetail) || 'Skipped this term — not on calendar';
         const getColors = hooks && hooks.getEventColors;
 
         sorted.forEach(lesson => {
@@ -387,6 +388,24 @@
                 }
                 return;
             }
+            if (item.__syllabusSkipped) {
+                const lessonNum = item.lessonNum || 0;
+                const skipTitle = item.label || `Lesson ${lessonNum}`;
+                rows.push({
+                    id: newRowId(),
+                    kind: 'skipped',
+                    date: '',
+                    monthKey: '',
+                    weekLabel: '',
+                    sessionNumber: lessonNum,
+                    lessonNumber: lessonNum,
+                    planTitle: skipTitle,
+                    planDetail: skippedDetail,
+                    note: '',
+                    source: 'generated'
+                });
+                return;
+            }
             if (item.__syllabusUnscheduled) {
                 const lessonNum = item.lessonNum || 0;
                 const overflowTitle = item.label || `Lesson ${lessonNum}`;
@@ -434,16 +453,22 @@
 
     function mergeSyllabusRows(existing, generated) {
         const existingList = Array.isArray(existing) ? existing : [];
-        const noteRows = existingList.filter(r => r.kind === 'note' && !r.overflowIntro);
+        const noteRows = existingList.filter(r => {
+            if (r.kind !== 'note' || r.overflowIntro) {
+                return false;
+            }
+            return true;
+        });
         const byKey = new Map();
         existingList.forEach(r => {
             if (r.kind === 'lesson' || r.kind === 'holiday' || r.kind === 'event'
-                || r.kind === 'extra' || r.kind === 'overflow') {
+                || r.kind === 'extra' || r.kind === 'overflow' || r.kind === 'skipped') {
                 byKey.set(rowKey(r), r);
             }
         });
 
-        const isTailRow = g => g.kind === 'overflow' || g.kind === 'extra' || g.overflowIntro === true;
+        const isTailRow = g => g.kind === 'overflow' || g.kind === 'extra' || g.kind === 'skipped'
+            || g.overflowIntro === true;
         const mainGenerated = generated.filter(g => !isTailRow(g));
         const tailGenerated = generated.filter(isTailRow);
 
