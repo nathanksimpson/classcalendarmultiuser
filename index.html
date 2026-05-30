@@ -4,21 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-print-ui-font">
-    <script>
-        (function () {
-            try {
-                var theme = localStorage.getItem('calendarTheme');
-                if (theme === 'dark' || theme === 'light') {
-                    document.documentElement.setAttribute('data-theme', theme);
-                    document.documentElement.style.colorScheme = theme;
-                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                    document.documentElement.style.colorScheme = 'dark';
-                }
-            } catch (e) { /* ignore */ }
-        })();
-    </script>
+    <link rel="stylesheet" href="styles.css?v=20260527-modal-ux">
+    <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -292,16 +279,22 @@
                                     <p id="syllabusEditorModeBanner" class="syllabus-mode-banner section-hint" hidden></p>
                                     <p id="syllabusScheduleChip" class="syllabus-schedule-chip section-hint" hidden></p>
                                 </div>
-                                <div class="syllabus-editor-header-actions">
+                                <div class="syllabus-editor-header-actions editor-header-actions">
                                     <button type="button" id="syllabusSaveClassBtn" class="btn btn-primary btn-small" data-i18n="syllabusSaveClass">Save syllabus</button>
                                     <button type="button" id="syllabusSaveTemplateBtn" class="btn btn-primary btn-small" hidden data-i18n="syllabusSaveTemplate">Save template</button>
-                                    <button type="button" id="syllabusOpenClassSettingsBtn" class="btn btn-outline btn-small" data-i18n="syllabusOpenClassSettings">Class schedule &amp; settings</button>
-                                    <button type="button" id="syllabusOpenHomeworkBtn" class="btn btn-outline btn-small" data-i18n="syllabusOpenHomework">Homework copy</button>
-                                    <select id="syllabusApplyTemplateSelect" class="syllabus-apply-select" hidden aria-label="Apply custom syllabus">
+                                    <button type="button" id="syllabusRefreshHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
+                                    <details class="header-dropdown editor-header-more">
+                                        <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
+                                        <div class="header-dropdown-panel editor-header-more-menu">
+                                            <button type="button" id="syllabusOpenClassSettingsBtn" class="header-dropdown-item" data-i18n="syllabusOpenClassSettings">Class schedule &amp; settings</button>
+                                            <button type="button" id="syllabusOpenHomeworkBtn" class="header-dropdown-item" data-i18n="syllabusOpenHomework">Homework copy</button>
+                                            <button type="button" id="syllabusSaveAsTemplateBtn" class="header-dropdown-item" hidden data-i18n="syllabusSaveAsTemplate">Save as template</button>
+                                            <button type="button" id="syllabusDeleteTemplateBtn" class="header-dropdown-item header-dropdown-item--danger" hidden data-i18n="syllabusDeleteTemplate">Delete template</button>
+                                        </div>
+                                    </details>
+                                    <select id="syllabusApplyTemplateSelect" class="syllabus-apply-select syllabus-header--full-only" hidden aria-label="Apply custom syllabus">
                                         <option value="" data-i18n="syllabusApplyTemplatePick">Apply custom syllabus…</option>
                                     </select>
-                                    <button type="button" id="syllabusSaveAsTemplateBtn" class="btn btn-outline btn-small" hidden data-i18n="syllabusSaveAsTemplate">Save as template</button>
-                                    <button type="button" id="syllabusDeleteTemplateBtn" class="btn btn-danger btn-small" hidden data-i18n="syllabusDeleteTemplate">Delete template</button>
                                 </div>
                             </header>
                             <div id="syllabusFormMountTab" class="syllabus-form-mount"></div>
@@ -503,17 +496,22 @@
     </div>
 
     <template id="classFormTemplate">
-            <form id="classForm">
+            <form id="classForm" data-editor-mode="full">
                 <input type="hidden" id="classId" value="">
 
                 <div class="modal-header class-modal-header">
                     <h2 id="classModalTitle" data-i18n="addNewClass">Add New Class</h2>
-                    <div class="class-modal-header-actions">
-                        <button type="button" id="openClassInTabBtn" class="btn btn-outline btn-small class-open-full-btn" data-i18n="openFullClassEditor">Open full editor</button>
-                        <button type="button" id="openSyllabusTabBtn" class="btn btn-outline btn-small" data-i18n="openSyllabusTab">Edit syllabus</button>
-                        <button type="button" id="deleteClassBtn" class="btn btn-danger btn-small class-modal-delete-btn" data-i18n="deleteClass">Delete class</button>
-                        <button type="submit" class="btn btn-primary btn-small" data-i18n="saveClass">Save Class</button>
+                    <div class="class-modal-header-actions editor-header-actions">
+                        <button type="submit" class="btn btn-primary btn-small editor-header-save-btn" data-i18n="saveClass">Save Class</button>
                         <button type="button" class="modal-close" id="closeClassModal" aria-label="Close">&times;</button>
+                        <details class="header-dropdown editor-header-more">
+                            <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
+                            <div class="header-dropdown-panel editor-header-more-menu">
+                                <button type="button" id="openClassInTabBtn" class="header-dropdown-item class-open-full-btn" data-i18n="openFullClassEditor">Open full editor</button>
+                                <button type="button" id="openSyllabusTabBtn" class="header-dropdown-item" data-i18n="openSyllabusTab">Edit syllabus</button>
+                                <button type="button" id="deleteClassBtn" class="header-dropdown-item header-dropdown-item--danger class-modal-delete-btn" data-i18n="deleteClass">Delete class</button>
+                            </div>
+                        </details>
                     </div>
                 </div>
 
@@ -544,7 +542,7 @@
                     </div>
                     <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
                     <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Pick level and book, then Apply to fill class settings from curriculum. Name and dates stay yours.</p>
-                    <div class="class-curriculum-extra-actions">
+                    <div class="class-curriculum-extra-actions form-group--full-only">
                         <button type="button" id="openCurriculumFromClassBtn" class="btn btn-outline btn-small" data-i18n="editCurriculumForBook">Edit curriculum</button>
                         <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
                         <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
@@ -552,11 +550,32 @@
                 </section>
                 <select id="classTypeSelect" class="visually-hidden" aria-hidden="true" tabindex="-1"></select>
 
+                <div class="form-row form-row-term-dates">
+                    <div class="form-group">
+                        <label for="classStartDate" data-i18n="startDate">Start Date</label>
+                        <input type="date" id="classStartDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="classTermMonths" data-i18n="termCalendarMonths">Term (calendar months)</label>
+                        <input type="number" id="classTermMonths" min="1" max="24" value="3" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="classEndDate" data-i18n="endDate">End Date</label>
+                        <input type="date" id="classEndDate" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="classUseAutoTermEnd" checked>
+                        <span data-i18n="useAutoTermEnd">Auto-set end date to the last day of the final month</span>
+                    </label>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group form-group-class-period">
                         <label for="classPeriod" data-i18n="classPeriod">Period</label>
                         <select id="classPeriod"></select>
-                        <p class="section-hint" data-i18n="classPeriodHint">Lower numbers appear first in lists, print summary, and on days with multiple classes (1 = first period).</p>
+                        <p class="section-hint form-group--full-only" data-i18n="classPeriodHint">Lower numbers appear first in lists, print summary, and on days with multiple classes (1 = first period).</p>
                     </div>
 
                     <div class="form-group">
@@ -580,55 +599,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="classBook" data-i18n="defaultBook">Default book (fallback)</label>
-                    <input type="text" id="classBook" required data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
-                </div>
-
-                <div class="form-group books-by-month-section debate-book-periods-section">
-                    <label data-i18n="debateBookPeriods">Book periods (debate)</label>
-                    <p class="section-hint" data-i18n="debateBookPeriodsHint">Each row is when a new debate book starts (any date in the term). Lessons from that date through the next period use that book and restart Day 1–4.</p>
-                    <p class="section-hint" data-i18n="termCalendarMonthsHint">Suggested: one period per calendar month; adjust start dates (e.g. last week of the prior month).</p>
-                    <div id="booksByMonthRows" class="books-by-month-rows debate-book-period-rows"></div>
-                    <div class="form-row books-by-month-actions">
-                        <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookPeriod">Add book period</button>
-                        <button type="button" id="fillBooksFromDefaultBtn" class="btn btn-outline btn-small" data-i18n="fillBooksFromDefault">Fill term from default book</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="classNotes" data-i18n="notes">Notes</label>
-                    <textarea id="classNotes" rows="2" data-i18n-placeholder="notesPlaceholder" placeholder="Optional notes about this class..."></textarea>
-                </div>
-
-                <div class="form-row form-row-term-dates">
-                    <div class="form-group">
-                        <label for="classStartDate" data-i18n="startDate">Start Date</label>
-                        <input type="date" id="classStartDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="classTermMonths" data-i18n="termCalendarMonths">Term (calendar months)</label>
-                        <input type="number" id="classTermMonths" min="1" max="24" value="3" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="classEndDate" data-i18n="endDate">End Date</label>
-                        <input type="date" id="classEndDate" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="classUseAutoTermEnd" checked>
-                        <span data-i18n="useAutoTermEnd">Auto-set end date to the last day of the final month</span>
-                    </label>
-                </div>
-
-                <div class="form-group">
                     <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>
                     <input type="number" id="classTotalLessons" min="1" value="4" required>
                 </div>
                 <div class="form-row form-row-meeting-days">
                     <div class="form-group form-group-meeting-days">
                         <label data-i18n="meetingDays">Meeting days</label>
-                        <p class="section-hint" data-i18n="meetingDaysHint"></p>
+                        <p class="section-hint form-group--full-only" data-i18n="meetingDaysHint"></p>
                         <div class="meeting-days-block">
                             <div class="meeting-days-presets"></div>
                             <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
@@ -649,50 +626,76 @@
                     </div>
                 </div>
 
-                <!-- Custom Schedule Option -->
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="customScheduleEnabled">
-                        <span data-i18n="customSchedule">Custom Schedule (manually pick dates for each lesson)</span>
-                    </label>
+                <div class="form-group form-group--full-only">
+                    <label for="classBook" data-i18n="defaultBook">Default book (fallback)</label>
+                    <input type="text" id="classBook" required data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
                 </div>
 
-                <div id="customScheduleSection" class="custom-schedule-section" style="display: none;">
-                    <p class="section-hint" data-i18n="selectDatesHint">Select specific dates for each lesson day:</p>
-                    <div id="customLessonDates" class="custom-lesson-dates"></div>
+                <details class="form-section-advanced form-group--full-only" id="classBookPeriodsDetails">
+                    <summary data-i18n="debateBookPeriods">Book periods (debate)</summary>
+                    <div class="form-group books-by-month-section debate-book-periods-section">
+                        <p class="section-hint" data-i18n="debateBookPeriodsHint">Each row is when a new debate book starts (any date in the term). Lessons from that date through the next period use that book and restart Day 1–4.</p>
+                        <p class="section-hint" data-i18n="termCalendarMonthsHint">Suggested: one period per calendar month; adjust start dates (e.g. last week of the prior month).</p>
+                        <div id="booksByMonthRows" class="books-by-month-rows debate-book-period-rows"></div>
+                        <div class="form-row books-by-month-actions">
+                            <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookPeriod">Add book period</button>
+                            <button type="button" id="fillBooksFromDefaultBtn" class="btn btn-outline btn-small" data-i18n="fillBooksFromDefault">Fill term from default book</button>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="form-group form-group--full-only">
+                    <label for="classNotes" data-i18n="notes">Notes</label>
+                    <textarea id="classNotes" rows="2" data-i18n-placeholder="notesPlaceholder" placeholder="Optional notes about this class..."></textarea>
                 </div>
 
-                <div class="form-group compression-mode-group">
-                    <label data-i18n="compressionModeLabel">Compression</label>
-                    <div class="radio-group">
+                <details class="form-section-advanced form-group--full-only" id="classCustomScheduleDetails">
+                    <summary data-i18n="customSchedule">Custom Schedule (manually pick dates for each lesson)</summary>
+                    <div class="form-group">
                         <label class="checkbox-label">
-                            <input type="radio" name="compressionMode" id="compressionModeAuto" value="autoWhenNeeded" checked>
-                            <span data-i18n="compressionModeAuto">Auto compress when a month does not have enough class days</span>
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="radio" name="compressionMode" id="compressionModeManual" value="manual">
-                            <span data-i18n="compressionModeManual">Manual only (use my merge choices below)</span>
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="radio" name="compressionMode" id="compressionModeManualPerMonth" value="manualPerMonth">
-                            <span data-i18n="compressionModeManualPerMonth">Per book period (choose merges for each period)</span>
+                            <input type="checkbox" id="customScheduleEnabled">
+                            <span data-i18n="customScheduleEnable">Enable custom schedule</span>
                         </label>
                     </div>
-                </div>
+                    <div id="customScheduleSection" class="custom-schedule-section" style="display: none;">
+                        <p class="section-hint" data-i18n="selectDatesHint">Select specific dates for each lesson day:</p>
+                        <div id="customLessonDates" class="custom-lesson-dates"></div>
+                    </div>
+                </details>
 
-                <div id="compressionByMonthSection" class="compression-by-month-section" style="display: none;">
-                    <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each book period (typical for weekly debate). Each period can differ when holidays shorten the schedule.</p>
-                    <div id="compressionByMonthRows" class="compression-by-month-rows"></div>
-                </div>
+                <details class="form-section-advanced form-group--full-only" id="classCompressionDetails">
+                    <summary data-i18n="compressionModeLabel">Compression</summary>
+                    <div class="form-group compression-mode-group">
+                        <div class="radio-group">
+                            <label class="checkbox-label">
+                                <input type="radio" name="compressionMode" id="compressionModeAuto" value="autoWhenNeeded" checked>
+                                <span data-i18n="compressionModeAuto">Auto compress when a month does not have enough class days</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="radio" name="compressionMode" id="compressionModeManual" value="manual">
+                                <span data-i18n="compressionModeManual">Manual only (use my merge choices below)</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="radio" name="compressionMode" id="compressionModeManualPerMonth" value="manualPerMonth">
+                                <span data-i18n="compressionModeManualPerMonth">Per book period (choose merges for each period)</span>
+                            </label>
+                        </div>
+                    </div>
 
-                <div class="compression-options" id="compressionGlobalSection">
-                    <p class="section-hint" data-i18n="compressionHint">Compression groups (choose merges):</p>
-                    <p class="section-hint" data-i18n="compressionMergeCheckboxesNote">Merge checkboxes apply in Manual mode only. Per month uses the section above. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.</p>
-                    <div id="compressionCheckboxes" class="compression-checkboxes"></div>
-                    <p class="section-hint" data-i18n="compressionOverlapHint">Only adjacent lessons can be merged. Overlapping merges are disabled.</p>
-                </div>
+                    <div id="compressionByMonthSection" class="compression-by-month-section" style="display: none;">
+                        <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each book period (typical for weekly debate). Each period can differ when holidays shorten the schedule.</p>
+                        <div id="compressionByMonthRows" class="compression-by-month-rows"></div>
+                    </div>
 
-                <div id="classSyllabusSummary" class="class-syllabus-summary form-group" hidden>
+                    <div class="compression-options" id="compressionGlobalSection">
+                        <p class="section-hint" data-i18n="compressionHint">Compression groups (choose merges):</p>
+                        <p class="section-hint" data-i18n="compressionMergeCheckboxesNote">Merge checkboxes apply in Manual mode only. Per month uses the section above. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.</p>
+                        <div id="compressionCheckboxes" class="compression-checkboxes"></div>
+                        <p class="section-hint" data-i18n="compressionOverlapHint">Only adjacent lessons can be merged. Overlapping merges are disabled.</p>
+                    </div>
+                </details>
+
+                <div id="classSyllabusSummary" class="class-syllabus-summary form-group form-group--full-only" hidden>
                     <label data-i18n="syllabusTable">Syllabus</label>
                     <p id="classSyllabusSummaryText" class="section-hint class-syllabus-summary-text"></p>
                     <button type="button" id="classOpenSyllabusTabBtn" class="btn btn-outline btn-small" data-i18n="classTabOpenSyllabus">Edit syllabus</button>
@@ -704,19 +707,6 @@
 
     <template id="syllabusEditorTemplate">
         <div id="syllabusEditorForm" class="syllabus-editor-form" data-homework-import-mode="" data-lesson-label-mode="">
-                <section class="syllabus-editor-block syllabus-general-notes-block">
-                    <h3 class="syllabus-block-title" data-i18n="syllabusGeneralNotes">General notes &amp; instructions</h3>
-                    <p class="section-hint" data-i18n="syllabusGeneralNotesHint">For parents, substitutes, or your own reminders. Included when you print this syllabus.</p>
-                    <textarea id="syllabusGeneralNotes" class="syllabus-general-notes-input" rows="5" spellcheck="true" data-i18n-placeholder="syllabusGeneralNotesPlaceholder" placeholder="e.g., Bring workbook every class. Quiz on Unit 3 at session 8…"></textarea>
-                </section>
-
-                <section class="syllabus-editor-block syllabus-units-block">
-                    <h3 class="syllabus-block-title" data-i18n="syllabusUnits">Curriculum units</h3>
-                    <p class="section-hint" data-i18n="syllabusUnitsHint">Optional units for planning. Link events to a unit when editing an event.</p>
-                    <div id="syllabusUnitsRows" class="syllabus-units-rows"></div>
-                    <button type="button" id="addSyllabusUnitBtn" class="btn btn-outline btn-small" data-i18n="addSyllabusUnit">Add unit</button>
-                </section>
-
                 <section class="syllabus-editor-block syllabus-table-section">
                     <h3 class="syllabus-block-title" data-i18n="syllabusTable">Lesson schedule table</h3>
                     <p class="section-hint" data-i18n="syllabusTableHint">Build a printable table (Month, Week, Class #, lesson plan, pages/work). Refresh after you change the calendar schedule.</p>
@@ -758,6 +748,19 @@
                         <button type="button" id="printClassSyllabusBtn" class="btn btn-outline btn-small" data-i18n="printClassSyllabus">Print syllabus</button>
                     </div>
                     <p class="section-hint" data-i18n="printClassSyllabusHint">Opens the print dialog; choose Save as PDF to download.</p>
+                </section>
+
+                <section class="syllabus-editor-block syllabus-general-notes-block">
+                    <h3 class="syllabus-block-title" data-i18n="syllabusGeneralNotes">General notes &amp; instructions</h3>
+                    <p class="section-hint" data-i18n="syllabusGeneralNotesHint">For parents, substitutes, or your own reminders. Included when you print this syllabus.</p>
+                    <textarea id="syllabusGeneralNotes" class="syllabus-general-notes-input" rows="5" spellcheck="true" data-i18n-placeholder="syllabusGeneralNotesPlaceholder" placeholder="e.g., Bring workbook every class. Quiz on Unit 3 at session 8…"></textarea>
+                </section>
+
+                <section class="syllabus-editor-block syllabus-units-block">
+                    <h3 class="syllabus-block-title" data-i18n="syllabusUnits">Curriculum units</h3>
+                    <p class="section-hint" data-i18n="syllabusUnitsHint">Optional units for planning. Link events to a unit when editing an event.</p>
+                    <div id="syllabusUnitsRows" class="syllabus-units-rows"></div>
+                    <button type="button" id="addSyllabusUnitBtn" class="btn btn-outline btn-small" data-i18n="addSyllabusUnit">Add unit</button>
                 </section>
         </div>
     </template>
@@ -954,32 +957,25 @@
     </div>
 
     <template id="holidayFormTemplate">
-            <div class="event-editor-header modal-header">
-                <h2 id="holidayModalTitle" data-i18n="addHolidayTitle">Add Holiday</h2>
-                <div class="event-editor-header-actions">
-                    <button type="button" id="openEventInTabBtn" class="btn btn-outline btn-small event-open-full-btn" data-i18n="openFullEventEditor">Open full editor</button>
-                    <button type="button" class="modal-close" id="closeHolidayModal" aria-label="Close">&times;</button>
-                </div>
-            </div>
-            <form id="holidayForm">
+            <form id="holidayForm" data-editor-mode="full">
                 <input type="hidden" id="holidayId" value="">
-                
-                <div class="form-group">
-                    <label for="eventType" data-i18n="eventType">Event type</label>
-                    <select id="eventType" required>
-                        <option value="holiday" data-i18n="eventTypeHoliday">Holiday / no class</option>
-                        <option value="evaluation_deadline" data-i18n="eventTypeEvalDeadline">Evaluation deadline</option>
-                        <option value="homework_deadline" data-i18n="eventTypeHomeworkDeadline">Homework deadline</option>
-                        <option value="evaluation_period" data-i18n="eventTypeEvalPeriod">Evaluation period</option>
-                        <option value="other" data-i18n="eventTypeOther">Other</option>
-                    </select>
+
+                <div class="event-editor-header modal-header">
+                    <h2 id="holidayModalTitle" data-i18n="addHolidayTitle">Add Holiday</h2>
+                    <div class="event-editor-header-actions editor-header-actions">
+                        <button type="submit" class="btn btn-primary btn-small editor-header-save-btn" data-i18n="saveEvent">Save Event</button>
+                        <button type="button" class="modal-close" id="closeHolidayModal" aria-label="Close">&times;</button>
+                        <details class="header-dropdown editor-header-more">
+                            <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
+                            <div class="header-dropdown-panel editor-header-more-menu">
+                                <button type="button" id="openEventInTabBtn" class="header-dropdown-item event-open-full-btn" data-i18n="openFullEventEditor">Open full editor</button>
+                                <button type="button" id="deleteHolidayBtn" class="header-dropdown-item header-dropdown-item--danger" style="display: none;" data-i18n="delete">Delete</button>
+                            </div>
+                        </details>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="eventNotes" data-i18n="notes">Notes</label>
-                    <textarea id="eventNotes" rows="2" data-i18n-placeholder="eventNotesPlaceholder" placeholder="Optional notes..."></textarea>
-                </div>
-
+                <div class="event-modal-body">
                 <div class="form-group">
                     <label for="holidayName" data-i18n="holidayName">Holiday/Event Name</label>
                     <input type="text" id="holidayName" required data-i18n-placeholder="holidayNamePlaceholder" placeholder="e.g., Thanksgiving">
@@ -1008,6 +1004,17 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="eventType" data-i18n="eventType">Event type</label>
+                    <select id="eventType" required>
+                        <option value="holiday" data-i18n="eventTypeHoliday">Holiday / no class</option>
+                        <option value="evaluation_deadline" data-i18n="eventTypeEvalDeadline">Evaluation deadline</option>
+                        <option value="homework_deadline" data-i18n="eventTypeHomeworkDeadline">Homework deadline</option>
+                        <option value="evaluation_period" data-i18n="eventTypeEvalPeriod">Evaluation period</option>
+                        <option value="other" data-i18n="eventTypeOther">Other</option>
+                    </select>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="holidayBgColor" data-i18n="bgColor">Background Color</label>
@@ -1033,9 +1040,15 @@
                     <p id="eventApplicabilitySummary" class="event-applicability-summary" hidden></p>
                 </div>
 
-                <div class="form-actions event-form-actions">
-                    <button type="button" id="deleteHolidayBtn" class="btn btn-danger" style="display: none;" data-i18n="delete">Delete</button>
+                <div class="form-group form-group--full-only">
+                    <label for="eventNotes" data-i18n="notes">Notes</label>
+                    <textarea id="eventNotes" rows="2" data-i18n-placeholder="eventNotesPlaceholder" placeholder="Optional notes..."></textarea>
+                </div>
+
+                <div class="form-actions event-form-actions editor-footer-actions--tab-only">
+                    <button type="button" id="deleteHolidayBtnFooter" class="btn btn-danger" style="display: none;" data-i18n="delete">Delete</button>
                     <button type="submit" class="btn btn-primary" data-i18n="saveEvent">Save Event</button>
+                </div>
                 </div>
             </form>
     </template>
@@ -1074,9 +1087,17 @@
                     <label class="checkbox-label"><input type="checkbox" id="printIncludeCalendar" checked><span data-i18n="printIncludeCalendar">Calendar (landscape)</span></label>
                     <label class="checkbox-label"><input type="checkbox" id="printIncludeSummary" checked><span data-i18n="printIncludeSummary">Summary &amp; syllabi (portrait)</span></label>
                 </div>
+                <div class="form-group print-use-filters-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="printUseCalendarFilters" checked>
+                        <span data-i18n="printUseCalendarFilters">Use current calendar filters</span>
+                    </label>
+                    <p class="section-hint" data-i18n="printUseCalendarFiltersHint">When checked, lesson and event visibility matches the calendar bar above the grid.</p>
+                </div>
                 <section class="print-form-section print-form-section--calendar" aria-labelledby="printSectionCalendarTitle">
                     <h3 id="printSectionCalendarTitle" class="print-form-section-title" data-i18n="printSectionCalendar">Calendar (landscape)</h3>
                     <p class="section-hint" data-i18n="printSectionCalendarHint">Opens one preview tab with the month grid. Use your browser&apos;s Print or Save as PDF there.</p>
+                    <div class="print-cal-vis-panel" id="printCalVisPanel">
                     <div class="print-cal-vis-actions print-options-bulk-actions">
                         <button type="button" class="btn btn-outline btn-small" id="printCalVisSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
                         <button type="button" class="btn btn-outline btn-small" id="printCalVisClearAllBtn" data-i18n="filterClearAll">Clear all</button>
@@ -1089,6 +1110,7 @@
                         <label class="checkbox-label"><input type="checkbox" id="printCalHomeworkDeadline" checked><span data-i18n="showHomeworkDeadlines">Homework deadlines</span></label>
                         <label class="checkbox-label"><input type="checkbox" id="printCalEvalPeriod" checked><span data-i18n="showEvalPeriods">Evaluation periods</span></label>
                         <label class="checkbox-label"><input type="checkbox" id="printCalOther" checked><span data-i18n="showOtherEvents">Other events</span></label>
+                    </div>
                     </div>
                 </section>
                 <section class="print-form-section print-form-section--summary" aria-labelledby="printSectionSummaryTitle">
@@ -1153,12 +1175,14 @@
     </div>
 
     <script defer src="js/schedule-core.js"></script>
-    <script defer src="js/utils.js"></script>
+    <script defer src="js/utils.js?v=20260527-modal-ux"></script>
+    <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
+    <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/load-extension-scripts.js?v=20260527-perf-a"></script>
-    <script defer src="js/team-auth.js?v=20260525-auth"></script>
+    <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="app.js?v=20260527-print-ui-font"></script>
+    <script defer src="app.js?v=20260527-modal-ux"></script>
 </body>
 </html>
 

@@ -123,35 +123,7 @@
     }
 
     function startWorkspaceRevisionPoll() {
-        if (workspacePollTimer) {
-            clearInterval(workspacePollTimer);
-        }
-        if (typeof teamSyncEnabled === 'undefined' || !teamSyncEnabled || typeof CalendarSync === 'undefined') {
-            return;
-        }
-        workspacePollTimer = setInterval(async () => {
-            try {
-                const id = CalendarSync.getActiveCalendarId();
-                if (!id) {
-                    return;
-                }
-                const res = await fetch('/api/calendars/' + encodeURIComponent(id) + '/meta', {
-                    credentials: 'same-origin'
-                });
-                if (!res.ok) {
-                    return;
-                }
-                const meta = await res.json();
-                if (meta.revision > CalendarSync.state.revision) {
-                    const banner = document.getElementById('workspaceRemoteBanner');
-                    if (banner) {
-                        banner.hidden = false;
-                    }
-                }
-            } catch (_) {
-                /* ignore */
-            }
-        }, 10000);
+        /* CalendarSync polling + onRemoteNewer in app.js shows workspaceRemoteBanner */
     }
 
     window.initWorkspacePage = async function initWorkspacePage() {
@@ -194,7 +166,6 @@
             workspaceBooksSelectedId = params.get('book');
         }
         switchWorkspaceTab(tab);
-        startWorkspaceRevisionPoll();
     };
 
     document.addEventListener('DOMContentLoaded', () => {

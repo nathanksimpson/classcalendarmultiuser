@@ -5,20 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base href="/">
     <title>Admin — Class Calendar</title>
-    <script>
-        (function () {
-            try {
-                var theme = localStorage.getItem('calendarTheme');
-                if (theme === 'dark' || theme === 'light') {
-                    document.documentElement.setAttribute('data-theme', theme);
-                    document.documentElement.style.colorScheme = theme;
-                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                    document.documentElement.style.colorScheme = 'dark';
-                }
-            } catch (e) { /* ignore */ }
-        })();
-    </script>
+    <script src="js/theme-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260601-theme-fix">
     <link rel="stylesheet" href="admin.css?v=20260527-actions">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -199,6 +186,10 @@
                 <p class="section-hint" data-i18n="editUserHint">Set a clear display name so you can recognize this teacher (especially after Kakao sign-in).</p>
                 <form id="editUserForm">
                     <div class="form-group">
+                        <label for="editUserDisplayName" data-i18n="displayName">Display name</label>
+                        <input type="text" id="editUserDisplayName" required maxlength="120" autocomplete="name">
+                    </div>
+                    <div class="form-group">
                         <label for="editUserRole" data-i18n="role">Role</label>
                         <select id="editUserRole" name="role">
                             <option value="teacher" data-i18n="roleTeacher">Teacher</option>
@@ -208,10 +199,6 @@
                             <option value="settings_admin" data-i18n="roleSettingsAdmin">Settings admin</option>
                             <option value="super_admin" data-i18n="roleSuperAdmin">Super admin</option>
                         </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="editUserDisplayName" data-i18n="displayName">Display name</label>
-                        <input type="text" id="editUserDisplayName" required maxlength="120" autocomplete="name">
                     </div>
                     <div class="form-group">
                         <label for="editUserEmail" data-i18n="email">Email</label>

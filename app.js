@@ -150,6 +150,8 @@ const translations = {
         printBtn: 'Print',
         printIncludeLabel: 'Include in this print:',
         printIncludeCalendar: 'Calendar (landscape)',
+        printUseCalendarFilters: 'Use current calendar filters',
+        printUseCalendarFiltersHint: 'When checked, lesson and event visibility matches the calendar bar above the grid.',
         printIncludeSummary: 'Summary & syllabi (portrait)',
         printNothingSelected: 'Choose at least one: calendar or summary.',
         teamCalendarHelp: 'Team help',
@@ -817,6 +819,8 @@ const translations = {
         printBtn: '인쇄',
         printIncludeLabel: '이번 인쇄에 포함:',
         printIncludeCalendar: '캘린더 (가로)',
+        printUseCalendarFilters: '현재 캘린더 필터 사용',
+        printUseCalendarFiltersHint: '선택하면 수업·일정 표시가 캘린더 상단 필터와 같습니다.',
         printIncludeSummary: '요약 및 강의계획 (세로)',
         printNothingSelected: '캘린더 또는 요약 중 하나 이상을 선택하세요.',
         teamCalendarHelp: '팀 도움말',
@@ -1517,6 +1521,17 @@ function updateThemeToggleButtons() {
 }
 
 function applyTheme(theme) {
+    if (window.CCPTheme && window.CCPTheme.applyTheme) {
+        window.CCPTheme.applyTheme(theme, {
+            buttonIds: ['themeToggleBtn', 'workspaceThemeToggle'],
+            getButtonLabel: (isDark) => {
+                const labelKey = isDark ? 'themeLight' : 'themeDark';
+                return translations[currentLanguage][labelKey] || (isDark ? '☀️ Light' : '🌙 Dark');
+            },
+            getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme'
+        });
+        return;
+    }
     const next = theme === 'dark' ? 'dark' : 'light';
     document.documentElement.classList.remove('print-color-mode-light');
     document.documentElement.setAttribute('data-theme', next);
@@ -1526,10 +1541,25 @@ function applyTheme(theme) {
 }
 
 function loadTheme() {
+    if (window.CCPTheme && window.CCPTheme.loadTheme) {
+        applyTheme(window.CCPTheme.getStoredTheme());
+        return;
+    }
     applyTheme(getStoredTheme());
 }
 
 function toggleTheme() {
+    if (window.CCPTheme && window.CCPTheme.toggleTheme) {
+        window.CCPTheme.toggleTheme({
+            buttonIds: ['themeToggleBtn', 'workspaceThemeToggle'],
+            getButtonLabel: (isDark) => {
+                const labelKey = isDark ? 'themeLight' : 'themeDark';
+                return translations[currentLanguage][labelKey] || (isDark ? '☀️ Light' : '🌙 Dark');
+            },
+            getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme'
+        });
+        return;
+    }
     const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
     applyTheme(current === 'dark' ? 'light' : 'dark');
 }
@@ -4767,13 +4797,13 @@ function applyLessonFilterSearch() {
     body.classList.toggle('lesson-filter-body--search-empty', !!query && !anyChipVisible);
 }
 
-function buildLessonFilterSectionHtml(titleKey, filterKey, options) {
+function buildFilterSectionHtml(titleKey, filterKey, options, dataAttrName) {
     if (!options.length) {
         return '';
     }
     const chips = options.map(opt => `
         <label class="checkbox-label lesson-filter-chip">
-            <input type="checkbox" data-lesson-filter="${filterKey}" value="${escapeAttr(opt.value)}" checked>
+            <input type="checkbox" ${dataAttrName}="${filterKey}" value="${escapeAttr(opt.value)}"${dataAttrName === 'data-lesson-filter' ? ' checked' : ''}>
             <span>${escapeHtml(opt.label)}</span>
         </label>`).join('');
     return `
@@ -4781,6 +4811,10 @@ function buildLessonFilterSectionHtml(titleKey, filterKey, options) {
             <h4 class="lesson-filter-section-title">${escapeHtml(t(titleKey))}</h4>
             <div class="lesson-filter-chip-grid">${chips}</div>
         </section>`;
+}
+
+function buildLessonFilterSectionHtml(titleKey, filterKey, options) {
+    return buildFilterSectionHtml(titleKey, filterKey, options, 'data-lesson-filter');
 }
 
 function renderLessonFilterPopoverBody() {
@@ -5145,19 +5179,7 @@ function applyEventApplicabilitySearch() {
 }
 
 function buildEventApplicabilitySectionHtml(titleKey, filterKey, options) {
-    if (!options.length) {
-        return '';
-    }
-    const chips = options.map(opt => `
-        <label class="checkbox-label lesson-filter-chip">
-            <input type="checkbox" data-event-filter="${filterKey}" value="${escapeAttr(opt.value)}">
-            <span>${escapeHtml(opt.label)}</span>
-        </label>`).join('');
-    return `
-        <section class="lesson-filter-section" data-filter-key="${filterKey}">
-            <h4 class="lesson-filter-section-title">${escapeHtml(t(titleKey))}</h4>
-            <div class="lesson-filter-chip-grid">${chips}</div>
-        </section>`;
+    return buildFilterSectionHtml(titleKey, filterKey, options, 'data-event-filter');
 }
 
 function renderEventApplicabilityPopoverBody() {
@@ -5533,6 +5555,18 @@ function syncPrintVisibilityFromUi() {
             printEl.checked = uiEl.checked;
         }
     });
+}
+
+function applyPrintUseCalendarFiltersState() {
+    const useLive = document.getElementById('printUseCalendarFilters')?.checked !== false;
+    const panel = document.getElementById('printCalVisPanel');
+    if (useLive) {
+        syncPrintVisibilityFromUi();
+    }
+    if (panel) {
+        panel.hidden = useLive;
+        panel.setAttribute('aria-hidden', useLive ? 'true' : 'false');
+    }
 }
 
 function buildDayIndex() {
@@ -5941,6 +5975,9 @@ function computeScheduleCacheKey() {
 }
 
 function parseISODateLocal(dateStr) {
+    if (window.CCPUtils && window.CCPUtils.parseISODateLocal) {
+        return window.CCPUtils.parseISODateLocal(dateStr);
+    }
     if (!dateStr || typeof dateStr !== 'string') {
         return new Date(NaN);
     }
@@ -6151,10 +6188,20 @@ function mergePlanToFit(availableSlots, totalLessons, userMerges, mode) {
 }
 
 function escapeAttr(s) {
+    if (window.CCPUtils && window.CCPUtils.escapeAttr) {
+        return window.CCPUtils.escapeAttr(s);
+    }
     return String(s || '')
         .replace(/&/g, '&amp;')
         .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;');
+}
+
+function escapeHtml(s) {
+    if (window.CCPUtils && window.CCPUtils.escapeHtml) {
+        return window.CCPUtils.escapeHtml(s);
+    }
+    return escapeAttr(s).replace(/>/g, '&gt;');
 }
 
 function formatBooksByMonthSummary(classData) {
@@ -6718,18 +6765,14 @@ function renderSyllabusClassList() {
         return;
     }
     classes.forEach((c) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'module-list-item' + (c.id === selectedId && syllabusEditorMode === 'class' ? ' is-selected' : '');
-        btn.setAttribute('role', 'option');
-        btn.setAttribute('aria-selected', String(c.id === selectedId && syllabusEditorMode === 'class'));
-        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(c), c.grade].filter(Boolean).join(' · '))}</span>`;
-        btn.addEventListener('click', () => {
-            syllabusListSegment = 'classes';
-            syncSyllabusListSegmentUi();
-            populateSyllabusEditorForClass(c);
-        });
-        list.appendChild(btn);
+        list.appendChild(createModuleClassListButton(c, {
+            isSelected: c.id === selectedId && syllabusEditorMode === 'class',
+            onClick: () => {
+                syllabusListSegment = 'classes';
+                syncSyllabusListSegmentUi();
+                populateSyllabusEditorForClass(c);
+            }
+        }));
     });
 }
 
@@ -7159,8 +7202,20 @@ function mountClassForm(target) {
     }
     mount.appendChild(form);
     classEditorMount = target;
+    setFormEditorMode(form, target === 'tab' ? 'full' : 'popout');
     updateClassEditorEmptyState();
     syncClassOpenEditorButton();
+}
+
+function setFormEditorMode(form, mode) {
+    if (!form) {
+        return;
+    }
+    const nextMode = mode === 'popout' ? 'popout' : 'full';
+    form.dataset.editorMode = nextMode;
+    form.querySelectorAll('.form-section-advanced').forEach((detailsEl) => {
+        detailsEl.open = nextMode === 'full';
+    });
 }
 
 function mountPrintForm() {
@@ -7179,48 +7234,16 @@ function resetHolidayPopoutLayout(mount) {
         return;
     }
     mount.classList.remove('event-form-mount--popout');
-    const body = mount.querySelector('.event-modal-body');
-    const form = document.getElementById('holidayForm');
-    const header = mount.querySelector('.event-editor-header');
-    if (body && form && body.contains(form)) {
-        if (header && header.nextSibling !== form) {
-            header.insertAdjacentElement('afterend', form);
-        } else if (!header) {
-            mount.insertBefore(form, body);
-        }
-        body.remove();
-    }
 }
 
 function ensureHolidayPopoutLayout(mount) {
     if (!mount) {
         return;
     }
-    const header = mount.querySelector('.event-editor-header');
-    const form = document.getElementById('holidayForm');
-    if (!header || !form) {
-        return;
-    }
     mount.classList.add('event-form-mount--popout');
-    let body = mount.querySelector('.event-modal-body');
-    if (!body) {
-        body = document.createElement('div');
-        body.className = 'event-modal-body modal-body-scroll';
-        if (form.parentElement === mount) {
-            mount.insertBefore(body, form);
-            body.appendChild(form);
-        } else {
-            header.insertAdjacentElement('afterend', body);
-            body.appendChild(form);
-        }
-    } else if (!body.contains(form)) {
-        body.appendChild(form);
-    }
 }
 
 function mountHolidayForm(target) {
-    const header = document.querySelector('#holidayFormMountModal .event-editor-header, #holidayFormMountTab .event-editor-header')
-        || document.querySelector('.event-editor-header');
     const form = document.getElementById('holidayForm');
     const modalMount = document.getElementById('holidayFormMountModal');
     const tabMount = document.getElementById('holidayFormMountTab');
@@ -7233,17 +7256,14 @@ function mountHolidayForm(target) {
     } else {
         resetHolidayPopoutLayout(tabMount);
     }
-    if (header && header.parentElement !== mount) {
-        mount.appendChild(header);
-    }
-    if (form) {
-        const formParent = form.parentElement;
-        if (formParent !== mount && formParent !== mount.querySelector('.event-modal-body')) {
-            mount.appendChild(form);
-        }
+    if (form && form.parentElement !== mount) {
+        mount.appendChild(form);
     }
     if (target === 'modal') {
         ensureHolidayPopoutLayout(modalMount);
+    }
+    if (form) {
+        setFormEditorMode(form, target === 'tab' ? 'full' : 'popout');
     }
     eventEditorMount = target;
     updateEventEditorEmptyState();
@@ -7502,6 +7522,17 @@ function initAppTabs() {
     navigateToTab(appData.ui.activeTab || 'calendar');
 }
 
+function createModuleClassListButton(classData, { isSelected, onClick }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'module-list-item' + (isSelected ? ' is-selected' : '');
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-selected', String(isSelected));
+    btn.innerHTML = `<span>${escapeHtml(classData.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
+    btn.addEventListener('click', onClick);
+    return btn;
+}
+
 function renderClassList() {
     const list = document.getElementById('classList');
     if (!list) {
@@ -7527,17 +7558,13 @@ function renderClassList() {
         return;
     }
     classes.forEach((c) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'module-list-item' + (c.id === selectedId ? ' is-selected' : '');
-        btn.setAttribute('role', 'option');
-        btn.setAttribute('aria-selected', String(c.id === selectedId));
-        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(c), c.grade].filter(Boolean).join(' · '))}</span>`;
-        btn.addEventListener('click', () => {
-            openClassEditor(c, 'tab');
-            renderClassList();
-        });
-        list.appendChild(btn);
+        list.appendChild(createModuleClassListButton(c, {
+            isSelected: c.id === selectedId,
+            onClick: () => {
+                openClassEditor(c, 'tab');
+                renderClassList();
+            }
+        }));
     });
 }
 
@@ -7587,17 +7614,6 @@ function renderEventList() {
     });
 }
 
-function escapeHtml(str) {
-    return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-// ============================================
-// Homework tab
-// ============================================
 function getHomeworkTabModule() {
     return typeof window !== 'undefined' ? window.CCPHomeworkTab : null;
 }
@@ -7871,19 +7887,15 @@ function renderHomeworkClassList() {
     };
 
     const renderClassButton = (c) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'module-list-item' + (c.id === selectedId ? ' is-selected' : '');
-        btn.setAttribute('role', 'option');
-        btn.setAttribute('aria-selected', String(c.id === selectedId));
-        btn.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(c), c.grade].filter(Boolean).join(' · '))}</span>`;
-        btn.addEventListener('click', () => {
-            appData.ui.homeworkTabClassId = c.id;
-            saveData();
-            renderHomeworkClassList();
-            renderHomeworkEditor();
-        });
-        list.appendChild(btn);
+        list.appendChild(createModuleClassListButton(c, {
+            isSelected: c.id === selectedId,
+            onClick: () => {
+                appData.ui.homeworkTabClassId = c.id;
+                saveData();
+                renderHomeworkClassList();
+                renderHomeworkEditor();
+            }
+        }));
     };
 
     if (onDay.length > 0) {
@@ -9156,7 +9168,23 @@ function setupEventListeners() {
         deleteClassBtnEl.addEventListener('click', deleteClass);
         elements.deleteClassBtn = deleteClassBtnEl;
     }
-    elements.deleteHolidayBtn.addEventListener('click', deleteHoliday);
+    elements.deleteHolidayBtn?.addEventListener('click', deleteHoliday);
+    const deleteHolidayFooterBtn = document.getElementById('deleteHolidayBtnFooter');
+    if (deleteHolidayFooterBtn) {
+        deleteHolidayFooterBtn.addEventListener('click', deleteHoliday);
+    }
+
+    const printUseCalendarFilters = document.getElementById('printUseCalendarFilters');
+    if (printUseCalendarFilters && !printUseCalendarFilters.dataset.bound) {
+        printUseCalendarFilters.dataset.bound = '1';
+        printUseCalendarFilters.addEventListener('change', applyPrintUseCalendarFiltersState);
+    }
+
+    const syllabusRefreshHeaderBtn = document.getElementById('syllabusRefreshHeaderBtn');
+    if (syllabusRefreshHeaderBtn && elements.refreshSyllabusBtn && !syllabusRefreshHeaderBtn.dataset.bound) {
+        syllabusRefreshHeaderBtn.dataset.bound = '1';
+        syllabusRefreshHeaderBtn.addEventListener('click', () => elements.refreshSyllabusBtn.click());
+    }
     
     // Holiday "All Classes" toggle
     elements.holidayAllClasses.addEventListener('change', (e) => {
@@ -9317,8 +9345,63 @@ const EXCLUSIVE_MODAL_IDS = [
     'defaultClassEditorModal',
     'howToModal',
     'changePasswordModal',
-    'editDisplayNameModal'
+    'editDisplayNameModal',
+    'classModal',
+    'holidayModal',
+    'printOptionsModal',
+    'conflictModal',
+    'newCalendarModal',
+    'classTypeModal'
 ];
+
+const CCPModalRegistry = {
+    _entries: new Map(),
+    register(id, options = {}) {
+        const el = document.getElementById(id);
+        if (!el) {
+            return;
+        }
+        this._entries.set(id, { el, onClose: options.onClose || null });
+        if (options.backdropClose !== false) {
+            bindModalBackdropClose(el);
+        }
+        if (options.a11y !== false && options.onClose) {
+            bindModalA11y(el, options.onClose);
+        }
+    },
+    open(id, triggerEl) {
+        const entry = this._entries.get(id);
+        if (!entry || !entry.el) {
+            return;
+        }
+        openModal(entry.el, triggerEl);
+    },
+    close(id) {
+        const entry = this._entries.get(id);
+        if (!entry) {
+            return;
+        }
+        if (typeof entry.onClose === 'function') {
+            entry.onClose();
+        } else {
+            closeModal(entry.el);
+        }
+    },
+    init() {
+        this.register('classModal', { onClose: () => closeModal(elements.classModal) });
+        this.register('holidayModal', { onClose: () => closeModal(elements.holidayModal) });
+        this.register('printOptionsModal', { onClose: () => closePrintOptionsModal() });
+        this.register('conflictModal', {
+            onClose: () => closeModal(document.getElementById('conflictModal'))
+        });
+        this.register('newCalendarModal', {
+            onClose: () => closeModal(document.getElementById('newCalendarModal'))
+        });
+        if (elements.classTypeModal) {
+            this.register('classTypeModal', { onClose: () => closeModal(elements.classTypeModal) });
+        }
+    }
+};
 
 function closeExclusiveModalsExcept(keepModal) {
     EXCLUSIVE_MODAL_IDS.forEach((id) => {
@@ -9369,18 +9452,7 @@ function bindModalA11y(modal, onClose) {
 }
 
 function setupAppModalA11y() {
-    const pairs = [
-        [elements.classModal, () => closeModal(elements.classModal)],
-        [elements.holidayModal, () => closeModal(elements.holidayModal)],
-        [elements.printOptionsModal, () => closePrintOptionsModal()],
-        [document.getElementById('conflictModal'), () => closeModal(document.getElementById('conflictModal'))],
-        [elements.classTypeModal, () => closeModal(elements.classTypeModal)]
-    ];
-    pairs.forEach(([modal, onClose]) => {
-        if (modal && onClose) {
-            bindModalA11y(modal, onClose);
-        }
-    });
+    CCPModalRegistry.init();
 }
 
 function openModal(modal, triggerEl) {
@@ -9817,17 +9889,6 @@ function buildClassSnapshotFromForm() {
         lessonLabelMode: getLessonLabelModeForSave(),
         homeworkImportMode: getHomeworkImportModeForSave()
     };
-}
-
-function escapeAttr(s) {
-    return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
-
-function escapeHtml(s) {
-    if (window.CCPUtils && window.CCPUtils.escapeHtml) {
-        return window.CCPUtils.escapeHtml(s);
-    }
-    return escapeAttr(s).replace(/>/g, '&gt;');
 }
 
 function renderSyllabusEditorTable(rows) {
@@ -10614,6 +10675,16 @@ function openClassModal(classData = null, options = {}) {
     openClassEditor(classData, options.context || 'calendar-popout', options);
 }
 
+function syncDeleteHolidayButtonVisibility(visible) {
+    const display = visible ? '' : 'none';
+    ['deleteHolidayBtn', 'deleteHolidayBtnFooter'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = display;
+        }
+    });
+}
+
 function populateHolidayForm(holidayData = null, options = {}) {
     closeEventApplicabilityPopover();
 
@@ -10655,7 +10726,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
         elements.holidayAllClasses.checked = isAllClasses;
         loadEventApplicabilityDraftFromHoliday(holidayData);
 
-        elements.deleteHolidayBtn.style.display = 'block';
+        syncDeleteHolidayButtonVisibility(true);
     } else {
         elements.holidayModalTitle.textContent = t('addEventTitle');
         elements.holidayForm.reset();
@@ -10667,7 +10738,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
         elements.holidayDateRange.style.display = 'none';
         elements.holidayAllClasses.checked = true;
         eventApplicabilityDraft = { ...EMPTY_EVENT_APPLICABILITY };
-        elements.deleteHolidayBtn.style.display = 'none';
+        syncDeleteHolidayButtonVisibility(false);
         applyEventTypeDefaultColors();
         if (options.defaultDate) {
             elements.holidayDate.value = options.defaultDate;
@@ -12001,7 +12072,23 @@ function getHolidayDates(holiday) {
 // ============================================
 // Calendar Rendering
 // ============================================
+let renderCalendarTimer = null;
+
+function scheduleRenderCalendar() {
+    if (renderCalendarTimer) {
+        clearTimeout(renderCalendarTimer);
+    }
+    renderCalendarTimer = setTimeout(() => {
+        renderCalendarTimer = null;
+        renderCalendarNow();
+    }, 75);
+}
+
 function renderCalendar() {
+    scheduleRenderCalendar();
+}
+
+function renderCalendarNow() {
     if (!elements.calendarContainer) {
         return;
     }
@@ -12028,12 +12115,6 @@ function renderCalendar() {
     if (isLessonFilterPopoverOpen()) {
         renderLessonFilterPopoverBody();
         updateLessonFilterStatusText();
-    }
-    if (getActiveTab() === 'classes') {
-        renderClassList();
-    }
-    if (getActiveTab() === 'events') {
-        renderEventList();
     }
 }
 
@@ -13433,6 +13514,7 @@ async function openPrintOptionsDialog() {
         return;
     }
     syncPrintVisibilityFromUi();
+    applyPrintUseCalendarFiltersState();
     updatePrintLessonFilterHint();
     mountPrintForm();
     setPrintFormSectionMode('all');
@@ -13461,10 +13543,15 @@ function handlePrint(e) {
         closePrintOptionsModal();
     }
     if (includeSummary) {
-        syncPrintVisibilityFromUi();
+        if (document.getElementById('printUseCalendarFilters')?.checked !== false) {
+            syncPrintVisibilityFromUi();
+        }
         updatePrintLessonFilterHint();
     }
     if (includeCalendar) {
+        if (document.getElementById('printUseCalendarFilters')?.checked !== false) {
+            syncPrintVisibilityFromUi();
+        }
         runAppPrint('calendar');
     }
     if (includeSummary) {
@@ -16820,6 +16907,9 @@ function setupPrintColorModeIsolation() {
 }
 
 function formatDateISO(date) {
+    if (window.CCPUtils && window.CCPUtils.formatDateISO) {
+        return window.CCPUtils.formatDateISO(date);
+    }
     const d = new Date(date);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

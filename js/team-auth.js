@@ -174,6 +174,26 @@
         return [];
     }
 
+    async function releaseCalendarLocksBeforeLogout() {
+        if (typeof CalendarSync === 'undefined') {
+            return;
+        }
+        try {
+            if (CalendarSync.prepareForLogout) {
+                await CalendarSync.prepareForLogout();
+            }
+            if (CalendarSync.stopPolling) {
+                CalendarSync.stopPolling();
+            }
+            const calId = CalendarSync.getActiveCalendarId && CalendarSync.getActiveCalendarId();
+            if (calId && CalendarSync.state && CalendarSync.state.holdsLock && CalendarSync.releaseLock) {
+                await CalendarSync.releaseLock(calId);
+            }
+        } catch (_) {
+            /* server also releases locks on logout */
+        }
+    }
+
     const TeamAuth = {
         getUser() {
             return currentUser;
@@ -280,22 +300,7 @@
 
         async logoutAll() {
             detachIdleWatch();
-            if (typeof CalendarSync !== 'undefined') {
-                try {
-                    if (CalendarSync.prepareForLogout) {
-                        await CalendarSync.prepareForLogout();
-                    }
-                    if (CalendarSync.stopPolling) {
-                        CalendarSync.stopPolling();
-                    }
-                    const calId = CalendarSync.getActiveCalendarId && CalendarSync.getActiveCalendarId();
-                    if (calId && CalendarSync.state && CalendarSync.state.holdsLock && CalendarSync.releaseLock) {
-                        await CalendarSync.releaseLock(calId);
-                    }
-                } catch (_) {
-                    /* server also releases locks on logout */
-                }
-            }
+            await releaseCalendarLocksBeforeLogout();
             try {
                 await fetch('/api/auth/logout-all', { method: 'POST', credentials: 'same-origin' });
             } catch (_) {
@@ -310,22 +315,7 @@
         async logout(options) {
             const idleReason = options && options.reason === 'idle';
             detachIdleWatch();
-            if (typeof CalendarSync !== 'undefined') {
-                try {
-                    if (CalendarSync.prepareForLogout) {
-                        await CalendarSync.prepareForLogout();
-                    }
-                    if (CalendarSync.stopPolling) {
-                        CalendarSync.stopPolling();
-                    }
-                    const calId = CalendarSync.getActiveCalendarId && CalendarSync.getActiveCalendarId();
-                    if (calId && CalendarSync.state && CalendarSync.state.holdsLock && CalendarSync.releaseLock) {
-                        await CalendarSync.releaseLock(calId);
-                    }
-                } catch (_) {
-                    /* server also releases locks on logout */
-                }
-            }
+            await releaseCalendarLocksBeforeLogout();
             try {
                 await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
             } catch (_) {

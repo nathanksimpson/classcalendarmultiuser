@@ -45,6 +45,25 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | App settings | `server/app-settings.js`, `worker/src/app-settings.js` |
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
 
+## Editing surfaces (popout vs tab vs workspace)
+
+The main app uses **one movable form** per entity (`#classForm`, `#holidayForm`): templates in `index.html` are cloned once and **moved** between mounts via `mountClassForm` / `mountHolidayForm` in `app.js`.
+
+| Surface | When to use | Visible fields |
+|---------|-------------|----------------|
+| **Calendar popout** | Quick edit from the grid | `data-editor-mode="popout"` — name, dates, period, level/grade, colors, curriculum Apply; Save in header |
+| **Classes / Events tab** | Full editor | `data-editor-mode="full"` — all sections, including book periods, compression, notes (in `<details>` when collapsed) |
+| **Syllabus tab** | Lesson table + notes/units | Table first; header Save + Refresh + ⋮ More |
+| **Workspace** (`workspace.html`) | Homework copy + books editor | Subset of `app.js`; revision banner uses `CalendarSync.onRemoteNewer` (no separate meta poll) |
+
+Field-order convention: put **calendar-visible fields first** (name, dates, type, colors) so popouts need little or no scrolling.
+
+Modal open/close/focus: `CCPModalRegistry` in `app.js` (class, event, print, conflict, team modals). Admin uses `bindAdminModalA11y` in `js/admin.js`.
+
+Shared client modules: `js/utils.js` (`CCPUtils`), `js/client-api.js` (`CCPApi`), `js/theme-init.js` + `js/theme-toggle.js` (`CCPTheme`).
+
+Future optional split: `app-calendar.js` / `app-syllabus.js` for smaller workspace bundle — not required today.
+
 ---
 
 ## Dual-backend checklist (required for `/api` changes)

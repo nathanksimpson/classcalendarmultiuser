@@ -4593,11 +4593,6 @@ body[data-active-tab="events"] .app-term-quick-actions {
     overflow: hidden;
 }
 
-.event-form-mount--popout .event-editor-header {
-    flex-shrink: 0;
-    background: var(--bg-card);
-}
-
 .event-form-mount--popout .event-modal-body {
     flex: 1;
     min-height: 0;
@@ -4605,8 +4600,9 @@ body[data-active-tab="events"] .app-term-quick-actions {
     overscroll-behavior: contain;
 }
 
-.event-form-mount--popout #holidayForm {
-    padding: 16px 24px 24px;
+.event-form-mount--popout #holidayForm .event-editor-header {
+    flex-shrink: 0;
+    background: var(--bg-card);
 }
 
 .print-options-modal-content.modal-content--scrollable .print-form-mount {
@@ -6094,5 +6090,84 @@ body.workspace-page #appStatus {
     bottom: 1rem;
     right: 1rem;
     z-index: 1200;
+}
+
+[data-editor-mode="popout"] .form-group--full-only,
+[data-editor-mode="popout"] .form-section-advanced {
+    display: none !important;
+}
+
+[data-editor-mode="popout"] .editor-footer-actions--tab-only {
+    display: none;
+}
+
+.modal.calendar-popout .class-form-mount #classForm,
+.event-form-mount--popout #holidayForm {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+}
+
+.event-form-mount--popout .event-modal-body {
+    padding: 16px 24px 24px;
+}
+
+.editor-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.editor-header-more-btn {
+    min-width: 2rem;
+    padding-inline: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.header-dropdown-item--danger {
+    color: var(--danger-color, #dc2626);
+}
+
+.header-dropdown-item--danger:hover {
+    background: color-mix(in srgb, var(--danger-color, #dc2626) 12%, transparent);
+}
+
+.form-section-advanced {
+    margin: 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--surface-elevated, var(--bg-card));
+}
+
+.form-section-advanced > summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.print-cal-vis-panel[hidden] {
+    display: none !important;
+}
+
+.syllabus-editor-header-actions.editor-header-actions {
+    flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+    .workspace-books-layout {
+        flex-direction: column;
+    }
+
+    .workspace-books-sidebar {
+        flex: none;
+        max-width: none;
+        width: 100%;
+        max-height: 40vh;
+    }
 }
 
