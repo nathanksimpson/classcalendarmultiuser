@@ -9,6 +9,7 @@ const PERMS = {
     MANAGE_SETTINGS: 'manage_settings',
     CREATE_CALENDARS: 'create_calendars',
     DELETE_CALENDARS: 'delete_calendars',
+    VIEW_CALENDARS: 'view_calendars',
     VIEW_ALL_CALENDARS: 'view_all_calendars',
     FORCE_SAVE: 'force_save',
     BYPASS_COLLABORATIVE_LOCK: 'bypass_collaborative_lock',
@@ -27,6 +28,7 @@ const PERM_DEFINITIONS = [
     { id: PERMS.MANAGE_SETTINGS, labelKey: 'permManageSettings' },
     { id: PERMS.CREATE_CALENDARS, labelKey: 'permCreateCalendars' },
     { id: PERMS.DELETE_CALENDARS, labelKey: 'permDeleteCalendars' },
+    { id: PERMS.VIEW_CALENDARS, labelKey: 'permViewCalendars' },
     { id: PERMS.VIEW_ALL_CALENDARS, labelKey: 'permViewAllCalendars' },
     { id: PERMS.FORCE_SAVE, labelKey: 'permForceSave' },
     { id: PERMS.BYPASS_COLLABORATIVE_LOCK, labelKey: 'permBypassLock' },
@@ -41,6 +43,7 @@ const ROLE_PRESETS = {
     admin: ALL_PERMS,
     user_admin: [PERMS.MANAGE_USERS, PERMS.MANAGE_GROUPS, PERMS.ACCESS_ADMIN_PAGE],
     head_teacher: [
+        PERMS.VIEW_CALENDARS,
         PERMS.VIEW_ALL_CALENDARS,
         PERMS.CREATE_CALENDARS,
         PERMS.MANAGE_CALENDAR_ACCESS,
@@ -52,8 +55,8 @@ const ROLE_PRESETS = {
         PERMS.ACCESS_ADMIN_PAGE
     ],
     settings_admin: [PERMS.MANAGE_SETTINGS, PERMS.ACCESS_ADMIN_PAGE],
-    teacher: [],
-    viewer: []
+    teacher: [PERMS.VIEW_CALENDARS],
+    viewer: [PERMS.VIEW_CALENDARS]
 };
 
 const ASSIGNABLE_ROLES = [

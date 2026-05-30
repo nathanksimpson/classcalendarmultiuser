@@ -27,6 +27,12 @@ function canViewAllCalendars(user) {
     return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
 }
 
+function canViewCalendars(user) {
+    return (
+        canViewAllCalendars(user) || Auth.hasPermission(user, Auth.PERMS.VIEW_CALENDARS)
+    );
+}
+
 function getUserAccessLevel(user, calendarId) {
     if (!user || !calendarId) {
         return null;
@@ -56,6 +62,9 @@ function getUserAccessLevel(user, calendarId) {
 
 function canAccessCalendar(user, calendarId) {
     if (!user || !calendarId) {
+        return false;
+    }
+    if (!canViewCalendars(user)) {
         return false;
     }
     if (canViewAllCalendars(user)) {
@@ -88,6 +97,9 @@ function listCalendarsForUser(user) {
                 'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
             )
             .all();
+    }
+    if (!canViewCalendars(user)) {
+        return [];
     }
     return db
         .prepare(
@@ -363,6 +375,7 @@ function getCalendarSummaryForUser(user) {
 module.exports = {
     isAdmin,
     canViewAllCalendars,
+    canViewCalendars,
     getUserAccessLevel,
     canAccessCalendar,
     canEditCalendar,

@@ -756,6 +756,7 @@ let currentAdminDisplayName = '';
 let permissionMeta = null;
 let editUserInitialRole = 'teacher';
 let editUserPermissionsTouched = false;
+let editUserPermissionsInitializing = false;
 let addUserPermissionsTouched = false;
 
 function isCurrentUserSuperAdmin() {
@@ -803,6 +804,15 @@ function getRolePresetFromMeta(meta, role) {
     }
     const key = normalizeRoleKey(role);
     return (meta.rolePresets[key] || meta.rolePresets.teacher || []).slice();
+}
+
+/** Effective permissions for checkbox UI (API permissions array, else role preset). */
+function effectivePermissionsForUser(user, meta, roleFallback) {
+    if (Array.isArray(user.permissions)) {
+        return user.permissions.slice().sort();
+    }
+    const role = normalizeRoleKey(roleFallback || user.role);
+    return getRolePresetFromMeta(meta, role);
 }
 
 function buildPermissionCheckboxes(container, meta, selectedIds) {
@@ -930,12 +940,14 @@ async function prepareEditUserPermissions(user) {
     const list = document.getElementById('editUserPermissionsList');
     const elevation = document.getElementById('editUserElevationBox');
     const confirmInput = document.getElementById('editUserConfirmPassword');
+    const roleEl = document.getElementById('editUserRole');
+    const displayRole = normalizeRoleKey(roleEl ? roleEl.value : user.role);
     editUserInitialRole = normalizeRoleKey(user.role);
     editUserPermissionsTouched = false;
     if (confirmInput) {
         confirmInput.value = '';
     }
-    applySuperAdminRoleOptionVisibility(document.getElementById('editUserRole'));
+    applySuperAdminRoleOptionVisibility(roleEl);
     if (!isCurrentUserSuperAdmin() || editUserInitialRole === 'super_admin') {
         if (section) {
             section.hidden = true;
@@ -953,12 +965,14 @@ async function prepareEditUserPermissions(user) {
         return;
     }
     section.hidden = false;
-    const initialPerms =
-        user.customPermissions && user.customPermissions.length
-            ? user.customPermissions
-            : getRolePresetFromMeta(meta, editUserInitialRole);
-    buildPermissionCheckboxes(list, meta, initialPerms);
-    updateEditUserElevationUi();
+    editUserPermissionsInitializing = true;
+    try {
+        const initialPerms = effectivePermissionsForUser(user, meta, displayRole);
+        buildPermissionCheckboxes(list, meta, initialPerms);
+        updateEditUserElevationUi();
+    } finally {
+        editUserPermissionsInitializing = false;
+    }
 }
 
 async function prepareAddUserPermissions() {
@@ -1000,6 +1014,9 @@ function setupPermissionsUiHandlers() {
     if (editRole && editRole.dataset.permBound !== '1') {
         editRole.dataset.permBound = '1';
         editRole.addEventListener('change', () => {
+            if (editUserPermissionsInitializing) {
+                return;
+            }
             if (!editUserPermissionsTouched && permissionMeta) {
                 setPermissionCheckboxes(
                     editList,
@@ -1152,7 +1169,7 @@ async function deactivateUser(u) {
     showAdminSaveNotice(t('savedDeactivated', { label }), false);
 }
 
-function openEditUserModal(user, triggerEl) {
+async function openEditUserModal(user, triggerEl) {
     editUserTargetId = user.id;
     editUserTriggerEl = triggerEl || null;
     const modal = document.getElementById('editUserModal');
@@ -1163,7 +1180,11 @@ function openEditUserModal(user, triggerEl) {
     document.getElementById('editUserDisplayName').value = user.displayName || '';
     document.getElementById('editUserEmail').value = user.email || '';
     document.getElementById('editUserKakaoId').value = user.kakaoUserId || '';
-    prepareEditUserPermissions(user).catch(() => {});
+    try {
+        await prepareEditUserPermissions(user);
+    } catch (_) {
+        /* still open modal */
+    }
     openAdminModal(modal, editUserTriggerEl);
     document.getElementById('editUserDisplayName')?.focus();
 }

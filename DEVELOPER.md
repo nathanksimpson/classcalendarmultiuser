@@ -89,7 +89,7 @@ UI-only changes still need **`npx wrangler deploy`** for production (see deploy 
 
 **Per-calendar access:** Each grant on `calendar_members` / `calendar_groups` has `access_level`: `viewer` (read-only), `suggester` (read-only + suggestions API), or `editor` (normal lock + save). Admin **Calendars** tab saves `{ userAccess, groupAccess }` via `PUT /api/admin/calendars/:id/access`. Calendar meta includes `canEdit`, `accessLevel`, and `readOnly` merges permission + lock. New/waiting teachers log `user_needs_access` and appear in `GET /api/admin/access-requests` (in-app admin banner; no email in v1).
 
-**Global permissions (super admin):** `users.permissions` JSON overrides role presets when set. Super admins edit checkboxes in the Accounts **Edit user** / **Add teacher** forms (`GET /api/admin/permission-meta`). Promoting to **Super admin** role or granting all 13 permissions on another role requires the actor’s `confirmPassword`. Only super admins may assign the super admin role or custom permissions. `canForceUnlock` remains role-based (`super_admin` / `head_teacher`), not checkbox-based. Logic: `server/admin-user-policy.js` (mirror `worker/src/admin-user-policy.js`).
+**Global permissions (super admin):** `users.permissions` JSON overrides role presets when set. Super admins edit checkboxes in the Accounts **Edit user** / **Add teacher** forms (`GET /api/admin/permission-meta`). Promoting to **Super admin** role or granting all global permissions on another role requires the actor’s `confirmPassword`. Only super admins may assign the super admin role or custom permissions. `canForceUnlock` remains role-based (`super_admin` / `head_teacher`), not checkbox-based. Logic: `server/admin-user-policy.js` (mirror `worker/src/admin-user-policy.js`).
 
 ---
 

@@ -25,6 +25,12 @@ export function canViewAllCalendars(user) {
     return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
 }
 
+export function canViewCalendars(user) {
+    return (
+        canViewAllCalendars(user) || Auth.hasPermission(user, Auth.PERMS.VIEW_CALENDARS)
+    );
+}
+
 export async function getUserAccessLevel(env, user, calendarId) {
     if (!user || !calendarId) {
         return null;
@@ -55,6 +61,9 @@ export async function canAccessCalendar(env, user, calendarId) {
     if (!user || !calendarId) {
         return false;
     }
+    if (!canViewCalendars(user)) {
+        return false;
+    }
     if (canViewAllCalendars(user)) {
         return true;
     }
@@ -76,6 +85,9 @@ export async function listCalendarsForUser(env, user) {
             'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars ORDER BY name COLLATE NOCASE'
         ).all();
         return r.results || [];
+    }
+    if (!canViewCalendars(user)) {
+        return [];
     }
     const r = await env.DB.prepare(
         `SELECT DISTINCT c.id, c.name, c.revision, c.updated_at AS updatedAt, c.updated_by AS updatedBy
