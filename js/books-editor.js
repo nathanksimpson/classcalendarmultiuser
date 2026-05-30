@@ -1257,11 +1257,18 @@
                     .replace('{factory}', String(baselineCount))
             )}</p>`
             : '';
-        const customBadge = book.isCustom
-            ? (book.hasOverride
-                ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>`
-                : `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('curriculumCustomBadge'))}</p>`)
-            : (book.hasOverride ? `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>` : '');
+        let customBadge = '';
+        if (book.isCustom) {
+            let badgeKey = 'curriculumCustomBadge';
+            if (book.hasOverride) {
+                badgeKey = 'booksEditorCustomBadge';
+            } else if (getTeamDefaultRecord(bookId, appData)) {
+                badgeKey = 'curriculumCustomTeamDefaultBadge';
+            }
+            customBadge = `<p class="books-editor-custom-badge">${escapeHtml(hooks.t(badgeKey))}</p>`;
+        } else if (book.hasOverride) {
+            customBadge = `<p class="books-editor-custom-badge">${escapeHtml(hooks.t('booksEditorCustomBadge'))}</p>`;
+        }
         meta.innerHTML = `
           <p><strong>${escapeHtml(book.displayName || book.name)}</strong></p>
           <p class="section-hint">${escapeHtml(hooks.t('booksEditorMetaLevels').replace('{levels}', book.levelsLabel || '—'))}</p>
