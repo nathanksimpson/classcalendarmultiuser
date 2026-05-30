@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-popout-colors">
+    <link rel="stylesheet" href="styles.css?v=20260530-timetable">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -132,6 +132,7 @@
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-syllabus" aria-selected="false" aria-controls="panel-syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabus</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-events" aria-selected="false" aria-controls="panel-events" data-tab="events" data-i18n="tabEvents">Events</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-homework" aria-selected="false" aria-controls="panel-homework" data-tab="homework" data-i18n="tabHomework">Homework</button>
+                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-timetable" aria-selected="false" aria-controls="panel-timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-curriculum" aria-selected="false" aria-controls="panel-curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Curriculum</button>
                     <button type="button" class="app-tab-btn app-tab-btn--data" role="tab" id="tabBtn-data" aria-selected="false" aria-controls="panel-data" data-tab="data" data-i18n="tabData">Data</button>
                 </nav>
@@ -381,6 +382,40 @@
                 </div>
             </section>
 
+            <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
+                <div class="module-toolbar timetable-tab-toolbar">
+                    <label class="timetable-teacher-picker" for="timetableTeacherSelect">
+                        <span data-i18n="timetableTeacherLabel">Teacher</span>
+                        <select id="timetableTeacherSelect">
+                            <option value="" data-i18n="timetableSelectTeacher">Select a teacher</option>
+                        </select>
+                    </label>
+                    <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
+                    <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
+                    <span id="timetableConflictBadge" class="timetable-conflict-badge" role="status" hidden></span>
+                </div>
+                <div id="timetableEmptyHint" class="module-empty-hint" data-i18n="timetableEmptyHint">Assign teachers on the Classes tab to build a weekly timetable.</div>
+                <div id="timetableView" class="timetable-view" hidden>
+                    <header class="timetable-header">
+                        <h2 id="timetableTeacherTitle" class="timetable-teacher-title"></h2>
+                        <p id="timetableHomeroomLine" class="timetable-homeroom-line" hidden>
+                            <span data-i18n="timetableHomeroomLabel">Homeroom</span>
+                            <span id="timetableHomeroomChips" class="timetable-homeroom-chips"></span>
+                        </p>
+                        <p id="timetableTermLabel" class="timetable-term-label section-hint"></p>
+                    </header>
+                    <div id="timetableGridsMount" class="timetable-grids-mount"></div>
+                </div>
+                <section class="timetable-cohorts-section">
+                    <div class="timetable-cohorts-toolbar">
+                        <h3 data-i18n="timetableCohortsHeading">Student cohorts (담임)</h3>
+                        <button type="button" id="timetableSuggestCohortsBtn" class="btn btn-outline btn-small" data-i18n="timetableSuggestCohorts">Suggest cohorts from classes</button>
+                        <button type="button" id="timetableAddCohortBtn" class="btn btn-primary btn-small" data-i18n="timetableAddCohort">Add cohort</button>
+                    </div>
+                    <div id="timetableCohortsList" class="timetable-cohorts-list"></div>
+                </section>
+            </section>
+
             <section id="panel-curriculum" class="app-tab-panel" data-tab="curriculum" role="tabpanel" aria-labelledby="tabBtn-curriculum" hidden>
                 <p class="section-hint curriculum-tab-intro" data-i18n="curriculumTabIntro">Edit session pages and default schedule settings for each program book. On the class form, pick Level and Book, then Apply from curriculum.</p>
                 <div class="curriculum-tab-layout workspace-books-layout">
@@ -597,6 +632,43 @@
                         </select>
                     </div>
                 </div>
+
+                <section class="form-section class-teacher-section form-group--full-only">
+                    <h3 class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="classAssignedTeacher" data-i18n="classAssignedTeacher">Assigned teacher</label>
+                            <select id="classAssignedTeacher">
+                                <option value="" data-i18n="classAssignedTeacherNone">— Not assigned —</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="classAssignedTeacherName" data-i18n="classAssignedTeacherName">Teacher name (if not in list)</label>
+                            <input type="text" id="classAssignedTeacherName" autocomplete="off" placeholder="">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="classTeacherCategory" data-i18n="classTeacherCategory">Teacher category</label>
+                            <select id="classTeacherCategory">
+                                <option value="" data-i18n="classTeacherCategoryAuto">Auto from class type</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="classCohort" data-i18n="classCohort">Student cohort</label>
+                            <select id="classCohort">
+                                <option value="" data-i18n="classCohortNone">— No cohort —</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="classScheduleBlock" data-i18n="classScheduleBlock">Schedule block</label>
+                            <select id="classScheduleBlock">
+                                <option value="primary" data-i18n="classScheduleBlockPrimary">Primary (main grid)</option>
+                                <option value="secondary" data-i18n="classScheduleBlockSecondary">Secondary (Conversation / IPE / MS)</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
 
                 <div class="form-group">
                     <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>
@@ -1182,7 +1254,8 @@
     <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="app.js?v=20260527-modal-ux"></script>
+    <script defer src="js/teacher-timetable.js?v=20260530-timetable"></script>
+    <script defer src="app.js?v=20260530-timetable"></script>
 </body>
 </html>
 

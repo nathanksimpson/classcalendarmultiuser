@@ -16,8 +16,38 @@
 
 **Syllabus data (not in saved calendar JSON):** `Reference/Syllabi/schedule-matrix.json` (Junior Rainbow / Senior Waterflow slots), session templates in `js/syllabus-curricula-data.js`. Presets include `programTrack`, `levelGroup`, `level`, `subjectTrack` for schedule suggestions; legacy IDs alias to new preset ids (e.g. `preset-rc-greenblue` → `preset-rc-green-blue`).
 | `ui` | object | `visibilityFilters`, `printVisibility`, `lessonFilters` (optional class/grade/level filters) |
+| `cohorts` | array | Student groups (same students); homeroom teacher (담임) per cohort — see below |
+| `timetableTimeSlots` | array | Clock times for weekly timetable rows — see below |
+| `periodSlotMap` | object | Maps class period `"1"`…`"7"` to `timetableTimeSlots[].id` |
 
 `holidays` may appear in old exports; on load they are merged into `events`. New saves omit `holidays` (derived in memory from `events`).
+
+### `cohorts[]` (optional)
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `name` | string | Display name (e.g. Purple T) |
+| `level` | string | Simson level |
+| `grade` | string | Optional grade |
+| `meetingDays` | number[] | 0=Sun … 6=Sat |
+| `classIds` | string[] | Classes sharing this student group |
+| `homeroomTeacherUserId` | string | 담임 — app user id |
+| `homeroomTeacherName` | string | Free-text fallback |
+| `homeroomDaySuffix` | string | Shown in timetable header (e.g. `M`, `T`) |
+
+### `timetableTimeSlots[]` (optional)
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id (e.g. `ts1`) |
+| `start`, `end` | string | `HH:MM` clock labels |
+| `durationMin` | number | Optional minutes (display) |
+| `sortOrder` | number | Row order |
+
+### `periodSlotMap` (optional)
+
+Object mapping period number strings (`"1"` … `"7"`) to a `timetableTimeSlots[].id`.
 
 ### `ui.lessonFilters` (optional)
 
@@ -62,6 +92,12 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `syllabusGeneralNotes` | string | Optional general notes and instructions (shown at top of printed syllabus) |
 | `syllabusRows` | array | Per-class syllabus table rows for print/export (see below) |
 | `color`, `textColor` | string | Hex colors |
+| `cohortId` | string | Links class to `cohorts[]` (same students) |
+| `assignedTeacherUserId` | string | Primary teacher (app user id) |
+| `assignedTeacherName` | string | Teacher name when not linked to a user |
+| `teacherCategory` | string | Timetable label: Debate, Wr&Spk, IPE, Conversation, … (empty = derive from class type) |
+| `scheduleBlock` | string | `primary` (main grid) or `secondary` (Conversation / IPE / MS block) |
+| `timeSlotId` | string | Optional override linking to `timetableTimeSlots[].id` |
 
 ### `syllabusUnits[]` (optional)
 

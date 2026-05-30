@@ -6186,3 +6186,195 @@ body.workspace-page #appStatus {
     }
 }
 
+/* Timetable tab */
+.timetable-tab-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.timetable-teacher-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timetable-teacher-picker select {
+    min-width: 12rem;
+}
+
+.timetable-conflict-badge {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--success-color, #16a34a) 15%, transparent);
+    color: var(--success-color, #16a34a);
+}
+
+.timetable-conflict-badge--warn {
+    background: color-mix(in srgb, var(--danger-color, #dc2626) 12%, transparent);
+    color: var(--danger-color, #dc2626);
+}
+
+.timetable-header {
+    margin-bottom: 1rem;
+}
+
+.timetable-teacher-title {
+    margin: 0 0 0.35rem;
+    font-size: 1.35rem;
+}
+
+.timetable-homeroom-line {
+    margin: 0 0 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timetable-homeroom-chips {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+.timetable-homeroom-chip {
+    display: inline-block;
+    min-width: 1.75rem;
+    text-align: center;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    font-weight: 700;
+}
+
+.timetable-grids-mount {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    overflow-x: auto;
+}
+
+.timetable-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.timetable-grid th,
+.timetable-grid td {
+    border: 1px solid var(--border-color);
+    padding: 0.45rem 0.5rem;
+    vertical-align: top;
+}
+
+.timetable-grid thead th {
+    background: var(--surface-elevated, var(--bg-card));
+    font-weight: 600;
+    text-align: center;
+}
+
+.timetable-col-time {
+    white-space: nowrap;
+    min-width: 8.5rem;
+    font-weight: 600;
+    background: var(--surface-elevated, var(--bg-card));
+}
+
+.timetable-cell {
+    min-width: 7rem;
+    min-height: 2.75rem;
+}
+
+.timetable-cell-name {
+    font-weight: 600;
+}
+
+.timetable-cell-category {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.timetable-cell--conflict {
+    background: color-mix(in srgb, var(--danger-color, #dc2626) 10%, transparent);
+    outline: 2px solid color-mix(in srgb, var(--danger-color, #dc2626) 45%, transparent);
+}
+
+.timetable-grid--secondary {
+    margin-top: 0.5rem;
+}
+
+.class-teacher-section .form-section-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+}
+
+.timetable-cohorts-section {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.timetable-cohorts-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.timetable-cohorts-toolbar h3 {
+    margin: 0;
+    flex: 1 1 auto;
+}
+
+.timetable-cohorts-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.timetable-cohort-card {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--surface-elevated, var(--bg-card));
+}
+
+.timetable-cohort-card label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.timetable-cohort-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+@media print {
+    body.print-timetable .app-top-bar,
+    body.print-timetable .app-tab-nav,
+    body.print-timetable .timetable-tab-toolbar,
+    body.print-timetable .timetable-cohorts-section,
+    body.print-timetable .module-empty-hint {
+        display: none !important;
+    }
+
+    body.print-timetable .app-tab-panel {
+        display: none !important;
+    }
+
+    body.print-timetable #panel-timetable {
+        display: block !important;
+    }
+
+    body.print-timetable #timetableView {
+        display: block !important;
+    }
+}
+
