@@ -58,4 +58,4 @@
 
 - 앱 **도움말** ([help.html](help.html)) — 1–14절 플래너, **17–19절** 팀·잠금, **20–21절** Admin·역할.
 - English: [FOR TEACHERS.md](FOR%20TEACHERS.md)
-- 관리자: 헤더 **Admin**; 도움말 **20–21절** (선생님·그룹·캘린더 접근·역할 권한).
+- 관리자: 헤더 **Admin**(Accounts·Groups·Calendars·System·Monitor 탭); 도움말 **20–21절**(Admin 패널·역할 권한).

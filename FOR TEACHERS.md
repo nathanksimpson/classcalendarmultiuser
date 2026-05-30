@@ -58,4 +58,4 @@ Just use the bookmark.
 
 - In the app: **Help** opens [help.html](help.html) — sections 1–14 = planner, **17–19** = team sign-in and locks, **20–21** = Admin and roles.
 - Korean guide: [FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md)
-- Admins: **Admin** in the header; Help sections **20–21** for teachers, groups, calendar access, and role privileges.
+- Admins: **Admin** in the header (Accounts, Groups, Calendars, System, Monitor tabs); Help sections **20–21** for the Admin panel and role privileges.

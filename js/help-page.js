@@ -102,6 +102,29 @@
         return 'help-section-' + num + (rest ? '-' + rest : '');
     }
 
+    /** With <base href="/">, hash-only links resolve to /#id (main app). Use help.html#id. */
+    function helpPagePath() {
+        const path = location.pathname || '';
+        if (path.endsWith('help.html')) {
+            return path;
+        }
+        return '/help.html';
+    }
+
+    function helpSectionHref(sectionId) {
+        return helpPagePath() + '#' + sectionId;
+    }
+
+    function scrollToSectionId(sectionId) {
+        if (!sectionId) {
+            return;
+        }
+        const target = document.getElementById(sectionId);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     function sectionSearchText(section) {
         const parts = [section.heading, section.where].concat(section.steps || []);
         return parts.join(' ').toLowerCase();
@@ -203,8 +226,8 @@
             const hiddenClass = q && !matches ? ' is-hidden-match' : '';
             const shortTitle = section.heading.replace(/^\d+\.\s*/, '');
             return (
-                '<li><a href="#' +
-                escapeHtml(id) +
+                '<li><a href="' +
+                escapeHtml(helpSectionHref(id)) +
                 '" class="' +
                 hiddenClass.trim() +
                 '">' +
@@ -330,10 +353,37 @@
         if (!hash || hash.length < 2) {
             return;
         }
-        const target = document.getElementById(hash.slice(1));
-        if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollToSectionId(hash.slice(1));
+    }
+
+    function setupTocClickScroll() {
+        const toc = document.getElementById('helpTocList');
+        if (!toc || toc.dataset.bound === '1') {
+            return;
         }
+        toc.dataset.bound = '1';
+        toc.addEventListener('click', (e) => {
+            const link = e.target.closest('a[href*="#"]');
+            if (!link) {
+                return;
+            }
+            const href = link.getAttribute('href') || '';
+            const hashIdx = href.indexOf('#');
+            if (hashIdx < 0) {
+                return;
+            }
+            const sectionId = href.slice(hashIdx + 1);
+            const target = document.getElementById(sectionId);
+            if (!target) {
+                return;
+            }
+            e.preventDefault();
+            const nextUrl = helpSectionHref(sectionId);
+            if (location.pathname.endsWith('help.html') && location.hash !== '#' + sectionId) {
+                history.replaceState(null, '', nextUrl);
+            }
+            scrollToSectionId(sectionId);
+        });
     }
 
     function setupSearch() {
@@ -379,6 +429,7 @@
         setupSearch();
         setupThemeToggle();
         setupLangToggle();
+        setupTocClickScroll();
         renderPage();
         window.addEventListener('hashchange', scrollToHash);
         requestAnimationFrame(scrollToHash);

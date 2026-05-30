@@ -204,7 +204,7 @@
                 "steps": [
                     "Open the team URL your school gave you in the browser (bookmark it). Do not double-click index.html from a folder.",
                     "Click Login with Kakao. First sign-in creates your account — you do not need to give your email to your admin.",
-                    "If you see a waiting page, your admin must grant calendar access (they can find you in Admin → Users by Kakao ID or display name).",
+                    "If you see a waiting page, your admin must grant calendar access (Admin → Accounts tab: search by Kakao ID or display name, or use Review waiting — see section 20).",
                     "Password fallback: only if your admin gave you email + temporary password — use the form below Kakao on the login page.",
                     "After sign-in: Account menu → Change password (min 8 characters) if you use password login. Edit name updates how colleagues see you.",
                     "Sign out from Account menu when finished. On shared PCs the site signs you out after idle time (admin sets minutes; default 30 with a 2-minute warning). Move the mouse or press a key when warned to stay signed in."
@@ -238,17 +238,23 @@
                 ]
             },
             {
-                "heading": "20. Admin: teachers, groups, and access (technical)",
-                "where": "admin.html — Account menu → Admin (admins only)",
+                "heading": "20. Admin panel (accounts, calendars, system)",
+                "where": "admin.html — Account menu → Admin (role must allow Admin access)",
                 "steps": [
-                    "Open admin.html from Account menu → Admin (only if your role includes Admin access).",
-                    "Teachers & admins: add users, set roles, reset passwords. Deactivate blocks sign-in; Reactivate restores; Delete permanently only for deactivated accounts.",
-                    "Groups: put teachers in named groups, then assign groups to calendars.",
-                    "Calendar access: pick a calendar, check teachers (direct) and/or groups, and set each person's access level: Editor, Suggester, or Viewer (see section 21).",
-                    "Who is online and Activity log appear for roles with those permissions (see section 21).",
-                    "Security & lock settings: lock expiry, idle sign-out, and warning minutes.",
-                    "First-time setup: when no admin exists, use the bootstrap secret from server config once.",
-                    "For which role can do what on the site, see section 21 — Roles and privileges."
+                    "Open admin.html from the calendar Account menu → Admin. You must be signed in; only roles with Admin permissions see the page (section 21).",
+                    "The Admin page uses tabs across the top. You only see tabs your role allows: Accounts, Groups, Calendars, System, Monitor.",
+                    "Bookmarkable tab URLs: admin.html#accounts, #groups, #calendars, #system, #monitor. Older links like #usersSection still open the right tab.",
+                    "Waiting teachers: a banner appears when someone signed in but has no calendar yet. Click Review waiting to open Accounts with the Waiting filter. The Accounts tab may show a count, e.g. Accounts (3).",
+                    "Accounts tab — Search by name, email, or Kakao ID. Filter chips: All, Active, Waiting, Deactivated. Expand Account help for tips. The table shows role, which calendars they can open, and status.",
+                    "Accounts tab — Actions menu (per row): Edit (display name, role, email, Kakao ID), Deactivate or Reactivate, Force sign-out all devices, Reset password. Delete permanently only for deactivated accounts. You cannot deactivate the last super admin.",
+                    "Accounts tab — Add teacher at the bottom to pre-add someone before first Kakao sign-in; choose a role from the dropdown.",
+                    "Groups tab — Create named groups, edit members, delete groups. Assign groups to calendars on the Calendars tab.",
+                    "Calendars tab — Pick a calendar. For each teacher or group: check the box to grant access, then choose Viewer (read/print only), Suggester (propose changes), or Editor (edit when holding the team lock). Click Save access. Open Access levels for short definitions.",
+                    "Head teachers who can open every calendar may not appear in the Calendars list for a specific calendar.",
+                    "System tab — Lock expires after N minutes, idle sign-out, idle warning before sign-out, and max days to stay signed in.",
+                    "Monitor tab — Who is online (heartbeat in the last ~90 seconds) and Activity log (recent saves and admin actions, not full calendar copies). Shown only if your role has those permissions.",
+                    "First-time setup: if no admin exists yet, a bootstrap form appears — use the secret from server config once, then add teachers.",
+                    "For which account role gets which Admin tab and site-wide powers, see section 21 — Roles and privileges."
                 ]
             },
             {
@@ -459,7 +465,7 @@
                 "steps": [
                     "학교에서 준 팀 URL을 브라우저에서 여세요(북마크 권장). 폴더의 index.html을 더블클릭하지 마세요.",
                     "Login with Kakao를 클릭하세요. 첫 로그인 시 계정이 만들어집니다.",
-                    "대기 페이지가 보이면 관리자가 캘린더 접근 권한을 부여해야 합니다(Admin → Users에서 카카오 ID 또는 표시 이름으로 찾을 수 있음).",
+                    "대기 페이지가 보이면 관리자가 캘린더 접근 권한을 부여해야 합니다(Admin → Accounts 탭: 카카오 ID·이름 검색 또는 Review waiting — 20절).",
                     "비밀번호 로그인: 관리자가 이메일과 임시 비밀번호를 준 경우에만 카카오 아래 양식을 사용하세요.",
                     "로그인 후: Account 메뉴 → Change password(8자 이상). Edit name으로 동료에게 보이는 이름을 바꿀 수 있습니다.",
                     "끝나면 Account 메뉴에서 Sign out하세요. 공용 PC에서는 유휴 시간 후 자동 로그아웃됩니다(관리자 설정, 기본 30분, 2분 전 경고). 경고 시 마우스·키 입력으로 유지하세요."
@@ -493,17 +499,23 @@
                 ]
             },
             {
-                "heading": "20. 관리자: 선생님, 그룹, 접근 권한 (기술)",
-                "where": "admin.html — Account 메뉴 → Admin (관리자만)",
+                "heading": "20. Admin 패널 (계정, 캘린더, 시스템)",
+                "where": "admin.html — Account 메뉴 → Admin (Admin 권한 있는 역할)",
                 "steps": [
-                    "Account 메뉴 → Admin(관리자)으로 admin.html을 엽니다(Admin 접근 권한이 있는 역할만).",
-                    "Teachers & admins: 사용자 추가, 역할 설정, 비밀번호 재설정. Deactivate는 로그인 차단, Reactivate 복구, Delete permanently는 비활성 계정만.",
-                    "Groups: 선생님을 그룹으로 묶고 캘린더에 그룹을 지정합니다.",
-                    "Calendar access: 캘린더 선택 후 선생님(직접)·그룹 체크, 각 사람의 접근 수준 Editor·Suggester·Viewer 설정(21절).",
-                    "Who is online·Activity log는 해당 권한이 있는 역할에게만 표시됩니다(21절).",
-                    "Security & lock settings: 잠금 만료, 유휴 자동 로그아웃·경고 분.",
-                    "First-time setup: 관리자가 없을 때 서버 bootstrap secret으로 한 번 생성.",
-                    "역할별 권한은 21절 — 역할 및 권한을 참고하세요."
+                    "캘린더 Account 메뉴 → Admin으로 admin.html을 엽니다. 로그인 필요; Admin 권한이 있는 역할만 탭이 보입니다(21절).",
+                    "Admin 상단 탭: Accounts, Groups, Calendars, System, Monitor — 역할에 따라 보이는 탭만 표시됩니다.",
+                    "탭 URL: admin.html#accounts, #groups, #calendars, #system, #monitor. 예전 #usersSection 링크도 동작합니다.",
+                    "대기 중인 선생님: 로그인했지만 캘린더가 없으면 배너가 뜹니다. Review waiting → Accounts 탭 Waiting 필터. Accounts (3)처럼 개수가 표시될 수 있습니다.",
+                    "Accounts 탭 — 이름·이메일·카카오 ID 검색. 필터: All, Active, Waiting, Deactivated. Account help 펼치기. 표에 역할, 열 수 있는 캘린더, 상태.",
+                    "Accounts 탭 — Actions 메뉴: Edit(이름·역할·이메일·카카오 ID), Deactivate/Reactivate, Force sign-out all devices, Reset password. Delete permanently는 비활성만. 마지막 super admin은 비활성화 불가.",
+                    "Accounts 탭 — 하단 Add teacher로 카카오 첫 로그인 전 미리 추가; 역할 선택.",
+                    "Groups 탭 — 그룹 만들기, 멤버 편집, 삭제. Calendars 탭에서 그룹에 접근 지정.",
+                    "Calendars 탭 — 캘린더 선택. 선생님·그룹마다 체크 후 Viewer(읽기·인쇄), Suggester(제안), Editor(팀 잠금 시 편집). Save access. Access levels에서 설명 확인.",
+                    "모든 캘린더를 열 수 있는 head teacher는 목록에 안 나올 수 있습니다.",
+                    "System 탭 — 잠금 만료 분, 유휴 로그아웃, 로그아웃 전 경고, 최대 로그인 유지 일.",
+                    "Monitor 탭 — Who is online(약 90초 이내 활동), Activity log(최근 저장·관리 작업). 권한 있는 역할만.",
+                    "First-time setup: 관리자가 없으면 bootstrap secret으로 한 번 생성.",
+                    "역할별 Admin 탭·권한은 21절 — 역할 및 권한."
                 ]
             },
             {
@@ -534,32 +546,32 @@
     ],
     "permLabels": {
         "en": {
-            "manage_users": "Manage teachers (Admin → Teachers)",
-            "manage_groups": "Manage groups (Admin → Groups)",
-            "manage_calendar_access": "Assign calendar access (Admin → Calendar access)",
-            "manage_settings": "Security & lock settings (Admin)",
+            "manage_users": "Manage accounts (Admin → Accounts tab)",
+            "manage_groups": "Manage groups (Admin → Groups tab)",
+            "manage_calendar_access": "Assign calendar access (Admin → Calendars tab)",
+            "manage_settings": "Security settings (Admin → System tab)",
             "create_calendars": "Create team calendars (+ New)",
             "delete_calendars": "Delete team calendars (Remove)",
             "view_all_calendars": "Open any team calendar (not only assigned)",
             "force_save": "Save over revision conflicts (with lock rules)",
             "bypass_collaborative_lock": "Edit while someone else holds lock (read-only bypass)",
-            "view_presence": "Who is online (Admin)",
-            "view_audit": "Activity log (Admin)",
+            "view_presence": "Who is online (Admin → Monitor tab)",
+            "view_audit": "Activity log (Admin → Monitor tab)",
             "apply_suggestions": "Apply calendar change suggestions",
             "access_admin_page": "Open Admin page"
         },
         "ko": {
-            "manage_users": "선생님 관리 (Admin → Teachers)",
-            "manage_groups": "그룹 관리 (Admin → Groups)",
-            "manage_calendar_access": "캘린더 접근 지정 (Admin → Calendar access)",
-            "manage_settings": "보안·잠금 설정 (Admin)",
+            "manage_users": "계정 관리 (Admin → Accounts 탭)",
+            "manage_groups": "그룹 관리 (Admin → Groups 탭)",
+            "manage_calendar_access": "캘린더 접근 지정 (Admin → Calendars 탭)",
+            "manage_settings": "보안 설정 (Admin → System 탭)",
             "create_calendars": "팀 캘린더 만들기 (+ New)",
             "delete_calendars": "팀 캘린더 삭제 (Remove)",
             "view_all_calendars": "모든 팀 캘린더 열기 (지정만이 아님)",
             "force_save": "버전 충돌 시 강제 저장 (잠금 규칙 적용)",
             "bypass_collaborative_lock": "다른 사람 잠금 중에도 편집(읽기 전용 우회)",
-            "view_presence": "접속 중인 사용자 (Admin)",
-            "view_audit": "활동 로그 (Admin)",
+            "view_presence": "접속 중인 사용자 (Admin → Monitor 탭)",
+            "view_audit": "활동 로그 (Admin → Monitor 탭)",
             "apply_suggestions": "캘린더 변경 제안 적용",
             "access_admin_page": "Admin 페이지 열기"
         }
@@ -621,18 +633,20 @@
     const ROLES_INTRO = {
     "en": [
         "Two different ideas control what someone can do:",
-        "Account role — set in Admin → Teachers when editing a user. Controls Admin page sections, creating/deleting team calendars, seeing all calendars, and lock bypass.",
-        "Calendar access level — set per person or group on Admin → Calendar access for each calendar: Editor (full edit with lock), Suggester (propose changes; an editor or head teacher applies them), Viewer (read-only for that calendar).",
+        "Account role — set on Admin → Accounts tab → Edit. Controls which Admin tabs appear, creating/deleting team calendars, seeing all calendars, and lock bypass.",
+        "Admin tabs map to permissions: Accounts (manage_users), Groups (manage_groups), Calendars (manage_calendar_access), System (manage_settings), Monitor (view_presence and/or view_audit).",
+        "Calendar access level — set per person or group on Admin → Calendars tab for each calendar: Editor (edit with team lock), Suggester (propose changes; editor or head teacher applies), Viewer (read/print only for that calendar).",
         "Legacy admin role in the database is treated as Super admin.",
         "Super admin and Head teacher can release stale locks (canForceUnlock). There is still no force takeover of an active editor — only Allow, Release, or timeout.",
         "Advanced: if permissions JSON is set on a user in the database, that list replaces the role preset below."
     ],
     "ko": [
         "두 가지 개념이 권한을 나눕니다:",
-        "계정 역할 — Admin → Teachers에서 사용자 편집 시 설정. Admin 화면, 팀 캘린더 만들기/삭제, 모든 캘린더 보기, 잠금 우회 등.",
-        "캘린더 접근 수준 — Admin → Calendar access에서 캘린더마다 지정: Editor(잠금 규칙 하에 편집), Suggester(변경 제안; 편집자 또는 담당 선생님이 적용), Viewer(해당 캘린더 읽기 전용).",
+        "계정 역할 — Admin → Accounts 탭 → Edit에서 설정. Admin 탭 표시, 팀 캘린더 만들기/삭제, 모든 캘린더 보기, 잠금 우회 등.",
+        "Admin 탭과 권한: Accounts(manage_users), Groups(manage_groups), Calendars(manage_calendar_access), System(manage_settings), Monitor(view_presence·view_audit).",
+        "캘린더 접근 수준 — Admin → Calendars 탭에서 캘린더마다: Editor(팀 잠금 하에 편집), Suggester(제안; 편집자·담당 선생님이 적용), Viewer(해당 캘린더 읽기·인쇄만).",
         "DB의 예전 admin 역할은 Super admin과 같습니다.",
-        "Super admin·Head teacher는 오래된 잠금 해제(canForceUnlock)가 가능합니다. 편집 중인 사람을 강제로 빼앗을 수는 없습니다 — 허용, 잠금 해제, 만료만.",
+        "Super admin·Head teacher는 오래된 잠금 해제(canForceUnlock) 가능. 편집 중 강제 빼앗기 없음 — 허용, 잠금 해제, 만료만.",
         "고급: DB에 permissions JSON이 있으면 아래 역할 프리셋 대신 그 목록이 적용됩니다."
     ]
 };
