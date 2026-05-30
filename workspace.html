@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curriculum workspace — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260531-hw-copy">
+    <link rel="stylesheet" href="styles.css?v=20260531-hw-date-btn">
 </head>
 <body class="workspace-page">
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
@@ -100,10 +100,12 @@
                             </div>
                             <div class="homework-due-block homework-due-block--assign">
                                 <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
-                                <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
+                                <div class="homework-due-date-row">
+                                    <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
+                                    <button type="button" id="homeworkCopyDueDateBtn" class="btn btn-outline btn-small homework-copy-btn" data-i18n="homeworkTabCopyDate">Copy date</button>
+                                </div>
                                 <p class="homework-copy-homework-title" data-i18n="homeworkTabCopyHomeworkTitle">Homework text — paste into the description field on your homework assignment site.</p>
                                 <div class="homework-copy-actions-stack">
-                                    <button type="button" id="homeworkCopyDueDateBtn" class="btn btn-outline btn-small homework-copy-btn" data-i18n="homeworkTabCopyDate">Copy date</button>
                                     <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopyHomework">Copy homework</button>
                                 </div>
                                 <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>

@@ -5336,8 +5336,15 @@ body[data-active-tab="events"] .app-term-quick-actions {
     margin: 4px 0 0;
 }
 
-.homework-due-value--iso {
+.homework-due-date-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
     flex: 1 1 100%;
+}
+
+.homework-due-value--iso {
     font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
