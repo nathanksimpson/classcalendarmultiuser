@@ -3877,35 +3877,85 @@ body[data-active-tab="events"] .app-term-quick-actions {
     display: none;
 }
 
+/* Classes panel: secondary sub-tabs (distinct from main app-tab-nav) */
+.classes-subtab-shell {
+    margin-top: 4px;
+}
+
+.classes-subtab-legend {
+    margin: 0 0 6px;
+    padding-left: 2px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
 .classes-panel-segments {
     display: flex;
-    gap: 4px;
-    margin-bottom: 12px;
-    padding: 0 4px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0;
+    margin: 0;
+    padding: 6px 8px 0;
+    background: var(--surface-muted);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .classes-segment-btn {
+    position: relative;
     flex: 0 1 auto;
-    min-width: 7rem;
+    min-width: 6.5rem;
     font-family: var(--font-main);
     font-size: 0.8125rem;
     font-weight: 600;
-    padding: 8px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    background: var(--bg-card);
+    padding: 9px 16px 10px;
+    margin: 0 2px 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.classes-segment-btn:hover:not(.is-active) {
+    background: rgba(255, 255, 255, 0.55);
+    color: var(--text-primary);
 }
 
 .classes-segment-btn.is-active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    z-index: 1;
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    border-bottom: 1px solid var(--bg-card);
+    margin-bottom: -1px;
+    padding-bottom: 11px;
+    color: var(--primary);
+    box-shadow:
+        0 -2px 0 var(--primary),
+        0 1px 0 var(--bg-card);
+}
+
+.classes-subtab-body {
+    padding: 14px 12px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0 10px 10px 10px;
+    box-shadow: var(--shadow-sm);
 }
 
 .classes-segment-panel[hidden] {
     display: none;
+}
+
+.classes-subtab-body > .classes-segment-panel:not([hidden]) {
+    min-height: 0;
 }
 
 .class-notes-segment-panel {
