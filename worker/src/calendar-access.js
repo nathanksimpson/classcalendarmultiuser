@@ -241,7 +241,7 @@ export async function deleteCalendarAccess(env, calendarId) {
 export async function listTeachers(env) {
     const r = await env.DB.prepare(
         `SELECT id, email, display_name AS displayName, role FROM users
-         WHERE active = 1 AND role NOT IN ('admin', 'super_admin')
+         WHERE active = 1
          ORDER BY display_name COLLATE NOCASE`
     ).all();
     return r.results || [];

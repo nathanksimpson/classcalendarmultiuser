@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-multi-teacher-hr">
+    <link rel="stylesheet" href="styles.css?v=20260530-multi-curriculum">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -207,6 +207,10 @@
                         <span data-i18n="showOtherEvents">Other events</span>
                     </label>
                     <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="lessonFilterBtn">Filter lessons…</button>
+                    <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
+                        <input type="checkbox" id="showAllClassCurricula">
+                        <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
+                    </label>
                 </div>
                 <div id="lessonFilterPopover" class="lesson-filter-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
                     <div class="lesson-filter-popover-panel">
@@ -279,6 +283,7 @@
                                     <p id="syllabusEditorMeta" class="syllabus-editor-meta"></p>
                                     <p id="syllabusEditorModeBanner" class="syllabus-mode-banner section-hint" hidden></p>
                                     <p id="syllabusScheduleChip" class="syllabus-schedule-chip section-hint" hidden></p>
+                                    <p id="syllabusEditorCurriculumHint" class="section-hint" hidden></p>
                                 </div>
                                 <div class="syllabus-editor-header-actions editor-header-actions">
                                     <button type="button" id="syllabusSaveClassBtn" class="btn btn-primary btn-small" data-i18n="syllabusSaveClass">Save syllabus</button>
@@ -348,6 +353,7 @@
                             </header>
                             <p class="homework-external-banner" data-i18n="homeworkTabExternalBanner">Copy from here, then paste on your other websites (Simson grading and homework assignment).</p>
                             <p id="homeworkTabHint" class="section-hint" data-i18n="homeworkTabHint"></p>
+                            <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
                             <p id="homeworkTabMessage" class="homework-tab-message" role="status" hidden></p>
                             <div class="homework-due-block">
                                 <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
@@ -1241,8 +1247,9 @@
     <script defer src="js/team-auth.js?v=20260527-modal-ux"></script>
     <script defer src="js/calendar-sync.js?v=20260527-perf-a"></script>
     <script defer src="js/debate-periods.js?v=20260527-calendar-recovery-hotfix2"></script>
-    <script defer src="js/teacher-timetable.js?v=20260530-multi-teacher-hr"></script>
-    <script defer src="app.js?v=20260530-multi-teacher-hr"></script>
+    <script defer src="js/teacher-timetable.js?v=20260530-team-accounts"></script>
+    <script defer src="js/class-curriculum-slices.js?v=20260530-team-accounts"></script>
+    <script defer src="app.js?v=20260530-team-accounts"></script>
 </body>
 </html>
 

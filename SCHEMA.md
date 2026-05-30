@@ -93,7 +93,7 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `syllabusRows` | array | Per-class syllabus table rows for print/export (see below) |
 | `color`, `textColor` | string | Hex colors |
 | `cohortId` | string | Links class to `cohorts[]` (same students) |
-| `classTeachers` | array | Teachers who teach this class: `{ userId?, name?, category? }[]` — each appears on that teacher’s timetable |
+| `classTeachers` | array | Teachers who teach this class: `{ id, userId?, name?, category?, curriculumId?, classTypeId?, book? }[]` — `userId` is the team account id from Accounts management (same as login); each row’s curriculum drives that teacher’s calendar/syllabus/homework view |
 | `assignedTeacherUserId` | string | Legacy: first teacher id (kept in sync with `classTeachers[0]`) |
 | `assignedTeacherName` | string | Legacy: first teacher name |
 | `teacherCategory` | string | Legacy: first teacher category |

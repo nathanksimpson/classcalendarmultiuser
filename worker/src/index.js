@@ -1271,15 +1271,13 @@ export default {
         }
 
         if (path === '/api/teachers' && request.method === 'GET') {
-            const teachers = await CalAccess.listTeachers(env);
-            if (!CalAccess.canViewAllCalendars(user)) {
-                const me = teachers.find((t) => t.id === user.id);
-                if (me) {
-                    return json([me]);
-                }
-                return json([{ id: user.id, email: user.email, displayName: user.displayName, role: user.role }]);
+            const calendars = await CalAccess.listCalendarsForUser(env, user);
+            const hasCalendarAccess =
+                CalAccess.canViewAllCalendars(user) || calendars.length > 0;
+            if (!hasCalendarAccess) {
+                return json({ error: 'No calendar access' }, 403);
             }
-            return json(teachers);
+            return json(await CalAccess.listTeachers(env));
         }
 
         if (path === '/api/groups' && request.method === 'GET') {

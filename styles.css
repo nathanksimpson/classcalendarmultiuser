@@ -6327,8 +6327,17 @@ body.workspace-page #appStatus {
     font-size: 0.875rem;
 }
 
-.class-teacher-row-remove {
+.class-teacher-row-remove,
+.class-teacher-row-apply {
     justify-self: start;
+}
+
+.class-teacher-row-apply {
+    grid-column: 1 / -1;
+}
+
+.class-teacher-row-curriculum {
+    min-width: 10rem;
 }
 
 .class-add-teacher-btn {

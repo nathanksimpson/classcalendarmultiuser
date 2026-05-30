@@ -428,7 +428,9 @@ const translations = {
         classAssignedTeacherNone: '— Not assigned —',
         classAssignedTeacherCustom: 'Other (type name below)',
         classAssignedTeacherName: 'Teacher name (if not in list)',
-        classTeachersHint: 'Add each teacher who teaches this class. Homeroom (담임) is a separate label from the cohort.',
+        classTeachersHint: 'Add each teacher from team accounts (same logins as Accounts management). Pick a curriculum per teacher so their calendar and syllabus use that book. Homeroom (담임) is a separate label from the cohort.',
+        classTeacherAccountRequired: 'Select a teacher account from the list (not only a typed name) so their login shows the right curriculum.',
+        classTeacherLegacyUnlinked: 'link account',
         classAddTeacher: '+ Add teacher',
         classRemoveTeacher: 'Remove',
         classTeacherCategory: 'Teacher category',
@@ -464,6 +466,11 @@ const translations = {
         timetableCohortsEmpty: 'No cohorts yet. Use “Suggest cohorts from classes” or Add cohort.',
         timetableHomeroomCohortsHeading: 'Homeroom cohorts on this schedule',
         timetableHomeroomCohortClasses: '{n} classes',
+        classTeacherCurriculum: 'Curriculum (this teacher)',
+        classApplyCurriculumToTeacher: 'Apply curriculum',
+        showAllClassCurricula: 'Show all teachers’ curricula',
+        showAllClassCurriculaHint: 'When off, the calendar shows only lessons for curricula assigned to you.',
+        syllabusViewingCurriculum: 'Syllabus for your curriculum assignment',
         classTypeLabel: 'Class type',
         classTypeHint: 'Pick a preset for typical lesson counts and meeting days. You can still edit every field.',
         classTypeCustom: 'Custom (no preset)',
@@ -1139,7 +1146,9 @@ const translations = {
         classAssignedTeacherNone: '— 미배정 —',
         classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
         classAssignedTeacherName: '선생님 이름 (목록에 없을 때)',
-        classTeachersHint: '이 수업을 가르치는 선생님을 각각 추가하세요. 담임은 반(코호트)에서 따로 표시되는 라벨입니다.',
+        classTeachersHint: '계정 관리에 등록된 팀 계정에서 선생님을 선택하세요. 선생님마다 교재과정을 선택하면 로그인 시 캘린더·강의 계획표에 해당 교재가 표시됩니다. 담임은 반(코호트)에서 따로 표시되는 라벨입니다.',
+        classTeacherAccountRequired: '로그인 계정과 연결하려면 목록에서 선생님 계정을 선택하세요. 이름만 입력하면 안 됩니다.',
+        classTeacherLegacyUnlinked: '계정 연결 필요',
         classAddTeacher: '+ 선생님 추가',
         classRemoveTeacher: '삭제',
         classTeacherCategory: '선생님 구분',
@@ -1175,6 +1184,11 @@ const translations = {
         timetableCohortsEmpty: '아직 반이 없습니다. “수업에서 반 자동 제안” 또는 반 추가를 사용하세요.',
         timetableHomeroomCohortsHeading: '이 시간표의 담임 반',
         timetableHomeroomCohortClasses: '수업 {n}개',
+        classTeacherCurriculum: '교재과정 (이 선생님)',
+        classApplyCurriculumToTeacher: '교재과정 적용',
+        showAllClassCurricula: '모든 선생님 교재과정 표시',
+        showAllClassCurriculaHint: '끄면 캘린더에 내게 배정된 교재과정 수업만 표시됩니다.',
+        syllabusViewingCurriculum: '내 교재과정 배정 기준 강의 계획표',
         classTypeLabel: '수업 유형',
         classTypeHint: '미리 정해진 수업 횟수·요일을 불러옵니다. 아래 항목은 언제든 바꿀 수 있습니다.',
         classTypeCustom: '사용자 지정 (프리셋 없음)',
@@ -2053,14 +2067,20 @@ function classHasLessonsInDisplayedTerm(classData) {
     if (!rangeStart || !rangeEnd) {
         return false;
     }
-    const { lessons } = calculateLessonDates(classData);
-    return lessons.some(lesson => {
+    const slices = getClassCurriculumSlicesForCalendar(classData);
+    return slices.some((slice) => {
+        const { lessons } = calculateLessonDates(classData, {
+            sliceKey: slice.sliceKey,
+            effectiveClassData: slice.classData
+        });
+        return lessons.some(lesson => {
         const d = lesson && lesson.date;
         if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) {
             return false;
         }
         const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         return day >= rangeStart && day <= rangeEnd;
+        });
     });
 }
 
@@ -3352,7 +3372,9 @@ function getUnscheduledLessonNumbers(classData, schedule) {
  */
 function buildSyllabusTimelineForClass(classData) {
     syncHolidaysFromEvents();
-    const schedule = calculateLessonDates(classData);
+    const scheduleOpts = getViewerCurriculumScheduleOptions(classData);
+    const effective = scheduleOpts.effectiveClassData;
+    const schedule = calculateLessonDates(classData, scheduleOpts);
     const lessons = schedule.lessons || [];
     const unscheduledLessonNumbers = getUnscheduledLessonNumbers(classData, schedule);
 
@@ -3360,7 +3382,7 @@ function buildSyllabusTimelineForClass(classData) {
         const slots = lessons.map(lesson => {
             const dateStr = lesson.date instanceof Date ? formatDateISO(lesson.date) : lesson.date;
             const monthKey = lesson.monthKey || (dateStr ? dateStr.slice(0, 7) : '');
-            const isHol = isHolidayForClass(dateStr, classData);
+            const isHol = isHolidayForClass(dateStr, effective);
             return {
                 date: dateStr,
                 monthKey,
@@ -3398,7 +3420,7 @@ function buildSyllabusTimelineForClass(classData) {
     meetingDates.forEach(d => {
         const dateStr = formatDateISO(d);
         const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (isHolidayForClass(dateStr, classData)) {
+        if (isHolidayForClass(dateStr, effective)) {
             slots.push({ date: dateStr, monthKey, kind: 'holiday' });
         } else if (lessonIdx < lessons.length) {
             const lesson = lessons[lessonIdx];
@@ -4465,9 +4487,11 @@ function ensureUiState() {
     }
     if (!appData.ui.lessonFilters) {
         appData.ui.lessonFilters = { ...DEFAULT_LESSON_FILTERS };
-    } else {
-        appData.ui.lessonFilters = normalizeLessonFilters(appData.ui.lessonFilters);
     }
+    if (appData.ui.showAllClassCurricula === undefined) {
+        appData.ui.showAllClassCurricula = false;
+    }
+    appData.ui.lessonFilters = normalizeLessonFilters(appData.ui.lessonFilters);
     if (typeof appData.ui.homeworkTabClassId !== 'string') {
         appData.ui.homeworkTabClassId = '';
     }
@@ -5685,13 +5709,24 @@ function buildDayIndex() {
 
     const scheduledLessons = {};
     getClassesForCalendarAndPrintSummary().forEach(classData => {
-        const { lessons } = calculateLessonDates(classData);
-        lessons.forEach(lesson => {
-            const dateStr = formatDateISO(lesson.date);
-            if (!scheduledLessons[dateStr]) {
-                scheduledLessons[dateStr] = [];
-            }
-            scheduledLessons[dateStr].push({ classData, lesson });
+        getClassCurriculumSlicesForCalendar(classData).forEach((slice) => {
+            const scheduleOpts = {
+                sliceKey: slice.sliceKey,
+                effectiveClassData: slice.classData
+            };
+            const { lessons } = calculateLessonDates(classData, scheduleOpts);
+            lessons.forEach(lesson => {
+                const dateStr = formatDateISO(lesson.date);
+                if (!scheduledLessons[dateStr]) {
+                    scheduledLessons[dateStr] = [];
+                }
+                scheduledLessons[dateStr].push({
+                    classData,
+                    lesson,
+                    slice,
+                    calendarTitle: slice.calendarTitle || classData.name
+                });
+            });
         });
     });
     Object.keys(scheduledLessons).forEach(dateStr => {
@@ -6073,6 +6108,86 @@ const scheduleCacheMap = new Map();
 function invalidateScheduleCache() {
     scheduleCacheKey = '';
     scheduleCacheMap.clear();
+}
+
+function getCurriculumSlicesApi() {
+    return typeof CCPClassCurriculumSlices !== 'undefined' ? CCPClassCurriculumSlices : null;
+}
+
+function shouldShowAllCurriculumSlicesOnCalendar() {
+    ensureUiState();
+    return appData.ui.showAllClassCurricula === true;
+}
+
+function getCalendarViewerTeacherSelector() {
+    const api = getCurriculumSlicesApi();
+    return api ? api.getViewerTeacherSelector() : null;
+}
+
+function getClassCurriculumSlicesForCalendar(classData) {
+    const api = getCurriculumSlicesApi();
+    if (!api) {
+        return [{
+            sliceKey: classData.id,
+            classData: classData,
+            baseClassData: classData,
+            calendarTitle: classData.name || ''
+        }];
+    }
+    return api.getClassCurriculumSlices(classData, appData, {
+        showAll: shouldShowAllCurriculumSlicesOnCalendar(),
+        viewerSelector: getCalendarViewerTeacherSelector()
+    });
+}
+
+function getViewerCurriculumScheduleOptions(classData) {
+    const slices = getClassCurriculumSlicesForCalendar(classData);
+    const showAll = shouldShowAllCurriculumSlicesOnCalendar();
+    const viewer = getCalendarViewerTeacherSelector();
+    let slice = slices[0];
+    if (!showAll && viewer && viewer.userId && slices.length > 1) {
+        const api = getCurriculumSlicesApi();
+        const matchOpts = { accountOnly: true };
+        slice = slices.find((s) => s.teacherRow && s.teacherRow.userId && api.teacherMatchesTeacherRef(
+            { userId: s.teacherRow.userId, displayName: s.teacherRow.name },
+            viewer,
+            matchOpts
+        )) || slice;
+    }
+    if (!slice) {
+        return { sliceKey: classData.id, effectiveClassData: classData };
+    }
+    return { sliceKey: slice.sliceKey, effectiveClassData: slice.classData };
+}
+
+function getEffectiveClassForViewer(classData) {
+    if (!classData) {
+        return null;
+    }
+    return getViewerCurriculumScheduleOptions(classData).effectiveClassData;
+}
+
+function syncShowAllCurriculaControl() {
+    const wrap = document.getElementById('showAllCurriculaWrap');
+    const cb = document.getElementById('showAllClassCurricula');
+    if (!wrap || !cb) {
+        return;
+    }
+    const viewer = getCalendarViewerTeacherSelector();
+    wrap.hidden = !viewer;
+    wrap.title = t('showAllClassCurriculaHint');
+    ensureUiState();
+    cb.checked = appData.ui.showAllClassCurricula === true;
+    if (!cb.dataset.bound) {
+        cb.dataset.bound = '1';
+        cb.addEventListener('change', () => {
+            ensureUiState();
+            appData.ui.showAllClassCurricula = cb.checked;
+            saveUiStateToLocalStorage();
+            invalidateScheduleCache();
+            renderCalendar();
+        });
+    }
 }
 
 function computeScheduleCacheKey() {
@@ -6786,14 +6901,21 @@ function populateSyllabusEditorForClass(classData) {
     if (!classData) {
         return;
     }
+    const effective = getEffectiveClassForViewer(classData);
     clearSyllabusEditorSelection('class');
     appData.ui.syllabusTabClassId = classData.id;
     saveUiStateToLocalStorage();
     setSyllabusEditorDataset(classData);
     setSyllabusGeneralNotesInForm(classData.syllabusGeneralNotes || '');
     renderSyllabusUnitsRows(classData.syllabusUnits || []);
-    const rows = getSyllabusRowsForClass(classData, { preferMerged: true });
+    const rows = getSyllabusRowsForClass(effective, { preferMerged: true });
     renderSyllabusEditorTable(rows);
+    const syllabusHint = document.getElementById('syllabusEditorCurriculumHint');
+    if (syllabusHint) {
+        const viewer = getCalendarViewerTeacherSelector();
+        syllabusHint.textContent = t('syllabusViewingCurriculum');
+        syllabusHint.hidden = !viewer;
+    }
     if (elements.homeworkImportPaste) {
         elements.homeworkImportPaste.value = '';
     }
@@ -8182,6 +8304,7 @@ function renderHomeworkDueDateSkips(packet) {
 function renderHomeworkEditor() {
     const empty = document.getElementById('homeworkEditorEmpty');
     const content = document.getElementById('homeworkEditorContent');
+    const hintEl = document.getElementById('homeworkTabHint');
     const gradingEl = document.getElementById('homeworkGradingText');
     const assignEl = document.getElementById('homeworkAssignText');
     const dueEl = document.getElementById('homeworkDueDateDisplay');
@@ -8200,18 +8323,29 @@ function renderHomeworkEditor() {
         content.hidden = true;
         return;
     }
+    const effective = getEffectiveClassForViewer(classData);
     empty.hidden = true;
     content.hidden = false;
     if (titleEl) {
         titleEl.textContent = classData.name;
     }
     if (classMetaEl) {
-        classMetaEl.textContent = [formatClassLabelWithPeriod(classData), classData.grade, classData.book]
+        classMetaEl.textContent = [formatClassLabelWithPeriod(classData), classData.grade, effective.book || classData.book]
             .filter(Boolean)
             .join(' · ');
     }
+    const curriculumHint = document.getElementById('homeworkCurriculumHint');
+    const viewer = getCalendarViewerTeacherSelector();
+    if (curriculumHint) {
+        curriculumHint.textContent = t('syllabusViewingCurriculum');
+        curriculumHint.hidden = !viewer;
+    }
+    if (hintEl && !hintEl.dataset.i18nBound) {
+        hintEl.dataset.i18nBound = '1';
+        hintEl.setAttribute('data-i18n', 'homeworkTabHint');
+    }
     renderHomeworkSourceBook(classData);
-    const packet = computeHomeworkPacketForClass(classData);
+    const packet = computeHomeworkPacketForClass(effective);
     homeworkEditorState = { classId: classData.id, packet };
     if (gradingEl) {
         gradingEl.value = packet.gradingHomework || '';
@@ -8364,20 +8498,146 @@ function getTimetableApi() {
     return typeof CCPTeacherTimetable !== 'undefined' ? CCPTeacherTimetable : null;
 }
 
+let teamTeacherAccountsCache = null;
+let teamTeacherAccountsLoadPromise = null;
+
+function mapTeamTeacherAccountRow(user) {
+    if (!user || !user.id) {
+        return null;
+    }
+    return {
+        userId: user.id,
+        displayName: user.displayName || user.email || user.id,
+        email: user.email || ''
+    };
+}
+
+async function ensureTeamTeacherAccountsLoaded() {
+    if (teamTeacherAccountsCache) {
+        return teamTeacherAccountsCache;
+    }
+    if (teamTeacherAccountsLoadPromise) {
+        return teamTeacherAccountsLoadPromise;
+    }
+    if (location.protocol === 'file:' || typeof CalendarSync === 'undefined' || !CalendarSync.fetchTeachers) {
+        teamTeacherAccountsCache = [];
+        return teamTeacherAccountsCache;
+    }
+    teamTeacherAccountsLoadPromise = CalendarSync.fetchTeachers()
+        .then((rows) => {
+            teamTeacherAccountsCache = (rows || [])
+                .map(mapTeamTeacherAccountRow)
+                .filter(Boolean);
+            return teamTeacherAccountsCache;
+        })
+        .catch(() => {
+            teamTeacherAccountsCache = [];
+            return teamTeacherAccountsCache;
+        })
+        .finally(() => {
+            teamTeacherAccountsLoadPromise = null;
+        });
+    return teamTeacherAccountsLoadPromise;
+}
+
 function listTimetableTeachers() {
+    const map = new Map();
+    (teamTeacherAccountsCache || []).forEach((row) => {
+        if (row.userId) {
+            map.set(row.userId, row);
+        }
+    });
     const api = getTimetableApi();
     const fromData = api ? api.listTeachersFromAppData(appData) : [];
-    const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-    if (me && me.id) {
-        const exists = fromData.some((row) => row.userId === me.id);
-        if (!exists) {
-            fromData.unshift({
-                userId: me.id,
-                displayName: me.displayName || me.email || me.id
+    fromData.forEach((row) => {
+        if (row.userId && !map.has(row.userId)) {
+            map.set(row.userId, {
+                userId: row.userId,
+                displayName: row.name || row.displayName || row.userId,
+                email: ''
             });
         }
+    });
+    const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+    if (me && me.id && !map.has(me.id)) {
+        map.set(me.id, mapTeamTeacherAccountRow(me));
     }
-    return fromData;
+    return Array.from(map.values()).sort((a, b) =>
+        (a.displayName || a.userId).localeCompare(b.displayName || b.userId, undefined, { sensitivity: 'base' })
+    );
+}
+
+function formatTeacherAccountOptionLabel(row) {
+    if (!row) {
+        return '';
+    }
+    const name = row.displayName || row.userId || '';
+    const email = row.email || '';
+    if (email && email.toLowerCase() !== String(name).toLowerCase()) {
+        return `${name} (${email})`;
+    }
+    return name;
+}
+
+function linkClassTeachersToTeamAccounts() {
+    const accounts = listTimetableTeachers();
+    if (!accounts.length) {
+        return false;
+    }
+    const byEmail = new Map();
+    const byName = new Map();
+    accounts.forEach((acct) => {
+        if (acct.email) {
+            byEmail.set(acct.email.trim().toLowerCase(), acct);
+        }
+        const dn = (acct.displayName || '').trim().toLowerCase();
+        if (dn) {
+            byName.set(dn, acct);
+        }
+    });
+    const resolveAccount = (name) => {
+        const trimmed = (name || '').trim();
+        if (!trimmed) {
+            return null;
+        }
+        if (trimmed.includes('@')) {
+            return byEmail.get(trimmed.toLowerCase()) || null;
+        }
+        return byName.get(trimmed.toLowerCase()) || null;
+    };
+    let migrated = false;
+    (appData.classes || []).forEach((classData) => {
+        (classData.classTeachers || []).forEach((row) => {
+            if (!row || row.userId) {
+                return;
+            }
+            const acct = resolveAccount(row.name);
+            if (acct) {
+                row.userId = acct.userId;
+                row.name = acct.displayName || row.name;
+                migrated = true;
+            }
+        });
+        if (!classData.assignedTeacherUserId && classData.assignedTeacherName) {
+            const acct = resolveAccount(classData.assignedTeacherName);
+            if (acct) {
+                classData.assignedTeacherUserId = acct.userId;
+                classData.assignedTeacherName = acct.displayName || classData.assignedTeacherName;
+                migrated = true;
+            }
+        }
+    });
+    (appData.cohorts || []).forEach((cohort) => {
+        if (!cohort.homeroomTeacherUserId && cohort.homeroomTeacherName) {
+            const acct = resolveAccount(cohort.homeroomTeacherName);
+            if (acct) {
+                cohort.homeroomTeacherUserId = acct.userId;
+                cohort.homeroomTeacherName = acct.displayName || cohort.homeroomTeacherName;
+                migrated = true;
+            }
+        }
+    });
+    return migrated;
 }
 
 function populateTeacherPickerSelect(selectEl, selectedSelector, includeEmpty) {
@@ -8397,7 +8657,7 @@ function populateTeacherPickerSelect(selectEl, selectedSelector, includeEmpty) {
     listTimetableTeachers().forEach((row) => {
         const opt = document.createElement('option');
         opt.value = `${row.userId || ''}|${row.displayName || ''}`;
-        opt.textContent = row.displayName || row.userId;
+        opt.textContent = formatTeacherAccountOptionLabel(row);
         selectEl.appendChild(opt);
     });
     if (prev) {
@@ -8441,13 +8701,100 @@ function getTeacherCategoryPresets() {
     ];
 }
 
+function getClassFormCurriculumLevel() {
+    const levelSel = document.getElementById('classCurriculumLevel');
+    if (levelSel && levelSel.value) {
+        return levelSel.value.trim();
+    }
+    if (elements.classLevel && elements.classLevel.value) {
+        return elements.classLevel.value.trim();
+    }
+    return (elements.classLevelCustom && elements.classLevelCustom.value || '').trim();
+}
+
+function fillTeacherRowCurriculumSelect(sel, curriculumId) {
+    if (!sel) {
+        return;
+    }
+    const level = getClassFormCurriculumLevel();
+    const prev = curriculumId || sel.value;
+    sel.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = t('classCurriculumBookPickLevel');
+    sel.appendChild(ph);
+    if (!level) {
+        sel.disabled = true;
+        return;
+    }
+    sel.disabled = false;
+    const editor = window.CCPBooksEditor;
+    const noBookId = editor ? editor.NO_BOOK_CURRICULUM_ID : '__no_book__';
+    const noBookOpt = document.createElement('option');
+    noBookOpt.value = noBookId;
+    noBookOpt.textContent = t('classCurriculumNoBook');
+    sel.appendChild(noBookOpt);
+    const list = editor ? editor.getCurriculaForLevel(level, appData) : [];
+    list.forEach((book) => {
+        const o = document.createElement('option');
+        o.value = book.id;
+        o.textContent = book.displayName || book.name;
+        sel.appendChild(o);
+    });
+    if (prev && [...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+    } else if (list.length === 1) {
+        sel.value = list[0].id;
+    }
+}
+
+function enrichTeacherRowForSave(row) {
+    const level = getClassFormCurriculumLevel()
+        || (row.levelPreset || row.level || '');
+    const out = { ...row };
+    if (!out.id) {
+        out.id = generateId();
+    }
+    if (!out.curriculumId || !window.CCPBooksEditor) {
+        return out;
+    }
+    const presetId = window.CCPBooksEditor.resolvePresetFromLevelAndBook(
+        level,
+        out.curriculumId,
+        appData
+    );
+    if (presetId) {
+        out.classTypeId = presetId;
+    }
+    const merged = window.CCPBooksEditor.buildMergedClassDefaults(
+        out.curriculumId,
+        presetId || out.classTypeId,
+        appData,
+        level
+    );
+    if (merged.defaultBook) {
+        out.book = merged.defaultBook;
+    }
+    if (!out.category && merged.defaultBook) {
+        const def = getClassTypeDefinitionById(presetId || out.classTypeId);
+        if (def && def.name) {
+            out.category = def.name;
+        }
+    }
+    return out;
+}
+
 function getClassTeachersForForm(classData) {
     const api = getTimetableApi();
     if (api && classData) {
         return api.getClassTeachersList(classData).map((row) => ({
+            id: row.id || '',
             userId: row.userId || '',
             name: row.name || '',
-            category: row.category || ''
+            category: row.category || '',
+            curriculumId: row.curriculumId || '',
+            classTypeId: row.classTypeId || '',
+            book: row.book || ''
         }));
     }
     if (!classData) {
@@ -8455,9 +8802,13 @@ function getClassTeachersForForm(classData) {
     }
     if (classData.assignedTeacherUserId || classData.assignedTeacherName) {
         return [{
+            id: '',
             userId: classData.assignedTeacherUserId || '',
             name: classData.assignedTeacherName || '',
-            category: classData.teacherCategory || ''
+            category: classData.teacherCategory || '',
+            curriculumId: classData.curriculumId || '',
+            classTypeId: classData.classTypeId || '',
+            book: classData.book || ''
         }];
     }
     return [];
@@ -8468,19 +8819,43 @@ function fillTeacherSelectElement(sel, selectedUserId, selectedName) {
         userId: selectedUserId || '',
         displayName: selectedName || ''
     }, true);
-    const custom = document.createElement('option');
-    custom.value = '__custom__';
-    custom.textContent = t('classAssignedTeacherCustom');
-    sel.appendChild(custom);
     const uid = selectedUserId || '';
     const name = selectedName || '';
     if (uid) {
         const match = `${uid}|${name}`;
-        sel.value = Array.from(sel.options).some((o) => o.value === match) ? match : '__custom__';
+        if (!Array.from(sel.options).some((o) => o.value === match)) {
+            const legacy = document.createElement('option');
+            legacy.value = match;
+            legacy.textContent = name
+                ? `${name} (${t('classTeacherLegacyUnlinked')})`
+                : uid;
+            sel.appendChild(legacy);
+        }
+        sel.value = match;
     } else if (name) {
-        sel.value = '__custom__';
+        const legacy = document.createElement('option');
+        legacy.value = `|${name}`;
+        legacy.textContent = `${name} (${t('classTeacherLegacyUnlinked')})`;
+        sel.appendChild(legacy);
+        sel.value = legacy.value;
     } else {
         sel.value = '';
+    }
+}
+
+function syncClassTeacherRowNameFromSelect(rowEl) {
+    if (!rowEl) {
+        return;
+    }
+    const sel = rowEl.querySelector('.class-teacher-row-select');
+    const nameInput = rowEl.querySelector('.class-teacher-row-name');
+    if (!sel || !nameInput || !sel.value || sel.value.indexOf('|') < 0) {
+        return;
+    }
+    const parsed = parseTeacherPickerValue(sel.value);
+    if (parsed.userId) {
+        const acct = listTimetableTeachers().find((row) => row.userId === parsed.userId);
+        nameInput.value = acct ? (acct.displayName || parsed.displayName) : parsed.displayName;
     }
 }
 
@@ -8508,16 +8883,28 @@ function addClassTeacherRow(rowData) {
     if (!mount) {
         return;
     }
-    const data = rowData || { userId: '', name: '', category: '' };
+    const data = rowData || {
+        id: '',
+        userId: '',
+        name: '',
+        category: '',
+        curriculumId: '',
+        classTypeId: '',
+        book: ''
+    };
     const row = document.createElement('div');
     row.className = 'class-teacher-row';
     row.setAttribute('role', 'listitem');
+    if (data.id) {
+        row.dataset.rowId = data.id;
+    }
 
     const teacherLabel = document.createElement('label');
     teacherLabel.textContent = t('classAssignedTeacher');
     const teacherSel = document.createElement('select');
     teacherSel.className = 'class-teacher-row-select';
     fillTeacherSelectElement(teacherSel, data.userId, data.name);
+    teacherSel.addEventListener('change', () => syncClassTeacherRowNameFromSelect(row));
     teacherLabel.appendChild(teacherSel);
 
     const nameLabel = document.createElement('label');
@@ -8534,6 +8921,38 @@ function addClassTeacherRow(rowData) {
     const categorySel = createClassTeacherCategorySelect(data.category || '');
     categoryLabel.appendChild(categorySel);
 
+    const curriculumLabel = document.createElement('label');
+    curriculumLabel.textContent = t('classTeacherCurriculum');
+    const curriculumSel = document.createElement('select');
+    curriculumSel.className = 'class-teacher-row-curriculum';
+    fillTeacherRowCurriculumSelect(curriculumSel, data.curriculumId || '');
+    curriculumLabel.appendChild(curriculumSel);
+
+    const applyRowBtn = document.createElement('button');
+    applyRowBtn.type = 'button';
+    applyRowBtn.className = 'btn btn-outline btn-small class-teacher-row-apply';
+    applyRowBtn.textContent = t('classApplyCurriculumToTeacher');
+    applyRowBtn.addEventListener('click', () => {
+        const cid = curriculumSel.value;
+        if (!cid || !window.CCPBooksEditor) {
+            return;
+        }
+        const level = getClassFormCurriculumLevel();
+        const presetId = window.CCPBooksEditor.resolvePresetFromLevelAndBook(level, cid, appData);
+        if (!presetId && !window.CCPBooksEditor.isNoBookCurriculum(cid)) {
+            alert(t('applyCurriculumNoMatch'));
+            return;
+        }
+        const merged = window.CCPBooksEditor.buildMergedClassDefaults(cid, presetId, appData, level);
+        if (merged.defaultBook && categorySel && !categorySel.value) {
+            const def = getClassTypeDefinitionById(presetId);
+            if (def && def.name) {
+                categorySel.value = def.name;
+            }
+        }
+        setAppStatusMessage(t('classApplyCurriculumToTeacher') + ': ' + window.CCPBooksEditor.getCurriculumDisplayName(cid, appData), false);
+    });
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'btn btn-outline btn-small class-teacher-row-remove';
@@ -8548,8 +8967,36 @@ function addClassTeacherRow(rowData) {
     row.appendChild(teacherLabel);
     row.appendChild(nameLabel);
     row.appendChild(categoryLabel);
+    row.appendChild(curriculumLabel);
+    row.appendChild(applyRowBtn);
     row.appendChild(removeBtn);
     mount.appendChild(row);
+}
+
+async function refreshClassTeacherPickersFromAccounts() {
+    await ensureTeamTeacherAccountsLoaded();
+    document.querySelectorAll('.class-teacher-row-select').forEach((sel) => {
+        const rowEl = sel.closest('.class-teacher-row');
+        const nameInput = rowEl && rowEl.querySelector('.class-teacher-row-name');
+        const parsed = parseTeacherPickerValue(sel.value);
+        fillTeacherSelectElement(sel, parsed.userId, nameInput ? nameInput.value : parsed.displayName);
+    });
+    document.querySelectorAll('.timetable-cohort-homeroom-select').forEach((homeroomSel) => {
+        const card = homeroomSel.closest('.timetable-cohort-card');
+        const nameInput = card && card.querySelector('.timetable-cohort-homeroom-name');
+        const parsed = parseTeacherPickerValue(homeroomSel.value);
+        fillTeacherSelectElement(
+            homeroomSel,
+            parsed.userId,
+            nameInput ? nameInput.value : parsed.displayName
+        );
+    });
+    const timetableSel = document.getElementById('timetableTeacherSelect');
+    if (timetableSel && timetableSel.value) {
+        const parsed = parseTeacherPickerValue(timetableSel.value);
+        populateTeacherPickerSelect(timetableSel, parsed, true);
+        timetableSel.value = `${parsed.userId}|${parsed.displayName}`;
+    }
 }
 
 function renderClassTeachersRows(classData) {
@@ -8595,12 +9042,22 @@ function initClassTeachersFormListeners() {
         cohortSel.dataset.homeroomLabelInit = '1';
         cohortSel.addEventListener('change', () => updateClassHomeroomLabelDisplay());
     }
+    const levelSel = document.getElementById('classCurriculumLevel');
+    if (levelSel && !levelSel.dataset.teacherRowsLevelInit) {
+        levelSel.dataset.teacherRowsLevelInit = '1';
+        levelSel.addEventListener('change', () => {
+            document.querySelectorAll('.class-teacher-row-curriculum').forEach((sel) => {
+                fillTeacherRowCurriculumSelect(sel, sel.value);
+            });
+        });
+    }
 }
 
 function applyClassTeacherFieldsToForm(classData) {
     initClassTeachersFormListeners();
     populateClassCohortSelect(classData ? classData.cohortId : '');
     renderClassTeachersRows(classData);
+    refreshClassTeacherPickersFromAccounts();
     updateClassHomeroomLabelDisplay();
     const blockSel = document.getElementById('classScheduleBlock');
     if (blockSel) {
@@ -8620,7 +9077,7 @@ function collectClassTeachersFromForm() {
         const categorySel = rowEl.querySelector('.class-teacher-row-category');
         let userId = '';
         let name = (nameInput && nameInput.value ? nameInput.value : '').trim();
-        if (sel && sel.value && sel.value !== '__custom__') {
+        if (sel && sel.value) {
             const parsed = parseTeacherPickerValue(sel.value);
             userId = parsed.userId;
             if (!name && parsed.displayName) {
@@ -8628,10 +9085,23 @@ function collectClassTeachersFromForm() {
             }
         }
         const category = categorySel ? (categorySel.value || '').trim() : '';
-        if (!userId && !name) {
+        const curriculumSel = rowEl.querySelector('.class-teacher-row-curriculum');
+        const curriculumId = curriculumSel ? (curriculumSel.value || '').trim() : '';
+        if (!userId && !name && !curriculumId) {
             return;
         }
-        rows.push({ userId, name, category });
+        if ((name || curriculumId) && !userId) {
+            return;
+        }
+        const rowId = rowEl.dataset.rowId || generateId();
+        rowEl.dataset.rowId = rowId;
+        rows.push(enrichTeacherRowForSave({
+            id: rowId,
+            userId,
+            name,
+            category,
+            curriculumId
+        }));
     });
     return rows;
 }
@@ -8640,12 +9110,24 @@ function collectClassTeacherFieldsForSave() {
     const cohortSel = document.getElementById('classCohort');
     const blockSel = document.getElementById('classScheduleBlock');
     const classTeachers = collectClassTeachersFromForm();
-    const first = classTeachers[0] || { userId: '', name: '', category: '' };
+    const first = classTeachers[0] || {
+        userId: '',
+        name: '',
+        category: '',
+        curriculumId: '',
+        classTypeId: '',
+        book: ''
+    };
+    const primaryCurriculumId = first.curriculumId
+        || (document.getElementById('classCurriculumBook')?.value || '').trim();
     return {
         classTeachers,
         assignedTeacherUserId: first.userId,
         assignedTeacherName: first.name,
         teacherCategory: first.category,
+        curriculumId: primaryCurriculumId,
+        classTypeId: first.classTypeId || '',
+        book: first.book || '',
         cohortId: cohortSel ? (cohortSel.value || '').trim() : '',
         scheduleBlock: blockSel && blockSel.value === 'secondary' ? 'secondary' : 'primary'
     };
@@ -8832,30 +9314,9 @@ function renderTimetableCohortsList() {
 }
 
 function buildTeacherOptionsForCohort(selectedUserId, selectedName) {
-    const frag = document.createDocumentFragment();
-    const none = document.createElement('option');
-    none.value = '';
-    none.textContent = t('classAssignedTeacherNone');
-    frag.appendChild(none);
-    listTimetableTeachers().forEach((row) => {
-        const opt = document.createElement('option');
-        opt.value = `${row.userId || ''}|${row.displayName || ''}`;
-        opt.textContent = row.displayName || row.userId;
-        frag.appendChild(opt);
-    });
-    const custom = document.createElement('option');
-    custom.value = '__custom__';
-    custom.textContent = t('classAssignedTeacherCustom');
-    frag.appendChild(custom);
     const sel = document.createElement('select');
     sel.className = 'timetable-cohort-homeroom-select';
-    sel.appendChild(frag);
-    if (selectedUserId) {
-        const match = `${selectedUserId}|${selectedName || ''}`;
-        sel.value = Array.from(sel.options).some((o) => o.value === match) ? match : '__custom__';
-    } else if (selectedName) {
-        sel.value = '__custom__';
-    }
+    fillTeacherSelectElement(sel, selectedUserId, selectedName);
     return sel;
 }
 
@@ -8908,14 +9369,9 @@ function buildCohortEditorCard(cohort) {
     saveBtn.addEventListener('click', () => {
         cohort.name = nameInput.value.trim() || cohort.name;
         cohort.homeroomDaySuffix = suffixInput.value.trim();
-        if (homeroomSel.value === '__custom__') {
-            cohort.homeroomTeacherUserId = '';
-            cohort.homeroomTeacherName = homeroomNameInput.value.trim();
-        } else {
-            const parsed = parseTeacherPickerValue(homeroomSel.value);
-            cohort.homeroomTeacherUserId = parsed.userId;
-            cohort.homeroomTeacherName = homeroomNameInput.value.trim() || parsed.displayName;
-        }
+        const parsed = parseTeacherPickerValue(homeroomSel.value);
+        cohort.homeroomTeacherUserId = parsed.userId;
+        cohort.homeroomTeacherName = homeroomNameInput.value.trim() || parsed.displayName;
         syncClassCohortLinks(cohort);
         saveData();
         populateClassCohortSelect();
@@ -9018,7 +9474,8 @@ function suggestAndMergeCohorts() {
     setAppStatusMessage(t('timetableCohortsSuggested').replace('{n}', String(added)), false);
 }
 
-function initTimetableTabControls(options) {
+async function initTimetableTabControls(options) {
+    await ensureTeamTeacherAccountsLoaded();
     initTimetableTabListeners();
     populateTeacherPickerSelect(document.getElementById('timetableTeacherSelect'), null, true);
     renderTimetableCohortsList();
@@ -9722,10 +10179,14 @@ function warnIfOpenedFromNetworkFile() {
 }
 
 function getBookIdForClass(classData) {
-    if (!classData || !window.CCPBooksEditor || !window.CCPBooksEditor.deriveBookKey) {
+    const effective = getEffectiveClassForViewer(classData) || classData;
+    if (!effective || !window.CCPBooksEditor || !window.CCPBooksEditor.deriveBookKey) {
         return null;
     }
-    const def = getClassTypeDefinitionById(classData.classTypeId);
+    if (effective.curriculumId) {
+        return effective.curriculumId;
+    }
+    const def = getClassTypeDefinitionById(effective.classTypeId);
     if (def) {
         return window.CCPBooksEditor.deriveBookKey(def);
     }
@@ -9840,6 +10301,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupClassMeetingDaysUI();
     bindClassScheduleInputsForSyllabusDistribute();
     loadData();
+    if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+        try {
+            await ensureTeamTeacherAccountsLoaded();
+            if (linkClassTeachersToTeamAccounts()) {
+                saveData();
+            }
+        } catch (_) {
+            /* accounts list optional */
+        }
+    }
     initializeTermStart();
     cleanupMisplacedKrHolidayControls();
     ensureKrHolidaysImportButton();
@@ -11894,9 +12365,36 @@ function updateSelectedSuggestion(items) {
 // ============================================
 // Class Management
 // ============================================
+function validateClassTeacherAccountsBeforeSave() {
+    const mount = document.getElementById('classTeachersRows');
+    if (!mount) {
+        return true;
+    }
+    let needsAccount = false;
+    mount.querySelectorAll('.class-teacher-row').forEach((rowEl) => {
+        const sel = rowEl.querySelector('.class-teacher-row-select');
+        const nameInput = rowEl.querySelector('.class-teacher-row-name');
+        const curriculumSel = rowEl.querySelector('.class-teacher-row-curriculum');
+        const parsed = parseTeacherPickerValue(sel && sel.value);
+        const name = (nameInput && nameInput.value ? nameInput.value : '').trim();
+        const curriculumId = (curriculumSel && curriculumSel.value ? curriculumSel.value : '').trim();
+        if ((name || curriculumId || parsed.displayName) && !parsed.userId) {
+            needsAccount = true;
+        }
+    });
+    if (needsAccount) {
+        alert(t('classTeacherAccountRequired'));
+        return false;
+    }
+    return true;
+}
+
 function handleClassSubmit(e) {
     e.preventDefault();
     if (isTeamCalendarViewOnly()) {
+        return;
+    }
+    if (!validateClassTeacherAccountsBeforeSave()) {
         return;
     }
 
@@ -11940,7 +12438,7 @@ function handleClassSubmit(e) {
     const rawClassTypeId = (hiddenType && hiddenType.value)
         ? hiddenType.value
         : (elements.classTypeSelect ? (elements.classTypeSelect.value || '') : '');
-    const classTypeId = resolveClassTypeId(rawClassTypeId) || rawClassTypeId;
+    let classTypeId = resolveClassTypeId(rawClassTypeId) || rawClassTypeId;
     const curriculumBookSel = document.getElementById('classCurriculumBook');
     let curriculumId = (curriculumBookSel && curriculumBookSel.value)
         ? curriculumBookSel.value.trim()
@@ -11952,6 +12450,15 @@ function handleClassSubmit(e) {
     }
     const { period, periodByWeekday } = collectPeriodFieldsForSave();
     const teacherFields = collectClassTeacherFieldsForSave();
+    if (teacherFields.classTypeId) {
+        classTypeId = teacherFields.classTypeId;
+    }
+    if (teacherFields.curriculumId) {
+        curriculumId = teacherFields.curriculumId;
+    }
+    if (teacherFields.book) {
+        elements.classBook.value = teacherFields.book;
+    }
     const existingId = elements.classId.value;
     const existingClass = existingId ? appData.classes.find((c) => c.id === existingId) : null;
     const debateBookPeriods = isDebateSchedule ? collectDebateBookPeriodsFromForm() : [];
@@ -12387,16 +12894,19 @@ function getCompressionMergesForPeriod(classData, period, totalLessons) {
 // ============================================
 // Smart Scheduling Logic
 // ============================================
-function calculateLessonDates(classData) {
+function calculateLessonDates(classData, options) {
+    options = options || {};
+    const cacheId = options.sliceKey || classData.id;
+    const effective = options.effectiveClassData || classData;
     const key = computeScheduleCacheKey();
     if (key !== scheduleCacheKey) {
         scheduleCacheKey = key;
         scheduleCacheMap.clear();
     }
-    if (!scheduleCacheMap.has(classData.id)) {
-        scheduleCacheMap.set(classData.id, computeLessonScheduleForClass(classData));
+    if (!scheduleCacheMap.has(cacheId)) {
+        scheduleCacheMap.set(cacheId, computeLessonScheduleForClass(effective));
     }
-    return scheduleCacheMap.get(classData.id);
+    return scheduleCacheMap.get(cacheId);
 }
 
 function computeLessonScheduleForClass(classData) {
@@ -12986,6 +13496,7 @@ function renderCalendarNow() {
     if (!appData.termStart) return;
 
     syncHolidaysFromEvents();
+    syncShowAllCurriculaControl();
     if (pruneLessonFiltersToScheduledOptions()) {
         saveData();
     }
@@ -13156,7 +13667,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         const eventsDiv = document.createElement('div');
         eventsDiv.className = 'day-events';
         
-        visibleLessons.forEach(({ classData, lesson }) => {
+        visibleLessons.forEach(({ classData, lesson, slice, calendarTitle }) => {
             const eventBar = document.createElement('div');
             eventBar.className = 'event-bar cal-item-lessons';
             eventBar.style.backgroundColor = classData.color;
@@ -13164,15 +13675,17 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
             const lessonDateStr = lesson.date instanceof Date
                 ? formatDateISO(lesson.date)
                 : (lesson.date || '');
+            const scheduleClass = slice && slice.classData ? slice.classData : classData;
             const bookLabel = lesson.book != null && lesson.book !== ''
                 ? lesson.book
                 : getBookForLesson(
-                    classData,
+                    scheduleClass,
                     lessonDateStr,
                     lesson.monthKey || lessonDateStr.slice(0, 7)
                 );
+            const displayName = calendarTitle || classData.name;
             eventBar.innerHTML = `
-                <span class="event-title">${escapeHtml(classData.name)} - ${escapeHtml(lesson.label)}</span>
+                <span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lesson.label)}</span>
                 <span class="event-book">${escapeHtml(bookLabel)}</span>
             `;
             
@@ -14635,47 +15148,63 @@ function updatePrintSummary() {
     elements.lessonScheduleSummary.innerHTML = '';
     
     getClassesForCalendarAndPrintSummary().forEach(classData => {
-        const { lessons } = calculateLessonDates(classData);
-        
-        const itemDiv = document.createElement('d' + 'iv');
-        itemDiv.className = 'lesson-schedule-item';
-        itemDiv.style.borderLeftColor = classData.color;
-        itemDiv.style.color = classData.textColor || DEFAULT_CLASS_TEXT_COLOR;
-        
-        let lessonsHtml = lessons.map(l => {
-            const mk = l.monthKey || formatDateISO(l.date).slice(0, 7);
-            const dateStr = l.date instanceof Date ? formatDateISO(l.date) : (l.date || '');
-            const bk = l.book != null && l.book !== '' ? l.book : getBookForLesson(classData, dateStr, mk);
-            return `<li>${escapeHtml(l.label)}: ${escapeHtml(formatDateDisplay(formatDateISO(l.date)))} — ${escapeHtml(bk)}</li>`;
-        }).join('');
-        
-        itemDiv.innerHTML = `
-            <h4>${escapeHtml(formatClassLabelWithPeriod(classData))} (${escapeHtml(getClassLevelDisplay(classData))})</h4>
-            <ul>${lessonsHtml}</ul>
-        `;
-        
-        elements.lessonScheduleSummary.appendChild(itemDiv);
+        getClassCurriculumSlicesForCalendar(classData).forEach((slice) => {
+            const scheduleOpts = {
+                sliceKey: slice.sliceKey,
+                effectiveClassData: slice.classData
+            };
+            const { lessons } = calculateLessonDates(classData, scheduleOpts);
+            const scheduleClass = slice.classData || classData;
+            const title = slice.calendarTitle || formatClassLabelWithPeriod(classData);
+
+            const itemDiv = document.createElement('d' + 'iv');
+            itemDiv.className = 'lesson-schedule-item';
+            itemDiv.style.borderLeftColor = classData.color;
+            itemDiv.style.color = classData.textColor || DEFAULT_CLASS_TEXT_COLOR;
+
+            const lessonsHtml = lessons.map(l => {
+                const mk = l.monthKey || formatDateISO(l.date).slice(0, 7);
+                const dateStr = l.date instanceof Date ? formatDateISO(l.date) : (l.date || '');
+                const bk = l.book != null && l.book !== ''
+                    ? l.book
+                    : getBookForLesson(scheduleClass, dateStr, mk);
+                return `<li>${escapeHtml(l.label)}: ${escapeHtml(formatDateDisplay(formatDateISO(l.date)))} — ${escapeHtml(bk)}</li>`;
+            }).join('');
+
+            itemDiv.innerHTML = `
+                <h4>${escapeHtml(title)} (${escapeHtml(getClassLevelDisplay(classData))})</h4>
+                <ul>${lessonsHtml}</ul>
+            `;
+
+            elements.lessonScheduleSummary.appendChild(itemDiv);
+        });
     });
     
     // Update Compression Notes
     elements.compressionNotes.innerHTML = '';
     
     getClassesForCalendarAndPrintSummary().forEach(classData => {
-        const schedule = calculateLessonDates(classData);
-        const {
-            groups,
-            scheduledCount,
-            totalGroups,
-            availableCount,
-            isCustom,
-            monthlyDetails
-        } = schedule;
+        getClassCurriculumSlicesForCalendar(classData).forEach((slice) => {
+            const scheduleOpts = {
+                sliceKey: slice.sliceKey,
+                effectiveClassData: slice.classData
+            };
+            const schedule = calculateLessonDates(classData, scheduleOpts);
+            const {
+                groups,
+                scheduledCount,
+                totalGroups,
+                availableCount,
+                isCustom,
+                monthlyDetails
+            } = schedule;
+            const label = slice.calendarTitle || formatClassLabelWithPeriod(classData);
 
         if (schedule.scheduleModel === SCHEDULE_MODEL_SEQUENTIAL_TERM) {
             if (scheduledCount < totalGroups) {
                 const li = document.createElement('li');
                 li.textContent = t('termLessonsIncompleteHint')
-                    .replace('{name}', formatClassLabelWithPeriod(classData))
+                    .replace('{name}', label)
                     .replace('{scheduled}', scheduledCount)
                     .replace('{total}', totalGroups);
                 elements.compressionNotes.appendChild(li);
@@ -14683,7 +15212,7 @@ function updatePrintSummary() {
             return;
         }
 
-        if (!isCustom && monthlyDetails && monthlyDetails.length > 0 && classUsesDebateCompression(classData)) {
+        if (!isCustom && monthlyDetails && monthlyDetails.length > 0 && classUsesDebateCompression(slice.classData || classData)) {
             const monthLines = [];
             monthlyDetails.forEach(d => {
                 const periodLabel = d.startDate || d.monthKey || d.periodId || '';
@@ -14711,7 +15240,7 @@ function updatePrintSummary() {
             });
             if (monthLines.length > 0) {
                 const li = document.createElement('li');
-                li.textContent = `${formatClassLabelWithPeriod(classData)}: ${monthLines.join(' | ')}`;
+                li.textContent = `${label}: ${monthLines.join(' | ')}`;
                 elements.compressionNotes.appendChild(li);
             }
             return;
@@ -14743,9 +15272,10 @@ function updatePrintSummary() {
                 ? t('compressionNoteCustomSuffix')
                 : t('compressionNoteAutoSuffix').replace('{available}', availableCount);
 
-            li.textContent = `${formatClassLabelWithPeriod(classData)}: ${parts.join(' | ')} ${suffix}`;
+            li.textContent = `${label}: ${parts.join(' | ')} ${suffix}`;
             elements.compressionNotes.appendChild(li);
         }
+        });
     });
     
     // Show message if no compressions
@@ -17140,12 +17670,34 @@ function migrateData(data) {
                 classData.classTeachers = [];
                 migrated = true;
             }
+            classData.classTeachers.forEach((row) => {
+                if (!row.id) {
+                    row.id = generateId();
+                    migrated = true;
+                }
+                if (row.curriculumId === undefined) {
+                    row.curriculumId = classData.curriculumId || '';
+                    migrated = true;
+                }
+                if (row.classTypeId === undefined) {
+                    row.classTypeId = classData.classTypeId || '';
+                    migrated = true;
+                }
+                if (row.book === undefined) {
+                    row.book = classData.book || '';
+                    migrated = true;
+                }
+            });
             if (classData.classTeachers.length === 0
                 && (classData.assignedTeacherUserId || classData.assignedTeacherName)) {
                 classData.classTeachers = [{
+                    id: generateId(),
                     userId: classData.assignedTeacherUserId || '',
                     name: classData.assignedTeacherName || '',
-                    category: classData.teacherCategory || ''
+                    category: classData.teacherCategory || '',
+                    curriculumId: classData.curriculumId || '',
+                    classTypeId: classData.classTypeId || '',
+                    book: classData.book || ''
                 }];
                 migrated = true;
             }

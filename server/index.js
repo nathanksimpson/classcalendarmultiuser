@@ -577,24 +577,14 @@ app.post('/api/presence/heartbeat', requireUser, (req, res) => {
 });
 
 app.get('/api/teachers', requireUser, (req, res) => {
-    const teachers = CalAccess.listTeachers();
-    if (!CalAccess.canViewAllCalendars(req.user)) {
-        const me = teachers.find((t) => t.id === req.user.id);
-        if (me) {
-            res.json([me]);
-            return;
-        }
-        res.json([
-            {
-                id: req.user.id,
-                email: req.user.email,
-                displayName: req.user.displayName,
-                role: req.user.role
-            }
-        ]);
+    const calendars = CalAccess.listCalendarsForUser(req.user);
+    const hasCalendarAccess =
+        CalAccess.canViewAllCalendars(req.user) || calendars.length > 0;
+    if (!hasCalendarAccess) {
+        res.status(403).json({ error: 'No calendar access' });
         return;
     }
-    res.json(teachers);
+    res.json(CalAccess.listTeachers());
 });
 
 app.get('/api/groups', requireUser, (req, res) => {

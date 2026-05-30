@@ -205,16 +205,20 @@
         return false;
     }
 
-    function teacherMatchesTeacherRef(ref, selector) {
+    function teacherMatchesTeacherRef(ref, selector, options) {
+        options = options || {};
         if (!ref || !selector) {
             return false;
         }
         const uid = normalizeStr(selector.userId);
         const refUid = normalizeStr(ref.userId || ref.assignedTeacherUserId || ref.homeroomTeacherUserId);
-        const refName = ref.displayName || ref.assignedTeacherName || ref.homeroomTeacherName || '';
+        const refName = ref.displayName || ref.name || ref.assignedTeacherName || ref.homeroomTeacherName || '';
         const selName = selector.displayName || '';
         if (uid && refUid && uid === refUid) {
             return true;
+        }
+        if (options.accountOnly === true) {
+            return false;
         }
         if (teacherNamesMatch(selName, refName)) {
             return true;
@@ -231,11 +235,15 @@
             classData.classTeachers.forEach((row) => {
                 const userId = normalizeStr(row.userId);
                 const name = normalizeStr(row.name);
-                if (userId || name) {
+                if (userId || name || normalizeStr(row.curriculumId)) {
                     list.push({
+                        id: normalizeStr(row.id),
                         userId,
                         name,
-                        category: normalizeStr(row.category)
+                        category: normalizeStr(row.category),
+                        curriculumId: normalizeStr(row.curriculumId),
+                        classTypeId: normalizeStr(row.classTypeId),
+                        book: normalizeStr(row.book)
                     });
                 }
             });
@@ -243,11 +251,15 @@
         if (!list.length) {
             const userId = normalizeStr(classData.assignedTeacherUserId);
             const name = normalizeStr(classData.assignedTeacherName);
-            if (userId || name) {
+            if (userId || name || normalizeStr(classData.curriculumId)) {
                 list.push({
+                    id: '',
                     userId,
                     name,
-                    category: normalizeStr(classData.teacherCategory)
+                    category: normalizeStr(classData.teacherCategory),
+                    curriculumId: normalizeStr(classData.curriculumId),
+                    classTypeId: normalizeStr(classData.classTypeId),
+                    book: normalizeStr(classData.book)
                 });
             }
         }
