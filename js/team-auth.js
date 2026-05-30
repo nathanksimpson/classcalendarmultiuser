@@ -368,6 +368,9 @@
             }
             detachIdleWatch();
             await releaseCalendarLocksBeforeLogout();
+            if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnLogout) {
+                CCPStoragePrune.pruneOnLogout();
+            }
             try {
                 await fetch('/api/auth/logout-all', {
                     method: 'POST',
@@ -390,6 +393,9 @@
             const idleReason = options && options.reason === 'idle';
             detachIdleWatch();
             await releaseCalendarLocksBeforeLogout();
+            if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnLogout) {
+                CCPStoragePrune.pruneOnLogout();
+            }
             try {
                 await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
             } catch (_) {

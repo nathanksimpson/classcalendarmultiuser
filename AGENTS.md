@@ -29,7 +29,7 @@ Without `npm start`, the app cannot load or save calendar data.
 1. Test locally via `npm start` when possible (see above).
 2. API changes: update **both** `server/` and `worker/src/`.
 3. Bump `?v=` on changed scripts in `index.html` (`app.js`, `js/calendar-sync.js`, `js/team-auth.js`).
-4. `npm run deploy` — **git push alone does not update the live site.**
+4. `npm run deploy` (runs `npm run build` → minified `dist/`, then wrangler) — **git push alone does not update the live site.** Local `npm start` still serves unfrozen sources from the repo root.
 5. New D1 migration: `npm run db:migrate:remote` then deploy.
 6. Production smoke test + Ctrl+F5 on browsers.
 

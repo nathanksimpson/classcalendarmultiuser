@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Serves index.html, app.js, etc. API routes are handled in worker/src/index.js.
 [assets]
-directory = "."
+directory = "dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 

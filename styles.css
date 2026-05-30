@@ -107,7 +107,7 @@
     --banner-info-border: #93c5fd;
     
     --font-main: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
 
     /* Sticky offsets: set from JS to match #appTopBar height */
     --app-chrome-sticky-top: 72px;

@@ -4,17 +4,17 @@
  */
 (function (global) {
     const EXTENSION_SCRIPTS = [
-        'js/syllabus-table.js?v=20260527-debate-templates',
+        'js/syllabus-table.js?v=20260602-tab-fast',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
-        'js/syllabus-curricula-data.js?v=20260527-debate-curricula',
+        'js/syllabus-curricula-data.js?v=20260602-tab-fast',
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260529-curriculum-duplicate',
+        'js/books-editor.js?v=20260602-tab-fast',
         'js/homework-import.js',
         'js/homework-tab.js',
-        'js/syllabus-templates.js?v=20260527-debate-templates'
+        'js/syllabus-templates.js?v=20260602-tab-fast'
     ];
 
     let extensionPromise = null;
@@ -53,15 +53,14 @@
             return Promise.resolve();
         }
         if (!extensionPromise) {
-            extensionPromise = (async () => {
-                for (const src of EXTENSION_SCRIPTS) {
-                    await loadScript(src);
-                }
-                extensionLoaded = true;
-            })().catch((err) => {
-                extensionPromise = null;
-                throw err;
-            });
+            extensionPromise = Promise.all(EXTENSION_SCRIPTS.map(loadScript))
+                .then(() => {
+                    extensionLoaded = true;
+                })
+                .catch((err) => {
+                    extensionPromise = null;
+                    throw err;
+                });
         }
         return extensionPromise;
     }

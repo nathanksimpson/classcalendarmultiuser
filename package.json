@@ -6,10 +6,13 @@
   "scripts": {
     "start": "node server/index.js",
     "sync-from-main": "node scripts/sync-from-main.mjs",
-    "deploy": "wrangler deploy",
+    "build": "node scripts/build-assets.mjs",
+    "build:help-content": "node scripts/export-help-content.mjs",
+    "deploy": "npm run build && wrangler deploy",
     "db:migrate:remote": "wrangler d1 migrations apply calendar-team --remote"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "wrangler": "^4.94.0"
   },
   "engines": {

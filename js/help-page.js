@@ -239,12 +239,21 @@
         tocNav.hidden = sections.length === 0;
     }
 
-    function renderPage() {
-        const guideRoot = window.CCPHelpGuide && window.CCPHelpGuide.GUIDE;
-        if (!guideRoot) {
+    async function renderPage() {
+        const api = window.CCPHelpGuide;
+        if (!api || !api.getGuide) {
             return;
         }
-        const guide = guideRoot[currentLang] || guideRoot.en;
+        let guide;
+        try {
+            guide = await api.getGuide(currentLang);
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+        if (!guide) {
+            return;
+        }
         const titleEl = document.getElementById('helpTitle');
         const introEl = document.getElementById('helpIntro');
         const bodyEl = document.getElementById('helpBody');
@@ -422,7 +431,7 @@
         btn.addEventListener('click', toggleLanguage);
     }
 
-    function init() {
+    async function init() {
         currentLang = getInitialLang();
         document.documentElement.lang = currentLang === 'ko' ? 'ko' : 'en';
         applyTheme(getStoredTheme());
@@ -430,14 +439,16 @@
         setupThemeToggle();
         setupLangToggle();
         setupTocClickScroll();
-        renderPage();
+        await renderPage();
         window.addEventListener('hashchange', scrollToHash);
         requestAnimationFrame(scrollToHash);
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => {
+            void init();
+        });
     } else {
-        init();
+        void init();
     }
 })();

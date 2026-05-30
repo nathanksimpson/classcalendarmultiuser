@@ -1,0 +1,94 @@
+<form id="holidayForm" data-editor-mode="full">
+                <input type="hidden" id="holidayId" value="">
+
+                <div class="event-editor-header modal-header">
+                    <h2 id="holidayModalTitle" data-i18n="addHolidayTitle">Add Holiday</h2>
+                    <div class="event-editor-header-actions editor-header-actions">
+                        <button type="submit" class="btn btn-primary btn-small editor-header-save-btn" data-i18n="saveEvent">Save Event</button>
+                        <button type="button" class="modal-close" id="closeHolidayModal" aria-label="Close">&times;</button>
+                        <details class="header-dropdown editor-header-more">
+                            <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
+                            <div class="header-dropdown-panel editor-header-more-menu">
+                                <button type="button" id="openEventInTabBtn" class="header-dropdown-item event-open-full-btn" data-i18n="openFullEventEditor">Open full editor</button>
+                                <button type="button" id="deleteHolidayBtn" class="header-dropdown-item header-dropdown-item--danger" style="display: none;" data-i18n="delete">Delete</button>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="event-modal-body">
+                <div class="form-group event-popout-name-field">
+                    <label for="holidayName" data-i18n="holidayName">Holiday/Event Name</label>
+                    <input type="text" id="holidayName" required data-i18n-placeholder="holidayNamePlaceholder" placeholder="e.g., Thanksgiving">
+                </div>
+
+                <div class="form-row editor-popout-colors event-color-row">
+                    <div class="form-group">
+                        <label for="holidayBgColor" data-i18n="bgColor">Background Color</label>
+                        <input type="color" id="holidayBgColor" value="#fef3c7">
+                    </div>
+                    <div class="form-group">
+                        <label for="holidayTextColor" data-i18n="textColor">Text Color</label>
+                        <input type="color" id="holidayTextColor" value="#b45309">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="holidayIsRange">
+                        <span data-i18n="dateRange">Date Range (multiple days)</span>
+                    </label>
+                </div>
+
+                <div id="holidaySingleDate" class="form-group">
+                    <label for="holidayDate" data-i18n="date">Date</label>
+                    <input type="date" id="holidayDate">
+                </div>
+
+                <div id="holidayDateRange" class="form-row" style="display: none;">
+                    <div class="form-group">
+                        <label for="holidayStartDate" data-i18n="startDate">Start Date</label>
+                        <input type="date" id="holidayStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="holidayEndDate" data-i18n="endDate">End Date</label>
+                        <input type="date" id="holidayEndDate">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="eventType" data-i18n="eventType">Event type</label>
+                    <select id="eventType" required>
+                        <option value="holiday" data-i18n="eventTypeHoliday">Holiday / no class</option>
+                        <option value="evaluation_deadline" data-i18n="eventTypeEvalDeadline">Evaluation deadline</option>
+                        <option value="homework_deadline" data-i18n="eventTypeHomeworkDeadline">Homework deadline</option>
+                        <option value="evaluation_period" data-i18n="eventTypeEvalPeriod">Evaluation period</option>
+                        <option value="other" data-i18n="eventTypeOther">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="appliesTo">Applies To</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="holidayAllClasses" checked>
+                            <span data-i18n="allClasses">All Classes</span>
+                        </label>
+                    </div>
+                    <div id="eventApplicabilityFilterRow" class="event-applicability-filter-row" style="display: none;">
+                        <button type="button" id="eventApplicabilityFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="eventApplicabilityPopover" data-i18n="eventApplicabilityFilterBtn">Choose applicability…</button>
+                    </div>
+                    <p id="eventApplicabilitySummary" class="event-applicability-summary" hidden></p>
+                </div>
+
+                <div class="form-group form-group--full-only">
+                    <label for="eventNotes" data-i18n="notes">Notes</label>
+                    <textarea id="eventNotes" rows="2" data-i18n-placeholder="eventNotesPlaceholder" placeholder="Optional notes..."></textarea>
+                </div>
+
+                <div class="form-actions event-form-actions editor-footer-actions--tab-only">
+                    <button type="button" id="deleteHolidayBtnFooter" class="btn btn-danger" style="display: none;" data-i18n="delete">Delete</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="saveEvent">Save Event</button>
+                </div>
+                </div>
+            </form>

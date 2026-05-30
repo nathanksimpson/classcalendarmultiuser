@@ -1,0 +1,75 @@
+<form id="printForm" class="print-options-form" data-print-form-mode="all">
+                <div class="form-actions print-form-header-actions">
+                    <button type="submit" class="btn btn-primary" id="printRunBtn" data-i18n="printBtn">Print</button>
+                </div>
+                <div class="print-form-include-row form-group">
+                    <span class="print-form-include-label" data-i18n="printIncludeLabel">Include in this print:</span>
+                    <label class="checkbox-label"><input type="checkbox" id="printIncludeCalendar" checked><span data-i18n="printIncludeCalendar">Calendar (landscape)</span></label>
+                    <label class="checkbox-label"><input type="checkbox" id="printIncludeSummary" checked><span data-i18n="printIncludeSummary">Summary &amp; syllabi (portrait)</span></label>
+                </div>
+                <div class="form-group print-use-filters-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="printUseCalendarFilters" checked>
+                        <span data-i18n="printUseCalendarFilters">Use current calendar filters</span>
+                    </label>
+                    <p class="section-hint" data-i18n="printUseCalendarFiltersHint">When checked, lesson and event visibility matches the calendar bar above the grid.</p>
+                </div>
+                <section class="print-form-section print-form-section--calendar" aria-labelledby="printSectionCalendarTitle">
+                    <h3 id="printSectionCalendarTitle" class="print-form-section-title" data-i18n="printSectionCalendar">Calendar (landscape)</h3>
+                    <p class="section-hint" data-i18n="printSectionCalendarHint">Opens one preview tab with the month grid. Use your browser&apos;s Print or Save as PDF there.</p>
+                    <div class="print-cal-vis-panel" id="printCalVisPanel">
+                    <div class="print-cal-vis-actions print-options-bulk-actions">
+                        <button type="button" class="btn btn-outline btn-small" id="printCalVisSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
+                        <button type="button" class="btn btn-outline btn-small" id="printCalVisClearAllBtn" data-i18n="filterClearAll">Clear all</button>
+                    </div>
+                    <p class="section-hint print-visibility-heading" data-i18n="printCalendarVisibility">On printed calendar, show:</p>
+                    <div class="form-group print-cal-vis">
+                        <label class="checkbox-label"><input type="checkbox" id="printCalLessons" checked><span data-i18n="showLessons">Lessons</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="printCalHolidays" checked><span data-i18n="showHolidays">Holidays</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="printCalEvalDeadline" checked><span data-i18n="showEvalDeadlines">Evaluation deadlines</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="printCalHomeworkDeadline" checked><span data-i18n="showHomeworkDeadlines">Homework deadlines</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="printCalEvalPeriod" checked><span data-i18n="showEvalPeriods">Evaluation periods</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="printCalOther" checked><span data-i18n="showOtherEvents">Other events</span></label>
+                    </div>
+                    </div>
+                </section>
+                <section class="print-form-section print-form-section--summary" aria-labelledby="printSectionSummaryTitle">
+                    <h3 id="printSectionSummaryTitle" class="print-form-section-title" data-i18n="printSectionSummary">Summary &amp; syllabi (portrait)</h3>
+                    <p class="section-hint" data-i18n="printSectionSummaryHint">Opens one preview tab with lists and syllabus tables (one class per page).</p>
+                    <div class="print-summary-bulk-actions print-options-bulk-actions">
+                        <button type="button" class="btn btn-outline btn-small" id="printSummarySelectAllBtn" data-i18n="filterSelectAll">Select all</button>
+                        <button type="button" class="btn btn-outline btn-small" id="printSummaryClearAllBtn" data-i18n="filterClearAll">Clear all</button>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="printClassList" checked>
+                            <span data-i18n="includeClassList">Include Class List</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="printLessonSchedule" checked>
+                            <span data-i18n="includeLessonSchedule">Include Lesson Schedule</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="printCompressionNotes" checked>
+                            <span data-i18n="includeCompressionNotes">Include Compression Notes</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="printSyllabusTables" checked>
+                            <span data-i18n="includeSyllabusTables">Syllabus tables (per class)</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="printEventsList" checked>
+                            <span data-i18n="includeEventsList">Include events list</span>
+                        </label>
+                    </div>
+                    <p id="printLessonFilterHint" class="section-hint print-lesson-filter-hint" hidden></p>
+                </section>
+            </form>

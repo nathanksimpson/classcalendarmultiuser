@@ -1,0 +1,57 @@
+<div id="syllabusEditorForm" class="syllabus-editor-form" data-homework-import-mode="" data-lesson-label-mode="">
+                <section class="syllabus-editor-block syllabus-table-section">
+                    <h3 class="syllabus-block-title" data-i18n="syllabusTable">Lesson schedule table</h3>
+                    <p class="section-hint" data-i18n="syllabusTableHint">Build a printable table (Month, Week, Class #, lesson plan, pages/work). Refresh after you change the calendar schedule.</p>
+                    <div class="syllabus-table-actions">
+                        <button type="button" id="refreshSyllabusBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
+                        <button type="button" id="startBlankSyllabusBtn" class="btn btn-outline btn-small" data-i18n="syllabusStartBlank">Start blank syllabus</button>
+                        <button type="button" id="fillSyllabusFromUnitsBtn" class="btn btn-outline btn-small" data-i18n="fillSyllabusFromUnits">Fill pages from units</button>
+                        <button type="button" id="applyPresetSyllabusBtn" class="btn btn-outline btn-small" data-i18n="applyPresetSyllabus">Apply preset pages</button>
+                        <button type="button" id="addSyllabusLessonRowBtn" class="btn btn-outline btn-small" data-i18n="addSyllabusLessonRow">Add lesson row</button>
+                        <button type="button" id="addSyllabusNoteRowBtn" class="btn btn-outline btn-small" data-i18n="addSyllabusNoteRow">Add note row</button>
+                    </div>
+                    <div class="syllabus-table-editor-wrap">
+                        <table class="syllabus-editor-table" aria-label="Syllabus editor">
+                            <thead>
+                                <tr>
+                                    <th class="syllabus-col-week" data-i18n="syllabusColWeek">Week</th>
+                                    <th class="syllabus-col-num" data-i18n="syllabusColClass">Class</th>
+                                    <th class="syllabus-col-plan" data-i18n="syllabusColPlan">Weekly Lesson Plan</th>
+                                    <th class="syllabus-col-pages" data-i18n="syllabusColPages">Pages / detail</th>
+                                    <th class="syllabus-col-note" data-i18n="syllabusColNote">Note</th>
+                                    <th class="syllabus-col-actions"><span class="sr-only">Remove</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="syllabusTableBody"></tbody>
+                        </table>
+                        <p id="syllabusTableEmptyHint" class="section-hint" data-i18n="syllabusTableEmptyHint">No rows yet. Click Refresh from calendar to generate rows from your lesson schedule.</p>
+                    </div>
+                    <details class="homework-import-panel syllabus-editor-block syllabus-import-block">
+                        <summary data-i18n="homeworkImportTitle">Import homework from paste</summary>
+                        <p class="section-hint" data-i18n="homeworkImportHint">Paste debate Day blocks or Unit Part blocks. Run Refresh from calendar first so session numbers match.</p>
+                        <textarea id="homeworkImportPaste" class="homework-import-paste" rows="8" data-i18n-placeholder="homeworkImportPlaceholder" placeholder="Paste homework text here…"></textarea>
+                        <div class="homework-import-actions">
+                            <button type="button" id="homeworkImportPreviewBtn" class="btn btn-outline btn-small" data-i18n="homeworkImportPreview">Preview match</button>
+                            <button type="button" id="homeworkImportApplyBtn" class="btn btn-outline btn-small" data-i18n="homeworkImportApply">Apply to table</button>
+                        </div>
+                        <pre id="homeworkImportPreview" class="homework-import-preview" aria-live="polite"></pre>
+                    </details>
+                    <div class="syllabus-print-actions">
+                        <button type="button" id="printClassSyllabusBtn" class="btn btn-outline btn-small" data-i18n="printClassSyllabus">Print syllabus</button>
+                    </div>
+                    <p class="section-hint" data-i18n="printClassSyllabusHint">Opens the print dialog; choose Save as PDF to download.</p>
+                </section>
+
+                <section class="syllabus-editor-block syllabus-general-notes-block">
+                    <h3 class="syllabus-block-title" data-i18n="syllabusGeneralNotes">General notes &amp; instructions</h3>
+                    <p class="section-hint" data-i18n="syllabusGeneralNotesHint">For parents, substitutes, or your own reminders. Included when you print this syllabus.</p>
+                    <textarea id="syllabusGeneralNotes" class="syllabus-general-notes-input" rows="5" spellcheck="true" data-i18n-placeholder="syllabusGeneralNotesPlaceholder" placeholder="e.g., Bring workbook every class. Quiz on Unit 3 at session 8…"></textarea>
+                </section>
+
+                <section class="syllabus-editor-block syllabus-units-block">
+                    <h3 class="syllabus-block-title" data-i18n="syllabusUnits">Curriculum units</h3>
+                    <p class="section-hint" data-i18n="syllabusUnitsHint">Optional units for planning. Link events to a unit when editing an event.</p>
+                    <div id="syllabusUnitsRows" class="syllabus-units-rows"></div>
+                    <button type="button" id="addSyllabusUnitBtn" class="btn btn-outline btn-small" data-i18n="addSyllabusUnit">Add unit</button>
+                </section>
+        </div>

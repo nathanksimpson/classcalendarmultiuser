@@ -23,6 +23,9 @@ scripts/.seed-admin-query.sql
 # Team calendar database (created at runtime)
 data/
 
+# Production build output (npm run build)
+dist/
+
 # Cloudflare Wrangler local state
 .wrangler/
 .dev.vars

@@ -6783,6 +6783,64 @@ function initAppShellFromTemplates() {
     mountTemplateInto('printFormTemplate', 'printFormMountModal');
 }
 
+/** Re-bind form refs after async templates mount (elements{} is built at script load). */
+function refreshMountedFormElementRefs() {
+    elements.classForm = document.getElementById('classForm');
+    elements.classModalTitle = document.getElementById('classModalTitle');
+    elements.classId = document.getElementById('classId');
+    elements.className = document.getElementById('className');
+    elements.classPeriod = document.getElementById('classPeriod');
+    elements.classLevel = document.getElementById('classLevel');
+    elements.classLevelCustom = document.getElementById('classLevelCustom');
+    elements.classGrade = document.getElementById('classGrade');
+    elements.classBook = document.getElementById('classBook');
+    elements.booksByMonthRows = document.getElementById('booksByMonthRows');
+    elements.addBookMonthRowBtn = document.getElementById('addBookMonthRowBtn');
+    elements.fillBooksFromDefaultBtn = document.getElementById('fillBooksFromDefaultBtn');
+    elements.syllabusUnitsRows = document.getElementById('syllabusUnitsRows');
+    elements.addSyllabusUnitBtn = document.getElementById('addSyllabusUnitBtn');
+    elements.syllabusTableBody = document.getElementById('syllabusTableBody');
+    elements.syllabusTableEmptyHint = document.getElementById('syllabusTableEmptyHint');
+    elements.refreshSyllabusBtn = document.getElementById('refreshSyllabusBtn');
+    elements.fillSyllabusFromUnitsBtn = document.getElementById('fillSyllabusFromUnitsBtn');
+    elements.applyPresetSyllabusBtn = document.getElementById('applyPresetSyllabusBtn');
+    elements.addSyllabusNoteRowBtn = document.getElementById('addSyllabusNoteRowBtn');
+    elements.homeworkImportPaste = document.getElementById('homeworkImportPaste');
+    elements.homeworkImportPreviewBtn = document.getElementById('homeworkImportPreviewBtn');
+    elements.homeworkImportApplyBtn = document.getElementById('homeworkImportApplyBtn');
+    elements.homeworkImportPreview = document.getElementById('homeworkImportPreview');
+    elements.classNotes = document.getElementById('classNotes');
+    elements.classStartDate = document.getElementById('classStartDate');
+    elements.classEndDate = document.getElementById('classEndDate');
+    elements.classTermMonths = document.getElementById('classTermMonths');
+    elements.classUseAutoTermEnd = document.getElementById('classUseAutoTermEnd');
+    elements.classTotalLessons = document.getElementById('classTotalLessons');
+    elements.classColor = document.getElementById('classColor');
+    elements.classTextColor = document.getElementById('classTextColor');
+    elements.customScheduleEnabled = document.getElementById('customScheduleEnabled');
+    elements.customScheduleSection = document.getElementById('customScheduleSection');
+    elements.customLessonDates = document.getElementById('customLessonDates');
+    elements.compressionCheckboxes = document.getElementById('compressionCheckboxes');
+    elements.holidayForm = document.getElementById('holidayForm');
+    elements.holidayModalTitle = document.getElementById('holidayModalTitle');
+    elements.holidayId = document.getElementById('holidayId');
+    elements.eventType = document.getElementById('eventType');
+    elements.eventNotes = document.getElementById('eventNotes');
+    elements.holidayName = document.getElementById('holidayName');
+    elements.holidayIsRange = document.getElementById('holidayIsRange');
+    elements.holidaySingleDate = document.getElementById('holidaySingleDate');
+    elements.holidayDate = document.getElementById('holidayDate');
+    elements.holidayDateRange = document.getElementById('holidayDateRange');
+    elements.holidayStartDate = document.getElementById('holidayStartDate');
+    elements.holidayEndDate = document.getElementById('holidayEndDate');
+    elements.holidayBgColor = document.getElementById('holidayBgColor');
+    elements.holidayTextColor = document.getElementById('holidayTextColor');
+    elements.holidayAllClasses = document.getElementById('holidayAllClasses');
+    elements.deleteHolidayBtn = document.getElementById('deleteHolidayBtn');
+    elements.printForm = document.getElementById('printForm');
+    refreshClassModalDomRefs();
+}
+
 function mountSyllabusEditor() {
     if (syllabusEditorMounted) {
         refreshSyllabusElementRefs();
@@ -7500,8 +7558,6 @@ function initSyllabusEditorListeners() {
     }
 }
 
-initAppShellFromTemplates();
-
 function getActiveTab() {
     ensureUiState();
     const tab = appData.ui.activeTab;
@@ -7638,12 +7694,69 @@ function tabNeedsExtensionScripts(tabId) {
     return APP_EXTENSION_TAB_IDS.includes(tabId);
 }
 
+function tabNeedsLazyTabScripts(tabId) {
+    return (
+        typeof CCPTabScripts !== 'undefined' &&
+        typeof CCPTabScripts.tabNeedsScripts === 'function' &&
+        CCPTabScripts.tabNeedsScripts(tabId)
+    );
+}
+
+/** Warm extension/timetable scripts in the background (first tab click feels instant). */
+function prefetchTabScriptsIfNeeded(tabId) {
+    if (!tabId) {
+        return;
+    }
+    if (
+        tabNeedsExtensionScripts(tabId) &&
+        typeof CCPLoader !== 'undefined' &&
+        !CCPLoader.extensionLoaded
+    ) {
+        void ensureExtensionScriptsLoaded().catch((err) => {
+            console.warn('Tab script prefetch (extensions):', err);
+        });
+    }
+    if (tabNeedsLazyTabScripts(tabId)) {
+        void CCPTabScripts.ensureTabScripts(tabId).catch((err) => {
+            console.warn('Tab script prefetch (' + tabId + '):', err);
+        });
+    }
+}
+
+function scheduleIdleTabPrefetch() {
+    const run = () => {
+        if (typeof CCPLoader !== 'undefined' && !CCPLoader.extensionLoaded) {
+            void ensureExtensionScriptsLoaded().catch((err) => {
+                console.warn('Idle prefetch extensions:', err);
+            });
+        }
+        if (typeof CCPTabScripts !== 'undefined') {
+            void CCPTabScripts.ensureTabScripts('calendar').catch((err) => {
+                console.warn('Idle prefetch calendar scripts:', err);
+            });
+            void CCPTabScripts.ensureTabScripts('timetable').catch((err) => {
+                console.warn('Idle prefetch timetable scripts:', err);
+            });
+        }
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(run, { timeout: 3000 });
+    } else {
+        setTimeout(run, 1500);
+    }
+}
+
 function navigateToTab(tabId, options = {}) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
     }
-    if (tabNeedsExtensionScripts(tabId) && typeof CCPLoader !== 'undefined' && !CCPLoader.extensionLoaded) {
-        void ensureExtensionScriptsLoaded()
+    const needsExtensions =
+        tabNeedsExtensionScripts(tabId) && typeof CCPLoader !== 'undefined' && !CCPLoader.extensionLoaded;
+    const needsTabScripts = tabNeedsLazyTabScripts(tabId);
+    if (needsExtensions || needsTabScripts) {
+        void Promise.resolve()
+            .then(() => (needsTabScripts ? CCPTabScripts.ensureTabScripts(tabId) : undefined))
+            .then(() => (needsExtensions ? ensureExtensionScriptsLoaded() : undefined))
             .then(() => navigateToTabBody(tabId, options))
             .catch((err) => {
                 console.error(err);
@@ -7757,8 +7870,12 @@ function navigateToTabBody(tabId, options = {}) {
 
 function initAppTabs() {
     document.querySelectorAll('.app-tab-btn').forEach((btn) => {
+        const tabId = btn.dataset.tab || 'calendar';
+        const warmTab = () => prefetchTabScriptsIfNeeded(tabId);
+        btn.addEventListener('mouseenter', warmTab);
+        btn.addEventListener('focus', warmTab);
         btn.addEventListener('click', () => {
-            navigateToTab(btn.dataset.tab || 'calendar');
+            navigateToTab(tabId);
         });
     });
     const classSearch = document.getElementById('classListSearch');
@@ -11499,6 +11616,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (document.body.classList.contains('workspace-page')) {
         return;
     }
+    const useTeamSyncEarly =
+        location.protocol !== 'file:' &&
+        typeof CalendarSync !== 'undefined' &&
+        document.getElementById('teamSyncStatus');
+    if (useTeamSyncEarly) {
+        updateTeamSyncStatus('syncing');
+    }
+    try {
+        if (typeof CCPTemplateLoader !== 'undefined' && CCPTemplateLoader.ensureTemplatesLoaded) {
+            await CCPTemplateLoader.ensureTemplatesLoaded();
+        }
+        initAppShellFromTemplates();
+        refreshMountedFormElementRefs();
+    } catch (err) {
+        console.error('Template load failed:', err);
+        if (useTeamSyncEarly) {
+            updateTeamSyncStatus('error', t('errorReadingFile'));
+        }
+        alert(t('errorReadingFile') || 'Could not load editor templates. Check your connection and refresh.');
+        return;
+    }
     ensureClassFormExtendedMarkup();
     repairCorruptedLangToggleButton();
     setupTeamLockButtons();
@@ -11564,13 +11702,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initTeamSync();
     } catch (err) {
         console.error('initTeamSync failed:', err);
+        updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
         showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
+    } finally {
+        if (useTeamSyncEarly) {
+            const statusEl = document.getElementById('teamSyncStatus');
+            if (
+                statusEl &&
+                !teamSyncEnabled &&
+                (statusEl.classList.contains('status-syncing') ||
+                    statusEl.classList.contains('status-connecting'))
+            ) {
+                updateTeamSyncStatus('offline', t('teamSyncOffline'));
+            }
+        }
     }
 
     if (!teamSyncEnabled) {
         renderCalendar();
         requestAnimationFrame(syncAppChromeStickyTop);
     }
+
+    scheduleIdleTabPrefetch();
 });
 
 function initializeTermStart() {
@@ -11716,12 +11869,12 @@ function setupEventListeners() {
     setupCalendarTileTypographyObserver();
 
     // Modal Close Buttons
-    document.getElementById('closeClassModal').addEventListener('click', () => closeModal(elements.classModal));
-    document.getElementById('closeHolidayModal').addEventListener('click', () => closeModal(elements.holidayModal));
+    document.getElementById('closeClassModal')?.addEventListener('click', () => closeModal(elements.classModal));
+    document.getElementById('closeHolidayModal')?.addEventListener('click', () => closeModal(elements.holidayModal));
     // Form Submissions
-    elements.classForm.addEventListener('submit', handleClassSubmit);
-    elements.holidayForm.addEventListener('submit', handleHolidaySubmit);
-    elements.printForm.addEventListener('submit', handlePrint);
+    elements.classForm?.addEventListener('submit', handleClassSubmit);
+    elements.holidayForm?.addEventListener('submit', handleHolidaySubmit);
+    elements.printForm?.addEventListener('submit', handlePrint);
     
     // Delete Buttons
     const deleteClassBtnEl = document.getElementById('deleteClassBtn');
@@ -11748,7 +11901,7 @@ function setupEventListeners() {
     }
     
     // Holiday "All Classes" toggle
-    elements.holidayAllClasses.addEventListener('change', (e) => {
+    elements.holidayAllClasses?.addEventListener('change', (e) => {
         if (e.target.checked) {
             closeEventApplicabilityPopover();
             eventApplicabilityDraft = { ...EMPTY_EVENT_APPLICABILITY };
@@ -16136,6 +16289,9 @@ function setPrintFormSectionMode(mode) {
 
 async function openPrintOptionsDialog() {
     try {
+        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensurePrintScripts) {
+            await CCPTabScripts.ensurePrintScripts();
+        }
         await ensureExtensionScriptsLoaded();
     } catch (err) {
         console.error(err);
@@ -17952,6 +18108,9 @@ async function switchToTeamCalendar(id, calendarsOptional) {
         return;
     }
     CalendarSync.setActiveCalendarId(id);
+    if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnCalendarSwitch) {
+        CCPStoragePrune.pruneOnCalendarSwitch(previousId, id, list);
+    }
     try {
         const doc = await CalendarSync.loadCalendar(id);
         if (CalendarSync.state.readOnly) {
@@ -19669,9 +19828,12 @@ function clearAllData() {
     }
     
     invalidateScheduleCache();
-    // Clear localStorage
-    localStorage.removeItem('classCalendarData');
-    
+    if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.clearAllCalendarDomainStorage) {
+        CCPStoragePrune.clearAllCalendarDomainStorage();
+    } else {
+        localStorage.removeItem('classCalendarData');
+    }
+
     appData = getDefaultAppData();
     loadUiStateFromLocalStorageIntoData(appData);
     initializeTermStart();
