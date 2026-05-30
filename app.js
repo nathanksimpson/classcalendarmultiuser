@@ -3937,28 +3937,21 @@ function buildSyllabusTimelineForClass(classData) {
     }
 
     const meetingDates = collectAllMeetingDatesInRange(classStart, classEnd, meetingDays);
-    let lessonIdx = 0;
-    const slots = [];
-
-    meetingDates.forEach(d => {
-        const dateStr = formatDateISO(d);
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (isHolidayForClass(dateStr, effective)) {
-            slots.push({ date: dateStr, monthKey, kind: 'holiday' });
-        } else if (lessonIdx < lessons.length) {
-            const lesson = lessons[lessonIdx];
-            lessonIdx += 1;
-            slots.push({
+    const mod = getSyllabusModule();
+    const slots = mod && mod.buildTimelineSlotsFromLessons
+        ? mod.buildTimelineSlotsFromLessons(lessons, meetingDates, {
+            isHoliday: (dateStr) => isHolidayForClass(dateStr, effective),
+            formatDateISO
+        })
+        : meetingDates.map((d) => {
+            const dateStr = formatDateISO(d);
+            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return {
                 date: dateStr,
-                monthKey: lesson.monthKey || monthKey,
-                kind: 'lesson',
-                label: lesson.label,
-                lesson
-            });
-        } else {
-            slots.push({ date: dateStr, monthKey, kind: 'extra' });
-        }
-    });
+                monthKey,
+                kind: isHolidayForClass(dateStr, effective) ? 'holiday' : 'extra'
+            };
+        });
 
     return { slots, unscheduledLessonNumbers };
 }
@@ -14138,6 +14131,12 @@ function renderSyllabusEditorTable(rows) {
         if (row.sessionNumber != null) {
             tr.dataset.rowSession = String(row.sessionNumber);
         }
+        const lessonNum = row.lessonNumber != null && row.lessonNumber > 0
+            ? row.lessonNumber
+            : (rowKind === 'lesson' || rowKind === 'overflow' ? row.sessionNumber : 0);
+        if (lessonNum > 0) {
+            tr.dataset.rowLessonNumber = String(lessonNum);
+        }
         if (row.overflowIntro === true) {
             tr.dataset.overflowIntro = '1';
         }
@@ -14213,6 +14212,7 @@ function collectSyllabusRowsFromForm() {
             source = 'manual';
         }
         const sessionNumber = parseInt(tr.dataset.rowSession, 10);
+        const lessonNumber = parseInt(tr.dataset.rowLessonNumber, 10);
         const row = {
             id: tr.dataset.rowId || (mod ? mod.newRowId() : generateId()),
             kind,
@@ -14225,6 +14225,9 @@ function collectSyllabusRowsFromForm() {
             note,
             source
         };
+        if (!Number.isNaN(lessonNumber) && lessonNumber > 0) {
+            row.lessonNumber = lessonNumber;
+        }
         if (tr.dataset.overflowIntro === '1') {
             row.overflowIntro = true;
         }

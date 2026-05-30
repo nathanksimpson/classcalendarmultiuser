@@ -208,6 +208,106 @@
         return '';
     }
 
+    /** Combined pages for compressed merges (e.g. WR + SP on one row). */
+    function planDetailFromUnitRange(start, end, syllabusUnits) {
+        if (!start || start < 1) {
+            return '';
+        }
+        const endNum = end != null && end >= start ? end : start;
+        const parts = [];
+        for (let n = start; n <= endNum; n += 1) {
+            const detail = planDetailFromUnits(n, syllabusUnits, '');
+            if (detail && String(detail).trim()) {
+                parts.push(String(detail).trim());
+            }
+        }
+        return parts.join('\n');
+    }
+
+    function lessonDateToISO(lesson, formatDateISO) {
+        if (!lesson || lesson.date == null || lesson.date === '') {
+            return '';
+        }
+        const fmt = typeof formatDateISO === 'function' ? formatDateISO : formatISO;
+        if (lesson.date instanceof Date) {
+            return fmt(lesson.date);
+        }
+        const s = String(lesson.date).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+            return s.slice(0, 10);
+        }
+        const d = parseLocal(s);
+        if (!Number.isNaN(d.getTime())) {
+            return fmt(d);
+        }
+        return '';
+    }
+
+    /**
+     * Place each scheduled lesson on its calendar date (not by slot index).
+     * @param {Array} lessons from calculateLessonDates
+     * @param {Array<Date|string>} meetingDates chronological meeting days in term
+     * @param {object} options
+     * @param {function(string): boolean} options.isHoliday
+     * @param {function(Date): string} [options.formatDateISO]
+     * @returns {Array<{ date: string, monthKey: string, kind: string, label?: string, lesson?: object }>}
+     */
+    function buildTimelineSlotsFromLessons(lessons, meetingDates, options) {
+        options = options || {};
+        const fmt = typeof options.formatDateISO === 'function' ? options.formatDateISO : formatISO;
+        const isHolidayFn = options.isHoliday;
+        const lessonsByDate = new Map();
+        (lessons || []).forEach((lesson) => {
+            const dateStr = lessonDateToISO(lesson, fmt);
+            if (dateStr) {
+                lessonsByDate.set(dateStr, lesson);
+            }
+        });
+        const usedDates = new Set();
+        const slots = [];
+
+        (meetingDates || []).forEach((d) => {
+            const dateStr = d instanceof Date ? fmt(d) : String(d).slice(0, 10);
+            const monthKey = dateStr.slice(0, 7);
+            const isHol = typeof isHolidayFn === 'function' && isHolidayFn(dateStr);
+            if (isHol) {
+                slots.push({ date: dateStr, monthKey, kind: 'holiday' });
+            } else if (lessonsByDate.has(dateStr)) {
+                const lesson = lessonsByDate.get(dateStr);
+                usedDates.add(dateStr);
+                slots.push({
+                    date: dateStr,
+                    monthKey: lesson.monthKey || monthKey,
+                    kind: 'lesson',
+                    label: lesson.label,
+                    lesson
+                });
+            } else {
+                slots.push({ date: dateStr, monthKey, kind: 'extra' });
+            }
+        });
+
+        const orphans = [];
+        lessonsByDate.forEach((lesson, dateStr) => {
+            if (!usedDates.has(dateStr)) {
+                orphans.push({ lesson, dateStr });
+            }
+        });
+        orphans.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+        orphans.forEach(({ lesson, dateStr }) => {
+            slots.push({
+                date: dateStr,
+                monthKey: lesson.monthKey || dateStr.slice(0, 7),
+                kind: 'lesson',
+                label: lesson.label,
+                lesson
+            });
+        });
+
+        slots.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+        return slots;
+    }
+
     /**
      * @param {object} classData
      * @param {Array} lessons from calculateLessonDates
@@ -330,7 +430,12 @@
                 debateGroupStart: lesson.group && lesson.group.start != null ? lesson.group.start : null,
                 debateGroupEnd: lesson.group && lesson.group.end != null ? lesson.group.end : null
             };
-            let planDetail = planDetailFromUnits(curriculumLessonNumber, units, planTitle);
+            let planDetail = lesson.compressed === true
+                && lesson.group
+                && lesson.group.end != null
+                && lesson.group.end > lesson.group.start
+                ? planDetailFromUnitRange(lesson.group.start, lesson.group.end, units)
+                : planDetailFromUnits(curriculumLessonNumber, units, planTitle);
             if (resolveRowTemplate) {
                 const tpl = resolveRowTemplate(rowForTemplate);
                 if (tpl) {
@@ -1265,8 +1370,11 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         getSchoolWeekMonday,
         formatMonthShortFromKey,
         buildSyllabusRowsFromSchedule,
+        buildTimelineSlotsFromLessons,
+        lessonDateToISO,
         getCurriculumLessonNumber,
         planDetailFromUnits,
+        planDetailFromUnitRange,
         mergeSyllabusRows,
         normalizeRows,
         formatSyllabusShortDate,

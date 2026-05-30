@@ -444,4 +444,89 @@ function assert(cond, msg) {
     assert(rows[0].sessionNumber === 1, 'session order still chronological');
 }
 
+// Timeline slots: lessons stay on calendar dates (not consumed by earlier meeting days)
+{
+    const period1 = [
+        { date: '2026-03-04', label: 'Day 1', monthKey: '2026-03', group: { start: 1, end: 1, days: [1] } },
+        { date: '2026-03-11', label: 'Day 2', monthKey: '2026-03', group: { start: 2, end: 2, days: [2] } },
+        { date: '2026-03-18', label: 'Day 3', monthKey: '2026-03', group: { start: 3, end: 3, days: [3] } },
+        { date: '2026-03-25', label: 'Day 4', monthKey: '2026-03', group: { start: 4, end: 4, days: [4] } }
+    ];
+    const period2 = [
+        { date: '2026-04-08', label: 'Day 1', monthKey: '2026-04', group: { start: 1, end: 1, days: [1] } },
+        { date: '2026-04-15', label: 'Day 2+3', monthKey: '2026-04', compressed: true,
+            group: { start: 2, end: 3, days: [2, 3] } },
+        { date: '2026-04-22', label: 'Day 4', monthKey: '2026-04', group: { start: 4, end: 4, days: [4] } }
+    ];
+    const lessons = [...period1, ...period2];
+    const meetingDates = [
+        '2026-03-04', '2026-03-11', '2026-03-18', '2026-03-25',
+        '2026-03-28', '2026-04-01', '2026-04-04',
+        '2026-04-08', '2026-04-15', '2026-04-22'
+    ];
+    const slots = CCPSyllabus.buildTimelineSlotsFromLessons(lessons, meetingDates, {
+        isHoliday: () => false,
+        formatDateISO: (d) => (typeof d === 'string' ? d.slice(0, 10) : d)
+    });
+    const lessonSlots = slots.filter((s) => s.kind === 'lesson');
+    assert(lessonSlots.length === 7, 'all scheduled lessons appear on timeline');
+    const aprFirst = lessonSlots.find((s) => s.date === '2026-04-08');
+    assert(aprFirst && aprFirst.label === 'Day 1', 'April period-2 Day 1 on April date not March gap');
+    const merged = lessonSlots.find((s) => s.date === '2026-04-15');
+    assert(merged && merged.lesson.compressed === true, 'compressed lesson on its calendar date');
+    const marGapExtras = slots.filter((s) => s.kind === 'extra' && s.date >= '2026-03-28' && s.date < '2026-04-08');
+    assert(marGapExtras.length === 3, 'gap meeting days without lessons are extra slots');
+}
+
+// Index-based placement would put April lessons on March gap days (regression guard)
+{
+    const lessons = [
+        { date: '2026-04-08', label: 'Apr L1', monthKey: '2026-04' },
+        { date: '2026-04-15', label: 'Apr L2', monthKey: '2026-04' }
+    ];
+    const meetingDates = ['2026-03-28', '2026-04-01', '2026-04-08', '2026-04-15'];
+    const slots = CCPSyllabus.buildTimelineSlotsFromLessons(lessons, meetingDates, {
+        isHoliday: () => false,
+        formatDateISO: (d) => d
+    });
+    const lessonSlots = slots.filter((s) => s.kind === 'lesson');
+    assert(lessonSlots.length === 2, 'two lessons');
+    assert(lessonSlots[0].date === '2026-04-08', 'first lesson not placed on March gap');
+    assert(lessonSlots[1].date === '2026-04-15', 'second lesson on April date');
+}
+
+// Compressed WR+SP row includes speaking and writing pages
+{
+    const classData = {
+        syllabusUnits: [
+            { speakingPages: 'SB p. 8–11', writingPages: 'WB p. 2' },
+            { speakingPages: 'SB p. 12–15', writingPages: 'WB p. 4' }
+        ]
+    };
+    const lessons = [{
+        date: '2026-03-05',
+        monthKey: '2026-03',
+        label: 'Unit 1 WR + Unit 1 SP',
+        compressed: true,
+        group: { start: 1, end: 2, days: [1, 2] }
+    }];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, lessons, {
+        isHolidayForClass: () => false
+    });
+    assert(rows.length === 1, 'one merged row');
+    assert(rows[0].planDetail.includes('SB'), 'speaking pages from session 1');
+    assert(rows[0].planDetail.includes('WB'), 'writing pages from session 2');
+}
+
+// planDetailFromUnitRange helper
+{
+    const units = [
+        { speakingPages: 'SPEAK-A', writingPages: 'WRITE-A' },
+        { speakingPages: 'SPEAK-B', writingPages: 'WRITE-B' }
+    ];
+    const detail = CCPSyllabus.planDetailFromUnitRange(2, 3, units);
+    assert(detail.includes('WRITE-A'), 'session 2 writing');
+    assert(detail.includes('SPEAK-B'), 'session 3 speaking');
+}
+
 console.log('All syllabus-table tests passed.');
