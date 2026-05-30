@@ -1029,7 +1029,7 @@ async function readPasswordLoginBody(request) {
     if (ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data')) {
         const form = await request.formData();
         return {
-            email: String(form.get('email') || ''),
+            email: String(form.get('email') || form.get('username') || ''),
             password: String(form.get('password') || ''),
             returnTo: sanitizeReturnTo(String(form.get('return') || '/')),
             device: sanitizeLoginContext(String(form.get('device') || form.get('loginContext') || '')),
@@ -1038,12 +1038,111 @@ async function readPasswordLoginBody(request) {
     }
     const body = await readJson(request);
     return {
-        email: body.email,
+        email: body.email || body.username,
         password: body.password,
         returnTo: sanitizeReturnTo(body.return || '/'),
         device: sanitizeLoginContext(body.device || body.loginContext),
         wantsRedirect: false
     };
+}
+
+function escapeHtmlAttr(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;');
+}
+
+function passwordLoginSuccessHtml(returnTo) {
+    const safeUrl = escapeHtmlAttr(returnTo);
+    const safeJs = String(returnTo).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signing in…</title>
+<meta http-equiv="refresh" content="0;url=${safeUrl}">
+</head>
+<body>
+<p>Signing in…</p>
+<script>location.replace('${safeJs}');</script>
+</body>
+</html>`;
+}
+
+function passwordLoginSuccessResponse(returnTo, cookie) {
+    const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' });
+    if (cookie) {
+        headers.append('Set-Cookie', cookie);
+    }
+    return new Response(passwordLoginSuccessHtml(returnTo), { status: 200, headers });
+}
+
+async function handlePasswordLogin(request, env, secure, htmlSuccess) {
+    let loginBody;
+    try {
+        loginBody = await readPasswordLoginBody(request);
+        const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
+        if (limited) {
+            if (loginBody.wantsRedirect || htmlSuccess) {
+                return passwordLoginErrorRedirect(loginBody.returnTo, 'too_many_requests');
+            }
+            return limited;
+        }
+        const em = normalizeEmail(loginBody.email);
+        const row = em
+            ? await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em)
+            : null;
+        const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
+        if (row && !storedHash) {
+            if (loginBody.wantsRedirect || htmlSuccess) {
+                return passwordLoginErrorRedirect(loginBody.returnTo, 'password_not_set');
+            }
+            return json(
+                {
+                    error:
+                        'No password is set for this account. Sign in with Kakao, or ask an admin to set a password for you.'
+                },
+                401
+            );
+        }
+        const matched =
+            row && storedHash && (await verifyPassword(loginBody.password, storedHash))
+                ? rowToUser(row)
+                : null;
+        if (!matched) {
+            if (loginBody.wantsRedirect || htmlSuccess) {
+                return passwordLoginErrorRedirect(loginBody.returnTo, 'invalid_password');
+            }
+            return json({ error: 'Invalid email or password' }, 401);
+        }
+        const session = await createLoginSession(env, matched.id, loginBody.device);
+        const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
+        if (htmlSuccess) {
+            return passwordLoginSuccessResponse(loginBody.returnTo, cookie);
+        }
+        if (loginBody.wantsRedirect) {
+            return redirectWithCookie(loginBody.returnTo, cookie);
+        }
+        return json(
+            {
+                id: matched.id,
+                email: matched.email,
+                displayName: matched.displayName,
+                role: matched.role
+            },
+            200,
+            { 'Set-Cookie': cookie }
+        );
+    } catch (err) {
+        console.error('Password login error:', err && err.message ? err.message : err);
+        const ret = loginBody ? loginBody.returnTo : '/';
+        if ((loginBody && loginBody.wantsRedirect) || htmlSuccess) {
+            return passwordLoginErrorRedirect(ret, 'sign_in_failed');
+        }
+        return json({ error: 'Sign-in failed. Try again or use Kakao login.' }, 500);
+    }
 }
 
 function passwordLoginErrorRedirect(returnTo, code) {
@@ -1066,6 +1165,9 @@ export default {
             // Support friendly admin URL and avoid broken relative asset paths.
             if (path === '/admin' || path === '/admin/') {
                 return redirectTo('/admin.html');
+            }
+            if (path === '/login' && request.method === 'POST') {
+                return handlePasswordLogin(request, env, secure, true);
             }
             if (env.ASSETS) {
                 return env.ASSETS.fetch(request);
@@ -1231,66 +1333,7 @@ export default {
         }
 
         if (path === '/api/auth/password' && request.method === 'POST') {
-            let loginBody;
-            try {
-                loginBody = await readPasswordLoginBody(request);
-                const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
-                if (limited) {
-                    if (loginBody.wantsRedirect) {
-                        return passwordLoginErrorRedirect(loginBody.returnTo, 'too_many_requests');
-                    }
-                    return limited;
-                }
-                const em = normalizeEmail(loginBody.email);
-                const row = em
-                    ? await dbOne(env, 'SELECT * FROM users WHERE email = ? AND active = 1', em)
-                    : null;
-                const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
-                if (row && !storedHash) {
-                    if (loginBody.wantsRedirect) {
-                        return passwordLoginErrorRedirect(loginBody.returnTo, 'password_not_set');
-                    }
-                    return json(
-                        {
-                            error:
-                                'No password is set for this account. Sign in with Kakao, or ask an admin to set a password for you.'
-                        },
-                        401
-                    );
-                }
-                const matched =
-                    row && storedHash && (await verifyPassword(loginBody.password, storedHash))
-                        ? rowToUser(row)
-                        : null;
-                if (!matched) {
-                    if (loginBody.wantsRedirect) {
-                        return passwordLoginErrorRedirect(loginBody.returnTo, 'invalid_password');
-                    }
-                    return json({ error: 'Invalid email or password' }, 401);
-                }
-                const session = await createLoginSession(env, matched.id, loginBody.device);
-                const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
-                if (loginBody.wantsRedirect) {
-                    return redirectWithCookie(loginBody.returnTo, cookie);
-                }
-                return json(
-                    {
-                        id: matched.id,
-                        email: matched.email,
-                        displayName: matched.displayName,
-                        role: matched.role
-                    },
-                    200,
-                    { 'Set-Cookie': cookie }
-                );
-            } catch (err) {
-                console.error('POST /api/auth/password error:', err && err.message ? err.message : err);
-                const ret = loginBody ? loginBody.returnTo : '/';
-                if (loginBody && loginBody.wantsRedirect) {
-                    return passwordLoginErrorRedirect(ret, 'sign_in_failed');
-                }
-                return json({ error: 'Sign-in failed. Try again or use Kakao login.' }, 500);
-            }
+            return handlePasswordLogin(request, env, secure, false);
         }
 
         if (path === '/api/admin/bootstrap' && request.method === 'POST') {

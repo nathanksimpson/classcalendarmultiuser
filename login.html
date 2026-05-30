@@ -141,6 +141,12 @@
             padding-top: 1.5rem;
             border-top: 1px solid var(--border-color);
         }
+        .login-credentials {
+            border: 0;
+            margin: 0;
+            padding: 0;
+            min-width: 0;
+        }
         .login-fallback label {
             display: block;
             margin-bottom: 0.35rem;
@@ -202,12 +208,12 @@
             <fieldset class="login-device" id="loginDeviceFieldset">
                 <legend id="loginDeviceLegend">Where are you signing in?</legend>
                 <label>
-                    <input type="radio" name="loginDevice" value="personal" checked>
+                    <input type="radio" name="loginDevice" value="personal" checked autocomplete="off">
                     <strong id="loginDevicePersonalTitle">My computer</strong>
                     <span id="loginDevicePersonalHint">Stay signed in longer (up to your school’s limit). Idle sign-out uses your admin’s normal timeout.</span>
                 </label>
                 <label>
-                    <input type="radio" name="loginDevice" value="shared">
+                    <input type="radio" name="loginDevice" value="shared" autocomplete="off">
                     <strong id="loginDeviceSharedTitle">Shared or public computer</strong>
                     <span id="loginDeviceSharedHint">Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle. Kakao will ask you to log in again.</span>
                 </label>
@@ -221,14 +227,17 @@
 
             <div class="login-fallback">
                 <p><strong id="passwordFallbackTitle">Password fallback</strong> <span id="passwordFallbackHint">(only if your admin gave you one)</span></p>
-                <form id="loginForm" method="post" action="/api/auth/password" autocomplete="on">
+                <form id="loginForm" method="post" action="/login" autocomplete="on">
+                    <fieldset class="login-credentials">
+                        <legend class="visually-hidden">Sign in with password</legend>
+                        <label for="username" id="loginEmailLabel">Email</label>
+                        <input type="email" id="username" name="username" autocomplete="username email" inputmode="email" spellcheck="false" required>
+                        <label for="password" id="loginPasswordLabel">Password</label>
+                        <input type="password" id="password" name="password" autocomplete="current-password" required>
+                    </fieldset>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;" id="passwordSignInBtn">Sign in</button>
                     <input type="hidden" name="return" id="passwordReturn" value="/">
                     <input type="hidden" name="device" id="passwordDevice" value="personal">
-                    <label for="loginEmail" id="loginEmailLabel">Email</label>
-                    <input type="email" id="loginEmail" name="email" autocomplete="username" inputmode="email" spellcheck="false" required>
-                    <label for="loginPassword" id="loginPasswordLabel">Password</label>
-                    <input type="password" id="loginPassword" name="password" autocomplete="current-password" required>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;" id="passwordSignInBtn">Sign in</button>
                 </form>
                 <p id="loginError" class="login-error" style="display: none;"></p>
                 <p id="loginBootstrapHint" class="login-kakao-hint" style="display: none;"></p>

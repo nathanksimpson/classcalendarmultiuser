@@ -1,3 +1,4 @@
+require('./load-env');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -302,11 +303,37 @@ function passwordLoginErrorRedirect(res, returnTo, code) {
     res.redirect(302, `/login.html?${q.toString()}`);
 }
 
-app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000), (req, res) => {
-    const redirect = wantsPasswordFormRedirect(req);
+function escapeHtmlAttr(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;');
+}
+
+function passwordLoginSuccessHtml(returnTo) {
+    const safeUrl = escapeHtmlAttr(returnTo);
+    const safeJs = String(returnTo).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signing in…</title>
+<meta http-equiv="refresh" content="0;url=${safeUrl}">
+</head>
+<body>
+<p>Signing in…</p>
+<script>location.replace('${safeJs}');</script>
+</body>
+</html>`;
+}
+
+function handlePasswordLogin(req, res, options) {
+    const htmlSuccess = Boolean(options && options.htmlSuccess);
+    const redirect = htmlSuccess || wantsPasswordFormRedirect(req);
     const returnTo = oauthState.sanitizeReturnTo(req.body.return || '/');
     const device = loginContext.sanitizeLoginContext(req.body.device || req.body.loginContext);
-    const email = req.body.email;
+    const email = req.body.email || req.body.username;
     const password = req.body.password;
     if (users.activeUserHasNoPassword(email)) {
         if (redirect) {
@@ -330,6 +357,10 @@ app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25
     }
     const session = users.createLoginSession(user.id, device);
     setSessionCookie(res, session.token, session.maxAgeSec);
+    if (htmlSuccess) {
+        res.status(200).type('html').send(passwordLoginSuccessHtml(returnTo));
+        return;
+    }
     if (redirect) {
         res.redirect(302, returnTo);
         return;
@@ -341,6 +372,16 @@ app.post('/api/auth/password', rateLimit.rateLimitMiddleware('auth_password', 25
         role: user.role,
         loginContext: session.loginContext
     });
+}
+
+const passwordLoginRateLimit = rateLimit.rateLimitMiddleware('auth_password', 25, 15 * 60 * 1000);
+
+app.post('/login', passwordLoginRateLimit, (req, res) => {
+    handlePasswordLogin(req, res, { htmlSuccess: true });
+});
+
+app.post('/api/auth/password', passwordLoginRateLimit, (req, res) => {
+    handlePasswordLogin(req, res, {});
 });
 
 app.post('/api/auth/change-password', requireUser, rejectViewAsWrites, (req, res) => {
@@ -473,7 +514,11 @@ app.post('/api/admin/bootstrap', rateLimit.rateLimitMiddleware('admin_bootstrap'
         return;
     }
     if (!BOOTSTRAP_SECRET || secret !== BOOTSTRAP_SECRET) {
-        res.status(403).json({ error: 'Invalid bootstrap secret' });
+        res.status(403).json({
+            error: !BOOTSTRAP_SECRET
+                ? 'Bootstrap secret is not configured. Copy .env.example to .env, set BOOTSTRAP_ADMIN_SECRET, and restart npm start.'
+                : 'Invalid bootstrap secret'
+        });
         return;
     }
     const em = users.normalizeEmail(email);
