@@ -56,6 +56,27 @@
         return location.pathname + location.search + (location.hash || '');
     }
 
+    /** Resume last page on cold open only — not browser Back/Forward or same-site links (e.g. Admin → Calendar). */
+    function shouldAttemptLastPathRestore() {
+        if (typeof performance !== 'undefined' && performance.getEntriesByType) {
+            const nav = performance.getEntriesByType('navigation')[0];
+            if (nav && nav.type === 'back_forward') {
+                return false;
+            }
+        }
+        if (typeof document !== 'undefined' && document.referrer) {
+            try {
+                const ref = new URL(document.referrer);
+                if (ref.origin === location.origin) {
+                    return false;
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+        return true;
+    }
+
     function loadUserSession(userId) {
         if (!userId) {
             return null;
@@ -293,6 +314,9 @@
 
     function maybeRestoreLastPath() {
         if (typeof location === 'undefined') {
+            return false;
+        }
+        if (!shouldAttemptLastPathRestore()) {
             return false;
         }
         const userId = getSessionUserId();

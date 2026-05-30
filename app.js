@@ -13277,6 +13277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateTeamSyncStatus('syncing');
         }
         try {
+            teamSyncBootAttempted = true;
             teamSyncBootInProgress = true;
             await initTeamSync();
         } catch (err) {
@@ -13303,6 +13304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally {
         if (useTeamSync) {
             finishTeamSyncBoot();
+            teamSyncInitialBootDone = true;
         }
     }
 });
@@ -18702,6 +18704,8 @@ function updatePrintSummary() {
 // ============================================
 let teamSyncEnabled = false;
 let teamSyncBootInProgress = false;
+let teamSyncBootAttempted = false;
+let teamSyncInitialBootDone = false;
 let teamLockPreviousCalendarId = null;
 let lastLockNotifySignature = '';
 
@@ -20226,7 +20230,7 @@ function finishTeamSyncBoot() {
                 ? CalendarSync.getActiveCalendarId()
                 : null;
         updateTeamSyncStatus(id ? 'saved' : 'connected');
-    } else {
+    } else if (teamSyncBootAttempted) {
         updateTeamSyncStatus('offline', t('teamSyncOffline'));
     }
 }
@@ -20301,7 +20305,8 @@ if (typeof window !== 'undefined' && !window.__ccpPageshowSyncInit) {
         const teamRow = document.getElementById('teamCalendarRow');
         const incomplete = statusEl && isTeamSyncBootIncomplete(statusEl);
         const rowVisible = teamRow && !teamRow.hidden;
-        if (ev.persisted || incomplete || (rowVisible && incomplete)) {
+        const willRun = ev.persisted || (teamSyncInitialBootDone && incomplete && rowVisible);
+        if (willRun) {
             void ensureTeamSyncReady();
         }
     });
