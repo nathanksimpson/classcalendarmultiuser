@@ -116,9 +116,10 @@
     --calendar-month-view-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--calendar-month-gap));
 
     /* Class notes panel (Notes tab + Classes → Notes) */
-    --class-notes-chrome-offset-notes-tab: 48px;
+    /* Notes tab: only .app-main margin below sticky header (--app-chrome-sticky-top is set from JS). */
+    --class-notes-chrome-offset-notes-tab: 16px;
     --class-notes-chrome-offset-classes-tab: 32px;
-    --class-notes-list-min-height: 12rem;
+    --class-notes-add-max-height: min(200px, 28vh);
     --class-notes-panel-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--class-notes-chrome-offset-notes-tab));
 }
 
@@ -4000,17 +4001,18 @@ body[data-active-tab="events"] .app-term-quick-actions {
     min-height: 320px;
 }
 
-#panel-notes {
+#panel-notes:not([hidden]) {
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    flex: 1;
+    min-height: var(--class-notes-panel-height);
 }
 
 #panel-notes .class-notes-mount {
     flex: 1;
-    min-height: 0;
-    height: var(--class-notes-panel-height);
-    max-height: var(--class-notes-panel-height);
+    min-height: var(--class-notes-panel-height);
+    height: 100%;
+    max-height: none;
 }
 
 .class-notes-segment-panel .class-notes-mount {
@@ -4129,7 +4131,7 @@ body[data-active-tab="events"] .app-term-quick-actions {
 
 .class-notes-list-section {
     display: grid;
-    grid-template-rows: auto auto minmax(var(--class-notes-list-min-height), 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     min-height: 0;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
@@ -4180,6 +4182,13 @@ body[data-active-tab="events"] .app-term-quick-actions {
     border-radius: var(--border-radius);
     background: var(--bg-card);
     padding: 12px 14px;
+    max-height: var(--class-notes-add-max-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+#panel-notes .class-notes-list-section {
+    min-height: 55vh;
 }
 
 .class-notes-add-title {
