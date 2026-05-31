@@ -3983,12 +3983,14 @@ body[data-active-tab="events"] .app-term-quick-actions {
 #panel-notes .class-notes-mount {
     flex: 1;
     min-height: 0;
-    max-height: calc(100dvh - var(--app-chrome-sticky-top) - 56px);
+    height: calc(100dvh - var(--app-chrome-sticky-top) - 48px);
+    max-height: calc(100dvh - var(--app-chrome-sticky-top) - 48px);
 }
 
 .class-notes-segment-panel .class-notes-mount {
     flex: 1;
     min-height: 0;
+    height: calc(100dvh - var(--app-chrome-sticky-top) - 200px);
     max-height: calc(100dvh - var(--app-chrome-sticky-top) - 200px);
 }
 
@@ -4085,13 +4087,34 @@ body[data-active-tab="events"] .app-term-quick-actions {
 
 .class-notes-main-panel {
     display: grid;
-    grid-template-rows: auto auto auto minmax(12rem, 1fr) auto;
-    gap: 12px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 14px;
     min-width: 0;
     height: 100%;
     min-height: 0;
     max-height: 100%;
     overflow: hidden;
+}
+
+.class-notes-list-section {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    min-height: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--surface-muted, var(--input-bg));
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.class-notes-list-heading {
+    margin: 0;
+    padding: 10px 14px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .class-notes-add-panel {
@@ -4166,6 +4189,14 @@ body[data-active-tab="events"] .app-term-quick-actions {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.class-notes-empty-filtered {
+    margin: 0;
+    padding: 12px 14px;
 }
 
 .class-notes-summary-line {
@@ -4216,6 +4247,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     display: block;
+    padding: 12px 14px 14px;
+    background: var(--bg-card);
 }
 
 .class-notes-preview > .class-notes-preview-group {

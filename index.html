@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260605-notes-preview-height">
+    <link rel="stylesheet" href="styles.css?v=20260605-notes-list-fill">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -320,27 +320,30 @@
                                     </div>
                                 </form>
                             </section>
-                            <header class="class-notes-main-header">
-                                <p id="classNotesSummaryLine" class="class-notes-summary-line" role="status"></p>
-                                <div class="class-notes-list-toolbar">
-                                    <label class="class-notes-sort-label" for="classNotesSortSelect">
-                                        <span data-i18n="classNotesSortLabel">Sort</span>
-                                        <select id="classNotesSortSelect" class="class-notes-sort-select" aria-label="Sort notes">
-                                            <option value="classGroup" data-i18n="classNotesSortClassGroup">By class</option>
-                                            <option value="newest" data-i18n="classNotesSortNewest">Newest first</option>
-                                            <option value="oldest" data-i18n="classNotesSortOldest">Oldest first</option>
-                                            <option value="dateAsc" data-i18n="classNotesSortDateAsc">Date (oldest day first)</option>
-                                            <option value="dateDesc" data-i18n="classNotesSortDateDesc">Date (newest day first)</option>
-                                        </select>
-                                    </label>
-                                    <div class="class-notes-export-actions">
-                                        <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
-                                        <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
+                            <section class="class-notes-list-section" aria-labelledby="classNotesListHeading">
+                                <h2 id="classNotesListHeading" class="class-notes-list-heading" data-i18n="classNotesListHeading">Saved notes</h2>
+                                <header class="class-notes-main-header">
+                                    <p id="classNotesSummaryLine" class="class-notes-summary-line" role="status"></p>
+                                    <div class="class-notes-list-toolbar">
+                                        <label class="class-notes-sort-label" for="classNotesSortSelect">
+                                            <span data-i18n="classNotesSortLabel">Sort</span>
+                                            <select id="classNotesSortSelect" class="class-notes-sort-select" aria-label="Sort notes">
+                                                <option value="classGroup" data-i18n="classNotesSortClassGroup">By class</option>
+                                                <option value="newest" data-i18n="classNotesSortNewest">Newest first</option>
+                                                <option value="oldest" data-i18n="classNotesSortOldest">Oldest first</option>
+                                                <option value="dateAsc" data-i18n="classNotesSortDateAsc">Date (oldest day first)</option>
+                                                <option value="dateDesc" data-i18n="classNotesSortDateDesc">Date (newest day first)</option>
+                                            </select>
+                                        </label>
+                                        <div class="class-notes-export-actions">
+                                            <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
+                                            <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
+                                        </div>
                                     </div>
-                                </div>
-                            </header>
-                            <p id="classNotesEmptyFiltered" class="module-empty-hint" hidden data-i18n="classNotesEmptyFiltered">No notes match these filters. Add a note above or from the calendar (right-click a class).</p>
-                            <div id="classNotesPreview" class="class-notes-preview" role="list"></div>
+                                </header>
+                                <p id="classNotesEmptyFiltered" class="module-empty-hint class-notes-empty-filtered" hidden data-i18n="classNotesEmptyFiltered">No notes match these filters. Add a note above or from the calendar (right-click a class).</p>
+                                <div id="classNotesPreview" class="class-notes-preview" role="list"></div>
+                            </section>
                             <p id="classNotesExportStatus" class="day-notes-copy-status" role="status" hidden></p>
                         </div>
                     </div>
@@ -1008,7 +1011,7 @@
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260601-dino"></script>
     <script defer src="js/day-notes.js?v=20260605-daynotes-sync"></script>
-    <script defer src="app.js?v=20260605-notes-initial-range"></script>
+    <script defer src="app.js?v=20260605-notes-list-fill"></script>
 </body>
 </html>
 
