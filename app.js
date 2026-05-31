@@ -337,6 +337,7 @@ const translations = {
         classNotesEmptyFiltered: 'No notes match these filters. Add a note above or from the calendar (right-click a class).',
         classNotesExportHeader: 'Class notes export',
         classNotesNoClassSelected: 'Select at least one class in the filters.',
+        classNotesNoClassesDefined: 'No classes in this calendar yet. Add a class on the Classes tab, then add notes here.',
         classNotesAddHeading: 'Add note',
         classNotesAddClass: 'Class',
         classNotesAddDatetime: 'Date & time',
@@ -1191,6 +1192,7 @@ const translations = {
         classNotesEmptyFiltered: '필터에 맞는 메모가 없습니다. 위에서 추가하거나 캘린더에서 수업을 우클릭하세요.',
         classNotesExportHeader: '수업 메모보내기',
         classNotesNoClassSelected: '필터에서 수업을 하나 이상 선택하세요.',
+        classNotesNoClassesDefined: '이 캘린더에 수업이 없습니다. 수업 탭에서 수업을 추가한 뒤 메모를 추가하세요.',
         classNotesAddHeading: '메모 추가',
         classNotesAddClass: '수업',
         classNotesAddDatetime: '날짜 및 시간',
@@ -6667,6 +6669,53 @@ function parseDatetimeLocalValue(value) {
     };
 }
 
+function readDayNotesFromDomainLocalCache() {
+    const api = getDayNotesApi();
+    if (!api) {
+        return [];
+    }
+    try {
+        const raw = localStorage.getItem(getDomainStorageKey());
+        if (!raw) {
+            return [];
+        }
+        const parsed = JSON.parse(raw);
+        return api.normalizeDayNotesList(parsed && parsed.dayNotes);
+    } catch (_) {
+        return [];
+    }
+}
+
+function mergeDayNotesForServerApply(serverData) {
+    const api = getDayNotesApi();
+    if (!api || !api.mergeDayNotesById || !serverData || typeof serverData !== 'object') {
+        return serverData;
+    }
+    ensureDayNotesArray();
+    const merged = api.mergeDayNotesById(
+        readDayNotesFromDomainLocalCache(),
+        appData.dayNotes,
+        serverData.dayNotes
+    );
+    return Object.assign({}, serverData, { dayNotes: merged });
+}
+
+async function flushTeamSaveAfterDayNotesChange() {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.flushPendingSave) {
+        return;
+    }
+    if (CalendarSync.isReadOnly && CalendarSync.isReadOnly()) {
+        return;
+    }
+    try {
+        await CalendarSync.flushPendingSave();
+    } catch (err) {
+        if (err && err.status !== 423 && err.status !== 409) {
+            console.warn('Flush after day note change failed:', err);
+        }
+    }
+}
+
 function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     if (isTeamCalendarViewOnly()) {
         showLockFlash(t('teamReadOnlySave'), false);
@@ -6689,8 +6738,11 @@ function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     }
     appData.dayNotes.push(entry);
     saveData();
+    void flushTeamSaveAfterDayNotesChange();
     renderCalendar();
-    if (isClassNotesUiActive()) {
+    if (document.getElementById('classNotesShell')) {
+        ensureClassNotesFilterIncludes(classId);
+        widenClassNotesDateRangeForNote(dateStr);
         renderClassNotesTab();
     }
     return true;
@@ -6746,7 +6798,7 @@ function populateClassNotesAddClassSelect() {
     if (!classes.length) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = t('lessonFilterNoClassesOnCalendar');
+        opt.textContent = t('classNotesNoClassesDefined');
         select.appendChild(opt);
         select.disabled = true;
         return;
@@ -6836,6 +6888,7 @@ function saveClassNoteFromNotesTab() {
     }
     resetClassNotesAddDatetime();
     showClassNotesExportStatus(true, t('classNotesSaved'));
+    renderClassNotesTab();
 }
 
 function renderDayNotesSummaryList(dateStr) {
@@ -7203,8 +7256,9 @@ function updateClassDayNote(id, patch) {
     }
     appData.dayNotes = next;
     saveData();
+    void flushTeamSaveAfterDayNotesChange();
     renderCalendar();
-    if (isClassNotesUiActive()) {
+    if (document.getElementById('classNotesShell')) {
         renderClassNotesTab();
     }
     return true;
@@ -7225,8 +7279,9 @@ function deleteClassDayNote(id) {
         classNotesEditingId = null;
     }
     saveData();
+    void flushTeamSaveAfterDayNotesChange();
     renderCalendar();
-    if (isClassNotesUiActive()) {
+    if (document.getElementById('classNotesShell')) {
         renderClassNotesTab();
     }
     return true;
@@ -7288,7 +7343,8 @@ function syncClassesPanelSegmentUi() {
 function getClassNotesFilterOptionGroups() {
     const subjects = new Map();
     const grades = new Map();
-    const classes = getClassesInDisplayOrder().map((classData) => {
+    const classById = new Map();
+    getClassesInDisplayOrder().forEach((classData) => {
         const subject = getClassSubjectForDayNotes(classData) || '';
         const subjectKey = subject || '__no_subject__';
         subjects.set(subjectKey, subject || (currentLanguage === 'ko' ? '(과목 없음)' : '(No subject)'));
@@ -7296,17 +7352,71 @@ function getClassNotesFilterOptionGroups() {
         grades.set(gradeKey, gradeKey === LESSON_FILTER_NO_GRADE
             ? (currentLanguage === 'ko' ? '(학년 없음)' : '(No grade)')
             : classData.grade);
-        return {
+        classById.set(classData.id, {
             value: classData.id,
             label: classData.name || classData.id,
             searchHay: [classData.name, classData.grade, subject].join(' ').toLowerCase()
-        };
+        });
     });
+    ensureDayNotesArray();
+    (appData.dayNotes || []).forEach((note) => {
+        const cid = note && note.classId ? String(note.classId).trim() : '';
+        if (!cid || classById.has(cid)) {
+            return;
+        }
+        const meta = resolveDayNoteMeta(cid);
+        const subject = meta.subject || '';
+        const subjectKey = subject || '__no_subject__';
+        subjects.set(subjectKey, subject || (currentLanguage === 'ko' ? '(과목 없음)' : '(No subject)'));
+        const gradeKey = LESSON_FILTER_NO_GRADE;
+        grades.set(gradeKey, currentLanguage === 'ko' ? '(학년 없음)' : '(No grade)');
+        classById.set(cid, {
+            value: cid,
+            label: meta.className || cid,
+            searchHay: [meta.className, meta.subject].join(' ').toLowerCase()
+        });
+    });
+    const classes = [...classById.values()];
     return {
         classes,
         subjects: [...subjects.entries()].map(([value, label]) => ({ value, label })),
         grades: [...grades.entries()].map(([value, label]) => ({ value, label }))
     };
+}
+
+function ensureClassNotesFilterIncludes(classId) {
+    const cid = String(classId || '').trim();
+    if (!cid) {
+        return;
+    }
+    const shell = document.getElementById('classNotesShell');
+    if (!shell) {
+        return;
+    }
+    let input = shell.querySelector(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"][value="${CSS.escape(cid)}"]`);
+    if (!input) {
+        renderClassNotesFilterClasses();
+        renderClassNotesFilterSubjectsAndGrades();
+        input = shell.querySelector(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"][value="${CSS.escape(cid)}"]`);
+    }
+    if (input) {
+        input.checked = true;
+    }
+}
+
+function widenClassNotesDateRangeForNote(dateStr) {
+    const date = String(dateStr || '').trim();
+    if (!date) {
+        return;
+    }
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    if (fromEl && (!fromEl.value || date < fromEl.value)) {
+        fromEl.value = date;
+    }
+    if (toEl && (!toEl.value || date > toEl.value)) {
+        toEl.value = date;
+    }
 }
 
 function buildClassNotesFilterChipHtml(filterKey, options) {
@@ -7327,7 +7437,7 @@ function renderClassNotesFilterClasses() {
     }
     const groups = getClassNotesFilterOptionGroups();
     if (!groups.classes.length) {
-        body.innerHTML = `<p class="module-empty-hint">${escapeHtml(t('lessonFilterNoClassesOnCalendar'))}</p>`;
+        body.innerHTML = `<p class="module-empty-hint">${escapeHtml(t('classNotesNoClassesDefined'))}</p>`;
         return;
     }
     body.innerHTML = groups.classes.map((opt) => `
@@ -7711,8 +7821,76 @@ function downloadClassNotesExport() {
     URL.revokeObjectURL(url);
 }
 
+function initClassNotesPanelListeners() {
+    const shell = document.getElementById('classNotesShell');
+    if (!shell || shell.dataset.classNotesListenersBound === '1') {
+        return;
+    }
+    shell.dataset.classNotesListenersBound = '1';
+
+    shell.querySelector('#classNotesFilterFrom')?.addEventListener('change', () => {
+        renderClassNotesTab();
+        saveClassNotesFiltersToUi();
+    });
+    shell.querySelector('#classNotesFilterTo')?.addEventListener('change', () => {
+        renderClassNotesTab();
+        saveClassNotesFiltersToUi();
+    });
+    shell.querySelector('#classNotesAddForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveClassNoteFromNotesTab();
+    });
+    shell.querySelector('#classNotesAddNowBtn')?.addEventListener('click', () => {
+        resetClassNotesAddDatetime();
+    });
+    shell.querySelector('#classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
+    shell.querySelector('#classNotesFilterClasses')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            populateClassNotesAddClassSelect();
+            renderClassNotesTab();
+            saveClassNotesFiltersToUi();
+        }
+    });
+    shell.querySelector('#classNotesFilterSubjects')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            renderClassNotesTab();
+            saveClassNotesFiltersToUi();
+        }
+    });
+    shell.querySelector('#classNotesFilterGrades')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            renderClassNotesTab();
+            saveClassNotesFiltersToUi();
+        }
+    });
+    shell.querySelector('#classNotesFilterSelectAllBtn')?.addEventListener('click', () => {
+        shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+            input.checked = true;
+        });
+        populateClassNotesAddClassSelect();
+        renderClassNotesTab();
+    });
+    shell.querySelector('#classNotesFilterClearClassesBtn')?.addEventListener('click', () => {
+        shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+            input.checked = false;
+        });
+        populateClassNotesAddClassSelect();
+        renderClassNotesTab();
+    });
+    shell.querySelector('#classNotesResetFiltersBtn')?.addEventListener('click', resetClassNotesFilters);
+    shell.querySelector('#classNotesExportCopyBtn')?.addEventListener('click', () => {
+        void copyClassNotesExport();
+    });
+    shell.querySelector('#classNotesExportDownloadBtn')?.addEventListener('click', downloadClassNotesExport);
+    shell.querySelector('#classNotesSortSelect')?.addEventListener('change', () => {
+        saveClassNotesSortToUi();
+        renderClassNotesTab();
+    });
+}
+
 function initClassNotesTab() {
     ensureClassNotesShell();
+    initClassNotesPanelListeners();
     syncClassNotesAddFormChrome();
     syncClassNotesSortSelect();
     if (!classNotesFiltersBuilt) {
@@ -7771,68 +7949,6 @@ function initClassesPanelSegments() {
     });
     document.getElementById('classesSegmentNotes')?.addEventListener('click', () => {
         setClassesPanelSegment('notes');
-    });
-
-    document.getElementById('classNotesFilterFrom')?.addEventListener('change', () => {
-        renderClassNotesTab();
-        saveClassNotesFiltersToUi();
-    });
-    document.getElementById('classNotesFilterTo')?.addEventListener('change', () => {
-        renderClassNotesTab();
-        saveClassNotesFiltersToUi();
-    });
-
-    document.getElementById('classNotesAddForm')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        saveClassNoteFromNotesTab();
-    });
-    document.getElementById('classNotesAddNowBtn')?.addEventListener('click', () => {
-        resetClassNotesAddDatetime();
-    });
-    document.getElementById('classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
-
-    document.getElementById('classNotesFilterClasses')?.addEventListener('change', (e) => {
-        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
-            populateClassNotesAddClassSelect();
-            renderClassNotesTab();
-            saveClassNotesFiltersToUi();
-        }
-    });
-    document.getElementById('classNotesFilterSubjects')?.addEventListener('change', (e) => {
-        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
-            renderClassNotesTab();
-            saveClassNotesFiltersToUi();
-        }
-    });
-    document.getElementById('classNotesFilterGrades')?.addEventListener('change', (e) => {
-        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
-            renderClassNotesTab();
-            saveClassNotesFiltersToUi();
-        }
-    });
-
-    document.getElementById('classNotesFilterSelectAllBtn')?.addEventListener('click', () => {
-        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
-            input.checked = true;
-        });
-        populateClassNotesAddClassSelect();
-        renderClassNotesTab();
-    });
-    document.getElementById('classNotesFilterClearClassesBtn')?.addEventListener('click', () => {
-        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
-            input.checked = false;
-        });
-        populateClassNotesAddClassSelect();
-        renderClassNotesTab();
-    });
-    document.getElementById('classNotesResetFiltersBtn')?.addEventListener('click', resetClassNotesFilters);
-    document.getElementById('classNotesExportCopyBtn')?.addEventListener('click', () => {
-        void copyClassNotesExport();
-    });
-    document.getElementById('classNotesExportDownloadBtn')?.addEventListener('click', downloadClassNotesExport);
-    document.getElementById('classNotesSortSelect')?.addEventListener('change', () => {
-        saveClassNotesSortToUi();
-        renderClassNotesTab();
     });
 }
 
@@ -19744,7 +19860,11 @@ async function maybeAutoReloadTeamCalendar(meta, lockState) {
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
         return;
     }
-    if (CalendarSync.state.holdsLock || CalendarSync.state.saving) {
+    if (
+        CalendarSync.state.holdsLock
+        || CalendarSync.state.saving
+        || (CalendarSync.hasPendingSave && CalendarSync.hasPendingSave())
+    ) {
         return;
     }
     const serverRev = meta && meta.revision;
@@ -20207,6 +20327,31 @@ function setupTeamUserBar() {
     }
     if (adminLink) {
         adminLink.hidden = typeof TeamAuth === 'undefined' || !TeamAuth.canAccessAdmin();
+        if (adminLink.dataset.adminNavBound !== '1') {
+            adminLink.dataset.adminNavBound = '1';
+            adminLink.addEventListener('click', async (e) => {
+                if (
+                    !teamSyncEnabled
+                    || typeof CalendarSync === 'undefined'
+                    || !CalendarSync.flushPendingSave
+                ) {
+                    return;
+                }
+                e.preventDefault();
+                const href = adminLink.getAttribute('href') || '/admin.html';
+                try {
+                    await CalendarSync.flushPendingSave();
+                } catch (err) {
+                    if (err && err.status !== 423 && err.status !== 409) {
+                        console.warn('Flush before admin navigation failed:', err);
+                    }
+                }
+                if (typeof captureAppSessionExtras === 'function') {
+                    captureAppSessionExtras();
+                }
+                location.href = href;
+            });
+        }
     }
     if (deleteCalBtn) {
         deleteCalBtn.hidden = true;
@@ -20390,10 +20535,10 @@ function applyClassNotesFiltersFromUi() {
     }
     renderClassNotesFilterClasses();
     renderClassNotesFilterSubjectsAndGrades();
-    if (Array.isArray(saved.classIds) && saved.classIds.length) {
+    if (Array.isArray(saved.classIds)) {
         const set = new Set(saved.classIds);
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
-            input.checked = set.has(input.value);
+            input.checked = saved.classIds.length > 0 && set.has(input.value);
         });
     }
     if (Array.isArray(saved.subjects)) {
@@ -20583,7 +20728,7 @@ function applyServerDocument(doc, options) {
         return;
     }
     const opts = options || {};
-    const data = Object.assign({}, doc.data);
+    const data = mergeDayNotesForServerApply(Object.assign({}, doc.data));
     const serverName = doc.name && String(doc.name).trim();
     if (serverName) {
         data.calendarName = serverName;

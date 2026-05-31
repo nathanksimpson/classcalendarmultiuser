@@ -44,6 +44,27 @@
         return out;
     }
 
+    /** Union multiple dayNotes arrays; on duplicate id keep entry with later createdAt. */
+    function mergeDayNotesById(...lists) {
+        const map = new Map();
+        lists.forEach((list) => {
+            (list || []).forEach((raw) => {
+                const n = normalizeDayNote(raw);
+                if (!n) {
+                    return;
+                }
+                const existing = map.get(n.id);
+                if (
+                    !existing
+                    || String(n.createdAt || '').localeCompare(String(existing.createdAt || '')) > 0
+                ) {
+                    map.set(n.id, n);
+                }
+            });
+        });
+        return normalizeDayNotesList(Array.from(map.values()));
+    }
+
     function compareDateStr(a, b) {
         return String(a || '').localeCompare(String(b || ''));
     }
@@ -353,6 +374,7 @@
     global.CCPDayNotes = {
         normalizeDayNote,
         normalizeDayNotesList,
+        mergeDayNotesById,
         sortNewestFirst,
         sortOldestFirst,
         sortChronological,

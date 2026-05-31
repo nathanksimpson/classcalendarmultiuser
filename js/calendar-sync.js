@@ -375,6 +375,11 @@
         merged.cohorts = mergeArrayById(local.cohorts, server.cohorts);
         merged.timetableTimeSlots = mergeArrayById(local.timetableTimeSlots, server.timetableTimeSlots);
         merged.periodSlotMap = Object.assign({}, server.periodSlotMap || {}, local.periodSlotMap || {});
+        if (typeof global.CCPDayNotes !== 'undefined' && global.CCPDayNotes.mergeDayNotesById) {
+            merged.dayNotes = global.CCPDayNotes.mergeDayNotesById(local.dayNotes, server.dayNotes);
+        } else if (Array.isArray(local.dayNotes) && local.dayNotes.length) {
+            merged.dayNotes = local.dayNotes;
+        }
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -853,7 +858,8 @@
                         holdsLock: state.holdsLock,
                         holderUserId: meta.lock && meta.lock.holderUserId
                     });
-                    if (!state.saving) {
+                    const pendingSave = CalendarSync.hasPendingSave();
+                    if (!state.saving && !pendingSave) {
                         if (meta.revision > state.revision) {
                             state.remoteNewer = true;
                             if (typeof handlers.onRemoteNewer === 'function') {
@@ -864,7 +870,10 @@
                             await handlers.onLockOrRevisionChange(meta, lockState);
                         }
                     } else {
-                        debugLog('poll', 'Skipped revision/reload handlers (saving=true)');
+                        debugLog('poll', 'Skipped revision/reload handlers (saving or pending save)', {
+                            saving: state.saving,
+                            pendingSave
+                        });
                     }
                 } catch (pollErr) {
                     debugLog('error', 'Poll failed', { message: pollErr && pollErr.message });
