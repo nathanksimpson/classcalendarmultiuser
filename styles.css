@@ -3991,22 +3991,38 @@ body[data-active-tab="events"] .app-term-quick-actions {
     flex-direction: column;
 }
 
-.class-notes-layout.module-split-layout {
+.class-notes-shell .class-notes-layout.module-split-layout {
+    height: 100%;
     align-items: stretch;
     flex: 1;
     /* Override module-split-layout 400px min-height so notes scroll inside the viewport. */
     min-height: 0;
 }
 
-.class-notes-filters-panel {
+.class-notes-filters-panel,
+.class-notes-main-panel {
+    min-height: 0;
+    align-self: stretch;
+}
+
+.class-notes-filters-panel.module-list-panel {
+    position: static;
+    top: auto;
     display: flex;
     flex-direction: column;
     gap: 10px;
     max-width: 280px;
+    max-height: none;
+    height: 100%;
     min-height: 0;
-    max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
+}
+
+.class-notes-filters-panel .class-notes-filter-body,
+.class-notes-filters-panel .lesson-filter-body {
+    max-height: none;
+    overflow: visible;
 }
 
 .class-notes-filters-title {
@@ -4042,11 +4058,6 @@ body[data-active-tab="events"] .app-term-quick-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-}
-
-.class-notes-filter-body {
-    max-height: 200px;
-    overflow-y: auto;
 }
 
 .class-notes-filter-subtitle {
@@ -4195,15 +4206,31 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .class-notes-preview {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
-    max-height: none;
-    overflow-y: auto;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-muted, #94a3b8) var(--surface-muted, rgba(0, 0, 0, 0.06));
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: column;
     gap: 16px;
+}
+
+.class-notes-preview::-webkit-scrollbar {
+    width: 10px;
+}
+
+.class-notes-preview::-webkit-scrollbar-track {
+    background: var(--surface-muted, rgba(0, 0, 0, 0.06));
+    border-radius: 5px;
+}
+
+.class-notes-preview::-webkit-scrollbar-thumb {
+    background: var(--text-muted, #94a3b8);
+    border-radius: 5px;
 }
 
 .class-notes-preview-group {
