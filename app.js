@@ -8009,7 +8009,7 @@ function initClassNotesPanelListeners() {
     bindClassNotesPreviewWheelScroll(shell);
 }
 
-/** Wheel anywhere over Saved notes panel scrolls #classNotesPreview (nested overflow:hidden on Windows). */
+/** Wheel over Saved notes panel scrolls .class-notes-list-section (fallback when nested overflow blocks native scroll). */
 function bindClassNotesPreviewWheelScroll(shell) {
     if (!shell || shell.dataset.classNotesWheelBound === '1') {
         return;
@@ -8019,25 +8019,21 @@ function bindClassNotesPreviewWheelScroll(shell) {
         'wheel',
         (e) => {
             const listSection = shell.querySelector('.class-notes-list-section');
-            const preview = shell.querySelector('#classNotesPreview');
-            if (!listSection || !preview || preview.hidden || preview.getAttribute('aria-hidden') === 'true') {
-                return;
-            }
-            if (!listSection.contains(e.target)) {
+            if (!listSection || !listSection.contains(e.target)) {
                 return;
             }
             const focusedSelect = shell.querySelector('#classNotesSortSelect');
-            if (focusedSelect && document.activeElement === focusedSelect && focusedSelect.contains(e.target)) {
+            if (focusedSelect && document.activeElement === focusedSelect && e.target === focusedSelect) {
                 return;
             }
-            const maxScroll = preview.scrollHeight - preview.clientHeight;
+            const maxScroll = listSection.scrollHeight - listSection.clientHeight;
             if (maxScroll <= 0) {
                 return;
             }
             const delta = e.deltaY;
-            const nextTop = Math.max(0, Math.min(maxScroll, preview.scrollTop + delta));
-            if (nextTop !== preview.scrollTop) {
-                preview.scrollTop = nextTop;
+            const nextTop = Math.max(0, Math.min(maxScroll, listSection.scrollTop + delta));
+            if (nextTop !== listSection.scrollTop) {
+                listSection.scrollTop = nextTop;
                 e.preventDefault();
                 e.stopPropagation();
             }

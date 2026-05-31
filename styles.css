@@ -4130,15 +4130,42 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .class-notes-list-section {
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
+    max-height: 100%;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     background: var(--surface-muted, var(--input-bg));
     box-shadow: var(--shadow-sm);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-muted, #94a3b8) var(--surface-muted, rgba(0, 0, 0, 0.06));
+}
+
+.class-notes-list-section::-webkit-scrollbar {
+    width: 10px;
+}
+
+.class-notes-list-section::-webkit-scrollbar-track {
+    background: var(--surface-muted, rgba(0, 0, 0, 0.06));
+    border-radius: 5px;
+}
+
+.class-notes-list-section::-webkit-scrollbar-thumb {
+    background: var(--text-muted, #94a3b8);
+    border-radius: 5px;
+}
+
+.class-notes-list-top,
+.class-notes-empty-filtered,
+.class-notes-export-status {
+    flex-shrink: 0;
 }
 
 .class-notes-list-top {
@@ -4295,24 +4322,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
     gap: 8px;
 }
 
-.class-notes-list-section > .class-notes-preview {
-    grid-row: 3;
-    align-self: stretch;
-    min-height: 0;
-    max-height: 100%;
-    height: 100%;
-}
-
 .class-notes-preview {
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    scrollbar-color: var(--text-muted, #94a3b8) var(--surface-muted, rgba(0, 0, 0, 0.06));
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+    flex: 0 0 auto;
     display: block;
     padding: 12px 14px 14px;
     background: var(--bg-card);
