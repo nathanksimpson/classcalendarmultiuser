@@ -5436,25 +5436,11 @@ function ensureUiState() {
     if (!appData.ui.activeTab || !APP_TAB_IDS.includes(appData.ui.activeTab)) {
         appData.ui.activeTab = 'calendar';
     }
-    if (appData.ui.activeHostTab !== APP_HOST_SETUP && appData.ui.activeHostTab !== APP_HOST_TEACHING) {
-        appData.ui.activeHostTab = getHostForTab(appData.ui.activeTab);
-    }
-    if (appData.ui.lastTeachingTab === 'syllabus') {
-        appData.ui.lastSetupTab = 'syllabus';
-        appData.ui.lastTeachingTab = 'calendar';
-    }
-    if (appData.ui.activeTab === 'syllabus' && appData.ui.activeHostTab === APP_HOST_TEACHING) {
-        appData.ui.activeHostTab = APP_HOST_SETUP;
-    }
+    migrateUiHostTabsForSyllabusSetup(appData.ui);
     if (typeof appData.ui.lastTeachingTab !== 'string' || !APP_TEACHING_TAB_IDS.includes(appData.ui.lastTeachingTab)) {
         appData.ui.lastTeachingTab = APP_TEACHING_TAB_IDS.includes(appData.ui.activeTab)
             ? appData.ui.activeTab
             : 'calendar';
-    }
-    if (typeof appData.ui.lastSetupTab !== 'string' || !APP_SETUP_TAB_IDS.includes(appData.ui.lastSetupTab)) {
-        appData.ui.lastSetupTab = APP_SETUP_TAB_IDS.includes(appData.ui.activeTab)
-            ? appData.ui.activeTab
-            : (canAccessTeachersTab() ? 'cohorts' : 'syllabus');
     }
     if (!appData.ui.lessonFilters) {
         appData.ui.lessonFilters = { ...DEFAULT_LESSON_FILTERS };
@@ -12725,7 +12711,70 @@ function canAccessTeachersTab() {
     if (role === 'super_admin' || role === 'head_teacher') {
         return true;
     }
-    return TeamAuth.hasPermission('manage_calendar_access');
+    if (typeof TeamAuth.hasPermission === 'function') {
+        return TeamAuth.hasPermission('manage_calendar_access');
+    }
+    return false;
+}
+
+/** Default Setup sub-tab when none stored (syllabus for teachers, cohorts for admins). */
+function defaultLastSetupTabId() {
+    return canAccessTeachersTab() ? 'cohorts' : 'syllabus';
+}
+
+/**
+ * Move Syllabus from Teaching to Setup in saved UI prefs (localStorage / old exports).
+ * @returns {boolean} whether ui was changed
+ */
+function migrateUiHostTabsForSyllabusSetup(ui) {
+    if (!ui || typeof ui !== 'object') {
+        return false;
+    }
+    let changed = false;
+    if (ui.lastTeachingTab === 'syllabus') {
+        if (!ui.lastSetupTab || !APP_SETUP_TAB_IDS.includes(ui.lastSetupTab)) {
+            ui.lastSetupTab = 'syllabus';
+        }
+        ui.lastTeachingTab = 'calendar';
+        changed = true;
+    }
+    if (ui.activeTab === 'syllabus' && ui.activeHostTab === APP_HOST_TEACHING) {
+        ui.activeHostTab = APP_HOST_SETUP;
+        changed = true;
+    }
+    if (ui.activeTab && APP_SETUP_ONLY_TAB_IDS.includes(ui.activeTab) && ui.activeHostTab !== APP_HOST_SETUP) {
+        ui.activeHostTab = APP_HOST_SETUP;
+        changed = true;
+    }
+    if (ui.activeTab && APP_TEACHING_ONLY_TAB_IDS.includes(ui.activeTab) && ui.activeHostTab !== APP_HOST_TEACHING) {
+        ui.activeHostTab = APP_HOST_TEACHING;
+        changed = true;
+    }
+    if (typeof ui.lastTeachingTab === 'string' && ui.lastTeachingTab && !APP_TEACHING_TAB_IDS.includes(ui.lastTeachingTab)) {
+        if (APP_SETUP_TAB_IDS.includes(ui.lastTeachingTab)) {
+            ui.lastTeachingTab = 'calendar';
+            changed = true;
+        }
+    }
+    if (typeof ui.lastSetupTab !== 'string' || !APP_SETUP_TAB_IDS.includes(ui.lastSetupTab)) {
+        const next = APP_SETUP_TAB_IDS.includes(ui.activeTab)
+            ? ui.activeTab
+            : defaultLastSetupTabId();
+        if (ui.lastSetupTab !== next) {
+            ui.lastSetupTab = next;
+            changed = true;
+        }
+    }
+    const hostForTab = getHostForTab(ui.activeTab || 'calendar');
+    if (ui.activeHostTab !== APP_HOST_SETUP && ui.activeHostTab !== APP_HOST_TEACHING) {
+        ui.activeHostTab = hostForTab;
+        changed = true;
+    }
+    return changed;
+}
+
+function shouldDeferSetupTabRedirects() {
+    return teamSyncBootInProgress || !appShellBootComplete;
 }
 
 function syncSetupSubTabVisibility() {
@@ -12738,6 +12787,9 @@ function syncSetupSubTabVisibility() {
         btn.hidden = !admin;
         btn.style.display = admin ? '' : 'none';
     });
+    if (shouldDeferSetupTabRedirects()) {
+        return;
+    }
     if (!admin && getActiveTab() && APP_SETUP_ADMIN_TAB_IDS.includes(getActiveTab())) {
         navigateToTab(canAccessSetupHost() ? 'syllabus' : 'calendar', { host: canAccessSetupHost() ? APP_HOST_SETUP : APP_HOST_TEACHING });
     }
@@ -12750,7 +12802,7 @@ function syncSetupTabsVisibility() {
         setupHost.hidden = !showSetup;
         setupHost.style.display = showSetup ? '' : 'none';
     }
-    if (!showSetup && getActiveHostTab() === APP_HOST_SETUP) {
+    if (!shouldDeferSetupTabRedirects() && !showSetup && getActiveHostTab() === APP_HOST_SETUP) {
         navigateToTab('calendar', { host: APP_HOST_TEACHING });
     }
     syncSetupSubTabVisibility();
@@ -15013,7 +15065,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             requestAnimationFrame(syncAppChromeStickyTop);
         }
 
-        restoreAppSessionState();
+        appShellBootComplete = true;
+        try {
+            restoreAppSessionState();
+        } catch (restoreErr) {
+            console.error('restoreAppSessionState failed:', restoreErr);
+        }
+        syncSetupTabsVisibility();
         if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
             CCPSessionRestore.capturePageSession();
         }
@@ -20583,6 +20641,8 @@ let teamSyncEnabled = false;
 let teamSyncBootInProgress = false;
 let teamSyncBootAttempted = false;
 let teamSyncInitialBootDone = false;
+/** False until DOM boot finishes — avoids tab redirects during sync/load. */
+let appShellBootComplete = false;
 let teamLockPreviousCalendarId = null;
 let lastLockNotifySignature = '';
 
@@ -22009,7 +22069,9 @@ function applyLoadedAppData(data) {
     const migrated = migrateData(appData);
     ensureUiState();
     refreshLocalizedEventDisplayNames();
-    syncTeachersTabVisibility();
+    if (appShellBootComplete) {
+        syncTeachersTabVisibility();
+    }
     initTeacherManagementModule();
     if (typeof CCPTeacherManagement !== 'undefined' && getActiveTab() === 'teachers') {
         CCPTeacherManagement.onCalendarDataChanged();
@@ -23183,7 +23245,6 @@ function migrateData(data) {
         migrated = true;
     }
 
-    ensureUiState();
     if (!data.ui) {
         data.ui = {
             visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
@@ -23192,7 +23253,11 @@ function migrateData(data) {
         };
         migrated = true;
     }
-    
+    if (migrateUiHostTabsForSyllabusSetup(data.ui)) {
+        migrated = true;
+    }
+    ensureUiState();
+
     if (!Array.isArray(data.customClassTypes)) {
         data.customClassTypes = [];
         migrated = true;
