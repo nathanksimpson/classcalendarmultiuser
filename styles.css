@@ -115,11 +115,6 @@
     --calendar-month-gap: 20px;
     --calendar-month-view-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--calendar-month-gap));
 
-    /* Class notes panel (Notes tab + Classes → Notes) */
-    /* Notes tab: only .app-main margin below sticky header (--app-chrome-sticky-top is set from JS). */
-    --class-notes-chrome-offset-notes-tab: 16px;
-    --class-notes-chrome-offset-classes-tab: 32px;
-    --class-notes-panel-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--class-notes-chrome-offset-notes-tab));
 }
 
 * {
@@ -3884,18 +3879,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 /* Classes panel: secondary sub-tabs (distinct from main app-tab-nav) */
-#panel-classes:not([hidden]) {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--class-notes-chrome-offset-classes-tab));
-}
-
 .classes-subtab-shell {
     margin-top: 4px;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
 }
 
 .classes-subtab-legend {
@@ -3959,10 +3944,6 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .classes-subtab-body {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
     padding: 14px 12px 12px;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -3974,97 +3955,35 @@ body[data-active-tab="events"] .app-term-quick-actions {
     display: none;
 }
 
-.classes-subtab-body > .classes-segment-panel:not([hidden]) {
-    min-height: 0;
-}
-
-/* ========== Class notes layout (Notes tab + Classes → Notes) ==========
- * Notes tab: .class-notes-mount uses --class-notes-panel-height (viewport fill).
- * Classes → Notes: mount height 100% inside #panel-classes flex chain.
+/* ========== Class notes (Notes tab + Classes → Notes) — scroll like Homework tab ==========
+ * Left: sticky sidebar; class filter list scrolls inside (see .homework-sidebar-panel .module-list).
+ * Right: content grows; page scrolls (no locked viewport panel).
  */
 
-.class-notes-segment-panel {
-    min-height: 320px;
-}
-
-.classes-subtab-body > .class-notes-segment-panel:not([hidden]) {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.class-notes-mount {
-    display: flex;
-    flex-direction: column;
-    min-height: 320px;
-}
-
-#panel-notes:not([hidden]) {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: var(--class-notes-panel-height);
-}
-
-#panel-notes .class-notes-mount {
-    flex: 1;
-    min-height: var(--class-notes-panel-height);
-    height: 100%;
-    max-height: none;
-}
-
-.class-notes-segment-panel .class-notes-mount {
-    flex: 1;
-    min-height: 0;
-    height: 100%;
-    max-height: none;
-}
-
-.class-notes-shell {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.class-notes-shell .class-notes-layout.module-split-layout {
-    height: 100%;
-    align-items: stretch;
-    flex: 1;
-    /* Override module-split-layout 400px min-height so notes scroll inside the viewport. */
-    min-height: 0;
-}
-
-.class-notes-filters-panel,
-.class-notes-main-panel {
-    min-height: 0;
-    align-self: stretch;
-}
-
-.class-notes-filters-panel.module-list-panel {
-    position: static;
-    top: auto;
-    display: flex;
-    flex-direction: column;
+.class-notes-filters-panel {
     gap: 10px;
     max-width: 280px;
-    max-height: none;
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 12px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    background: var(--surface-muted, var(--input-bg));
-    box-shadow: var(--shadow-sm);
 }
 
-.class-notes-filters-panel .class-notes-filter-body,
+.class-notes-filters-panel .class-notes-filters-title,
+.class-notes-filters-panel .class-notes-date-range,
+.class-notes-filters-panel .class-notes-filter-actions,
+.class-notes-filters-panel .module-list-search,
+.class-notes-filters-panel .class-notes-filter-section-wrap {
+    flex-shrink: 0;
+}
+
+.class-notes-filters-panel .class-notes-filter-body {
+    flex: 1 1 auto;
+    min-height: 120px;
+    overflow-y: auto;
+    padding: 4px 0 8px;
+}
+
 .class-notes-filters-panel .lesson-filter-body {
     max-height: none;
     overflow: visible;
+    padding: 0;
 }
 
 .class-notes-filters-title {
@@ -4118,53 +4037,21 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .class-notes-main-panel {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     min-width: 0;
-    height: 100%;
-    min-height: 0;
-    max-height: 100%;
-    overflow: hidden;
 }
 
 .class-notes-list-section {
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    max-height: 100%;
+    gap: 0;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     background: var(--surface-muted, var(--input-bg));
     box-shadow: var(--shadow-sm);
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    scrollbar-color: var(--text-muted, #94a3b8) var(--surface-muted, rgba(0, 0, 0, 0.06));
-}
-
-.class-notes-list-section::-webkit-scrollbar {
-    width: 10px;
-}
-
-.class-notes-list-section::-webkit-scrollbar-track {
-    background: var(--surface-muted, rgba(0, 0, 0, 0.06));
-    border-radius: 5px;
-}
-
-.class-notes-list-section::-webkit-scrollbar-thumb {
-    background: var(--text-muted, #94a3b8);
-    border-radius: 5px;
-}
-
-.class-notes-list-top,
-.class-notes-empty-filtered,
-.class-notes-export-status {
-    flex-shrink: 0;
+    overflow: visible;
 }
 
 .class-notes-list-top {
@@ -4211,10 +4098,6 @@ body[data-active-tab="events"] .app-term-quick-actions {
     padding: 12px 14px;
     flex-shrink: 0;
     overflow: visible;
-}
-
-#panel-notes .class-notes-list-section {
-    min-height: 55vh;
 }
 
 .class-notes-add-title {
@@ -4334,20 +4217,6 @@ body[data-active-tab="events"] .app-term-quick-actions {
 
 .class-notes-preview > .class-notes-preview-group:last-child {
     margin-bottom: 0;
-}
-
-.class-notes-preview::-webkit-scrollbar {
-    width: 10px;
-}
-
-.class-notes-preview::-webkit-scrollbar-track {
-    background: var(--surface-muted, rgba(0, 0, 0, 0.06));
-    border-radius: 5px;
-}
-
-.class-notes-preview::-webkit-scrollbar-thumb {
-    background: var(--text-muted, #94a3b8);
-    border-radius: 5px;
 }
 
 .class-notes-preview-group {
