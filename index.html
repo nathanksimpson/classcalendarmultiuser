@@ -138,6 +138,7 @@
                 <nav class="app-tab-nav" id="appTabNav" role="tablist" aria-label="App sections">
                     <button type="button" class="app-tab-btn is-active" role="tab" id="tabBtn-calendar" aria-selected="true" aria-controls="panel-calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-homework" aria-selected="false" aria-controls="panel-homework" data-tab="homework" data-i18n="tabHomework">Homework</button>
+                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-notes" aria-selected="false" aria-controls="panel-notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-classes" aria-selected="false" aria-controls="panel-classes" data-tab="classes" data-i18n="tabClasses">Classes</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-syllabus" aria-selected="false" aria-controls="panel-syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabus</button>
                     <button type="button" class="app-tab-btn" role="tab" id="tabBtn-curriculum" aria-selected="false" aria-controls="panel-curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Curriculum</button>
@@ -257,30 +258,12 @@
                 </div>
             </section>
 
-            <section id="panel-classes" class="app-tab-panel app-tab-panel--has-subtabs" data-tab="classes" role="tabpanel" aria-labelledby="tabBtn-classes" hidden>
-                <div class="classes-subtab-shell">
-                    <p class="classes-subtab-legend" data-i18n="classesSubTabLegend">Within Classes</p>
-                    <nav class="classes-panel-segments" role="tablist" aria-label="Classes sections">
-                        <button type="button" class="classes-segment-btn is-active" id="classesSegmentInfo" data-segment="info" role="tab" aria-selected="true" aria-controls="classesSegmentInfoPanel" data-i18n="classesSegmentInfo">Class info</button>
-                        <button type="button" class="classes-segment-btn" id="classesSegmentNotes" data-segment="notes" role="tab" aria-selected="false" aria-controls="classesSegmentNotesPanel" data-i18n="classesSegmentNotes">Notes</button>
-                    </nav>
-                    <div class="classes-subtab-body">
-                <div id="classesSegmentInfoPanel" class="classes-segment-panel" role="tabpanel" aria-labelledby="classesSegmentInfo">
-                    <div class="module-toolbar" id="classesInfoToolbar">
-                        <button type="button" id="classesTabAddBtn" class="btn btn-primary btn-compact" data-i18n="addClass">+ Add Class</button>
-                    </div>
-                    <div class="classes-layout module-split-layout">
-                        <aside class="module-list-panel" aria-label="Class list">
-                            <input type="search" id="classListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
-                            <div id="classList" class="module-list" role="listbox" aria-label="Classes"></div>
-                        </aside>
-                        <div class="module-editor-panel class-editor-panel">
-                            <div id="classFormMountTab" class="class-form-mount"></div>
-                            <p id="classEditorEmpty" class="module-empty-hint" data-i18n="classEditorEmpty">Select a class from the list, or click + Add Class to create one.</p>
-                        </div>
-                    </div>
-                </div>
-                <div id="classesSegmentNotesPanel" class="classes-segment-panel class-notes-segment-panel" role="tabpanel" aria-labelledby="classesSegmentNotes" hidden>
+            <section id="panel-notes" class="app-tab-panel" data-tab="notes" role="tabpanel" aria-labelledby="tabBtn-notes" hidden>
+                <div id="panelNotesMount" class="class-notes-mount"></div>
+            </section>
+
+            <template id="classNotesShellTemplate">
+                <div id="classNotesShell" class="class-notes-shell">
                     <div class="class-notes-layout module-split-layout">
                         <aside class="module-list-panel class-notes-filters-panel" aria-labelledby="classNotesFiltersHeading">
                             <h2 id="classNotesFiltersHeading" class="class-notes-filters-title" data-i18n="classNotesFiltersTitle">Filters</h2>
@@ -339,9 +322,21 @@
                             </section>
                             <header class="class-notes-main-header">
                                 <p id="classNotesSummaryLine" class="class-notes-summary-line" role="status"></p>
-                                <div class="class-notes-export-actions">
-                                    <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
-                                    <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
+                                <div class="class-notes-list-toolbar">
+                                    <label class="class-notes-sort-label" for="classNotesSortSelect">
+                                        <span data-i18n="classNotesSortLabel">Sort</span>
+                                        <select id="classNotesSortSelect" class="class-notes-sort-select" aria-label="Sort notes">
+                                            <option value="classGroup" data-i18n="classNotesSortClassGroup">By class</option>
+                                            <option value="newest" data-i18n="classNotesSortNewest">Newest first</option>
+                                            <option value="oldest" data-i18n="classNotesSortOldest">Oldest first</option>
+                                            <option value="dateAsc" data-i18n="classNotesSortDateAsc">Date (oldest day first)</option>
+                                            <option value="dateDesc" data-i18n="classNotesSortDateDesc">Date (newest day first)</option>
+                                        </select>
+                                    </label>
+                                    <div class="class-notes-export-actions">
+                                        <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
+                                        <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
+                                    </div>
                                 </div>
                             </header>
                             <p id="classNotesEmptyFiltered" class="module-empty-hint" hidden data-i18n="classNotesEmptyFiltered">No notes match these filters. Add a note above or from the calendar (right-click a class).</p>
@@ -349,6 +344,34 @@
                             <p id="classNotesExportStatus" class="day-notes-copy-status" role="status" hidden></p>
                         </div>
                     </div>
+                </div>
+            </template>
+
+            <section id="panel-classes" class="app-tab-panel app-tab-panel--has-subtabs" data-tab="classes" role="tabpanel" aria-labelledby="tabBtn-classes" hidden>
+                <div class="classes-subtab-shell">
+                    <p class="classes-subtab-legend" data-i18n="classesSubTabLegend">Within Classes</p>
+                    <nav class="classes-panel-segments" role="tablist" aria-label="Classes sections">
+                        <button type="button" class="classes-segment-btn is-active" id="classesSegmentInfo" data-segment="info" role="tab" aria-selected="true" aria-controls="classesSegmentInfoPanel" data-i18n="classesSegmentInfo">Class info</button>
+                        <button type="button" class="classes-segment-btn" id="classesSegmentNotes" data-segment="notes" role="tab" aria-selected="false" aria-controls="classesSegmentNotesPanel" data-i18n="classesSegmentNotes">Notes</button>
+                    </nav>
+                    <div class="classes-subtab-body">
+                <div id="classesSegmentInfoPanel" class="classes-segment-panel" role="tabpanel" aria-labelledby="classesSegmentInfo">
+                    <div class="module-toolbar" id="classesInfoToolbar">
+                        <button type="button" id="classesTabAddBtn" class="btn btn-primary btn-compact" data-i18n="addClass">+ Add Class</button>
+                    </div>
+                    <div class="classes-layout module-split-layout">
+                        <aside class="module-list-panel" aria-label="Class list">
+                            <input type="search" id="classListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
+                            <div id="classList" class="module-list" role="listbox" aria-label="Classes"></div>
+                        </aside>
+                        <div class="module-editor-panel class-editor-panel">
+                            <div id="classFormMountTab" class="class-form-mount"></div>
+                            <p id="classEditorEmpty" class="module-empty-hint" data-i18n="classEditorEmpty">Select a class from the list, or click + Add Class to create one.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="classesSegmentNotesPanel" class="classes-segment-panel class-notes-segment-panel" role="tabpanel" aria-labelledby="classesSegmentNotes" hidden>
+                    <div id="classesSegmentNotesMount" class="class-notes-mount"></div>
                 </div>
                     </div>
                 </div>
@@ -984,8 +1007,8 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260601-dino"></script>
-    <script defer src="js/day-notes.js?v=20260604-class-notes-tab"></script>
-    <script defer src="app.js?v=20260531-notes-tab-add"></script>
+    <script defer src="js/day-notes.js?v=20260605-notes-tab"></script>
+    <script defer src="app.js?v=20260605-notes-tab"></script>
 </body>
 </html>
 

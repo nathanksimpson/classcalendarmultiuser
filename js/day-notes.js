@@ -68,6 +68,95 @@
         return [...(notes || [])].sort(compareChronological);
     }
 
+    function compareCreatedAtAsc(a, b) {
+        return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    }
+
+    function sortOldestFirst(notes) {
+        return [...(notes || [])].sort(compareCreatedAtAsc);
+    }
+
+    function compareDateDescThenCreatedDesc(a, b) {
+        const byDate = compareDateStr(b.date, a.date);
+        if (byDate !== 0) {
+            return byDate;
+        }
+        return compareCreatedAtDesc(a, b);
+    }
+
+    function sortByDateDesc(notes) {
+        return [...(notes || [])].sort(compareDateDescThenCreatedDesc);
+    }
+
+    const CLASS_NOTES_SORT_MODES = new Set([
+        'classGroup',
+        'newest',
+        'oldest',
+        'dateAsc',
+        'dateDesc'
+    ]);
+
+    function normalizeClassNotesSortMode(mode) {
+        const m = String(mode || '').trim();
+        return CLASS_NOTES_SORT_MODES.has(m) ? m : 'classGroup';
+    }
+
+    function sortNotesForDisplay(notes, sortMode, classOrderIds) {
+        const mode = normalizeClassNotesSortMode(sortMode);
+        const list = notes || [];
+        if (mode === 'classGroup') {
+            return {
+                mode,
+                groups: groupNotesByClass(list, classOrderIds)
+            };
+        }
+        if (mode === 'newest') {
+            return { mode, notes: sortNewestFirst(list) };
+        }
+        if (mode === 'oldest') {
+            return { mode, notes: sortOldestFirst(list) };
+        }
+        if (mode === 'dateDesc') {
+            return { mode, notes: sortByDateDesc(list) };
+        }
+        return { mode: 'dateAsc', notes: sortChronological(list) };
+    }
+
+    function findNoteById(dayNotes, id) {
+        const nid = String(id || '').trim();
+        if (!nid) {
+            return null;
+        }
+        return (dayNotes || []).find((n) => n && n.id === nid) || null;
+    }
+
+    function updateDayNote(dayNotes, id, patch) {
+        const nid = String(id || '').trim();
+        if (!nid || !Array.isArray(dayNotes)) {
+            return dayNotes || [];
+        }
+        const idx = dayNotes.findIndex((n) => n && n.id === nid);
+        if (idx < 0) {
+            return dayNotes;
+        }
+        const merged = Object.assign({}, dayNotes[idx], patch || {}, { id: nid });
+        const normalized = normalizeDayNote(merged);
+        if (!normalized) {
+            return dayNotes;
+        }
+        const out = dayNotes.slice();
+        out[idx] = normalized;
+        return out;
+    }
+
+    function removeDayNote(dayNotes, id) {
+        const nid = String(id || '').trim();
+        if (!nid || !Array.isArray(dayNotes)) {
+            return dayNotes || [];
+        }
+        return dayNotes.filter((n) => n && n.id !== nid);
+    }
+
     /**
      * @param {Array} dayNotes
      * @param {object} filters
@@ -265,12 +354,20 @@
         normalizeDayNote,
         normalizeDayNotesList,
         sortNewestFirst,
+        sortOldestFirst,
         sortChronological,
+        sortByDateDesc,
+        sortNotesForDisplay,
+        normalizeClassNotesSortMode,
+        CLASS_NOTES_SORT_MODES,
         getNotesForDate,
         getNotesForClassOnDate,
         hasNotesForClassOnDate,
         filterNotes,
         groupNotesByClass,
+        findNoteById,
+        updateDayNote,
+        removeDayNote,
         formatTimeLabel,
         formatExportText,
         formatRangeExportByClass

@@ -3962,6 +3962,18 @@ body[data-active-tab="events"] .app-term-quick-actions {
     min-height: 320px;
 }
 
+.class-notes-mount {
+    min-height: 320px;
+}
+
+#panel-notes .class-notes-mount {
+    min-height: min(70vh, 640px);
+}
+
+.class-notes-shell {
+    height: 100%;
+}
+
 .class-notes-layout {
     align-items: stretch;
 }
@@ -4116,6 +4128,32 @@ body[data-active-tab="events"] .app-term-quick-actions {
     font-weight: 600;
 }
 
+.class-notes-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+}
+
+.class-notes-sort-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.class-notes-sort-select {
+    font-family: var(--font-main);
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+}
+
 .class-notes-export-actions {
     display: flex;
     flex-wrap: wrap;
@@ -4161,6 +4199,40 @@ body[data-active-tab="events"] .app-term-quick-actions {
     font-size: 0.75rem;
     color: var(--text-secondary);
     margin-bottom: 4px;
+}
+
+.class-notes-preview-entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.class-notes-delete-btn:not(:disabled):hover {
+    border-color: var(--danger-border, #dc2626);
+    color: var(--danger-text, #dc2626);
+}
+
+.class-notes-preview-entry-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.class-notes-preview-edit-textarea {
+    width: 100%;
+    min-height: 4rem;
+    resize: vertical;
+}
+
+.class-notes-preview-entry-edit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.class-notes-preview-group--flat .class-notes-preview-group-title {
+    display: none;
 }
 
 .class-notes-preview-entry-body {

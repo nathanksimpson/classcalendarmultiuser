@@ -196,6 +196,7 @@ const translations = {
         tabSyllabus: 'Syllabus',
         tabEvents: 'Events',
         tabHomework: 'Homework',
+        tabNotes: 'Notes',
         tabTimetable: 'Timetable',
         tabData: 'Data',
         tabPrintDataHeading: 'Data & settings',
@@ -343,6 +344,21 @@ const translations = {
         classNotesPickClass: 'Select a class.',
         classNotesSaved: 'Note saved.',
         classNotesInvalidDatetime: 'Enter a valid date and time.',
+        classNotesSortLabel: 'Sort',
+        classNotesSortClassGroup: 'By class',
+        classNotesSortNewest: 'Newest first',
+        classNotesSortOldest: 'Oldest first',
+        classNotesSortDateAsc: 'Date (oldest day first)',
+        classNotesSortDateDesc: 'Date (newest day first)',
+        classNotesEdit: 'Edit',
+        classNotesDelete: 'Delete',
+        classNotesSaveEdit: 'Save',
+        classNotesCancelEdit: 'Cancel',
+        classNotesDeleted: 'Note deleted.',
+        classNotesUpdated: 'Note updated.',
+        classNotesConfirmDelete: 'Delete this note?',
+        classNotesDeleteReadOnly: 'You cannot delete notes while viewing a read-only calendar.',
+        classNotesEditReadOnly: 'You cannot edit notes while viewing a read-only calendar.',
         confirmDeleteEvent: 'Are you sure you want to delete this event?',
         eventNotesPlaceholder: 'Optional notes...',
         syllabusUnits: 'Syllabus / curriculum units',
@@ -1034,6 +1050,7 @@ const translations = {
         tabSyllabus: '강의 계획표',
         tabEvents: '일정',
         tabHomework: '숙제',
+        tabNotes: '특히사항',
         tabTimetable: '시간표',
         tabData: '데이터',
         tabPrintDataHeading: '데이터 및 설정',
@@ -1181,6 +1198,21 @@ const translations = {
         classNotesPickClass: '수업을 선택하세요.',
         classNotesSaved: '메모를 저장했습니다.',
         classNotesInvalidDatetime: '올바른 날짜와 시간을 입력하세요.',
+        classNotesSortLabel: '정렬',
+        classNotesSortClassGroup: '수업별',
+        classNotesSortNewest: '최신순',
+        classNotesSortOldest: '오래된순',
+        classNotesSortDateAsc: '날짜순 (과거→최근)',
+        classNotesSortDateDesc: '날짜순 (최근→과거)',
+        classNotesEdit: '수정',
+        classNotesDelete: '삭제',
+        classNotesSaveEdit: '저장',
+        classNotesCancelEdit: '취소',
+        classNotesDeleted: '메모를 삭제했습니다.',
+        classNotesUpdated: '메모를 수정했습니다.',
+        classNotesConfirmDelete: '이 메모를 삭제할까요?',
+        classNotesDeleteReadOnly: '읽기 전용 캘린더에서는 메모를 삭제할 수 없습니다.',
+        classNotesEditReadOnly: '읽기 전용 캘린더에서는 메모를 수정할 수 없습니다.',
         confirmDeleteEvent: '이 일정을 삭제하시겠습니까?',
         eventNotesPlaceholder: '메모 (선택)...',
         syllabusUnits: '교육과정 / 단원',
@@ -5070,6 +5102,12 @@ function ensureUiState() {
     if (!appData.ui.classNotesFilters || typeof appData.ui.classNotesFilters !== 'object') {
         appData.ui.classNotesFilters = null;
     }
+    const dayNotesApi = typeof window !== 'undefined' ? window.CCPDayNotes : null;
+    if (dayNotesApi && dayNotesApi.normalizeClassNotesSortMode) {
+        appData.ui.classNotesSort = dayNotesApi.normalizeClassNotesSortMode(appData.ui.classNotesSort);
+    } else {
+        appData.ui.classNotesSort = 'classGroup';
+    }
     if (!appData.ui.printSummaryVisibility || typeof appData.ui.printSummaryVisibility !== 'object') {
         appData.ui.printSummaryVisibility = null;
     }
@@ -6652,7 +6690,7 @@ function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     appData.dayNotes.push(entry);
     saveData();
     renderCalendar();
-    if (classesPanelSegment === 'notes') {
+    if (isClassNotesUiActive()) {
         renderClassNotesTab();
     }
     return true;
@@ -7084,6 +7122,116 @@ function initDayNotesUi() {
 
 const CLASS_NOTES_FILTER_ATTR = 'data-class-notes-filter';
 
+function isClassNotesUiActive() {
+    const tab = getActiveTab();
+    return tab === 'notes' || (tab === 'classes' && classesPanelSegment === 'notes');
+}
+
+function ensureClassNotesShell() {
+    let shell = document.getElementById('classNotesShell');
+    if (shell) {
+        return shell;
+    }
+    const tpl = document.getElementById('classNotesShellTemplate');
+    const mount = document.getElementById('panelNotesMount');
+    if (!tpl || !tpl.content || !mount) {
+        return null;
+    }
+    mount.appendChild(tpl.content.cloneNode(true));
+    return document.getElementById('classNotesShell');
+}
+
+function mountClassNotesShell(mountEl) {
+    const shell = ensureClassNotesShell();
+    if (!shell || !mountEl) {
+        return;
+    }
+    if (shell.parentElement !== mountEl) {
+        mountEl.appendChild(shell);
+    }
+}
+
+function mountClassNotesToNotesTab() {
+    mountClassNotesShell(document.getElementById('panelNotesMount'));
+}
+
+function mountClassNotesToClassesSegment() {
+    mountClassNotesShell(document.getElementById('classesSegmentNotesMount'));
+}
+
+function getClassNotesSortMode() {
+    const api = getDayNotesApi();
+    ensureUiState();
+    if (api && api.normalizeClassNotesSortMode) {
+        return api.normalizeClassNotesSortMode(appData.ui.classNotesSort);
+    }
+    return 'classGroup';
+}
+
+function syncClassNotesSortSelect() {
+    const select = document.getElementById('classNotesSortSelect');
+    if (!select) {
+        return;
+    }
+    select.value = getClassNotesSortMode();
+}
+
+function saveClassNotesSortToUi() {
+    ensureUiState();
+    const select = document.getElementById('classNotesSortSelect');
+    const api = getDayNotesApi();
+    const mode = api && api.normalizeClassNotesSortMode
+        ? api.normalizeClassNotesSortMode(select ? select.value : '')
+        : 'classGroup';
+    appData.ui.classNotesSort = mode;
+    saveUiStateToLocalStorage();
+}
+
+function updateClassDayNote(id, patch) {
+    if (isTeamCalendarViewOnly()) {
+        showClassNotesExportStatus(false, t('classNotesEditReadOnly'));
+        return false;
+    }
+    const api = getDayNotesApi();
+    if (!api || !api.updateDayNote) {
+        return false;
+    }
+    ensureDayNotesArray();
+    const next = api.updateDayNote(appData.dayNotes, id, patch);
+    if (next === appData.dayNotes) {
+        return false;
+    }
+    appData.dayNotes = next;
+    saveData();
+    renderCalendar();
+    if (isClassNotesUiActive()) {
+        renderClassNotesTab();
+    }
+    return true;
+}
+
+function deleteClassDayNote(id) {
+    if (isTeamCalendarViewOnly()) {
+        showClassNotesExportStatus(false, t('classNotesDeleteReadOnly'));
+        return false;
+    }
+    const api = getDayNotesApi();
+    if (!api || !api.removeDayNote) {
+        return false;
+    }
+    ensureDayNotesArray();
+    appData.dayNotes = api.removeDayNote(appData.dayNotes, id);
+    if (classNotesEditingId === id) {
+        classNotesEditingId = null;
+    }
+    saveData();
+    renderCalendar();
+    if (isClassNotesUiActive()) {
+        renderClassNotesTab();
+    }
+    return true;
+}
+
 function setClassesPanelSegment(segment, options = {}) {
     const next = segment === 'notes' ? 'notes' : 'info';
     classesPanelSegment = next;
@@ -7092,6 +7240,7 @@ function setClassesPanelSegment(segment, options = {}) {
     saveUiStateToLocalStorage();
     syncClassesPanelSegmentUi();
     if (next === 'notes') {
+        mountClassNotesToClassesSegment();
         initClassNotesTab();
         resetClassNotesAddForm();
         renderClassNotesTab();
@@ -7336,6 +7485,107 @@ function buildClassNotesRangeExportText() {
     });
 }
 
+function buildClassNotesPreviewEntry(note, api, options = {}) {
+    const { showClassInMeta = false } = options;
+    const readOnly = isTeamCalendarViewOnly();
+    const isEditing = classNotesEditingId === note.id;
+    const entry = document.createElement('div');
+    entry.className = 'class-notes-preview-entry';
+    entry.dataset.noteId = note.id;
+
+    const metaLine = document.createElement('div');
+    metaLine.className = 'class-notes-preview-entry-meta';
+    const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
+    const parts = [formatDateDisplay(note.date), time];
+    if (showClassInMeta) {
+        const classMeta = resolveDayNoteMeta(note.classId);
+        const classLabel = classMeta.subject
+            ? `${classMeta.className} — ${classMeta.subject}`
+            : classMeta.className;
+        if (classLabel) {
+            parts.unshift(classLabel);
+        }
+    }
+    metaLine.textContent = parts.filter(Boolean).join(' · ');
+
+    const actions = document.createElement('div');
+    actions.className = 'class-notes-preview-entry-actions';
+    if (!isEditing) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'btn btn-outline btn-small';
+        editBtn.textContent = t('classNotesEdit');
+        editBtn.disabled = readOnly;
+        editBtn.addEventListener('click', () => {
+            classNotesEditingId = note.id;
+            renderClassNotesTab();
+        });
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-outline btn-small class-notes-delete-btn';
+        deleteBtn.textContent = t('classNotesDelete');
+        deleteBtn.disabled = readOnly;
+        deleteBtn.addEventListener('click', () => {
+            if (!confirm(t('classNotesConfirmDelete'))) {
+                return;
+            }
+            if (deleteClassDayNote(note.id)) {
+                showClassNotesExportStatus(true, t('classNotesDeleted'));
+            }
+        });
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+    }
+
+    entry.appendChild(metaLine);
+    entry.appendChild(actions);
+
+    if (isEditing) {
+        const editWrap = document.createElement('div');
+        editWrap.className = 'class-notes-preview-entry-edit';
+        const textarea = document.createElement('textarea');
+        textarea.className = 'day-note-textarea class-notes-preview-edit-textarea';
+        textarea.rows = 3;
+        textarea.value = note.text;
+        textarea.spellcheck = true;
+        const editActions = document.createElement('div');
+        editActions.className = 'class-notes-preview-entry-edit-actions';
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'btn btn-primary btn-small';
+        saveBtn.textContent = t('classNotesSaveEdit');
+        saveBtn.addEventListener('click', () => {
+            const text = (textarea.value || '').trim();
+            if (!text) {
+                return;
+            }
+            if (updateClassDayNote(note.id, { text })) {
+                classNotesEditingId = null;
+                showClassNotesExportStatus(true, t('classNotesUpdated'));
+            }
+        });
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn btn-outline btn-small';
+        cancelBtn.textContent = t('classNotesCancelEdit');
+        cancelBtn.addEventListener('click', () => {
+            classNotesEditingId = null;
+            renderClassNotesTab();
+        });
+        editActions.appendChild(saveBtn);
+        editActions.appendChild(cancelBtn);
+        editWrap.appendChild(textarea);
+        editWrap.appendChild(editActions);
+        entry.appendChild(editWrap);
+    } else {
+        const body = document.createElement('p');
+        body.className = 'class-notes-preview-entry-body';
+        body.textContent = note.text;
+        entry.appendChild(body);
+    }
+    return entry;
+}
+
 function renderClassNotesTab() {
     const summaryEl = document.getElementById('classNotesSummaryLine');
     const emptyEl = document.getElementById('classNotesEmptyFiltered');
@@ -7343,6 +7593,7 @@ function renderClassNotesTab() {
     if (!previewEl) {
         return;
     }
+    syncClassNotesSortSelect();
     const api = getDayNotesApi();
     const { notes, classOrderIds, filters } = getFilteredClassNotesForExport();
     previewEl.replaceChildren();
@@ -7355,11 +7606,17 @@ function renderClassNotesTab() {
         }
         return;
     }
-    const groups = api ? api.groupNotesByClass(notes, classOrderIds) : [];
+    const sortMode = getClassNotesSortMode();
+    const sorted = api
+        ? api.sortNotesForDisplay(notes, sortMode, classOrderIds)
+        : { mode: 'classGroup', groups: [] };
+    const groupCount = sorted.mode === 'classGroup'
+        ? (sorted.groups || []).length
+        : new Set(notes.map((n) => n.classId)).size;
     if (summaryEl) {
         summaryEl.textContent = t('classNotesSummary')
             .replace('{notes}', String(notes.length))
-            .replace('{classes}', String(groups.length));
+            .replace('{classes}', String(groupCount));
     }
     if (!notes.length) {
         if (emptyEl) {
@@ -7371,31 +7628,30 @@ function renderClassNotesTab() {
     if (emptyEl) {
         emptyEl.hidden = true;
     }
-    groups.forEach((group) => {
-        const meta = resolveDayNoteMeta(group.classId);
-        const section = document.createElement('section');
-        section.className = 'class-notes-preview-group';
-        section.setAttribute('role', 'listitem');
-        const title = document.createElement('h3');
-        title.className = 'class-notes-preview-group-title';
-        title.textContent = meta.subject ? `${meta.className} — ${meta.subject}` : meta.className;
-        section.appendChild(title);
-        group.notes.forEach((note) => {
-            const entry = document.createElement('div');
-            entry.className = 'class-notes-preview-entry';
-            const metaLine = document.createElement('div');
-            metaLine.className = 'class-notes-preview-entry-meta';
-            const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
-            metaLine.textContent = [formatDateDisplay(note.date), time].filter(Boolean).join(' · ');
-            const body = document.createElement('p');
-            body.className = 'class-notes-preview-entry-body';
-            body.textContent = note.text;
-            entry.appendChild(metaLine);
-            entry.appendChild(body);
-            section.appendChild(entry);
+    if (sorted.mode === 'classGroup' && sorted.groups) {
+        sorted.groups.forEach((group) => {
+            const meta = resolveDayNoteMeta(group.classId);
+            const section = document.createElement('section');
+            section.className = 'class-notes-preview-group';
+            section.setAttribute('role', 'listitem');
+            const title = document.createElement('h3');
+            title.className = 'class-notes-preview-group-title';
+            title.textContent = meta.subject ? `${meta.className} — ${meta.subject}` : meta.className;
+            section.appendChild(title);
+            group.notes.forEach((note) => {
+                section.appendChild(buildClassNotesPreviewEntry(note, api));
+            });
+            previewEl.appendChild(section);
         });
-        previewEl.appendChild(section);
+        return;
+    }
+    const flatSection = document.createElement('section');
+    flatSection.className = 'class-notes-preview-group class-notes-preview-group--flat';
+    flatSection.setAttribute('role', 'listitem');
+    (sorted.notes || []).forEach((note) => {
+        flatSection.appendChild(buildClassNotesPreviewEntry(note, api, { showClassInMeta: true }));
     });
+    previewEl.appendChild(flatSection);
 }
 
 function showClassNotesExportStatus(ok, message) {
@@ -7456,7 +7712,9 @@ function downloadClassNotesExport() {
 }
 
 function initClassNotesTab() {
+    ensureClassNotesShell();
     syncClassNotesAddFormChrome();
+    syncClassNotesSortSelect();
     if (!classNotesFiltersBuilt) {
         classNotesFiltersBuilt = true;
         const saved = appData.ui && appData.ui.classNotesFilters;
@@ -7572,6 +7830,10 @@ function initClassesPanelSegments() {
         void copyClassNotesExport();
     });
     document.getElementById('classNotesExportDownloadBtn')?.addEventListener('click', downloadClassNotesExport);
+    document.getElementById('classNotesSortSelect')?.addEventListener('change', () => {
+        saveClassNotesSortToUi();
+        renderClassNotesTab();
+    });
 }
 
 function groupKrPublicHolidayRows(rows) {
@@ -8391,7 +8653,7 @@ function collectCompressionMergesByPeriodFromForm() {
 // ============================================
 // App shell: templates, tabs, form mounts
 // ============================================
-const APP_TAB_IDS = ['calendar', 'homework', 'classes', 'syllabus', 'curriculum', 'timetable', 'events', 'data'];
+const APP_TAB_IDS = ['calendar', 'homework', 'notes', 'classes', 'syllabus', 'curriculum', 'timetable', 'events', 'data'];
 
 let curriculumTabSelectedId = null;
 let classEditorMount = 'modal';
@@ -8404,6 +8666,8 @@ let syllabusListSegment = 'classes';
 /** @type {'info'|'notes'} */
 let classesPanelSegment = 'info';
 let classNotesFiltersBuilt = false;
+/** @type {string|null} */
+let classNotesEditingId = null;
 /** @type {'class'|'template'|null} */
 let syllabusEditorMode = null;
 
@@ -9476,12 +9740,18 @@ function navigateToTabBody(tabId, options = {}) {
         }
     });
 
-    if (tabId === 'classes') {
+    if (tabId === 'notes') {
+        mountClassNotesToNotesTab();
+        initClassNotesTab();
+        resetClassNotesAddForm();
+        renderClassNotesTab();
+    } else if (tabId === 'classes') {
         if (options.segment === 'notes' || options.segment === 'info') {
             setClassesPanelSegment(options.segment, options);
         } else {
             syncClassesPanelSegmentUi();
             if (classesPanelSegment === 'notes') {
+                mountClassNotesToClassesSegment();
                 initClassNotesTab();
                 renderClassNotesTab();
             } else {
@@ -20040,6 +20310,9 @@ function loadUiStateFromLocalStorageIntoData(data) {
 function buildTabRestoreOptions(tabId) {
     ensureUiState();
     const ui = appData.ui;
+    if (tabId === 'notes') {
+        return {};
+    }
     if (tabId === 'classes') {
         const opts = { segment: ui.classesPanelSegment === 'notes' ? 'notes' : 'info' };
         if (ui.classesTabClassId) {
@@ -20190,8 +20463,10 @@ function restoreAppSessionState() {
     const tab = getActiveTab();
     navigateToTab(tab, buildTabRestoreOptions(tab));
     applyPrintSummaryVisibilityFromUi();
-    if (classesPanelSegment === 'notes') {
+    if (isClassNotesUiActive()) {
         applyClassNotesFiltersFromUi();
+        ensureClassNotesShell();
+        syncClassNotesSortSelect();
     }
 }
 
@@ -20199,7 +20474,7 @@ function captureAppSessionExtras() {
     if (typeof CCPSessionRestore === 'undefined' || !CCPSessionRestore.capturePageSession) {
         return;
     }
-    if (getActiveTab() === 'classes' && classesPanelSegment === 'notes') {
+    if (isClassNotesUiActive()) {
         saveClassNotesFiltersToUi();
     }
     if (getActiveTab() === 'data') {
