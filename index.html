@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260605-notes-homework-scroll">
+    <link rel="stylesheet" href="styles.css?v=20260605-notes-filter-titles">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -283,14 +283,16 @@
                                 <button type="button" id="classNotesResetFiltersBtn" class="btn btn-outline btn-small" data-i18n="classNotesResetFilters">Reset filters</button>
                             </div>
                             <input type="search" id="classNotesClassSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
-                            <div id="classNotesFilterClasses" class="class-notes-filter-body lesson-filter-body"></div>
-                            <div id="classNotesFilterSubjectsWrap" class="class-notes-filter-section-wrap" hidden>
-                                <h3 class="class-notes-filter-subtitle" data-i18n="classNotesFilterSubject">Subject</h3>
-                                <div id="classNotesFilterSubjects" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
-                            </div>
-                            <div id="classNotesFilterGradesWrap" class="class-notes-filter-section-wrap" hidden>
-                                <h3 class="class-notes-filter-subtitle" data-i18n="classNotesFilterGrade">Grade</h3>
-                                <div id="classNotesFilterGrades" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
+                            <div class="class-notes-filter-scroll">
+                                <div id="classNotesFilterClasses" class="class-notes-filter-body lesson-filter-body"></div>
+                                <section id="classNotesFilterSubjectsWrap" class="class-notes-filter-section-wrap lesson-filter-section" hidden>
+                                    <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterSubject">Subject</h3>
+                                    <div id="classNotesFilterSubjects" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
+                                </section>
+                                <section id="classNotesFilterGradesWrap" class="class-notes-filter-section-wrap lesson-filter-section" hidden>
+                                    <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterGrade">Grade</h3>
+                                    <div id="classNotesFilterGrades" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
+                                </section>
                             </div>
                         </aside>
                         <div class="module-editor-panel class-notes-main-panel">

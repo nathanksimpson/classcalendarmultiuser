@@ -3968,16 +3968,19 @@ body[data-active-tab="events"] .app-term-quick-actions {
 .class-notes-filters-panel .class-notes-filters-title,
 .class-notes-filters-panel .class-notes-date-range,
 .class-notes-filters-panel .class-notes-filter-actions,
-.class-notes-filters-panel .module-list-search,
-.class-notes-filters-panel .class-notes-filter-section-wrap {
+.class-notes-filters-panel .module-list-search {
     flex-shrink: 0;
 }
 
-.class-notes-filters-panel .class-notes-filter-body {
+.class-notes-filters-panel .class-notes-filter-scroll {
     flex: 1 1 auto;
     min-height: 120px;
     overflow-y: auto;
     padding: 4px 0 8px;
+}
+
+.class-notes-filters-panel .class-notes-filter-body {
+    padding: 0;
 }
 
 .class-notes-filters-panel .lesson-filter-body {
@@ -4021,15 +4024,30 @@ body[data-active-tab="events"] .app-term-quick-actions {
     gap: 6px;
 }
 
-.class-notes-filter-subtitle {
-    margin: 0 0 6px;
+.class-notes-filters-panel .class-notes-filter-section-wrap.lesson-filter-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.class-notes-filters-panel .class-notes-filter-section-wrap .class-notes-filter-subtitle {
+    margin: 0 0 8px;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--text-secondary);
 }
 
-.class-notes-filter-section-wrap {
-    margin-top: 4px;
+.class-notes-filters-panel .class-notes-filter-chips.lesson-filter-chip-grid {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+}
+
+.class-notes-filters-panel .class-notes-filter-chips .lesson-filter-chip {
+    width: 100%;
 }
 
 .class-notes-filter-section-wrap[hidden] {
