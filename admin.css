@@ -118,7 +118,7 @@
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    background: var(--bg-card);
+    background: var(--input-bg);
     color: var(--text-primary);
     font: inherit;
 }
@@ -426,7 +426,7 @@
 .admin-permissions-section {
     margin: 1rem 0;
     padding: 0.75rem 0;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--border-color);
 }
 .admin-permissions-heading {
     font-size: 1rem;
@@ -468,4 +468,30 @@
     background: var(--surface-elevated);
     color: var(--text-muted);
     vertical-align: middle;
+}
+
+/* Admin dark mode — align inputs and checkboxes with global theme */
+[data-theme="dark"] .admin-search-input,
+[data-theme="dark"] .admin-form input,
+[data-theme="dark"] .admin-form select,
+[data-theme="dark"] .admin-access-row select {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .admin-checkbox-grid,
+[data-theme="dark"] .admin-permissions-list {
+    background: var(--surface-muted);
+}
+
+[data-theme="dark"] .admin-checkbox-grid input[type="checkbox"],
+[data-theme="dark"] .admin-perm-check input[type="checkbox"],
+[data-theme="dark"] .admin-access-row input[type="checkbox"] {
+    accent-color: var(--primary);
+}
+
+[data-theme="dark"] .admin-tab:hover,
+[data-theme="dark"] .admin-tab[aria-selected="true"] {
+    background: var(--bg-hover);
 }
