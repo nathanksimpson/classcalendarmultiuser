@@ -349,10 +349,11 @@ const translations = {
         classNotesInvalidDatetime: 'Enter a valid date and time.',
         classNotesSortLabel: 'Sort',
         classNotesSortClassGroup: 'By class',
-        classNotesSortNewest: 'Newest first',
-        classNotesSortOldest: 'Oldest first',
-        classNotesSortDateAsc: 'Date (oldest day first)',
-        classNotesSortDateDesc: 'Date (newest day first)',
+        classNotesSortNewest: 'Newest (time)',
+        classNotesSortOldest: 'Oldest (time)',
+        classNotesSortDateAsc: 'By day (oldest)',
+        classNotesSortDateDesc: 'By day (newest)',
+        classNotesSortHint: 'Newest/Oldest use exact time. By day sorts calendar dates.',
         classNotesEdit: 'Edit',
         classNotesDelete: 'Delete',
         classNotesSaveEdit: 'Save',
@@ -1206,10 +1207,11 @@ const translations = {
         classNotesInvalidDatetime: '올바른 날짜와 시간을 입력하세요.',
         classNotesSortLabel: '정렬',
         classNotesSortClassGroup: '수업별',
-        classNotesSortNewest: '최신순',
-        classNotesSortOldest: '오래된순',
+        classNotesSortNewest: '최신순 (시간)',
+        classNotesSortOldest: '오래된순 (시간)',
         classNotesSortDateAsc: '날짜순 (과거→최근)',
         classNotesSortDateDesc: '날짜순 (최근→과거)',
+        classNotesSortHint: '최신/오래된순은 정확한 시각 기준, 날짜순은 달력 날짜 기준입니다.',
         classNotesEdit: '수정',
         classNotesDelete: '삭제',
         classNotesSaveEdit: '저장',
@@ -7250,7 +7252,9 @@ function initDayNotesUi() {
     });
 }
 
-const CLASS_NOTES_FILTER_ATTR = 'data-class-notes-filter';
+const CLASS_NOTES_FILTER_ATTR = (typeof ClassNotesPanel !== 'undefined' && ClassNotesPanel.FILTER_ATTR)
+    ? ClassNotesPanel.FILTER_ATTR
+    : 'data-class-notes-filter';
 
 function isClassNotesUiActive() {
     const tab = getActiveTab();
@@ -7720,104 +7724,42 @@ function buildClassNotesRangeExportText() {
 }
 
 function buildClassNotesPreviewEntry(note, api, options = {}) {
-    const { showClassInMeta = false } = options;
-    const readOnly = isTeamCalendarViewOnly();
-    const isEditing = classNotesEditingId === note.id;
-    const entry = document.createElement('div');
-    entry.className = 'class-notes-preview-entry';
-    entry.dataset.noteId = note.id;
-
-    const metaLine = document.createElement('div');
-    metaLine.className = 'class-notes-preview-entry-meta';
-    const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
-    const parts = [formatDateDisplay(note.date), time];
-    if (showClassInMeta) {
-        const classMeta = resolveDayNoteMeta(note.classId);
-        const classLabel = classMeta.subject
-            ? `${classMeta.className} — ${classMeta.subject}`
-            : classMeta.className;
-        if (classLabel) {
-            parts.unshift(classLabel);
-        }
+    const panel = typeof ClassNotesPanel !== 'undefined' ? ClassNotesPanel : null;
+    if (!panel || !panel.buildPreviewEntry) {
+        return document.createElement('div');
     }
-    metaLine.textContent = parts.filter(Boolean).join(' · ');
-
-    const actions = document.createElement('div');
-    actions.className = 'class-notes-preview-entry-actions';
-    if (!isEditing) {
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'btn btn-outline btn-small';
-        editBtn.textContent = t('classNotesEdit');
-        editBtn.disabled = readOnly;
-        editBtn.addEventListener('click', () => {
-            classNotesEditingId = note.id;
+    const { showClassInMeta = false } = options;
+    return panel.buildPreviewEntry(note, api, {
+        showClassInMeta,
+        readOnly: isTeamCalendarViewOnly(),
+        isEditing: classNotesEditingId === note.id,
+        t,
+        formatDateDisplay,
+        resolveDayNoteMeta,
+        currentLanguage,
+        onEdit: (id) => {
+            classNotesEditingId = id;
             renderClassNotesTab();
-        });
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.className = 'btn btn-outline btn-small class-notes-delete-btn';
-        deleteBtn.textContent = t('classNotesDelete');
-        deleteBtn.disabled = readOnly;
-        deleteBtn.addEventListener('click', () => {
+        },
+        onDelete: (id) => {
             if (!confirm(t('classNotesConfirmDelete'))) {
                 return;
             }
-            if (deleteClassDayNote(note.id)) {
+            if (deleteClassDayNote(id)) {
                 showClassNotesExportStatus(true, t('classNotesDeleted'));
             }
-        });
-        actions.appendChild(editBtn);
-        actions.appendChild(deleteBtn);
-    }
-
-    entry.appendChild(metaLine);
-    entry.appendChild(actions);
-
-    if (isEditing) {
-        const editWrap = document.createElement('div');
-        editWrap.className = 'class-notes-preview-entry-edit';
-        const textarea = document.createElement('textarea');
-        textarea.className = 'day-note-textarea class-notes-preview-edit-textarea';
-        textarea.rows = 3;
-        textarea.value = note.text;
-        textarea.spellcheck = true;
-        const editActions = document.createElement('div');
-        editActions.className = 'class-notes-preview-entry-edit-actions';
-        const saveBtn = document.createElement('button');
-        saveBtn.type = 'button';
-        saveBtn.className = 'btn btn-primary btn-small';
-        saveBtn.textContent = t('classNotesSaveEdit');
-        saveBtn.addEventListener('click', () => {
-            const text = (textarea.value || '').trim();
-            if (!text) {
-                return;
-            }
-            if (updateClassDayNote(note.id, { text })) {
+        },
+        onSaveEdit: (id, text) => {
+            if (updateClassDayNote(id, { text })) {
                 classNotesEditingId = null;
                 showClassNotesExportStatus(true, t('classNotesUpdated'));
             }
-        });
-        const cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button';
-        cancelBtn.className = 'btn btn-outline btn-small';
-        cancelBtn.textContent = t('classNotesCancelEdit');
-        cancelBtn.addEventListener('click', () => {
+        },
+        onCancelEdit: () => {
             classNotesEditingId = null;
             renderClassNotesTab();
-        });
-        editActions.appendChild(saveBtn);
-        editActions.appendChild(cancelBtn);
-        editWrap.appendChild(textarea);
-        editWrap.appendChild(editActions);
-        entry.appendChild(editWrap);
-    } else {
-        const body = document.createElement('p');
-        body.className = 'class-notes-preview-entry-body';
-        body.textContent = note.text;
-        entry.appendChild(body);
-    }
-    return entry;
+        }
+    });
 }
 
 function renderClassNotesTab() {
@@ -7831,6 +7773,14 @@ function renderClassNotesTab() {
     const api = getDayNotesApi();
     const { notes, classOrderIds, filters } = getFilteredClassNotesForExport();
     previewEl.replaceChildren();
+    const setPreviewVisible = (visible) => {
+        previewEl.hidden = !visible;
+        if (visible) {
+            previewEl.removeAttribute('aria-hidden');
+        } else {
+            previewEl.setAttribute('aria-hidden', 'true');
+        }
+    };
     if (!filters || !filters.classIds.length) {
         if (summaryEl) {
             summaryEl.textContent = t('classNotesNoClassSelected');
@@ -7838,6 +7788,7 @@ function renderClassNotesTab() {
         if (emptyEl) {
             emptyEl.hidden = true;
         }
+        setPreviewVisible(false);
         return;
     }
     const sortMode = getClassNotesSortMode();
@@ -7857,11 +7808,13 @@ function renderClassNotesTab() {
             emptyEl.hidden = false;
             emptyEl.textContent = t('classNotesEmptyFiltered');
         }
+        setPreviewVisible(false);
         return;
     }
     if (emptyEl) {
         emptyEl.hidden = true;
     }
+    setPreviewVisible(true);
     if (sorted.mode === 'classGroup' && sorted.groups) {
         sorted.groups.forEach((group) => {
             const meta = resolveDayNoteMeta(group.classId);
