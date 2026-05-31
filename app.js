@@ -9365,8 +9365,8 @@ const APP_HOST_SETUP = 'setup';
 const APP_SHARED_TAB_IDS = ['calendar'];
 const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'classes', 'timetable'];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
-/** Setup subtabs that require head-teacher / manage_calendar_access */
-const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'events', 'data'];
+/** Setup subtabs that require head-teacher / manage_calendar_access (cohorts & teachers only). */
+const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
 const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS];
 const APP_SETUP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
 const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
@@ -9410,7 +9410,7 @@ function getActiveHostTab() {
 }
 
 function defaultTabForHost(hostId) {
-    return hostId === APP_HOST_SETUP ? 'cohorts' : 'calendar';
+    return hostId === APP_HOST_SETUP ? defaultLastSetupTabId() : 'calendar';
 }
 
 function syncHostSubTabNav(hostId, subTabId) {
@@ -20885,8 +20885,14 @@ function shouldAllowTeamViewOnlyInteraction(el) {
         el.id === 'homeworkReferenceTodayBtn' ||
         el.id === 'openPrintBtn' ||
         el.id === 'dataExportCalendarBtn' ||
+        el.id === 'dataImportCalendarBtn' ||
+        el.id === 'printExportSyllabusBtn' ||
+        el.id === 'printImportSyllabusBtn' ||
         el.id === 'topBarToggle'
     ) {
+        return true;
+    }
+    if (el.closest('#panel-data')) {
         return true;
     }
     if (el.closest('.homework-ref-mini-calendar, .homework-ref-date-controls')) {
@@ -20947,7 +20953,6 @@ function applyTeamViewOnlyEditingState(viewOnly) {
         'eventsTabAddBtn',
         'fetchKrHolidaysBtn',
         'clearDataBtn',
-        'dataImportCalendarBtn',
         'syllabusNewTemplateBtn',
         'syllabusSaveClassBtn',
         'syllabusSaveTemplateBtn',
@@ -23935,7 +23940,7 @@ function updateDataTabCalendarSection() {
     const importBtn = document.getElementById('dataImportCalendarBtn');
     const hint = document.getElementById('dataCalendarReadOnlyHint');
     if (importBtn) {
-        importBtn.disabled = Boolean(readOnly);
+        importBtn.disabled = false;
     }
     if (hint) {
         hint.hidden = !readOnly;
@@ -23952,10 +23957,6 @@ function setupDataTabCalendarBackup() {
     if (importBtn && !importBtn.dataset.bound) {
         importBtn.dataset.bound = '1';
         importBtn.addEventListener('click', () => {
-            if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly()) {
-                showSyncToast(t('importReadOnlyHint'), true);
-                return;
-            }
             document.getElementById('importFile')?.click();
         });
     }

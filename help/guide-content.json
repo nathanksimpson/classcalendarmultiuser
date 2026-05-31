@@ -12,7 +12,7 @@
           "Syllabus — edit each class syllabus table, custom reusable syllabi (My syllabi), refresh from calendar, import homework paste, print.",
           "Events — search holidays and deadlines and use the full event editor.",
           "Teaching (host tab) — sub-tabs: Calendar, Homework, Notes, Classes, Syllabus, Timetable.",
-          "Setup (host tab, head teacher / admin) — sub-tabs: Calendar, Cohorts, Teachers, Curriculum, Events, Data (Calendar is the same view as under Teaching, for term dates and events while configuring).",
+          "Setup (host tab, all signed-in teachers) — sub-tabs: Calendar, Syllabus, Curriculum, Events, Data (backup import/export), plus Cohorts and Teachers for head teachers / admins only.",
           "The app remembers which tab you last used in this browser.",
           "Header (always visible): + Add Class / + Add Event (under the title), Print, Help, theme, and language (English ↔ Korean)."
         ]
