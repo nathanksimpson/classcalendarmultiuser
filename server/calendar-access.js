@@ -27,6 +27,14 @@ function canViewAllCalendars(user) {
     return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
 }
 
+/** List/open all calendars (main app dropdown) — same scope as Admin Calendars tab. */
+function canListAllCalendars(user) {
+    return (
+        canViewAllCalendars(user) ||
+        Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)
+    );
+}
+
 function canViewCalendars(user) {
     return (
         canViewAllCalendars(user) || Auth.hasPermission(user, Auth.PERMS.VIEW_CALENDARS)
@@ -97,7 +105,7 @@ function getUserAccessLevel(user, calendarId) {
     if (!user || !calendarId) {
         return null;
     }
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return 'editor';
     }
     const db = getDb();
@@ -127,7 +135,7 @@ function canAccessCalendar(user, calendarId) {
     if (!canViewCalendars(user)) {
         return false;
     }
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return true;
     }
     return getUserAccessLevel(user, calendarId) != null;
@@ -153,7 +161,7 @@ function listCalendarsForUser(user) {
     const db = getDb();
     const selectCols =
         'id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId';
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return db
             .prepare(`SELECT ${selectCols} FROM calendars ORDER BY name COLLATE NOCASE`)
             .all()
@@ -445,7 +453,7 @@ function getCalendarSummaryForUser(user) {
     if (!user) {
         return { calendarAccessMode: 'none', calendarSummary: [] };
     }
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return { calendarAccessMode: 'all', calendarSummary: [] };
     }
     const cals = listCalendarsForUser(user);

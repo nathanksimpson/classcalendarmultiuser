@@ -25,6 +25,14 @@ export function canViewAllCalendars(user) {
     return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
 }
 
+/** List/open all calendars (main app dropdown) — same scope as Admin Calendars tab. */
+export function canListAllCalendars(user) {
+    return (
+        canViewAllCalendars(user) ||
+        Auth.hasPermission(user, Auth.PERMS.MANAGE_CALENDAR_ACCESS)
+    );
+}
+
 export function canViewCalendars(user) {
     return (
         canViewAllCalendars(user) || Auth.hasPermission(user, Auth.PERMS.VIEW_CALENDARS)
@@ -127,7 +135,7 @@ export async function getUserAccessLevel(env, user, calendarId) {
     if (!user || !calendarId) {
         return null;
     }
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return 'editor';
     }
     const member = await env.DB.prepare(
@@ -156,7 +164,7 @@ export async function canAccessCalendar(env, user, calendarId) {
     if (!canViewCalendars(user)) {
         return false;
     }
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return true;
     }
     return (await getUserAccessLevel(env, user, calendarId)) != null;
@@ -174,7 +182,7 @@ export async function canSuggestChanges(env, user, calendarId) {
 export async function listCalendarsForUser(env, user) {
     const selectCols =
         'id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId';
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         const r = await env.DB.prepare(
             `SELECT ${selectCols} FROM calendars ORDER BY name COLLATE NOCASE`
         ).all();
@@ -461,7 +469,7 @@ export async function getCalendarSummaryForUser(env, user) {
     if (!user) {
         return { calendarAccessMode: 'none', calendarSummary: [] };
     }
-    if (canViewAllCalendars(user)) {
+    if (canListAllCalendars(user)) {
         return { calendarAccessMode: 'all', calendarSummary: [] };
     }
     const cals = await listCalendarsForUser(env, user);

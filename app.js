@@ -59,6 +59,8 @@ const translations = {
         deleteCalendarRemoving: 'Removing…',
         teamCalendarNameLabel: 'Calendar name (saved):',
         teamCalendarEmpty: '— No calendars yet — click + New',
+        teamCalendarNoneAssigned:
+            '— No calendars assigned — open Admin to grant access, or ask a head teacher',
         teamSyncOffline: 'Not connected to team server',
         newCalendarTitle: 'Add team calendar',
         newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team and selected in the dropdown above.',
@@ -1022,6 +1024,8 @@ const translations = {
         teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·역할·협업은 도움말 17–21절을 보세요.',
         teamCalendarNameLabel: '캘린더 이름 (저장됨):',
         teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
+        teamCalendarNoneAssigned:
+            '— 배정된 캘린더 없음 — 관리자에서 접근 권한을 부여하거나 헤드 티처에게 문의하세요',
         teamSyncOffline: '팀 서버에 연결되지 않음',
         newCalendarTitle: '팀 캘린더 추가',
         newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀에 저장되고 위 목록에서 선택됩니다.',
@@ -20879,6 +20883,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
         return true;
     }
     if (
+        el.id === 'teamCalendarSelect' ||
         el.id === 'lessonFilterBtn' ||
         el.id === 'homeworkOpenClassBtn' ||
         el.id === 'openWorkspaceHomeworkBtn' ||
@@ -20892,7 +20897,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     ) {
         return true;
     }
-    if (el.closest('#panel-data')) {
+    if (el.closest('#panel-data, #teamCalendarRow, .team-calendar-row')) {
         return true;
     }
     if (el.closest('.homework-ref-mini-calendar, .homework-ref-date-controls')) {
@@ -22437,7 +22442,11 @@ function populateCalendarSelect(calendars, activeId) {
     if (list.length === 0) {
         const empty = document.createElement('option');
         empty.value = '';
-        empty.textContent = t('teamCalendarEmpty');
+        const canCreate =
+            typeof TeamAuth !== 'undefined' &&
+            TeamAuth.hasPermission &&
+            TeamAuth.hasPermission('create_calendars');
+        empty.textContent = canCreate ? t('teamCalendarEmpty') : t('teamCalendarNoneAssigned');
         empty.disabled = true;
         empty.selected = true;
         sel.appendChild(empty);
@@ -23044,8 +23053,30 @@ async function initTeamSync() {
         return;
     }
 
+    const teamSyncUiBound = document.body.dataset.teamSyncInit === '1';
+
     setupTeamCalendarModals();
     setupTeamUserBar();
+
+    if (teamSyncUiBound) {
+        const connected = await CalendarSync.checkHealth();
+        if (!connected) {
+            teamSyncEnabled = false;
+            setTeamCalendarRowVisible(false);
+            setTeamLockBarVisible(false);
+            updateTeamSyncStatus('offline');
+            return;
+        }
+        teamSyncEnabled = true;
+        setTeamCalendarRowVisible(true);
+        const calendars = await CalendarSync.listCalendars();
+        const activeId = CalendarSync.getActiveCalendarId();
+        populateCalendarSelect(calendars, activeId);
+        updateTeamSyncStatus(
+            activeId ? 'saved' : calendars.length ? 'connected' : 'connected'
+        );
+        return;
+    }
 
     CalendarSync.setHandlers({
         onStatusChange: updateTeamSyncStatus,
@@ -23197,6 +23228,8 @@ async function initTeamSync() {
         }
         await switchToTeamCalendar(activeId, calendars, { skipSessionRestore: true });
     }
+
+    document.body.dataset.teamSyncInit = '1';
 
     document.getElementById('teamCalendarSelect')?.addEventListener('change', async (e) => {
         const id = e.target.value;
