@@ -14983,6 +14983,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (useTeamSync) {
             updateTeamSyncStatus('connecting');
+            scheduleTeamSyncBootWatchdog();
         }
         ensureClassFormExtendedMarkup();
         repairCorruptedLangToggleButton();
@@ -15043,28 +15044,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const savedTab = getActiveTab();
         showSavedTabPanelsOnly(savedTab);
 
-        if (useTeamSync) {
-            updateTeamSyncStatus('syncing');
-        }
-        try {
-            teamSyncBootAttempted = true;
-            teamSyncBootInProgress = true;
-            await initTeamSync();
-        } catch (err) {
-            console.error('initTeamSync failed:', err);
-            if (useTeamSync) {
-                updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
-            }
-            showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
-        } finally {
-            teamSyncBootInProgress = false;
-        }
-
-        if (!teamSyncEnabled) {
-            renderCalendar();
-            requestAnimationFrame(syncAppChromeStickyTop);
-        }
-
         appShellBootComplete = true;
         try {
             restoreAppSessionState();
@@ -15077,10 +15056,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         scheduleIdleTabPrefetch();
+
+        if (useTeamSync) {
+            void runTeamSyncBoot();
+        }
     } finally {
         if (useTeamSync) {
-            finishTeamSyncBoot();
             teamSyncInitialBootDone = true;
+            if (!teamSyncBootAttempted) {
+                clearTeamSyncBootWatchdog();
+                finishTeamSyncBoot();
+            }
         }
     }
 });
@@ -20645,8 +20631,11 @@ let teamSyncInitialBootDone = false;
 let appShellBootComplete = false;
 let teamLockPreviousCalendarId = null;
 let lastLockNotifySignature = '';
+let teamSyncBootWatchdogTimer = null;
 
 const TEAM_SYNC_TERMINAL_STATUSES = ['saved', 'connected', 'offline', 'error', 'saving', 'conflict'];
+/** Max wait for team sync during page boot before clearing stuck Connecting/Syncing. */
+const TEAM_SYNC_BOOT_WATCHDOG_MS = 55000;
 
 function formatLockParty(party) {
     if (!party) {
@@ -22217,6 +22206,39 @@ function isTeamSyncBootIncomplete(el) {
     return !TEAM_SYNC_TERMINAL_STATUSES.some((status) => el.classList.contains('status-' + status));
 }
 
+function clearTeamSyncBootWatchdog() {
+    if (teamSyncBootWatchdogTimer != null) {
+        clearTimeout(teamSyncBootWatchdogTimer);
+        teamSyncBootWatchdogTimer = null;
+    }
+}
+
+function scheduleTeamSyncBootWatchdog() {
+    if (!hasTeamSyncStatusEl()) {
+        return;
+    }
+    clearTeamSyncBootWatchdog();
+    teamSyncBootWatchdogTimer = setTimeout(() => {
+        teamSyncBootWatchdogTimer = null;
+        const el = document.getElementById('teamSyncStatus');
+        if (!el || !isTeamSyncBootIncomplete(el)) {
+            return;
+        }
+        console.warn('Team sync boot watchdog: clearing stuck status');
+        teamSyncBootInProgress = false;
+        finishTeamSyncBoot();
+        if (isTeamSyncBootIncomplete(el)) {
+            const id =
+                teamSyncEnabled &&
+                typeof CalendarSync !== 'undefined' &&
+                CalendarSync.getActiveCalendarId
+                    ? CalendarSync.getActiveCalendarId()
+                    : null;
+            updateTeamSyncStatus(teamSyncEnabled ? (id ? 'saved' : 'connected') : 'connected');
+        }
+    }, TEAM_SYNC_BOOT_WATCHDOG_MS);
+}
+
 /** Clear boot-time Connecting/Syncing if init exited without reaching a terminal status. */
 function finishTeamSyncBoot() {
     const el = document.getElementById('teamSyncStatus');
@@ -22231,6 +22253,33 @@ function finishTeamSyncBoot() {
         updateTeamSyncStatus(id ? 'saved' : 'connected');
     } else if (teamSyncBootAttempted) {
         updateTeamSyncStatus('offline', t('teamSyncOffline'));
+    } else {
+        updateTeamSyncStatus('connected');
+    }
+}
+
+async function runTeamSyncBoot() {
+    if (teamSyncBootInProgress) {
+        return;
+    }
+    teamSyncBootAttempted = true;
+    teamSyncBootInProgress = true;
+    updateTeamSyncStatus('syncing');
+    scheduleTeamSyncBootWatchdog();
+    try {
+        await initTeamSync();
+        if (!teamSyncEnabled) {
+            renderCalendar();
+            requestAnimationFrame(syncAppChromeStickyTop);
+        }
+    } catch (err) {
+        console.error('initTeamSync failed:', err);
+        updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
+        showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
+    } finally {
+        teamSyncBootInProgress = false;
+        clearTeamSyncBootWatchdog();
+        finishTeamSyncBoot();
     }
 }
 
