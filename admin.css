@@ -495,3 +495,18 @@
 [data-theme="dark"] .admin-tab[aria-selected="true"] {
     background: var(--bg-hover);
 }
+
+html.admin-view-as-readonly #addUserForm,
+html.admin-view-as-readonly #addGroupForm,
+html.admin-view-as-readonly #lockSettingsForm,
+html.admin-view-as-readonly #bootstrapBox {
+    display: none !important;
+}
+
+html.admin-view-as-readonly #calendarAccessForm button[type="submit"] {
+    display: none;
+}
+
+html.admin-view-as-readonly .admin-actions-cell {
+    color: var(--text-muted);
+}

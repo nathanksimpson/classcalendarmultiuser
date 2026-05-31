@@ -1443,9 +1443,8 @@ export default {
 
         let userCtx;
         if (isAdminApi) {
-            const cookieToken = parseCookies(request)[SESSION_COOKIE] || '';
-            userCtx = await getSessionContext(env, cookieToken);
-            if (!userCtx || !userCtx.effective || userCtx.viewAsActive) {
+            userCtx = await resolveRequestContext(env, request);
+            if (!userCtx || !userCtx.effective) {
                 return json({ error: 'Not signed in' }, 401);
             }
         } else {
@@ -2019,6 +2018,10 @@ export default {
 
         const forceLogoutMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/force-logout$/);
         if (forceLogoutMatch && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             if (!Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
                 return json({ error: 'Forbidden' }, 403);
             }
@@ -2040,6 +2043,10 @@ export default {
                 return json(await AppSettings.getAdminSettings(env));
             }
             if (request.method === 'PATCH') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const body = await readJson(request);
                 return json(await AppSettings.patchAdminSettings(env, body));
             }
@@ -2056,6 +2063,10 @@ export default {
         }
 
         if (path === '/api/admin/groups' && request.method === 'POST' && Auth.hasPermission(user, Auth.PERMS.MANAGE_GROUPS)) {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             const body = await readJson(request);
             const name = body.name && String(body.name).trim();
             if (!name) {
@@ -2079,17 +2090,29 @@ export default {
                 return json({ error: 'Group not found' }, 404);
             }
             if (isMembers && request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const body = await readJson(request);
                 const memberIds = await CalAccess.setGroupMembers(env, groupId, body.memberIds || []);
                 return json({ id: groupId, memberIds });
             }
             if (!isMembers && request.method === 'PATCH') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const body = await readJson(request);
                 const updated = await CalAccess.updateGroupName(env, groupId, body.name || existing.name);
                 const memberIds = await CalAccess.getGroupMemberIds(env, groupId);
                 return json(Object.assign({}, updated, { memberIds }));
             }
             if (!isMembers && request.method === 'DELETE') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 await CalAccess.deleteGroup(env, groupId);
                 return json({ ok: true });
             }
@@ -2121,6 +2144,10 @@ export default {
                 return json(await CalAccess.getCalendarAccess(env, calId));
             }
             if (request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const body = await readJson(request);
                 const result = await CalAccess.setCalendarAccess(env, calId, body, null, user.id);
                 const metaRow = await dbOne(env, 'SELECT name FROM calendars WHERE id = ?', calId);
@@ -2167,6 +2194,10 @@ export default {
         }
 
         if (path === '/api/admin/users' && request.method === 'POST' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             try {
                 const body = await readJson(request);
                 const em = normalizeEmail(body.email);
@@ -2209,6 +2240,10 @@ export default {
         if (adminUserMatch && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
             const targetId = adminUserMatch[1];
             if (request.method === 'DELETE') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
                 const result = await permanentlyDeleteUser(env, targetId, user.id);
                 if (result.error) {
                     return json({ error: result.error }, result.status || 403);
@@ -2217,6 +2252,10 @@ export default {
             }
         }
         if (adminUserMatch && request.method === 'PATCH' && Auth.hasPermission(user, Auth.PERMS.MANAGE_USERS)) {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
             try {
             const patchBody = await readJson(request);
             const targetId = adminUserMatch[1];

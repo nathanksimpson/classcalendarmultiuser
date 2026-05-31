@@ -71,10 +71,15 @@ async function api(path, options) {
     if (controller) {
         timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     }
-    const res = await fetch(
-        '/api' + path,
-        Object.assign({ credentials: 'same-origin' }, options || {}, controller ? { signal: controller.signal } : {})
-    ).finally(() => {
+    const baseOpts = Object.assign(
+        { credentials: 'same-origin' },
+        opts,
+        controller ? { signal: controller.signal } : {}
+    );
+    if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.authFetchHeaders) {
+        baseOpts.headers = ViewAsBanner.authFetchHeaders(baseOpts.headers || {});
+    }
+    const res = await fetch('/api' + path, baseOpts).finally(() => {
         if (timeoutId) {
             clearTimeout(timeoutId);
         }
@@ -827,6 +832,67 @@ let editUserPermissionsTouched = false;
 let editUserPermissionsInitializing = false;
 let addUserPermissionsTouched = false;
 
+function isAdminViewAsMode() {
+    return (
+        typeof TeamAuth !== 'undefined' &&
+        TeamAuth.isViewAsMode &&
+        TeamAuth.isViewAsMode()
+    );
+}
+
+const ADMIN_PAGE_ACCESS_PERMS = [
+    'access_admin_page',
+    'manage_users',
+    'manage_groups',
+    'manage_calendar_access',
+    'manage_settings',
+    'view_presence',
+    'view_audit'
+];
+
+function targetCanAccessAdmin(u) {
+    if (!u || !u.active) {
+        return false;
+    }
+    const perms = Array.isArray(u.permissions) ? u.permissions : [];
+    return ADMIN_PAGE_ACCESS_PERMS.some((p) => perms.includes(p));
+}
+
+function applyAdminViewAsReadOnly() {
+    if (!isAdminViewAsMode()) {
+        document.documentElement.classList.remove('admin-view-as-readonly');
+        return;
+    }
+    document.documentElement.classList.add('admin-view-as-readonly');
+    const hideIds = ['addUserForm', 'addGroupForm', 'lockSettingsForm', 'bootstrapBox'];
+    hideIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.hidden = true;
+            el.setAttribute('aria-hidden', 'true');
+        }
+    });
+    const calSaveBtn = document.querySelector('#calendarAccessForm button[type="submit"]');
+    if (calSaveBtn) {
+        calSaveBtn.hidden = true;
+        calSaveBtn.disabled = true;
+    }
+    showAdminSaveNotice(t('viewAsReadOnlyNotice'), false);
+}
+
+async function openViewAsExchangeTab(exchangeToken, page) {
+    const url = page + '?viewAsExchange=' + encodeURIComponent(exchangeToken);
+    window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+async function startViewAsExchange(userId) {
+    return api('/admin/view-as', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+    });
+}
+
 function isCurrentUserSuperAdmin() {
     const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
     if (!me) {
@@ -1428,23 +1494,29 @@ function setupResetPasswordModal() {
 
 async function openViewAsUser(u) {
     const name = u.displayName || u.email || u.id;
-    if (!confirm(t('confirmViewAs', { name }))) {
-        return;
-    }
     try {
-        const result = await api('/admin/view-as', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: u.id })
-        });
-        const url = '/index.html?viewAsExchange=' + encodeURIComponent(result.exchangeToken);
-        window.open(url, '_blank', 'noopener,noreferrer');
+        const result = await startViewAsExchange(u.id);
+        const exchangeToken = result.exchangeToken;
+        if (!targetCanAccessAdmin(u)) {
+            if (!confirm(t('viewAsNoAdminAccess', { name }))) {
+                return;
+            }
+            await openViewAsExchangeTab(exchangeToken, '/index.html');
+            return;
+        }
+        if (!confirm(t('confirmViewAs', { name }))) {
+            return;
+        }
+        await openViewAsExchangeTab(exchangeToken, '/admin.html');
     } catch (ex) {
         showAdminSaveNotice(ex.message, true);
     }
 }
 
 function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
+    if (isAdminViewAsMode()) {
+        return [];
+    }
     const items = [
         {
             label: t('editUser'),
@@ -1471,7 +1543,7 @@ function buildUserActionItems(u, activeSuperAdminCount, isSelf) {
             if (!isSuperTarget) {
                 items.push({
                     label: t('viewAs'),
-                    title: t('viewAsTitle'),
+                    title: t('viewAsAdminTitle'),
                     onClick: () => openViewAsUser(u)
                 });
             }
@@ -1617,7 +1689,8 @@ async function loadGroups() {
             escapeHtml(memberNames || '—') +
             '</td><td class="admin-actions-cell"></td>';
         const cell = tr.querySelector('.admin-actions-cell');
-        const menuItems = [
+        if (!isAdminViewAsMode()) {
+            const menuItems = [
             {
                 label: t('editMembers'),
                 onClick: () => openEditGroupMembers(g, activeTeachers)
@@ -1641,7 +1714,10 @@ async function loadGroups() {
                 }
             }
         ];
-        cell.appendChild(createActionsMenu(menuItems));
+            cell.appendChild(createActionsMenu(menuItems));
+        } else {
+            cell.textContent = '—';
+        }
         body.appendChild(tr);
     });
     renderCheckboxGrid(document.getElementById('newGroupMembers'), activeTeachers, 'newGroupMember', [], 'displayName');
@@ -1655,6 +1731,9 @@ function closeGroupEditPanel() {
 }
 
 function openEditGroupMembers(group, activeTeachers) {
+    if (isAdminViewAsMode()) {
+        return;
+    }
     closeGroupEditPanel();
     const panel = document.getElementById('groupEditPanel');
     if (!panel) {
@@ -2156,12 +2235,20 @@ async function init() {
             applySuperAdminRoleOptionVisibility(document.getElementById('editUserRole'));
         }
         startAdminAccessPoll();
-        setSessionStatus(t('signedInAs', { name: currentAdminDisplayName }));
+        if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
+            ViewAsBanner.renderViewAsBanner(me);
+        }
+        applyAdminViewAsReadOnly();
+        setSessionStatus(
+            isAdminViewAsMode() && me.viewAs && me.viewAs.targetDisplayName
+                ? t('viewAsReadOnlyNotice') + ' ' + me.viewAs.targetDisplayName
+                : t('signedInAs', { name: currentAdminDisplayName })
+        );
         document.getElementById('bootstrapBox').style.display = 'none';
         if (typeof AdminI18n !== 'undefined' && AdminI18n.applyAdminLanguage) {
             AdminI18n.applyAdminLanguage();
         }
-        if (typeof TeamAuth !== 'undefined' && TeamAuth.startIdleWatch) {
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.startIdleWatch && !isAdminViewAsMode()) {
             TeamAuth.startIdleWatch();
         }
         await refreshAll();

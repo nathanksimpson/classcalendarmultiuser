@@ -3,6 +3,11 @@ main = "worker/src/index.js"
 compatibility_date = "2024-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Run before deploy (local `npm run deploy` and Cloudflare Workers Builds on git push).
+# dist/ is gitignored; without this, CI fails: assets.directory "dist" does not exist.
+[build]
+command = "npm run build"
+
 # Serves index.html, app.js, etc. API routes are handled in worker/src/index.js.
 [assets]
 directory = "dist"

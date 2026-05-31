@@ -1,4 +1,29 @@
-# Cloudflare deploy fix (error 10021)
+# Cloudflare deploy (Workers Builds + local)
+
+## GitHub red X — `dist` does not exist
+
+If **Workers Builds** or GitHub shows:
+
+```text
+The directory specified by the "assets.directory" field ... does not exist: .../dist
+```
+
+**Cause:** Production static files live in `dist/`, created by `npm run build`. That folder is in `.gitignore`, so a push alone does not include it. Cloudflare was running only `npx wrangler deploy` without building first.
+
+**Fix:** `wrangler.toml` includes:
+
+```toml
+[build]
+command = "npm run build"
+```
+
+Wrangler runs that before deploy (local and CI). Commit and push `wrangler.toml`, then retry the build in the Cloudflare dashboard or push again.
+
+Local deploy still uses `npm run deploy` (`npm run build && wrangler deploy`) — same result.
+
+---
+
+## D1 error 10021 (placeholder database id)
 
 Your build runs `npx wrangler deploy`. It failed because `wrangler.toml` still had a placeholder D1 id:
 

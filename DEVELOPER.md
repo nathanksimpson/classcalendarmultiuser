@@ -109,7 +109,7 @@ UI-only changes still need **`npx wrangler deploy`** for production (see deploy 
 
 Production: https://classcalendarmultiuser.nathanksimpson.workers.dev (see `PUBLIC_URL` in `wrangler.toml`).
 
-**Important:** `git push origin main` alone does **not** update the live site. Run **`npm run deploy`** (runs `npm run build` then `wrangler deploy`) after pushing. Local dev still uses source files from the repo root (`npm start`); production static assets are minified into `dist/`.
+**Important:** `git push origin main` alone does **not** update the live site unless **Cloudflare Workers Builds** is connected (it runs `wrangler deploy` on push; `wrangler.toml` `[build]` runs `npm run build` first). For manual deploy, run **`npm run deploy`** (`npm run build` then `wrangler deploy`). Local dev still uses source files from the repo root (`npm start`); production static assets are minified into `dist/` (gitignored).
 
 - [ ] **Local smoke test** — `npm start`; confirm the feature works with `ALLOW_OPEN_ACCESS=1`.
 - [ ] **Tests** (if syllabus/homework touched) — `node tests/<name>.test.mjs`
