@@ -15890,7 +15890,11 @@ function showClassNameSuggestions() {
     
     uniqueClasses.forEach((classData, index) => {
         const displayName = highlightMatch(classData.name, inputValue);
-        const details = `${getClassLevelDisplay(classData) || '-'} | ${classData.grade || '-'} | ${classData.book || '-'}`;
+        const details = [
+            escapeHtml(getClassLevelDisplay(classData) || '-'),
+            escapeHtml(classData.grade || '-'),
+            escapeHtml(classData.book || '-')
+        ].join(' | ');
         html += `
             <div class="autocomplete-item" data-index="${index}" data-class-id="${classData.id}">
                 <div class="item-name">${displayName}</div>
@@ -16001,9 +16005,13 @@ function autoFillLevelsFromExactClassNameMatch() {
 }
 
 function highlightMatch(text, query) {
-    if (!query) return text;
-    const regex = new RegExp(`(${query})`, 'gi');
-    return text.replace(regex, '<span class="item-match">$1</span>');
+    const safeText = escapeHtml(String(text || ''));
+    if (!query) {
+        return safeText;
+    }
+    const escapedQuery = String(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    return safeText.replace(regex, '<span class="item-match">$1</span>');
 }
 
 function selectClassSuggestion(classId) {

@@ -111,9 +111,20 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     const lockState = users.lockStatusForClient(id, user.id, user);
     const forceAllowed =
         Boolean(force) &&
-        (Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) || lockState.holdsLock);
+        (Auth.canForceUnlock(user) ||
+            Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
+            lockState.holdsLock);
     if (lockState.readOnly && !forceAllowed) {
         return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
+    }
+    const lockRow = users.getLock(id);
+    if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
+        return {
+            ok: false,
+            status: 423,
+            error: 'Calendar is locked by another user',
+            lock: lockState.lock
+        };
     }
 
     if (!forceAllowed && revision != null && Number(revision) !== Number(existing.revision)) {

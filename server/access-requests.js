@@ -30,6 +30,39 @@ function hasRecentNeedsAccessLog(userId, withinHours) {
     return Boolean(row);
 }
 
+function hasNeedsAccessLog(userId) {
+    const db = getDb();
+    const row = db
+        .prepare(
+            `SELECT 1 FROM activity_log
+             WHERE action = 'user_needs_access' AND detail_json LIKE ?
+             LIMIT 1`
+        )
+        .get('%"userId":"' + String(userId) + '"%');
+    return Boolean(row);
+}
+
+function getAccessRequestStatus(user) {
+    if (userHasCalendarAccess(user)) {
+        return { status: 'granted', adminNotified: false };
+    }
+    return {
+        status: 'pending',
+        adminNotified: hasNeedsAccessLog(user.id)
+    };
+}
+
+function registerAccessRequest(user) {
+    if (userHasCalendarAccess(user)) {
+        return { status: 'granted', adminNotified: false };
+    }
+    const notified = notifyUserNeedsAccess(user, { source: 'pending_page' });
+    return {
+        status: 'pending',
+        adminNotified: Boolean(notified || hasNeedsAccessLog(user.id))
+    };
+}
+
 function notifyUserNeedsAccess(user, options) {
     const opts = options || {};
     if (!user || !user.id || !user.active) {
@@ -100,6 +133,8 @@ function listAccessRequests() {
 
 module.exports = {
     userHasCalendarAccess,
+    getAccessRequestStatus,
+    registerAccessRequest,
     notifyUserNeedsAccess,
     listAccessRequests
 };

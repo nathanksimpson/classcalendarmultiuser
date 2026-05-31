@@ -115,7 +115,7 @@
             roleSuperAdmin: 'Super admin',
             customPermissionsHeading: 'Custom permissions',
             customPermissionsHint:
-                'Adjust checkboxes for this user. Changing role refills the preset unless you edit permissions first. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.',
+                'Changing role resets permissions to that role’s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.',
             customPermissionsBadge: 'Custom',
             elevationWarning:
                 'This grants full super-admin-level access. Enter your own password to confirm.',
@@ -351,7 +351,7 @@
             roleSuperAdmin: '최고 관리자',
             customPermissionsHeading: '맞춤 권한',
             customPermissionsHint:
-                '이 사용자의 권한을 조정합니다. 권한을 직접 바꾸기 전에는 역할 변경 시 기본 프리셋으로 채워집니다. 강제 잠금 해제는 체크박스가 아니라 역할(최고 관리자 / 담당 선생님)을 따릅니다.',
+                '역할을 바꾸면 해당 역할의 기본 프리셋으로 권한이 초기화됩니다. 이후 체크박스로 맞춤 권한을 줄 수 있습니다. 강제 잠금 해제는 체크박스가 아니라 역할(최고 관리자 / 담당 선생님)을 따릅니다.',
             customPermissionsBadge: '맞춤',
             elevationWarning:
                 '최고 관리자와 동일한 수준의 권한을 부여합니다. 확인하려면 본인 비밀번호를 입력하세요.',

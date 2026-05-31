@@ -79,6 +79,20 @@ function migrate(db) {
     migrateActivityLog(db);
     migrateCalendarsCreatedBy(db);
     migrateSessionViewAs(db);
+    migrateHeadTeacherPresetRefresh(db);
+}
+
+function migrateHeadTeacherPresetRefresh(db) {
+    const done = db
+        .prepare("SELECT 1 FROM app_settings WHERE key = 'head_teacher_preset_refresh_v1'")
+        .get();
+    if (done) {
+        return;
+    }
+    db.exec(`UPDATE users SET permissions = NULL WHERE role = 'head_teacher'`);
+    db.prepare(
+        "INSERT INTO app_settings (key, value) VALUES ('head_teacher_preset_refresh_v1', '1')"
+    ).run();
 }
 
 function migrateCalendarsCreatedBy(db) {

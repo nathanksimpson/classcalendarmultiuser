@@ -48,6 +48,17 @@ export function assertRoleAssignmentAllowed(actor, nextRole) {
     return role;
 }
 
+export function assertCanManageTargetUser(actor, targetRow) {
+    if (!targetRow) {
+        return;
+    }
+    if (Auth.isSuperAdminRole(targetRow) && !Auth.isSuperAdminRole(actor)) {
+        const err = new Error('Only a super admin can manage another super admin account');
+        err.status = 403;
+        throw err;
+    }
+}
+
 export async function permissionsFieldForUpdate(actor, targetRow, body, nextRole, deps) {
     if (!Auth.isSuperAdminRole(actor)) {
         if (body.permissions !== undefined) {

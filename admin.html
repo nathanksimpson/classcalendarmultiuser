@@ -110,7 +110,7 @@
                 </label>
                 <div id="addUserPermissionsSection" class="admin-permissions-section" hidden>
                     <h3 class="admin-permissions-heading" data-i18n="customPermissionsHeading">Custom permissions</h3>
-                    <p class="section-hint" data-i18n="customPermissionsHint">Adjust checkboxes for this user. Changing role refills the preset unless you edit permissions first. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
+                    <p class="section-hint" data-i18n="customPermissionsHint">Changing role resets permissions to that role’s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
                     <div id="addUserPermissionsList" class="admin-permissions-list" role="group"></div>
                 </div>
                 <div id="addUserElevationBox" class="admin-elevation-box" hidden>
@@ -252,7 +252,7 @@
                     </div>
                     <div id="editUserPermissionsSection" class="admin-permissions-section" hidden>
                         <h3 class="admin-permissions-heading" data-i18n="customPermissionsHeading">Custom permissions</h3>
-                        <p class="section-hint" data-i18n="customPermissionsHint">Adjust checkboxes for this user. Changing role refills the preset unless you edit permissions first. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
+                        <p class="section-hint" data-i18n="customPermissionsHint">Changing role resets permissions to that role’s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
                         <div id="editUserPermissionsList" class="admin-permissions-list" role="group" aria-labelledby="editUserPermissionsHeading"></div>
                     </div>
                     <div id="editUserElevationBox" class="admin-elevation-box" hidden>
@@ -316,6 +316,6 @@
     <script charset="utf-8" src="js/session-restore.js?v=20260605-boot-nav"></script>
     <script charset="utf-8" src="js/view-as-banner.js?v=20260605-viewas-admin"></script>
     <script charset="utf-8" src="js/team-auth.js?v=20260601-role-palette"></script>
-    <script charset="utf-8" src="js/admin.js?v=20260605-viewas-admin"></script>
+    <script charset="utf-8" src="js/admin.js?v=20260531-head-teacher-perms"></script>
 </body>
 </html>

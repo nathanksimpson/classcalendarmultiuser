@@ -99,6 +99,23 @@
             margin-top: 0.35rem;
             display: none;
         }
+        .pending-status-banner {
+            background: color-mix(in srgb, var(--primary) 12%, var(--bg-main));
+            border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border-color));
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: var(--text-primary);
+            display: none;
+        }
+        .pending-welcome {
+            font-size: 0.9rem;
+            color: var(--status-success-color, #15803d);
+            margin: 0 0 0.75rem;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -113,9 +130,11 @@
     </div>
     <div class="pending-page">
         <div class="pending-card">
+            <div id="pendingStatusBanner" class="pending-status-banner" role="status" aria-live="polite"></div>
+            <p id="pendingWelcome" class="pending-welcome"></p>
             <h1 id="pendingTitle">Waiting for calendar access</h1>
-            <p id="pendingLead">You are signed in. Your lead teacher must grant you access to a team calendar before you can use the planner.</p>
-            <p id="pendingHint">Ask them to add you to a <strong>group</strong> or assign you on a calendar in Admin. Then click <strong>Check again</strong>.</p>
+            <p id="pendingLead">You are signed in. A lead teacher or admin must assign you to a group or calendar before you can open the planner.</p>
+            <p id="pendingHint">This usually takes a short time. You can leave this page and come back later, or click <strong>Check again</strong>.</p>
             <div class="pending-user" id="pendingUserBox" hidden>
                 <span id="pendingSignedInLabel">Signed in as</span>:
                 <strong id="pendingUserName">—</strong>
@@ -153,8 +172,13 @@
             var copy = {
                 en: {
                     title: 'Waiting for calendar access',
-                    lead: 'You are signed in. Your lead teacher must grant you access to a team calendar before you can use the planner.',
-                    hint: 'Ask them to add you to a group or assign you on a calendar in Admin. Then click Check again.',
+                    statusBanner:
+                        'Pending admin approval — your account is waiting for calendar access.',
+                    statusBannerNotified:
+                        'Pending admin approval — your account is waiting for calendar access. Team admins have been notified.',
+                    welcome: 'Account created successfully.',
+                    lead: 'You are signed in. A lead teacher or admin must assign you to a group or calendar before you can open the planner.',
+                    hint: 'This usually takes a short time. You can leave this page and come back later, or click <strong>Check again</strong>.',
                     signedIn: 'Signed in as',
                     displayNameLabel: 'Your display name',
                     saveName: 'Save name',
@@ -164,13 +188,19 @@
                     check: 'Check again',
                     signOut: 'Sign out',
                     notSignedIn: 'You are not signed in.',
-                    stillWaiting: 'No calendars yet. Please wait for your admin to grant access.',
-                    checkFailed: 'Could not check access. Try again.'
+                    stillWaiting: 'Still waiting — no calendars assigned yet.',
+                    checkFailed: 'Could not check access. Try again.',
+                    registerFailed: 'Could not register your access request. Try again.'
                 },
                 ko: {
                     title: '캘린더 접근 대기 중',
-                    lead: '로그인되었습니다. 플래너를 사용하려면 담당 선생님이 팀 캘린더 접근 권한을 부여해야 합니다.',
-                    hint: '관리자 페이지에서 그룹에 추가하거나 캘린더 접근 권한을 부여해 달라고 요청한 뒤, 다시 확인을 누르세요.',
+                    statusBanner:
+                        '관리자 승인 대기 중 — 계정이 캘린더 접근 권한을 기다리고 있습니다.',
+                    statusBannerNotified:
+                        '관리자 승인 대기 중 — 계정이 캘린더 접근 권한을 기다리고 있습니다. 팀 관리자에게 알림이 전달되었습니다.',
+                    welcome: '계정이 성공적으로 만들어졌습니다.',
+                    lead: '로그인되었습니다. 플래너를 사용하려면 담당 선생님이나 관리자가 그룹 또는 캘린더에 배정해야 합니다.',
+                    hint: '보통 시간이 조금 걸립니다. 이 페이지를 닫았다가 나중에 다시 오거나 <strong>다시 확인</strong>을 누르세요.',
                     signedIn: '로그인',
                     displayNameLabel: '표시 이름',
                     saveName: '이름 저장',
@@ -180,8 +210,9 @@
                     check: '다시 확인',
                     signOut: '로그아웃',
                     notSignedIn: '로그인되어 있지 않습니다.',
-                    stillWaiting: '아직 캘린더가 없습니다. 관리자가 접근 권한을 부여할 때까지 기다려 주세요.',
-                    checkFailed: '접근 확인에 실패했습니다. 다시 시도해 주세요.'
+                    stillWaiting: '아직 대기 중입니다 — 배정된 캘린더가 없습니다.',
+                    checkFailed: '접근 확인에 실패했습니다. 다시 시도해 주세요.',
+                    registerFailed: '접근 요청을 등록할 수 없습니다. 다시 시도해 주세요.'
                 }
             };
 
@@ -226,6 +257,28 @@
                 document.getElementById('pendingCheckBtn').textContent = t('check');
                 document.getElementById('pendingSignOutBtn').textContent = t('signOut');
                 document.documentElement.lang = lang() === 'ko' ? 'ko' : 'en';
+                if (lastStatusAdminNotified != null) {
+                    showStatusBanner(lastStatusAdminNotified);
+                }
+            }
+
+            var lastStatusAdminNotified = null;
+
+            function showStatusBanner(adminNotified) {
+                lastStatusAdminNotified = Boolean(adminNotified);
+                var el = document.getElementById('pendingStatusBanner');
+                el.textContent = adminNotified ? t('statusBannerNotified') : t('statusBanner');
+                el.style.display = 'block';
+            }
+
+            function showWelcomeIfNeeded() {
+                var params = new URLSearchParams(location.search);
+                if (params.get('welcome') !== '1') {
+                    return;
+                }
+                var el = document.getElementById('pendingWelcome');
+                el.textContent = t('welcome');
+                el.style.display = 'block';
             }
 
             function showError(msg) {
@@ -238,6 +291,27 @@
                 var el = document.getElementById('pendingError');
                 el.style.display = 'none';
                 el.textContent = '';
+            }
+
+            async function registerAccessRequest() {
+                var res = await fetch('/api/access-request', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders({ 'Content-Type': 'application/json' }),
+                    body: '{}'
+                });
+                var json = await res.json().catch(function () {
+                    return {};
+                });
+                if (!res.ok) {
+                    throw new Error(json.error || 'register');
+                }
+                if (json.status === 'granted') {
+                    location.replace('/');
+                    return null;
+                }
+                showStatusBanner(json.adminNotified);
+                return json;
             }
 
             async function fetchMe() {
@@ -277,7 +351,10 @@
                     location.replace('/');
                     return;
                 }
-                showError(t('stillWaiting'));
+                clearError();
+                var banner = document.getElementById('pendingStatusBanner');
+                banner.textContent = t('stillWaiting');
+                banner.style.display = 'block';
             }
 
             function showNameSaved(msg) {
@@ -371,6 +448,12 @@
                         me.displayName || me.email || '';
                     if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
                         ViewAsBanner.renderViewAsBanner(me);
+                    }
+                    showWelcomeIfNeeded();
+                    try {
+                        await registerAccessRequest();
+                    } catch (_) {
+                        showError(t('registerFailed'));
                     }
                 } catch (_) {
                     showError(t('checkFailed'));

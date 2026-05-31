@@ -824,7 +824,7 @@ async function resolveKakaoLoginUser(env, profile) {
         return { error: 'kakao_not_linked' };
     }
     if (match) {
-        return { user: match };
+        return { user: match, created: false };
     }
     if (await findInactiveUserForKakao(env, profile.kakaoUserId, profile.email)) {
         return { disabled: true };
@@ -833,7 +833,7 @@ async function resolveKakaoLoginUser(env, profile) {
     if (!created || created.mismatch || created.needsKakaoLink) {
         return { error: 'missing_kakao_id' };
     }
-    return { user: created };
+    return { user: created, created: true };
 }
 
 function kakaoLoginErrorRedirect(code) {
@@ -1071,6 +1071,14 @@ function passwordLoginSuccessHtml(returnTo) {
 </html>`;
 }
 
+async function loginRedirectAfterAuth(env, user, returnTo, options) {
+    const opts = options || {};
+    if (!(await AccessRequests.userHasCalendarAccessAsync(env, user))) {
+        return opts.welcome ? '/pending-access.html?welcome=1' : '/pending-access.html';
+    }
+    return sanitizeReturnTo(returnTo || '/');
+}
+
 function passwordLoginSuccessResponse(returnTo, cookie) {
     const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' });
     if (cookie) {
@@ -1119,11 +1127,12 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
         }
         const session = await createLoginSession(env, matched.id, loginBody.device);
         const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
+        const dest = await loginRedirectAfterAuth(env, matched, loginBody.returnTo);
         if (htmlSuccess) {
-            return passwordLoginSuccessResponse(loginBody.returnTo, cookie);
+            return passwordLoginSuccessResponse(dest, cookie);
         }
         if (loginBody.wantsRedirect) {
-            return redirectWithCookie(loginBody.returnTo, cookie);
+            return redirectWithCookie(dest, cookie);
         }
         return json(
             {
@@ -1165,6 +1174,12 @@ export default {
             // Support friendly admin URL and avoid broken relative asset paths.
             if (path === '/admin' || path === '/admin/') {
                 return redirectTo('/admin.html');
+            }
+            if (path === '/admin.html' && env.ASSETS) {
+                const adminUser = await requireCookieUser(request, env);
+                if (!adminUser || !Auth.canAccessAdminPage(adminUser)) {
+                    return redirectTo(`/login.html?return=${encodeURIComponent('/admin.html')}`);
+                }
             }
             if (env.ASSETS) {
                 return env.ASSETS.fetch(request);
@@ -1318,7 +1333,9 @@ export default {
                 }
                 const session = await createLoginSession(env, resolved.user.id, verified.loginContext);
                 const headers = new Headers({
-                    Location: returnTo,
+                    Location: await loginRedirectAfterAuth(env, resolved.user, returnTo, {
+                        welcome: Boolean(resolved.created)
+                    }),
                     'Set-Cookie': sessionCookie(session.token, secure, session.maxAgeSec)
                 });
                 headers.append('Set-Cookie', clearKakaoOAuthStateCookie(secure));
@@ -1443,9 +1460,12 @@ export default {
 
         let userCtx;
         if (isAdminApi) {
-            userCtx = await resolveRequestContext(env, request);
-            if (!userCtx || !userCtx.effective) {
+            userCtx = await getSessionContext(env, parseCookies(request)[SESSION_COOKIE] || '');
+            if (!userCtx || !userCtx.effective || userCtx.viewAsActive) {
                 return json({ error: 'Not signed in' }, 401);
+            }
+            if (!Auth.canAccessAdminPage(userCtx.effective)) {
+                return json({ error: 'Admin access required' }, 403);
             }
         } else {
             userCtx = await resolveRequestContext(env, request);
@@ -1531,6 +1551,18 @@ export default {
             });
         }
 
+        if (path === '/api/access-request/me' && request.method === 'GET') {
+            return json(await AccessRequests.getAccessRequestStatus(env, user));
+        }
+
+        if (path === '/api/access-request' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            return json(await AccessRequests.registerAccessRequest(env, user));
+        }
+
         if (path === '/api/calendars' && request.method === 'GET') {
             const rows = await CalAccess.listCalendarsForUser(env, user);
             return json(rows);
@@ -1547,6 +1579,12 @@ export default {
         }
 
         if (path === '/api/groups' && request.method === 'GET') {
+            const calendars = await CalAccess.listCalendarsForUser(env, user);
+            const hasCalendarAccess =
+                CalAccess.canViewAllCalendars(user) || calendars.length > 0;
+            if (!hasCalendarAccess) {
+                return json({ error: 'No calendar access' }, 403);
+            }
             const groups = await CalAccess.listGroups(env);
             return json(groups);
         }
@@ -2029,6 +2067,11 @@ export default {
             if (!target) {
                 return json({ error: 'User not found' }, 404);
             }
+            try {
+                AdminUserPolicy.assertCanManageTargetUser(user, target);
+            } catch (err) {
+                return json({ error: err.message || 'Forbidden' }, err.status || 403);
+            }
             await deleteAllSessionsForUser(env, forceLogoutMatch[1]);
             await ActivityLog.recordActivityForUser(env, user, {
                 action: 'force_logout',
@@ -2244,6 +2287,15 @@ export default {
                 if (blocked) {
                     return blocked;
                 }
+                const targetRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
+                if (!targetRow) {
+                    return json({ error: 'User not found' }, 404);
+                }
+                try {
+                    AdminUserPolicy.assertCanManageTargetUser(user, targetRow);
+                } catch (err) {
+                    return json({ error: err.message || 'Forbidden' }, err.status || 403);
+                }
                 const result = await permanentlyDeleteUser(env, targetId, user.id);
                 if (result.error) {
                     return json({ error: result.error }, result.status || 403);
@@ -2262,6 +2314,11 @@ export default {
             const targetRow = await dbOne(env, 'SELECT * FROM users WHERE id = ?', targetId);
             if (!targetRow) {
                 return json({ error: 'User not found' }, 404);
+            }
+            try {
+                AdminUserPolicy.assertCanManageTargetUser(user, targetRow);
+            } catch (err) {
+                return json({ error: err.message || 'Forbidden' }, err.status || 403);
             }
             const nextRole =
                 patchBody.role !== undefined

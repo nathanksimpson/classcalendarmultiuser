@@ -38,6 +38,38 @@ async function hasRecentNeedsAccessLog(env, userId, withinHours = 24) {
     return Boolean(row);
 }
 
+async function hasNeedsAccessLog(env, userId) {
+    const row = await env.DB.prepare(
+        `SELECT 1 FROM activity_log
+         WHERE action = 'user_needs_access' AND detail_json LIKE ?
+         LIMIT 1`
+    )
+        .bind('%"userId":"' + String(userId) + '"%')
+        .first();
+    return Boolean(row);
+}
+
+export async function getAccessRequestStatus(env, user) {
+    if (await userHasCalendarAccessAsync(env, user)) {
+        return { status: 'granted', adminNotified: false };
+    }
+    return {
+        status: 'pending',
+        adminNotified: await hasNeedsAccessLog(env, user.id)
+    };
+}
+
+export async function registerAccessRequest(env, user) {
+    if (await userHasCalendarAccessAsync(env, user)) {
+        return { status: 'granted', adminNotified: false };
+    }
+    const notified = await notifyUserNeedsAccess(env, user, { source: 'pending_page' });
+    return {
+        status: 'pending',
+        adminNotified: Boolean(notified || (await hasNeedsAccessLog(env, user.id)))
+    };
+}
+
 export async function notifyUserNeedsAccess(env, user, options = {}) {
     if (!user || !user.id || !user.active) {
         return false;

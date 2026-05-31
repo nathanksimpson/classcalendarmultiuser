@@ -197,20 +197,13 @@ function requireCookieUser(req, res, next) {
 }
 
 function requireAdminUser(req, res, next) {
-    if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && !getViewAsSessionHeader(req)) {
-        req.user = DEV_USER;
-        req.actorUser = DEV_USER;
-        req.viewAsSession = false;
+    requireCookieUser(req, res, () => {
+        if (!req.user || !Auth.canAccessAdminPage(req.user)) {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
         next();
-        return;
-    }
-    const ctx = resolveUserContext(req);
-    if (!ctx || !ctx.effective) {
-        res.status(401).json({ error: 'Not signed in' });
-        return;
-    }
-    applyUserContext(req, ctx);
-    next();
+    });
 }
 
 function rejectViewAsWrites(req, res, next) {
@@ -241,6 +234,7 @@ function requireAnyPermission(perms) {
     };
 }
 
+/** @deprecated use requireAdminUser (includes canAccessAdminPage) */
 function requireAdminPage(req, res, next) {
     if (!req.user || !Auth.canAccessAdminPage(req.user)) {
         res.status(403).json({ error: 'Admin access required' });
@@ -358,6 +352,14 @@ function passwordLoginSuccessHtml(returnTo) {
 </html>`;
 }
 
+function loginRedirectAfterAuth(user, returnTo, options) {
+    const opts = options || {};
+    if (!AccessRequests.userHasCalendarAccess(user)) {
+        return opts.welcome ? '/pending-access.html?welcome=1' : '/pending-access.html';
+    }
+    return oauthState.sanitizeReturnTo(returnTo || '/');
+}
+
 function handlePasswordLogin(req, res, options) {
     const htmlSuccess = Boolean(options && options.htmlSuccess);
     const redirect = htmlSuccess || wantsPasswordFormRedirect(req);
@@ -387,12 +389,13 @@ function handlePasswordLogin(req, res, options) {
     }
     const session = users.createLoginSession(user.id, device);
     setSessionCookie(res, session.token, session.maxAgeSec);
+    const dest = loginRedirectAfterAuth(user, returnTo);
     if (htmlSuccess) {
-        res.status(200).type('html').send(passwordLoginSuccessHtml(returnTo));
+        res.status(200).type('html').send(passwordLoginSuccessHtml(dest));
         return;
     }
     if (redirect) {
-        res.redirect(302, returnTo);
+        res.redirect(302, dest);
         return;
     }
     res.json({
@@ -452,6 +455,14 @@ app.patch('/api/auth/profile', requireUser, rejectViewAsWrites, (req, res) => {
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Profile update failed' });
     }
+});
+
+app.get('/api/access-request/me', requireUser, (req, res) => {
+    res.json(AccessRequests.getAccessRequestStatus(req.user));
+});
+
+app.post('/api/access-request', requireUser, rejectViewAsWrites, (req, res) => {
+    res.json(AccessRequests.registerAccessRequest(req.user));
 });
 
 app.get(
@@ -533,7 +544,10 @@ app.get(
             const session = users.createLoginSession(resolved.user.id, verified.loginContext);
             res.append('Set-Cookie', oauthState.clearKakaoOAuthStateCookie(COOKIE_SECURE));
             setSessionCookie(res, session.token, session.maxAgeSec);
-            res.redirect(returnTo);
+            const dest = loginRedirectAfterAuth(resolved.user, returnTo, {
+                welcome: Boolean(resolved.created)
+            });
+            res.redirect(dest);
         } catch (err) {
             console.error('Kakao callback error:', kakao.kakaoErrorDetail(err));
             res.redirect(kakao.loginRedirectForKakaoError(err));
@@ -725,11 +739,13 @@ app.post(
     rejectViewAsWrites,
     requirePermission(Auth.PERMS.MANAGE_USERS),
     (req, res) => {
+        try {
         const target = users.getUserById(req.params.id);
         if (!target) {
             res.status(404).json({ error: 'User not found' });
             return;
         }
+        AdminUserPolicy.assertCanManageTargetUser(req.user, target);
         users.forceLogoutUser(req.params.id);
         ActivityLog.recordActivityForUser(req.user, {
             action: 'force_logout',
@@ -737,11 +753,20 @@ app.post(
             detail: { targetUserId: target.id }
         });
         res.json({ ok: true });
+        } catch (err) {
+            res.status(err.status || 500).json({ error: err.message || 'Force logout failed' });
+        }
     }
 );
 
 app.delete('/api/admin/users/:id', requireAdminUser, rejectViewAsWrites, requirePermission(Auth.PERMS.MANAGE_USERS), (req, res) => {
     try {
+        const targetRow = getDb().prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+        if (!targetRow) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        AdminUserPolicy.assertCanManageTargetUser(req.user, targetRow);
         const ok = users.permanentlyDeleteUser(req.params.id, req.user.id);
         if (!ok) {
             res.status(404).json({ error: 'User not found' });
@@ -761,6 +786,7 @@ app.patch('/api/admin/users/:id', requireAdminUser, rejectViewAsWrites, requireP
         res.status(404).json({ error: 'User not found' });
         return;
     }
+    AdminUserPolicy.assertCanManageTargetUser(req.user, targetRow);
     const nextRole =
         req.body.role !== undefined
             ? AdminUserPolicy.assertRoleAssignmentAllowed(req.user, req.body.role)
@@ -869,6 +895,13 @@ app.get('/api/teachers', requireUser, (req, res) => {
 });
 
 app.get('/api/groups', requireUser, (req, res) => {
+    const calendars = CalAccess.listCalendarsForUser(req.user);
+    const hasCalendarAccess =
+        CalAccess.canViewAllCalendars(req.user) || calendars.length > 0;
+    if (!hasCalendarAccess) {
+        res.status(403).json({ error: 'No calendar access' });
+        return;
+    }
     res.json(CalAccess.listGroups());
 });
 
@@ -1069,7 +1102,8 @@ app.post('/api/calendars/:id/lock', requireUser, rejectViewAsWrites, (req, res) 
         return;
     }
     const name = req.user.displayName || req.user.email || 'Teacher';
-    const result = users.acquireLock(req.params.id, req.user.id, name);
+    const force = Boolean(req.body && req.body.force);
+    const result = users.acquireLock(req.params.id, req.user, { force });
     const calId = req.params.id;
     const meta = calendars.getCalendarMeta(calId) || { id: calId };
     const payload = calendarMetaExtras(req.user, calId, meta);
@@ -1262,6 +1296,10 @@ app.post('/api/calendars/:id/suggestions/:suggestionId/dismiss', requireUser, re
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
     const suggestion = Suggestions.getSuggestion(suggestionId);
     if (!suggestion || suggestion.calendarId !== calId || suggestion.status !== 'pending') {
         res.status(404).json({ error: 'Suggestion not found' });
@@ -1351,6 +1389,27 @@ app.get('*', (req, res) => {
     }
     const file = req.path === '/' || req.path === '' ? 'index.html' : req.path.replace(/^\//, '');
     const safe = path.normalize(file).replace(/^(\.\.(\/|\\|$))+/, '');
+    if (safe === 'admin.html') {
+        let adminUser = null;
+        const ctx = users.getSessionContext(getSessionToken(req));
+        if (ctx && ctx.effective && !ctx.viewAsActive) {
+            adminUser = ctx.effective;
+        } else if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID) {
+            adminUser = DEV_USER;
+        }
+        if (!adminUser || !Auth.canAccessAdminPage(adminUser)) {
+            const ret = encodeURIComponent('/admin.html');
+            res.redirect(302, `/login.html?return=${ret}`);
+            return;
+        }
+        const target = path.join(staticRoot, safe);
+        if (require('fs').existsSync(target)) {
+            res.sendFile(target);
+        } else {
+            res.status(404).send('Not found');
+        }
+        return;
+    }
     const target = path.join(staticRoot, safe);
     if (target.startsWith(staticRoot) && require('fs').existsSync(target) && require('fs').statSync(target).isFile()) {
         res.sendFile(target);
@@ -1360,6 +1419,24 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
+    const isLocalhost =
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(PUBLIC_URL) ||
+        PORT === 8080;
+    if (ALLOW_OPEN_ACCESS && !isLocalhost) {
+        console.error(
+            'FATAL: ALLOW_OPEN_ACCESS=1 is only allowed on localhost. Unset it or set PUBLIC_URL to http://localhost:8080'
+        );
+        process.exit(1);
+    }
+    if (KAKAO_CLIENT_ID) {
+        const oauthSecret = (process.env.OAUTH_STATE_SECRET || process.env.BOOTSTRAP_ADMIN_SECRET || '').trim();
+        if (!oauthSecret || oauthSecret === 'dev-oauth-state-insecure-change-me') {
+            console.error(
+                'FATAL: Kakao login requires OAUTH_STATE_SECRET (or BOOTSTRAP_ADMIN_SECRET) — set a strong value in .env'
+            );
+            process.exit(1);
+        }
+    }
     console.log(`Calendar team server: ${PUBLIC_URL}`);
     console.log(`Listening on port ${PORT}`);
     if (KAKAO_CLIENT_ID) {

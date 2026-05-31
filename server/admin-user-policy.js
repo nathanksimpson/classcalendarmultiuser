@@ -47,6 +47,17 @@ function assertElevationConfirmed(actor, opts) {
     assertConfirmPassword(actor, opts.confirmPassword);
 }
 
+function assertCanManageTargetUser(actor, targetRow) {
+    if (!targetRow) {
+        return;
+    }
+    if (Auth.isSuperAdminRole(targetRow) && !Auth.isSuperAdminRole(actor)) {
+        const err = new Error('Only a super admin can manage another super admin account');
+        err.status = 403;
+        throw err;
+    }
+}
+
 function permissionsFieldForUpdate(actor, targetRow, body, nextRole) {
     if (!Auth.isSuperAdminRole(actor)) {
         if (body.permissions !== undefined) {
@@ -105,6 +116,7 @@ function permissionsFieldForCreate(actor, body, nextRole) {
 }
 
 module.exports = {
+    assertCanManageTargetUser,
     assertRoleAssignmentAllowed,
     permissionsFieldForUpdate,
     permissionsFieldForCreate

@@ -1,6 +1,6 @@
 # Security audit — Class Calendar Multi User
 
-**Date:** 2026-05-25 (updated 2026-05-25)  
+**Date:** 2026-05-25 (updated 2026-05-31)  
 **Scope:** Team auth (Kakao OAuth), calendar API, locks, admin, deployment surface.  
 **Extended review:** See also the Cursor plan *security_audit_extension* for DDoS/cost abuse, XSS, and social-engineering notes.
 
@@ -26,6 +26,8 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 | N1 | **OAuth CSRF** — state not verified | Session fixation / login CSRF | **Fixed:** HMAC-signed `kakao_oauth_state` cookie |
 | N2 | **Email pre-provisioning auto-link** | Wrong Kakao binds to pre-added email | **Fixed:** no auto-`UPDATE kakao_user_id`; admin must set Kakao ID |
 | K1 | **Open Kakao self-registration** | User list spam; privacy vs allowlist | **Accepted (policy A):** auto-create on first Kakao login; calendar access still gated; teachers need not share email with admin |
+| H-A1 | **`user_admin` could PATCH/demote super-admin accounts** | Privilege / account takeover | **Fixed:** `assertCanManageTargetUser` on admin user routes (server + worker) |
+| H-A2 | **Suggestion dismiss without calendar ACL** | IDOR for `apply_suggestions` holders | **Fixed:** `canAccessCalendar` on dismiss (server; worker already gated at suggestion block) |
 
 ---
 
@@ -43,6 +45,11 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 | M-K3 | Legacy `denied=1` query on login | PII in URL | **Fixed:** UI removed |
 | M6 | Fixed 3s poll + lock touch | Load/cost scale | Open — Phase 1 adaptive poll |
 | H6 | Full-document PUT, no edge body cap | Cost abuse | **Mitigated:** 5 MB cap |
+| M-A1 | **`GET /api/groups` for pending users** | Org structure leak | **Fixed:** same gate as `/api/teachers` |
+| M-A3 | **Server lock bypass drift** | Head teacher bypass on local PUT | **Fixed:** holder check aligned with worker |
+| M-A7 | **Admin HTML public** | UI recon | **Mitigated:** redirect to login without `canAccessAdmin` |
+| M-A9 | **Internal docs in `dist/`** | Recon (D1 id, audit notes) | **Fixed:** excluded from build |
+| M-A6 | **Worker rate limit fails open on D1 error** | Auth brute force | **Fixed:** fail closed |
 
 ---
 
@@ -50,7 +57,7 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 
 - Client idle logout — [js/team-auth.js](js/team-auth.js)
 - CSP / HSTS — not on static assets; configure via Cloudflare
-- Stored XSS — partial fix in [app.js](app.js) hot paths; continue audit for other `innerHTML`
+- Stored XSS — partial fix in [app.js](app.js) hot paths; **class autocomplete** escaped (2026-05-31); continue audit for other `innerHTML`
 - Prompt injection — N/A (no LLM)
 - Kakao removal — Phase 2 per original roadmap
 
@@ -64,7 +71,7 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 4. **Calendar access** still requires group/calendar assignment (`pending-access.html` until granted).
 5. Admins recognize new teachers in **Admin → Users** by display name and **Kakao ID** column.
 
-Env: `OAUTH_STATE_SECRET` (optional; falls back to `BOOTSTRAP_ADMIN_SECRET`).
+Env: `OAUTH_STATE_SECRET` (required when Kakao enabled on local server; falls back to `BOOTSTRAP_ADMIN_SECRET` on worker if unset).
 
 ---
 
@@ -79,6 +86,9 @@ Env: `OAUTH_STATE_SECRET` (optional; falls back to `BOOTSTRAP_ADMIN_SECRET`).
 5. 5 MB body cap; remove health client ID hint
 6. XSS escapes (calendar bars, print summary)
 7. Session rotation on login; `POST /api/auth/logout-all`; `session_max_days` admin setting (migration `0007`)
+8. Admin super-admin target protection (H-A1); suggestion dismiss ACL (H-A2); groups gate (M-A1)
+9. Admin HTML login redirect; internal docs excluded from production build (M-A7, M-A9)
+10. Local server: `ALLOW_OPEN_ACCESS` localhost-only; Kakao requires strong OAuth state secret
 
 ### Phase 1 — Planned
 
@@ -106,6 +116,11 @@ Env: `OAUTH_STATE_SECRET` (optional; falls back to `BOOTSTRAP_ADMIN_SECRET`).
 - [ ] Second browser login invalidates first browser session
 - [ ] Sign out all devices clears all sessions; `cal_session` gone
 - [ ] Admin `session_max_days` applies to new login cookie Max-Age
+- [ ] `user_admin` gets 403 when PATCHing a super-admin account
+- [ ] User with `apply_suggestions` but no calendar access gets 404 on suggestion dismiss
+- [ ] Pending-access user gets 403 on `GET /api/groups`
+- [ ] `/admin.html` without admin session redirects to login
+- [ ] Production `dist/` does not serve `SECURITY-AUDIT.md` or `wrangler.toml`
 
 ---
 

@@ -151,7 +151,7 @@ function resolveKakaoLoginUser(profile) {
         return { error: 'kakao_not_linked' };
     }
     if (match) {
-        return { user: match };
+        return { user: match, created: false };
     }
     if (findInactiveUserForKakao(profile.kakaoUserId, profile.email)) {
         return { disabled: true };
@@ -160,7 +160,7 @@ function resolveKakaoLoginUser(profile) {
     if (!created || created.mismatch || created.needsKakaoLink) {
         return { error: 'missing_kakao_id' };
     }
-    return { user: created };
+    return { user: created, created: true };
 }
 
 function createUser({ email, displayName, kakaoUserId, role, passwordHash, permissions }) {

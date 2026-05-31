@@ -25,7 +25,32 @@ const SKIP_DIRS = new Set([
     'Example Calendars'
 ]);
 
-const SKIP_FILES = new Set(['package-lock.json', '.env', '.env.example', '.tmp-cookies.txt']);
+const SKIP_FILES = new Set([
+    'package-lock.json',
+    '.env',
+    '.env.example',
+    '.tmp-cookies.txt',
+    'wrangler.toml',
+    'AGENTS.md',
+    'DEVELOPER.md',
+    'SECURITY-AUDIT.md',
+    'SCHEMA.md',
+    'CLOUDFLARE-DEPLOY.md',
+    'KAKAO-SETUP.md'
+]);
+
+function shouldSkipFile(name) {
+    if (SKIP_FILES.has(name)) {
+        return true;
+    }
+    if (name.endsWith('.bat') || name.startsWith('.tmp')) {
+        return true;
+    }
+    if (name.endsWith('.md') && !name.startsWith('FOR TEACHERS')) {
+        return true;
+    }
+    return false;
+}
 
 const MINIFY_JS = [
     'app.js',
@@ -84,7 +109,7 @@ function copyRecursive(srcDir, destDir) {
             copyRecursive(srcPath, destPath);
             continue;
         }
-        if (SKIP_FILES.has(ent.name) || ent.name.endsWith('.bat') || ent.name.startsWith('.tmp')) {
+        if (shouldSkipFile(ent.name)) {
             continue;
         }
         fs.mkdirSync(path.dirname(destPath), { recursive: true });

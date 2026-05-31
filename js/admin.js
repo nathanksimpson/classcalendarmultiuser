@@ -940,10 +940,10 @@ function getRolePresetFromMeta(meta, role) {
     return (meta.rolePresets[key] || meta.rolePresets.teacher || []).slice();
 }
 
-/** Effective permissions for checkbox UI (API permissions array, else role preset). */
+/** Checkbox UI: stored custom list, else preset for the selected/account role (not effective permissions). */
 function effectivePermissionsForUser(user, meta, roleFallback) {
-    if (Array.isArray(user.permissions)) {
-        return user.permissions.slice().sort();
+    if (Array.isArray(user.customPermissions) && user.customPermissions.length) {
+        return user.customPermissions.slice().sort();
     }
     const role = normalizeRoleKey(roleFallback || user.role);
     return getRolePresetFromMeta(meta, role);
@@ -1151,7 +1151,8 @@ function setupPermissionsUiHandlers() {
             if (editUserPermissionsInitializing) {
                 return;
             }
-            if (!editUserPermissionsTouched && permissionMeta) {
+            editUserPermissionsTouched = false;
+            if (permissionMeta) {
                 setPermissionCheckboxes(
                     editList,
                     getRolePresetFromMeta(permissionMeta, editRole.value)
@@ -1172,7 +1173,8 @@ function setupPermissionsUiHandlers() {
     if (newRole && newRole.dataset.permBound !== '1') {
         newRole.dataset.permBound = '1';
         newRole.addEventListener('change', () => {
-            if (!addUserPermissionsTouched && permissionMeta) {
+            addUserPermissionsTouched = false;
+            if (permissionMeta) {
                 setPermissionCheckboxes(
                     addList,
                     getRolePresetFromMeta(permissionMeta, newRole.value)

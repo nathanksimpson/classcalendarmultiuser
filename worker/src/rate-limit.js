@@ -33,7 +33,7 @@ export async function checkRateLimit(env, bucketKey, limit, windowMs) {
             .run();
         return true;
     } catch (_) {
-        return true;
+        return false;
     }
 }
 
