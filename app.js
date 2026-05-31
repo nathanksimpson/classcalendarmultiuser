@@ -8006,6 +8006,39 @@ function initClassNotesPanelListeners() {
         saveClassNotesSortToUi();
         renderClassNotesTab();
     });
+    bindClassNotesPreviewWheelScroll(shell);
+}
+
+/** Wheel over notes list scrolls #classNotesPreview (fixes nested overflow:hidden parents on Windows). */
+function bindClassNotesPreviewWheelScroll(shell) {
+    if (!shell || shell.dataset.classNotesWheelBound === '1') {
+        return;
+    }
+    shell.dataset.classNotesWheelBound = '1';
+    shell.addEventListener(
+        'wheel',
+        (e) => {
+            const preview = shell.querySelector('#classNotesPreview');
+            if (!preview || preview.hidden || preview.getAttribute('aria-hidden') === 'true') {
+                return;
+            }
+            if (!preview.contains(e.target)) {
+                return;
+            }
+            const maxScroll = preview.scrollHeight - preview.clientHeight;
+            if (maxScroll <= 0) {
+                return;
+            }
+            const delta = e.deltaY;
+            const nextTop = Math.max(0, Math.min(maxScroll, preview.scrollTop + delta));
+            if (nextTop !== preview.scrollTop) {
+                preview.scrollTop = nextTop;
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        },
+        { passive: false, capture: true }
+    );
 }
 
 function initClassNotesTab() {

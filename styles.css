@@ -4294,14 +4294,24 @@ body[data-active-tab="events"] .app-term-quick-actions {
     gap: 8px;
 }
 
+.class-notes-list-section > .class-notes-preview {
+    grid-row: 3;
+    align-self: stretch;
+    min-height: 0;
+    max-height: 100%;
+    height: 100%;
+}
+
 .class-notes-preview {
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: var(--text-muted, #94a3b8) var(--surface-muted, rgba(0, 0, 0, 0.06));
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     display: block;
     padding: 12px 14px 14px;
     background: var(--bg-card);
