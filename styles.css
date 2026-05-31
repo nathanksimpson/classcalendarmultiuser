@@ -3878,8 +3878,18 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 /* Classes panel: secondary sub-tabs (distinct from main app-tab-nav) */
+#panel-classes:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - var(--app-chrome-sticky-top) - 32px);
+}
+
 .classes-subtab-shell {
     margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 
 .classes-subtab-legend {
@@ -3943,6 +3953,10 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .classes-subtab-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     padding: 14px 12px 12px;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -3962,7 +3976,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
     min-height: 320px;
 }
 
-.class-notes-segment-panel:not([hidden]) {
+.classes-subtab-body > .class-notes-segment-panel:not([hidden]) {
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -3990,8 +4005,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
 .class-notes-segment-panel .class-notes-mount {
     flex: 1;
     min-height: 0;
-    height: calc(100dvh - var(--app-chrome-sticky-top) - 200px);
-    max-height: calc(100dvh - var(--app-chrome-sticky-top) - 200px);
+    height: 100%;
+    max-height: none;
 }
 
 .class-notes-shell {
