@@ -119,7 +119,6 @@
     /* Notes tab: only .app-main margin below sticky header (--app-chrome-sticky-top is set from JS). */
     --class-notes-chrome-offset-notes-tab: 16px;
     --class-notes-chrome-offset-classes-tab: 32px;
-    --class-notes-add-max-height: min(200px, 28vh);
     --class-notes-panel-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--class-notes-chrome-offset-notes-tab));
 }
 
