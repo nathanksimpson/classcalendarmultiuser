@@ -7821,6 +7821,47 @@ function downloadClassNotesExport() {
     URL.revokeObjectURL(url);
 }
 
+/** Rebuild class/subject/grade filters when calendar data or active calendar changes. */
+function refreshClassNotesPanelIfMounted() {
+    const shell = document.getElementById('classNotesShell');
+    if (!shell) {
+        return;
+    }
+    const prev = collectClassNotesFilterState();
+    const hadClassInputs = shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).length > 0;
+
+    renderClassNotesFilterClasses();
+    renderClassNotesFilterSubjectsAndGrades();
+    applyClassNotesClassSearch();
+
+    const classInputs = shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`);
+    if (classInputs.length) {
+        if (hadClassInputs && prev.classIds.length) {
+            const set = new Set(prev.classIds);
+            classInputs.forEach((input) => {
+                input.checked = set.has(input.value);
+            });
+        } else {
+            classInputs.forEach((input) => {
+                input.checked = true;
+            });
+        }
+        if (prev.subjectSet) {
+            shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="subjects"]`).forEach((input) => {
+                input.checked = prev.subjectSet.has(input.value);
+            });
+        }
+        if (prev.gradeSet) {
+            shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="grades"]`).forEach((input) => {
+                input.checked = prev.gradeSet.has(input.value);
+            });
+        }
+    }
+
+    populateClassNotesAddClassSelect();
+    renderClassNotesTab();
+}
+
 function initClassNotesPanelListeners() {
     const shell = document.getElementById('classNotesShell');
     if (!shell || shell.dataset.classNotesListenersBound === '1') {
@@ -7896,9 +7937,9 @@ function initClassNotesTab() {
     if (!classNotesFiltersBuilt) {
         classNotesFiltersBuilt = true;
         const saved = appData.ui && appData.ui.classNotesFilters;
+        const fromEl = document.getElementById('classNotesFilterFrom');
+        const toEl = document.getElementById('classNotesFilterTo');
         if (saved && typeof saved === 'object' && (saved.dateFrom || saved.dateTo)) {
-            const fromEl = document.getElementById('classNotesFilterFrom');
-            const toEl = document.getElementById('classNotesFilterTo');
             if (fromEl && saved.dateFrom) {
                 fromEl.value = saved.dateFrom;
             }
@@ -7908,31 +7949,8 @@ function initClassNotesTab() {
         } else {
             applyDefaultClassNotesDateRange();
         }
-        renderClassNotesFilterClasses();
-        renderClassNotesFilterSubjectsAndGrades();
-        if (saved && typeof saved === 'object') {
-            if (Array.isArray(saved.classIds) && saved.classIds.length) {
-                const set = new Set(saved.classIds);
-                document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
-                    input.checked = set.has(input.value);
-                });
-            }
-            if (Array.isArray(saved.subjects)) {
-                const set = new Set(saved.subjects);
-                document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="subjects"]`).forEach((input) => {
-                    input.checked = set.has(input.value);
-                });
-            }
-            if (Array.isArray(saved.grades)) {
-                const set = new Set(saved.grades);
-                document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="grades"]`).forEach((input) => {
-                    input.checked = set.has(input.value);
-                });
-            }
-        }
     }
-    populateClassNotesAddClassSelect();
-    renderClassNotesTab();
+    applyClassNotesFiltersFromUi();
 }
 
 function initClassesPanelSegments() {
@@ -20518,27 +20536,28 @@ function saveClassNotesFiltersToUi() {
 
 function applyClassNotesFiltersFromUi() {
     ensureUiState();
+    if (!classNotesFiltersBuilt || !document.getElementById('classNotesShell')) {
+        return;
+    }
     const saved = appData.ui.classNotesFilters;
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    if (saved && typeof saved === 'object') {
+        if (fromEl && saved.dateFrom) {
+            fromEl.value = saved.dateFrom;
+        }
+        if (toEl && saved.dateTo) {
+            toEl.value = saved.dateTo;
+        }
+    }
+    refreshClassNotesPanelIfMounted();
     if (!saved || typeof saved !== 'object') {
         return;
     }
-    const fromEl = document.getElementById('classNotesFilterFrom');
-    const toEl = document.getElementById('classNotesFilterTo');
-    if (fromEl && saved.dateFrom) {
-        fromEl.value = saved.dateFrom;
-    }
-    if (toEl && saved.dateTo) {
-        toEl.value = saved.dateTo;
-    }
-    if (!classNotesFiltersBuilt) {
-        return;
-    }
-    renderClassNotesFilterClasses();
-    renderClassNotesFilterSubjectsAndGrades();
-    if (Array.isArray(saved.classIds)) {
+    if (Array.isArray(saved.classIds) && saved.classIds.length > 0) {
         const set = new Set(saved.classIds);
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
-            input.checked = saved.classIds.length > 0 && set.has(input.value);
+            input.checked = set.has(input.value);
         });
     }
     if (Array.isArray(saved.subjects)) {
@@ -20553,6 +20572,8 @@ function applyClassNotesFiltersFromUi() {
             input.checked = set.has(input.value);
         });
     }
+    populateClassNotesAddClassSelect();
+    renderClassNotesTab();
 }
 
 function savePrintSummaryVisibilityToUi() {
@@ -20744,6 +20765,7 @@ function applyServerDocument(doc, options) {
     updateCalendarTitle();
     updateTopBarCalendarLabel();
     refreshCalendarScopedUi();
+    refreshClassNotesPanelIfMounted();
     if (!opts.skipSessionRestore && typeof restoreAppSessionState === 'function') {
         restoreAppSessionState();
     }
