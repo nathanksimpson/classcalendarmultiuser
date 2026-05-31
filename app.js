@@ -7479,6 +7479,41 @@ function ensureClassNotesFilterIncludes(classId) {
     }
 }
 
+function getDayNotesDateSpan() {
+    ensureDayNotesArray();
+    let minDate = '';
+    let maxDate = '';
+    (appData.dayNotes || []).forEach((note) => {
+        const d = note && note.date ? String(note.date).trim() : '';
+        if (!d) {
+            return;
+        }
+        if (!minDate || d < minDate) {
+            minDate = d;
+        }
+        if (!maxDate || d > maxDate) {
+            maxDate = d;
+        }
+    });
+    return { minDate, maxDate };
+}
+
+/** Widen From/To so existing notes are not hidden by stale saved date filters. */
+function ensureClassNotesDateRangeCoversExistingNotes() {
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    const { minDate, maxDate } = getDayNotesDateSpan();
+    if (!fromEl || !toEl || !minDate) {
+        return;
+    }
+    if (!fromEl.value || fromEl.value > minDate) {
+        fromEl.value = minDate;
+    }
+    if (!toEl.value || toEl.value < maxDate) {
+        toEl.value = maxDate;
+    }
+}
+
 function widenClassNotesDateRangeForNote(dateStr) {
     const date = String(dateStr || '').trim();
     if (!date) {
@@ -7492,6 +7527,18 @@ function widenClassNotesDateRangeForNote(dateStr) {
     if (toEl && (!toEl.value || date > toEl.value)) {
         toEl.value = date;
     }
+}
+
+function ensureClassNotesFiltersCoverExistingNotes() {
+    ensureDayNotesArray();
+    const classIds = new Set();
+    (appData.dayNotes || []).forEach((note) => {
+        const cid = note && note.classId ? String(note.classId).trim() : '';
+        if (cid) {
+            classIds.add(cid);
+        }
+    });
+    classIds.forEach((cid) => ensureClassNotesFilterIncludes(cid));
 }
 
 function buildClassNotesFilterChipHtml(filterKey, options) {
@@ -7933,6 +7980,8 @@ function refreshClassNotesPanelIfMounted() {
         }
     }
 
+    ensureClassNotesDateRangeCoversExistingNotes();
+    ensureClassNotesFiltersCoverExistingNotes();
     populateClassNotesAddClassSelect();
     renderClassNotesTab();
 }
@@ -8024,6 +8073,7 @@ function initClassNotesTab() {
         } else {
             applyDefaultClassNotesDateRange();
         }
+        ensureClassNotesDateRangeCoversExistingNotes();
     }
     applyClassNotesFiltersFromUi();
 }
@@ -20635,6 +20685,13 @@ function applyClassNotesFiltersFromUi() {
     }
     if (Array.isArray(saved.classIds) && saved.classIds.length > 0) {
         const set = new Set(saved.classIds);
+        ensureDayNotesArray();
+        (appData.dayNotes || []).forEach((note) => {
+            const cid = note && note.classId ? String(note.classId).trim() : '';
+            if (cid) {
+                set.add(cid);
+            }
+        });
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
             input.checked = set.has(input.value);
         });
