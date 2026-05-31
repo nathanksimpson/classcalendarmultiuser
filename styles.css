@@ -28,9 +28,48 @@
     
     --border-color: #e2e8f0;
     --border-radius: 8px;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+    /* Layout tokens (Simple Design System + 8px grid) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+
+    --text-h1: 3rem;
+    --text-h2: 2.5rem;
+    --text-h3: 2rem;
+    --text-h4: 1.5rem;
+    --text-h5: 1.25rem;
+    --text-h6: 1.125rem;
+    --text-body-xl: 1.125rem;
+    --text-body-lg: 1rem;
+    --text-body-md: 0.875rem;
+    --text-body-sm: 0.75rem;
+    --text-body-xs: 0.625rem;
+
+    --leading-heading-tight: 1.1;
+    --leading-heading: 1.2;
+    --leading-body: 1.4;
+
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+
+    --touch-min: 44px;
+
+    --bp-sm: 640px;
+    --bp-md: 768px;
+    --bp-lg: 900px;
+    --bp-xl: 1100px;
+
+    --shadow-sm: 0 1px 4px rgba(12, 12, 13, 0.1), 0 1px 4px rgba(12, 12, 13, 0.05);
+    --shadow-md: 0 4px 4px -1px rgba(12, 12, 13, 0.1), 0 4px 4px -1px rgba(12, 12, 13, 0.05);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-dialog: 0 16px 32px -4px rgba(12, 12, 13, 0.1), 0 4px 4px -4px rgba(12, 12, 13, 0.05);
     
     --holiday-bg: #fef3c7;
     --holiday-border: #f59e0b;
@@ -106,7 +145,7 @@
     --banner-info-bg: #eff6ff;
     --banner-info-border: #93c5fd;
     
-    --font-main: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
 
     /* Sticky offsets: set from JS to match #appTopBar height */
@@ -125,9 +164,10 @@
 
 body {
     font-family: var(--font-main), 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    font-size: var(--text-body-lg);
     background: var(--bg-main);
     color: var(--text-primary);
-    line-height: 1.5;
+    line-height: var(--leading-body);
     min-height: 100vh;
 }
 
@@ -135,10 +175,11 @@ body {
    App Layout
    ============================================ */
 .app-container {
+    --app-gutter: clamp(var(--space-4), 2vw, var(--space-6));
     width: 100%;
     max-width: 100%;
     margin: 0 auto;
-    padding: clamp(16px, 2vw, 32px);
+    padding: var(--app-gutter);
     box-sizing: border-box;
 }
 
@@ -147,8 +188,8 @@ body {
     position: sticky;
     top: 0;
     z-index: 200;
-    margin: -24px -24px 16px;
-    padding: 8px 20px;
+    margin: calc(-1 * var(--app-gutter, var(--space-5))) calc(-1 * var(--app-gutter, var(--space-5))) var(--space-4);
+    padding: var(--space-2) var(--space-5);
     background: var(--top-bar-bg);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -159,7 +200,7 @@ body {
 .app-top-bar-compact {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex-wrap: wrap;
 }
 
@@ -167,7 +208,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
 }
 
 @media (min-width: 1100px) {
@@ -193,18 +234,18 @@ body {
 }
 
 .app-top-bar-title-block h1 {
-    font-size: 1.25rem;
+    font-size: var(--text-h5);
     font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.025em;
-    line-height: 1.2;
+    line-height: var(--leading-heading);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .top-bar-calendar-label {
-    font-size: 0.8rem;
+    font-size: var(--text-body-md);
     font-weight: 500;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -215,18 +256,21 @@ body {
 .app-top-bar-essential {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex-wrap: wrap;
 }
 
 .btn-compact {
-    padding: 8px 14px;
-    font-size: 0.8125rem;
+    min-height: 36px;
+    padding: var(--space-2) 14px;
+    font-size: var(--text-body-md);
 }
 
-.btn-small {
-    padding: 7px 12px;
-    font-size: 0.8125rem;
+.btn-small,
+.btn-sm {
+    min-height: 36px;
+    padding: 7px var(--space-3);
+    font-size: var(--text-body-md);
 }
 
 .app-top-bar-toggle {
@@ -234,11 +278,11 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: var(--radius-md);
     background: var(--bg-card);
     color: var(--text-secondary);
     cursor: pointer;
@@ -326,14 +370,22 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-height: 40px;
     padding: 10px 18px;
     font-family: var(--font-main);
-    font-size: 0.875rem;
+    font-size: var(--text-body-md);
     font-weight: 600;
-    border-radius: var(--border-radius);
+    line-height: var(--leading-body);
+    border-radius: var(--radius-md);
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.btn-lg {
+    min-height: 48px;
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--text-body-lg);
 }
 
 .btn-primary {
@@ -1115,9 +1167,9 @@ body {
 .default-class-editor-form-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: var(--space-4);
     justify-content: flex-end;
-    margin-top: 8px;
+    margin-top: var(--space-2);
 }
 
 @media (max-width: 720px) {
@@ -1715,10 +1767,10 @@ body:has(#panel-calendar:not([hidden])) {
 
 .modal-content {
     background: var(--bg-card);
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-dialog);
     width: 100%;
-    max-width: 500px;
+    max-width: min(600px, calc(100vw - 2 * var(--space-6)));
     max-height: min(90vh, 100dvh - 2rem);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -1761,13 +1813,14 @@ body:has(#panel-calendar:not([hidden])) {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 24px;
+    padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h2 {
-    font-size: 1.125rem;
+    font-size: var(--text-h4);
     font-weight: 700;
+    line-height: var(--leading-heading);
 }
 
 .modal-close {
@@ -1794,23 +1847,23 @@ body:has(#panel-calendar:not([hidden])) {
    Forms
    ============================================ */
 form {
-    padding: 24px;
+    padding: var(--space-6);
 }
 
 .form-group {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: var(--space-4);
 }
 
 .form-group label {
     display: block;
     margin-bottom: 6px;
-    font-size: 0.875rem;
+    font-size: var(--text-body-md);
     font-weight: 600;
     color: var(--text-secondary);
 }
@@ -2105,10 +2158,11 @@ form {
 
 .form-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 12px;
-    margin-top: 24px;
-    padding-top: 16px;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
     border-top: 1px solid var(--border-color);
 }
 
@@ -2932,11 +2986,6 @@ body.hide-summary-print .print-summary {
     font-family: var(--font-main);
 }
 
-.btn-small {
-    padding: 6px 12px;
-    font-size: 0.85rem;
-}
-
 .compression-period-block {
     margin-bottom: 0.75rem;
     padding: 0.5rem 0;
@@ -2965,7 +3014,7 @@ body.hide-summary-print .print-summary {
 .radio-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-3);
     margin-top: 6px;
 }
 
@@ -3258,16 +3307,26 @@ input.input-readonly {
    ============================================ */
 @media (max-width: 768px) {
     .app-top-bar {
-        margin: -24px -16px 16px;
-        padding: 10px 16px;
+        padding: var(--space-3) var(--space-4);
     }
 
     .app-top-bar-compact {
-        gap: 8px;
+        gap: var(--space-2);
+        align-items: stretch;
+    }
+
+    .app-top-bar-title-block {
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     .app-top-bar-title-block h1 {
-        font-size: 1.05rem;
+        font-size: var(--text-h6);
+        line-height: var(--leading-heading);
+    }
+
+    .app-term-quick-actions {
+        width: 100%;
     }
 
     .app-top-bar-essential {
@@ -3278,11 +3337,33 @@ input.input-readonly {
     .app-top-bar-toggle {
         margin-left: auto;
         order: 2;
+        width: var(--touch-min);
+        height: var(--touch-min);
+    }
+
+    .app-tab-nav {
+        order: 5;
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .app-top-bar-actions {
+        order: 4;
+        flex: 1 1 100%;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .btn,
+    .btn-small,
+    .btn-sm,
+    .btn-compact {
+        min-height: var(--touch-min);
     }
 
     .app-header {
         flex-direction: column;
-        gap: 16px;
+        gap: var(--space-4);
         text-align: center;
     }
     
@@ -3311,12 +3392,22 @@ input.input-readonly {
     }
 
     .calendar-day-header {
-        padding: 8px 4px;
-        font-size: 0.65rem;
+        padding: var(--space-2) var(--space-1);
+        font-size: var(--text-body-sm);
+        line-height: var(--leading-body);
     }
     
     .event-bar {
-        font-size: 0.65rem;
+        font-size: var(--text-body-sm);
+        line-height: var(--leading-body);
+    }
+
+    .modal-content {
+        max-width: calc(100vw - 2 * var(--space-4));
+    }
+
+    .modal.active {
+        padding: 0 var(--space-2);
     }
 }
 
@@ -3388,10 +3479,10 @@ input.input-readonly {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0;
+    gap: var(--space-2);
     flex-shrink: 0;
     margin-left: auto;
-    padding: 4px 6px;
+    padding: var(--space-1) 6px;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 10px;
