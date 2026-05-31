@@ -3962,6 +3962,12 @@ body[data-active-tab="events"] .app-term-quick-actions {
     min-height: 320px;
 }
 
+.class-notes-segment-panel:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
 .class-notes-mount {
     display: flex;
     flex-direction: column;
@@ -3981,6 +3987,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .class-notes-segment-panel .class-notes-mount {
+    flex: 1;
+    min-height: 0;
     max-height: calc(100dvh - var(--app-chrome-sticky-top) - 200px);
 }
 
@@ -4076,20 +4084,14 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .class-notes-main-panel {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto auto auto minmax(12rem, 1fr) auto;
     gap: 12px;
     min-width: 0;
+    height: 100%;
     min-height: 0;
     max-height: 100%;
     overflow: hidden;
-}
-
-.class-notes-add-panel,
-.class-notes-main-header,
-.class-notes-export-status,
-#classNotesEmptyFiltered {
-    flex-shrink: 0;
 }
 
 .class-notes-add-panel {
@@ -4206,17 +4208,23 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .class-notes-preview {
-    flex: 1 1 0;
     min-height: 0;
-    overflow-y: scroll;
+    overflow-y: auto;
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: var(--text-muted, #94a3b8) var(--surface-muted, rgba(0, 0, 0, 0.06));
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    display: block;
+}
+
+.class-notes-preview > .class-notes-preview-group {
+    flex-shrink: 0;
+    margin-bottom: 16px;
+}
+
+.class-notes-preview > .class-notes-preview-group:last-child {
+    margin-bottom: 0;
 }
 
 .class-notes-preview::-webkit-scrollbar {
