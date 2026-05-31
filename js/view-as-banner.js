@@ -80,12 +80,19 @@
         return user.displayName || user.email || 'User';
     }
 
+    function syncRolePalette(user) {
+        if (typeof TeamAuth !== 'undefined' && TeamAuth.applyRolePalette) {
+            TeamAuth.applyRolePalette(user);
+        }
+    }
+
     function renderViewAsBanner(user) {
         if (typeof document === 'undefined') {
             return;
         }
         const banner = document.getElementById('viewAsBanner');
         if (!banner) {
+            syncRolePalette(user);
             return;
         }
         const active =
@@ -96,6 +103,7 @@
         if (!active) {
             banner.hidden = true;
             document.documentElement.classList.remove('view-as-active');
+            syncRolePalette(user);
             return;
         }
         const targetName = viewAsTargetLabel(user);
@@ -123,6 +131,7 @@
         document.documentElement.classList.add('view-as-active');
         const baseTitle = document.title.replace(/^View as: [^—]+ — /, '');
         document.title = 'View as: ' + targetName + ' — ' + baseTitle;
+        syncRolePalette(user);
     }
 
     async function exitViewAs() {

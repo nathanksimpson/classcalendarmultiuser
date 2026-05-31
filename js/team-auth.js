@@ -22,6 +22,18 @@
         return gap > 0 ? gap : Math.max(0, idleTimeoutMs - 60000);
     }
 
+    function normalizeRoleForPalette(role) {
+        return role === 'admin' ? 'super_admin' : role || 'teacher';
+    }
+
+    function applyRolePalette(user) {
+        if (typeof document === 'undefined') {
+            return;
+        }
+        const isSuper = Boolean(user && normalizeRoleForPalette(user.role) === 'super_admin');
+        document.documentElement.classList.toggle('role-super-admin', isSuper);
+    }
+
     function applyIdlePolicy(me) {
         if (!me) {
             idleTimeoutMs = DEFAULT_IDLE_LOGOUT_MS;
@@ -286,13 +298,20 @@
             resetIdleTimers();
         },
 
+        applyRolePalette(user) {
+            applyRolePalette(user);
+        },
+
         async ensure() {
             if (checked) {
                 if (currentUser) {
                     attachIdleWatch();
+                    applyRolePalette(currentUser);
                     if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
                         ViewAsBanner.renderViewAsBanner(currentUser);
                     }
+                } else {
+                    applyRolePalette(null);
                 }
                 return currentUser;
             }
@@ -322,8 +341,12 @@
                 ) {
                     currentUser = (await fetchMe()) || openAccessDevUser();
                     applyIdlePolicy(currentUser);
+                    applyRolePalette(currentUser);
                     checked = true;
                     attachIdleWatch();
+                    if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
+                        ViewAsBanner.renderViewAsBanner(currentUser);
+                    }
                     if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.onUserAuthenticated) {
                         CCPSessionRestore.onUserAuthenticated();
                     }
@@ -336,8 +359,10 @@
 
             currentUser = await fetchMe();
             applyIdlePolicy(currentUser);
+            applyRolePalette(currentUser);
             checked = true;
             if (!currentUser) {
+                applyRolePalette(null);
                 detachIdleWatch();
                 const ret = encodeURIComponent(location.pathname + location.search);
                 location.replace('/login.html?return=' + ret);
@@ -371,6 +396,7 @@
         async refresh() {
             currentUser = await fetchMe();
             applyIdlePolicy(currentUser);
+            applyRolePalette(currentUser);
             if (currentUser) {
                 attachIdleWatch();
                 if (typeof ViewAsBanner !== 'undefined' && ViewAsBanner.renderViewAsBanner) {
@@ -403,6 +429,7 @@
             } catch (_) {
                 /* proceed to login */
             }
+            applyRolePalette(null);
             currentUser = null;
             checked = false;
             idleLoggingOut = false;
@@ -430,6 +457,7 @@
             } catch (_) {
                 /* proceed to login */
             }
+            applyRolePalette(null);
             currentUser = null;
             checked = false;
             idleLoggingOut = false;

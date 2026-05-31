@@ -5608,6 +5608,38 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 /* ============================================
+   Super admin role palette (effective signed-in user)
+   ============================================ */
+html.role-super-admin {
+    --primary: #0d9488;
+    --primary-dark: #0f766e;
+    --link-color: #0d9488;
+    --accent: #0d9488;
+    --accent-muted: #ccfbf1;
+
+    --bg-main: #f0fdfa;
+    --bg-hover: #ecfdf5;
+    --surface-muted: #ecfdf5;
+    --bg-secondary: #ecfdf5;
+
+    --top-bar-bg: rgba(240, 253, 250, 0.92);
+
+    --btn-print-bg: #f0fdfa;
+    --btn-print-border: #5eead4;
+    --btn-print-color: #0f766e;
+    --btn-print-hover-bg: #ccfbf1;
+
+    --print-section-options-accent: #0d9488;
+    --print-section-options-tint: #f0fdfa;
+
+    --lock-status-waiting-bg: #f0fdfa;
+    --lock-status-waiting-border: #5eead4;
+
+    --banner-info-bg: #f0fdfa;
+    --banner-info-border: #5eead4;
+}
+
+/* ============================================
    Dark theme
    ============================================ */
 [data-theme="dark"] {
@@ -5707,6 +5739,28 @@ body[data-active-tab="events"] .app-term-quick-actions {
     --banner-error-color: #fecaca;
     --banner-info-bg: #1e3a5f;
     --banner-info-border: #3b82f6;
+}
+
+html.role-super-admin[data-theme="dark"] {
+    --primary: #2dd4bf;
+    --primary-dark: #5eead4;
+    --link-color: #5eead4;
+    --accent: #2dd4bf;
+    --accent-muted: #134e4a;
+
+    --btn-print-bg: #134e4a;
+    --btn-print-border: #14b8a6;
+    --btn-print-color: #99f6e4;
+    --btn-print-hover-bg: #115e59;
+
+    --print-section-options-accent: #2dd4bf;
+    --print-section-options-tint: #134e4a;
+
+    --lock-status-waiting-bg: #134e4a;
+    --lock-status-waiting-border: #14b8a6;
+
+    --banner-info-bg: #134e4a;
+    --banner-info-border: #14b8a6;
 }
 
 [data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
