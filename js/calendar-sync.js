@@ -859,7 +859,8 @@
                         holderUserId: meta.lock && meta.lock.holderUserId
                     });
                     const pendingSave = CalendarSync.hasPendingSave();
-                    if (!state.saving && !pendingSave) {
+                    const viewAsSkipReload = isViewAsMode();
+                    if (!state.saving && !pendingSave && !viewAsSkipReload) {
                         if (meta.revision > state.revision) {
                             state.remoteNewer = true;
                             if (typeof handlers.onRemoteNewer === 'function') {

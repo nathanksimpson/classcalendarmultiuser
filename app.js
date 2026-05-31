@@ -344,6 +344,7 @@ const translations = {
         classNotesAddNow: 'Now',
         classNotesPickClass: 'Select a class.',
         classNotesSaved: 'Note saved.',
+        classNotesSavedViewAs: 'Note saved for this View As session only (not on the teacher’s calendar until you exit View As).',
         classNotesInvalidDatetime: 'Enter a valid date and time.',
         classNotesSortLabel: 'Sort',
         classNotesSortClassGroup: 'By class',
@@ -1199,6 +1200,7 @@ const translations = {
         classNotesAddNow: '지금',
         classNotesPickClass: '수업을 선택하세요.',
         classNotesSaved: '메모를 저장했습니다.',
+        classNotesSavedViewAs: 'View As 세션에만 저장되었습니다(선생님 캘린더에는 반영되지 않음).',
         classNotesInvalidDatetime: '올바른 날짜와 시간을 입력하세요.',
         classNotesSortLabel: '정렬',
         classNotesSortClassGroup: '수업별',
@@ -6669,6 +6671,72 @@ function parseDatetimeLocalValue(value) {
     };
 }
 
+const VIEW_AS_DAY_NOTES_PREFIX = 'ccpViewAsDayNotes:';
+
+function isViewAsSession() {
+    return typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode();
+}
+
+function viewAsDayNotesSessionKey() {
+    if (typeof CalendarSync === 'undefined' || !CalendarSync.getActiveCalendarId) {
+        return '';
+    }
+    const id = CalendarSync.getActiveCalendarId();
+    return id ? VIEW_AS_DAY_NOTES_PREFIX + String(id) : '';
+}
+
+function readViewAsSessionDayNotes() {
+    const api = getDayNotesApi();
+    if (!api || !isViewAsSession()) {
+        return [];
+    }
+    const key = viewAsDayNotesSessionKey();
+    if (!key) {
+        return [];
+    }
+    try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) {
+            return [];
+        }
+        return api.normalizeDayNotesList(JSON.parse(raw));
+    } catch (_) {
+        return [];
+    }
+}
+
+function persistViewAsSessionDayNotesSnapshot() {
+    if (!isViewAsSession()) {
+        return;
+    }
+    const api = getDayNotesApi();
+    const key = viewAsDayNotesSessionKey();
+    if (!api || !key) {
+        return;
+    }
+    ensureDayNotesArray();
+    try {
+        sessionStorage.setItem(key, JSON.stringify(appData.dayNotes || []));
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+function clearViewAsSessionDayNotes() {
+    try {
+        const keys = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (k && k.startsWith(VIEW_AS_DAY_NOTES_PREFIX)) {
+                keys.push(k);
+            }
+        }
+        keys.forEach((k) => sessionStorage.removeItem(k));
+    } catch (_) {
+        /* ignore */
+    }
+}
+
 function readDayNotesFromDomainLocalCache() {
     const api = getDayNotesApi();
     if (!api) {
@@ -6692,11 +6760,15 @@ function mergeDayNotesForServerApply(serverData) {
         return serverData;
     }
     ensureDayNotesArray();
-    const merged = api.mergeDayNotesById(
+    const sources = [
         readDayNotesFromDomainLocalCache(),
         appData.dayNotes,
         serverData.dayNotes
-    );
+    ];
+    if (isViewAsSession()) {
+        sources.push(readViewAsSessionDayNotes());
+    }
+    const merged = api.mergeDayNotesById(...sources);
     return Object.assign({}, serverData, { dayNotes: merged });
 }
 
@@ -6887,7 +6959,10 @@ function saveClassNoteFromNotesTab() {
         textEl.value = '';
     }
     resetClassNotesAddDatetime();
-    showClassNotesExportStatus(true, t('classNotesSaved'));
+    showClassNotesExportStatus(
+        true,
+        isViewAsSession() ? t('classNotesSavedViewAs') : t('classNotesSaved')
+    );
     renderClassNotesTab();
 }
 
@@ -13778,6 +13853,7 @@ async function reloadWorkspaceCalendar() {
 
 if (typeof window !== 'undefined') {
     window.openWorkspacePage = openWorkspacePage;
+    window.clearViewAsSessionDayNotes = clearViewAsSessionDayNotes;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19878,6 +19954,9 @@ async function maybeAutoReloadTeamCalendar(meta, lockState) {
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
         return;
     }
+    if (isViewAsSession()) {
+        return;
+    }
     if (
         CalendarSync.state.holdsLock
         || CalendarSync.state.saving
@@ -20673,6 +20752,7 @@ function saveDataToLocalCache() {
         delete domain.ui;
     }
     localStorage.setItem(getDomainStorageKey(), JSON.stringify(domain));
+    persistViewAsSessionDayNotesSnapshot();
 }
 
 function saveData() {

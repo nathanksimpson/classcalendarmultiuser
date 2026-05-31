@@ -151,6 +151,9 @@
             headers: authFetchHeaders({ 'Content-Type': 'application/json' })
         });
         clearViewAsToken();
+        if (typeof window.clearViewAsSessionDayNotes === 'function') {
+            window.clearViewAsSessionDayNotes();
+        }
         if (typeof TeamAuth !== 'undefined' && TeamAuth.stopIdleWatch) {
             TeamAuth.stopIdleWatch();
         }
