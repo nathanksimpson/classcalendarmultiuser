@@ -4210,9 +4210,8 @@ body[data-active-tab="events"] .app-term-quick-actions {
     border-radius: var(--border-radius);
     background: var(--bg-card);
     padding: 12px 14px;
-    max-height: var(--class-notes-add-max-height);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    flex-shrink: 0;
+    overflow: visible;
 }
 
 #panel-notes .class-notes-list-section {
