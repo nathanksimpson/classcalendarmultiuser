@@ -45,13 +45,20 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 |-------|------|--------|
 | `id` | string | Stable id |
 | `name` | string | Display name (e.g. Purple T) |
-| `level` | string | Simson level |
+| `level` | string | Legacy Simson level label |
+| `levelPreset` | string | Simson level preset id (preferred) |
 | `grade` | string | Optional grade |
-| `meetingDays` | number[] | 0=Sun … 6=Sat |
+| `schedulePattern` | string | `mwf`, `tth`, `mw`, `wf`, `mf`, or `custom` |
+| `meetingDays` | number[] | 0=Sun … 6=Sat (from pattern or custom) |
+| `periodCount` | number | UI hint; distinct periods from matrix |
+| `scheduleBlock` | string | `primary` or `secondary` default for generated classes |
+| `subjectSlots[]` | array | `{ id, subjectTrack, classId?, enabled?, period?, periodByWeekday?, placements? }[]` |
 | `classIds` | string[] | Classes sharing this student group |
 | `homeroomTeacherUserId` | string | 담임 — app user id |
 | `homeroomTeacherName` | string | Free-text fallback |
 | `homeroomDaySuffix` | string | Shown in timetable header (e.g. `M`, `T`) |
+
+**Setup workflow:** Create cohorts on the **Cohorts** tab (Setup group), generate subject classes from the schedule matrix, then assign teachers on the **Teachers** tab.
 
 **Homeroom (담임) vs teaching:** Homeroom is an **administrative cohort role** (student contact, retests). It is **not** a teaching subject and must **not** appear in `classTeachers[].category`. A teacher who is 담임 and also teaches must still be listed in `classTeachers[]` on each class they teach, with the appropriate subject category (Debate, RC, etc.) and curriculum.
 
@@ -79,6 +86,8 @@ Stored in calendar JSON and mirrored to `localStorage` for quick restore. Not re
 | `syllabusTabClassId` | string | Selected class on Syllabus tab |
 | `timetableTabTeacherUserId` | string | Selected teacher on Timetable tab (team account id) |
 | `timetableTabTeacherName` | string | Fallback display name when matching legacy assignments |
+| `teachersTabTeacherUserId` | string | Selected teacher on Teachers tab (head teacher / admin) |
+| `teachersTabTeacherName` | string | Fallback display name on Teachers tab |
 | `lessonFilters` | object | See below |
 
 ### `ui.lessonFilters` (optional)
@@ -93,6 +102,7 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `classTypeIds` | `classTypeId` (empty → `__no_type__`) |
 | `periods` | Any period in `period` / `periodByWeekday` |
 | `books` | Default `book` (empty → `__no_book__`) |
+| `teacherUserIds` | Any `classTeachers[].userId` or legacy `assignedTeacherUserId` (empty → `__no_teacher__`) |
 
 ## Class (`classes[]`)
 
@@ -125,7 +135,9 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `syllabusGeneralNotes` | string | Optional general notes and instructions (shown at top of printed syllabus) |
 | `syllabusRows` | array | Per-class syllabus table rows for print/export (see below) |
 | `color`, `textColor` | string | Hex colors |
-| `cohortId` | string | Links class to `cohorts[]` (same students) |
+| `cohortId` | string | Primary cohort link (first in `cohortIds`; kept for older clients) |
+| `cohortIds` | string[] | Optional; all cohorts sharing this class (combined groups). Migrated from `cohortId` on load. |
+| `generatedFromCohort` | boolean | Optional; set when class is created by Cohort tab **Generate subjects** |
 | `classTeachers` | array | Teachers who **teach** this class: `{ id, userId?, name?, category?, curriculumId?, classTypeId?, book?, meetingDays?, period?, periodByWeekday?, placements?, scheduleBlock?, timeSlotId? }[]` — `userId` is the team account id from Accounts management (same as login); each row’s curriculum drives that teacher’s calendar/syllabus/homework view. `category` = **subject taught** in this class (Debate, RC, …), never “Homeroom”. Optional per-teacher schedule: `meetingDays` (0=Sun…6=Sat), `period`, `periodByWeekday`, `placements: [{ dow, period }]`, `scheduleBlock` (`primary` / `secondary`). Empty `classTeachers` clears legacy `assignedTeacher*` fields on save. 담임 for the student group is set on `cohorts[]`, not here. |
 | `assignedTeacherUserId` | string | Legacy: first teacher id (kept in sync with `classTeachers[0]`) |
 | `assignedTeacherName` | string | Legacy: first teacher name |

@@ -70,7 +70,7 @@
     }
 
     function getCalendarButton() {
-        return document.getElementById('tabBtn-calendar');
+        return document.getElementById('tabBtn-calendar-teaching');
     }
 
     function isCalendarClick(target) {

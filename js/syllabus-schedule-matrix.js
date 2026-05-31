@@ -167,6 +167,25 @@
         return entry && entry.classTypeId ? entry.classTypeId : null;
     }
 
+    function listSubjectTracksForLevelPattern(query) {
+        const { programTrack, levelGroup, level, patternId } = query;
+        const slots = findSlots({ programTrack, levelGroup, level, patternId });
+        const tracks = new Set();
+        slots.forEach((slot) => {
+            Object.values(slot.byWeekday || {}).forEach((track) => {
+                if (track) {
+                    tracks.add(track);
+                }
+            });
+        });
+        return Array.from(tracks);
+    }
+
+    function getPatternMeetingDays(patternId) {
+        const pat = MATRIX.patterns[patternId];
+        return pat && Array.isArray(pat.meetingDays) ? pat.meetingDays.slice() : [];
+    }
+
     loadSlotsFromReference();
 
     global.CCPScheduleMatrix = {
@@ -180,6 +199,8 @@
         suggestMeetingDaysForPreset,
         suggestPeriodsByWeekdayForPreset,
         patternIdFromMeetingDays,
-        getBuiltinClassTypeIdForSubjectTrack
+        getBuiltinClassTypeIdForSubjectTrack,
+        listSubjectTracksForLevelPattern,
+        getPatternMeetingDays
     };
 })(typeof window !== 'undefined' ? window : globalThis);

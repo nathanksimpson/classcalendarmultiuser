@@ -3,12 +3,21 @@
  */
 (function (global) {
     const TAB_SCRIPTS = {
+        cohorts: [
+            'js/teacher-timetable.js?v=20260601-cohort-ux',
+            'js/cohort-management.js?v=20260601-ui-consistency'
+        ],
         timetable: [
-            'js/teacher-timetable.js?v=20260602-tab-fast',
+            'js/teacher-timetable.js?v=20260608-cohort-first',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
-        curriculum: ['js/class-curriculum-slices.js?v=20260602-tab-fast'],
-        calendar: ['js/class-curriculum-slices.js?v=20260602-tab-fast']
+        teachers: [
+            'js/teacher-timetable.js?v=20260608-cohort-first',
+            'js/teacher-management.js?v=20260601-ui-consistency',
+            'js/class-curriculum-slices.js?v=20260608-teachers-tab'
+        ],
+        curriculum: ['js/class-curriculum-slices.js?v=20260608-teachers-tab'],
+        calendar: ['js/class-curriculum-slices.js?v=20260608-teachers-tab']
     };
 
     const loaded = new Set();

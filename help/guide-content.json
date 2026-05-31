@@ -11,10 +11,8 @@
           "Classes — schedule and settings: meeting days, term dates, assigned teachers, compression, colors, books (no long syllabus table here).",
           "Syllabus — edit each class syllabus table, custom reusable syllabi (My syllabi), refresh from calendar, import homework paste, print.",
           "Events — search holidays and deadlines and use the full event editor.",
-          "Homework — copy previous-week and this-week homework from each class syllabus to paste into your separate Simson grading and homework assignment websites (not inside this app).",
-          "Timetable — weekly schedule per teacher, student cohorts (담임), conflict warnings, print, and Excel export.",
-          "Curriculum — edit program books: session pages and default schedule settings; apply to classes from the class form.",
-          "Data — calendar backup (export/import full calendar), lesson-plan and books pack, link to Curriculum, and Clear All Data.",
+          "Teaching (host tab) — sub-tabs: Calendar, Homework, Notes, Classes, Syllabus, Timetable.",
+          "Setup (host tab, head teacher / admin) — sub-tabs: Calendar, Cohorts, Teachers, Curriculum, Events, Data (Calendar is the same view as under Teaching, for term dates and events while configuring).",
           "The app remembers which tab you last used in this browser.",
           "Header (always visible): + Add Class / + Add Event (under the title), Print, Help, theme, and language (English ↔ Korean)."
         ]
@@ -113,32 +111,45 @@
       },
       {
         "heading": "10. Syllabus tab (pages, homework, custom syllabi)",
-        "where": "Syllabus tab — Classes list or My syllabi",
+        "where": "Setup → Syllabus — Classes list or My syllabi",
         "steps": [
-          "In Classes tab, set meeting days, dates, and lessons, then Save Class.",
-          "Open Syllabus tab → Classes → pick your class (or use Edit syllabus from Classes or Homework).",
+          "In Teaching → Classes, set meeting days, dates, and lessons, then Save Class.",
+          "Open Setup → Syllabus → Classes → pick your class (or use Edit syllabus from Classes or Homework).",
+          "Use Schedule adjustment on this page to skip lessons or combine pairs before the term (Save syllabus stores these).",
           "Step ① — Refresh from calendar (after the class schedule is saved).",
           "Step ② — Apply preset pages, Fill pages from units, Import homework from paste, Start blank syllabus, or Apply custom syllabus from the dropdown.",
           "My syllabi — + New custom syllabus to build a reusable template; Save template; apply it to any class later.",
           "Add lesson row / Add note row for manual rows without a calendar date until you refresh.",
           "Click Save syllabus (class mode) or Save template (template mode).",
-          "Homework tab copies text from the saved syllabus; use Edit syllabus there to jump back."
+          "Homework tab copies text from the saved syllabus; use Edit syllabus there to jump back to Setup."
         ]
       },
       {
-        "heading": "11. Timetable tab",
-        "where": "Timetable tab — teacher picker and cohort list",
+        "heading": "11. Cohorts tab (Setup)",
+        "where": "Setup → Cohorts — student groups first",
         "steps": [
-          "On the Classes tab, assign teachers to each class (and save). The timetable builds from those assignments.",
-          "Pick a teacher from the dropdown, or click My schedule to jump to your own account when signed in.",
-          "The weekly grid shows that teacher’s classes; homeroom (담임) cohorts appear when configured.",
-          "Use Suggest cohorts from classes or Add cohort to set cohort names and homeroom teachers (담임). Cohorts belong to the active calendar only — switch calendars in the top bar to manage a different calendar’s cohorts.",
-          "A conflict badge appears if the same teacher is double-booked; fix times on the Classes tab.",
-          "Print timetable opens a print-friendly view. Export Excel downloads a spreadsheet of the current teacher’s timetable."
+          "Head teachers and admins: create student cohorts here before adding subject classes.",
+          "For each cohort: name, level, grade, schedule pattern (MWF / T/Th), homeroom teacher (담임).",
+          "In Class assignment, check which classes belong to this cohort and click Apply (same idea as the Teachers tab). One class can link to multiple cohorts for combined groups.",
+          "Review the subject schedule grid from the program matrix, then click Generate subjects to create linked classes.",
+          "Use Import from existing classes once to migrate older calendars that already have classes.",
+          "Delete cohort removes the cohort record and unlinks classes; it does not delete the classes themselves.",
+          "Open Teachers or Timetable from the cohort editor to assign teachers and verify the weekly grid."
         ]
       },
       {
-        "heading": "12. Curriculum tab",
+        "heading": "12. Timetable tab (Setup)",
+        "where": "Setup → Timetable — teacher weekly grid",
+        "steps": [
+          "Pick a teacher from the list. The grid builds from class teacher assignments on each class.",
+          "Homeroom (담임) labels appear when cohorts are configured on the Cohorts tab.",
+          "Teachers without Setup access use My schedule in the header or on the Timetable toolbar.",
+          "A conflict badge appears if the same teacher is double-booked; fix periods on the Classes tab or regenerate from Cohorts.",
+          "Print timetable and Export Excel work from the toolbar."
+        ]
+      },
+      {
+        "heading": "13. Curriculum tab (Setup)",
         "where": "Curriculum tab — book list and editor",
         "steps": [
           "Select a curriculum (program book) from the list, or click Add curriculum for a new book.",
@@ -378,15 +389,16 @@
       },
       {
         "heading": "10. Syllabus 탭 (페이지·과제·사용자 강의 계획표)",
-        "where": "Syllabus 탭 — Classes 또는 My syllabi(내 강의 계획표)",
+        "where": "설정 → Syllabus — Classes 또는 My syllabi(내 강의 계획표)",
         "steps": [
-          "Classes 탭에서 수업 요일·날짜를 맞춘 뒤 Save Class로 저장하세요.",
-          "Syllabus 탭 → Classes → 수업 선택(또는 수업/숙제 화면의 강의 계획표 편집).",
+          "수업(Teaching) → Classes에서 수업 요일·날짜를 맞춘 뒤 Save Class로 저장하세요.",
+          "설정 → Syllabus → Classes → 수업 선택(또는 수업/숙제 화면의 강의 계획표 편집).",
+          "이 페이지의 일정 조정에서 생략·합치기를 학기 전에 설정하고 강의 계획표 저장으로 반영하세요.",
           "① 캘린더에서 새로고침(수업 일정 저장 후).",
           "② 프리셋 페이지 적용, 단원에서 채우기, 과제 붙여넣기, 빈 강의 계획표로 시작, 또는 사용자 강의 계획표 적용.",
           "내 강의 계획표 — + 사용자 강의 계획표로 재사용 템플릿 만들기 → 템플릿 저장 → 다른 수업에 적용.",
           "수업 행 추가 / 메모 행 추가로 수동 편집. 수업 모드에서는 강의 계획표 저장, 템플릿 모드에서는 템플릿 저장.",
-          "Homework 탭은 저장된 강의 계획표에서 복사합니다."
+          "Homework 탭은 저장된 강의 계획표에서 복사합니다. 편집은 설정의 Syllabus로 이동합니다."
         ]
       },
       {

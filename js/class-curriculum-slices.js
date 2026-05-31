@@ -169,16 +169,39 @@
         return { effective, teacherRow: row };
     }
 
+    function rowMatchesAnyTeacherSelector(row, selectors, accountMatchOpts) {
+        if (!selectors || !selectors.length) {
+            return true;
+        }
+        return selectors.some((sel) =>
+            teacherMatchesTeacherRef(
+                { userId: row.userId, displayName: row.name },
+                sel,
+                accountMatchOpts
+            )
+        );
+    }
+
     function getClassCurriculumSlices(classData, appData, options) {
         options = options || {};
         const showAll = options.showAll === true;
         const viewer = options.viewerSelector || null;
+        const teacherSelectors = Array.isArray(options.teacherSelectors)
+            ? options.teacherSelectors.filter(Boolean)
+            : [];
         const teachers = getNormalizedClassTeachers(classData);
         const slices = [];
 
         const accountMatchOpts = viewer && viewer.userId ? { accountOnly: true } : null;
         teachers.forEach((row, index) => {
-            if (!showAll && viewer && viewer.userId) {
+            if (teacherSelectors.length) {
+                if (!row.userId && !row.name) {
+                    return;
+                }
+                if (!rowMatchesAnyTeacherSelector(row, teacherSelectors, accountMatchOpts)) {
+                    return;
+                }
+            } else if (!showAll && viewer && viewer.userId) {
                 if (!row.userId) {
                     return;
                 }

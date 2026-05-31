@@ -1,4 +1,51 @@
 <div id="syllabusEditorForm" class="syllabus-editor-form" data-homework-import-mode="" data-lesson-label-mode="">
+                <section id="syllabusScheduleAdjustmentSection" class="syllabus-editor-block syllabus-schedule-adjustment-block" hidden>
+                    <h3 class="syllabus-block-title" data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</h3>
+                    <p class="section-hint" data-i18n="syllabusScheduleSetupHint">Set skips and lesson merges here before the term. Homework and the lesson table use these after Refresh from calendar.</p>
+                    <p id="syllabusScheduleUnsavedHint" class="section-hint syllabus-schedule-unsaved-hint" hidden data-i18n="syllabusScheduleUnsavedHint">Save the class in Classes first for meeting days and term dates, or use Class schedule &amp; settings above.</p>
+                    <div id="syllabusScheduleGapWarning" class="schedule-gap-warning" hidden role="alert"></div>
+                    <div id="syllabusScheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
+                    <details class="syllabus-schedule-adjustment-details" open>
+                        <summary class="syllabus-schedule-adjustment-summary-label" data-i18n="syllabusScheduleAdjustments">Schedule adjustments</summary>
+                        <div class="form-group compression-mode-group">
+                            <div class="radio-group">
+                                <label class="checkbox-label">
+                                    <input type="radio" name="syllabusCompressionMode" id="syllabusCompressionModeAuto" value="autoWhenNeeded" checked>
+                                    <span data-i18n="compressionModeAuto">Auto compress when a month does not have enough class days</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="radio" name="syllabusCompressionMode" id="syllabusCompressionModeManual" value="manual">
+                                    <span data-i18n="compressionModeManual">Manual only (use my merge choices below)</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="radio" name="syllabusCompressionMode" id="syllabusCompressionModeManualPerMonth" value="manualPerMonth">
+                                    <span data-i18n="compressionModeManualPerMonth">Per book period (choose merges for each period)</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div id="syllabusCompressionByMonthSection" class="compression-by-month-section" style="display: none;">
+                            <p class="section-hint" data-i18n="syllabusCompressionByPeriodReadonlyHint">Per-period merges use book periods saved on the class. Edit book periods under Class schedule &amp; settings.</p>
+                            <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each book period (typical for weekly debate). Each period can differ when holidays shorten the schedule.</p>
+                            <div id="syllabusCompressionByMonthRows" class="compression-by-month-rows"></div>
+                        </div>
+                        <div class="compression-options" id="syllabusCompressionGlobalSection">
+                            <p id="syllabusScheduleAdjustmentDebateHint" class="section-hint schedule-adjustment-hint" data-i18n="scheduleAdjustmentHint">Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan). Debate classes can also use auto-compress per book period above.</p>
+                            <p id="syllabusScheduleAdjustmentSequentialHint" class="section-hint schedule-adjustment-hint" hidden data-i18n="scheduleAdjustmentNonDebateHint">Skip or combine lessons below to fit this term's class days. Auto-compress is only for debate classes.</p>
+                            <div class="schedule-skip-range-row">
+                                <span class="schedule-skip-range-label" data-i18n="scheduleSkipRangeLabel">Skip lesson range</span>
+                                <input type="number" id="syllabusScheduleSkipRangeFrom" class="schedule-skip-range-input" min="1" step="1" aria-label="From lesson">
+                                <span data-i18n="scheduleSkipRangeTo">to</span>
+                                <input type="number" id="syllabusScheduleSkipRangeTo" class="schedule-skip-range-input" min="1" step="1" aria-label="To lesson">
+                                <button type="button" id="syllabusScheduleSkipRangeAddBtn" class="btn btn-outline btn-small" data-i18n="scheduleSkipRangeAdd">Add range</button>
+                            </div>
+                            <p class="section-hint" data-i18n="compressionMergeCheckboxesNote">Merge checkboxes apply in Manual mode only. Per month uses the section above. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.</p>
+                            <div id="syllabusScheduleAdjustmentRows" class="schedule-adjustment-rows"></div>
+                            <div id="syllabusCompressionCheckboxes" class="compression-checkboxes" style="display: none;"></div>
+                            <p class="section-hint" data-i18n="compressionOverlapHint">Only adjacent lessons can be merged. Overlapping merges are disabled.</p>
+                        </div>
+                    </details>
+                </section>
+
                 <section class="syllabus-editor-block syllabus-table-section">
                     <h3 class="syllabus-block-title" data-i18n="syllabusTable">Lesson schedule table</h3>
                     <p class="section-hint" data-i18n="syllabusTableHint">Build a printable table (Month, Week, Class #, lesson plan, pages/work). Refresh after you change the calendar schedule.</p>

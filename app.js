@@ -182,12 +182,15 @@ const translations = {
         lessonFilterSectionType: 'By class type',
         lessonFilterSectionPeriod: 'By period',
         lessonFilterSectionBook: 'By default book',
+        lessonFilterSectionTeacher: 'By teacher',
         lessonFilterNoGrade: '(no grade)',
         lessonFilterNoLevel: '(no level set)',
         lessonFilterNoType: '(no type)',
         lessonFilterNoBook: '(no default book)',
+        lessonFilterNoTeacher: '(no teacher assigned)',
+        lessonFilterJustMine: 'Just my classes',
         lessonFilterBtnActive: 'Filter lessons ({visible}/{total})',
-        lessonFilterSearchPlaceholder: 'Search classes, grades, levels…',
+        lessonFilterSearchPlaceholder: 'Search classes, grades, levels, teachers…',
         lessonFilterSearchEmpty: 'No matches. Try a different search.',
         lessonFilterNoClassesOnCalendar: 'No classes have lessons in the displayed term months. Add classes or adjust the term dates.',
         printLessonFilterActive: 'Lesson filter is on: only {visible} of {total} classes appear on the calendar and in class-related print sections.',
@@ -198,6 +201,107 @@ const translations = {
         tabHomework: 'Homework',
         tabNotes: 'Notes',
         tabTimetable: 'Timetable',
+        tabTeachers: 'Teachers',
+        tabCohorts: 'Cohorts',
+        tabGroupOperations: 'Operations',
+        tabGroupTeaching: 'Teaching',
+        tabGroupSetup: 'Setup',
+        headerMySchedule: 'My schedule',
+        setupBannerText: 'Create student cohorts first, then assign subjects and teachers in Setup.',
+        setupBannerAction: 'Create cohorts',
+        setupBannerDismiss: 'Dismiss',
+        cohortsTabIntro: 'Create student cohorts first, then assign subjects and schedules. Cohorts belong to this calendar only.',
+        cohortsEditorEmpty: 'Select a cohort from the list, or click + Add cohort.',
+        cohortsLinkedHeading: 'Linked subject classes',
+        cohortsLinkedEmpty: 'Select a cohort to see linked classes.',
+        cohortsLinkedNone: 'No subject classes yet. Set level and pattern, then Generate subjects.',
+        cohortsImportFromClasses: 'Import from existing classes',
+        cohortsListSearchPlaceholder: 'Search cohorts…',
+        cohortsFilterAll: 'All',
+        cohortStatusDraft: 'Draft',
+        cohortStatusSchedule: 'Schedule',
+        cohortStatusPending: 'Subjects pending',
+        cohortStatusReady: 'Ready',
+        cohortStatusIncomplete: 'Incomplete',
+        cohortsSectionIdentity: 'Identity',
+        cohortsSectionSchedule: 'Schedule pattern',
+        cohortsSectionSubjects: 'Subject schedule',
+        cohortsPatternCustom: 'Custom',
+        cohortsGenerateSubjects: 'Generate subjects',
+        cohortsRegenerateConfirm: 'Regenerate subject classes? Schedule fields on generated classes may be updated.',
+        cohortsGenerateDone: 'Created {created}, updated {updated} subject class(es).',
+        cohortsDuplicate: 'Duplicate cohort',
+        cohortsDeleteConfirm: 'Delete cohort "{name}"?\n\nClasses linked to this cohort will stay on the calendar but will no longer belong to it. This cannot be undone.',
+        cohortsDeleteBtn: 'Delete cohort',
+        cohortsDeleted: 'Deleted cohort "{name}".',
+        cohortsOpenTeachers: 'Open Teachers tab',
+        cohortsOpenTimetable: 'Open Timetable',
+        cohortsOpenClass: 'Edit class',
+        cohortsOpenSyllabus: 'Syllabus',
+        cohortsAssignTeacher: 'Assign teacher',
+        cohortsNoTeacher: 'No teacher',
+        cohortsMatrixNoMatch: 'Pick a level to load subject slots from the schedule matrix.',
+        cohortsPeriodCountHint: 'Distinct periods in grid: {n}',
+        cohortsSubjectCol: 'Subject',
+        cohortsEnabledCol: 'On',
+        cohortsSummaryStrip: '{cohorts} cohort(s), {classes} class(es) on this calendar.',
+        cohortsSummaryUnlinked: '{n} class(es) not linked to a cohort.',
+        cohortsImportNone: 'No classes found to import. Classes need a level or grade.',
+        cohortsImportConfirm: 'Import {n} suggested cohort(s)?',
+        cohortsSectionClassAssignment: 'Class assignment',
+        cohortsClassAssignmentHint: 'Check classes that belong to this student group, then Apply. One class can be linked to multiple cohorts (combined groups).',
+        cohortsClassApply: 'Apply class links',
+        cohortsClassApplySummary: 'Linked {linked} class(es), unlinked {unlinked}.',
+        cohortsClassUnassignedOnly: 'Not linked to this cohort',
+        cohortsClassAlsoLinked: 'Also: {names}',
+        cohortsListSortLabel: 'Sort',
+        cohortsListSortName: 'Name',
+        cohortsListSortGrade: 'Grade',
+        cohortsListSortLevel: 'Level',
+        cohortsListSortStatus: 'Status',
+        cohortsListSortClassCount: 'Class count',
+        cohortsListSortPattern: 'Schedule pattern',
+        cohortsSummaryClassCount: '{n} classes',
+        cohortsNoHomeroom: 'No homeroom teacher',
+        cohortsSectionHomeroom: 'Homeroom teacher (담임)',
+        cohortsHomeroomApply: 'Save homeroom',
+        cohortsHomeroomSaved: 'Homeroom teacher saved for this cohort.',
+        cohortsHomeroomClear: 'Clear homeroom',
+        cohortsDangerZone: 'Danger zone',
+        cohortsModuleMissing: 'Cohort tools failed to load. Hard refresh (Ctrl+F5) and try again.',
+        classCohortRequiredAdmin: 'Select a student cohort for this class, or create one on the Cohorts tab.',
+        classAddFromCohortPrompt: 'Create classes from a cohort (recommended) or add a blank class for advanced setup?',
+        classAddFromCohortBtn: 'From cohort',
+        classAddBlankClassBtn: 'Blank class',
+        teachersTabManageCohorts: 'Manage cohorts',
+        teachersTabUnassignedCohort: 'No cohort',
+        teachersTabCohortsEmpty: 'No cohorts yet. Add cohorts on the Cohorts tab.',
+        teachersTabIntro: 'Assign class schedules and homeroom cohorts to teachers. Changes save to this team calendar.',
+        teachersTabSegmentClasses: 'Class schedules',
+        teachersTabSegmentCohorts: 'Homeroom cohorts',
+        teachersTabCatalogClasses: 'Class schedules',
+        teachersTabCatalogCohorts: 'Homeroom cohorts',
+        teachersTabHomeroomHint: 'Homeroom (담임) is a cohort role for student contact — not the subject they teach. Use Class schedules for teaching assignments.',
+        teachersTabDefaultCategory: 'Default subject for newly checked classes',
+        teachersTabUnassignedOnly: 'Show unassigned only',
+        teachersTabApply: 'Apply assignments',
+        teachersTabApplySummary: 'Added {added} class(es), removed {removed}; set 담임 on {homeroom}, cleared {cleared}.',
+        teachersTabReplaceHomeroomConfirm: 'Replace homeroom teacher on {n} cohort(s)? ({names})',
+        teachersTabOpenTimetable: 'Open in Timetable',
+        teachersTabFilterCalendar: 'Filter calendar to this teacher',
+        teachersTabPreviewHeading: 'Weekly timetable preview',
+        teachersTabScrollToPreview: 'Jump to preview',
+        teachersTabCatalogSortLabel: 'Sort',
+        teachersTabCatalogCategoryLabel: 'Category',
+        teachersTabSortDisplay: 'Default order',
+        teachersTabSortName: 'Name (A–Z)',
+        teachersTabSortCategory: 'Category',
+        teachersTabSortLevel: 'Level / grade',
+        teachersTabSortPeriod: 'Period',
+        teachersTabCategoryAll: 'All categories',
+        teachersTabCategoryNone: 'Uncategorized',
+        teachersTabBadgeSyllabus: 'Syllabus ({n} rows)',
+        teachersTabBadgeOnCalendar: 'On calendar this term',
         tabData: 'Data',
         tabPrintDataHeading: 'Data & settings',
         printBooksHeading: 'Books',
@@ -524,7 +628,8 @@ const translations = {
         classAssignedTeacherNone: '— Not assigned —',
         classAssignedTeacherCustom: 'Other (type name below)',
         classAssignedTeacherName: 'Teacher name (if not in list)',
-        classTeachersHint: 'Add each teacher who teaches this class (team accounts). Pick subject and curriculum per row. Homeroom (담임) is set on Timetable → Student cohorts — it is a cohort role (contact, retests), not what they teach here.',
+        classTeachersHint: 'Add each teacher who teaches this class. Homeroom (담임) is set on Setup → Cohorts. Admins must link every class to a cohort.',
+        classCohortAdminRequired: '(required for admins)',
         classTeacherAccountRequired: 'Select a teacher account from the list (not only a typed name) so their login shows the right curriculum.',
         classTeacherLegacyUnlinked: 'link account',
         classAddTeacher: '+ Add teacher',
@@ -599,7 +704,7 @@ const translations = {
         timetableCohortSaved: 'Cohort saved.',
         timetableCohortsSuggested: 'Suggested {n} cohort(s). Review and save homeroom teachers.',
         timetableMySchedule: 'My schedule',
-        timetableCohortsEmpty: 'No cohorts yet. Use “Suggest cohorts from classes” or Add cohort.',
+        timetableCohortsEmpty: 'No cohorts yet. Go to Setup → Cohorts and click Add cohort.',
         timetableHomeroomCohortsHeading: 'Homeroom cohorts on this schedule',
         timetableHomeroomCohortClasses: '{n} classes',
         classTeacherCurriculum: 'Curriculum (this teacher)',
@@ -698,7 +803,9 @@ const translations = {
         syllabusDeleteTemplate: 'Delete template',
         syllabusModeTemplate: 'Editing template: {name} — apply to a class when ready.',
         syllabusScheduleChip: 'Schedule (saved): {days} · {start} – {end}',
-        syllabusScheduleUnsavedHint: 'Save the class in Classes first for an accurate Refresh from calendar.',
+        syllabusScheduleUnsavedHint: 'Set meeting days and term dates under Class schedule & settings (Classes tab) before Refresh from calendar.',
+        syllabusScheduleSetupHint: 'Set skips and lesson merges here before the term. Homework and the lesson table use these after Refresh from calendar.',
+        syllabusCompressionByPeriodReadonlyHint: 'Per-period merges use book periods saved on the class. Edit book periods under Class schedule & settings.',
         syllabusClassSummary: '{rows} rows in syllabus',
         syllabusClassSummaryEmpty: 'No syllabus rows yet',
         syllabusStartBlank: 'Start blank syllabus',
@@ -1040,12 +1147,15 @@ const translations = {
         lessonFilterSectionType: '수업 유형별',
         lessonFilterSectionPeriod: '교시별',
         lessonFilterSectionBook: '기본 교재별',
+        lessonFilterSectionTeacher: '선생님별',
         lessonFilterNoGrade: '(학년 없음)',
         lessonFilterNoLevel: '(레벨 없음)',
         lessonFilterNoType: '(유형 없음)',
         lessonFilterNoBook: '(기본 교재 없음)',
+        lessonFilterNoTeacher: '(배정된 선생님 없음)',
+        lessonFilterJustMine: '내 수업만',
         lessonFilterBtnActive: '수업 필터 ({visible}/{total})',
-        lessonFilterSearchPlaceholder: '수업, 학년, 레벨 검색…',
+        lessonFilterSearchPlaceholder: '수업, 학년, 레벨, 선생님 검색…',
         lessonFilterSearchEmpty: '일치하는 항목이 없습니다. 다른 검색어를 입력해 보세요.',
         lessonFilterNoClassesOnCalendar: '표시된 학기 달에 수업이 없습니다. 수업을 추가하거나 학기 날짜를 조정하세요.',
         printLessonFilterActive: '수업 필터 적용 중: {total}개 중 {visible}개만 캘린더와 수업 관련 인쇄에 표시됩니다.',
@@ -1056,6 +1166,73 @@ const translations = {
         tabHomework: '숙제',
         tabNotes: '특히사항',
         tabTimetable: '시간표',
+        tabTeachers: '선생님 관리',
+        tabCohorts: '반 관리',
+        tabGroupOperations: '운영',
+        tabGroupTeaching: '수업',
+        tabGroupSetup: '설정',
+        headerMySchedule: '내 시간표',
+        setupBannerText: '먼저 학생 반을 만든 다음, 설정에서 과목과 선생님을 배정하세요.',
+        setupBannerAction: '반 만들기',
+        setupBannerDismiss: '닫기',
+        cohortsTabIntro: '먼저 학생 반을 만든 다음 과목과 시간표를 배정하세요. 반은 이 캘린더에만 속합니다.',
+        cohortsEditorEmpty: '목록에서 반을 선택하거나 + 반 추가를 클릭하세요.',
+        cohortsSectionClassAssignment: '수업 연결',
+        cohortsClassAssignmentHint: '이 학생 반에 속한 수업을 선택한 뒤 적용하세요. 한 수업에 여러 반을 연결할 수 있습니다(합반).',
+        cohortsClassApply: '수업 연결 적용',
+        cohortsClassApplySummary: '연결 {linked}개, 해제 {unlinked}개.',
+        cohortsClassUnassignedOnly: '이 반에 연결되지 않은 수업만',
+        cohortsClassAlsoLinked: '다른 반: {names}',
+        cohortsListSortLabel: '정렬',
+        cohortsListSortName: '이름',
+        cohortsListSortGrade: '학년',
+        cohortsListSortLevel: '레벨',
+        cohortsListSortStatus: '상태',
+        cohortsListSortClassCount: '수업 수',
+        cohortsListSortPattern: '요일 패턴',
+        cohortsSummaryClassCount: '수업 {n}개',
+        cohortsNoHomeroom: '담임 없음',
+        cohortsSectionHomeroom: '담임 선생님',
+        cohortsHomeroomApply: '담임 저장',
+        cohortsHomeroomSaved: '이 반의 담임을 저장했습니다.',
+        cohortsHomeroomClear: '담임 지우기',
+        cohortsDangerZone: '위험 작업',
+        cohortsDeleteConfirm: '반 "{name}"을(를) 삭제할까요?\n\n연결된 수업은 캘린더에 남지만 이 반과의 연결은 해제됩니다. 되돌릴 수 없습니다.',
+        cohortsDeleteBtn: '반 삭제',
+        cohortsDeleted: '반 "{name}"을(를) 삭제했습니다.',
+        cohortsModuleMissing: '반 관리 도구를 불러오지 못했습니다. Ctrl+F5로 새로고침하세요.',
+        cohortsLinkedHeading: '연결된 과목 수업',
+        cohortsImportFromClasses: '기존 수업에서 가져오기',
+        cohortsGenerateSubjects: '과목 수업 생성',
+        teachersTabManageCohorts: '반 관리',
+        teachersTabUnassignedCohort: '반 없음',
+        teachersTabIntro: '수업 일정과 담임 반을 선생님에게 일괄 배정합니다. 저장 시 이 팀 캘린더에 반영됩니다.',
+        teachersTabSegmentClasses: '수업 일정',
+        teachersTabSegmentCohorts: '담임 반',
+        teachersTabCatalogClasses: '수업 일정',
+        teachersTabCatalogCohorts: '담임 반',
+        teachersTabHomeroomHint: '담임은 학생 연락·행정 역할입니다. 가르치는 과목은 수업 일정에서 배정하세요.',
+        teachersTabDefaultCategory: '새로 선택한 수업의 기본 과목',
+        teachersTabUnassignedOnly: '미배정만 표시',
+        teachersTabApply: '배정 적용',
+        teachersTabApplySummary: '수업 {added}개 추가, {removed}개 제거; 담임 {homeroom}개 설정, {cleared}개 해제.',
+        teachersTabReplaceHomeroomConfirm: '{n}개 반의 담임을 바꿉니다? ({names})',
+        teachersTabOpenTimetable: '시간표에서 보기',
+        teachersTabFilterCalendar: '캘린더를 이 선생님으로 필터',
+        teachersTabPreviewHeading: '주간 시간표 미리보기',
+        teachersTabScrollToPreview: '미리보기로 이동',
+        teachersTabCatalogSortLabel: '정렬',
+        teachersTabCatalogCategoryLabel: '과목',
+        teachersTabSortDisplay: '기본 순서',
+        teachersTabSortName: '이름 (가–하)',
+        teachersTabSortCategory: '과목별',
+        teachersTabSortLevel: '레벨 / 학년',
+        teachersTabSortPeriod: '교시',
+        teachersTabCategoryAll: '모든 과목',
+        teachersTabCategoryNone: '미분류',
+        teachersTabBadgeSyllabus: '강의계획 ({n}행)',
+        teachersTabBadgeOnCalendar: '이번 학기 캘린더 표시',
+        teachersTabCohortsEmpty: '반이 없습니다. 설정 → 반 관리에서 반을 추가하세요.',
         tabData: '데이터',
         tabPrintDataHeading: '데이터 및 설정',
         printBooksHeading: '교재',
@@ -1382,7 +1559,8 @@ const translations = {
         classAssignedTeacherNone: '— 미배정 —',
         classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
         classAssignedTeacherName: '선생님 이름 (목록에 없을 때)',
-        classTeachersHint: '이 수업을 가르치는 선생님을 팀 계정에서 추가하세요. 행마다 담당 과목과 교재과정을 선택합니다. 담임은 시간표 → 학생 반에서 설정합니다(학생 연락·재시험 담당 역할이며, 여기서 가르치는 과목과는 별개).',
+        classTeachersHint: '이 수업을 가르치는 선생님을 추가하세요. 담임은 설정 → 반 관리에서 지정합니다. 관리자는 모든 수업에 반을 연결해야 합니다.',
+        classCohortAdminRequired: '(관리자 필수)',
         classTeacherAccountRequired: '로그인 계정과 연결하려면 목록에서 선생님 계정을 선택하세요. 이름만 입력하면 안 됩니다.',
         classTeacherLegacyUnlinked: '계정 연결 필요',
         classAddTeacher: '+ 선생님 추가',
@@ -1457,7 +1635,7 @@ const translations = {
         timetableCohortSaved: '반을 저장했습니다.',
         timetableCohortsSuggested: '제안된 반 {n}개. 담임 선생님을 확인하고 저장하세요.',
         timetableMySchedule: '내 시간표',
-        timetableCohortsEmpty: '아직 반이 없습니다. “수업에서 반 자동 제안” 또는 반 추가를 사용하세요.',
+        timetableCohortsEmpty: '아직 반이 없습니다. 설정 → 반 관리에서 반을 추가하세요.',
         timetableHomeroomCohortsHeading: '이 시간표의 담임 반',
         timetableHomeroomCohortClasses: '수업 {n}개',
         classTeacherCurriculum: '교재과정 (이 선생님)',
@@ -1556,7 +1734,9 @@ const translations = {
         syllabusDeleteTemplate: '템플릿 삭제',
         syllabusModeTemplate: '템플릿 편집: {name} — 준비되면 수업에 적용하세요.',
         syllabusScheduleChip: '일정 (저장됨): {days} · {start} – {end}',
-        syllabusScheduleUnsavedHint: '캘린더에서 정확히 새로고침하려면 수업 탭에서 먼저 저장하세요.',
+        syllabusScheduleUnsavedHint: '캘린더에서 새로고침하기 전에 수업 일정 및 설정(수업 탭)에서 수업 요일과 기간을 설정하세요.',
+        syllabusScheduleSetupHint: '학기 전에 생략·합치기를 여기서 설정하세요. 새로고침 후 숙제와 표에 반영됩니다.',
+        syllabusCompressionByPeriodReadonlyHint: '기간별 합치기는 수업에 저장된 교재 기간을 사용합니다. 교재 기간은 수업 일정 및 설정에서 편집하세요.',
         syllabusClassSummary: '강의 계획표 {rows}행',
         syllabusClassSummaryEmpty: '강의 계획표 행 없음',
         syllabusStartBlank: '빈 강의 계획표로 시작',
@@ -1807,6 +1987,8 @@ function applyLanguage() {
     if (getActiveTab() === 'timetable') {
         refreshTimetablePanels();
     }
+    populateTeachersTabDefaultCategorySelect();
+    populateTeachersTabCatalogToolbar();
     const eventAppSearchEl = document.getElementById('eventApplicabilitySearch');
     if (eventAppSearchEl && translations[currentLanguage].lessonFilterSearchPlaceholder) {
         eventAppSearchEl.placeholder = translations[currentLanguage].lessonFilterSearchPlaceholder;
@@ -1972,6 +2154,7 @@ const LESSON_FILTER_NO_GRADE = '__no_grade__';
 const LESSON_FILTER_NO_LEVEL = '__no_level__';
 const LESSON_FILTER_NO_TYPE = '__no_type__';
 const LESSON_FILTER_NO_BOOK = '__no_book__';
+const LESSON_FILTER_NO_TEACHER = '__no_teacher__';
 
 const LESSON_FILTER_DIMENSIONS = [
     'classIds',
@@ -1979,7 +2162,8 @@ const LESSON_FILTER_DIMENSIONS = [
     'levelPresets',
     'classTypeIds',
     'periods',
-    'books'
+    'books',
+    'teacherUserIds'
 ];
 
 const DEFAULT_LESSON_FILTERS = {
@@ -1989,6 +2173,7 @@ const DEFAULT_LESSON_FILTERS = {
     classTypeIds: null,
     periods: null,
     books: null,
+    teacherUserIds: null,
     hideAllLessons: false
 };
 
@@ -2320,7 +2505,62 @@ function classPassesLessonFilters(classData) {
             return false;
         }
     }
+    if (Array.isArray(f.teacherUserIds) && f.teacherUserIds.length > 0) {
+        if (!classMatchesLessonFilterTeachers(classData, f.teacherUserIds)) {
+            return false;
+        }
+    }
     return true;
+}
+
+function classHasNoAssignedTeacherAccount(classData) {
+    const api = getTimetableApi();
+    if (!classData) {
+        return true;
+    }
+    const rows = api ? api.getClassTeachersList(classData) : (classData.classTeachers || []);
+    if (!rows.length) {
+        return !(classData.assignedTeacherUserId || '').trim();
+    }
+    return !rows.some((row) => (row.userId || '').trim());
+}
+
+function classMatchesLessonFilterTeachers(classData, teacherUserIds) {
+    const api = getTimetableApi();
+    if (!api || !teacherUserIds || !teacherUserIds.length) {
+        return true;
+    }
+    let matched = false;
+    if (teacherUserIds.includes(LESSON_FILTER_NO_TEACHER) && classHasNoAssignedTeacherAccount(classData)) {
+        matched = true;
+    }
+    teacherUserIds.forEach((uid) => {
+        if (uid === LESSON_FILTER_NO_TEACHER) {
+            return;
+        }
+        if (api.teacherMatchesClass(classData, { userId: uid, displayName: '' })) {
+            matched = true;
+        }
+    });
+    return matched;
+}
+
+function getActiveLessonFilterTeacherSelectors() {
+    ensureUiState();
+    const f = appData.ui.lessonFilters;
+    if (!f || !Array.isArray(f.teacherUserIds) || !f.teacherUserIds.length) {
+        return [];
+    }
+    const teachers = listTimetableTeachers();
+    return f.teacherUserIds
+        .filter((uid) => uid && uid !== LESSON_FILTER_NO_TEACHER)
+        .map((uid) => {
+            const row = teachers.find((t) => t.userId === uid);
+            return {
+                userId: uid,
+                displayName: row ? (row.displayName || uid) : uid
+            };
+        });
 }
 
 function getVisibleClassesInDisplayOrder() {
@@ -3518,26 +3758,36 @@ function updateCompressionUiForScheduleModel() {
     if (byMonthSection) {
         byMonthSection.style.display = debate ? '' : 'none';
     }
-    syncCompressionSectionsForMode();
-    const debateHint = document.getElementById('scheduleAdjustmentDebateHint');
-    const sequentialHint = document.getElementById('scheduleAdjustmentSequentialHint');
+    syncCompressionSectionsForMode('classForm');
+    const debateHint = scheduleAdjEl('classForm', 'debateHint');
+    const sequentialHint = scheduleAdjEl('classForm', 'sequentialHint');
     if (debateHint && sequentialHint) {
         debateHint.hidden = !debate;
         sequentialHint.hidden = debate;
     }
-    const total = getTotalLessonsValue();
+    const total = getTotalLessonsValue('classForm');
     const draft = buildClassSnapshotFromForm();
-    renderScheduleAdjustmentRows(total, draft);
+    renderScheduleAdjustmentRows(total, draft, 'classForm');
     const effective = getClassDataForScheduleGapCheck(draft);
-    renderScheduleAdjustmentSummaryBlock(effective || draft);
-    renderScheduleGapWarning(draft);
+    renderScheduleAdjustmentSummaryBlock(effective || draft, 'classForm');
+    renderScheduleGapWarning(draft, 'classForm');
 }
 
-function syncCompressionSectionsForMode() {
-    const debate = classUsesDebateCompressionFromForm();
-    const mode = getCompressionModeFromForm();
-    const globalSection = document.getElementById('compressionGlobalSection');
-    const byMonthSection = document.getElementById('compressionByMonthSection');
+function syncCompressionSectionsForMode(surface, classData) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const debate = sid === 'syllabus'
+        ? classUsesDebateCompression(classData || getSelectedSyllabusClass())
+        : classUsesDebateCompressionFromForm();
+    const mode = getCompressionModeFromSurface(sid);
+    const globalSection = scheduleAdjEl(sid, 'compressionGlobalSection');
+    const byMonthSection = scheduleAdjEl(sid, 'compressionByMonthSection');
+    const compressionGroup = sid === 'classForm'
+        ? document.querySelector('#classCompressionDetails .compression-mode-group')
+        : scheduleAdjEl(sid, 'compressionGlobalSection')?.closest('.syllabus-schedule-adjustment-details')
+            ?.querySelector('.compression-mode-group');
+    if (compressionGroup) {
+        compressionGroup.style.display = debate ? '' : 'none';
+    }
     if (!debate) {
         if (globalSection) {
             globalSection.style.display = '';
@@ -3555,7 +3805,10 @@ function syncCompressionSectionsForMode() {
         byMonthSection.style.display = perPeriod ? '' : 'none';
     }
     if (perPeriod) {
-        renderCompressionByPeriodRows(collectDebateBookPeriodsFromForm());
+        const periods = sid === 'syllabus'
+            ? ((classData || getSelectedSyllabusClass())?.debateBookPeriods || [])
+            : collectDebateBookPeriodsFromForm();
+        renderCompressionByPeriodRows(periods, sid);
     }
 }
 
@@ -3567,6 +3820,10 @@ function getClassTypeOptionLabel(def) {
         return '';
     }
     return (def.name || def.fallbackName || def.id || '').trim();
+}
+
+function normalizeStr(v) {
+    return String(v == null ? '' : v).trim();
 }
 
 function normalizeMeetingDaysArray(raw) {
@@ -3796,11 +4053,109 @@ function formatScheduleAdjustmentSummary(classData) {
     };
 }
 
-function hasScheduleAdjustmentTableInDom() {
-    return Boolean(document.getElementById('scheduleAdjustmentRows'));
+const SCHEDULE_ADJ_SURFACE = {
+    classForm: {
+        gapWarning: 'classScheduleGapWarning',
+        adjustmentSummary: 'scheduleAdjustmentSummary',
+        adjustmentRows: 'scheduleAdjustmentRows',
+        compressionCheckboxes: 'compressionCheckboxes',
+        compressionByMonthSection: 'compressionByMonthSection',
+        compressionByMonthRows: 'compressionByMonthRows',
+        compressionGlobalSection: 'compressionGlobalSection',
+        compressionModeName: 'compressionMode',
+        compressionModeAuto: 'compressionModeAuto',
+        compressionModeManual: 'compressionModeManual',
+        compressionModeManualPerMonth: 'compressionModeManualPerMonth',
+        debateHint: 'scheduleAdjustmentDebateHint',
+        sequentialHint: 'scheduleAdjustmentSequentialHint',
+        skipRangeFrom: 'scheduleSkipRangeFrom',
+        skipRangeTo: 'scheduleSkipRangeTo',
+        skipRangeAdd: 'scheduleSkipRangeAddBtn',
+        compressionDetails: 'classCompressionDetails',
+        scheduleSection: 'classCompressionDetails'
+    },
+    syllabus: {
+        gapWarning: 'syllabusScheduleGapWarning',
+        adjustmentSummary: 'syllabusScheduleAdjustmentSummary',
+        adjustmentRows: 'syllabusScheduleAdjustmentRows',
+        compressionCheckboxes: 'syllabusCompressionCheckboxes',
+        compressionByMonthSection: 'syllabusCompressionByMonthSection',
+        compressionByMonthRows: 'syllabusCompressionByMonthRows',
+        compressionGlobalSection: 'syllabusCompressionGlobalSection',
+        compressionModeName: 'syllabusCompressionMode',
+        compressionModeAuto: 'syllabusCompressionModeAuto',
+        compressionModeManual: 'syllabusCompressionModeManual',
+        compressionModeManualPerMonth: 'syllabusCompressionModeManualPerMonth',
+        debateHint: 'syllabusScheduleAdjustmentDebateHint',
+        sequentialHint: 'syllabusScheduleAdjustmentSequentialHint',
+        skipRangeFrom: 'syllabusScheduleSkipRangeFrom',
+        skipRangeTo: 'syllabusScheduleSkipRangeTo',
+        skipRangeAdd: 'syllabusScheduleSkipRangeAddBtn',
+        compressionDetails: null,
+        scheduleSection: 'syllabusScheduleAdjustmentSection'
+    }
+};
+
+function getScheduleAdjustmentSurface() {
+    if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
+        return 'syllabus';
+    }
+    return 'classForm';
+}
+
+function scheduleAdjEl(surface, key) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    if (!map || !map[key]) {
+        return null;
+    }
+    return document.getElementById(map[key]);
+}
+
+function hasScheduleAdjustmentTableInDom(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    return Boolean(map && document.getElementById(map.adjustmentRows));
+}
+
+function scrollToScheduleAdjustment(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    if (!map) {
+        return;
+    }
+    const section = map.scheduleSection ? document.getElementById(map.scheduleSection) : null;
+    if (section) {
+        if (sid === 'syllabus') {
+            section.hidden = false;
+        }
+        const details = section.tagName === 'DETAILS'
+            ? section
+            : section.querySelector('details');
+        if (details) {
+            details.open = true;
+        }
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
 
 function getClassDataForScheduleGapCheck(baseClass) {
+    const surface = getScheduleAdjustmentSurface();
+    if (surface === 'syllabus') {
+        let data = baseClass || getSelectedSyllabusClass();
+        if (!data) {
+            return null;
+        }
+        if (!hasScheduleAdjustmentTableInDom('syllabus')) {
+            return data;
+        }
+        const compressionFields = collectClassCompressionForSave({
+            isDebateSchedule: classUsesDebateCompression(data),
+            isCustomSchedule: !!(data.customSchedule && data.customSchedule.enabled),
+            surface: 'syllabus'
+        });
+        return { ...data, ...compressionFields };
+    }
     const form = document.getElementById('classForm');
     const formClassId = elements.classId && elements.classId.value;
     let data = baseClass;
@@ -3813,7 +4168,7 @@ function getClassDataForScheduleGapCheck(baseClass) {
     if (!data) {
         return null;
     }
-    if (!form || !hasScheduleAdjustmentTableInDom()) {
+    if (!form || !hasScheduleAdjustmentTableInDom('classForm')) {
         return data;
     }
     const openForThisClass = !formClassId || !data.id || data.id === formClassId || data.id === 'draft-syllabus';
@@ -3822,8 +4177,8 @@ function getClassDataForScheduleGapCheck(baseClass) {
     }
     return {
         ...data,
-        skippedLessons: collectSkippedLessonsFromForm(),
-        compressionMerges: getSelectedCompressionMerges()
+        skippedLessons: collectSkippedLessonsFromForm('classForm'),
+        compressionMerges: getSelectedCompressionMerges('classForm')
     };
 }
 
@@ -3869,6 +4224,11 @@ function focusScheduleAdjustmentForClass(classId) {
     if (!cls) {
         return;
     }
+    if (getActiveTab() === 'syllabus' && appData.ui.syllabusTabClassId === classId) {
+        renderSyllabusScheduleAdjustment(cls);
+        requestAnimationFrame(() => scrollToScheduleAdjustment('syllabus'));
+        return;
+    }
     const inTab = getActiveTab() === 'classes' && classEditorMount === 'tab';
     if (!inTab || elements.classId?.value !== classId) {
         openClassEditor(cls, 'tab');
@@ -3876,18 +4236,15 @@ function focusScheduleAdjustmentForClass(classId) {
         populateClassForm(cls);
     }
     requestAnimationFrame(() => {
-        const details = document.getElementById('classCompressionDetails');
-        if (details) {
-            details.open = true;
-            details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        renderScheduleGapWarning(cls);
-        renderScheduleAdjustmentSummaryBlock(getClassDataForScheduleGapCheck(cls) || cls);
+        scrollToScheduleAdjustment('classForm');
+        renderScheduleGapWarning(cls, 'classForm');
+        renderScheduleAdjustmentSummaryBlock(getClassDataForScheduleGapCheck(cls) || cls, 'classForm');
     });
 }
 
-function renderScheduleGapWarning(classData) {
-    const el = document.getElementById('classScheduleGapWarning');
+function renderScheduleGapWarning(classData, surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const el = scheduleAdjEl(sid, 'gapWarning');
     if (!el) {
         return;
     }
@@ -3915,12 +4272,18 @@ function renderScheduleGapWarning(classData) {
     btn.type = 'button';
     btn.className = 'schedule-gap-warning-btn btn-link-like';
     btn.textContent = `${msg} ${t('scheduleGapAdjustAction')}`;
-    btn.addEventListener('click', () => focusScheduleAdjustmentForClass(effective.id));
+    btn.addEventListener('click', () => {
+        if (sid === 'syllabus') {
+            scrollToScheduleAdjustment('syllabus');
+        } else {
+            focusScheduleAdjustmentForClass(effective.id);
+        }
+    });
     el.appendChild(btn);
 }
 
-function renderScheduleAdjustmentSummaryBlock(classData) {
-    const el = document.getElementById('scheduleAdjustmentSummary');
+function renderScheduleAdjustmentSummaryBlock(classData, surface) {
+    const el = scheduleAdjEl(surface || getScheduleAdjustmentSurface(), 'adjustmentSummary');
     if (!el) {
         return;
     }
@@ -5073,6 +5436,26 @@ function ensureUiState() {
     if (!appData.ui.activeTab || !APP_TAB_IDS.includes(appData.ui.activeTab)) {
         appData.ui.activeTab = 'calendar';
     }
+    if (appData.ui.activeHostTab !== APP_HOST_SETUP && appData.ui.activeHostTab !== APP_HOST_TEACHING) {
+        appData.ui.activeHostTab = getHostForTab(appData.ui.activeTab);
+    }
+    if (appData.ui.lastTeachingTab === 'syllabus') {
+        appData.ui.lastSetupTab = 'syllabus';
+        appData.ui.lastTeachingTab = 'calendar';
+    }
+    if (appData.ui.activeTab === 'syllabus' && appData.ui.activeHostTab === APP_HOST_TEACHING) {
+        appData.ui.activeHostTab = APP_HOST_SETUP;
+    }
+    if (typeof appData.ui.lastTeachingTab !== 'string' || !APP_TEACHING_TAB_IDS.includes(appData.ui.lastTeachingTab)) {
+        appData.ui.lastTeachingTab = APP_TEACHING_TAB_IDS.includes(appData.ui.activeTab)
+            ? appData.ui.activeTab
+            : 'calendar';
+    }
+    if (typeof appData.ui.lastSetupTab !== 'string' || !APP_SETUP_TAB_IDS.includes(appData.ui.lastSetupTab)) {
+        appData.ui.lastSetupTab = APP_SETUP_TAB_IDS.includes(appData.ui.activeTab)
+            ? appData.ui.activeTab
+            : (canAccessTeachersTab() ? 'cohorts' : 'syllabus');
+    }
     if (!appData.ui.lessonFilters) {
         appData.ui.lessonFilters = { ...DEFAULT_LESSON_FILTERS };
     }
@@ -5088,6 +5471,30 @@ function ensureUiState() {
     }
     if (typeof appData.ui.timetableTabTeacherName !== 'string') {
         appData.ui.timetableTabTeacherName = '';
+    }
+    if (typeof appData.ui.teachersTabTeacherUserId !== 'string') {
+        appData.ui.teachersTabTeacherUserId = '';
+    }
+    if (typeof appData.ui.teachersTabTeacherName !== 'string') {
+        appData.ui.teachersTabTeacherName = '';
+    }
+    if (typeof appData.ui.teachersTabCatalogSort !== 'string') {
+        appData.ui.teachersTabCatalogSort = 'display';
+    }
+    if (typeof appData.ui.cohortsListSort !== 'string') {
+        appData.ui.cohortsListSort = 'name';
+    }
+    if (typeof appData.ui.cohortsClassCatalogSort !== 'string') {
+        appData.ui.cohortsClassCatalogSort = 'display';
+    }
+    if (typeof appData.ui.cohortsClassCatalogCategoryFilter !== 'string') {
+        appData.ui.cohortsClassCatalogCategoryFilter = 'all';
+    }
+    if (typeof appData.ui.cohortsTabSelectedId !== 'string') {
+        appData.ui.cohortsTabSelectedId = '';
+    }
+    if (typeof appData.ui.teachersTabCatalogCategoryFilter !== 'string') {
+        appData.ui.teachersTabCatalogCategoryFilter = 'all';
     }
     if (typeof appData.ui.syllabusTabClassId !== 'string') {
         appData.ui.syllabusTabClassId = '';
@@ -5387,7 +5794,8 @@ function pruneLessonFiltersToScheduledOptions() {
         levelPresets: new Set(groups.levels.map(o => o.value)),
         classTypeIds: new Set(groups.types.map(o => o.value)),
         periods: new Set(groups.periods.map(o => o.value)),
-        books: new Set(groups.books.map(o => o.value))
+        books: new Set(groups.books.map(o => o.value)),
+        teacherUserIds: new Set(groups.teachers.map(o => o.value))
     };
     const f = appData.ui.lessonFilters;
     let changed = false;
@@ -5442,6 +5850,25 @@ function getLessonFilterOptionGroups() {
             : classData.book.trim());
     });
 
+    const teacherMap = new Map();
+    const api = getTimetableApi();
+    classes.forEach((classData) => {
+        const rows = api ? api.getClassTeachersList(classData) : [];
+        if (!rows.length && !(classData.assignedTeacherUserId || classData.assignedTeacherName)) {
+            teacherMap.set(LESSON_FILTER_NO_TEACHER, t('lessonFilterNoTeacher'));
+        }
+        rows.forEach((row) => {
+            const uid = (row.userId || '').trim();
+            const name = (row.name || '').trim();
+            if (uid) {
+                teacherMap.set(uid, name || uid);
+            }
+        });
+    });
+    if (classes.some(classHasNoAssignedTeacherAccount)) {
+        teacherMap.set(LESSON_FILTER_NO_TEACHER, t('lessonFilterNoTeacher'));
+    }
+
     return {
         classes: classes.map(c => ({
             value: c.id,
@@ -5454,7 +5881,10 @@ function getLessonFilterOptionGroups() {
             value: String(p),
             label: String(p)
         })),
-        books: [...books.entries()].map(([value, label]) => ({ value, label }))
+        books: [...books.entries()].map(([value, label]) => ({ value, label })),
+        teachers: [...teacherMap.entries()]
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
     };
 }
 
@@ -5487,7 +5917,8 @@ function readLessonFiltersFromPopoverDom() {
         levelPresets: readLessonFilterSectionFromDom('levelPresets'),
         classTypeIds: readLessonFilterSectionFromDom('classTypeIds'),
         periods: readLessonFilterSectionFromDom('periods'),
-        books: readLessonFilterSectionFromDom('books')
+        books: readLessonFilterSectionFromDom('books'),
+        teacherUserIds: readLessonFilterSectionFromDom('teacherUserIds')
     });
 }
 
@@ -5592,6 +6023,7 @@ function renderLessonFilterPopoverBody() {
     }
     body.innerHTML = [
         buildLessonFilterSectionHtml('lessonFilterSectionClasses', 'classIds', groups.classes),
+        buildLessonFilterSectionHtml('lessonFilterSectionTeacher', 'teacherUserIds', groups.teachers),
         buildLessonFilterSectionHtml('lessonFilterSectionGrade', 'grades', groups.grades),
         buildLessonFilterSectionHtml('lessonFilterSectionLevel', 'levelPresets', groups.levels),
         buildLessonFilterSectionHtml('lessonFilterSectionType', 'classTypeIds', groups.types),
@@ -5738,6 +6170,35 @@ function commitLessonFiltersFromPopover() {
     // UI-only: viewer preference.
     saveUiStateToLocalStorage();
     renderCalendar();
+}
+
+function applyLessonFilterForTeacher(selector) {
+    ensureUiState();
+    if (!selector || !selector.userId) {
+        return;
+    }
+    appData.ui.showAllClassCurricula = true;
+    appData.ui.lessonFilters = normalizeLessonFilters({
+        ...DEFAULT_LESSON_FILTERS,
+        teacherUserIds: [selector.userId]
+    });
+    updateLessonFilterButtonLabel();
+    updatePrintLessonFilterHint();
+    saveUiStateToLocalStorage();
+    invalidateScheduleCache();
+    renderCalendar();
+}
+
+function applyLessonFilterJustMine() {
+    const viewer = getCalendarViewerTeacherSelector();
+    if (!viewer || !viewer.userId) {
+        return;
+    }
+    applyLessonFilterForTeacher(viewer);
+    if (isLessonFilterPopoverOpen()) {
+        applyLessonFiltersToPopoverDom();
+        updateLessonFilterStatusText();
+    }
 }
 
 function resetLessonFilters() {
@@ -6224,6 +6685,7 @@ function setupLessonFilterUi() {
     const selectAllBtn = document.getElementById('lessonFilterSelectAllBtn');
     const clearAllBtn = document.getElementById('lessonFilterClearAllBtn');
     const resetBtn = document.getElementById('lessonFilterResetBtn');
+    const justMineBtn = document.getElementById('lessonFilterJustMineBtn');
     const body = document.getElementById('lessonFilterPopoverBody');
     if (!btn || !popover || !body) {
         return;
@@ -6258,6 +6720,13 @@ function setupLessonFilterUi() {
     if (resetBtn && !resetBtn.dataset.bound) {
         resetBtn.dataset.bound = '1';
         resetBtn.addEventListener('click', () => resetLessonFilters());
+    }
+    if (justMineBtn && !justMineBtn.dataset.bound) {
+        justMineBtn.dataset.bound = '1';
+        justMineBtn.addEventListener('click', () => {
+            applyLessonFilterJustMine();
+            closeLessonFilterPopover();
+        });
     }
     if (!body.dataset.bound) {
         body.dataset.bound = '1';
@@ -6448,14 +6917,30 @@ function getClassSubjectForDayNotes(classData) {
         return '';
     }
     const effective = getEffectiveClassForViewer(classData) || classData;
-    const teachers = effective.classTeachers;
+    return getClassCatalogCategory(effective);
+}
+
+/** Subject category for Teachers tab catalog (classTeachers, legacy field, or derive). */
+function getClassCatalogCategory(classData) {
+    if (!classData) {
+        return '';
+    }
+    const teachers = classData.classTeachers;
     if (Array.isArray(teachers) && teachers.length) {
         const cat = (teachers[0].category || '').trim();
         if (cat) {
             return cat;
         }
     }
-    return (effective.teacherCategory || '').trim();
+    const legacy = (classData.teacherCategory || '').trim();
+    if (legacy) {
+        return legacy;
+    }
+    const api = getTimetableApi();
+    if (api && typeof api.deriveTeacherCategory === 'function') {
+        return String(api.deriveTeacherCategory(classData) || '').trim();
+    }
+    return '';
 }
 
 function resolveDayNoteMeta(classId, displayNameOverride) {
@@ -8310,9 +8795,12 @@ function getClassCurriculumSlicesForCalendar(classData) {
             calendarTitle: classData.name || ''
         }];
     }
+    const teacherSelectors = getActiveLessonFilterTeacherSelectors();
+    const useTeacherFilter = teacherSelectors.length > 0;
     return api.getClassCurriculumSlices(classData, appData, {
-        showAll: shouldShowAllCurriculumSlicesOnCalendar(),
-        viewerSelector: getCalendarViewerTeacherSelector()
+        showAll: useTeacherFilter || shouldShowAllCurriculumSlicesOnCalendar(),
+        viewerSelector: useTeacherFilter ? null : getCalendarViewerTeacherSelector(),
+        teacherSelectors: teacherSelectors
     });
 }
 
@@ -8632,7 +9120,16 @@ function formatBooksByMonthSummary(classData) {
 }
 
 function getCompressionModeFromForm() {
-    const r = document.querySelector('input[name="compressionMode"]:checked');
+    return getCompressionModeFromSurface('classForm');
+}
+
+function getCompressionModeFromSurface(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    if (!map) {
+        return 'autoWhenNeeded';
+    }
+    const r = document.querySelector(`input[name="${map.compressionModeName}"]:checked`);
     if (!r) {
         return 'autoWhenNeeded';
     }
@@ -8646,22 +9143,23 @@ function getCompressionModeFromForm() {
 }
 
 /** Debate: form radios. Sequential/WR+SP: manual only (same fields as debate manual global). */
-function getCompressionModeForSaveAndSchedule({ isCustomSchedule, isDebateSchedule }) {
+function getCompressionModeForSaveAndSchedule({ isCustomSchedule, isDebateSchedule, surface }) {
     if (isCustomSchedule) {
         return 'sequentialTerm';
     }
     if (isDebateSchedule) {
-        return getCompressionModeFromForm();
+        return getCompressionModeFromSurface(surface);
     }
     return 'manual';
 }
 
-function collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule }) {
+function collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule, surface }) {
+    const sid = surface || getScheduleAdjustmentSurface();
     return {
-        compressionMode: getCompressionModeForSaveAndSchedule({ isCustomSchedule, isDebateSchedule }),
-        compressionMerges: isCustomSchedule ? [] : getSelectedCompressionMerges(),
-        skippedLessons: isCustomSchedule ? [] : collectSkippedLessonsFromForm(),
-        compressionMergesByPeriod: isDebateSchedule ? collectCompressionMergesByPeriodFromForm() : {}
+        compressionMode: getCompressionModeForSaveAndSchedule({ isCustomSchedule, isDebateSchedule, surface: sid }),
+        compressionMerges: isCustomSchedule ? [] : getSelectedCompressionMerges(sid),
+        skippedLessons: isCustomSchedule ? [] : collectSkippedLessonsFromForm(sid),
+        compressionMergesByPeriod: isDebateSchedule ? collectCompressionMergesByPeriodFromForm(sid) : {}
     };
 }
 
@@ -8788,18 +9286,21 @@ function fillBooksFromTermDefaultBook() {
     syncCompressionSectionsForMode();
 }
 
-function renderCompressionByPeriodRows(periods) {
-    const container = document.getElementById('compressionByMonthRows');
+function renderCompressionByPeriodRows(periods, surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'compressionByMonthRows');
     if (!container) {
         return;
     }
     const list = Array.isArray(periods) ? periods : [];
-    const classId = elements.classId ? elements.classId.value : '';
+    const classId = sid === 'syllabus'
+        ? ((getSelectedSyllabusClass() && getSelectedSyllabusClass().id) || '')
+        : (elements.classId ? elements.classId.value : '');
     const existingClass = classId ? appData.classes.find(c => c.id === classId) : null;
     const mergeMap = existingClass && existingClass.compressionMergesByPeriod
         ? existingClass.compressionMergesByPeriod
         : {};
-    const totalLessons = getTotalLessonsValue();
+    const totalLessons = getTotalLessonsValue(sid);
     container.innerHTML = '';
 
     list.forEach(period => {
@@ -8826,6 +9327,11 @@ function renderCompressionByPeriodRows(periods) {
             input.dataset.periodId = period.id;
             input.dataset.mergeStart = String(i);
             input.checked = selected.includes(i);
+            input.addEventListener('change', () => {
+                if (sid === 'syllabus') {
+                    refreshSyllabusScheduleAdjustmentUi(getSelectedSyllabusClass());
+                }
+            });
             const span = document.createElement('span');
             span.textContent = formatMergeLabel(i, i + 1);
             label.appendChild(input);
@@ -8837,13 +9343,14 @@ function renderCompressionByPeriodRows(periods) {
     });
 }
 
-function collectCompressionMergesByPeriodFromForm() {
+function collectCompressionMergesByPeriodFromForm(surface) {
     const map = {};
-    const container = document.getElementById('compressionByMonthRows');
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'compressionByMonthRows');
     if (!container) {
         return map;
     }
-    const totalLessons = getTotalLessonsValue();
+    const totalLessons = getTotalLessonsValue(sid);
     container.querySelectorAll('.compression-period-block').forEach(block => {
         const periodId = block.dataset.periodId;
         if (!periodId) {
@@ -8867,7 +9374,137 @@ function collectCompressionMergesByPeriodFromForm() {
 // ============================================
 // App shell: templates, tabs, form mounts
 // ============================================
-const APP_TAB_IDS = ['calendar', 'homework', 'notes', 'classes', 'syllabus', 'curriculum', 'timetable', 'events', 'data'];
+const APP_HOST_TEACHING = 'teaching';
+const APP_HOST_SETUP = 'setup';
+const APP_SHARED_TAB_IDS = ['calendar'];
+const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'classes', 'timetable'];
+const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
+/** Setup subtabs that require head-teacher / manage_calendar_access */
+const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'events', 'data'];
+const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS];
+const APP_SETUP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
+const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
+/** @deprecated alias — teaching leaf tabs (setup banner, etc.) */
+const APP_OPERATIONS_TAB_IDS = APP_TEACHING_TAB_IDS;
+
+function getHostForTab(tabId) {
+    if (APP_SETUP_ONLY_TAB_IDS.includes(tabId)) {
+        return APP_HOST_SETUP;
+    }
+    if (APP_TEACHING_ONLY_TAB_IDS.includes(tabId)) {
+        return APP_HOST_TEACHING;
+    }
+    if (APP_SHARED_TAB_IDS.includes(tabId)) {
+        ensureUiState();
+        const stored = appData.ui.activeHostTab;
+        if (stored === APP_HOST_SETUP || stored === APP_HOST_TEACHING) {
+            return stored;
+        }
+        return APP_HOST_TEACHING;
+    }
+    return APP_HOST_TEACHING;
+}
+
+function getSubTabButton(tabId, hostId) {
+    if (tabId === 'calendar') {
+        return document.getElementById(
+            hostId === APP_HOST_SETUP ? 'tabBtn-calendar-setup' : 'tabBtn-calendar-teaching'
+        );
+    }
+    return document.getElementById(`tabBtn-${tabId}`);
+}
+
+function getActiveHostTab() {
+    ensureUiState();
+    const stored = appData.ui.activeHostTab;
+    if (stored === APP_HOST_SETUP || stored === APP_HOST_TEACHING) {
+        return stored;
+    }
+    return getHostForTab(getActiveTab());
+}
+
+function defaultTabForHost(hostId) {
+    return hostId === APP_HOST_SETUP ? 'cohorts' : 'calendar';
+}
+
+function syncHostSubTabNav(hostId, subTabId) {
+    const teachingHost = document.getElementById('tabHostBtn-teaching');
+    const setupHost = document.getElementById('tabHostBtn-setup');
+    const teachingSub = document.getElementById('appTabSubnavTeaching');
+    const setupSub = document.getElementById('appTabSubnavSetup');
+    const isTeaching = hostId === APP_HOST_TEACHING;
+
+    if (teachingHost) {
+        teachingHost.classList.toggle('is-active', isTeaching);
+        teachingHost.setAttribute('aria-selected', String(isTeaching));
+    }
+    if (setupHost) {
+        setupHost.classList.toggle('is-active', !isTeaching);
+        setupHost.setAttribute('aria-selected', String(!isTeaching));
+    }
+    if (teachingSub) {
+        teachingSub.classList.toggle('is-active', isTeaching);
+        teachingSub.setAttribute('aria-hidden', String(!isTeaching));
+    }
+    if (setupSub) {
+        setupSub.classList.toggle('is-active', !isTeaching);
+        setupSub.setAttribute('aria-hidden', String(isTeaching));
+    }
+
+    document.body.dataset.activeHostTab = hostId;
+
+    document.querySelectorAll('.app-tab-sub-btn').forEach((btn) => {
+        const tabId = btn.dataset.tab;
+        if (!tabId) {
+            return;
+        }
+        let btnHost = getHostForTab(tabId);
+        if (tabId === 'calendar') {
+            btnHost = btn.id === 'tabBtn-calendar-setup' ? APP_HOST_SETUP : APP_HOST_TEACHING;
+        }
+        const active = btnHost === hostId && tabId === subTabId;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', String(active));
+    });
+
+    const calPanel = document.getElementById('panel-calendar');
+    if (calPanel && subTabId === 'calendar') {
+        const calBtn = getSubTabButton('calendar', hostId);
+        if (calBtn) {
+            calPanel.setAttribute('aria-labelledby', calBtn.id);
+        }
+    }
+}
+
+function canAccessSetupHost() {
+    return typeof TeamAuth !== 'undefined' && TeamAuth.getUser();
+}
+
+function navigateToHost(hostId, options = {}) {
+    if (hostId !== APP_HOST_SETUP && hostId !== APP_HOST_TEACHING) {
+        hostId = APP_HOST_TEACHING;
+    }
+    if (hostId === APP_HOST_SETUP && !canAccessSetupHost()) {
+        navigateToTab('calendar', { host: APP_HOST_TEACHING });
+        return;
+    }
+    ensureUiState();
+    let subTab = options.subTab || '';
+    if (!subTab || !APP_TAB_IDS.includes(subTab)) {
+        if (hostId === APP_HOST_SETUP) {
+            subTab = appData.ui.lastSetupTab || defaultTabForHost(APP_HOST_SETUP);
+        } else {
+            subTab = appData.ui.lastTeachingTab || defaultTabForHost(APP_HOST_TEACHING);
+        }
+    }
+    if (hostId === APP_HOST_SETUP && !APP_SETUP_TAB_IDS.includes(subTab)) {
+        subTab = defaultTabForHost(APP_HOST_SETUP);
+    }
+    if (hostId === APP_HOST_TEACHING && !APP_TEACHING_TAB_IDS.includes(subTab)) {
+        subTab = defaultTabForHost(APP_HOST_TEACHING);
+    }
+    navigateToTab(subTab, { ...options, host: hostId });
+}
 
 let curriculumTabSelectedId = null;
 let classEditorMount = 'modal';
@@ -9092,7 +9729,10 @@ function syncSyllabusEditorChrome() {
                 btn.type = 'button';
                 btn.className = 'schedule-gap-warning-btn';
                 btn.textContent = `${msg} — ${t('scheduleGapAdjustAction')}`;
-                btn.addEventListener('click', () => focusScheduleAdjustmentForClass(classData.id));
+                btn.addEventListener('click', () => {
+                    renderSyllabusScheduleAdjustment(classData);
+                    scrollToScheduleAdjustment('syllabus');
+                });
                 bannerEl.appendChild(btn);
             } else if (adj.hasAdjustments) {
                 bannerEl.hidden = false;
@@ -9227,6 +9867,7 @@ function populateSyllabusEditorForClass(classData) {
         elements.homeworkImportPreview.textContent = '';
         delete elements.homeworkImportPreview.dataset.importPayload;
     }
+    renderSyllabusScheduleAdjustment(classData);
     syncSyllabusEditorChrome();
     renderSyllabusClassList();
 }
@@ -9253,6 +9894,10 @@ function populateSyllabusEditorForTemplate(template) {
         });
     }
     renderSyllabusEditorTable(rows);
+    const section = document.getElementById('syllabusScheduleAdjustmentSection');
+    if (section) {
+        section.hidden = true;
+    }
     syncSyllabusEditorChrome();
     renderSyllabusTemplateList();
 }
@@ -9392,6 +10037,28 @@ function saveSyllabusForSelectedClass() {
     if (index === -1) {
         return;
     }
+    const isDebateSchedule = classUsesDebateCompression(classData);
+    const isCustomSchedule = !!(classData.customSchedule && classData.customSchedule.enabled);
+    const compressionFields = collectClassCompressionForSave({
+        isDebateSchedule,
+        isCustomSchedule,
+        surface: 'syllabus'
+    });
+    const draftForConfirm = {
+        ...classData,
+        ...compressionFields
+    };
+    if (!isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
+        return;
+    }
+    const compressionMergesFinal = draftForConfirm.compressionMerges ?? compressionFields.compressionMerges;
+    const skippedLessonsFinal = draftForConfirm.skippedLessons ?? compressionFields.skippedLessons;
+    appData.classes[index].compressionMode = compressionFields.compressionMode;
+    appData.classes[index].compressionMerges = compressionMergesFinal;
+    appData.classes[index].skippedLessons = skippedLessonsFinal;
+    if (isDebateSchedule) {
+        appData.classes[index].compressionMergesByPeriod = compressionFields.compressionMergesByPeriod;
+    }
     appData.classes[index].syllabusUnits = collectSyllabusUnitsFromForm();
     appData.classes[index].syllabusRows = collectSyllabusRowsFromForm();
     appData.classes[index].syllabusGeneralNotes = getSyllabusGeneralNotesFromForm();
@@ -9405,9 +10072,11 @@ function saveSyllabusForSelectedClass() {
     saveData();
     renderCalendar();
     setAppStatusMessage(t('syllabusSaved'), false);
-    updateClassSyllabusSummary(appData.classes[index]);
+    const saved = appData.classes[index];
+    renderSyllabusScheduleAdjustment(saved);
+    updateClassSyllabusSummary(saved);
     if (elements.classId && elements.classId.value === classData.id) {
-        updateClassSyllabusSummary(appData.classes[index]);
+        updateClassSyllabusSummary(saved);
     }
 }
 
@@ -9840,7 +10509,7 @@ function updateEventEditorEmptyState() {
     empty.hidden = !onEventsTab || (hasForm && hasSelection);
 }
 
-const APP_EXTENSION_TAB_IDS = ['classes', 'syllabus', 'homework', 'curriculum', 'data'];
+const APP_EXTENSION_TAB_IDS = ['classes', 'syllabus', 'homework', 'curriculum', 'data', 'cohorts'];
 
 let extensionModulesInited = false;
 
@@ -9903,6 +10572,9 @@ function scheduleIdleTabPrefetch() {
             void CCPTabScripts.ensureTabScripts('timetable').catch((err) => {
                 console.warn('Idle prefetch timetable scripts:', err);
             });
+            void CCPTabScripts.ensureTabScripts('cohorts').catch((err) => {
+                console.warn('Idle prefetch cohorts scripts:', err);
+            });
         }
     };
     if (typeof requestIdleCallback !== 'undefined') {
@@ -9934,23 +10606,29 @@ function navigateToTab(tabId, options = {}) {
 }
 
 function navigateToTabBody(tabId, options = {}) {
+    if (!APP_TAB_IDS.includes(tabId)) {
+        tabId = 'calendar';
+    }
+    const hostId = options.host || getHostForTab(tabId);
     document.body.dataset.activeTab = tabId;
     ensureUiState();
     appData.ui.activeTab = tabId;
-    // UI-only: viewer preference.
+    appData.ui.activeHostTab = hostId;
+    if (hostId === APP_HOST_SETUP) {
+        appData.ui.lastSetupTab = tabId;
+    } else {
+        appData.ui.lastTeachingTab = tabId;
+    }
     saveUiStateToLocalStorage();
+
+    syncHostSubTabNav(hostId, tabId);
 
     APP_TAB_IDS.forEach((id) => {
         const panel = document.getElementById(`panel-${id}`);
-        const btn = document.getElementById(`tabBtn-${id}`);
         const active = id === tabId;
         if (panel) {
             panel.hidden = !active;
             panel.classList.toggle('is-active', active);
-        }
-        if (btn) {
-            btn.classList.toggle('is-active', active);
-            btn.setAttribute('aria-selected', String(active));
         }
     });
 
@@ -10021,6 +10699,10 @@ function navigateToTabBody(tabId, options = {}) {
         renderHomeworkEditor();
     } else if (tabId === 'timetable') {
         initTimetableTabControls(options);
+    } else if (tabId === 'cohorts') {
+        void initCohortsTabControls(options);
+    } else if (tabId === 'teachers') {
+        void initTeachersTabControls(options);
     } else if (tabId === 'curriculum') {
         initCurriculumTabPanel(options);
     } else if (tabId === 'data') {
@@ -10036,7 +10718,6 @@ function navigateToTabBody(tabId, options = {}) {
 
     syncClassOpenEditorButton();
     syncEventOpenEditorButton();
-
     if (tabId !== 'calendar') {
         if (elements.classModal) {
             closeModal(elements.classModal);
@@ -10051,7 +10732,21 @@ function navigateToTabBody(tabId, options = {}) {
 }
 
 function initAppTabs() {
-    document.querySelectorAll('.app-tab-btn').forEach((btn) => {
+    if (document.body.dataset.appTabsInit === '1') {
+        return;
+    }
+    document.body.dataset.appTabsInit = '1';
+
+    document.querySelectorAll('.app-tab-host-btn').forEach((btn) => {
+        const hostId = btn.dataset.host;
+        btn.addEventListener('click', () => {
+            if (hostId) {
+                navigateToHost(hostId);
+            }
+        });
+    });
+
+    document.querySelectorAll('.app-tab-sub-btn').forEach((btn) => {
         const tabId = btn.dataset.tab || 'calendar';
         const warmTab = () => prefetchTabScriptsIfNeeded(tabId);
         btn.addEventListener('mouseenter', warmTab);
@@ -10082,6 +10777,7 @@ function initAppTabs() {
     }
     initHomeworkTabListeners();
     initTimetableTabListeners();
+    initTeacherManagementModule();
     initClassesPanelSegments();
     const openSyllabusTabBtn = document.getElementById('openSyllabusTabBtn');
     if (openSyllabusTabBtn) {
@@ -11139,7 +11835,7 @@ function addTeacherPlacementRow(rowEl, placement) {
     const line = document.createElement('div');
     line.className = 'class-teacher-placement-row form-row';
     const dowSel = document.createElement('select');
-    dowSel.className = 'class-teacher-placement-dow';
+    dowSel.className = 'class-teacher-placement-dow field-select field-control--compact';
     const short = t('dayNamesShort');
     for (let d = 1; d <= 5; d += 1) {
         const opt = document.createElement('option');
@@ -11149,7 +11845,7 @@ function addTeacherPlacementRow(rowEl, placement) {
     }
     dowSel.value = String(p.dow || 1);
     const periodSel = document.createElement('select');
-    periodSel.className = 'class-teacher-placement-period';
+    periodSel.className = 'class-teacher-placement-period field-select field-control--compact';
     periodSel.innerHTML = buildClassPeriodSelectInnerHtml(p.period || 1);
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -11243,6 +11939,12 @@ function populateClassCohortSelect(selectedId) {
     const sel = document.getElementById('classCohort');
     if (!sel) {
         return;
+    }
+    const admin = canAccessTeachersTab();
+    sel.disabled = !admin;
+    const reqMark = document.querySelector('.cohort-required-mark');
+    if (reqMark) {
+        reqMark.hidden = !admin;
     }
     const prev = selectedId != null ? selectedId : sel.value;
     sel.innerHTML = '';
@@ -11432,7 +12134,7 @@ function syncClassTeacherRowNameFromSelect(rowEl) {
 
 function createClassTeacherCategorySelect(selected) {
     const categorySel = document.createElement('select');
-    categorySel.className = 'class-teacher-row-category';
+    categorySel.className = 'class-teacher-row-category field-select';
     const auto = document.createElement('option');
     auto.value = '';
     auto.textContent = t('classTeacherCategoryAuto');
@@ -11473,7 +12175,7 @@ function addClassTeacherRow(rowData) {
     const teacherLabel = document.createElement('label');
     teacherLabel.textContent = t('classAssignedTeacher');
     const teacherSel = document.createElement('select');
-    teacherSel.className = 'class-teacher-row-select';
+    teacherSel.className = 'class-teacher-row-select field-select';
     fillTeacherSelectElement(teacherSel, data.userId, data.name);
     teacherSel.addEventListener('change', () => syncClassTeacherRowNameFromSelect(row));
     teacherLabel.appendChild(teacherSel);
@@ -11482,7 +12184,7 @@ function addClassTeacherRow(rowData) {
     nameLabel.textContent = t('classAssignedTeacherName');
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.className = 'class-teacher-row-name';
+    nameInput.className = 'class-teacher-row-name field-input';
     nameInput.autocomplete = 'off';
     nameInput.value = data.name || '';
     nameLabel.appendChild(nameInput);
@@ -11495,7 +12197,7 @@ function addClassTeacherRow(rowData) {
     const curriculumLabel = document.createElement('label');
     curriculumLabel.textContent = t('classTeacherCurriculum');
     const curriculumSel = document.createElement('select');
-    curriculumSel.className = 'class-teacher-row-curriculum';
+    curriculumSel.className = 'class-teacher-row-curriculum field-select';
     fillTeacherRowCurriculumSelect(curriculumSel, data.curriculumId || '');
     curriculumLabel.appendChild(curriculumSel);
 
@@ -11541,7 +12243,7 @@ function addClassTeacherRow(rowData) {
     const daysLabel = document.createElement('label');
     daysLabel.textContent = t('meetingDays');
     const daysMode = document.createElement('select');
-    daysMode.className = 'class-teacher-days-mode';
+    daysMode.className = 'class-teacher-days-mode field-select';
     const daysInherit = document.createElement('option');
     daysInherit.value = 'inherit';
     daysInherit.textContent = t('classTeacherDaysInherit');
@@ -11560,7 +12262,7 @@ function addClassTeacherRow(rowData) {
     const periodLabel = document.createElement('label');
     periodLabel.textContent = t('classPeriod');
     const periodMode = document.createElement('select');
-    periodMode.className = 'class-teacher-period-mode';
+    periodMode.className = 'class-teacher-period-mode field-select';
     const periodInherit = document.createElement('option');
     periodInherit.value = 'inherit';
     periodInherit.textContent = t('classTeacherPeriodInherit');
@@ -11576,7 +12278,7 @@ function addClassTeacherRow(rowData) {
     periodWrap.className = 'class-teacher-period-wrap';
     periodWrap.hidden = true;
     const periodSel = document.createElement('select');
-    periodSel.className = 'class-teacher-row-period';
+    periodSel.className = 'class-teacher-row-period field-select';
     periodSel.innerHTML = buildClassPeriodSelectInnerHtml(CLASS_PERIOD_MIN);
     periodWrap.appendChild(periodSel);
     const placementsList = document.createElement('div');
@@ -11592,7 +12294,7 @@ function addClassTeacherRow(rowData) {
     const blockLabel = document.createElement('label');
     blockLabel.textContent = t('classTeacherScheduleBlock');
     const blockSel = document.createElement('select');
-    blockSel.className = 'class-teacher-schedule-block';
+    blockSel.className = 'class-teacher-schedule-block field-select';
     const bp = document.createElement('option');
     bp.value = '';
     bp.textContent = t('classScheduleBlockPrimary');
@@ -11855,8 +12557,6 @@ function updateTimetableCohortsCalendarName() {
 
 function refreshTimetablePanels() {
     renderTimetableTeacherList();
-    renderTimetableCohortsList();
-    updateTimetableCohortsCalendarName();
     const selector = getTimetableTeacherSelectorFromUi();
     if (selector) {
         renderTimetableClassList(selector);
@@ -11864,6 +12564,380 @@ function refreshTimetablePanels() {
     } else {
         renderTimetableClassList(null);
         renderTimetableView(null);
+    }
+    if (getActiveTab() === 'teachers' && typeof CCPTeacherManagement !== 'undefined') {
+        CCPTeacherManagement.onCalendarDataChanged();
+    }
+}
+
+function getTeachersTabTeacherSelectorFromUi() {
+    ensureUiState();
+    const userId = (appData.ui.teachersTabTeacherUserId || '').trim();
+    const displayName = (appData.ui.teachersTabTeacherName || '').trim();
+    if (!userId && !displayName) {
+        return null;
+    }
+    if (userId) {
+        const teachers = listTimetableTeachers();
+        const match = teachers.find((row) => row.userId === userId);
+        if (match) {
+            return { userId: match.userId, displayName: match.displayName || displayName };
+        }
+    }
+    return { userId, displayName };
+}
+
+function selectTeachersTabTeacher(selector) {
+    ensureUiState();
+    if (!selector || (!selector.userId && !selector.displayName)) {
+        appData.ui.teachersTabTeacherUserId = '';
+        appData.ui.teachersTabTeacherName = '';
+    } else {
+        appData.ui.teachersTabTeacherUserId = selector.userId || '';
+        appData.ui.teachersTabTeacherName = selector.displayName || '';
+    }
+    saveUiStateToLocalStorage();
+    if (typeof CCPTeacherManagement !== 'undefined') {
+        CCPTeacherManagement.onTabActivated();
+    }
+}
+
+function populateTeachersTabDefaultCategorySelect() {
+    const sel = document.getElementById('teachersTabDefaultCategory');
+    if (!sel) {
+        return;
+    }
+    const current = sel.value;
+    sel.innerHTML = '';
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = '—';
+    sel.appendChild(empty);
+    getTeacherCategoryPresets().forEach((label) => {
+        const opt = document.createElement('option');
+        opt.value = label;
+        opt.textContent = label;
+        sel.appendChild(opt);
+    });
+    if (current) {
+        sel.value = current;
+    }
+}
+
+function populateTeachersTabCatalogToolbar() {
+    ensureUiState();
+    const sortSel = document.getElementById('teachersTabCatalogSort');
+    const catSel = document.getElementById('teachersTabCatalogCategoryFilter');
+    if (!sortSel || !catSel) {
+        return;
+    }
+    const sortCurrent = appData.ui.teachersTabCatalogSort || 'display';
+    const catCurrent = appData.ui.teachersTabCatalogCategoryFilter || 'all';
+    sortSel.innerHTML = '';
+    [
+        ['display', 'teachersTabSortDisplay'],
+        ['name', 'teachersTabSortName'],
+        ['category', 'teachersTabSortCategory'],
+        ['level', 'teachersTabSortLevel'],
+        ['period', 'teachersTabSortPeriod']
+    ].forEach(([value, key]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = t(key);
+        sortSel.appendChild(opt);
+    });
+    catSel.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = t('teachersTabCategoryAll');
+    catSel.appendChild(allOpt);
+    getTeacherCategoryPresets().forEach((label) => {
+        const opt = document.createElement('option');
+        opt.value = label;
+        opt.textContent = label;
+        catSel.appendChild(opt);
+    });
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '__none__';
+    noneOpt.textContent = t('teachersTabCategoryNone');
+    catSel.appendChild(noneOpt);
+    if ([...sortSel.options].some((o) => o.value === sortCurrent)) {
+        sortSel.value = sortCurrent;
+    }
+    if ([...catSel.options].some((o) => o.value === catCurrent)) {
+        catSel.value = catCurrent;
+    }
+}
+
+function persistTeachersTabCatalogUiFromControls() {
+    ensureUiState();
+    const sortSel = document.getElementById('teachersTabCatalogSort');
+    const catSel = document.getElementById('teachersTabCatalogCategoryFilter');
+    if (sortSel) {
+        appData.ui.teachersTabCatalogSort = sortSel.value || 'display';
+    }
+    if (catSel) {
+        appData.ui.teachersTabCatalogCategoryFilter = catSel.value || 'all';
+    }
+    saveUiStateToLocalStorage();
+}
+
+function renderTimetablePreviewInto(mountEl, selector) {
+    const api = getTimetableApi();
+    if (!mountEl || !api || !selector || (!selector.userId && !selector.displayName)) {
+        if (mountEl) {
+            mountEl.innerHTML = '';
+        }
+        return;
+    }
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    const grid = api.buildTeacherWeeklyGrid(appData, selector, { lang });
+    mountEl.innerHTML = '';
+    const title = document.createElement('h3');
+    title.className = 'timetable-teacher-title';
+    const suffix = lang === 'ko' ? ' 선생님' : '';
+    title.textContent = `${grid.teacherName || selector.displayName || selector.userId}${suffix}`;
+    mountEl.appendChild(title);
+    if (grid.homeroomLabels && grid.homeroomLabels.length) {
+        const hr = document.createElement('p');
+        hr.className = 'timetable-homeroom-line section-hint';
+        hr.textContent = `${t('timetableHomeroomLabel')}: ${grid.homeroomLabels.join(', ')}`;
+        mountEl.appendChild(hr);
+    }
+    grid.blocks.forEach((block) => {
+        mountEl.appendChild(renderTimetableGridTable(block, lang));
+    });
+}
+
+/** Head teacher, super admin, or manage_calendar_access — controls Setup tabs visibility. */
+function canAccessTeachersTab() {
+    if (typeof TeamAuth === 'undefined' || !TeamAuth.getUser) {
+        return false;
+    }
+    const user = TeamAuth.getUser();
+    if (!user) {
+        return false;
+    }
+    if (TeamAuth.canAccessAdmin && TeamAuth.canAccessAdmin()) {
+        return true;
+    }
+    const role = user.role === 'admin' ? 'super_admin' : (user.role || 'teacher');
+    if (role === 'super_admin' || role === 'head_teacher') {
+        return true;
+    }
+    return TeamAuth.hasPermission('manage_calendar_access');
+}
+
+function syncSetupSubTabVisibility() {
+    const admin = canAccessTeachersTab();
+    APP_SETUP_ADMIN_TAB_IDS.forEach((tabId) => {
+        const btn = document.getElementById(`tabBtn-${tabId}`);
+        if (!btn) {
+            return;
+        }
+        btn.hidden = !admin;
+        btn.style.display = admin ? '' : 'none';
+    });
+    if (!admin && getActiveTab() && APP_SETUP_ADMIN_TAB_IDS.includes(getActiveTab())) {
+        navigateToTab(canAccessSetupHost() ? 'syllabus' : 'calendar', { host: canAccessSetupHost() ? APP_HOST_SETUP : APP_HOST_TEACHING });
+    }
+}
+
+function syncSetupTabsVisibility() {
+    const showSetup = canAccessSetupHost();
+    const setupHost = document.getElementById('tabHostBtn-setup');
+    if (setupHost) {
+        setupHost.hidden = !showSetup;
+        setupHost.style.display = showSetup ? '' : 'none';
+    }
+    if (!showSetup && getActiveHostTab() === APP_HOST_SETUP) {
+        navigateToTab('calendar', { host: APP_HOST_TEACHING });
+    }
+    syncSetupSubTabVisibility();
+    syncHeaderMyScheduleButton();
+    if (typeof CCPTeacherManagement !== 'undefined' && CCPTeacherManagement.syncTabVisibility) {
+        CCPTeacherManagement.syncTabVisibility();
+    }
+}
+
+function syncTeachersTabVisibility() {
+    syncSetupTabsVisibility();
+}
+
+function syncHeaderMyScheduleButton() {
+    const btn = document.getElementById('headerMyScheduleBtn');
+    if (!btn) {
+        return;
+    }
+    const show = !canAccessTeachersTab()
+        && typeof TeamAuth !== 'undefined'
+        && TeamAuth.getUser
+        && TeamAuth.getUser();
+    btn.hidden = !show;
+    if (!btn.dataset.headerScheduleInit) {
+        btn.dataset.headerScheduleInit = '1';
+        btn.addEventListener('click', () => openMyScheduleView());
+    }
+}
+
+function openMyScheduleView() {
+    const me = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
+    if (!me || !me.id) {
+        return;
+    }
+    void ensureExtensionScriptsLoaded()
+        .then(() => CCPTabScripts.ensureTabScripts('timetable'))
+        .then(() => {
+            const teachers = listTimetableTeachers();
+            let row = teachers.find((r) => r.userId === me.id);
+            if (!row) {
+                row = { userId: me.id, displayName: me.displayName || me.email || me.id };
+            }
+            selectTimetableTeacher({ userId: row.userId, displayName: row.displayName });
+            navigateToTab('timetable');
+        })
+        .catch((err) => console.error(err));
+}
+
+function findCurriculumPresetForLevel(levelPresetId, levelDisplayName) {
+    const data = typeof window !== 'undefined' ? window.CCPCurriculaData : null;
+    if (!data || typeof data.getAll !== 'function') {
+        return null;
+    }
+    const simson = getSimsonLevelById(levelPresetId);
+    const levelName = simson ? simson.name : (levelDisplayName || '').trim();
+    if (!levelName) {
+        return null;
+    }
+    const all = data.getAll();
+    return all.find((p) => p.level === levelName && p.programTrack) || null;
+}
+
+function updateCohortsTabCalendarName() {
+    const el = document.getElementById('cohortsTabCalendarName');
+    if (!el) {
+        return;
+    }
+    const name = (appData.calendarName || '').trim();
+    if (name) {
+        el.hidden = false;
+        el.textContent = `${t('dataCalendarNameLabel')}: ${name}`;
+    } else {
+        el.hidden = true;
+        el.textContent = '';
+    }
+}
+
+async function initCohortsTabControls(options = {}) {
+    await ensureExtensionScriptsLoaded();
+    if (typeof CCPTabScripts !== 'undefined') {
+        await CCPTabScripts.ensureTabScripts('cohorts');
+    }
+    await ensureTeamTeacherAccountsLoaded();
+    initCohortManagementModule();
+    if (typeof CCPCohortManagement !== 'undefined') {
+        CCPCohortManagement.initTab(getCohortManagementHooks(), options);
+    } else {
+        setAppStatusMessage(t('cohortsModuleMissing'), true);
+    }
+}
+
+function getCohortManagementHooks() {
+    return {
+        getAppData: () => appData,
+        getLang: () => currentLang,
+        t,
+        escapeHtml,
+        escapeAttr,
+        generateId,
+        saveData,
+        navigateToTab,
+        showMessage: (msg, isError) => setAppStatusMessage(msg, isError),
+        syncClassCohortLinks,
+        populateClassCohortSelect,
+        invalidateScheduleCache,
+        isViewOnly: isTeamCalendarViewOnly,
+        getCalendarName: () => (appData.calendarName || '').trim(),
+        getAllSimsonLevels,
+        getSimsonLevelById,
+        findCurriculumPresetForLevel,
+        getClassesInDisplayOrder,
+        compareClassesForDisplayOrder,
+        getClassCatalogCategory: (classData) => {
+            const api = getTimetableApi();
+            return api ? api.deriveTeacherCategory(classData, appData) : '';
+        },
+        getClassLevelDisplay,
+        formatClassLabel: formatClassLabelWithPeriod,
+        getTeacherCategoryPresets,
+        listTeachers: listTimetableTeachers,
+        ensureTeacherAccounts: ensureTeamTeacherAccountsLoaded,
+        buildTeacherSelect: (userId, name) => {
+            const sel = document.createElement('select');
+            fillTeacherSelectElement(sel, userId, name);
+            return sel;
+        },
+        parseTeacherPickerValue
+    };
+}
+
+function initCohortManagementModule() {
+    syncSetupTabsVisibility();
+}
+
+function initTeacherManagementModule() {
+    syncTeachersTabVisibility();
+    if (typeof CCPTeacherManagement === 'undefined') {
+        return;
+    }
+    populateTeachersTabDefaultCategorySelect();
+    populateTeachersTabCatalogToolbar();
+    CCPTeacherManagement.initTab({
+        getAppData: () => appData,
+        getActiveTab,
+        navigateToTab,
+        getTeacherSelector: getTeachersTabTeacherSelectorFromUi,
+        selectTeacher: selectTeachersTabTeacher,
+        listTeachers: listTimetableTeachers,
+        formatTeacherLabel: formatTeacherAccountOptionLabel,
+        formatClassLabel: formatClassLabelWithPeriod,
+        getClassLevelDisplay,
+        getClassesInDisplayOrder,
+        compareClassesForDisplayOrder,
+        getClassCatalogCategory,
+        getTeacherCategoryPresets,
+        persistTeachersTabCatalogUi: persistTeachersTabCatalogUiFromControls,
+        classHasLessonsInTerm: classHasLessonsInDisplayedTerm,
+        t,
+        escapeHtml,
+        escapeAttr,
+        isViewOnly: isTeamCalendarViewOnly,
+        saveData,
+        invalidateScheduleCache,
+        refreshTimetablePanels,
+        ensureTeacherAccounts: ensureTeamTeacherAccountsLoaded,
+        generateId,
+        renderTimetablePreviewInto,
+        openInTimetableTab: (sel) => {
+            selectTimetableTeacher(sel);
+            navigateToTab('timetable');
+        },
+        filterCalendarToTeacher: (sel) => {
+            applyLessonFilterForTeacher(sel);
+            navigateToTab('calendar');
+        },
+        showMessage: (msg, isError) => setAppStatusMessage(msg, isError)
+    });
+}
+
+async function initTeachersTabControls(options = {}) {
+    await ensureTeamTeacherAccountsLoaded();
+    initTeacherManagementModule();
+    if (typeof CCPTeacherManagement !== 'undefined') {
+        CCPTeacherManagement.onTabActivated();
+        if (options.segment === 'classes' || options.segment === 'cohorts') {
+            CCPTeacherManagement.setCatalogSegment(options.segment);
+        }
     }
 }
 
@@ -11886,10 +12960,13 @@ function refreshCalendarScopedUi() {
     updateDataTabCalendarSection();
     updateCalendarTitle();
     updateTopBarCalendarLabel();
-    updateTimetableCohortsCalendarName();
+    updateCohortsTabCalendarName();
 
     if (getActiveTab() === 'timetable') {
         refreshTimetablePanels();
+    }
+    if (getActiveTab() === 'cohorts') {
+        void initCohortsTabControls();
     }
     if (isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab')) {
         const classId = elements.classId && elements.classId.value ? elements.classId.value.trim() : '';
@@ -12825,27 +13902,14 @@ function initTimetablePrintControls() {
 }
 
 function renderTimetableCohortsList() {
-    const mount = document.getElementById('timetableCohortsList');
-    if (!mount) {
-        return;
+    if (getActiveTab() === 'cohorts' && typeof CCPCohortManagement !== 'undefined') {
+        CCPCohortManagement.initTab(getCohortManagementHooks(), {});
     }
-    mount.innerHTML = '';
-    const cohorts = appData.cohorts || [];
-    if (!cohorts.length) {
-        const p = document.createElement('p');
-        p.className = 'section-hint';
-        p.textContent = t('timetableCohortsEmpty');
-        mount.appendChild(p);
-        return;
-    }
-    cohorts.forEach((cohort) => {
-        mount.appendChild(buildCohortEditorCard(cohort));
-    });
 }
 
 function buildTeacherOptionsForCohort(selectedUserId, selectedName) {
     const sel = document.createElement('select');
-    sel.className = 'timetable-cohort-homeroom-select';
+    sel.className = 'timetable-cohort-homeroom-select field-select';
     fillTeacherSelectElement(sel, selectedUserId, selectedName);
     return sel;
 }
@@ -12859,7 +13923,7 @@ function buildCohortEditorCard(cohort) {
     nameLabel.textContent = t('timetableCohortName');
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.className = 'timetable-cohort-name-input';
+    nameInput.className = 'timetable-cohort-name-input field-input';
     nameInput.value = cohort.name || '';
     nameLabel.appendChild(nameInput);
 
@@ -12876,7 +13940,7 @@ function buildCohortEditorCard(cohort) {
     homeroomNameLabel.textContent = t('classAssignedTeacherName');
     const homeroomNameInput = document.createElement('input');
     homeroomNameInput.type = 'text';
-    homeroomNameInput.className = 'timetable-cohort-homeroom-name';
+    homeroomNameInput.className = 'timetable-cohort-homeroom-name field-input';
     homeroomNameInput.value = cohort.homeroomTeacherName || '';
     homeroomNameLabel.appendChild(homeroomNameInput);
 
@@ -12884,7 +13948,7 @@ function buildCohortEditorCard(cohort) {
     suffixLabel.textContent = t('timetableHomeroomDaySuffix');
     const suffixInput = document.createElement('input');
     suffixInput.type = 'text';
-    suffixInput.className = 'timetable-cohort-suffix-input';
+    suffixInput.className = 'timetable-cohort-suffix-input field-input';
     suffixInput.maxLength = 3;
     suffixInput.value = cohort.homeroomDaySuffix || '';
     suffixLabel.appendChild(suffixInput);
@@ -12922,8 +13986,13 @@ function buildCohortEditorCard(cohort) {
     deleteBtn.textContent = t('timetableDeleteCohort');
     deleteBtn.addEventListener('click', () => {
         appData.cohorts = (appData.cohorts || []).filter((c) => c.id !== cohort.id);
+        const unlinkApi = getTimetableApi();
         (appData.classes || []).forEach((cls) => {
-            if (cls.cohortId === cohort.id) {
+            if (unlinkApi) {
+                if (unlinkApi.classHasCohortId(cls, cohort.id)) {
+                    unlinkApi.removeClassCohortId(cls, cohort.id);
+                }
+            } else if (normalizeStr(cls.cohortId) === cohort.id) {
                 cls.cohortId = '';
             }
         });
@@ -12948,16 +14017,22 @@ function syncClassCohortLinks(cohort) {
     if (!cohort || !cohort.id) {
         return;
     }
+    const api = getTimetableApi();
     const ids = new Set(Array.isArray(cohort.classIds) ? cohort.classIds : []);
     (appData.classes || []).forEach((cls) => {
-        if (cls.cohortId === cohort.id) {
+        if (api ? api.classHasCohortId(cls, cohort.id) : normalizeStr(cls.cohortId) === cohort.id) {
             ids.add(cls.id);
         }
     });
     cohort.classIds = Array.from(ids);
     cohort.classIds.forEach((classId) => {
         const cls = appData.classes.find((c) => c.id === classId);
-        if (cls) {
+        if (!cls) {
+            return;
+        }
+        if (api) {
+            api.addClassCohortId(cls, cohort.id);
+        } else {
             cls.cohortId = cohort.id;
         }
     });
@@ -13110,33 +14185,6 @@ function initTimetableTabListeners() {
         printBtn.addEventListener('click', () => openTimetablePrintOptionsModal());
     }
     initTimetablePrintControls();
-    const suggestBtn = document.getElementById('timetableSuggestCohortsBtn');
-    if (suggestBtn && !suggestBtn.dataset.timetableInit) {
-        suggestBtn.dataset.timetableInit = '1';
-        suggestBtn.addEventListener('click', () => suggestAndMergeCohorts());
-    }
-    const addBtn = document.getElementById('timetableAddCohortBtn');
-    if (addBtn && !addBtn.dataset.timetableInit) {
-        addBtn.dataset.timetableInit = '1';
-        addBtn.addEventListener('click', () => {
-            if (!Array.isArray(appData.cohorts)) {
-                appData.cohorts = [];
-            }
-            appData.cohorts.push({
-                id: generateId(),
-                name: t('timetableAddCohort'),
-                level: '',
-                grade: '',
-                meetingDays: [],
-                classIds: [],
-                homeroomTeacherUserId: '',
-                homeroomTeacherName: '',
-                homeroomDaySuffix: ''
-            });
-            saveData();
-            renderTimetableCohortsList();
-        });
-    }
 }
 
 function initHomeworkTabListeners() {
@@ -15108,7 +16156,7 @@ function refreshSyllabusFromCalendar() {
         if (!classData) {
             return;
         }
-        snapshot = buildClassSnapshotFromRecord(classData);
+        snapshot = mergeSyllabusCompressionIntoRecord(classData) || buildClassSnapshotFromRecord(classData);
         classId = classData.id;
     } else {
         snapshot = buildClassSnapshotFromForm();
@@ -15117,16 +16165,21 @@ function refreshSyllabusFromCalendar() {
     if (!snapshot.customSchedule?.enabled && !maybeConfirmScheduleAdjustments(snapshot)) {
         return;
     }
+    const refreshSurface = (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') ? 'syllabus' : 'classForm';
     if (snapshot.compressionMerges || snapshot.skippedLessons) {
         applyScheduleAdjustmentsToForm(
             snapshot.compressionMerges || [],
-            snapshot.skippedLessons || []
+            snapshot.skippedLessons || [],
+            refreshSurface
         );
         if (classId) {
             const idx = appData.classes.findIndex(c => c.id === classId);
             if (idx >= 0) {
                 appData.classes[idx].compressionMerges = snapshot.compressionMerges || [];
                 appData.classes[idx].skippedLessons = snapshot.skippedLessons || [];
+                if (snapshot.compressionMode) {
+                    appData.classes[idx].compressionMode = snapshot.compressionMode;
+                }
             }
         }
     }
@@ -15141,7 +16194,12 @@ function refreshSyllabusFromCalendar() {
             appData.classes[index].syllabusRows = merged;
             appData.classes[index]._syllabusNeedsCalendarSync = false;
             saveData();
-            updateClassSyllabusSummary(appData.classes[index]);
+            const saved = appData.classes[index];
+            updateClassSyllabusSummary(saved);
+            if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
+                renderSyllabusScheduleAdjustment(saved);
+                syncSyllabusEditorChrome();
+            }
         }
     }
 }
@@ -15690,11 +16748,11 @@ function populateClassForm(classData = null, options = {}) {
             }
         }
         renderCustomLessonDates(totalLessons, customDates);
-        renderCompressionOptions(totalLessons, compressionMerges);
+        renderCompressionOptions(totalLessons, compressionMerges, 'classForm');
         updateCompressionUiForScheduleModel();
-        syncCompressionSectionsForMode();
-        renderScheduleAdjustmentRows(totalLessons, classData);
-        renderScheduleGapWarning(classData);
+        syncCompressionSectionsForMode('classForm', classData);
+        renderScheduleAdjustmentRows(totalLessons, classData, 'classForm');
+        renderScheduleGapWarning(classData, 'classForm');
         renderScheduleAdjustmentSummaryBlock(classData);
         updateClassSyllabusSummary(classData);
 
@@ -16202,6 +17260,10 @@ function handleClassSubmit(e) {
     }
     const { period, periodByWeekday } = collectPeriodFieldsForSave();
     const teacherFields = collectClassTeacherFieldsForSave();
+    if (canAccessTeachersTab() && !normalizeStr(teacherFields.cohortId)) {
+        alert(t('classCohortRequiredAdmin'));
+        return;
+    }
     if (teacherFields.classTypeId) {
         classTypeId = teacherFields.classTypeId;
     }
@@ -16289,21 +17351,31 @@ function handleClassSubmit(e) {
         ...teacherFields
     };
     
-    if (teacherFields.cohortId) {
-        const cohort = (appData.cohorts || []).find((c) => c.id === teacherFields.cohortId);
-        if (cohort && !(cohort.classIds || []).includes(classData.id)) {
-            cohort.classIds = cohort.classIds || [];
-            cohort.classIds.push(classData.id);
+    const cohortLinkApi = getTimetableApi();
+    const selectedCohortId = normalizeStr(teacherFields.cohortId);
+    if (selectedCohortId) {
+        if (cohortLinkApi) {
+            cohortLinkApi.addClassCohortId(classData, selectedCohortId);
+        } else {
+            classData.cohortId = selectedCohortId;
         }
+        const cohort = (appData.cohorts || []).find((c) => c.id === selectedCohortId);
+        if (cohort) {
+            syncClassCohortLinks(cohort);
+        }
+    } else if (cohortLinkApi && existingClass) {
+        const prevIds = cohortLinkApi.getClassCohortIds(existingClass);
+        const prevPrimary = normalizeStr(existingClass.cohortId);
+        if (prevPrimary) {
+            cohortLinkApi.removeClassCohortId(classData, prevPrimary);
+            const prevCohort = (appData.cohorts || []).find((c) => c.id === prevPrimary);
+            if (prevCohort) {
+                syncClassCohortLinks(prevCohort);
+            }
+        }
+        classData.cohortIds = cohortLinkApi.getClassCohortIds(classData);
+        classData.cohortId = classData.cohortIds[0] || '';
     }
-    (appData.cohorts || []).forEach((cohort) => {
-        if (cohort.id === teacherFields.cohortId) {
-            return;
-        }
-        if (Array.isArray(cohort.classIds)) {
-            cohort.classIds = cohort.classIds.filter((id) => id !== classData.id);
-        }
-    });
     
     if (elements.classId.value) {
         // Update existing
@@ -16495,8 +17567,13 @@ function sanitizeTotalLessons(value) {
     return parsed;
 }
 
-function getTotalLessonsValue() {
-    return sanitizeTotalLessons(elements.classTotalLessons.value || 4);
+function getTotalLessonsValue(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    if (sid === 'syllabus') {
+        const cls = getSelectedSyllabusClass();
+        return sanitizeTotalLessons(cls ? (cls.totalLessons || 4) : 4);
+    }
+    return sanitizeTotalLessons(elements.classTotalLessons && elements.classTotalLessons.value || 4);
 }
 
 function formatLessonDayLabel(n) {
@@ -16579,9 +17656,14 @@ function renderCustomLessonDates(totalLessons, existingDates = []) {
     }
 }
 
-function renderCompressionOptions(totalLessons, selectedMerges = []) {
+function renderCompressionOptions(totalLessons, selectedMerges = [], surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'compressionCheckboxes');
+    if (!container) {
+        return;
+    }
     const normalizedMerges = normalizeCompressionMerges(selectedMerges, totalLessons);
-    elements.compressionCheckboxes.innerHTML = '';
+    container.innerHTML = '';
 
     for (let i = 1; i < totalLessons; i++) {
         const label = document.createElement('label');
@@ -16591,21 +17673,26 @@ function renderCompressionOptions(totalLessons, selectedMerges = []) {
         input.type = 'checkbox';
         input.dataset.mergeStart = i;
         input.checked = normalizedMerges.includes(i);
-        input.addEventListener('change', updateCompressionCheckboxStates);
+        input.addEventListener('change', () => updateCompressionCheckboxStates(sid));
 
         const span = document.createElement('span');
         span.textContent = formatMergeLabel(i, i + 1);
 
         label.appendChild(input);
         label.appendChild(span);
-        elements.compressionCheckboxes.appendChild(label);
+        container.appendChild(label);
     }
 
-    updateCompressionCheckboxStates();
+    updateCompressionCheckboxStates(sid);
 }
 
-function updateCompressionCheckboxStates() {
-    const checkboxes = elements.compressionCheckboxes.querySelectorAll('input[type="checkbox"]');
+function updateCompressionCheckboxStates(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'compressionCheckboxes');
+    if (!container) {
+        return;
+    }
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
     const selected = new Set(
         Array.from(checkboxes)
             .filter(cb => cb.checked)
@@ -16619,9 +17706,10 @@ function updateCompressionCheckboxStates() {
     });
 }
 
-function getSelectedCompressionMerges() {
-    const container = document.getElementById('scheduleAdjustmentRows');
-    const hasTable = hasScheduleAdjustmentTableInDom();
+function getSelectedCompressionMerges(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'adjustmentRows');
+    const hasTable = hasScheduleAdjustmentTableInDom(sid);
     const fromTable = [];
     if (container) {
         container.querySelectorAll('input.schedule-merge-next:checked').forEach(cb => {
@@ -16631,14 +17719,15 @@ function getSelectedCompressionMerges() {
             }
         });
     }
-    const checkboxes = elements.compressionCheckboxes
-        ? elements.compressionCheckboxes.querySelectorAll('input[type="checkbox"]')
+    const legacyContainer = scheduleAdjEl(sid, 'compressionCheckboxes');
+    const checkboxes = legacyContainer
+        ? legacyContainer.querySelectorAll('input[type="checkbox"]')
         : [];
     const fromLegacy = Array.from(checkboxes)
         .filter(cb => cb.checked)
         .map(cb => parseInt(cb.dataset.mergeStart, 10))
         .filter(n => !Number.isNaN(n));
-    const total = getTotalLessonsValue();
+    const total = getTotalLessonsValue(sid);
     if (window.CCPSchedule && window.CCPSchedule.resolveCompressionMergesFromSources) {
         return window.CCPSchedule.resolveCompressionMergesFromSources(
             hasTable,
@@ -16653,12 +17742,13 @@ function getSelectedCompressionMerges() {
     return fromLegacy.sort((a, b) => a - b);
 }
 
-function collectSkippedLessonsFromForm() {
-    const container = document.getElementById('scheduleAdjustmentRows');
+function collectSkippedLessonsFromForm(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'adjustmentRows');
     if (!container) {
         return [];
     }
-    const total = getTotalLessonsValue();
+    const total = getTotalLessonsValue(sid);
     const skipped = [];
     container.querySelectorAll('input.schedule-skip-lesson:checked').forEach(cb => {
         const n = parseInt(cb.dataset.lessonNum, 10);
@@ -16669,12 +17759,17 @@ function collectSkippedLessonsFromForm() {
     return getSkippedLessonsFromClass({ skippedLessons: skipped }, total);
 }
 
-function renderScheduleAdjustmentRows(totalLessons, classData) {
-    const container = document.getElementById('scheduleAdjustmentRows');
+function renderScheduleAdjustmentRows(totalLessons, classData, surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'adjustmentRows');
     if (!container) {
         return;
     }
-    classData = classData || buildClassSnapshotFromForm();
+    if (!classData) {
+        classData = sid === 'syllabus'
+            ? getSelectedSyllabusClass()
+            : buildClassSnapshotFromForm();
+    }
     const total = sanitizeTotalLessons(totalLessons || classData.totalLessons || 8);
     const skipped = getSkippedLessonsFromClass(classData, total);
     const merges = getCompressionMergesFromClass(classData, total);
@@ -16719,27 +17814,32 @@ function renderScheduleAdjustmentRows(totalLessons, classData) {
     table.appendChild(tbody);
     container.appendChild(table);
     const refreshUi = () => {
-        const snap = buildClassSnapshotFromForm();
-        const effective = getClassDataForScheduleGapCheck(snap);
-        renderScheduleAdjustmentSummaryBlock(effective || snap);
-        renderScheduleGapWarning(snap);
+        const snap = sid === 'syllabus'
+            ? getClassDataForScheduleGapCheck(classData)
+            : buildClassSnapshotFromForm();
+        const effective = getClassDataForScheduleGapCheck(snap || classData);
+        renderScheduleAdjustmentSummaryBlock(effective || snap, sid);
+        renderScheduleGapWarning(snap || classData, sid);
     };
     container.querySelectorAll('input.schedule-skip-lesson, input.schedule-merge-next').forEach(inp => {
         inp.addEventListener('change', () => {
-            const snap = buildClassSnapshotFromForm();
+            const base = sid === 'syllabus'
+                ? (getSelectedSyllabusClass() || classData)
+                : buildClassSnapshotFromForm();
             renderScheduleAdjustmentRows(total, {
-                ...snap,
-                skippedLessons: collectSkippedLessonsFromForm(),
-                compressionMerges: getSelectedCompressionMerges()
-            });
+                ...base,
+                skippedLessons: collectSkippedLessonsFromForm(sid),
+                compressionMerges: getSelectedCompressionMerges(sid)
+            }, sid);
         });
     });
-    const addRangeBtn = document.getElementById('scheduleSkipRangeAddBtn');
-    if (addRangeBtn && !addRangeBtn.dataset.bound) {
-        addRangeBtn.dataset.bound = '1';
+    const addRangeBtn = scheduleAdjEl(sid, 'skipRangeAdd');
+    const boundKey = sid === 'syllabus' ? 'boundSyllabus' : 'bound';
+    if (addRangeBtn && !addRangeBtn.dataset[boundKey]) {
+        addRangeBtn.dataset[boundKey] = '1';
         addRangeBtn.addEventListener('click', () => {
-            const fromEl = document.getElementById('scheduleSkipRangeFrom');
-            const toEl = document.getElementById('scheduleSkipRangeTo');
+            const fromEl = scheduleAdjEl(sid, 'skipRangeFrom');
+            const toEl = scheduleAdjEl(sid, 'skipRangeTo');
             const from = parseInt(fromEl && fromEl.value, 10);
             const to = parseInt(toEl && toEl.value, 10);
             if (Number.isNaN(from) || Number.isNaN(to)) {
@@ -16747,14 +17847,16 @@ function renderScheduleAdjustmentRows(totalLessons, classData) {
             }
             const lo = Math.min(from, to);
             const hi = Math.max(from, to);
-            const cur = new Set(collectSkippedLessonsFromForm());
+            const cur = new Set(collectSkippedLessonsFromForm(sid));
             for (let i = lo; i <= hi && i <= total; i += 1) {
                 if (i >= 1) {
                     cur.add(i);
                 }
             }
-            const snap = buildClassSnapshotFromForm();
-            renderScheduleAdjustmentRows(total, { ...snap, skippedLessons: [...cur] });
+            const base = sid === 'syllabus'
+                ? (getSelectedSyllabusClass() || classData)
+                : buildClassSnapshotFromForm();
+            renderScheduleAdjustmentRows(total, { ...base, skippedLessons: [...cur] }, sid);
         });
     }
     refreshUi();
@@ -16825,14 +17927,107 @@ function proposeScheduleAdjustments(classData) {
     };
 }
 
-function applyScheduleAdjustmentsToForm(merges, skipped) {
-    const total = getTotalLessonsValue();
-    const snap = buildClassSnapshotFromForm();
+function applyScheduleAdjustmentsToForm(merges, skipped, surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const total = getTotalLessonsValue(sid);
+    const snap = sid === 'syllabus'
+        ? (getSelectedSyllabusClass() || {})
+        : buildClassSnapshotFromForm();
     renderScheduleAdjustmentRows(total, {
         ...snap,
         compressionMerges: merges,
         skippedLessons: skipped
-    });
+    }, sid);
+}
+
+function mergeSyllabusCompressionIntoRecord(classData) {
+    if (!classData) {
+        return null;
+    }
+    const isDebate = classUsesDebateCompression(classData);
+    const isCustom = !!(classData.customSchedule && classData.customSchedule.enabled);
+    return {
+        ...classData,
+        ...collectClassCompressionForSave({
+            isDebateSchedule: isDebate,
+            isCustomSchedule: isCustom,
+            surface: 'syllabus'
+        })
+    };
+}
+
+function setCompressionModeRadiosOnSurface(classData, surface) {
+    const sid = surface || 'syllabus';
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    if (!map || !classData) {
+        return;
+    }
+    const mode = classData.compressionMode === 'manual'
+        ? 'manual'
+        : (classData.compressionMode === 'manualPerMonth' ? 'manualPerMonth' : 'autoWhenNeeded');
+    const id = mode === 'manual'
+        ? map.compressionModeManual
+        : (mode === 'manualPerMonth' ? map.compressionModeManualPerMonth : map.compressionModeAuto);
+    const radio = document.getElementById(id);
+    if (radio) {
+        radio.checked = true;
+    }
+}
+
+function refreshSyllabusScheduleAdjustmentUi(classData) {
+    if (!classData) {
+        return;
+    }
+    const effective = getClassDataForScheduleGapCheck(classData);
+    renderScheduleGapWarning(classData, 'syllabus');
+    renderScheduleAdjustmentSummaryBlock(effective || classData, 'syllabus');
+    const unsavedHint = document.getElementById('syllabusScheduleUnsavedHint');
+    if (unsavedHint) {
+        const needsSchedule = !classData.startDate
+            || !classData.endDate
+            || getMeetingDaysFromClass(classData).length === 0;
+        unsavedHint.hidden = !needsSchedule;
+    }
+}
+
+function renderSyllabusScheduleAdjustment(classData) {
+    const section = document.getElementById('syllabusScheduleAdjustmentSection');
+    if (!section) {
+        return;
+    }
+    if (!classData || (classData.customSchedule && classData.customSchedule.enabled)) {
+        section.hidden = true;
+        return;
+    }
+    section.hidden = false;
+    setCompressionModeRadiosOnSurface(classData, 'syllabus');
+    const total = getTotalLessonsValue('syllabus');
+    const merges = getCompressionMergesFromClass(classData, total);
+    renderCompressionOptions(total, merges, 'syllabus');
+    syncCompressionSectionsForMode('syllabus', classData);
+    const debate = classUsesDebateCompression(classData);
+    const debateHint = scheduleAdjEl('syllabus', 'debateHint');
+    const sequentialHint = scheduleAdjEl('syllabus', 'sequentialHint');
+    if (debateHint && sequentialHint) {
+        debateHint.hidden = !debate;
+        sequentialHint.hidden = debate;
+    }
+    renderScheduleAdjustmentRows(total, classData, 'syllabus');
+    refreshSyllabusScheduleAdjustmentUi(classData);
+    if (!section.dataset.listenersInit) {
+        section.dataset.listenersInit = '1';
+        const map = SCHEDULE_ADJ_SURFACE.syllabus;
+        document.querySelectorAll(`input[name="${map.compressionModeName}"]`).forEach((radio) => {
+            radio.addEventListener('change', () => {
+                const cls = getSelectedSyllabusClass();
+                if (!cls) {
+                    return;
+                }
+                syncCompressionSectionsForMode('syllabus', cls);
+                renderScheduleAdjustmentRows(getTotalLessonsValue('syllabus'), cls, 'syllabus');
+            });
+        });
+    }
 }
 
 function maybeConfirmScheduleAdjustments(classSnapshot) {
@@ -16879,7 +18074,11 @@ function maybeConfirmScheduleAdjustments(classSnapshot) {
     if (apply) {
         classSnapshot.skippedLessons = proposal.skipped;
         classSnapshot.compressionMerges = proposal.merges;
-        applyScheduleAdjustmentsToForm(proposal.merges, proposal.skipped);
+        applyScheduleAdjustmentsToForm(
+            proposal.merges,
+            proposal.skipped,
+            getScheduleAdjustmentSurface()
+        );
         if (elements.classId && classSnapshot.id) {
             const idx = appData.classes.findIndex(c => c.id === classSnapshot.id);
             if (idx >= 0) {
@@ -19608,7 +20807,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     if (el.closest('[data-team-view-allow]')) {
         return true;
     }
-    if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #teamLockStatus')) {
+    if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #teamLockStatus, #panel-teachers')) {
         return true;
     }
     if (
@@ -20435,6 +21634,8 @@ function setupTeamUserBar() {
             });
         }
     }
+    syncTeachersTabVisibility();
+    initTeacherManagementModule();
     if (adminLink) {
         adminLink.hidden = typeof TeamAuth === 'undefined' || !TeamAuth.canAccessAdmin();
         if (adminLink.dataset.adminNavBound !== '1') {
@@ -20597,18 +21798,22 @@ function showSavedTabPanelsOnly(tabId) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
     }
+    ensureUiState();
+    let hostId = getHostForTab(tabId);
+    if (
+        tabId === 'calendar'
+        && (appData.ui.activeHostTab === APP_HOST_SETUP || appData.ui.activeHostTab === APP_HOST_TEACHING)
+    ) {
+        hostId = appData.ui.activeHostTab;
+    }
     document.body.dataset.activeTab = tabId;
+    syncHostSubTabNav(hostId, tabId);
     APP_TAB_IDS.forEach((id) => {
         const panel = document.getElementById(`panel-${id}`);
-        const btn = document.getElementById(`tabBtn-${id}`);
         const active = id === tabId;
         if (panel) {
             panel.hidden = !active;
             panel.classList.toggle('is-active', active);
-        }
-        if (btn) {
-            btn.classList.toggle('is-active', active);
-            btn.setAttribute('aria-selected', String(active));
         }
     });
 }
@@ -20804,6 +22009,11 @@ function applyLoadedAppData(data) {
     const migrated = migrateData(appData);
     ensureUiState();
     refreshLocalizedEventDisplayNames();
+    syncTeachersTabVisibility();
+    initTeacherManagementModule();
+    if (typeof CCPTeacherManagement !== 'undefined' && getActiveTab() === 'teachers') {
+        CCPTeacherManagement.onCalendarDataChanged();
+    }
     if (migrated) {
         saveData();
     }
@@ -22173,6 +23383,27 @@ function migrateData(data) {
             if (classData.cohortId === undefined) {
                 classData.cohortId = '';
             }
+            const apiCohort = getTimetableApi();
+            if (!Array.isArray(classData.cohortIds)) {
+                const legacyCid = normalizeStr(classData.cohortId);
+                classData.cohortIds = legacyCid ? [legacyCid] : [];
+                migrated = true;
+            } else {
+                const merged = apiCohort
+                    ? apiCohort.getClassCohortIds(classData)
+                    : [...classData.cohortIds];
+                if (merged.length !== classData.cohortIds.length
+                    || merged.some((id, i) => id !== classData.cohortIds[i])) {
+                    classData.cohortIds = merged;
+                    migrated = true;
+                }
+            }
+            if (apiCohort) {
+                apiCohort.syncClassPrimaryCohortId(classData);
+            } else if (!normalizeStr(classData.cohortId) && classData.cohortIds.length) {
+                classData.cohortId = classData.cohortIds[0];
+                migrated = true;
+            }
             if (classData.assignedTeacherUserId === undefined) {
                 classData.assignedTeacherUserId = '';
             }
@@ -22268,15 +23499,43 @@ function migrateData(data) {
             if (!Array.isArray(cohort.meetingDays)) {
                 cohort.meetingDays = [];
             }
+            if (cohort.levelPreset === undefined) {
+                cohort.levelPreset = cohort.level || '';
+                migrated = true;
+            }
+            if (cohort.schedulePattern === undefined) {
+                cohort.schedulePattern = '';
+            }
+            if (cohort.scheduleBlock === undefined) {
+                cohort.scheduleBlock = 'primary';
+            }
+            if (!Array.isArray(cohort.subjectSlots)) {
+                cohort.subjectSlots = [];
+            }
+            if (cohort.periodCount === undefined) {
+                cohort.periodCount = 0;
+            }
+            const migrateApi = getTimetableApi();
             (data.classes || []).forEach((cls) => {
-                if (cls.cohortId === cohort.id && !cohort.classIds.includes(cls.id)) {
+                const linked = migrateApi
+                    ? migrateApi.classHasCohortId(cls, cohort.id)
+                    : normalizeStr(cls.cohortId) === cohort.id;
+                if (linked && !cohort.classIds.includes(cls.id)) {
                     cohort.classIds.push(cls.id);
                     migrated = true;
                 }
             });
             cohort.classIds.forEach((classId) => {
                 const cls = (data.classes || []).find((c) => c.id === classId);
-                if (cls && cls.cohortId !== cohort.id) {
+                if (!cls) {
+                    return;
+                }
+                if (migrateApi) {
+                    if (!migrateApi.classHasCohortId(cls, cohort.id)) {
+                        migrateApi.addClassCohortId(cls, cohort.id);
+                        migrated = true;
+                    }
+                } else if (normalizeStr(cls.cohortId) !== cohort.id) {
                     cls.cohortId = cohort.id;
                     migrated = true;
                 }

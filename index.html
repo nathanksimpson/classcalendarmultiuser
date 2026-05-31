@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260601-notes-harmonize">
+    <link rel="stylesheet" href="styles.css?v=20260601-ui-consistency">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -135,18 +135,32 @@
                     </div>
                     <span id="topBarCalendarLabel" class="top-bar-calendar-label" hidden></span>
                 </div>
-                <nav class="app-tab-nav" id="appTabNav" role="tablist" aria-label="App sections">
-                    <button type="button" class="app-tab-btn is-active" role="tab" id="tabBtn-calendar" aria-selected="true" aria-controls="panel-calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-homework" aria-selected="false" aria-controls="panel-homework" data-tab="homework" data-i18n="tabHomework">Homework</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-notes" aria-selected="false" aria-controls="panel-notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-classes" aria-selected="false" aria-controls="panel-classes" data-tab="classes" data-i18n="tabClasses">Classes</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-syllabus" aria-selected="false" aria-controls="panel-syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabus</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-curriculum" aria-selected="false" aria-controls="panel-curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Curriculum</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-timetable" aria-selected="false" aria-controls="panel-timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
-                    <button type="button" class="app-tab-btn" role="tab" id="tabBtn-events" aria-selected="false" aria-controls="panel-events" data-tab="events" data-i18n="tabEvents">Events</button>
-                    <button type="button" class="app-tab-btn app-tab-btn--data" role="tab" id="tabBtn-data" aria-selected="false" aria-controls="panel-data" data-tab="data" data-i18n="tabData">Data</button>
+                <nav class="app-tab-nav" id="appTabNav" aria-label="App sections">
+                    <div class="app-tab-host-row" role="tablist" aria-label="Main sections">
+                        <button type="button" class="app-tab-host-btn is-active" role="tab" id="tabHostBtn-teaching" aria-selected="true" data-host="teaching" data-i18n="tabGroupTeaching">Teaching</button>
+                        <button type="button" class="app-tab-host-btn" role="tab" id="tabHostBtn-setup" aria-selected="false" data-host="setup" data-i18n="tabGroupSetup" hidden>Setup</button>
+                    </div>
+                    <div class="app-tab-subnav-wrap">
+                        <div id="appTabSubnavTeaching" class="app-tab-subnav-panel is-active" role="tablist" aria-label="Teaching sections">
+                            <button type="button" class="app-tab-sub-btn is-active" role="tab" id="tabBtn-calendar-teaching" aria-selected="true" aria-controls="panel-calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-homework" aria-selected="false" aria-controls="panel-homework" data-tab="homework" data-i18n="tabHomework">Homework</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-notes" aria-selected="false" aria-controls="panel-notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-classes" aria-selected="false" aria-controls="panel-classes" data-tab="classes" data-i18n="tabClasses">Classes</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-timetable" aria-selected="false" aria-controls="panel-timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
+                        </div>
+                        <div id="appTabSubnavSetup" class="app-tab-subnav-panel" role="tablist" aria-label="Setup sections" aria-hidden="true">
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-calendar-setup" aria-selected="false" aria-controls="panel-calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-cohorts" aria-selected="false" aria-controls="panel-cohorts" data-tab="cohorts" data-i18n="tabCohorts">Cohorts</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-teachers" aria-selected="false" aria-controls="panel-teachers" data-tab="teachers" data-i18n="tabTeachers">Teachers</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-curriculum" aria-selected="false" aria-controls="panel-curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Curriculum</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-syllabus" aria-selected="false" aria-controls="panel-syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabus</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-events" aria-selected="false" aria-controls="panel-events" data-tab="events" data-i18n="tabEvents">Events</button>
+                            <button type="button" class="app-tab-sub-btn app-tab-sub-btn--data" role="tab" id="tabBtn-data" aria-selected="false" aria-controls="panel-data" data-tab="data" data-i18n="tabData">Data</button>
+                        </div>
+                    </div>
                 </nav>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
+                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
                     <div class="app-header-tool-group app-header-tool-group--print">
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
@@ -163,7 +177,7 @@
         </header>
 
         <main class="app-main" id="appMain">
-            <section id="panel-calendar" class="app-tab-panel is-active" data-tab="calendar" role="tabpanel" aria-labelledby="tabBtn-calendar">
+            <section id="panel-calendar" class="app-tab-panel is-active" data-tab="calendar" role="tabpanel" aria-labelledby="tabBtn-calendar-teaching">
                 <div id="calendarOptions" class="calendar-options">
                 <button type="button" id="topBarToggle" class="app-top-bar-toggle calendar-options-toggle" aria-expanded="true" aria-controls="topBarDetails">
                     <span class="app-top-bar-toggle-icon" aria-hidden="true">▲</span>
@@ -239,6 +253,7 @@
                         </div>
                         <p id="lessonFilterStatus" class="lesson-filter-status"></p>
                         <div class="lesson-filter-actions">
+                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterJustMineBtn" data-i18n="lessonFilterJustMine">Just my classes</button>
                             <button type="button" class="btn btn-outline btn-small" id="lessonFilterSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
                             <button type="button" class="btn btn-outline btn-small" id="lessonFilterClearAllBtn" data-i18n="filterClearAll">Clear all</button>
                             <button type="button" class="btn btn-outline btn-small" id="lessonFilterResetBtn" data-i18n="lessonFilterReset">Reset filters</button>
@@ -559,16 +574,93 @@
                     </div>
                 </div>
                 </div>
-                <section class="timetable-cohorts-section print-data-section">
-                    <p id="timetableCohortsCalendarName" class="section-hint timetable-cohorts-calendar-name" hidden></p>
-                    <p class="section-hint timetable-cohorts-scope-hint" data-i18n="timetableCohortsScopeHint">Cohorts belong to this calendar only (not shared across team calendars). 담임 is a cohort role here; teaching slots come from Class teachers on the Classes tab.</p>
-                    <div class="timetable-cohorts-toolbar">
-                        <h3 data-i18n="timetableCohortsHeading">Student cohorts (담임)</h3>
-                        <button type="button" id="timetableSuggestCohortsBtn" class="btn btn-outline btn-small" data-i18n="timetableSuggestCohorts">Suggest cohorts from classes</button>
-                        <button type="button" id="timetableAddCohortBtn" class="btn btn-primary btn-small" data-i18n="timetableAddCohort">Add cohort</button>
+            </section>
+
+            <section id="panel-cohorts" class="app-tab-panel" data-tab="cohorts" role="tabpanel" aria-labelledby="tabBtn-cohorts" hidden>
+                <p id="cohortsTabCalendarName" class="section-hint cohort-management-calendar-name" hidden></p>
+                <div id="cohortManagementSummary" class="cohort-management-summary" role="status" hidden></div>
+                <div class="cohort-management-toolbar module-toolbar">
+                    <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
+                    <button type="button" id="cohortsImportBtn" class="btn btn-outline btn-compact" data-i18n="cohortsImportFromClasses">Import from existing classes</button>
+                    <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
+                </div>
+                <div class="cohort-management-layout module-split-layout">
+                    <aside class="module-list-panel cohort-management-list-panel" aria-label="Cohorts">
+                        <input type="search" id="cohortsListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts…">
+                        <div id="cohortsListSortMount" class="cohort-list-sort-mount"></div>
+                        <div id="cohortsListFilterChips" class="cohort-management-filter-chips"></div>
+                        <div id="cohortsList" class="module-list" role="listbox" aria-label="Student cohorts"></div>
+                    </aside>
+                    <div class="module-editor-panel cohort-management-editor-panel">
+                        <p id="cohortsEditorEmpty" class="module-empty-hint" data-i18n="cohortsEditorEmpty">Select a cohort from the list, or click + Add cohort.</p>
+                        <div id="cohortsEditorMount" class="cohort-management-editor" hidden></div>
                     </div>
-                    <div id="timetableCohortsList" class="timetable-cohorts-list"></div>
-                </section>
+                    <aside class="module-list-panel cohort-management-linked-panel" aria-labelledby="cohortsLinkedHeading">
+                        <h3 id="cohortsLinkedHeading" class="cohort-management-linked-heading" data-i18n="cohortsLinkedHeading">Linked subject classes</h3>
+                        <div id="cohortsLinkedList" class="cohort-management-linked-list"></div>
+                    </aside>
+                </div>
+            </section>
+
+            <section id="panel-teachers" class="app-tab-panel" data-tab="teachers" role="tabpanel" aria-labelledby="tabBtn-teachers" hidden>
+                <p class="section-hint teachers-tab-intro" data-i18n="teachersTabIntro">Assign class schedules and homeroom cohorts to teachers. Changes save to this team calendar.</p>
+                <div class="teachers-tab-layout module-split-layout">
+                    <aside class="module-list-panel teachers-tab-teacher-panel" aria-label="Teachers">
+                        <input type="search" id="teachersTabTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
+                        <div id="teachersTabTeacherList" class="module-list" role="listbox" aria-label="Teachers"></div>
+                    </aside>
+                    <div class="module-editor-panel teachers-tab-assign-panel">
+                        <p id="teachersTabCatalogEmpty" class="module-empty-hint" hidden data-i18n="timetablePickTeacher">Select a teacher from the list.</p>
+                        <header class="teachers-tab-assign-header">
+                            <div class="teachers-tab-segments" role="tablist" aria-label="Assignment type">
+                                <button type="button" class="syllabus-segment-btn is-active" id="teachersTabSegmentCohorts" data-i18n="teachersTabSegmentCohorts">Homeroom cohorts</button>
+                                <button type="button" class="syllabus-segment-btn" id="teachersTabSegmentClasses" data-i18n="teachersTabSegmentClasses">Class schedules</button>
+                                <a href="#" id="teachersTabManageCohortsLink" class="btn btn-outline btn-small teachers-tab-manage-cohorts-link" data-i18n="teachersTabManageCohorts">Manage cohorts</a>
+                                <button type="button" id="teachersTabScrollToPreviewBtn" class="btn btn-outline btn-small teachers-tab-jump-preview-btn" hidden data-i18n="teachersTabScrollToPreview">Jump to preview</button>
+                            </div>
+                            <h3 id="teachersTabCatalogHeading" class="teachers-tab-catalog-heading" data-i18n="teachersTabCatalogCohorts">Homeroom cohorts</h3>
+                        </header>
+                        <p class="section-hint teachers-tab-homeroom-hint" data-i18n="teachersTabHomeroomHint">Homeroom (담임) is a cohort role for student contact — not the subject they teach. Use Class schedules for teaching assignments.</p>
+                        <div id="teachersTabDefaultCategoryWrap" class="teachers-tab-default-category">
+                            <label for="teachersTabDefaultCategory" data-i18n="teachersTabDefaultCategory">Default subject for newly checked classes</label>
+                            <select id="teachersTabDefaultCategory" class="teachers-tab-default-category-select field-select field-control--compact"></select>
+                        </div>
+                        <div class="lesson-filter-actions teachers-tab-catalog-actions">
+                            <button type="button" class="btn btn-outline btn-small" id="teachersTabCatalogSelectAll" data-i18n="filterSelectAll">Select all</button>
+                            <button type="button" class="btn btn-outline btn-small" id="teachersTabCatalogClearAll" data-i18n="filterClearAll">Clear all</button>
+                            <label class="checkbox-label selection-chip">
+                                <input type="checkbox" id="teachersTabUnassignedOnly">
+                                <span data-i18n="teachersTabUnassignedOnly">Show unassigned only</span>
+                            </label>
+                        </div>
+                        <div id="teachersTabCatalogToolbar" class="teachers-tab-catalog-toolbar">
+                            <label class="teachers-tab-catalog-control">
+                                <span data-i18n="teachersTabCatalogSortLabel">Sort</span>
+                                <select id="teachersTabCatalogSort" class="teachers-tab-catalog-select field-select field-control--compact"></select>
+                            </label>
+                            <label class="teachers-tab-catalog-control">
+                                <span data-i18n="teachersTabCatalogCategoryLabel">Category</span>
+                                <select id="teachersTabCatalogCategoryFilter" class="teachers-tab-catalog-select field-select field-control--compact"></select>
+                            </label>
+                        </div>
+                        <input type="search" id="teachersTabCatalogSearch" class="module-list-search teachers-tab-catalog-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
+                        <div id="teachersTabCatalogBody" class="lesson-filter-chip-grid teachers-tab-catalog-body"></div>
+                        <div class="teachers-tab-apply-row">
+                            <button type="button" id="teachersTabApplyBtn" class="btn btn-primary btn-small" data-i18n="teachersTabApply">Apply assignments</button>
+                        </div>
+                    </div>
+                    <section id="teachersTabPreviewSection" class="teachers-tab-preview-section" aria-label="Timetable preview">
+                        <header class="teachers-tab-preview-header">
+                            <h3 class="teachers-tab-preview-heading" data-i18n="teachersTabPreviewHeading">Weekly timetable preview</h3>
+                            <div class="teachers-tab-preview-actions">
+                                <button type="button" id="teachersTabOpenTimetableBtn" class="btn btn-outline btn-small" data-i18n="teachersTabOpenTimetable">Open in Timetable</button>
+                                <button type="button" id="teachersTabFilterCalendarBtn" class="btn btn-outline btn-small" data-i18n="teachersTabFilterCalendar">Filter calendar to this teacher</button>
+                            </div>
+                        </header>
+                        <p id="teachersTabPreviewHint" class="module-empty-hint" data-i18n="timetablePickTeacher">Select a teacher from the list.</p>
+                        <div id="teachersTabPreviewMount" class="teachers-tab-preview-mount timetable-grids-mount"></div>
+                    </section>
+                </div>
             </section>
 
             <section id="panel-curriculum" class="app-tab-panel" data-tab="curriculum" role="tabpanel" aria-labelledby="tabBtn-curriculum" hidden>
@@ -1011,13 +1103,14 @@
     <script defer src="js/load-extension-scripts.js?v=20260531-custom-adopted-quiet"></script>
     <script defer src="js/view-as-banner.js?v=20260605-viewas-notes"></script>
     <script defer src="js/team-auth.js?v=20260601-role-palette"></script>
+    <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-sync.js?v=20260605-viewas-notes"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/snake-game.js?v=20260531-star"></script>
-    <script defer src="js/dino-game.js?v=20260601-dino"></script>
+    <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260605-daynotes-sync"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260531-security-autocomplete"></script>
+    <script defer src="app.js?v=20260601-syllabus-setup-schedule"></script>
 </body>
 </html>
 

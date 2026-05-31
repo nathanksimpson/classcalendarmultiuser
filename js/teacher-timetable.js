@@ -291,6 +291,120 @@
         ) || null;
     }
 
+    function classHasTeacherAssignment(classData, selector) {
+        return Boolean(findTeacherRowForSelector(classData, selector));
+    }
+
+    function ensureClassTeachersArray(classData) {
+        if (!classData) {
+            return [];
+        }
+        if (!Array.isArray(classData.classTeachers)) {
+            classData.classTeachers = [];
+        }
+        return classData.classTeachers;
+    }
+
+    function buildDefaultTeacherRowForClass(classData, selector, options) {
+        options = options || {};
+        const userId = normalizeStr(selector && selector.userId);
+        const name = normalizeStr(selector && selector.displayName) || userId;
+        const level = normalizeStr(classData.levelPreset)
+            || normalizeStr(classData.levelCustom)
+            || normalizeStr(classData.level);
+        let curriculumId = normalizeStr(options.curriculumId) || normalizeStr(classData.curriculumId);
+        let classTypeId = normalizeStr(classData.classTypeId);
+        let book = normalizeStr(classData.book);
+        let category = normalizeStr(options.category) || deriveTeacherCategory(classData);
+        if (global.CCPBooksEditor && curriculumId) {
+            const presetId = global.CCPBooksEditor.resolvePresetFromLevelAndBook(
+                level,
+                curriculumId,
+                options.appData
+            );
+            if (presetId) {
+                classTypeId = presetId;
+            }
+            const merged = global.CCPBooksEditor.buildMergedClassDefaults(
+                curriculumId,
+                classTypeId,
+                options.appData,
+                level
+            );
+            if (merged.defaultBook && !book) {
+                book = merged.defaultBook;
+            }
+        }
+        return normalizeTeacherRow({
+            id: options.rowId || '',
+            userId,
+            name,
+            category,
+            curriculumId,
+            classTypeId,
+            book
+        });
+    }
+
+    function addTeacherRowToClass(classData, selector, options) {
+        if (!classData || !selector) {
+            return false;
+        }
+        if (classHasTeacherAssignment(classData, selector)) {
+            return false;
+        }
+        const rows = ensureClassTeachersArray(classData);
+        const row = buildDefaultTeacherRowForClass(classData, selector, options);
+        if (!row.id && typeof options.generateId === 'function') {
+            row.id = options.generateId();
+        } else if (!row.id) {
+            row.id = 'tr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        }
+        rows.push(row);
+        return true;
+    }
+
+    function removeTeacherFromClass(classData, selector) {
+        if (!classData || !selector || !Array.isArray(classData.classTeachers)) {
+            return 0;
+        }
+        const before = classData.classTeachers.length;
+        classData.classTeachers = classData.classTeachers.filter(
+            (row) => !teacherMatchesTeacherRef({ userId: row.userId, displayName: row.name }, selector)
+        );
+        return before - classData.classTeachers.length;
+    }
+
+    function cohortHasHomeroom(cohort, selector) {
+        if (!cohort || !selector) {
+            return false;
+        }
+        return teacherMatchesTeacherRef(
+            {
+                userId: cohort.homeroomTeacherUserId,
+                displayName: cohort.homeroomTeacherName
+            },
+            selector
+        );
+    }
+
+    function setCohortHomeroom(cohort, selector) {
+        if (!cohort || !selector) {
+            return;
+        }
+        cohort.homeroomTeacherUserId = normalizeStr(selector.userId);
+        cohort.homeroomTeacherName = normalizeStr(selector.displayName)
+            || cohort.homeroomTeacherUserId;
+    }
+
+    function clearCohortHomeroom(cohort) {
+        if (!cohort) {
+            return;
+        }
+        cohort.homeroomTeacherUserId = '';
+        cohort.homeroomTeacherName = '';
+    }
+
     function deriveTeacherCategory(classData) {
         const explicit = normalizeStr(classData && classData.teacherCategory);
         if (explicit) {
@@ -464,10 +578,77 @@
         return '';
     }
 
+    function getClassCohortIds(classData) {
+        if (!classData) {
+            return [];
+        }
+        const seen = new Set();
+        const ids = [];
+        if (Array.isArray(classData.cohortIds)) {
+            classData.cohortIds.forEach((id) => {
+                const cid = normalizeStr(id);
+                if (cid && !seen.has(cid)) {
+                    seen.add(cid);
+                    ids.push(cid);
+                }
+            });
+        }
+        const legacy = normalizeStr(classData.cohortId);
+        if (legacy && !seen.has(legacy)) {
+            ids.push(legacy);
+        }
+        return ids;
+    }
+
+    function classHasCohortId(classData, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!cid) {
+            return false;
+        }
+        return getClassCohortIds(classData).includes(cid);
+    }
+
+    function syncClassPrimaryCohortId(classData) {
+        const ids = getClassCohortIds(classData);
+        classData.cohortIds = ids.slice();
+        const primary = normalizeStr(classData.cohortId);
+        if (primary && ids.includes(primary)) {
+            return;
+        }
+        classData.cohortId = ids[0] || '';
+    }
+
+    function addClassCohortId(classData, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!cid || !classData) {
+            return;
+        }
+        const ids = getClassCohortIds(classData);
+        if (!ids.includes(cid)) {
+            ids.push(cid);
+        }
+        classData.cohortIds = ids;
+        if (!normalizeStr(classData.cohortId)) {
+            classData.cohortId = cid;
+        }
+    }
+
+    function removeClassCohortId(classData, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!cid || !classData) {
+            return;
+        }
+        const ids = getClassCohortIds(classData).filter((id) => id !== cid);
+        classData.cohortIds = ids;
+        if (normalizeStr(classData.cohortId) === cid) {
+            classData.cohortId = ids[0] || '';
+        }
+    }
+
     function getCohortClassIds(appData, cohort) {
         const ids = new Set(Array.isArray(cohort.classIds) ? cohort.classIds : []);
         (appData.classes || []).forEach((c) => {
-            if (c.cohortId === cohort.id) {
+            if (classHasCohortId(c, cohort.id)) {
                 ids.add(c.id);
             }
         });
@@ -568,7 +749,9 @@
     function suggestCohortsFromClasses(classes) {
         const groups = new Map();
         (classes || []).forEach((c) => {
-            const level = normalizeStr(c.level || c.levelCustom);
+            const levelPreset = normalizeStr(c.levelPreset);
+            const levelCustom = normalizeStr(c.level || c.levelCustom);
+            const level = levelPreset || levelCustom;
             const grade = normalizeStr(c.grade);
             const md = meetingDaysKey(getMeetingDaysFromClass(c));
             if (!level && !grade) {
@@ -578,8 +761,9 @@
             if (!groups.has(key)) {
                 groups.set(key, {
                     id: '',
-                    name: [level, grade, md ? `days ${md}` : ''].filter(Boolean).join(' · '),
-                    level,
+                    name: [levelCustom || levelPreset, grade, md ? `days ${md}` : ''].filter(Boolean).join(' · '),
+                    level: levelCustom || levelPreset,
+                    levelPreset,
                     grade,
                     meetingDays: getMeetingDaysFromClass(c),
                     classIds: [],
@@ -756,6 +940,11 @@
         teacherMatchesClass,
         getHomeroomCohortsForTeacher,
         getClassesForTeacherSchedule,
+        getClassCohortIds,
+        classHasCohortId,
+        addClassCohortId,
+        removeClassCohortId,
+        syncClassPrimaryCohortId,
         getCohortClassIds,
         formatTimeSlotLabel,
         getSortedTimeSlots,
@@ -767,6 +956,13 @@
         getTeacherTimetablePlacements,
         formatTeacherRowScheduleSummary,
         findTeacherRowForSelector,
-        getTeacherPeriodNumber
+        getTeacherPeriodNumber,
+        classHasTeacherAssignment,
+        addTeacherRowToClass,
+        removeTeacherFromClass,
+        cohortHasHomeroom,
+        setCohortHomeroom,
+        clearCohortHomeroom,
+        buildDefaultTeacherRowForClass
     };
 })(typeof window !== 'undefined' ? window : globalThis);
