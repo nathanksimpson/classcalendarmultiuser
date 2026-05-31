@@ -4138,6 +4138,7 @@ body[data-active-tab="events"] .app-term-quick-actions {
     background: var(--surface-muted, var(--input-bg));
     box-shadow: var(--shadow-sm);
     overflow: hidden;
+    touch-action: pan-y;
 }
 
 .class-notes-list-top {

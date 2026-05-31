@@ -8009,7 +8009,7 @@ function initClassNotesPanelListeners() {
     bindClassNotesPreviewWheelScroll(shell);
 }
 
-/** Wheel over notes list scrolls #classNotesPreview (fixes nested overflow:hidden parents on Windows). */
+/** Wheel anywhere over Saved notes panel scrolls #classNotesPreview (nested overflow:hidden on Windows). */
 function bindClassNotesPreviewWheelScroll(shell) {
     if (!shell || shell.dataset.classNotesWheelBound === '1') {
         return;
@@ -8018,11 +8018,16 @@ function bindClassNotesPreviewWheelScroll(shell) {
     shell.addEventListener(
         'wheel',
         (e) => {
+            const listSection = shell.querySelector('.class-notes-list-section');
             const preview = shell.querySelector('#classNotesPreview');
-            if (!preview || preview.hidden || preview.getAttribute('aria-hidden') === 'true') {
+            if (!listSection || !preview || preview.hidden || preview.getAttribute('aria-hidden') === 'true') {
                 return;
             }
-            if (!preview.contains(e.target)) {
+            if (!listSection.contains(e.target)) {
+                return;
+            }
+            const focusedSelect = shell.querySelector('#classNotesSortSelect');
+            if (focusedSelect && document.activeElement === focusedSelect && focusedSelect.contains(e.target)) {
                 return;
             }
             const maxScroll = preview.scrollHeight - preview.clientHeight;
