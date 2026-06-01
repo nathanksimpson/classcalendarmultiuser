@@ -500,6 +500,9 @@ const translations = {
         classNotesFilterGrade: 'Grade',
         classNotesResetFilters: 'Reset filters',
         classNotesSummary: '{notes} note(s) · {classes} class(es)',
+        classNotesSummarySearch: '{notes} note(s) · {classes} class(es) (search: "{query}")',
+        classNotesTextSearchPlaceholder: 'Search notes, classes…',
+        classNotesEmptySearch: 'No notes match your search. Clear the search or widen filters.',
         classNotesExportCopy: 'Copy export',
         classNotesExportDownload: 'Download .txt',
         classNotesEmptyFiltered: 'No notes match these filters. Add a note above or from the calendar (right-click a class).',
@@ -1495,6 +1498,9 @@ const translations = {
         classNotesFilterGrade: '학년',
         classNotesResetFilters: '필터 초기화',
         classNotesSummary: '메모 {notes}개 · 수업 {classes}개',
+        classNotesSummarySearch: '메모 {notes}개 · 수업 {classes}개 (검색: "{query}")',
+        classNotesTextSearchPlaceholder: '메모, 수업 검색…',
+        classNotesEmptySearch: '검색과 일치하는 메모가 없습니다. 검색어를 지우거나 필터를 넓혀 보세요.',
         classNotesExportCopy: '전체 복사',
         classNotesExportDownload: '.txt 다운로드',
         classNotesEmptyFiltered: '필터에 맞는 메모가 없습니다. 위에서 추가하거나 캘린더에서 수업을 우클릭하세요.',
@@ -2121,6 +2127,10 @@ function applyLanguage() {
     const eventAppSearchEl = document.getElementById('eventApplicabilitySearch');
     if (eventAppSearchEl && translations[currentLanguage].lessonFilterSearchPlaceholder) {
         eventAppSearchEl.placeholder = translations[currentLanguage].lessonFilterSearchPlaceholder;
+    }
+    const classNotesTextSearchEl = document.getElementById('classNotesTextSearch');
+    if (classNotesTextSearchEl && translations[currentLanguage].classNotesTextSearchPlaceholder) {
+        classNotesTextSearchEl.placeholder = translations[currentLanguage].classNotesTextSearchPlaceholder;
     }
     if (elements.classTypeSelect && (isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab'))) {
         const v = elements.classTypeSelect.value;
@@ -7314,6 +7324,11 @@ function resolveDayNoteMeta(classId, displayNameOverride) {
     };
 }
 
+function resolveDayNoteSearchHay(classId) {
+    const meta = resolveDayNoteMeta(classId);
+    return [meta.className, meta.subject].filter(Boolean).join(' ');
+}
+
 function classHasDayNoteOnDate(classId, dateStr) {
     const api = getDayNotesApi();
     if (!api) {
@@ -8463,7 +8478,12 @@ function resetClassNotesFilters() {
     renderClassNotesFilterClasses();
     renderClassNotesFilterSubjectsAndGrades();
     applyClassNotesClassSearch();
+    const textSearchEl = document.getElementById('classNotesTextSearch');
+    if (textSearchEl) {
+        textSearchEl.value = '';
+    }
     renderClassNotesTab();
+    saveClassNotesFiltersToUi();
 }
 
 function applyClassNotesClassSearch() {
@@ -8503,12 +8523,14 @@ function collectClassNotesFilterState() {
     });
     const subjectSet = getClassNotesPartialFilterSet('subjects');
     const gradeSet = getClassNotesPartialFilterSet('grades');
+    const textSearchEl = document.getElementById('classNotesTextSearch');
     return {
         dateFrom: fromEl ? (fromEl.value || '').trim() : '',
         dateTo: toEl ? (toEl.value || '').trim() : '',
         classIds,
         subjectSet,
-        gradeSet
+        gradeSet,
+        textQuery: textSearchEl ? (textSearchEl.value || '').trim() : ''
     };
 }
 
@@ -8526,6 +8548,8 @@ function getFilteredClassNotesForExport() {
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
         classIds: filters.classIds,
+        textQuery: filters.textQuery || undefined,
+        resolveClassHay: resolveDayNoteSearchHay,
         matchesMeta: (classId) => {
             const classData = appData.classes.find((c) => c.id === classId);
             if (!classData) {
@@ -8643,15 +8667,25 @@ function renderClassNotesTab() {
     const groupCount = sorted.mode === 'classGroup'
         ? (sorted.groups || []).length
         : new Set(notes.map((n) => n.classId)).size;
+    const textQuery = filters.textQuery || '';
     if (summaryEl) {
-        summaryEl.textContent = t('classNotesSummary')
-            .replace('{notes}', String(notes.length))
-            .replace('{classes}', String(groupCount));
+        if (textQuery) {
+            summaryEl.textContent = t('classNotesSummarySearch')
+                .replace('{notes}', String(notes.length))
+                .replace('{classes}', String(groupCount))
+                .replace('{query}', textQuery);
+        } else {
+            summaryEl.textContent = t('classNotesSummary')
+                .replace('{notes}', String(notes.length))
+                .replace('{classes}', String(groupCount));
+        }
     }
     if (!notes.length) {
         if (emptyEl) {
             emptyEl.hidden = false;
-            emptyEl.textContent = t('classNotesEmptyFiltered');
+            emptyEl.textContent = textQuery
+                ? t('classNotesEmptySearch')
+                : t('classNotesEmptyFiltered');
         }
         setPreviewVisible(false);
         return;
@@ -8708,6 +8742,8 @@ async function copyClassNotesExport() {
         const { filters } = getFilteredClassNotesForExport();
         if (!filters || !filters.classIds.length) {
             showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
+        } else if (filters.textQuery) {
+            showClassNotesExportStatus(false, t('classNotesEmptySearch'));
         } else {
             showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
         }
@@ -8723,6 +8759,8 @@ function downloadClassNotesExport() {
         const { filters } = getFilteredClassNotesForExport();
         if (!filters || !filters.classIds.length) {
             showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
+        } else if (filters.textQuery) {
+            showClassNotesExportStatus(false, t('classNotesEmptySearch'));
         } else {
             showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
         }
@@ -8809,6 +8847,10 @@ function initClassNotesPanelListeners() {
         resetClassNotesAddDatetime();
     });
     shell.querySelector('#classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
+    shell.querySelector('#classNotesTextSearch')?.addEventListener('input', () => {
+        renderClassNotesTab();
+        saveClassNotesFiltersToUi();
+    });
     shell.querySelector('#classNotesFilterClasses')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
             populateClassNotesAddClassSelect();
@@ -22447,7 +22489,8 @@ function saveClassNotesFiltersToUi() {
         dateTo: filters.dateTo || '',
         classIds: filters.classIds.slice(),
         subjects: filters.subjectSet ? Array.from(filters.subjectSet) : null,
-        grades: filters.gradeSet ? Array.from(filters.gradeSet) : null
+        grades: filters.gradeSet ? Array.from(filters.gradeSet) : null,
+        textQuery: filters.textQuery || ''
     };
     saveUiStateToLocalStorage();
 }
@@ -22466,6 +22509,10 @@ function applyClassNotesFiltersFromUi() {
         }
         if (toEl && saved.dateTo) {
             toEl.value = saved.dateTo;
+        }
+        const textSearchEl = document.getElementById('classNotesTextSearch');
+        if (textSearchEl && typeof saved.textQuery === 'string') {
+            textSearchEl.value = saved.textQuery;
         }
     }
     refreshClassNotesPanelIfMounted();

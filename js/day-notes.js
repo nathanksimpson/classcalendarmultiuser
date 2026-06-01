@@ -179,18 +179,38 @@
     }
 
     /**
+     * @param {object} note
+     * @param {string} query lowercased trimmed query
+     * @param {function} [resolveClassHay] (classId) => string
+     */
+    function noteMatchesTextQuery(note, query, resolveClassHay) {
+        if (!query) {
+            return true;
+        }
+        const parts = [String(note.text || '')];
+        if (typeof resolveClassHay === 'function') {
+            parts.push(String(resolveClassHay(note.classId) || ''));
+        }
+        const hay = parts.join(' ').toLowerCase();
+        return hay.includes(query);
+    }
+
+    /**
      * @param {Array} dayNotes
      * @param {object} filters
      * @param {string} [filters.dateFrom] YYYY-MM-DD inclusive
      * @param {string} [filters.dateTo] YYYY-MM-DD inclusive
      * @param {string[]} [filters.classIds] empty = all classes
      * @param {function} [filters.matchesMeta] (classId) => boolean for subject/grade/etc.
+     * @param {string} [filters.textQuery] case-insensitive substring on note text + class hay
+     * @param {function} [filters.resolveClassHay] (classId) => string for text search
      */
     function filterNotes(dayNotes, filters) {
         const f = filters || {};
         const classSet = Array.isArray(f.classIds) && f.classIds.length
             ? new Set(f.classIds.map((id) => String(id)))
             : null;
+        const textQuery = String(f.textQuery || '').trim().toLowerCase();
         return (dayNotes || []).filter((note) => {
             if (!note || !note.date) {
                 return false;
@@ -205,6 +225,9 @@
                 return false;
             }
             if (typeof f.matchesMeta === 'function' && !f.matchesMeta(note.classId)) {
+                return false;
+            }
+            if (textQuery && !noteMatchesTextQuery(note, textQuery, f.resolveClassHay)) {
                 return false;
             }
             return true;
@@ -385,6 +408,7 @@
         getNotesForDate,
         getNotesForClassOnDate,
         hasNotesForClassOnDate,
+        noteMatchesTextQuery,
         filterNotes,
         groupNotesByClass,
         findNoteById,

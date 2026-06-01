@@ -4883,6 +4883,12 @@ body[data-active-tab="events"] .app-term-quick-actions {
     gap: 10px 14px;
 }
 
+.class-notes-list-toolbar .class-notes-text-search {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+    max-width: 22rem;
+}
+
 .class-notes-sort-label {
     display: inline-flex;
     align-items: center;
