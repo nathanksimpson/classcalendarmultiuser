@@ -254,7 +254,7 @@ const translations = {
         setupBoardPatternTth: 'Tue/Thu',
         setupBoardEditDays: 'Days',
         setupBoardPoolEmpty: 'All classes are linked to a cohort.',
-        setupBoardPoolNoClasses: 'No classes on this calendar yet. Add classes under Setup → Classes.',
+        setupBoardPoolNoClasses: 'No saved classes yet. Add and save classes under Setup → Classes, then drag them onto a cohort here.',
         setupBoardPoolUnassigned: 'Not in any cohort — drag into a cohort below',
         setupBoardPoolLinked: 'Already in a cohort (drag to move or add to another)',
         setupBoardRenderError: 'Could not draw the setup board. Hard refresh (Ctrl+F5) and try again.',
@@ -692,7 +692,8 @@ const translations = {
         classAssignedTeacherNone: '— Not assigned —',
         classAssignedTeacherCustom: 'Other (type name below)',
         classAssignedTeacherName: 'Teacher name (if not in list)',
-        classTeachersHint: 'Add each teacher who teaches this class. Homeroom (담임) is set on Setup → Cohorts. Admins must link every class to a cohort.',
+        classTeachersHint: 'Add teachers and pick a student cohort in any order. Homeroom (담임) is set on Setup → Cohorts. Admins: cohort is required when you save. To drag this class on the Cohorts board, save it first on this tab.',
+        classTeachersRowsMissing: 'Teacher rows could not be loaded. Hard refresh the page (Ctrl+F5) and try again.',
         classCohortAdminRequired: '(required for admins)',
         classTeacherAccountRequired: 'Select a teacher account from the list (not only a typed name) so their login shows the right curriculum.',
         classTeacherLegacyUnlinked: 'link account',
@@ -1285,7 +1286,7 @@ const translations = {
         setupBoardPatternTth: '화목',
         setupBoardEditDays: '요일',
         setupBoardPoolEmpty: '모든 수업이 반에 연결되어 있습니다.',
-        setupBoardPoolNoClasses: '이 캘린더에 수업이 없습니다. 설정 → 수업에서 수업을 추가하세요.',
+        setupBoardPoolNoClasses: '저장된 수업이 없습니다. 설정 → 수업에서 수업을 추가·저장한 뒤 여기서 반으로 끌어오세요.',
         setupBoardPoolUnassigned: '반 없음 — 아래 반으로 끌어다 놓으세요',
         setupBoardPoolLinked: '이미 반에 연결됨 (끌어서 이동·추가 가능)',
         setupBoardRenderError: '설정 보드를 그리지 못했습니다. Ctrl+F5로 새로고침하세요.',
@@ -1686,7 +1687,8 @@ const translations = {
         classAssignedTeacherNone: '— 미배정 —',
         classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
         classAssignedTeacherName: '선생님 이름 (목록에 없을 때)',
-        classTeachersHint: '이 수업을 가르치는 선생님을 추가하세요. 담임은 설정 → 반 관리에서 지정합니다. 관리자는 모든 수업에 반을 연결해야 합니다.',
+        classTeachersHint: '선생님 추가와 반 선택 순서는 자유롭습니다. 담임은 설정 → 반 관리에서 지정합니다. 관리자: 저장 시 반 선택이 필요합니다. 반 보드에서 끌어오려면 이 탭에서 먼저 저장하세요.',
+        classTeachersRowsMissing: '선생님 행을 불러오지 못했습니다. 강력 새로고침(Ctrl+F5) 후 다시 시도하세요.',
         classCohortAdminRequired: '(관리자 필수)',
         classTeacherAccountRequired: '로그인 계정과 연결하려면 목록에서 선생님 계정을 선택하세요. 이름만 입력하면 안 됩니다.',
         classTeacherLegacyUnlinked: '계정 연결 필요',
@@ -12536,6 +12538,8 @@ function createClassTeacherCategorySelect(selected) {
 function addClassTeacherRow(rowData) {
     const mount = document.getElementById('classTeachersRows');
     if (!mount) {
+        setAppStatusMessage(t('classTeachersRowsMissing'), true);
+        console.error('addClassTeacherRow: #classTeachersRows not found');
         return;
     }
     const data = rowData || {
@@ -12706,6 +12710,21 @@ function addClassTeacherRow(rowData) {
     row.appendChild(removeBtn);
     mount.appendChild(row);
     applyTeacherRowScheduleToForm(row, data);
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function setupClassTeachersFormDelegation() {
+    const form = document.getElementById('classForm');
+    if (!form || form.dataset.classTeachersDelegateBound) {
+        return;
+    }
+    form.dataset.classTeachersDelegateBound = '1';
+    form.addEventListener('click', (e) => {
+        if (e.target.closest('#classAddTeacherBtn')) {
+            e.preventDefault();
+            addClassTeacherRow(null);
+        }
+    });
 }
 
 async function refreshClassTeacherPickersFromAccounts() {
@@ -12794,12 +12813,23 @@ function updateClassHomeroomLabelDisplay() {
     }
 }
 
-function initClassTeachersFormListeners() {
-    const addBtn = document.getElementById('classAddTeacherBtn');
-    if (addBtn && !addBtn.dataset.classTeachersInit) {
-        addBtn.dataset.classTeachersInit = '1';
-        addBtn.addEventListener('click', () => addClassTeacherRow(null));
+function refreshClassEditorCohortUiIfOpen() {
+    if (!isClassPopoutOpen() && !(getActiveTab() === 'classes' && classEditorMount === 'tab')) {
+        return;
     }
+    const cohortSel = document.getElementById('classCohort');
+    const classId = elements.classId && elements.classId.value ? elements.classId.value.trim() : '';
+    const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
+    const preserve = (classData && classData.cohortId) || (cohortSel ? cohortSel.value : '') || '';
+    populateClassCohortSelect(preserve);
+    updateClassHomeroomLabelDisplay();
+    if (classData) {
+        updateClassCohortAlsoLinked(classData);
+    }
+}
+
+function initClassTeachersFormListeners() {
+    setupClassTeachersFormDelegation();
     const cohortSel = document.getElementById('classCohort');
     if (cohortSel && !cohortSel.dataset.homeroomLabelInit) {
         cohortSel.dataset.homeroomLabelInit = '1';
@@ -13484,6 +13514,7 @@ function getCohortManagementHooks() {
         showMessage: (msg, isError) => setAppStatusMessage(msg, isError),
         syncClassCohortLinks,
         populateClassCohortSelect,
+        refreshClassEditorCohortUiIfOpen,
         invalidateScheduleCache,
         isViewOnly: isTeamCalendarViewOnly,
         getCalendarName: () => (appData.calendarName || '').trim(),
@@ -13601,12 +13632,7 @@ function refreshCalendarScopedUi() {
         CCPSetupBoard.onCalendarDataChanged();
     }
     updateSetupGuideBanner();
-    if (isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab')) {
-        const classId = elements.classId && elements.classId.value ? elements.classId.value.trim() : '';
-        const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
-        populateClassCohortSelect(classData ? classData.cohortId : '');
-        updateClassHomeroomLabelDisplay();
-    }
+    refreshClassEditorCohortUiIfOpen();
     if (getActiveTab() === 'homework' || isWorkspacePage()) {
         renderHomeworkClassList();
         renderHomeworkEditor();
@@ -14605,7 +14631,7 @@ function suggestAndMergeCohorts() {
     (appData.cohorts || []).forEach((cohort) => syncClassCohortLinks(cohort));
     if (added) {
         saveData();
-        populateClassCohortSelect();
+        refreshClassEditorCohortUiIfOpen();
     }
     renderTimetableCohortsList();
     setAppStatusMessage(t('timetableCohortsSuggested').replace('{n}', String(added)), false);
@@ -15703,6 +15729,7 @@ function setupEventListeners() {
     // Modal Close Buttons
     document.getElementById('closeClassModal')?.addEventListener('click', () => closeModal(elements.classModal));
     document.getElementById('closeHolidayModal')?.addEventListener('click', () => closeModal(elements.holidayModal));
+    setupClassTeachersFormDelegation();
     // Form Submissions
     elements.classForm?.addEventListener('submit', handleClassSubmit);
     elements.holidayForm?.addEventListener('submit', handleHolidaySubmit);

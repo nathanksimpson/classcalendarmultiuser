@@ -661,7 +661,11 @@
         if (hooks.invalidateScheduleCache) {
             hooks.invalidateScheduleCache();
         }
-        hooks.populateClassCohortSelect();
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
         hooks.showMessage(
             t('cohortsClassApplySummary').replace('{linked}', String(linked)).replace('{unlinked}', String(unlinked)),
             false
@@ -972,7 +976,11 @@
             cohort.meetingDays = getCohortMeetingDays(cohort);
             hooks.syncClassCohortLinks(cohort);
             hooks.saveData();
+            if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
             hooks.populateClassCohortSelect();
+        }
             persistSelectedCohortId();
             hooks.showMessage(t('timetableCohortSaved'), false);
             updateCohortEditorModalTitle(cohort);
@@ -998,7 +1006,11 @@
             const result = generateClassesForCohort(cohort, { overwrite: hasExisting });
             hooks.saveData();
             hooks.invalidateScheduleCache();
+            if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
             hooks.populateClassCohortSelect();
+        }
             hooks.showMessage(
                 t('cohortsGenerateDone').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)),
                 false
@@ -1095,7 +1107,11 @@
         draftClassIds = new Set();
         catalogDirty = false;
         hooks.saveData();
-        hooks.populateClassCohortSelect();
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
         hooks.showMessage(t('cohortsDeleted').replace('{name}', cohortDisplayName(cohort)), false);
         closeCohortEditor();
         renderAll();
@@ -1655,7 +1671,11 @@
         });
         (appData.cohorts || []).forEach((c) => hooks.syncClassCohortLinks(c));
         hooks.saveData();
-        hooks.populateClassCohortSelect();
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
         hooks.showMessage(t('timetableCohortsSuggested').replace('{n}', String(added)), false);
         renderAll();
     }

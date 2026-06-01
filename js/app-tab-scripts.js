@@ -6,7 +6,7 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260612-import-schedule',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260612-import-schedule',
+            'js/cohort-management.js?v=20260602-class-teacher-cohort',
             'js/setup-board.js?v=20260612-board-view'
         ],
         timetable: [
