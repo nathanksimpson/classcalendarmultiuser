@@ -30,13 +30,14 @@ function assert(cond, msg) {
         { date: '2026-03-09', monthKey: '2026-03', weekLabel: 'Mar 9–13', sessionNumber: 3, planTitle: 'C' },
         { date: '2026-07-07', monthKey: '2026-07', weekLabel: 'July 6–10', sessionNumber: 4, planTitle: 'D' }
     ]);
-    const merge = CCPSyllabus.computeSyllabusCellMerges(rows, true);
-    assert(merge.monthRowspan[0] === 3, 'March spans 3 rows');
-    assert(merge.monthRowspan[3] === 1, 'July spans 1 row');
+    const merge = CCPSyllabus.computeSyllabusCellMerges(rows, false, true);
+    assert(merge.monthRowspan[0] === 2, 'March month only on first week (2 rows)');
+    assert(merge.monthRowspan[2] === 0, 'second March week has no month cell');
+    assert(merge.monthRowspan[3] === 1, 'July month on first week only');
     assert(merge.weekRowspan[0] === 2, 'first week spans 2 rows');
     assert(merge.weekRowspan[2] === 1, 'second week spans 1 row');
     const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, { pdfLayout: true, tableYear: '2026' });
-    assert(html.includes('rowspan="3"'), 'month rowspan in html');
+    assert(html.includes('rowspan="2"'), 'month rowspan first week only');
     assert(html.includes('syllabus-cell-merged'), 'merged cell class');
     assert(html.includes('July'), 'July label in merged cell');
 }
@@ -59,7 +60,9 @@ function assert(cond, msg) {
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-extra-dense'), '28 rows use normal density');
     assert(docHtml.includes('syllabus-a4-sheet'), 'A4 sheet wrapper per class');
     assert(docHtml.includes('<colgroup>'), 'colgroup for column widths');
-    assert(docHtml.includes('width:48%'), 'plan column width');
+    assert(docHtml.includes('width:67.5%'), 'plan column width');
+    assert(docHtml.includes('width:3em'), 'month column fixed width');
+    assert(docHtml.includes('width:2.5em'), 'class column width');
 }
 
 // Week label Mon–Fri
@@ -606,6 +609,126 @@ function assert(cond, msg) {
     const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
     assert(merged[0].planTitle.includes('+'), 'compressed title refreshed');
     assert(merged[0].planDetail.includes('12-15'), 'compressed planDetail refreshed');
+}
+
+// stripRedundantPlanDetailLines: Write Now style duplicate title line
+{
+    const detail = 'Unit 1 Part 1\nCovered in Class:\nUnit 1\np. 8-11\nHomework:\nWB p. 2';
+    const covered = CCPSyllabus.splitPlanDetailSections(detail).covered;
+    const stripped = CCPSyllabus.stripRedundantPlanDetailLines('Unit 1 Part 1', covered);
+    assert(!stripped.includes('Unit 1 Part 1'), 'duplicate title line removed from covered');
+    assert(stripped.includes('Unit 1'), 'unit line kept');
+    assert(stripped.includes('p. 8-11'), 'pages kept');
+}
+
+// splitPlanDetailSections: covered vs homework
+{
+    const sample = `Covered in Class:
+Student Book: p. 8-11
+Homework:
+Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
+    const parts = CCPSyllabus.splitPlanDetailSections(sample);
+    assert(parts.covered.includes('Student Book'), 'covered section has pages');
+    assert(parts.covered.includes('p. 8-11'), 'covered has page range');
+    assert(parts.homework.includes('workbook'), 'homework section split');
+    assert(!parts.covered.includes('workbook'), 'homework not in covered');
+}
+
+// splitPlanDetailSections: no markers → all covered
+{
+    const parts = CCPSyllabus.splitPlanDetailSections('p. 10-12');
+    assert(parts.covered === 'p. 10-12', 'plain detail is covered');
+    assert(parts.homework === '', 'no homework without marker');
+}
+
+// truncateHomeworkForPrint
+{
+    const long = 'A'.repeat(100);
+    const t = CCPSyllabus.truncateHomeworkForPrint(long, 80);
+    assert(t.length === 80, 'truncated to max len');
+    assert(t.endsWith('…'), 'ellipsis when truncated');
+    const short = CCPSyllabus.truncateHomeworkForPrint('Line one\nLine two', 80);
+    assert(short === 'Line one', 'first line only');
+}
+
+// buildMergedNotesHtml
+{
+    const rows = [
+        { kind: 'lesson', sessionNumber: 2, note: 'Bring workbook' },
+        { kind: 'lesson', sessionNumber: 5, note: '' }
+    ];
+    const html = CCPSyllabus.buildMergedNotesHtml('General reminder', rows);
+    assert(html.includes('General reminder'), 'general notes');
+    assert(html.includes('#2:'), 'session prefix');
+    assert(html.includes('Bring workbook'), 'row note');
+    assert(!html.includes('#5:'), 'empty row note omitted');
+}
+
+// Print PDF layout: merged note column, print plan cells
+{
+    const rows = CCPSyllabus.normalizeRows([{
+        kind: 'lesson',
+        date: '2026-03-04',
+        monthKey: '2026-03',
+        weekLabel: 'Mar 2–6',
+        sessionNumber: 1,
+        lessonNumber: 1,
+        planTitle: 'Unit 1 Part 1',
+        planDetail: 'Covered in class: SB p. 8-11\nHomework: Complete pages 3-4 with extra instructions that should be truncated on print',
+        note: 'Quiz next week'
+    }]);
+    const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+        pdfLayout: true,
+        tableYear: '2026',
+        generalNotes: 'Class policy: on time.',
+        colNote: 'Note'
+    });
+    assert(html.includes('rowspan="1"') && html.includes('syllabus-note-merged'), 'merged note cell');
+    assert(!html.includes('syllabus-general-notes-print'), 'general notes not above table');
+    assert(html.includes('syllabus-print-plan-brief'), '2-line brief wrapper in plan');
+    assert(html.includes('syllabus-print-covered'), 'covered block in plan');
+    assert(!html.includes('syllabus-print-homework-full'), 'homework omitted from brief (continuation only)');
+    assert(html.includes('Class policy'), 'general notes in merged column');
+    assert(html.includes('#1:'), 'row note in merged column');
+    assert(!html.match(/<td class="syllabus-col-note"[^>]*>[^<]*Quiz/s), 'no per-row note cell');
+}
+
+// A4 export: main sheet + continuation with every lesson in full
+{
+    const rows = CCPSyllabus.normalizeRows([
+        {
+            kind: 'lesson',
+            date: '2026-03-04',
+            monthKey: '2026-03',
+            sessionNumber: 1,
+            planTitle: 'Unit 1 Part 1',
+            planDetail: 'Covered in class: SB p. 8-11\nHomework: Complete pages 3-4 with extra long homework instructions for continuation page'
+        },
+        {
+            kind: 'lesson',
+            date: '2026-03-11',
+            monthKey: '2026-03',
+            sessionNumber: 2,
+            planTitle: 'Unit 1 Part 2',
+            planDetail: 'Covered in class: SB p. 12-15\nHomework: Read chapter 2'
+        },
+        {
+            kind: 'holiday',
+            date: '2026-03-18',
+            monthKey: '2026-03',
+            planTitle: '(3/18) Holiday',
+            planDetail: 'No class'
+        }
+    ]);
+    const body = CCPSyllabus.renderSyllabusDocumentBody(
+        { title: 'Test' },
+        [{ classData: {}, rows, classTitle: 'Navy 7A' }],
+        { pdfLayout: true, a4Pdf: true, tableYear: '2026' }
+    );
+    assert(body.includes('syllabus-a4-continuation-sheet'), 'continuation sheet');
+    assert((body.match(/<article class="syllabus-continuation-item"/g) || []).length === 2, 'two lesson continuation items');
+    assert(body.includes('extra long homework instructions'), 'full homework on continuation');
+    assert(!body.includes('syllabus-print-homework-hint'), 'no old truncated HW hint class');
 }
 
 console.log('All syllabus-table tests passed.');

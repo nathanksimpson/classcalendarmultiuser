@@ -550,6 +550,11 @@ const translations = {
         syllabusColWeek: 'Week',
         syllabusColClass: 'Class',
         syllabusColPlan: 'Weekly Lesson Plan',
+        syllabusColPlanPrint: 'Lesson plan',
+        syllabusPrintContinuedTitle: 'Lesson plan details',
+        syllabusPrintContinuedHint: 'The overview table shows up to 2 lines per lesson. Full lesson text is below.',
+        syllabusPrintContinuedPage: 'Page {n} of {total}',
+        syllabusPrintContinuedHomework: 'Homework',
         syllabusColPages: 'Pages / detail',
         syllabusColNote: 'Note',
         syllabusTables: 'Syllabus tables',
@@ -1548,6 +1553,11 @@ const translations = {
         syllabusColWeek: '주',
         syllabusColClass: '수업',
         syllabusColPlan: '주간 수업 계획',
+        syllabusColPlanPrint: '수업 계획',
+        syllabusPrintContinuedTitle: '수업 계획 상세',
+        syllabusPrintContinuedHint: '개요 표에는 수업당 최대 2줄만 표시됩니다. 전체 내용은 아래에 있습니다.',
+        syllabusPrintContinuedPage: '{n} / {total}쪽',
+        syllabusPrintContinuedHomework: '숙제',
         syllabusColPages: '교재 / 상세',
         syllabusColNote: '메모',
         syllabusTables: '강의 계획표',
@@ -16230,6 +16240,11 @@ function getSyllabusTableLabels(classData) {
         colWeek: t('syllabusColWeek'),
         colClass: t('syllabusColClass'),
         colPlan: t('syllabusColPlan'),
+        colPlanPrint: t('syllabusColPlanPrint'),
+        continuationTitle: t('syllabusPrintContinuedTitle'),
+        continuationHint: t('syllabusPrintContinuedHint'),
+        continuationPage: t('syllabusPrintContinuedPage'),
+        continuationHomeworkLabel: t('syllabusPrintContinuedHomework'),
         colNote: t('syllabusColNote'),
         pdfLayout: true,
         tableYear: classData ? getSyllabusYearForClass(classData) : getSyllabusYearForClass({})
@@ -17120,12 +17135,12 @@ function buildSyllabusExportSections(classIds = null) {
     return sections;
 }
 
-/** A4 content area (mm) inside 15 mm margins. */
+/** A4 content area (mm) inside sheet margins. */
 const SYLLABUS_PDF_A4 = {
     pageW: 210,
     pageH: 297,
-    margin: 15,
-    fitSafety: 6,
+    margin: 7,
+    fitSafety: 8,
     get contentW() {
         return this.pageW - this.margin * 2;
     },
@@ -20050,7 +20065,7 @@ body.app-print-summary-doc { margin: 0; background: #fff; color: #111; }
     height: 297mm;
     max-height: 297mm;
     box-sizing: border-box;
-    padding: 15mm;
+    padding: 7mm;
     margin: 0 auto 16px;
     overflow: hidden;
     background: #fff;
@@ -20064,13 +20079,14 @@ body.app-print-summary-doc { margin: 0; background: #fff; color: #111; }
 }
 .app-print-document--summary #syllabusTablesSummary .syllabus-a4-page {
     width: 100%;
-    height: 267mm;
-    max-height: 267mm;
+    height: auto;
+    max-height: 275mm;
     min-height: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding-bottom: 4mm;
 }
 @media print {
     .app-print-document--summary #syllabusTablesSummary .syllabus-a4-sheet {

@@ -9,10 +9,14 @@
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    /** A4 page margins and printable content area (mm). */
-    const SYLLABUS_A4_MARGIN_MM = 15;
-    /** Extra inset so table borders are not clipped by print/overflow (bottom especially). */
-    const SYLLABUS_A4_FIT_SAFETY_MM = 6;
+    /** A4 page margins and printable content area (mm). Tighter = wider table, less line wrap. */
+    const SYLLABUS_A4_MARGIN_MM = 7;
+    /** Reserved inside content height so bottom border/last rows are not clipped. */
+    const SYLLABUS_A4_FIT_SAFETY_MM = 8;
+    /** Reserve space for table outer border + rounding when stretching rows. */
+    const SYLLABUS_TABLE_FIT_FUDGE_PX = 10;
+    /** Absolute minimum typography scale when content must shrink to avoid bottom clip. */
+    const SYLLABUS_PRINT_SCALE_FLOOR = 0.78;
     const SYLLABUS_A4_PAGE = {
         pageW: 210,
         pageH: 297,
@@ -37,18 +41,27 @@
         };
     }
 
-    /** Reference layout matched to fixed syllabus PDF sample (26 SP Navy). */
-    const SYLLABUS_A4_COL_WIDTHS = ['7%', '14%', '5%', '48%', '26%'];
+    /** Reference layout for printed syllabus (readable type, truncation over tiny fonts). */
+    const SYLLABUS_A4_COL_WIDTHS = ['3em', '5.5%', '2.5em', '67.5%', '17%'];
+    const MIN_SYLLABUS_PRINT_SCALE = 0.92;
     const SYLLABUS_A4_REFERENCE = {
-        titlePt: 11,
-        tablePt: 9,
-        thPt: 8.5,
-        sublinePt: 8,
+        titlePt: 12,
+        tablePt: 10,
+        thPt: 9,
+        sublinePt: 9,
         titleMarginMm: 2,
         cellPadY: 3,
         cellPadX: 4,
         lineHeight: 1.2
     };
+
+    const COVERED_HEADING_RE = /^covered\s+in\s+class\s*:?\s*$/i;
+    const HOMEWORK_HEADING_RE = /^homework\s*:?\s*$/i;
+    /** Lesson rows per continuation print sheet (conservative for long homework). */
+    const SYLLABUS_CONTINUATION_ITEMS_PER_PAGE = 14;
+    const SYLLABUS_PRINT_PLAN_LINE_CLAMP = 2;
+    /** Max row height on overview table (~2 lines of plan text). */
+    const SYLLABUS_PRINT_MAX_ROW_MM = 8.5;
 
     function formatSyllabusShortDate(d) {
         if (!d || Number.isNaN(d.getTime())) {
@@ -156,6 +169,21 @@
             return `${m0} ${mon.getDate()}–${fri.getDate()}`;
         }
         return `${m0} ${mon.getDate()}–${m1} ${fri.getDate()}`;
+    }
+
+    /** Compact week for print, e.g. "3/2-6" — fits narrow column, fewer wrapped lines. */
+    function getSchoolWeekLabelCompact(dateStr) {
+        const mon = getSchoolWeekMonday(dateStr);
+        if (!mon) {
+            return '';
+        }
+        const fri = getSchoolWeekFriday(mon);
+        const m0 = mon.getMonth() + 1;
+        const m1 = fri.getMonth() + 1;
+        if (mon.getMonth() === fri.getMonth()) {
+            return `${m0}/${mon.getDate()}-${fri.getDate()}`;
+        }
+        return `${m0}/${mon.getDate()}-${m1}/${fri.getDate()}`;
     }
 
     /** 1-based curriculum index for preset pages / unit pairs (skips holidays). */
@@ -671,13 +699,316 @@
         return style ? ` style="${style}"` : '';
     }
 
-    function renderPlanCell(row) {
+    /**
+     * Split Pages / detail into covered vs homework sections (import/curriculum format).
+     * @returns {{ covered: string, homework: string }}
+     */
+    function splitPlanDetailSections(planDetail) {
+        const raw = String(planDetail ?? '').trim();
+        if (!raw) {
+            return { covered: '', homework: '' };
+        }
+        const lines = raw.split('\n');
+        let mode = 'covered';
+        let hasMarker = false;
+        const coveredLines = [];
+        const homeworkLines = [];
+
+        lines.forEach((line) => {
+            const trimmed = line.trim();
+            const coveredInline = trimmed.match(/^covered\s+in\s+class\s*:?\s*(.*)$/i);
+            if (COVERED_HEADING_RE.test(trimmed) || coveredInline) {
+                mode = 'covered';
+                hasMarker = true;
+                if (coveredInline && coveredInline[1].trim()) {
+                    coveredLines.push(coveredInline[1].trim());
+                }
+                return;
+            }
+            const homeworkInline = trimmed.match(/^homework\s*:?\s*(.*)$/i);
+            if (HOMEWORK_HEADING_RE.test(trimmed) || homeworkInline) {
+                mode = 'homework';
+                hasMarker = true;
+                if (homeworkInline && homeworkInline[1].trim()) {
+                    homeworkLines.push(homeworkInline[1].trim());
+                }
+                return;
+            }
+            if (mode === 'homework') {
+                homeworkLines.push(line);
+            } else {
+                coveredLines.push(line);
+            }
+        });
+
+        if (!hasMarker) {
+            return { covered: raw, homework: '' };
+        }
+        return {
+            covered: coveredLines.join('\n').trim(),
+            homework: homeworkLines.join('\n').trim()
+        };
+    }
+
+    function extractCoveredLines(planDetail) {
+        return splitPlanDetailSections(planDetail).covered;
+    }
+
+    /** Drop lines in covered/homework that repeat the plan title or empty section headers. */
+    function stripRedundantPlanDetailLines(planTitle, text) {
+        const title = String(planTitle || '').trim();
+        if (!text) {
+            return '';
+        }
+        const lines = String(text).split('\n');
+        const filtered = lines.filter((line) => {
+            const t = line.trim();
+            if (!t) {
+                return false;
+            }
+            if (/^covered\s+in\s+class\s*:?\s*$/i.test(t)) {
+                return false;
+            }
+            if (/^homework\s*:?\s*$/i.test(t)) {
+                return false;
+            }
+            if (title && t === title) {
+                return false;
+            }
+            return true;
+        });
+        return filtered.join('\n').trim();
+    }
+
+    /** First non-empty homework line, truncated for print. */
+    function truncateHomeworkForPrint(homeworkText, maxLen) {
+        const limit = maxLen != null && maxLen > 0 ? maxLen : 80;
+        const hw = String(homeworkText ?? '').trim();
+        if (!hw) {
+            return '';
+        }
+        const firstLine = hw.split('\n').map((l) => l.trim()).find((l) => l.length > 0) || '';
+        if (!firstLine) {
+            return '';
+        }
+        if (firstLine.length <= limit) {
+            return firstLine;
+        }
+        return `${firstLine.slice(0, limit - 1)}…`;
+    }
+
+    function mergedNoteRowLabel(row) {
+        if (!row) {
+            return 'Note';
+        }
+        if (row.kind === 'note') {
+            const t = String(row.planTitle || '').trim();
+            return t || 'Note';
+        }
+        if (row.sessionNumber > 0) {
+            return `#${row.sessionNumber}`;
+        }
+        return 'Note';
+    }
+
+    function buildMergedNotesHtml(generalNotes, rows) {
+        const parts = [];
+        const general = String(generalNotes ?? '').trim();
+        if (general) {
+            parts.push(escapeHtml(general).replace(/\n/g, '<br>'));
+        }
+        (rows || []).forEach((row) => {
+            const note = String(row.note ?? '').trim();
+            if (!note) {
+                return;
+            }
+            const label = mergedNoteRowLabel(row);
+            parts.push(
+                `<div class="syllabus-merged-note-item"><strong>${escapeHtml(label)}:</strong> `
+                + `${escapeHtml(note).replace(/\n/g, '<br>')}</div>`
+            );
+        });
+        return parts.join('<br><br>');
+    }
+
+    function renderPrintPlanTitleLine(row) {
+        const title = escapeHtml(row.planTitle || '');
+        const kind = row.kind || 'lesson';
+        if (kind === 'note') {
+            return title ? `<span class="syllabus-print-title">${title}</span>` : '';
+        }
+        const lessonNum = getCurriculumLessonNumber(row);
+        const sessionNum = row.sessionNumber > 0 ? row.sessionNumber : 0;
+        let titleLine = `<span class="syllabus-print-title">${title}</span>`;
+        if (lessonNum > 0 && lessonNum !== sessionNum) {
+            titleLine += ` <span class="syllabus-print-lesson-num">L${lessonNum}</span>`;
+        }
+        return titleLine;
+    }
+
+    function renderPrintPlanCoveredHomework(row, options) {
+        const opts = options || {};
+        const detail = (row.planDetail || '').trim();
+        const planTitle = (row.planTitle || '').trim();
+        const kind = row.kind || 'lesson';
+        const detailClass = kind === 'holiday' || kind === 'event' || kind === 'extra' || kind === 'overflow'
+            ? 'syllabus-plan-subline syllabus-plan-subline-emphasis'
+            : 'syllabus-plan-detail';
+        const hwLabel = opts.homeworkLabel || 'Homework';
+
+        if (!detail) {
+            return '';
+        }
+
+        const isSpecial = kind === 'holiday' || kind === 'event' || kind === 'extra' || kind === 'overflow';
+        if (isSpecial) {
+            return `<span class="${detailClass}">${escapeHtml(detail).replace(/\n/g, '<br>')}</span>`;
+        }
+
+        const sections = splitPlanDetailSections(detail);
+        let covered = sections.covered || (!sections.homework ? detail : '');
+        let homework = sections.homework || '';
+        covered = stripRedundantPlanDetailLines(planTitle, covered);
+        homework = stripRedundantPlanDetailLines(planTitle, homework);
+        let html = '';
+        if (covered) {
+            html += `<span class="syllabus-print-covered">`
+                + `${escapeHtml(covered).replace(/\n/g, '<br>')}</span>`;
+        }
+        if (homework && !opts.omitHomework) {
+            const hwHtml = escapeHtml(homework).replace(/\n/g, '<br>');
+            html += `<span class="syllabus-print-homework-full"><strong>${escapeHtml(hwLabel)}:</strong> `
+                + `${hwHtml}</span>`;
+        }
+        return html;
+    }
+
+    function wrapPrintPlanBrief(inner) {
+        if (!inner || !String(inner).trim()) {
+            return '';
+        }
+        return `<div class="syllabus-print-plan-brief">${inner}</div>`;
+    }
+
+    /** Main table: max 2 lines per plan cell (CSS line-clamp); homework on continuation only. */
+    function renderPlanCellBrief(row) {
+        const kind = row.kind || 'lesson';
+        const titleLine = renderPrintPlanTitleLine(row);
+        const body = renderPrintPlanCoveredHomework(row, { omitHomework: true });
+        if (!titleLine && !body) {
+            return '';
+        }
+        let inner = titleLine;
+        if (body) {
+            inner += titleLine ? `<br>${body}` : body;
+        }
+        return wrapPrintPlanBrief(inner);
+    }
+
+    /** Continuation page: full plan text per lesson. */
+    function renderPlanCellFull(row, labels, options) {
+        const opts = options || {};
+        const L = labels || {};
+        const titleLine = opts.skipTitle ? '' : renderPrintPlanTitleLine(row);
+        const body = renderPrintPlanCoveredHomework(row, {
+            homeworkLabel: L.continuationHomeworkLabel || 'Homework'
+        });
+        if (!titleLine && !body) {
+            return '';
+        }
+        let html = titleLine;
+        if (body) {
+            html += titleLine ? `<br>${body}` : body;
+        }
+        return html;
+    }
+
+    function getLessonRowsForPrintContinuation(rows) {
+        return (rows || []).filter((r) => {
+            const k = r.kind || 'lesson';
+            return k === 'lesson' || k === 'overflow';
+        });
+    }
+
+    function chunkContinuationItems(rows, perPage) {
+        const size = perPage > 0 ? perPage : SYLLABUS_CONTINUATION_ITEMS_PER_PAGE;
+        const chunks = [];
+        for (let i = 0; i < rows.length; i += size) {
+            chunks.push(rows.slice(i, i + size));
+        }
+        return chunks;
+    }
+
+    function formatContinuationPageLabel(labels, pageNum, totalPages) {
+        const L = labels || {};
+        const tpl = L.continuationPage || 'Page {n} of {total}';
+        return tpl.replace('{n}', String(pageNum)).replace('{total}', String(totalPages));
+    }
+
+    function renderContinuationItemHtml(row, labels) {
+        const L = labels || {};
+        const sessionNum = row.sessionNumber > 0 ? row.sessionNumber : 0;
+        const sessionPrefix = sessionNum > 0 ? `#${sessionNum}` : '';
+        const title = escapeHtml((row.planTitle || '').trim());
+        const heading = [sessionPrefix, title].filter(Boolean).join(' · ');
+        const body = renderPlanCellFull(row, L, { skipTitle: true });
+        return `<article class="syllabus-continuation-item">`
+            + `<h3 class="syllabus-continuation-item-title">${escapeHtml(heading)}</h3>`
+            + `<div class="syllabus-continuation-item-body">${body}</div>`
+            + `</article>`;
+    }
+
+    /**
+     * One or more A4 continuation sheets listing every lesson row in full.
+     */
+    function renderSyllabusContinuationSheets(classTitle, lessonRows, labels) {
+        const L = labels || {};
+        const rows = getLessonRowsForPrintContinuation(lessonRows);
+        if (!rows.length) {
+            return '';
+        }
+        const chunks = chunkContinuationItems(rows, SYLLABUS_CONTINUATION_ITEMS_PER_PAGE);
+        const contTitle = L.continuationTitle || 'Lesson plan details';
+        const hint = L.continuationHint
+            || 'The overview table shows up to 2 lines per lesson. Full lesson text is below.';
+        let html = '';
+        chunks.forEach((chunk, pageIndex) => {
+            const pageNum = pageIndex + 1;
+            const totalPages = chunks.length;
+            html += '<div class="syllabus-a4-sheet syllabus-a4-continuation-sheet syllabus-a4-sheet-break">';
+            html += '<div class="syllabus-a4-page syllabus-a4-continuation-page">';
+            html += `<h2 class="syllabus-pdf-title">${escapeHtml(classTitle)}`
+                + ` — ${escapeHtml(contTitle)}</h2>`;
+            if (pageIndex === 0) {
+                html += `<p class="syllabus-continuation-hint">${escapeHtml(hint)}</p>`;
+            }
+            if (totalPages > 1) {
+                html += `<p class="syllabus-continuation-page-num">`
+                    + `${escapeHtml(formatContinuationPageLabel(L, pageNum, totalPages))}</p>`;
+            }
+            html += '<div class="syllabus-continuation-list">';
+            chunk.forEach((row) => {
+                html += renderContinuationItemHtml(row, L);
+            });
+            html += '</div></div></div>';
+        });
+        return html;
+    }
+
+    function renderPlanCell(row, options) {
+        const opts = options || {};
+        const printMode = opts.printMode === true;
         const title = escapeHtml(row.planTitle || '');
         const detail = (row.planDetail || '').trim();
         const kind = row.kind || 'lesson';
         const detailClass = kind === 'holiday' || kind === 'event' || kind === 'extra' || kind === 'overflow'
             ? 'syllabus-plan-subline syllabus-plan-subline-emphasis'
             : 'syllabus-plan-detail';
+
+        if (printMode) {
+            return renderPlanCellBrief(row);
+        }
+
         if (!detail) {
             return title;
         }
@@ -702,55 +1033,52 @@
         return carryMonth || '';
     }
 
-    function getRowWeekDisplay(row, useFullMonth, carryWeek) {
-        const week = (row.weekLabel || '').trim()
-            || (row.date ? getSchoolWeekLabel(row.date, useFullMonth) : '');
+    function getRowWeekDisplay(row, useFullMonth, carryWeek, useCompactWeek) {
+        let week = (row.weekLabel || '').trim();
+        if (!week && row.date) {
+            week = useCompactWeek
+                ? getSchoolWeekLabelCompact(row.date)
+                : getSchoolWeekLabel(row.date, useFullMonth);
+        }
         if (week) {
             return week;
         }
         return carryWeek || '';
     }
 
+    function getRowMonthKey(row) {
+        if (row.monthKey) {
+            return row.monthKey;
+        }
+        if (row.date && /^\d{4}-\d{2}/.test(row.date)) {
+            return row.date.slice(0, 7);
+        }
+        return '';
+    }
+
     /**
-     * Month/week rowspan groups (PDF-style: one merged cell per month, one per school week).
+     * Month/week rowspan groups.
+     * Print: month label only on the first school week of each calendar month; week wraps in cell.
      */
-    function computeSyllabusCellMerges(rows, useFullMonth) {
+    function computeSyllabusCellMerges(rows, useFullMonth, useCompactWeek) {
         const n = rows.length;
-        const monthDisplays = [];
+        const monthDisplays = new Array(n).fill('');
         const weekDisplays = [];
         const monthRowspan = new Array(n).fill(0);
         const weekRowspan = new Array(n).fill(0);
-        let carryMonth = '';
+        const monthFirstWeekOnly = useCompactWeek === true;
         let carryWeek = '';
 
         for (let i = 0; i < n; i += 1) {
             const row = rows[i];
-            const month = getRowMonthDisplay(row, useFullMonth, carryMonth);
-            const week = getRowWeekDisplay(row, useFullMonth, carryWeek);
-            if (month) {
-                carryMonth = month;
-            }
+            const week = getRowWeekDisplay(row, useFullMonth, carryWeek, useCompactWeek);
             if (week) {
                 carryWeek = week;
             }
-            monthDisplays.push(carryMonth);
             weekDisplays.push(carryWeek);
         }
 
         let i = 0;
-        while (i < n) {
-            const key = monthDisplays[i];
-            let j = i + 1;
-            while (j < n && monthDisplays[j] === key && key) {
-                j += 1;
-            }
-            if (key) {
-                monthRowspan[i] = j - i;
-            }
-            i = j;
-        }
-
-        i = 0;
         while (i < n) {
             const key = weekDisplays[i];
             let j = i + 1;
@@ -761,6 +1089,44 @@
                 weekRowspan[i] = j - i;
             }
             i = j;
+        }
+
+        if (monthFirstWeekOnly) {
+            let lastMonthKey = '';
+            for (let r = 0; r < n; r += 1) {
+                const row = rows[r];
+                const mk = getRowMonthKey(row);
+                if (mk && mk !== lastMonthKey) {
+                    lastMonthKey = mk;
+                    const month = getRowMonthDisplay(row, useFullMonth, '');
+                    if (month) {
+                        monthDisplays[r] = month;
+                        monthRowspan[r] = weekRowspan[r] > 0 ? weekRowspan[r] : 1;
+                    }
+                }
+            }
+        } else {
+            let carryMonth = '';
+            for (let r = 0; r < n; r += 1) {
+                const row = rows[r];
+                const month = getRowMonthDisplay(row, useFullMonth, carryMonth);
+                if (month) {
+                    carryMonth = month;
+                }
+                monthDisplays[r] = carryMonth;
+            }
+            i = 0;
+            while (i < n) {
+                const key = monthDisplays[i];
+                let j = i + 1;
+                while (j < n && monthDisplays[j] === key && key) {
+                    j += 1;
+                }
+                if (key) {
+                    monthRowspan[i] = j - i;
+                }
+                i = j;
+            }
         }
 
         return { monthDisplays, weekDisplays, monthRowspan, weekRowspan };
@@ -788,11 +1154,12 @@
         const L = labels || {};
         const pdfLayout = L.pdfLayout === true;
         const normalized = normalizeRows(rows);
-        const useFullMonth = pdfLayout;
-        const merge = computeSyllabusCellMerges(normalized, useFullMonth);
+        const useFullMonth = !pdfLayout;
+        const useCompactWeek = pdfLayout;
+        const merge = computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
 
         let headerBlock = '';
-        if (L.generalNotes) {
+        if (L.generalNotes && !pdfLayout) {
             const notesHtml = escapeHtml(L.generalNotes).replace(/\n/g, '<br>');
             headerBlock += `<div class="syllabus-general-notes-print">${notesHtml}</div>`;
         }
@@ -822,11 +1189,12 @@
         html += '<thead><tr>';
         if (pdfLayout) {
             const year = L.tableYear || '';
-            html += `<th class="syllabus-col-year">${escapeHtml(year)}</th>`;
-            html += `<th>${escapeHtml(L.colWeek || 'Week')}</th>`;
-            html += `<th>${escapeHtml(L.colClass || 'Class')}</th>`;
-            html += `<th>${escapeHtml(L.colPlan || 'Weekly Lesson Plan')}</th>`;
-            html += `<th>${escapeHtml(L.colNote || 'Note')}</th>`;
+            const planHeader = L.colPlanShort || L.colPlanPrint || L.colPlan || 'Lesson plan';
+            html += `<th class="syllabus-col-year syllabus-th-year">${escapeHtml(year)}</th>`;
+            html += `<th class="syllabus-th-week">${escapeHtml(L.colWeek || 'Week')}</th>`;
+            html += `<th class="syllabus-th-class">${escapeHtml(L.colClass || 'Class')}</th>`;
+            html += `<th class="syllabus-th-plan">${escapeHtml(planHeader)}</th>`;
+            html += `<th class="syllabus-th-note">${escapeHtml(L.colNote || 'Note')}</th>`;
         } else {
             html += `<th>${escapeHtml(L.colMonth || 'Month')}</th>`;
             html += `<th>${escapeHtml(L.colWeek || 'Week')}</th>`;
@@ -835,6 +1203,9 @@
             html += `<th>${escapeHtml(L.colNote || 'Note')}</th>`;
         }
         html += `</tr></thead><tbody>`;
+
+        const rowCount = normalized.length;
+        const mergedNotesHtml = pdfLayout ? buildMergedNotesHtml(L.generalNotes, normalized) : '';
 
         normalized.forEach((row, i) => {
             const sessionDisplay = row.kind !== 'note' && row.sessionNumber > 0
@@ -845,8 +1216,14 @@
             html += `<tr class="${trClass}">`;
             html += renderMergedMonthWeekCells(i, merge, pdfLayout, cellStyle);
             html += `<td class="syllabus-col-class"${cellStyle}>${escapeHtml(sessionDisplay)}</td>`;
-            html += `<td class="syllabus-col-plan"${cellStyle}>${renderPlanCell(row)}</td>`;
-            html += `<td class="syllabus-col-note"${cellStyle}>${escapeHtml(row.note || '')}</td>`;
+            html += `<td class="syllabus-col-plan"${cellStyle}>${renderPlanCell(row, { printMode: pdfLayout })}</td>`;
+            if (pdfLayout) {
+                if (i === 0 && rowCount > 0) {
+                    html += `<td rowspan="${rowCount}" class="syllabus-col-note syllabus-note-merged"${cellStyle}>${mergedNotesHtml}</td>`;
+                }
+            } else {
+                html += `<td class="syllabus-col-note"${cellStyle}>${escapeHtml(row.note || '')}</td>`;
+            }
             html += '</tr>';
         });
 
@@ -866,6 +1243,7 @@ body { font-family: "DM Sans", Arial, sans-serif; font-size: 11pt; color: #111; 
 .syllabus-pdf-title { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.75rem; }
 .syllabus-class-header { font-weight: 700; margin-bottom: 0.5rem; font-size: 1rem; }
 .syllabus-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.syllabus-table-pdf { border: 2px solid #111; }
 .syllabus-table th, .syllabus-table td { border: 1px solid #333; padding: 6px 8px; vertical-align: top; }
 .syllabus-table th { background: #f3f4f6; font-weight: 600; }
 .syllabus-table-pdf .syllabus-col-year { width: 4.5em; }
@@ -875,6 +1253,58 @@ body { font-family: "DM Sans", Arial, sans-serif; font-size: 11pt; color: #111; 
 .syllabus-cell-merged { vertical-align: middle; text-align: center; background: transparent; }
 .syllabus-col-month.syllabus-cell-merged { font-weight: 600; }
 .syllabus-col-week.syllabus-cell-merged { font-weight: 500; font-size: 0.95em; }
+.syllabus-a4-page .syllabus-col-month.syllabus-cell-merged,
+.syllabus-a4-page .syllabus-col-year.syllabus-cell-merged {
+  font-size: 0.8em;
+  white-space: nowrap;
+  word-break: normal;
+  line-height: 1.12;
+  vertical-align: middle;
+  text-align: center;
+  padding: 2px 3px;
+}
+.syllabus-a4-page .syllabus-col-week.syllabus-cell-merged {
+  font-size: 0.75em;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.12;
+  vertical-align: middle;
+  text-align: center;
+}
+.syllabus-print-title { font-weight: 700; }
+.syllabus-print-lesson-num { font-weight: 600; font-size: 0.88em; opacity: 0.9; }
+.syllabus-print-covered { display: block; margin-top: 2px; line-height: 1.2; }
+.syllabus-print-homework-full { display: block; margin-top: 2px; line-height: 1.2; font-size: 0.92em; }
+.syllabus-print-plan-brief {
+  display: -webkit-box;
+  -webkit-line-clamp: ${SYLLABUS_PRINT_PLAN_LINE_CLAMP};
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.syllabus-continuation-hint { margin: 0 0 3mm; font-size: 9pt; line-height: 1.25; color: #374151; }
+.syllabus-continuation-page-num { margin: 0 0 2mm; font-size: 8.5pt; color: #64748b; text-align: right; }
+.syllabus-continuation-list { display: flex; flex-direction: column; gap: 3mm; }
+.syllabus-continuation-item {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  border-bottom: 1px solid #d1d5db;
+  padding-bottom: 2.5mm;
+}
+.syllabus-continuation-item:last-child { border-bottom: none; padding-bottom: 0; }
+.syllabus-continuation-item-title {
+  margin: 0 0 1.5mm;
+  font-size: 10pt;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.syllabus-continuation-item-body { font-size: 9.5pt; line-height: 1.25; }
+.syllabus-continuation-item-body .syllabus-print-covered,
+.syllabus-continuation-item-body .syllabus-print-homework-full { margin-top: 1.5mm; }
+.syllabus-note-merged { vertical-align: top; word-break: break-word; font-size: 0.92em; line-height: 1.25; overflow: hidden; }
+.syllabus-merged-note-item { margin-top: 0.35em; }
+.syllabus-merged-note-item:first-child { margin-top: 0; }
 .syllabus-plan-detail { display: block; font-size: 0.95em; color: inherit; margin-top: 2px; }
 .syllabus-plan-subline { display: block; font-size: 0.88em; margin-top: 3px; font-style: italic; opacity: 0.92; }
 .syllabus-plan-subline-emphasis { font-style: normal; font-weight: 500; }
@@ -916,12 +1346,12 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
 .syllabus-a4-page {
   width: 100%;
   max-width: 100%;
-  height: ${SYLLABUS_A4_PAGE.contentH}mm;
+  height: auto;
   min-height: 0;
-  max-height: ${SYLLABUS_A4_PAGE.contentH}mm;
+  max-height: ${SYLLABUS_A4_PAGE.fitContentH}mm;
   box-sizing: border-box;
   margin: 0;
-  padding: 0 0 ${SYLLABUS_A4_FIT_SAFETY_MM}mm 0;
+  padding: 0 0 4mm 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -943,37 +1373,78 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
   height: auto;
 }
 .syllabus-a4-page .syllabus-pdf-title {
-  font-size: 11pt;
+  font-size: 12pt;
   font-weight: 700;
   text-align: center;
   margin: 0 0 2mm;
   line-height: 1.2;
 }
-.syllabus-a4-page .syllabus-table { font-size: 9pt; line-height: 1.2; }
+.syllabus-a4-page .syllabus-table { font-size: 10pt; line-height: 1.2; border: 2px solid #111; }
 .syllabus-a4-page .syllabus-table th,
 .syllabus-a4-page .syllabus-table td { padding: 3px 4px; border: 1px solid #333; vertical-align: top; }
-.syllabus-a4-page .syllabus-table th { background: #f3f4f6; font-size: 8.5pt; font-weight: 600; }
+.syllabus-a4-page .syllabus-table td { overflow: hidden; }
+.syllabus-a4-page .syllabus-table th {
+  background: #f3f4f6;
+  font-size: 9pt;
+  font-weight: 600;
+  overflow: visible;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+.syllabus-a4-page .syllabus-th-year { font-size: 8.5pt; padding: 2px 2px; text-align: center; }
+.syllabus-a4-page .syllabus-th-week { font-size: 8pt; padding: 2px 2px; text-align: center; line-height: 1.15; white-space: normal; word-break: break-word; }
+.syllabus-a4-page .syllabus-th-class { font-size: 8.5pt; padding: 2px 3px; text-align: center; white-space: nowrap; }
+.syllabus-a4-page .syllabus-th-plan { font-size: 9pt; padding: 3px 4px; text-align: left; }
+.syllabus-a4-page .syllabus-th-note { font-size: 9pt; padding: 3px 4px; text-align: left; }
 .syllabus-a4-page .syllabus-plan-detail,
-.syllabus-a4-page .syllabus-plan-subline { font-size: 8pt; margin-top: 1px; line-height: 1.15; }
+.syllabus-a4-page .syllabus-plan-subline { font-size: 9pt; margin-top: 1px; line-height: 1.15; }
+.syllabus-a4-page .syllabus-print-covered {
+  display: block;
+  font-size: 9.5pt;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.syllabus-a4-page .syllabus-print-homework-full { font-size: 8.5pt; margin-top: 2px; }
+.syllabus-a4-page .syllabus-print-plan-brief {
+  display: -webkit-box;
+  -webkit-line-clamp: ${SYLLABUS_PRINT_PLAN_LINE_CLAMP};
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+.syllabus-a4-page.syllabus-a4-dense .syllabus-print-plan-brief { -webkit-line-clamp: ${SYLLABUS_PRINT_PLAN_LINE_CLAMP}; }
+.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-print-plan-brief { -webkit-line-clamp: ${SYLLABUS_PRINT_PLAN_LINE_CLAMP}; }
+.syllabus-a4-continuation-page .syllabus-pdf-title { font-size: 11pt; margin-bottom: 2mm; }
+.syllabus-a4-continuation-page .syllabus-continuation-list { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.syllabus-a4-page .syllabus-note-merged {
+  display: -webkit-box;
+  -webkit-line-clamp: 28;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .syllabus-a4-page .syllabus-col-class,
 .syllabus-a4-page .syllabus-cell-merged { vertical-align: middle; text-align: center; }
-.syllabus-a4-page .syllabus-col-class { text-align: center; }
-.syllabus-a4-page .syllabus-col-plan,
+.syllabus-a4-page .syllabus-col-class { text-align: center; font-size: 9pt; }
+.syllabus-a4-page .syllabus-col-plan { vertical-align: top; word-break: break-word; overflow: hidden; }
 .syllabus-a4-page .syllabus-col-note { vertical-align: top; word-break: break-word; }
-.syllabus-a4-page.syllabus-a4-dense .syllabus-pdf-title { font-size: 10.25pt; margin-bottom: 1.75mm; }
-.syllabus-a4-page.syllabus-a4-dense .syllabus-table { font-size: 8.25pt; line-height: 1.15; }
-.syllabus-a4-page.syllabus-a4-dense .syllabus-table th { font-size: 7.75pt; }
+.syllabus-a4-page.syllabus-a4-dense .syllabus-pdf-title { font-size: 11pt; margin-bottom: 1.75mm; }
+.syllabus-a4-page.syllabus-a4-dense .syllabus-table { font-size: 9.25pt; line-height: 1.15; }
+.syllabus-a4-page.syllabus-a4-dense .syllabus-table th { font-size: 8.5pt; }
 .syllabus-a4-page.syllabus-a4-dense .syllabus-table th,
 .syllabus-a4-page.syllabus-a4-dense .syllabus-table td { padding: 2px 3px; }
+.syllabus-a4-page.syllabus-a4-dense .syllabus-print-covered { font-size: 8.75pt; }
 .syllabus-a4-page.syllabus-a4-dense .syllabus-plan-detail,
-.syllabus-a4-page.syllabus-a4-dense .syllabus-plan-subline { font-size: 7.25pt; }
-.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-pdf-title { font-size: 9.5pt; margin-bottom: 1.5mm; }
-.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table { font-size: 7.25pt; line-height: 1.1; }
-.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table th { font-size: 6.75pt; }
+.syllabus-a4-page.syllabus-a4-dense .syllabus-plan-subline { font-size: 8.25pt; }
+.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-pdf-title { font-size: 10.5pt; margin-bottom: 1.5mm; }
+.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table { font-size: 8.5pt; line-height: 1.1; }
+.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table th { font-size: 8pt; }
 .syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table th,
 .syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table td { padding: 2px 2px; }
+.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-print-covered { font-size: 8pt; }
 .syllabus-a4-page.syllabus-a4-extra-dense .syllabus-plan-detail,
-.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-plan-subline { font-size: 6.25pt; }
+.syllabus-a4-page.syllabus-a4-extra-dense .syllabus-plan-subline { font-size: 7.75pt; }
 @media print {
   *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
@@ -1011,9 +1482,9 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             let densityClass = '';
             if (a4Pdf) {
                 const rowCount = Array.isArray(sec.rows) ? sec.rows.length : 0;
-                if (rowCount > 38) {
+                if (rowCount > 36) {
                     densityClass = ' syllabus-a4-extra-dense';
-                } else if (rowCount > 32) {
+                } else if (rowCount > 28) {
                     densityClass = ' syllabus-a4-dense';
                 }
             }
@@ -1040,6 +1511,21 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             body += `</section>`;
             if (a4Pdf) {
                 body += `</div></div>`;
+                const sectionLabels = {
+                    ...labels,
+                    classTitle: sec.classTitle,
+                    tableYear: sec.tableYear || labels.tableYear,
+                    subtitle: sec.subtitle,
+                    termRange: sec.termRange,
+                    generalNotes: (sec.classData && sec.classData.syllabusGeneralNotes)
+                        ? String(sec.classData.syllabusGeneralNotes).trim()
+                        : (labels.generalNotes || '')
+                };
+                body += renderSyllabusContinuationSheets(
+                    sec.classTitle || '',
+                    sec.rows,
+                    sectionLabels
+                );
             }
         });
 
@@ -1157,7 +1643,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             td.dataset.syllabusScaled = '1';
         });
 
-        pageEl.querySelectorAll('.syllabus-plan-detail, .syllabus-plan-subline').forEach(el => {
+        pageEl.querySelectorAll('.syllabus-plan-detail, .syllabus-plan-subline, .syllabus-print-covered, .syllabus-print-homework-full, .syllabus-continuation-item-body').forEach(el => {
             el.style.fontSize = `${base.subline * scale}pt`;
             el.style.marginTop = `${1 * scale}px`;
             el.dataset.syllabusScaled = '1';
@@ -1197,7 +1683,25 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         return scale;
     }
 
-    function stretchSyllabusTableRows(pageEl, contentHpx) {
+    function getSyllabusStretchHeightPx(pageEl, contentHpx, mmPx) {
+        let padBottom = 0;
+        if (pageEl && typeof getComputedStyle === 'function') {
+            padBottom = parseFloat(getComputedStyle(pageEl).paddingBottom) || 0;
+        }
+        if (!padBottom && mmPx) {
+            padBottom = Math.round(4 * mmPx);
+        }
+        return Math.max(0, contentHpx - padBottom - SYLLABUS_TABLE_FIT_FUDGE_PX);
+    }
+
+    function isContinuationPrintPage(pageEl) {
+        return Boolean(pageEl && pageEl.classList.contains('syllabus-a4-continuation-page'));
+    }
+
+    function stretchSyllabusTableRows(pageEl, contentHpx, mmPx) {
+        if (isContinuationPrintPage(pageEl)) {
+            return;
+        }
         const title = pageEl.querySelector('.syllabus-pdf-title');
         const table = pageEl.querySelector('.syllabus-table');
         const tbody = table?.querySelector('tbody');
@@ -1206,9 +1710,13 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             return;
         }
 
+        const fitHpx = getSyllabusStretchHeightPx(pageEl, contentHpx, mmPx);
         const titleH = title ? title.offsetHeight : 0;
-        const tableTarget = contentHpx - titleH;
-        table.style.height = `${tableTarget}px`;
+        const tableTarget = fitHpx - titleH;
+        if (tableTarget <= 0) {
+            return;
+        }
+        table.style.height = `${Math.floor(tableTarget)}px`;
         table.dataset.syllabusScaled = '1';
 
         const theadH = thead ? thead.offsetHeight : 0;
@@ -1222,38 +1730,63 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             return;
         }
 
-        tbody.style.height = `${tbodyTarget}px`;
+        const mm = mmPx > 0 ? mmPx : 96 / 25.4;
+        const maxRowPx = Math.round(SYLLABUS_PRINT_MAX_ROW_MM * mm);
+        const evenRowH = tbodyTarget / rows.length;
+        const rowH = Math.min(evenRowH, maxRowPx);
+        const tbodyUsed = Math.floor(rowH * rows.length);
+        tbody.style.height = `${tbodyUsed}px`;
         tbody.style.display = 'table-row-group';
-        const rowH = tbodyTarget / rows.length;
+        const tableUsed = theadH + tbodyUsed;
+        table.style.height = `${tableUsed}px`;
         rows.forEach(tr => {
             tr.style.height = `${rowH}px`;
+            tr.style.maxHeight = `${rowH}px`;
             tr.dataset.syllabusScaled = '1';
+            tr.querySelectorAll('td').forEach((td) => {
+                td.style.overflow = 'hidden';
+                td.dataset.syllabusScaled = '1';
+            });
         });
     }
 
-    function scaleSyllabusPageToFit(pageEl, doc, contentWpx, contentHpx) {
+    function scaleSyllabusPageToFit(pageEl, doc, contentWpx, contentHpx, mmPx) {
         resetSyllabusPageLayout(pageEl);
+        pageEl.style.maxHeight = `${SYLLABUS_A4_PAGE.fitContentH}mm`;
+        pageEl.style.paddingBottom = isContinuationPrintPage(pageEl) ? '4mm' : '4mm';
         void doc.body.offsetHeight;
 
+        const isContinuation = isContinuationPrintPage(pageEl);
         let scale = 1;
         applySyllabusTypographyScale(pageEl, scale);
-        stretchSyllabusTableRows(pageEl, contentHpx);
+        if (!isContinuation) {
+            stretchSyllabusTableRows(pageEl, contentHpx, mmPx);
+        }
         void doc.body.offsetHeight;
 
-        for (let pass = 0; pass < 8 && pageEl.scrollHeight > contentHpx + 1; pass += 1) {
-            const step = contentHpx / pageEl.scrollHeight;
+        const fitHpx = getSyllabusStretchHeightPx(pageEl, contentHpx, mmPx);
+        for (let pass = 0; pass < 10 && pageEl.scrollHeight > fitHpx + 2; pass += 1) {
+            const step = fitHpx / pageEl.scrollHeight;
             scale *= step;
+            if (scale < SYLLABUS_PRINT_SCALE_FLOOR) {
+                scale = SYLLABUS_PRINT_SCALE_FLOOR;
+            }
             applySyllabusTypographyScale(pageEl, scale);
-            stretchSyllabusTableRows(pageEl, contentHpx);
+            if (!isContinuation) {
+                stretchSyllabusTableRows(pageEl, contentHpx, mmPx);
+            }
             void doc.body.offsetHeight;
+            if (scale <= SYLLABUS_PRINT_SCALE_FLOOR) {
+                break;
+            }
         }
 
-        pageEl.style.height = `${SYLLABUS_A4_PAGE.contentH}mm`;
+        pageEl.style.height = 'auto';
         pageEl.style.minHeight = '0';
-        pageEl.style.maxHeight = `${SYLLABUS_A4_PAGE.contentH}mm`;
+        pageEl.style.maxHeight = `${SYLLABUS_A4_PAGE.fitContentH}mm`;
         pageEl.style.boxSizing = 'border-box';
         pageEl.style.overflow = 'hidden';
-        pageEl.style.paddingBottom = `${SYLLABUS_A4_FIT_SAFETY_MM}mm`;
+        pageEl.style.paddingBottom = '3mm';
 
         const sheet = pageEl.closest('.syllabus-a4-sheet');
         if (sheet) {
@@ -1300,7 +1833,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             if (!pageEl) {
                 return;
             }
-            scaleSyllabusPageToFit(pageEl, doc, contentWpx, contentHpx);
+            scaleSyllabusPageToFit(pageEl, doc, contentWpx, contentHpx, mmPx);
             sheet.dataset.pdfCaptureWidth = String(sheetWpx);
             sheet.dataset.pdfCaptureHeight = String(sheetHpx);
             captureEls.push(sheet);
@@ -1380,6 +1913,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
 
     global.CCPSyllabus = {
         getSchoolWeekLabel,
+        getSchoolWeekLabelCompact,
         getSchoolWeekMonday,
         formatMonthShortFromKey,
         buildSyllabusRowsFromSchedule,
@@ -1405,6 +1939,21 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         getSyllabusFitDimensions,
         SYLLABUS_A4_COL_WIDTHS,
         SYLLABUS_A4_REFERENCE,
+        MIN_SYLLABUS_PRINT_SCALE,
+        SYLLABUS_PRINT_SCALE_FLOOR,
+        splitPlanDetailSections,
+        extractCoveredLines,
+        truncateHomeworkForPrint,
+        buildMergedNotesHtml,
+        stripRedundantPlanDetailLines,
+        getLessonRowsForPrintContinuation,
+        renderSyllabusContinuationSheets,
+        renderPlanCellBrief,
+        renderPlanCellFull,
+        chunkContinuationItems,
+        SYLLABUS_CONTINUATION_ITEMS_PER_PAGE,
+        SYLLABUS_PRINT_PLAN_LINE_CLAMP,
+        SYLLABUS_PRINT_MAX_ROW_MM,
         fitSyllabusPagesToA4,
         fitSyllabusPrintClassBlocks,
         resetAllSyllabusFit,

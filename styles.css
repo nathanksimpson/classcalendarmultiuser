@@ -2890,7 +2890,7 @@ html.print-color-mode-light[data-theme="dark"] {
         height: 297mm;
         max-height: 297mm;
         box-sizing: border-box;
-        padding: 15mm;
+        padding: 7mm;
         page-break-after: always;
         break-after: page;
         page-break-inside: avoid;
@@ -2915,10 +2915,10 @@ html.print-color-mode-light[data-theme="dark"] {
 
     #syllabusTablesSummary .syllabus-a4-page {
         width: 100%;
-        height: 267mm;
-        max-height: 267mm;
+        height: auto;
+        max-height: 275mm;
         min-height: 0;
-        padding-bottom: 6mm;
+        padding-bottom: 3mm;
         overflow: hidden;
         box-sizing: border-box;
         display: flex;
@@ -2939,7 +2939,7 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-pdf-title {
-        font-size: 11pt;
+        font-size: 12pt;
         font-weight: 700;
         text-align: center;
         margin: 0 0 2mm;
@@ -2949,8 +2949,9 @@ html.print-color-mode-light[data-theme="dark"] {
     #syllabusTablesSummary .syllabus-a4-page .syllabus-table {
         width: 100%;
         table-layout: fixed;
-        font-size: 9pt;
+        font-size: 10pt;
         line-height: 1.2;
+        border: 2px solid #111;
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-table th,
@@ -2960,10 +2961,47 @@ html.print-color-mode-light[data-theme="dark"] {
         vertical-align: top;
     }
 
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table td {
+        overflow: hidden;
+    }
+
     #syllabusTablesSummary .syllabus-a4-page .syllabus-table th {
         background: #f3f4f6;
-        font-size: 8.5pt;
+        font-size: 9pt;
         font-weight: 600;
+        overflow: visible;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.2;
+        vertical-align: middle;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-th-year {
+        font-size: 8.5pt;
+        padding: 2px 2px;
+        text-align: center;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-th-week {
+        font-size: 8pt;
+        padding: 2px 2px;
+        text-align: center;
+        line-height: 1.15;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-th-class {
+        font-size: 8.5pt;
+        padding: 2px 3px;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-th-plan,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-th-note {
+        font-size: 9pt;
+        text-align: left;
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-col-class,
@@ -2972,19 +3010,113 @@ html.print-color-mode-light[data-theme="dark"] {
         text-align: center;
     }
 
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-plan,
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-note {
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-month.syllabus-cell-merged,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-year.syllabus-cell-merged {
+        font-size: 0.8em;
+        white-space: nowrap;
+        word-break: normal;
+        line-height: 1.12;
+        vertical-align: middle;
+        text-align: center;
+        padding: 2px 3px;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-week.syllabus-cell-merged {
+        font-size: 0.75em;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.12;
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-plan {
         vertical-align: top;
+        overflow: hidden;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-note,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-note-merged {
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-print-covered {
+        display: block;
+        font-size: 9.5pt;
+        line-height: 1.2;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-print-homework-full {
+        display: block;
+        font-size: 8.5pt;
+        line-height: 1.2;
+        margin-top: 2px;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-print-plan-brief {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        line-height: 1.2;
+        word-break: break-word;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-continuation-page .syllabus-continuation-hint {
+        margin: 0 0 3mm;
+        font-size: 9pt;
+        line-height: 1.25;
+        color: #374151;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-continuation-page .syllabus-continuation-list {
+        display: flex;
+        flex-direction: column;
+        gap: 3mm;
+    }
+
+    #syllabusTablesSummary .syllabus-continuation-item {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        border-bottom: 1px solid #d1d5db;
+        padding-bottom: 2.5mm;
+    }
+
+    #syllabusTablesSummary .syllabus-continuation-item-title {
+        margin: 0 0 1.5mm;
+        font-size: 10pt;
+        font-weight: 700;
+    }
+
+    #syllabusTablesSummary .syllabus-continuation-item-body {
+        font-size: 9.5pt;
+        line-height: 1.25;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-note-merged {
+        display: -webkit-box;
+        -webkit-line-clamp: 28;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
     #syllabusTablesSummary .syllabus-a4-page.syllabus-a4-dense .syllabus-table {
-        font-size: 8.25pt;
+        font-size: 9.25pt;
         line-height: 1.15;
     }
 
+    #syllabusTablesSummary .syllabus-a4-page.syllabus-a4-dense .syllabus-print-covered {
+        font-size: 8.75pt;
+    }
+
     #syllabusTablesSummary .syllabus-a4-page.syllabus-a4-extra-dense .syllabus-table {
-        font-size: 7.25pt;
+        font-size: 8.5pt;
         line-height: 1.1;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page.syllabus-a4-extra-dense .syllabus-print-covered {
+        font-size: 8pt;
     }
 
     /* Syllabus-only print: no blank lead page, one class per sheet */
