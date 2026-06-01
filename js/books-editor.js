@@ -101,6 +101,27 @@
         return [];
     }
 
+    function presetIncludedInBookCatalog(preset) {
+        if (!preset) {
+            return false;
+        }
+        const templates = preset.defaultSyllabusRowTemplates;
+        if (Array.isArray(templates) && templates.length > 0) {
+            return true;
+        }
+        return !!preset.isStub;
+    }
+
+    function getFactoryPresetsForBookKey(bookKey) {
+        const cid = (bookKey || '').trim();
+        if (!cid) {
+            return [];
+        }
+        return getAllFactoryPresets().filter((preset) => (
+            presetIncludedInBookCatalog(preset) && deriveBookKey(preset) === cid
+        ));
+    }
+
     function normalizeRowTemplates(rows) {
         return (rows || []).map((r, i) => ({
             sessionNumber: r.sessionNumber != null ? r.sessionNumber : i + 1,
@@ -111,12 +132,18 @@
     }
 
     function getFactoryTemplatesForBook(book) {
-        const firstId = book && book.presetIds && book.presetIds[0];
-        if (!firstId) {
+        const ids = book && book.presetIds;
+        if (!Array.isArray(ids) || !ids.length) {
             return [];
         }
-        const factory = getFactoryPresetById(firstId);
-        return normalizeRowTemplates(factory && factory.defaultSyllabusRowTemplates);
+        for (let i = 0; i < ids.length; i += 1) {
+            const factory = getFactoryPresetById(ids[i]);
+            const templates = factory && factory.defaultSyllabusRowTemplates;
+            if (Array.isArray(templates) && templates.length) {
+                return normalizeRowTemplates(templates);
+            }
+        }
+        return [];
     }
 
     function factoryClassDefaultsFromPreset(preset) {
@@ -330,8 +357,7 @@
         const bookOv = ensureBookOverrides(appData);
         const byKey = new Map();
         api.getAll().forEach((preset) => {
-            const templates = preset.defaultSyllabusRowTemplates;
-            if (!Array.isArray(templates) || templates.length === 0) {
+            if (!presetIncludedInBookCatalog(preset)) {
                 return;
             }
             const key = deriveBookKey(preset);
@@ -386,6 +412,7 @@
                 name: title,
                 displayName: title,
                 presetIds: [],
+                factoryPresetLevels: levels.slice(),
                 levels: applicable.levels,
                 applicableIsAllLevels: applicable.isAllLevels,
                 isCustom: true,
@@ -446,12 +473,13 @@
                     factoryRows.length
                 );
                 const displayName = (cur && cur.bookTitle) || book.name;
-                const factoryLevels = book.levels.slice();
-                const applicable = getStoredApplicableLevels(book.id, appData, factoryLevels, false);
+                const factoryPresetLevels = book.levels.slice();
+                const applicable = getStoredApplicableLevels(book.id, appData, factoryPresetLevels, false);
                 return {
                     ...book,
                     name: displayName,
                     displayName,
+                    factoryPresetLevels,
                     levels: applicable.levels,
                     applicableIsAllLevels: applicable.isAllLevels,
                     sessionCount: effectiveRows.length,
@@ -790,11 +818,17 @@
             const band = global.CCPCurriculaData.resolveDebateHomeworkBand(levelTrim);
             return band != null && book.debateBand === band;
         }
-        const applicable = getStoredApplicableLevels(book.id, appData, book.levels, false);
-        if (applicable.isAllLevels || !applicable.levels.length) {
-            return true;
+        const factoryLevels = Array.isArray(book.factoryPresetLevels)
+            ? book.factoryPresetLevels
+            : (book.levels || []);
+        const applicable = getStoredApplicableLevels(book.id, appData, factoryLevels, false);
+        if (!(applicable.isAllLevels || !applicable.levels.length || applicable.levels.includes(levelTrim))) {
+            return false;
         }
-        return applicable.levels.includes(levelTrim);
+        if (!book.isCustom) {
+            return !!resolvePresetFromLevelAndBook(levelTrim, book.id, appData);
+        }
+        return true;
     }
 
     function getFactoryDebateSessions(level) {
@@ -890,18 +924,34 @@
             }
             return getLevelOnlyPresetId(levelTrim || 'custom');
         }
-        const matches = getAllFactoryPresets().filter((preset) => {
-            if (!Array.isArray(preset.defaultSyllabusRowTemplates) || !preset.defaultSyllabusRowTemplates.length) {
-                return false;
+        const bookPresets = getFactoryPresetsForBookKey(cid);
+        let matches = bookPresets.filter((preset) => {
+            if (!levelTrim) {
+                return true;
             }
-            if (deriveBookKey(preset) !== cid) {
-                return false;
-            }
-            if (levelTrim && (preset.level || '') !== levelTrim) {
-                return false;
-            }
-            return true;
+            return (preset.level || '') === levelTrim;
         });
+        if (!matches.length && levelTrim) {
+            const book = getBookById(cid, appData);
+            const factoryLevels = book && Array.isArray(book.factoryPresetLevels)
+                ? book.factoryPresetLevels
+                : [];
+            const applicable = getStoredApplicableLevels(cid, appData, factoryLevels, false);
+            const levelAllowed = applicable.isAllLevels
+                || !applicable.levels.length
+                || applicable.levels.includes(levelTrim);
+            if (levelAllowed) {
+                if (bookPresets.length === 1) {
+                    matches = bookPresets;
+                } else if (bookPresets.length > 1) {
+                    const cur = getCurriculumRecord(cid, appData);
+                    const defaultLv = cur && cur.classDefaults && cur.classDefaults.levelPreset;
+                    if (defaultLv) {
+                        matches = bookPresets.filter((p) => (p.level || '') === defaultLv);
+                    }
+                }
+            }
+        }
         if (!matches.length) {
             return null;
         }
@@ -928,8 +978,25 @@
             return Array.isArray(tpl) && tpl.length > 0;
         }
         const factory = getFactoryPresetById(pid);
-        const templates = factory && factory.defaultSyllabusRowTemplates;
-        return Array.isArray(templates) && templates.length > 0;
+        const fromPreset = factory && factory.defaultSyllabusRowTemplates;
+        if (Array.isArray(fromPreset) && fromPreset.length > 0) {
+            return true;
+        }
+        if (factory && factory.isStub) {
+            const track = factory.subjectTrack || '';
+            const siblings = getFactoryPresetsForBookKey(cid);
+            const hasPeerContent = siblings.some((p) => (
+                p.id !== pid
+                && (p.subjectTrack || '') === track
+                && Array.isArray(p.defaultSyllabusRowTemplates)
+                && p.defaultSyllabusRowTemplates.length > 0
+            ));
+            if (!hasPeerContent) {
+                return false;
+            }
+        }
+        const tpl = getTemplatesForBookId(cid, appData);
+        return Array.isArray(tpl) && tpl.length > 0;
     }
 
     /**

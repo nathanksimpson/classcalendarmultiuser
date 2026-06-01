@@ -41,6 +41,28 @@ function buildWriteNowRows(n, detailPrefix) {
 }
 
 const books = CCPBooksEditor.discoverBooks({});
+const monsterPhonics = books.find((b) => b.id === 'monster-phonics');
+assert(monsterPhonics, 'Monster Phonics book discovered');
+assert(
+    monsterPhonics.factoryPresetLevels.includes('Red')
+    && monsterPhonics.factoryPresetLevels.includes('Orange')
+    && monsterPhonics.factoryPresetLevels.includes('Yellow'),
+    'Monster Phonics lists Red, Orange, Yellow'
+);
+const orangePhonicsPreset = CCPBooksEditor.resolvePresetFromLevelAndBook(
+    'Orange',
+    'monster-phonics',
+    {}
+);
+assert(orangePhonicsPreset === 'preset-phonics-orange', 'Orange resolves to phonics orange preset');
+const orangePhonicsElig = CCPBooksEditor.getCurriculumApplyEligibility(
+    'Orange',
+    'monster-phonics',
+    {}
+);
+assert(orangePhonicsElig.ok && orangePhonicsElig.presetId === 'preset-phonics-orange', 'Orange can apply Monster Phonics');
+assert(orangePhonicsElig.hasSyllabusTemplates, 'Orange apply uses Red session pages from shared book');
+
 const writeNow = books.find((b) => b.id === 'write-now');
 assert(writeNow, 'write now book discovered');
 assert(writeNow.presetIds.length === 3, 'three write now levels');
@@ -286,6 +308,26 @@ const badMatch = CCPBooksEditor.getCurriculumApplyEligibility(
     rcGreenBook.id,
     eligAppData
 );
-assert(badMatch.reason === 'bookLevelMismatch' && !badMatch.ok, 'Blue level cannot use Green RC book');
+assert(badMatch.reason === 'bookLevelMismatch' && !badMatch.ok, 'Blue level cannot use RC book without Blue in applicability');
+
+const multiLevelAppData = {
+    bookOverrides: {},
+    curriculumOverrides: {
+        [rcGreenBook.id]: { applicableLevels: ['Green', 'Blue'] }
+    }
+};
+assert(
+    CCPBooksEditor.getCurriculaForLevel('Blue', multiLevelAppData).some((b) => b.id === rcGreenBook.id),
+    'RC book lists for Blue when applicability includes Blue'
+);
+const blueRcOk = CCPBooksEditor.getCurriculumApplyEligibility(
+    'Blue',
+    rcGreenBook.id,
+    multiLevelAppData
+);
+assert(
+    blueRcOk.ok && blueRcOk.presetId === 'preset-rc-green-blue',
+    'Blue + RC book applies when curriculum allows multiple levels'
+);
 
 console.log('books-editor.test.mjs: all passed');

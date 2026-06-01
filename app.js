@@ -3470,14 +3470,16 @@ function applyCurriculumClassDefaultsToForm(curriculumId, presetId, levelFromPic
     const isCustom = editor.isCustomCurriculum(curriculumId, appData);
     if (noBook) {
         defForForm.defaultSyllabusRowTemplates = [];
-    } else if (isDebate || isCustom) {
+    } else {
         const tplBookId = isDebate
             ? (editor.normalizeDebateCurriculumId(curriculumId, levelTrim, appData) || curriculumId)
             : curriculumId;
         const tpl = editor.getTemplatesForBookId(tplBookId, appData);
-        defForForm.defaultSyllabusRowTemplates = tpl.length
-            ? JSON.parse(JSON.stringify(tpl))
-            : [];
+        if (tpl.length) {
+            defForForm.defaultSyllabusRowTemplates = JSON.parse(JSON.stringify(tpl));
+        } else if (isDebate || isCustom) {
+            defForForm.defaultSyllabusRowTemplates = [];
+        }
         if (isDebate && tplBookId && tplBookId !== curriculumId) {
             const bookSel = document.getElementById('classCurriculumBook');
             if (bookSel) {
