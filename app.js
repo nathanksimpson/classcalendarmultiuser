@@ -66,6 +66,10 @@ const translations = {
         newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team and selected in the dropdown above.',
         newCalendarCreate: 'Create calendar',
         newCalendarCreated: 'Created "{name}" — now selected in Team calendar ↑',
+        defaultTeamCalendarName: 'Team Calendar',
+        defaultTeamCalendarTermSuffix: 'Term',
+        defaultTeamCalendarCreated:
+            'Created a starter calendar: {name}. You can rename it under Calendar name.',
         newCalendarAccessTeachers: 'Who can access this calendar?',
         newCalendarAccessHint: 'Check teachers and/or groups. You are always included. Admins can see all calendars.',
         newCalendarAccessGroupsLabel: 'Groups',
@@ -1033,6 +1037,10 @@ const translations = {
         deleteCalendarRemoving: '삭제 중…',
         newCalendarCreate: '캘린더 만들기',
         newCalendarCreated: '"{name}" 생성됨 — 팀 캘린더 ↑ 에서 선택됨',
+        defaultTeamCalendarName: '팀 캘린더',
+        defaultTeamCalendarTermSuffix: '학기',
+        defaultTeamCalendarCreated:
+            '시작용 캘린더를 만들었습니다: {name}. 캘린더 이름에서 바꿀 수 있습니다.',
         newCalendarAccessTeachers: '이 캘린더에 접근할 수 있는 사람',
         newCalendarAccessHint: '선생님 및/또는 그룹을 선택하세요. 본인은 항상 포함됩니다. 관리자는 모든 캘린더를 볼 수 있습니다.',
         newCalendarAccessGroupsLabel: '그룹',
@@ -18966,7 +18974,8 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     if (isCalendarItemVisible('lessons') && visibleLessons.length > 0) {
         const eventsDiv = document.createElement('div');
         eventsDiv.className = 'day-events';
-        
+        let hasDebateLesson = false;
+
         visibleLessons.forEach(({ classData, lesson, slice, calendarTitle }) => {
             const eventBar = document.createElement('div');
             eventBar.className = 'event-bar cal-item-lessons';
@@ -18985,13 +18994,26 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
                 );
             const displayName = calendarTitle || classData.name;
             const noteDateStr = lessonDateStr || dateStr;
+            const isDebateLesson = classUsesDebateCompression(scheduleClass);
+            if (isDebateLesson) {
+                hasDebateLesson = true;
+            }
             if (noteDateStr && classHasDayNoteOnDate(classData.id, noteDateStr)) {
                 eventBar.classList.add('event-bar--has-day-note');
             }
-            eventBar.innerHTML = `
+            const titleLine = `${displayName} - ${lesson.label}`;
+            if (isDebateLesson) {
+                eventBar.classList.add('event-bar--debate-compact');
+                eventBar.title = bookLabel ? `${titleLine} — ${bookLabel}` : titleLine;
+                eventBar.innerHTML = `
+                <span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lesson.label)}</span>
+            `;
+            } else {
+                eventBar.innerHTML = `
                 <span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lesson.label)}</span>
                 <span class="event-book">${escapeHtml(bookLabel)}</span>
             `;
+            }
             
             // Store data for popup
             eventBar.dataset.classId = classData.id;
@@ -19026,7 +19048,11 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
             
             eventsDiv.appendChild(eventBar);
         });
-        
+
+        if (hasDebateLesson) {
+            dayDiv.classList.add('calendar-day--has-debate-lessons');
+        }
+
         dayDiv.appendChild(eventsDiv);
     }
 
@@ -19378,6 +19404,15 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     font-weight: 500;
     opacity: 0.95;
 }
+.app-print-document--calendar .event-bar--debate-compact {
+    padding: 0 2px;
+    gap: 0;
+}
+.app-print-document--calendar .event-bar--debate-compact .event-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .app-print-document--calendar .calendar-event-chip {
     font-size: min(var(--cal-tile-font, 5pt), 10pt);
     padding: 0 2px;
@@ -19621,7 +19656,14 @@ function resolveCalendarTileTypographyRoot(doc, root) {
 }
 
 function countCalendarDayTileWeight(day) {
-    return day.querySelectorAll('.holiday-name, .calendar-event-chip, .event-bar').length;
+    let weight = 0;
+    day.querySelectorAll('.holiday-name, .calendar-event-chip').forEach(() => {
+        weight += 1;
+    });
+    day.querySelectorAll('.event-bar').forEach((bar) => {
+        weight += bar.classList.contains('event-bar--debate-compact') ? 0.5 : 1;
+    });
+    return weight;
 }
 
 /** Stable row/column budget from grid layout (avoids content-inflated offsetHeight). */
@@ -19696,7 +19738,8 @@ function fitCalendarDayTileTypography(day, cfg, mode) {
     }
 
     const dayNum = day.querySelector('.day-number');
-    const topH = (dayNum ? dayNum.offsetHeight : 0) + cfg.padding;
+    const dayNumH = dayNum ? dayNum.offsetHeight : 0;
+    const topH = Math.max(dayNumH, 22) + cfg.padding;
     const contentH = Math.max(0, cellH - topH);
     const totalGap = cfg.gap * Math.max(0, Math.ceil(tileWeight) - 1);
     const perTileH = (contentH - totalGap) / tileWeight;
@@ -19709,9 +19752,13 @@ function fitCalendarDayTileTypography(day, cfg, mode) {
     let fontSize = Math.min(fontFromH, fontFromW, cfg.max);
     fontSize = Math.max(fontSize, cfg.min);
 
+    const lessonBars = day.querySelectorAll('.event-bar');
+    const allLessonBarsDebateCompact = lessonBars.length > 0
+        && Array.from(lessonBars).every((bar) => bar.classList.contains('event-bar--debate-compact'));
+
     const tileCount = Math.ceil(tileWeight);
     let allowTwoLines = false;
-    if (tileCount <= 2) {
+    if (tileCount <= 2 && !allLessonBarsDebateCompact) {
         const twoLineFont = Math.min(
             perTileH / (2 * cfg.lineHeight),
             fontFromW,
@@ -22726,7 +22773,50 @@ async function revertTeamCalendarNameFromServer() {
     updateActiveTeamCalendarOptionLabel();
 }
 
-async function createTeamCalendarFromName(name, accessOptions) {
+/** Default name when the team folder has no calendars (e.g. Spring 2026 Term). */
+function suggestDefaultTeamCalendarName() {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    const seasonKey = getTermSeasonI18nKeyForMonth(month);
+    if (seasonKey) {
+        const suffix = t('defaultTeamCalendarTermSuffix');
+        return suffix ? `${t(seasonKey)} ${year} ${suffix}` : `${t(seasonKey)} ${year}`;
+    }
+    const fallback = t('defaultTeamCalendarName');
+    return fallback && fallback !== 'defaultTeamCalendarName' ? fallback : 'Team Calendar';
+}
+
+/**
+ * When the user can create calendars but none exist: optional local import, else auto-create blank calendar.
+ * @returns {Promise<Array>} updated calendar list from the server
+ */
+async function ensureStarterTeamCalendar() {
+    CalendarSync.setActiveCalendarId(null);
+    const local = localStorage.getItem('classCalendarData');
+    if (local && confirm(t('uploadLocalPrompt'))) {
+        const data = JSON.parse(local);
+        await createTeamCalendarFromName(data.calendarName || 'Imported Calendar');
+        return CalendarSync.listCalendars();
+    }
+    try {
+        const name = suggestDefaultTeamCalendarName();
+        await createTeamCalendarFromName(
+            name,
+            { memberUserIds: [], groupIds: [] },
+            'defaultTeamCalendarCreated'
+        );
+        return CalendarSync.listCalendars();
+    } catch (err) {
+        showSyncToast(t('newCalendarFailed') + ': ' + (err.message || err), true);
+        openNewCalendarModal().catch((modalErr) =>
+            showSyncToast(t('newCalendarFailed') + ': ' + modalErr.message, true)
+        );
+        return [];
+    }
+}
+
+async function createTeamCalendarFromName(name, accessOptions, successToastKey) {
     CalendarSync.cancelPendingSave();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -22734,7 +22824,7 @@ async function createTeamCalendarFromName(name, accessOptions) {
     }
     const freshData = getDefaultAppData();
     freshData.calendarName = trimmed;
-    return createTeamCalendarFromImport(trimmed, freshData, accessOptions);
+    return createTeamCalendarFromImport(trimmed, freshData, accessOptions, successToastKey);
 }
 
 async function createTeamCalendarFromImport(name, importedData, accessOptions, successToastKey) {
@@ -23205,21 +23295,9 @@ async function initTeamSync() {
         return;
     }
 
-    if (calendars.length === 0) {
-        const local = localStorage.getItem('classCalendarData');
-        if (local && confirm(t('uploadLocalPrompt'))) {
-            const data = JSON.parse(local);
-            await createTeamCalendarFromName(data.calendarName || 'Imported Calendar');
-            calendars = await CalendarSync.listCalendars();
-            activeId = CalendarSync.getActiveCalendarId();
-        } else {
-            populateCalendarSelect([], null);
-            setTeamLockBarVisible(false);
-            showSyncToast(t('teamCalendarEmpty'), false);
-            openNewCalendarModal().catch((err) =>
-                showSyncToast(t('newCalendarFailed') + ': ' + err.message, true)
-            );
-        }
+    if (calendars.length === 0 && canCreateCalendars) {
+        calendars = await ensureStarterTeamCalendar();
+        activeId = CalendarSync.getActiveCalendarId();
     }
 
     if (calendars.length > 0) {

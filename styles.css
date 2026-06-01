@@ -1522,6 +1522,22 @@ body:has(#panel-calendar:not([hidden])) {
     flex-direction: column;
 }
 
+#calendarContainer .calendar-day .day-number {
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-card);
+}
+
+#calendarContainer .calendar-day.other-month .day-number {
+    background: var(--bg-main);
+}
+
+#calendarContainer .calendar-day.holiday .day-number {
+    background: inherit;
+}
+
 #calendarContainer .calendar-day .day-events {
     flex: 1 1 auto;
     min-height: 0;
@@ -1732,6 +1748,26 @@ body:has(#panel-calendar:not([hidden])) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.event-bar--debate-compact {
+    padding: 2px 6px;
+    gap: 0;
+}
+
+.event-bar--debate-compact .event-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-day[data-cal-tile-lines="2"] .event-bar--debate-compact .event-title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
 }
 
 .calendar-day[data-cal-tile-lines="2"] .event-title,
@@ -2538,6 +2574,17 @@ html.print-color-mode-light[data-theme="dark"] {
         flex: 1 1 0;
         min-height: 0;
         justify-content: center;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .event-bar--debate-compact {
+        padding: 0 2px;
+        gap: 0;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .event-bar--debate-compact .event-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day .calendar-event-chips {
