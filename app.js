@@ -14582,7 +14582,7 @@ function syncClassCohortLinks(cohort) {
         return;
     }
     const api = getTimetableApi();
-    const ids = new Set(Array.isArray(cohort.classIds) ? cohort.classIds : []);
+    const ids = new Set();
     (appData.classes || []).forEach((cls) => {
         if (api ? api.classHasCohortId(cls, cohort.id) : normalizeStr(cls.cohortId) === cohort.id) {
             ids.add(cls.id);

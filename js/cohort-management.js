@@ -1295,7 +1295,9 @@
         }
         const appData = hooks.getAppData();
         const api = getTimetableApi();
-        const classIds = api ? api.getCohortClassIds(appData, cohort) : (cohort.classIds || []);
+        const classIds = catalogDirty
+            ? Array.from(draftClassIds)
+            : (api ? api.getCohortClassIds(appData, cohort) : (cohort.classIds || []));
         if (!classIds.length) {
             mount.innerHTML = `<p class="section-hint">${escapeHtml(t('cohortsLinkedNone'))}</p>`;
             return;
@@ -1554,6 +1556,14 @@
     }
 
     function onBoardChanged() {
+        const appData = hooks.getAppData();
+        const cohort = selectedCohortId
+            ? (appData.cohorts || []).find((c) => c.id === selectedCohortId)
+            : null;
+        if (cohort) {
+            catalogDirty = false;
+            syncDraftFromData(cohort);
+        }
         renderSummary();
         renderCohortList();
         renderEditor();

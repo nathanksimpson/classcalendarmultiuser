@@ -215,37 +215,16 @@
 
     function getClassesInCohort(cohortId) {
         const appData = hooks.getAppData();
-        const cohort = (appData.cohorts || []).find((c) => c.id === cohortId);
-        if (cohort && hooks.syncClassCohortLinks) {
-            hooks.syncClassCohortLinks(cohort);
-        }
         const api = getApi();
-        const seen = new Set();
         const list = [];
         (appData.classes || []).forEach((c) => {
-            if (seen.has(c.id)) {
-                return;
-            }
             const inCohort = api
                 ? api.classHasCohortId(c, cohortId)
                 : normalizeStr(c.cohortId) === cohortId;
             if (inCohort) {
-                seen.add(c.id);
                 list.push(c);
             }
         });
-        if (cohort && Array.isArray(cohort.classIds)) {
-            cohort.classIds.forEach((classId) => {
-                if (seen.has(classId)) {
-                    return;
-                }
-                const cls = (appData.classes || []).find((c) => c.id === classId);
-                if (cls) {
-                    seen.add(classId);
-                    list.push(cls);
-                }
-            });
-        }
         return list;
     }
 
