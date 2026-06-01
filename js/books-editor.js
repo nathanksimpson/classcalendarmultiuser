@@ -780,6 +780,54 @@
         };
     }
 
+    function levelAllowedByApplicableLevels(applicable, levelTrim) {
+        if (!applicable) {
+            return false;
+        }
+        return applicable.isAllLevels
+            || !applicable.levels.length
+            || applicable.levels.includes(levelTrim);
+    }
+
+    function getBookFactoryLevelsForApplicability(book, isDebate) {
+        if (!book) {
+            return [];
+        }
+        if (isDebate) {
+            return book.levels && book.levels.length
+                ? book.levels.slice()
+                : getDebateDefaultApplicableLevels();
+        }
+        if (Array.isArray(book.factoryPresetLevels) && book.factoryPresetLevels.length) {
+            return book.factoryPresetLevels.slice();
+        }
+        return Array.isArray(book.levels) ? book.levels.slice() : [];
+    }
+
+    function bookVisibleForLevel(book, level, appData) {
+        const levelTrim = (level || '').trim();
+        if (!levelTrim) {
+            return true;
+        }
+        if (!book) {
+            return false;
+        }
+        if (book.isVirtualDebate) {
+            return levelSupportsDebateCurriculum(levelTrim, appData);
+        }
+        const isDebate = isDebateBookRecord(book);
+        const factoryLevels = getBookFactoryLevelsForApplicability(book, isDebate);
+        const applicable = getStoredApplicableLevels(book.id, appData, factoryLevels, isDebate);
+        if (!levelAllowedByApplicableLevels(applicable, levelTrim)) {
+            return false;
+        }
+        if (isDebate && global.CCPCurriculaData && global.CCPCurriculaData.resolveDebateHomeworkBand) {
+            const band = global.CCPCurriculaData.resolveDebateHomeworkBand(levelTrim);
+            return band != null && book.debateBand === band;
+        }
+        return true;
+    }
+
     function levelSupportsDebateCurriculum(level, appData) {
         const levelTrim = (level || '').trim();
         if (!levelTrim) {
@@ -794,41 +842,11 @@
             getDebateDefaultApplicableLevels(),
             true
         );
-        if (applicable.isAllLevels) {
-            return true;
-        }
-        if (!applicable.levels.length) {
-            return DEBATE_ELIGIBLE_LEVEL_IDS.has(levelTrim);
-        }
-        return applicable.levels.includes(levelTrim);
+        return levelAllowedByApplicableLevels(applicable, levelTrim);
     }
 
     function curriculumAppliesToLevel(book, level, appData) {
-        const levelTrim = (level || '').trim();
-        if (!levelTrim) {
-            return true;
-        }
-        if (!book) {
-            return false;
-        }
-        if (book.isVirtualDebate) {
-            return levelSupportsDebateCurriculum(levelTrim, appData);
-        }
-        if (isDebateBookRecord(book) && global.CCPCurriculaData && global.CCPCurriculaData.resolveDebateHomeworkBand) {
-            const band = global.CCPCurriculaData.resolveDebateHomeworkBand(levelTrim);
-            return band != null && book.debateBand === band;
-        }
-        const factoryLevels = Array.isArray(book.factoryPresetLevels)
-            ? book.factoryPresetLevels
-            : (book.levels || []);
-        const applicable = getStoredApplicableLevels(book.id, appData, factoryLevels, false);
-        if (!(applicable.isAllLevels || !applicable.levels.length || applicable.levels.includes(levelTrim))) {
-            return false;
-        }
-        if (!book.isCustom) {
-            return !!resolvePresetFromLevelAndBook(levelTrim, book.id, appData);
-        }
-        return true;
+        return bookVisibleForLevel(book, level, appData);
     }
 
     function getFactoryDebateSessions(level) {
@@ -900,7 +918,15 @@
         const levelTrim = (level || '').trim();
         const cid = (curriculumId || '').trim();
         if (isDebateCurriculum(cid) || cid === DEBATE_CURRICULUM_ID) {
-            if (!levelTrim || !levelSupportsDebateCurriculum(levelTrim, appData)) {
+            if (!levelTrim) {
+                return null;
+            }
+            const debateBook = getBookById(cid, appData);
+            if (debateBook && isDebateBookRecord(debateBook)) {
+                if (!bookVisibleForLevel(debateBook, levelTrim, appData)) {
+                    return null;
+                }
+            } else if (!levelSupportsDebateCurriculum(levelTrim, appData)) {
                 return null;
             }
             const presetId = resolveDebatePresetIdForLevel(levelTrim);
@@ -919,7 +945,7 @@
         }
         const customBook = getBookById(cid, appData);
         if (customBook && customBook.isCustom) {
-            if (levelTrim && customBook.levels.length && !customBook.levels.includes(levelTrim)) {
+            if (levelTrim && !bookVisibleForLevel(customBook, levelTrim, appData)) {
                 return null;
             }
             return getLevelOnlyPresetId(levelTrim || 'custom');
@@ -933,21 +959,24 @@
         });
         if (!matches.length && levelTrim) {
             const book = getBookById(cid, appData);
-            const factoryLevels = book && Array.isArray(book.factoryPresetLevels)
-                ? book.factoryPresetLevels
-                : [];
+            const factoryLevels = getBookFactoryLevelsForApplicability(book, false);
             const applicable = getStoredApplicableLevels(cid, appData, factoryLevels, false);
-            const levelAllowed = applicable.isAllLevels
-                || !applicable.levels.length
-                || applicable.levels.includes(levelTrim);
-            if (levelAllowed) {
+            if (levelAllowedByApplicableLevels(applicable, levelTrim)) {
                 if (bookPresets.length === 1) {
                     matches = bookPresets;
                 } else if (bookPresets.length > 1) {
-                    const cur = getCurriculumRecord(cid, appData);
-                    const defaultLv = cur && cur.classDefaults && cur.classDefaults.levelPreset;
-                    if (defaultLv) {
-                        matches = bookPresets.filter((p) => (p.level || '') === defaultLv);
+                    const exact = bookPresets.filter((p) => (p.level || '') === levelTrim);
+                    if (exact.length) {
+                        matches = exact;
+                    } else {
+                        const cur = getCurriculumRecord(cid, appData);
+                        const defaultLv = cur && cur.classDefaults && cur.classDefaults.levelPreset;
+                        if (defaultLv) {
+                            const byDefault = bookPresets.filter((p) => (p.level || '') === defaultLv);
+                            matches = byDefault.length ? byDefault : bookPresets;
+                        } else {
+                            matches = bookPresets;
+                        }
                     }
                 }
             }
@@ -1765,32 +1794,34 @@
         const adoptDefault = hooks.t(adoptLabelKey);
         mountEl.innerHTML = `
           <div class="books-editor-fullpage curriculum-editor-panel">
-            ${applicabilityHtml}
-            <div id="${metaId}" class="books-editor-meta"></div>
-            <p class="section-hint curriculum-editor-apply-hint" data-i18n="curriculumEditorApplyHint">On the class form, pick Level and Book, then Apply from curriculum.</p>
-            <div id="${toolbarId}" class="books-editor-toolbar">
-              <span data-i18n="booksEditorSessionsHeading">Sessions</span>
-              <button type="button" class="btn btn-outline btn-small" data-books-add-session data-i18n="booksEditorAddSession">Add session</button>
-            </div>
-            <div class="books-editor-table-wrap">
-              <table class="books-editor-table">
-                <thead><tr>
-                  <th class="books-col-num">#</th>
-                  <th data-i18n="booksEditorColPlan">Lesson plan</th>
-                  <th data-i18n="booksEditorColPages">Pages / detail</th>
-                  <th data-i18n="booksEditorColNote">Note</th>
-                  <th class="books-col-actions"><span class="sr-only">Remove</span></th>
-                </tr></thead>
-                <tbody id="${tbodyId}"></tbody>
-              </table>
-            </div>
-            <div class="form-actions books-editor-actions">
+            <div class="curriculum-editor-actions-bar form-actions books-editor-actions" role="toolbar" aria-label="Curriculum editor actions">
               <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${escapeHtml(resetDefault)}</button>
               ${showAdopt
         ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="${adoptLabelKey}">${escapeHtml(adoptDefault)}</button>`
         : ''}
               <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
               <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
+            </div>
+            <div class="curriculum-editor-body">
+              ${applicabilityHtml}
+              <div id="${metaId}" class="books-editor-meta"></div>
+              <p class="section-hint curriculum-editor-apply-hint" data-i18n="curriculumEditorApplyHint">On the class form, pick Level and Book, then Apply from curriculum.</p>
+              <div id="${toolbarId}" class="books-editor-toolbar">
+                <span data-i18n="booksEditorSessionsHeading">Sessions</span>
+                <button type="button" class="btn btn-outline btn-small" data-books-add-session data-i18n="booksEditorAddSession">Add session</button>
+              </div>
+              <div class="books-editor-table-wrap">
+                <table class="books-editor-table">
+                  <thead><tr>
+                    <th class="books-col-num">#</th>
+                    <th data-i18n="booksEditorColPlan">Lesson plan</th>
+                    <th data-i18n="booksEditorColPages">Pages / detail</th>
+                    <th data-i18n="booksEditorColNote">Note</th>
+                    <th class="books-col-actions"><span class="sr-only">Remove</span></th>
+                  </tr></thead>
+                  <tbody id="${tbodyId}"></tbody>
+                </table>
+              </div>
             </div>
           </div>`;
         if (typeof hooks.applyLanguage === 'function') {

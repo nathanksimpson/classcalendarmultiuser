@@ -341,4 +341,34 @@ assert(
     'Blue + RC book applies when curriculum allows multiple levels'
 );
 
+const debateRestrictData = { bookOverrides: {}, curriculumOverrides: {} };
+const debatePurpleRows = CCPBooksEditor.getTemplatesForBookId('debate-purple', {});
+CCPBooksEditor.saveBookTemplates('debate-purple', debatePurpleRows, debateRestrictData, {
+    applicableLevels: ['Purple']
+});
+const purpleOnlyDebate = CCPBooksEditor.getCurriculaForLevel('Purple', debateRestrictData).map((b) => b.id);
+assert(
+    purpleOnlyDebate.includes('debate-purple'),
+    'debate-purple listed for Purple when applicability is Purple only'
+);
+const yeoulDebateRestricted = CCPBooksEditor.getCurriculaForLevel('Yeoul', debateRestrictData).map((b) => b.id);
+assert(
+    !yeoulDebateRestricted.includes('debate-purple'),
+    'debate-purple hidden for Yeoul when applicability excludes Yeoul'
+);
+
+const writeNowRestrictData = { bookOverrides: {}, curriculumOverrides: {} };
+const writeNowFactoryRows = CCPBooksEditor.getTemplatesForBookId('write-now', {});
+CCPBooksEditor.saveBookTemplates('write-now', writeNowFactoryRows, writeNowRestrictData, {
+    applicableLevels: ['Green']
+});
+assert(
+    CCPBooksEditor.getCurriculaForLevel('Green', writeNowRestrictData).some((b) => b.id === 'write-now'),
+    'write-now listed for Green when restricted to Green'
+);
+assert(
+    !CCPBooksEditor.getCurriculaForLevel('Orange', writeNowRestrictData).some((b) => b.id === 'write-now'),
+    'write-now hidden for Orange when restricted to Green only'
+);
+
 console.log('books-editor.test.mjs: all passed');

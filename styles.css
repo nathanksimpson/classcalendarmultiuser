@@ -5637,7 +5637,56 @@ body[data-active-tab="events"] .app-term-quick-actions {
 
 .curriculum-editor-panel,
 .books-editor-fullpage.curriculum-editor-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 0;
     color: var(--text-primary);
+}
+
+#panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-actions-bar {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    flex-shrink: 0;
+    margin: -0.75rem -1rem 0;
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--border-color) 65%, transparent);
+}
+
+#panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    padding-top: 0.75rem;
+}
+
+#panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-actions-bar .btn-primary {
+    margin-left: auto;
+}
+
+@media (max-width: 520px) {
+    #panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-actions-bar {
+        justify-content: stretch;
+    }
+
+    #panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-actions-bar .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    #panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-actions-bar .btn-primary {
+        margin-left: 0;
+    }
 }
 
 #panel-curriculum .curriculum-tab-sidebar.workspace-books-sidebar,
@@ -7694,6 +7743,10 @@ body.workspace-page {
 .books-editor-fullpage .books-editor-table-wrap {
     overflow: auto;
     max-height: calc(100vh - 280px);
+}
+
+#panel-curriculum .books-editor-fullpage .books-editor-table-wrap {
+    max-height: calc(100vh - 340px);
 }
 
 .workspace-books-after-save {

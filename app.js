@@ -3671,6 +3671,7 @@ function initCurriculumTabPanel(options = {}) {
             idPrefix: 'curriculumTab',
             onSaved: (curriculumId) => {
                 refreshCurriculumTabList();
+                refreshAllClassCurriculumPickers();
                 if (!curriculumId) {
                     curriculumTabSelectedId = null;
                     mount.innerHTML = `<p class="module-empty-hint" data-i18n="curriculumTabPick">${escapeHtml(t('curriculumTabPick'))}</p>`;
