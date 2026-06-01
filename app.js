@@ -3155,7 +3155,7 @@ function initBooksEditorModule() {
                 populateClassTypeSelect();
             }
             refreshCurriculumTabList();
-            syncClassCurriculumBookSelect();
+            refreshAllClassCurriculumPickers();
         },
         navigateToCurriculumTab: (curriculumId) => {
             navigateToTab('curriculum', { curriculumId });
@@ -3249,6 +3249,14 @@ function setupClassCurriculumLevelSelect() {
     }
 }
 
+/** Rebuild class-form curriculum book dropdowns after curriculum tab saves. */
+function refreshAllClassCurriculumPickers() {
+    syncClassCurriculumBookSelect();
+    document.querySelectorAll('.class-teacher-row-curriculum').forEach((sel) => {
+        fillTeacherRowCurriculumSelect(sel, sel.value);
+    });
+}
+
 function syncClassCurriculumBookSelect() {
     const levelSel = document.getElementById('classCurriculumLevel');
     const bookSel = document.getElementById('classCurriculumBook');
@@ -3257,7 +3265,7 @@ function syncClassCurriculumBookSelect() {
     if (!levelSel || !bookSel) {
         return;
     }
-    const level = (levelSel.value || '').trim();
+    const level = getClassFormCurriculumLevel();
     const prevBook = bookSel.value;
     bookSel.innerHTML = '';
     if (!level) {
@@ -3369,7 +3377,7 @@ function syncClassCurriculumApplyState() {
     if (!levelSel || !bookSel || !applyBtn) {
         return;
     }
-    const level = (levelSel.value || '').trim();
+    const level = getClassFormCurriculumLevel();
     const curriculumId = (bookSel.value || '').trim();
     const editor = window.CCPBooksEditor;
     applyBtn.disabled = !level;
@@ -3581,7 +3589,7 @@ function applyCurriculumClassDefaultsToForm(curriculumId, presetId, levelFromPic
 }
 
 function handleApplyCurriculumToClass() {
-    const level = (document.getElementById('classCurriculumLevel')?.value || '').trim();
+    const level = getClassFormCurriculumLevel();
     const curriculumId = (document.getElementById('classCurriculumBook')?.value || '').trim();
     const editor = window.CCPBooksEditor;
     if (!editor) {
@@ -11033,6 +11041,7 @@ function navigateToTabBody(tabId, options = {}) {
                 renderClassNotesTab();
             } else {
                 mountClassForm('tab');
+                refreshAllClassCurriculumPickers();
                 renderClassList();
                 if (options.classId) {
                     const cls = appData.classes.find((c) => c.id === options.classId);
@@ -15231,6 +15240,11 @@ function handleClassLevelPresetChange() {
         elements.classGrade.value = def.grade;
     }
     applyDefaultSimsonLevelColorsToNewClassForm(elements.classLevel.value);
+    const curriculumLevelSel = document.getElementById('classCurriculumLevel');
+    if (curriculumLevelSel && elements.classLevel.value) {
+        curriculumLevelSel.value = elements.classLevel.value;
+    }
+    refreshAllClassCurriculumPickers();
 }
 
 function setupSimsonLevelControls() {

@@ -1480,11 +1480,15 @@
         if (levelEl && levelEl.value) {
             classDefaults.levelPreset = levelEl.value;
         }
-        return {
+        const out = {
             bookTitle: titleEl ? titleEl.value : undefined,
-            applicableLevels: getCheckedApplicableLevelIds(prefix),
             classDefaults
         };
+        const applicableLevels = getCheckedApplicableLevelIds(prefix);
+        if (applicableLevels !== null) {
+            out.applicableLevels = applicableLevels;
+        }
+        return out;
     }
 
     function renderApplicabilityPanelHtml(prefix, book, curriculumId, appData) {

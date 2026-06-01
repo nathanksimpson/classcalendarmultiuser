@@ -310,6 +310,17 @@ const badMatch = CCPBooksEditor.getCurriculumApplyEligibility(
 );
 assert(badMatch.reason === 'bookLevelMismatch' && !badMatch.ok, 'Blue level cannot use RC book without Blue in applicability');
 
+const factoryRows = CCPBooksEditor.getTemplatesForBookId('monster-phonics', {});
+assert(factoryRows.length > 0, 'Monster Phonics has factory session rows');
+const mpAppData = { bookOverrides: {}, curriculumOverrides: {} };
+CCPBooksEditor.saveBookTemplates('monster-phonics', factoryRows, mpAppData, {
+    applicableLevels: ['Red', 'Orange', 'Yellow']
+});
+assert(
+    CCPBooksEditor.getCurriculaForLevel('Orange', mpAppData).some((b) => b.id === 'monster-phonics'),
+    'saved applicability: Orange sees Monster Phonics on class form'
+);
+
 const multiLevelAppData = {
     bookOverrides: {},
     curriculumOverrides: {
