@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260601-debate-day-visible">
+    <link rel="stylesheet" href="styles.css?v=20260602-apply-curriculum-warnings">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,20 +109,30 @@
             </div>
 
             <div class="app-banner-stack">
+                <div id="setupGuideBanner" class="setup-guide-banner remote-newer-banner" hidden role="status">
+                    <p id="setupGuideBannerText" class="setup-guide-banner-text"></p>
+                    <button type="button" id="setupGuideBannerAction" class="btn btn-primary btn-small"></button>
+                    <button type="button" id="setupGuideBannerDismiss" class="btn btn-outline btn-small"></button>
+                </div>
                 <div id="openFromDriveBanner" class="open-from-drive-banner" style="display: none;" role="alert">
                     <strong data-i18n="openFromDriveTitle">Use the team link, not this file</strong>
                     <p data-i18n="openFromDriveHint">Open the app from your team URL in the browser — do not double-click index.html from a folder.</p>
                 </div>
 
-                <div id="hostEnginePanel" class="host-engine-panel" style="display: none;">
-                    <strong data-i18n="hostEngineTitle">Share this link with your team</strong>
-                    <p class="section-hint" data-i18n="hostEngineHint">Teachers open this URL in the browser to edit the same calendars. Keep the server running during school hours.</p>
-                    <label for="hostTeamUrlInput" data-i18n="hostTeamLinkLabel">Team link:</label>
-                    <div class="host-engine-link-row">
-                        <input type="text" id="hostTeamUrlInput" class="host-team-url-input" readonly>
-                        <button type="button" id="hostCopyTeamUrlBtn" class="btn btn-outline btn-small" data-i18n="hostCopyLink">Copy link</button>
+                <details id="hostEnginePanel" class="host-engine-panel" hidden>
+                    <summary class="host-engine-panel-summary">
+                        <span data-i18n="hostEngineTitle">Local team server — share this link</span>
+                        <button type="button" id="hostCopyTeamUrlBtnSummary" class="btn btn-outline btn-small host-engine-copy-summary" data-i18n="hostCopyLink">Copy link</button>
+                    </summary>
+                    <div class="host-engine-panel-body">
+                        <p class="section-hint" data-i18n="hostEngineHint">Teachers open this URL in the browser to edit the same calendars. Keep the server running during school hours.</p>
+                        <label for="hostTeamUrlInput" data-i18n="hostTeamLinkLabel">Team link:</label>
+                        <div class="host-engine-link-row">
+                            <input type="text" id="hostTeamUrlInput" class="host-team-url-input" readonly>
+                            <button type="button" id="hostCopyTeamUrlBtn" class="btn btn-outline btn-small" data-i18n="hostCopyLink">Copy link</button>
+                        </div>
                     </div>
-                </div>
+                </details>
 
             </div>
 
@@ -150,6 +160,7 @@
                         </div>
                         <div id="appTabSubnavSetup" class="app-tab-subnav-panel" role="tablist" aria-label="Setup sections" aria-hidden="true">
                             <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-calendar-setup" aria-selected="false" aria-controls="panel-calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
+                            <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-classes-setup" aria-selected="false" aria-controls="panel-classes" data-tab="classes" data-i18n="tabClasses">Classes</button>
                             <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-cohorts" aria-selected="false" aria-controls="panel-cohorts" data-tab="cohorts" data-i18n="tabCohorts">Cohorts</button>
                             <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-teachers" aria-selected="false" aria-controls="panel-teachers" data-tab="teachers" data-i18n="tabTeachers">Teachers</button>
                             <button type="button" class="app-tab-sub-btn" role="tab" id="tabBtn-curriculum" aria-selected="false" aria-controls="panel-curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Curriculum</button>
@@ -178,6 +189,63 @@
 
         <main class="app-main" id="appMain">
             <section id="panel-calendar" class="app-tab-panel is-active" data-tab="calendar" role="tabpanel" aria-labelledby="tabBtn-calendar-teaching">
+                <div id="calendarVisibilityDock" class="calendar-visibility-dock">
+                    <section id="calendarVisibilityBar" class="calendar-visibility-bar" aria-labelledby="toolbarVisibilityHeading">
+                        <h2 id="toolbarVisibilityHeading" class="calendar-visibility-bar__heading" data-i18n="calendarVisibility">Show on calendar:</h2>
+                        <div class="calendar-visibility-bar__controls">
+                            <label class="checkbox-label visibility-chip">
+                                <input type="checkbox" id="visLessons" checked>
+                                <span data-i18n="showLessons">Lessons</span>
+                            </label>
+                            <label class="checkbox-label visibility-chip">
+                                <input type="checkbox" id="visHolidays" checked>
+                                <span data-i18n="showHolidays">Holidays</span>
+                            </label>
+                            <label class="checkbox-label visibility-chip">
+                                <input type="checkbox" id="visEvalDeadline" checked>
+                                <span data-i18n="showEvalDeadlines">Evaluation deadlines</span>
+                            </label>
+                            <label class="checkbox-label visibility-chip">
+                                <input type="checkbox" id="visHomeworkDeadline" checked>
+                                <span data-i18n="showHomeworkDeadlines">Homework deadlines</span>
+                            </label>
+                            <label class="checkbox-label visibility-chip">
+                                <input type="checkbox" id="visEvalPeriod" checked>
+                                <span data-i18n="showEvalPeriods">Evaluation periods</span>
+                            </label>
+                            <label class="checkbox-label visibility-chip">
+                                <input type="checkbox" id="visOther" checked>
+                                <span data-i18n="showOtherEvents">Other events</span>
+                            </label>
+                            <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="lessonFilterBtn">Filter lessons…</button>
+                            <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
+                                <input type="checkbox" id="showAllClassCurricula">
+                                <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
+                            </label>
+                        </div>
+                    </section>
+                </div>
+                <div id="lessonFilterPopover" class="lesson-filter-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
+                    <div class="lesson-filter-popover-panel">
+                        <div class="lesson-filter-header">
+                            <h3 id="lessonFilterTitle" data-i18n="lessonFilterTitle">Filter lessons on calendar</h3>
+                            <button type="button" class="lesson-filter-close" id="lessonFilterCloseBtn" aria-label="Close">&times;</button>
+                        </div>
+                        <p id="lessonFilterStatus" class="lesson-filter-status"></p>
+                        <div class="lesson-filter-actions">
+                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterJustMineBtn" data-i18n="lessonFilterJustMine">Just my classes</button>
+                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
+                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterClearAllBtn" data-i18n="filterClearAll">Clear all</button>
+                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterResetBtn" data-i18n="lessonFilterReset">Reset filters</button>
+                        </div>
+                        <div class="lesson-filter-search-wrap">
+                            <input type="search" id="lessonFilterSearch" class="lesson-filter-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="lessonFilterSearchPlaceholder" placeholder="Search classes, grades, levels…">
+                        </div>
+                        <p id="lessonFilterSearchEmpty" class="lesson-filter-search-empty" hidden data-i18n="lessonFilterSearchEmpty">No matches. Try a different search.</p>
+                        <div id="lessonFilterPopoverBody" class="lesson-filter-body"></div>
+                    </div>
+                </div>
+
                 <div id="calendarOptions" class="calendar-options">
                 <button type="button" id="topBarToggle" class="app-top-bar-toggle calendar-options-toggle" aria-expanded="true" aria-controls="topBarDetails">
                     <span class="app-top-bar-toggle-icon" aria-hidden="true">▲</span>
@@ -210,61 +278,6 @@
                         <button type="button" id="dayNotesToolbarBtn" class="btn btn-outline btn-small" data-i18n="dayNotesToolbarBtn">Day notes</button>
                     </div>
                 </section>
-
-                <section id="calendarVisibilityBar" class="calendar-visibility-bar calendar-toolbar-section" aria-labelledby="toolbarVisibilityHeading">
-                    <h2 id="toolbarVisibilityHeading" class="calendar-toolbar-section__heading" data-i18n="calendarVisibility">Show on calendar:</h2>
-                    <div class="calendar-visibility-bar__controls">
-                        <label class="checkbox-label visibility-chip">
-                            <input type="checkbox" id="visLessons" checked>
-                            <span data-i18n="showLessons">Lessons</span>
-                        </label>
-                        <label class="checkbox-label visibility-chip">
-                            <input type="checkbox" id="visHolidays" checked>
-                            <span data-i18n="showHolidays">Holidays</span>
-                        </label>
-                        <label class="checkbox-label visibility-chip">
-                            <input type="checkbox" id="visEvalDeadline" checked>
-                            <span data-i18n="showEvalDeadlines">Evaluation deadlines</span>
-                        </label>
-                        <label class="checkbox-label visibility-chip">
-                            <input type="checkbox" id="visHomeworkDeadline" checked>
-                            <span data-i18n="showHomeworkDeadlines">Homework deadlines</span>
-                        </label>
-                        <label class="checkbox-label visibility-chip">
-                            <input type="checkbox" id="visEvalPeriod" checked>
-                            <span data-i18n="showEvalPeriods">Evaluation periods</span>
-                        </label>
-                        <label class="checkbox-label visibility-chip">
-                            <input type="checkbox" id="visOther" checked>
-                            <span data-i18n="showOtherEvents">Other events</span>
-                        </label>
-                        <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="lessonFilterBtn">Filter lessons…</button>
-                        <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
-                            <input type="checkbox" id="showAllClassCurricula">
-                            <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
-                        </label>
-                    </div>
-                </section>
-                <div id="lessonFilterPopover" class="lesson-filter-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
-                    <div class="lesson-filter-popover-panel">
-                        <div class="lesson-filter-header">
-                            <h3 id="lessonFilterTitle" data-i18n="lessonFilterTitle">Filter lessons on calendar</h3>
-                            <button type="button" class="lesson-filter-close" id="lessonFilterCloseBtn" aria-label="Close">&times;</button>
-                        </div>
-                        <p id="lessonFilterStatus" class="lesson-filter-status"></p>
-                        <div class="lesson-filter-actions">
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterJustMineBtn" data-i18n="lessonFilterJustMine">Just my classes</button>
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterClearAllBtn" data-i18n="filterClearAll">Clear all</button>
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterResetBtn" data-i18n="lessonFilterReset">Reset filters</button>
-                        </div>
-                        <div class="lesson-filter-search-wrap">
-                            <input type="search" id="lessonFilterSearch" class="lesson-filter-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="lessonFilterSearchPlaceholder" placeholder="Search classes, grades, levels…">
-                        </div>
-                        <p id="lessonFilterSearchEmpty" class="lesson-filter-search-empty" hidden data-i18n="lessonFilterSearchEmpty">No matches. Try a different search.</p>
-                        <div id="lessonFilterPopoverBody" class="lesson-filter-body"></div>
-                    </div>
-                </div>
             </div>
                 </div>
 
@@ -577,79 +590,67 @@
             </section>
 
             <section id="panel-cohorts" class="app-tab-panel" data-tab="cohorts" role="tabpanel" aria-labelledby="tabBtn-cohorts" hidden>
+                <details id="cohortsUsageTips" class="cohorts-usage-tips">
+                    <summary class="cohorts-usage-tips-summary">
+                        <span data-i18n="cohortsUsageTipsSummary">Cohort board — usage tips</span>
+                        <button type="button" id="cohortsUsageTipsDismiss" class="btn btn-outline btn-small cohorts-usage-tips-dismiss" data-i18n="cohortsUsageTipsDismiss">Don't show again</button>
+                    </summary>
+                    <div class="cohorts-usage-tips-body">
+                        <p class="section-hint" data-i18n="cohortsTabIntro">Classes on the left, teachers next, cohort board in the center. Drag to assign; click a cohort header to edit.</p>
+                        <p class="section-hint" data-i18n="setupBoardWorkflowHint">1) Drag classes into cohorts · 2) Drag teachers onto each class · 3) Check Homeroom host on one class per cohort.</p>
+                        <ul class="cohorts-usage-tips-list">
+                            <li data-i18n="setupBoardPoolHint">Drag into a cohort on the board, or back to All classes to unassign.</li>
+                            <li data-i18n="setupBoardDropTeacher">Drag a teacher onto a class card to assign.</li>
+                        </ul>
+                    </div>
+                </details>
                 <p id="cohortsTabCalendarName" class="section-hint cohort-management-calendar-name" hidden></p>
                 <div id="cohortManagementSummary" class="cohort-management-summary" role="status" hidden></div>
-                <div class="cohort-management-toolbar module-toolbar">
-                    <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
-                    <button type="button" id="cohortsImportBtn" class="btn btn-outline btn-compact" data-i18n="cohortsImportFromClasses">Import from existing classes</button>
-                    <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
-                </div>
-                <div class="cohort-management-layout module-split-layout">
-                    <aside class="module-list-panel cohort-management-list-panel" aria-label="Cohorts">
-                        <input type="search" id="cohortsListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts…">
-                        <div id="cohortsListSortMount" class="cohort-list-sort-mount"></div>
-                        <div id="cohortsListFilterChips" class="cohort-management-filter-chips"></div>
-                        <div id="cohortsList" class="module-list" role="listbox" aria-label="Student cohorts"></div>
-                    </aside>
-                    <div class="module-editor-panel cohort-management-editor-panel">
-                        <p id="cohortsEditorEmpty" class="module-empty-hint" data-i18n="cohortsEditorEmpty">Select a cohort from the list, or click + Add cohort.</p>
-                        <div id="cohortsEditorMount" class="cohort-management-editor" hidden></div>
+                <div class="cohorts-floating-toolbar" role="toolbar" aria-label="Cohort actions">
+                    <div class="cohorts-floating-toolbar-primary module-toolbar">
+                        <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
+                        <button type="button" id="cohortsImportBtn" class="btn btn-outline btn-compact" data-i18n="cohortsImportFromClasses">Import from existing classes</button>
+                        <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
                     </div>
-                    <aside class="module-list-panel cohort-management-linked-panel" aria-labelledby="cohortsLinkedHeading">
-                        <h3 id="cohortsLinkedHeading" class="cohort-management-linked-heading" data-i18n="cohortsLinkedHeading">Linked subject classes</h3>
-                        <div id="cohortsLinkedList" class="cohort-management-linked-list"></div>
+                    <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
+                        <span class="setup-board-view-label section-hint" data-i18n="setupBoardViewLabel">Board view</span>
+                        <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
+                        <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnTth" data-board-view="tth" data-i18n="setupBoardViewTth">Tue/Thu cohorts</button>
+                        <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnAll" data-board-view="all" data-i18n="setupBoardViewAll">View all</button>
+                    </div>
+                </div>
+                <div class="setup-board-layout">
+                    <aside class="module-list-panel setup-board-class-palette" aria-label="All classes">
+                        <h3 id="setupBoardPoolHeading" class="setup-board-section-heading" data-i18n="setupBoardAllClasses">All classes</h3>
+                        <div id="setupBoardPool" class="setup-board-pool" data-drop-zone="pool"></div>
                     </aside>
+                    <aside class="module-list-panel setup-board-teacher-palette" aria-label="Teachers">
+                        <h3 class="setup-board-section-heading" data-i18n="setupBoardTeachers">Teachers</h3>
+                        <input type="search" id="setupBoardTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
+                        <div id="setupBoardTeacherPalette" class="setup-board-teacher-palette"></div>
+                    </aside>
+                    <div class="setup-board-center">
+                        <div class="setup-board-cohort-nav module-list-panel" aria-label="Cohorts">
+                            <input type="search" id="cohortsListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts…">
+                            <div id="cohortsList" class="module-list setup-board-cohort-list" role="listbox" aria-label="Student cohorts"></div>
+                        </div>
+                        <div class="setup-board-main">
+                            <div id="setupBoardViewMwf" class="setup-board-canvas" data-board-canvas="mwf"></div>
+                            <div id="setupBoardViewTth" class="setup-board-canvas" data-board-canvas="tth" hidden></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <section id="panel-teachers" class="app-tab-panel" data-tab="teachers" role="tabpanel" aria-labelledby="tabBtn-teachers" hidden>
-                <p class="section-hint teachers-tab-intro" data-i18n="teachersTabIntro">Assign class schedules and homeroom cohorts to teachers. Changes save to this team calendar.</p>
-                <div class="teachers-tab-layout module-split-layout">
+                <p class="section-hint teachers-tab-intro" data-i18n="teachersTabIntro">Preview a teacher’s weekly timetable. Assign classes and homeroom on Setup → Cohorts.</p>
+                <div class="teachers-tab-layout module-split-layout teachers-tab-layout--preview">
                     <aside class="module-list-panel teachers-tab-teacher-panel" aria-label="Teachers">
                         <input type="search" id="teachersTabTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
                         <div id="teachersTabTeacherList" class="module-list" role="listbox" aria-label="Teachers"></div>
+                        <a href="#" id="teachersTabManageCohortsLink" class="btn btn-outline btn-small teachers-tab-manage-cohorts-link" data-i18n="teachersTabManageCohorts">Open Cohorts board</a>
                     </aside>
-                    <div class="module-editor-panel teachers-tab-assign-panel">
-                        <p id="teachersTabCatalogEmpty" class="module-empty-hint" hidden data-i18n="timetablePickTeacher">Select a teacher from the list.</p>
-                        <header class="teachers-tab-assign-header">
-                            <div class="teachers-tab-segments" role="tablist" aria-label="Assignment type">
-                                <button type="button" class="syllabus-segment-btn is-active" id="teachersTabSegmentCohorts" data-i18n="teachersTabSegmentCohorts">Homeroom cohorts</button>
-                                <button type="button" class="syllabus-segment-btn" id="teachersTabSegmentClasses" data-i18n="teachersTabSegmentClasses">Class schedules</button>
-                                <a href="#" id="teachersTabManageCohortsLink" class="btn btn-outline btn-small teachers-tab-manage-cohorts-link" data-i18n="teachersTabManageCohorts">Manage cohorts</a>
-                                <button type="button" id="teachersTabScrollToPreviewBtn" class="btn btn-outline btn-small teachers-tab-jump-preview-btn" hidden data-i18n="teachersTabScrollToPreview">Jump to preview</button>
-                            </div>
-                            <h3 id="teachersTabCatalogHeading" class="teachers-tab-catalog-heading" data-i18n="teachersTabCatalogCohorts">Homeroom cohorts</h3>
-                        </header>
-                        <p class="section-hint teachers-tab-homeroom-hint" data-i18n="teachersTabHomeroomHint">Homeroom (담임) is a cohort role for student contact — not the subject they teach. Use Class schedules for teaching assignments.</p>
-                        <div id="teachersTabDefaultCategoryWrap" class="teachers-tab-default-category">
-                            <label for="teachersTabDefaultCategory" data-i18n="teachersTabDefaultCategory">Default subject for newly checked classes</label>
-                            <select id="teachersTabDefaultCategory" class="teachers-tab-default-category-select field-select field-control--compact"></select>
-                        </div>
-                        <div class="lesson-filter-actions teachers-tab-catalog-actions">
-                            <button type="button" class="btn btn-outline btn-small" id="teachersTabCatalogSelectAll" data-i18n="filterSelectAll">Select all</button>
-                            <button type="button" class="btn btn-outline btn-small" id="teachersTabCatalogClearAll" data-i18n="filterClearAll">Clear all</button>
-                            <label class="checkbox-label selection-chip">
-                                <input type="checkbox" id="teachersTabUnassignedOnly">
-                                <span data-i18n="teachersTabUnassignedOnly">Show unassigned only</span>
-                            </label>
-                        </div>
-                        <div id="teachersTabCatalogToolbar" class="teachers-tab-catalog-toolbar">
-                            <label class="teachers-tab-catalog-control">
-                                <span data-i18n="teachersTabCatalogSortLabel">Sort</span>
-                                <select id="teachersTabCatalogSort" class="teachers-tab-catalog-select field-select field-control--compact"></select>
-                            </label>
-                            <label class="teachers-tab-catalog-control">
-                                <span data-i18n="teachersTabCatalogCategoryLabel">Category</span>
-                                <select id="teachersTabCatalogCategoryFilter" class="teachers-tab-catalog-select field-select field-control--compact"></select>
-                            </label>
-                        </div>
-                        <input type="search" id="teachersTabCatalogSearch" class="module-list-search teachers-tab-catalog-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
-                        <div id="teachersTabCatalogBody" class="lesson-filter-chip-grid teachers-tab-catalog-body"></div>
-                        <div class="teachers-tab-apply-row">
-                            <button type="button" id="teachersTabApplyBtn" class="btn btn-primary btn-small" data-i18n="teachersTabApply">Apply assignments</button>
-                        </div>
-                    </div>
-                    <section id="teachersTabPreviewSection" class="teachers-tab-preview-section" aria-label="Timetable preview">
+                    <section id="teachersTabPreviewSection" class="teachers-tab-preview-section teachers-tab-preview-section--main" aria-label="Timetable preview">
                         <header class="teachers-tab-preview-header">
                             <h3 class="teachers-tab-preview-heading" data-i18n="teachersTabPreviewHeading">Weekly timetable preview</h3>
                             <div class="teachers-tab-preview-actions">
@@ -788,6 +789,20 @@
     <div id="classModal" class="modal calendar-popout" role="dialog" aria-modal="true" aria-labelledby="classModalTitle" aria-hidden="true">
         <div class="modal-content class-modal-content calendar-popout-content">
             <div id="classFormMountModal" class="class-form-mount"></div>
+        </div>
+    </div>
+
+    <div id="cohortEditorModal" class="modal cohort-editor-modal" role="dialog" aria-modal="true" aria-labelledby="cohortEditorModalTitle" aria-hidden="true">
+        <div class="modal-content modal-content--scrollable cohort-editor-modal-content">
+            <div class="modal-header">
+                <h2 id="cohortEditorModalTitle" data-i18n="cohortEditorModalTitle">Edit cohort</h2>
+                <button type="button" class="modal-close" id="closeCohortEditorModal" aria-label="Close">&times;</button>
+            </div>
+            <div id="cohortEditorToolbar" class="cohort-editor-toolbar cohort-management-actions" hidden></div>
+            <div class="modal-body-scroll">
+                <p id="cohortsEditorEmpty" class="module-empty-hint" hidden data-i18n="cohortsEditorEmpty">Select a cohort from the list, or click + Add cohort.</p>
+                <div id="cohortsEditorMount" class="cohort-management-editor"></div>
+            </div>
         </div>
     </div>
 <div id="syncToast" class="sync-toast" role="status" aria-live="polite" aria-hidden="true"></div>
@@ -1099,7 +1114,7 @@
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260605-boot-nav"></script>
     <script defer src="js/template-loader.js?v=20260602-connecting-fix"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260602-tab-fast"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260612-lesson-filter"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-custom-adopted-quiet"></script>
     <script defer src="js/view-as-banner.js?v=20260605-viewas-notes"></script>
     <script defer src="js/team-auth.js?v=20260601-role-palette"></script>
@@ -1110,7 +1125,7 @@
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260605-daynotes-sync"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260601-debate-day-visible"></script>
+    <script defer src="app.js?v=20260602-apply-curriculum-warnings"></script>
 </body>
 </html>
 

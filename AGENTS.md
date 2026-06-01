@@ -6,13 +6,44 @@ Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps
 
 | | |
 |--|--|
-| **Folder** | `f:\Calendar App Multi User` |
+| **Folder** | `G:\Other computers\내 컴퓨터\Class Calendar Multi-User` |
 | **NOT** | `f:\Calendar App` (single-user, no team sync) |
 | **GitHub** | https://github.com/nathanksimpson/classcalendarmultiuser |
 | **Live** | https://classcalendarmultiuser.nathanksimpson.workers.dev |
 | **Branch** | `main` |
+| **Local copy** | Google Drive folder (`G:\Other computers\내 컴퓨터\…`) — syncs files between home and work PCs |
+| **Code source of truth** | GitHub `main` — use `git pull` / `git push`, not Drive alone |
+| **Live features** | Production URL after `npm run deploy` — may differ from an unsynced Drive copy |
 
-After starting a session: `git pull origin main` in the project folder.
+After starting a session: `git pull origin main` in the project folder (on **whichever PC** you are using). Do not assume the Drive folder matches production until you pull and/or compare with the live site.
+
+## Google Drive sync (home ↔ work)
+
+The repo lives in a **Google Drive for Desktop** folder so the same project files appear on home and work computers. Drive copies **files**; it does **not** deploy the app and is **not** a substitute for Git.
+
+| What Drive does | What it does *not* do |
+|-----------------|------------------------|
+| Copy edited source files between PCs | Update https://classcalendarmultiuser.nathanksimpson.workers.dev |
+| Help you open the same folder in Cursor on either machine | Replace `git pull` / `git push` |
+| | Keep `node_modules` reliable (re-run `npm install` after switching PCs if needed) |
+
+**Deployed features can differ from your folder:** production only changes when someone runs `npm run deploy` (or CI deploys). One PC may have newer **live** features while the Drive copy is older, or vice versa, if deploy/push/pull were done on only one machine. Treat **GitHub `main` + last deploy** as the checklist for “what should be live,” not “whatever Drive last synced.”
+
+**Recommended session start (each PC):**
+
+1. Wait for Google Drive to finish syncing (check the Drive icon — no “syncing” spinner).
+2. `cd` to the project folder (path above).
+3. `git pull origin main` — get the latest committed code (overrides stale Drive-only state).
+4. If `package.json` changed: `npm install`.
+5. `npm start` → test at http://localhost:8080 before deploying.
+
+**End of session:** `git commit` + `git push origin main` when changes are ready; run `npm run deploy` from **one** machine when you want production updated. Pushing to GitHub backs up code; deploy updates the live site.
+
+**Drive pitfalls:**
+
+- **Two PCs editing at once** — can create conflict copies (`app (1).js`). Close the project on one PC while editing on the other when possible.
+- **Do not rely on Drive for `.env`, `data/`, `node_modules/`, `.wrangler/`** — keep `.env` per machine (or secure copy manually); DB and installs are local. These should stay gitignored.
+- **Old path** `f:\Calendar App Multi User` — retired; use the Drive path only.
 
 ## Local preview (required for real data)
 
@@ -86,7 +117,8 @@ Stopping local dev does **not** affect the production Cloudflare worker.
 
 ## Suggested first steps
 
-1. `git pull origin main`
-2. Read lock routes in `worker/src/index.js` and polling in `js/calendar-sync.js`
-3. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
-4. Match worker + server; bump `index.html` cache strings; `npm run deploy`
+1. Confirm Drive finished syncing; `git pull origin main`
+2. Compare behavior with **production** if the user reports “deployed features changed” — folder may lag until pull/deploy
+3. Read lock routes in `worker/src/index.js` and polling in `js/calendar-sync.js`
+4. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
+5. Match worker + server; bump `index.html` cache strings; `npm run deploy` from one PC, then `git push`

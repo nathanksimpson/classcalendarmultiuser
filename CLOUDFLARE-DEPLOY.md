@@ -48,7 +48,7 @@ Follow these steps once, then push to GitHub to redeploy.
 
 ## Step 2 — Put the ID in `wrangler.toml`
 
-1. On your PC, open `f:\Calendar App Multi User\wrangler.toml`.
+1. On your PC, open `G:\Other computers\내 컴퓨터\Class Calendar Multi-User\wrangler.toml`.
 2. Find this line:
 
    ```toml
@@ -72,7 +72,7 @@ Follow these steps once, then push to GitHub to redeploy.
 On your PC, in PowerShell:
 
 ```powershell
-cd "f:\Calendar App Multi User"
+cd "G:\Other computers\내 컴퓨터\Class Calendar Multi-User"
 npx wrangler login
 npx wrangler d1 migrations apply calendar-team --remote
 ```
@@ -98,7 +98,7 @@ Type each value when prompted (nothing appears on screen — that is normal).
 ## Step 5 — Commit and push
 
 ```powershell
-cd "f:\Calendar App Multi User"
+cd "G:\Other computers\내 컴퓨터\Class Calendar Multi-User"
 git add wrangler.toml CLOUDFLARE-DEPLOY.md worker/src/index.js .assetsignore
 git commit -m "Fix Cloudflare deploy: D1 id, static assets, setup doc"
 git push

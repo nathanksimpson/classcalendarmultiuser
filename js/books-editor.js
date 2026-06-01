@@ -914,6 +914,95 @@
         return discoverBooks(appData).filter((book) => curriculumAppliesToLevel(book, levelTrim, appData));
     }
 
+    function presetHasSyllabusTemplatesForApply(curriculumId, presetId, appData) {
+        const cid = (curriculumId || '').trim();
+        const pid = (presetId || '').trim();
+        if (!pid) {
+            return false;
+        }
+        if (isNoBookCurriculum(cid)) {
+            return false;
+        }
+        if (isDebateCurriculum(cid) || isCustomCurriculum(cid, appData)) {
+            const tpl = getTemplatesForBookId(cid, appData);
+            return Array.isArray(tpl) && tpl.length > 0;
+        }
+        const factory = getFactoryPresetById(pid);
+        const templates = factory && factory.defaultSyllabusRowTemplates;
+        return Array.isArray(templates) && templates.length > 0;
+    }
+
+    /**
+     * Whether Apply from curriculum can run and why not.
+     * @returns {{ ok: boolean, presetId: string|null, bookCount: number, reason: string, hasSyllabusTemplates: boolean, needsConfirm: boolean }}
+     */
+    function getCurriculumApplyEligibility(level, curriculumId, appData) {
+        const levelTrim = (level || '').trim();
+        const cid = (curriculumId || '').trim();
+        const bookCount = levelTrim ? getCurriculaForLevel(levelTrim, appData).length : 0;
+        const base = {
+            ok: false,
+            presetId: null,
+            bookCount,
+            reason: 'noLevel',
+            hasSyllabusTemplates: false,
+            needsConfirm: false
+        };
+
+        if (!levelTrim) {
+            return base;
+        }
+        if (!cid) {
+            return { ...base, reason: 'noBookSelected' };
+        }
+
+        if (isDebateCurriculum(cid) || cid === DEBATE_CURRICULUM_ID) {
+            if (!levelSupportsDebateCurriculum(levelTrim, appData)) {
+                return { ...base, reason: 'debateNotSupported' };
+            }
+        }
+
+        const presetId = resolvePresetFromLevelAndBook(levelTrim, cid, appData);
+        const noBook = isNoBookCurriculum(cid);
+
+        if (noBook && bookCount === 0) {
+            if (!presetId) {
+                return {
+                    ...base,
+                    reason: 'noBooksForLevel',
+                    needsConfirm: false
+                };
+            }
+            return {
+                ok: true,
+                presetId,
+                bookCount,
+                reason: 'noBooksForLevel',
+                hasSyllabusTemplates: false,
+                needsConfirm: true
+            };
+        }
+
+        if (!presetId) {
+            return {
+                ...base,
+                presetId: null,
+                reason: noBook ? 'noBooksForLevel' : 'bookLevelMismatch',
+                needsConfirm: false
+            };
+        }
+
+        const hasSyllabusTemplates = presetHasSyllabusTemplatesForApply(cid, presetId, appData);
+        return {
+            ok: true,
+            presetId,
+            bookCount,
+            reason: hasSyllabusTemplates ? 'ok' : 'noSyllabusTemplates',
+            hasSyllabusTemplates,
+            needsConfirm: false
+        };
+    }
+
     function buildMergedClassDefaults(curriculumId, presetId, appData, level) {
         const levelTrim = (level || '').trim();
         if (isDebateCurriculum(curriculumId) && levelTrim) {
@@ -1858,6 +1947,8 @@
         getStoredApplicableLevels,
         resolvePresetFromLevelAndBook,
         getCurriculaForLevel,
+        getCurriculumApplyEligibility,
+        presetHasSyllabusTemplatesForApply,
         getCurriculumDisplayName,
         buildMergedClassDefaults,
         isCustomCurriculum,

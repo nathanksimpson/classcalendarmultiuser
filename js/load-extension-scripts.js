@@ -11,7 +11,7 @@
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260602-curriculum-search',
+        'js/books-editor.js?v=20260602-apply-eligibility',
         'js/homework-import.js',
         'js/homework-tab.js?v=20260531-hw-seq',
         'js/syllabus-templates.js?v=20260531-seq-compress'

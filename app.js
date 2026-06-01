@@ -195,6 +195,7 @@ const translations = {
         lessonFilterNoBook: '(no default book)',
         lessonFilterNoTeacher: '(no teacher assigned)',
         lessonFilterJustMine: 'Just my classes',
+        lessonFilterJustMineUnavailable: 'Sign in to filter to your classes, or assign your account on the Teachers tab.',
         lessonFilterBtnActive: 'Filter lessons ({visible}/{total})',
         lessonFilterSearchPlaceholder: 'Search classes, grades, levels, teachers…',
         lessonFilterSearchEmpty: 'No matches. Try a different search.',
@@ -213,10 +214,54 @@ const translations = {
         tabGroupTeaching: 'Teaching',
         tabGroupSetup: 'Setup',
         headerMySchedule: 'My schedule',
-        setupBannerText: 'Create student cohorts first, then assign subjects and teachers in Setup.',
+        setupBannerText: 'Create student cohorts first on the Setup tab → Cohorts, then assign classes and teachers.',
         setupBannerAction: 'Create cohorts',
         setupBannerDismiss: 'Dismiss',
-        cohortsTabIntro: 'Create student cohorts first, then assign subjects and schedules. Cohorts belong to this calendar only.',
+        setupBoardViewMwf: 'MWF cohorts',
+        setupBoardViewTth: 'Tue/Thu cohorts',
+        setupBoardViewAll: 'View all',
+        setupBoardEmptyAll: 'No cohorts yet. Click + Add cohort.',
+        setupBoardEmptyMwf: 'No Mon/Wed/Fri cohorts on this board view. Click + Add cohort, or switch to Tue/Thu cohorts.',
+        setupBoardEmptyTth: 'No Tue/Thu cohorts on this board view. Click + Add cohort, or switch to MWF cohorts.',
+        setupBoardOtherViewHint: '{n} cohort(s) on the {view} board view — switch view',
+        setupBoardViewLabel: 'Board view',
+        setupBoardUnassigned: 'Unassigned classes',
+        setupBoardAllClasses: 'All classes',
+        setupBoardPoolHint: 'Drag into a cohort on the board, or back here to unassign.',
+        setupBoardTeachersApiMissing: 'Could not assign teacher — refresh the page (Ctrl+F5) and try again.',
+        setupBoardTeacherAlreadyAssigned: 'That teacher is already assigned to this class.',
+        cohortEditorModalTitle: 'Edit cohort: {name}',
+        cohortEditorModalTitleNew: 'New cohort',
+        setupBoardWorkflowHint: '1) Drag classes into cohorts · 2) Drag teachers onto each class · 3) Check Homeroom host on one class per cohort.',
+        setupBoardTeacherDropLabel: 'Teachers (drag here)',
+        setupBoardDropClass: 'Drag classes into a cohort below.',
+        setupBoardDropTeacher: 'Drag onto a class card to assign.',
+        setupBoardDropTeacherHere: 'Drop teacher here',
+        setupBoardTeachers: 'Teachers',
+        setupBoardHomeroomHost: 'Homeroom host',
+        setupBoardDragClass: 'Drag to move class',
+        setupBoardHomeroomHostHint: 'Sets 담임 from the first teacher on this class.',
+        setupBoardEmptyCohort: 'Drop classes here',
+        setupBoardAssignTeacherFirst: 'Assign a teacher before setting homeroom host.',
+        setupBoardOpenClass: 'Edit class',
+        setupBoardRemoveFromCohort: 'Remove from cohort',
+        setupBoardClassMenu: 'Class actions',
+        setupBoardClassMenuPrompt: 'Enter 1 to edit class, 2 to remove from cohort',
+        setupBoardCohortDays: 'Cohort days',
+        setupBoardClassDays: 'Class days',
+        setupBoardClassDaysOutside: 'This class meets on a day outside this cohort’s schedule (e.g. cohort is Tue/Thu but class includes Monday).',
+        setupBoardPatternMwf: 'MWF',
+        setupBoardPatternTth: 'Tue/Thu',
+        setupBoardEditDays: 'Days',
+        setupBoardPoolEmpty: 'All classes are linked to a cohort.',
+        setupBoardPoolNoClasses: 'No classes on this calendar yet. Add classes under Setup → Classes.',
+        setupBoardPoolUnassigned: 'Not in any cohort — drag into a cohort below',
+        setupBoardPoolLinked: 'Already in a cohort (drag to move or add to another)',
+        setupBoardRenderError: 'Could not draw the setup board. Hard refresh (Ctrl+F5) and try again.',
+        setupBoardCohortRenderPartial: 'Some cohort cards could not be drawn. Check the browser console (F12), then refresh.',
+        cohortsUsageTipsSummary: 'Cohort board — usage tips',
+        cohortsUsageTipsDismiss: "Don't show again",
+        cohortsTabIntro: 'Classes on the left, teachers next, cohort board in the center. Drag to assign; click a cohort header to edit.',
         cohortsEditorEmpty: 'Select a cohort from the list, or click + Add cohort.',
         cohortsLinkedHeading: 'Linked subject classes',
         cohortsLinkedEmpty: 'Select a cohort to see linked classes.',
@@ -224,6 +269,10 @@ const translations = {
         cohortsImportFromClasses: 'Import from existing classes',
         cohortsListSearchPlaceholder: 'Search cohorts…',
         cohortsFilterAll: 'All',
+        cohortsFilterLabel: 'List filter',
+        cohortsListFilterEmpty: 'No cohorts match this filter. Click All, or set each cohort’s schedule pattern in the editor below.',
+        cohortsPatternInferred: 'inferred',
+        cohortsDraftEditHint: 'Add a name and level below, then click Save cohort.',
         cohortStatusDraft: 'Draft',
         cohortStatusSchedule: 'Schedule',
         cohortStatusPending: 'Subjects pending',
@@ -279,10 +328,11 @@ const translations = {
         classAddFromCohortPrompt: 'Create classes from a cohort (recommended) or add a blank class for advanced setup?',
         classAddFromCohortBtn: 'From cohort',
         classAddBlankClassBtn: 'Blank class',
-        teachersTabManageCohorts: 'Manage cohorts',
+        teachersTabManageCohorts: 'Open Cohorts board',
         teachersTabUnassignedCohort: 'No cohort',
         teachersTabCohortsEmpty: 'No cohorts yet. Add cohorts on the Cohorts tab.',
-        teachersTabIntro: 'Assign class schedules and homeroom cohorts to teachers. Changes save to this team calendar.',
+        teachersTabIntro: 'Preview a teacher’s weekly timetable. Assign classes and homeroom on Setup → Cohorts.',
+        classCohortAlsoLinked: 'Also linked to: {names}. Manage on Cohorts tab.',
         teachersTabSegmentClasses: 'Class schedules',
         teachersTabSegmentCohorts: 'Homeroom cohorts',
         teachersTabCatalogClasses: 'Class schedules',
@@ -375,6 +425,14 @@ const translations = {
         applyCurriculumToClass: 'Apply from curriculum',
         applyCurriculumConfirm: 'Replace class settings from the selected curriculum? Class name and dates are kept.',
         applyCurriculumNoMatch: 'Select a level (and book, or “No book”).',
+        applyCurriculumNoLevel: 'Select a level first, then choose a book (or “No book”).',
+        applyCurriculumNoBookSelected: 'Select a book (or “No book”) for this level.',
+        applyCurriculumNoBooksForLevel: 'No curriculum books are available for level “{level}”. RC and other lesson plans only apply when a book matches this level.',
+        applyCurriculumNoBooksHint: 'No curriculum books for this level. Apply will use generic defaults only (no lesson-plan pages).',
+        applyCurriculumNoBooksConfirm: 'No curriculum books exist for level “{level}”. Apply generic class defaults only (no syllabus pages)?',
+        applyCurriculumBookLevelMismatch: '“{book}” is not available for level “{level}”. Pick a book from the list for that level.',
+        applyCurriculumDebateNotForLevel: 'Debate curriculum is not available for level “{level}”.',
+        applyCurriculumNoSyllabusPages: 'Class settings were applied, but this book has no lesson-plan pages yet. Add pages under Curriculum or pick another book.',
         applyCurriculumPreview: 'Will apply: book “{book}”, {lessons} lessons.',
         applyCurriculumPreviewNoBook: 'Will apply: level “{level}”, {lessons} lessons (no book; blank syllabus pages).',
         editCurriculumForBook: 'Edit curriculum',
@@ -657,7 +715,7 @@ const translations = {
         classTeacherCategory: 'Subject taught',
         classTeacherCategoryAuto: 'Auto from class type',
         classHomeroomLabel: 'Homeroom teacher (담임)',
-        classHomeroomLabelNone: 'No homeroom teacher for this cohort. Set 담임 on Timetable → Student cohorts.',
+        classHomeroomLabelNone: 'No homeroom teacher for this cohort. Mark a homeroom host class on Setup → Cohorts.',
         classHomeroomLabelFromCohort: 'Homeroom (담임): {name} — student contact and retests. If they also teach this class, add them above with the subject they teach.',
         timetableCellHomeroom: '담임',
         classCohort: 'Student cohort',
@@ -710,7 +768,7 @@ const translations = {
         timetableCohortSaved: 'Cohort saved.',
         timetableCohortsSuggested: 'Suggested {n} cohort(s). Review and save homeroom teachers.',
         timetableMySchedule: 'My schedule',
-        timetableCohortsEmpty: 'No cohorts yet. Go to Setup → Cohorts and click Add cohort.',
+        timetableCohortsEmpty: 'No cohorts on this calendar. Open the Setup tab → Cohorts, then click + Add cohort.',
         timetableHomeroomCohortsHeading: 'Homeroom cohorts on this schedule',
         timetableHomeroomCohortClasses: '{n} classes',
         classTeacherCurriculum: 'Curriculum (this teacher)',
@@ -1166,6 +1224,7 @@ const translations = {
         lessonFilterNoBook: '(기본 교재 없음)',
         lessonFilterNoTeacher: '(배정된 선생님 없음)',
         lessonFilterJustMine: '내 수업만',
+        lessonFilterJustMineUnavailable: '내 수업만 보려면 로그인하거나 Teachers 탭에서 계정을 연결하세요.',
         lessonFilterBtnActive: '수업 필터 ({visible}/{total})',
         lessonFilterSearchPlaceholder: '수업, 학년, 레벨, 선생님 검색…',
         lessonFilterSearchEmpty: '일치하는 항목이 없습니다. 다른 검색어를 입력해 보세요.',
@@ -1184,10 +1243,60 @@ const translations = {
         tabGroupTeaching: '수업',
         tabGroupSetup: '설정',
         headerMySchedule: '내 시간표',
-        setupBannerText: '먼저 학생 반을 만든 다음, 설정에서 과목과 선생님을 배정하세요.',
+        setupBannerText: '먼저 설정 탭 → 반 관리에서 학생 반을 만든 다음, 수업과 선생님을 배정하세요.',
         setupBannerAction: '반 만들기',
         setupBannerDismiss: '닫기',
-        cohortsTabIntro: '먼저 학생 반을 만든 다음 과목과 시간표를 배정하세요. 반은 이 캘린더에만 속합니다.',
+        setupBoardViewMwf: '월수금 반',
+        setupBoardViewTth: '화목 반',
+        setupBoardViewAll: '전체 보기',
+        setupBoardEmptyAll: '반이 없습니다. + 반 추가를 클릭하세요.',
+        setupBoardEmptyMwf: '이 보기에 월수금 반이 없습니다. + 반 추가를 클릭하거나 화목 보기로 전환하세요.',
+        setupBoardEmptyTth: '이 보기에 화목 반이 없습니다. + 반 추가를 클릭하거나 월수금 보기로 전환하세요.',
+        setupBoardOtherViewHint: '{view} 보기에 반 {n}개 — 보기 전환',
+        setupBoardViewLabel: '보드 보기',
+        cohortsFilterLabel: '목록 필터',
+        cohortsListFilterEmpty: '이 필터에 맞는 반이 없습니다. 전체를 선택하거나 아래 편집기에서 요일 패턴을 설정하세요.',
+        cohortsPatternInferred: '추정',
+        cohortsDraftEditHint: '아래에 이름과 레벨을 입력한 뒤 반 저장을 클릭하세요.',
+        setupBoardUnassigned: '미배정 수업',
+        setupBoardAllClasses: '전체 수업',
+        setupBoardPoolHint: '가운데 반으로 끌거나, 여기로 끌어 연결을 해제하세요.',
+        setupBoardTeachersApiMissing: '선생님을 배정할 수 없습니다. 새로고침(Ctrl+F5) 후 다시 시도하세요.',
+        setupBoardTeacherAlreadyAssigned: '이 수업에 이미 배정된 선생님입니다.',
+        cohortEditorModalTitle: '반 편집: {name}',
+        cohortEditorModalTitleNew: '새 반',
+        setupBoardWorkflowHint: '1) 수업을 반으로 끌기 · 2) 각 수업 카드에 선생님 끌기 · 3) 반마다 담임 대표 수업 하나 선택',
+        setupBoardTeacherDropLabel: '선생님 (여기에 놓기)',
+        setupBoardDropClass: '아래 반으로 수업을 끌어다 놓으세요.',
+        setupBoardDropTeacher: '수업 카드에 선생님을 끌어다 놓으세요.',
+        setupBoardDropTeacherHere: '선생님을 여기에',
+        setupBoardTeachers: '선생님',
+        setupBoardHomeroomHost: '담임 대표 수업',
+        setupBoardHomeroomHostHint: '이 수업의 첫 번째 선생님이 반 담임이 됩니다.',
+        setupBoardDragClass: '수업 끌어 이동',
+        setupBoardEmptyCohort: '수업을 여기에 놓으세요',
+        setupBoardAssignTeacherFirst: '담임을 지정하려면 먼저 선생님을 배정하세요.',
+        setupBoardOpenClass: '수업 편집',
+        setupBoardRemoveFromCohort: '반에서 제거',
+        setupBoardClassMenu: '수업 메뉴',
+        setupBoardClassMenuPrompt: '1=수업 편집, 2=반에서 제거',
+        setupBoardClassDaysOutside: '이 수업은 반 일정에 없는 요일이 포함되어 있습니다 (예: 반은 화·목인데 수업에 월요일이 있음).',
+        setupBoardPatternMwf: '월수금',
+        setupBoardPatternTth: '화목',
+        setupBoardEditDays: '요일',
+        setupBoardPoolEmpty: '모든 수업이 반에 연결되어 있습니다.',
+        setupBoardPoolNoClasses: '이 캘린더에 수업이 없습니다. 설정 → 수업에서 수업을 추가하세요.',
+        setupBoardPoolUnassigned: '반 없음 — 아래 반으로 끌어다 놓으세요',
+        setupBoardPoolLinked: '이미 반에 연결됨 (끌어서 이동·추가 가능)',
+        setupBoardRenderError: '설정 보드를 그리지 못했습니다. Ctrl+F5로 새로고침하세요.',
+        setupBoardCohortRenderPartial: '일부 반 카드를 그릴 수 없습니다. 브라우저 콘솔(F12)을 확인한 뒤 새로고침하세요.',
+        cohortsUsageTipsSummary: '반 보드 — 사용 안내',
+        cohortsUsageTipsDismiss: '다시 표시 안 함',
+        cohortsTabIntro: '왼쪽 수업, 그 다음 선생님, 가운데 반 보드입니다. 끌어 배정하고, 반 제목 줄을 클릭해 편집하세요.',
+        teachersTabIntro: '선생님 주간 시간표 미리보기. 수업·담임 배정은 설정 → 반 관리에서 하세요.',
+        teachersTabManageCohorts: '반 관리 보드 열기',
+        classCohortAlsoLinked: '다른 반에도 연결됨: {names}. 반 관리 탭에서 수정.',
+        classHomeroomLabelNone: '이 반에 담임이 없습니다. 설정 → 반 관리에서 담임 대표 수업을 지정하세요.',
         cohortsEditorEmpty: '목록에서 반을 선택하거나 + 반 추가를 클릭하세요.',
         cohortsSectionClassAssignment: '수업 연결',
         cohortsClassAssignmentHint: '이 학생 반에 속한 수업을 선택한 뒤 적용하세요. 한 수업에 여러 반을 연결할 수 있습니다(합반).',
@@ -1216,9 +1325,7 @@ const translations = {
         cohortsLinkedHeading: '연결된 과목 수업',
         cohortsImportFromClasses: '기존 수업에서 가져오기',
         cohortsGenerateSubjects: '과목 수업 생성',
-        teachersTabManageCohorts: '반 관리',
         teachersTabUnassignedCohort: '반 없음',
-        teachersTabIntro: '수업 일정과 담임 반을 선생님에게 일괄 배정합니다. 저장 시 이 팀 캘린더에 반영됩니다.',
         teachersTabSegmentClasses: '수업 일정',
         teachersTabSegmentCohorts: '담임 반',
         teachersTabCatalogClasses: '수업 일정',
@@ -1312,6 +1419,14 @@ const translations = {
         applyCurriculumToClass: '교재과정에서 적용',
         applyCurriculumConfirm: '선택한 교재과정으로 수업 설정을 바꿀까요? 수업 이름과 날짜는 유지됩니다.',
         applyCurriculumNoMatch: '레벨을 선택하세요 (교재 또는 “교재 없음”).',
+        applyCurriculumNoLevel: '먼저 레벨을 선택한 다음 교재(또는 “교재 없음”)를 고르세요.',
+        applyCurriculumNoBookSelected: '이 레벨에 맞는 교재(또는 “교재 없음”)를 선택하세요.',
+        applyCurriculumNoBooksForLevel: '레벨 “{level}”에 사용할 수 있는 교재과정 교재가 없습니다. RC 등 수업 계획은 이 레벨에 맞는 교재가 있을 때만 적용됩니다.',
+        applyCurriculumNoBooksHint: '이 레벨에 맞는 교재과정 교재가 없습니다. 적용 시 일반 기본값만 채워지며 수업 계획 페이지는 비어 있습니다.',
+        applyCurriculumNoBooksConfirm: '레벨 “{level}”에 교재과정 교재가 없습니다. 일반 수업 기본값만 적용할까요? (수업 계획 페이지 없음)',
+        applyCurriculumBookLevelMismatch: '“{book}”은(는) 레벨 “{level}”에서 사용할 수 없습니다. 목록에서 이 레벨용 교재를 선택하세요.',
+        applyCurriculumDebateNotForLevel: '레벨 “{level}”에는 토론 교재과정을 사용할 수 없습니다.',
+        applyCurriculumNoSyllabusPages: '수업 설정은 적용되었지만 이 교재에는 수업 계획 페이지가 없습니다. 교재과정 탭에서 추가하거나 다른 교재를 선택하세요.',
         applyCurriculumPreview: '적용 예: 교재 “{book}”, 수업 {lessons}회',
         applyCurriculumPreviewNoBook: '적용 예: 레벨 “{level}”, 수업 {lessons}회 (교재 없음, 빈 페이지)',
         editCurriculumForBook: '교재과정 편집',
@@ -1647,7 +1762,7 @@ const translations = {
         timetableCohortSaved: '반을 저장했습니다.',
         timetableCohortsSuggested: '제안된 반 {n}개. 담임 선생님을 확인하고 저장하세요.',
         timetableMySchedule: '내 시간표',
-        timetableCohortsEmpty: '아직 반이 없습니다. 설정 → 반 관리에서 반을 추가하세요.',
+        timetableCohortsEmpty: '이 캘린더에 반이 없습니다. 설정 탭 → 반 관리에서 + 반 추가를 클릭하세요.',
         timetableHomeroomCohortsHeading: '이 시간표의 담임 반',
         timetableHomeroomCohortClasses: '수업 {n}개',
         classTeacherCurriculum: '교재과정 (이 선생님)',
@@ -2525,21 +2640,111 @@ function classPassesLessonFilters(classData) {
     return true;
 }
 
-function classHasNoAssignedTeacherAccount(classData) {
+function getClassTeachersListForLessonFilter(classData) {
     const api = getTimetableApi();
+    if (api && api.getClassTeachersList) {
+        return api.getClassTeachersList(classData);
+    }
+    if (!classData) {
+        return [];
+    }
+    const list = [];
+    if (Array.isArray(classData.classTeachers)) {
+        classData.classTeachers.forEach((row) => {
+            const userId = String(row.userId || '').trim();
+            const name = String(row.name || '').trim();
+            if (userId || name || String(row.curriculumId || '').trim()) {
+                list.push({ userId, name });
+            }
+        });
+    }
+    if (!list.length) {
+        const userId = String(classData.assignedTeacherUserId || '').trim();
+        const name = String(classData.assignedTeacherName || '').trim();
+        if (userId || name || String(classData.curriculumId || '').trim()) {
+            list.push({ userId, name });
+        }
+    }
+    return list;
+}
+
+function normalizeLessonFilterTeacherName(name) {
+    return String(name == null ? '' : name).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function lessonFilterTeacherNamesMatch(a, b) {
+    const left = normalizeLessonFilterTeacherName(a);
+    const right = normalizeLessonFilterTeacherName(b);
+    if (!left || !right) {
+        return false;
+    }
+    if (left === right) {
+        return true;
+    }
+    if (left.includes(right) || right.includes(left)) {
+        return true;
+    }
+    const lt = left.split(/[\s,]+/).filter(Boolean);
+    const rt = right.split(/[\s,]+/).filter(Boolean);
+    return Boolean(lt[0] && rt[0] && lt[0] === rt[0]);
+}
+
+function lessonFilterTeacherMatchesRef(ref, selector) {
+    if (!ref || !selector) {
+        return false;
+    }
+    const uid = String(selector.userId || '').trim();
+    const refUid = String(ref.userId || ref.assignedTeacherUserId || '').trim();
+    const refName = ref.displayName || ref.name || ref.assignedTeacherName || '';
+    const selName = selector.displayName || '';
+    if (uid && refUid && uid === refUid) {
+        return true;
+    }
+    return lessonFilterTeacherNamesMatch(selName, refName);
+}
+
+function teacherMatchesClassForLessonFilter(classData, selector) {
+    if (!classData || !selector) {
+        return false;
+    }
+    const api = getTimetableApi();
+    if (api && api.teacherMatchesClass) {
+        return api.teacherMatchesClass(classData, selector);
+    }
+    return getClassTeachersListForLessonFilter(classData).some((row) =>
+        lessonFilterTeacherMatchesRef({ userId: row.userId, displayName: row.name }, selector)
+    );
+}
+
+function classHasNoAssignedTeacherAccount(classData) {
     if (!classData) {
         return true;
     }
-    const rows = api ? api.getClassTeachersList(classData) : (classData.classTeachers || []);
+    const rows = getClassTeachersListForLessonFilter(classData);
     if (!rows.length) {
         return !(classData.assignedTeacherUserId || '').trim();
     }
     return !rows.some((row) => (row.userId || '').trim());
 }
 
+function lessonFilterTeacherSelectorForUserId(userId) {
+    const uid = String(userId || '').trim();
+    if (!uid || uid === LESSON_FILTER_NO_TEACHER) {
+        return null;
+    }
+    const viewer = getCalendarViewerTeacherSelector();
+    if (viewer && viewer.userId === uid) {
+        return viewer;
+    }
+    const row = listTimetableTeachers().find((t) => t.userId === uid);
+    return {
+        userId: uid,
+        displayName: row ? (row.displayName || row.name || uid) : uid
+    };
+}
+
 function classMatchesLessonFilterTeachers(classData, teacherUserIds) {
-    const api = getTimetableApi();
-    if (!api || !teacherUserIds || !teacherUserIds.length) {
+    if (!teacherUserIds || !teacherUserIds.length) {
         return true;
     }
     let matched = false;
@@ -2550,7 +2755,8 @@ function classMatchesLessonFilterTeachers(classData, teacherUserIds) {
         if (uid === LESSON_FILTER_NO_TEACHER) {
             return;
         }
-        if (api.teacherMatchesClass(classData, { userId: uid, displayName: '' })) {
+        const selector = lessonFilterTeacherSelectorForUserId(uid);
+        if (selector && teacherMatchesClassForLessonFilter(classData, selector)) {
             matched = true;
         }
     });
@@ -3101,6 +3307,58 @@ function syncClassCurriculumBookSelect() {
     syncClassCurriculumApplyState();
 }
 
+function getLevelDisplayNameForCurriculum(levelId) {
+    const sim = getSimsonLevelById(levelId);
+    return sim ? sim.name : (levelId || '').trim();
+}
+
+/**
+ * Alerts/confirms before Apply from curriculum. Returns false if apply should abort.
+ */
+function confirmCurriculumApplyEligibility(eligibility, level, curriculumId) {
+    if (!eligibility) {
+        alert(t('applyCurriculumNoMatch'));
+        return false;
+    }
+    const editor = window.CCPBooksEditor;
+    const levelLabel = getLevelDisplayNameForCurriculum(level);
+    const bookLabel = editor
+        ? editor.getCurriculumDisplayName(curriculumId, appData)
+        : (curriculumId || '').trim();
+
+    switch (eligibility.reason) {
+        case 'noLevel':
+            alert(t('applyCurriculumNoLevel'));
+            return false;
+        case 'noBookSelected':
+            alert(t('applyCurriculumNoBookSelected'));
+            return false;
+        case 'debateNotSupported':
+            alert(t('applyCurriculumDebateNotForLevel').replace('{level}', levelLabel));
+            return false;
+        case 'bookLevelMismatch':
+            alert(t('applyCurriculumBookLevelMismatch')
+                .replace('{level}', levelLabel)
+                .replace('{book}', bookLabel));
+            return false;
+        case 'noBooksForLevel':
+            if (!eligibility.ok) {
+                alert(t('applyCurriculumNoBooksForLevel').replace('{level}', levelLabel));
+                return false;
+            }
+            if (eligibility.needsConfirm) {
+                return confirm(t('applyCurriculumNoBooksConfirm').replace('{level}', levelLabel));
+            }
+            return true;
+        default:
+            if (!eligibility.ok) {
+                alert(t('applyCurriculumNoMatch'));
+                return false;
+            }
+            return true;
+    }
+}
+
 function syncClassCurriculumApplyState() {
     const levelSel = document.getElementById('classCurriculumLevel');
     const bookSel = document.getElementById('classCurriculumBook');
@@ -3112,33 +3370,50 @@ function syncClassCurriculumApplyState() {
     const level = (levelSel.value || '').trim();
     const curriculumId = (bookSel.value || '').trim();
     const editor = window.CCPBooksEditor;
-    const noBook = editor && editor.isNoBookCurriculum(curriculumId);
-    const isDebate = editor && editor.isDebateCurriculum(curriculumId);
-    const presetId = editor
-        ? editor.resolvePresetFromLevelAndBook(level, curriculumId, appData)
-        : null;
-    applyBtn.disabled = !(level && presetId && (noBook || isDebate || curriculumId));
-    if (!preview) {
+    applyBtn.disabled = !level;
+    if (!preview || !editor) {
         return;
     }
-    if (presetId && level) {
+    const eligibility = editor.getCurriculumApplyEligibility(level, curriculumId, appData);
+    const levelLabel = getLevelDisplayNameForCurriculum(level);
+
+    if (level && eligibility.bookCount === 0) {
+        preview.textContent = t('applyCurriculumNoBooksHint');
+        preview.hidden = false;
+        return;
+    }
+
+    const presetId = eligibility.presetId;
+    const noBook = editor.isNoBookCurriculum(curriculumId);
+    if (presetId && level && eligibility.ok) {
         const def = getClassTypeDefinitionById(presetId);
         const merged = editor.buildMergedClassDefaults(curriculumId, presetId, appData, level);
         const lessons = merged.defaultTotalLessons != null
             ? merged.defaultTotalLessons
             : (def ? def.defaultTotalLessons : '—');
         if (noBook) {
-            const sim = getSimsonLevelById(level);
-            const levelLabel = sim ? sim.name : level;
             preview.textContent = t('applyCurriculumPreviewNoBook')
                 .replace('{level}', levelLabel)
                 .replace('{lessons}', String(lessons));
         } else {
             const bookLabel = editor.getCurriculumDisplayName(curriculumId, appData);
-            preview.textContent = t('applyCurriculumPreview')
+            let text = t('applyCurriculumPreview')
                 .replace('{book}', bookLabel)
                 .replace('{lessons}', String(lessons));
+            if (!eligibility.hasSyllabusTemplates) {
+                text += ` ${t('applyCurriculumNoSyllabusPages')}`;
+            }
+            preview.textContent = text;
         }
+        preview.hidden = false;
+    } else if (level && curriculumId && eligibility.reason === 'bookLevelMismatch') {
+        const bookLabel = editor.getCurriculumDisplayName(curriculumId, appData);
+        preview.textContent = t('applyCurriculumBookLevelMismatch')
+            .replace('{level}', levelLabel)
+            .replace('{book}', bookLabel);
+        preview.hidden = false;
+    } else if (level && curriculumId && eligibility.reason === 'debateNotSupported') {
+        preview.textContent = t('applyCurriculumDebateNotForLevel').replace('{level}', levelLabel);
         preview.hidden = false;
     } else {
         preview.hidden = true;
@@ -3304,25 +3579,29 @@ function applyCurriculumClassDefaultsToForm(curriculumId, presetId, levelFromPic
 function handleApplyCurriculumToClass() {
     const level = (document.getElementById('classCurriculumLevel')?.value || '').trim();
     const curriculumId = (document.getElementById('classCurriculumBook')?.value || '').trim();
-    if (!window.CCPBooksEditor) {
+    const editor = window.CCPBooksEditor;
+    if (!editor) {
         return;
     }
-    const presetId = window.CCPBooksEditor.resolvePresetFromLevelAndBook(level, curriculumId, appData);
-    if (!presetId) {
-        alert(t('applyCurriculumNoMatch'));
+    const eligibility = editor.getCurriculumApplyEligibility(level, curriculumId, appData);
+    if (!confirmCurriculumApplyEligibility(eligibility, level, curriculumId)) {
         return;
     }
+    const presetId = eligibility.presetId;
     const isEdit = !!(elements.classId && elements.classId.value);
     if (isEdit && !confirm(t('applyCurriculumConfirm'))) {
         return;
     }
     applyCurriculumClassDefaultsToForm(curriculumId, presetId, level);
-    const editor = window.CCPBooksEditor;
     const noBook = editor.isNoBookCurriculum(curriculumId);
     const label = noBook
         ? (getSimsonLevelById(level)?.name || level)
         : editor.getCurriculumDisplayName(curriculumId, appData);
+    if (!eligibility.hasSyllabusTemplates) {
+        alert(t('applyCurriculumNoSyllabusPages'));
+    }
     setAppStatusMessage(t('applyCurriculumToClass') + ': ' + label, false);
+    syncClassCurriculumApplyState();
 }
 
 function refreshCurriculumTabList() {
@@ -5420,6 +5699,11 @@ function getTermMonthCount() {
 }
 
 function ensureUiState() {
+    if (ensureUiState._normalizing) {
+        return;
+    }
+    ensureUiState._normalizing = true;
+    try {
     if (!appData.ui || typeof appData.ui !== 'object') {
         appData.ui = {};
     }
@@ -5491,6 +5775,8 @@ function ensureUiState() {
     if (typeof appData.ui.cohortsTabSelectedId !== 'string') {
         appData.ui.cohortsTabSelectedId = '';
     }
+    appData.ui.setupGuideBannerDismissed = !!appData.ui.setupGuideBannerDismissed;
+    appData.ui.cohortsUsageTipsDismissed = !!appData.ui.cohortsUsageTipsDismissed;
     if (typeof appData.ui.teachersTabCatalogCategoryFilter !== 'string') {
         appData.ui.teachersTabCatalogCategoryFilter = 'all';
     }
@@ -5533,6 +5819,9 @@ function ensureUiState() {
         appData.ui.classesPanelSegment = 'info';
     }
     classesPanelSegment = appData.ui.classesPanelSegment === 'notes' ? 'notes' : 'info';
+    } finally {
+        ensureUiState._normalizing = false;
+    }
 }
 
 function getCustomSyllabusTemplates() {
@@ -5549,10 +5838,26 @@ function syncAppChromeStickyTop() {
     if (!topBar) {
         return;
     }
-    const height = Math.ceil(topBar.getBoundingClientRect().height);
-    if (height > 0) {
-        document.documentElement.style.setProperty('--app-chrome-sticky-top', `${height}px`);
+    const topHeight = Math.ceil(topBar.getBoundingClientRect().height);
+    if (topHeight > 0) {
+        document.documentElement.style.setProperty('--app-chrome-sticky-top', `${topHeight}px`);
     }
+
+    let monthStickyTop = topHeight > 0 ? topHeight : 72;
+    const panelCalendar = document.getElementById('panel-calendar');
+    const visibilityDock = document.getElementById('calendarVisibilityDock');
+    if (
+        panelCalendar &&
+        !panelCalendar.hidden &&
+        visibilityDock &&
+        visibilityDock.offsetParent !== null
+    ) {
+        const dockHeight = Math.ceil(visibilityDock.getBoundingClientRect().height);
+        if (dockHeight > 0) {
+            monthStickyTop += dockHeight;
+        }
+    }
+    document.documentElement.style.setProperty('--calendar-month-sticky-top', `${monthStickyTop}px`);
 }
 
 let appChromeStickyResizeObserver = null;
@@ -5569,6 +5874,10 @@ function initAppChromeStickyTop() {
         }
         appChromeStickyResizeObserver = new ResizeObserver(() => syncAppChromeStickyTop());
         appChromeStickyResizeObserver.observe(topBar);
+        const visibilityDock = document.getElementById('calendarVisibilityDock');
+        if (visibilityDock) {
+            appChromeStickyResizeObserver.observe(visibilityDock);
+        }
     }
     window.addEventListener('resize', syncAppChromeStickyTop);
 }
@@ -5849,9 +6158,8 @@ function getLessonFilterOptionGroups() {
     });
 
     const teacherMap = new Map();
-    const api = getTimetableApi();
     classes.forEach((classData) => {
-        const rows = api ? api.getClassTeachersList(classData) : [];
+        const rows = getClassTeachersListForLessonFilter(classData);
         if (!rows.length && !(classData.assignedTeacherUserId || classData.assignedTeacherName)) {
             teacherMap.set(LESSON_FILTER_NO_TEACHER, t('lessonFilterNoTeacher'));
         }
@@ -5865,6 +6173,13 @@ function getLessonFilterOptionGroups() {
     });
     if (classes.some(classHasNoAssignedTeacherAccount)) {
         teacherMap.set(LESSON_FILTER_NO_TEACHER, t('lessonFilterNoTeacher'));
+    }
+    const viewer = getCalendarViewerTeacherSelector();
+    if (viewer && viewer.userId) {
+        teacherMap.set(
+            viewer.userId,
+            (viewer.displayName || viewer.email || viewer.userId).trim() || viewer.userId
+        );
     }
 
     return {
@@ -6011,7 +6326,7 @@ function renderLessonFilterPopoverBody() {
     const searchEl = document.getElementById('lessonFilterSearch');
     const prevQuery = searchEl ? searchEl.value : '';
     if (pruneLessonFiltersToScheduledOptions()) {
-        saveData();
+        saveUiStateToLocalStorage();
     }
     const groups = getLessonFilterOptionGroups();
     if (!groups.classes.length) {
@@ -6188,15 +6503,26 @@ function applyLessonFilterForTeacher(selector) {
 }
 
 function applyLessonFilterJustMine() {
-    const viewer = getCalendarViewerTeacherSelector();
-    if (!viewer || !viewer.userId) {
+    const apply = () => {
+        const viewer = getCalendarViewerTeacherSelector();
+        if (!viewer || !viewer.userId) {
+            setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+            return;
+        }
+        applyLessonFilterForTeacher(viewer);
+        if (isLessonFilterPopoverOpen()) {
+            applyLessonFiltersToPopoverDom();
+            updateLessonFilterStatusText();
+        }
+    };
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+        void CCPTabScripts.ensureTabScripts('calendar').then(apply).catch((err) => {
+            console.warn('lesson filter scripts:', err);
+            apply();
+        });
         return;
     }
-    applyLessonFilterForTeacher(viewer);
-    if (isLessonFilterPopoverOpen()) {
-        applyLessonFiltersToPopoverDom();
-        updateLessonFilterStatusText();
-    }
+    apply();
 }
 
 function resetLessonFilters() {
@@ -6800,8 +7126,23 @@ function buildDayIndex() {
     const startDate = new Date(year, month - 1, 1);
 
     const scheduledLessons = {};
+    let dbgSliceTotal = 0;
+    let dbgMaxSlicesPerClass = 0;
+    let dbgMultiTeacherClassCount = 0;
+    const slicesApi = getCurriculumSlicesApi();
     getClassesForCalendarAndPrintSummary().forEach(classData => {
-        getClassCurriculumSlicesForCalendar(classData).forEach((slice) => {
+        const teacherRowCount = slicesApi && slicesApi.getNormalizedClassTeachers
+            ? slicesApi.getNormalizedClassTeachers(classData).length
+            : 0;
+        if (teacherRowCount > 1) {
+            dbgMultiTeacherClassCount += 1;
+        }
+        const slices = getClassCurriculumSlicesForCalendar(classData);
+        dbgSliceTotal += slices.length;
+        if (slices.length > dbgMaxSlicesPerClass) {
+            dbgMaxSlicesPerClass = slices.length;
+        }
+        slices.forEach((slice) => {
             const scheduleOpts = {
                 sliceKey: slice.sliceKey,
                 effectiveClassData: slice.classData
@@ -6821,6 +7162,14 @@ function buildDayIndex() {
             });
         });
     });
+    // #region agent log
+    let dbgLessonBarCount = 0;
+    Object.keys(scheduledLessons).forEach((dateStr) => {
+        dbgLessonBarCount += scheduledLessons[dateStr].length;
+    });
+    const dbgViewer = getCalendarViewerTeacherSelector();
+  fetch('http://127.0.0.1:7286/ingest/b51bd9b9-d682-4f30-b25c-d0d01b2010bd',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b1886d'},body:JSON.stringify({sessionId:'b1886d',location:'app.js:buildDayIndex',message:'calendar day index built',data:{showAllUi:appData.ui.showAllClassCurricula===true,showAllFn:shouldShowAllCurriculumSlicesOnCalendar(),viewerUserId:dbgViewer&&dbgViewer.userId||null,lessonFilterActive:isLessonFilterActive(),teacherFilterIds:(appData.ui.lessonFilters&&appData.ui.lessonFilters.teacherUserIds)||null,classCount:getClassesForCalendarAndPrintSummary().length,sliceTotal:dbgSliceTotal,maxSlicesPerClass:dbgMaxSlicesPerClass,multiTeacherClasses:dbgMultiTeacherClassCount,lessonBarCount:dbgLessonBarCount},timestamp:Date.now(),hypothesisId:'A,E'})}).catch(()=>{});
+    // #endregion
     Object.keys(scheduledLessons).forEach(dateStr => {
         const d = parseISODateLocal(dateStr);
         const weekday = d ? d.getDay() : undefined;
@@ -8780,7 +9129,24 @@ function shouldShowAllCurriculumSlicesOnCalendar() {
 
 function getCalendarViewerTeacherSelector() {
     const api = getCurriculumSlicesApi();
-    return api ? api.getViewerTeacherSelector() : null;
+    if (api && api.getViewerTeacherSelector) {
+        const fromApi = api.getViewerTeacherSelector();
+        if (fromApi && fromApi.userId) {
+            return fromApi;
+        }
+    }
+    if (typeof TeamAuth === 'undefined' || !TeamAuth.getUser) {
+        return null;
+    }
+    const me = TeamAuth.getUser();
+    if (!me || !me.id) {
+        return null;
+    }
+    return {
+        userId: me.id,
+        displayName: me.displayName || me.email || me.id,
+        email: me.email || ''
+    };
 }
 
 function getClassCurriculumSlicesForCalendar(classData) {
@@ -8845,6 +9211,9 @@ function syncShowAllCurriculaControl() {
         cb.addEventListener('change', () => {
             ensureUiState();
             appData.ui.showAllClassCurricula = cb.checked;
+            // #region agent log
+            fetch('http://127.0.0.1:7286/ingest/b51bd9b9-d682-4f30-b25c-d0d01b2010bd',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b1886d'},body:JSON.stringify({sessionId:'b1886d',location:'app.js:showAllClassCurricula change',message:'show all curricula toggled',data:{checked:cb.checked,viewerUserId:(getCalendarViewerTeacherSelector()||{}).userId||null},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             saveUiStateToLocalStorage();
             invalidateScheduleCache();
             renderCalendar();
@@ -9374,8 +9743,8 @@ function collectCompressionMergesByPeriodFromForm(surface) {
 // ============================================
 const APP_HOST_TEACHING = 'teaching';
 const APP_HOST_SETUP = 'setup';
-const APP_SHARED_TAB_IDS = ['calendar'];
-const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'classes', 'timetable'];
+const APP_SHARED_TAB_IDS = ['calendar', 'classes'];
+const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'timetable'];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts & teachers only). */
 const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
@@ -9393,8 +9762,8 @@ function getHostForTab(tabId) {
         return APP_HOST_TEACHING;
     }
     if (APP_SHARED_TAB_IDS.includes(tabId)) {
-        ensureUiState();
-        const stored = appData.ui.activeHostTab;
+        const ui = appData.ui;
+        const stored = ui && ui.activeHostTab;
         if (stored === APP_HOST_SETUP || stored === APP_HOST_TEACHING) {
             return stored;
         }
@@ -9407,6 +9776,11 @@ function getSubTabButton(tabId, hostId) {
     if (tabId === 'calendar') {
         return document.getElementById(
             hostId === APP_HOST_SETUP ? 'tabBtn-calendar-setup' : 'tabBtn-calendar-teaching'
+        );
+    }
+    if (tabId === 'classes') {
+        return document.getElementById(
+            hostId === APP_HOST_SETUP ? 'tabBtn-classes-setup' : 'tabBtn-classes'
         );
     }
     return document.getElementById(`tabBtn-${tabId}`);
@@ -9459,6 +9833,8 @@ function syncHostSubTabNav(hostId, subTabId) {
         let btnHost = getHostForTab(tabId);
         if (tabId === 'calendar') {
             btnHost = btn.id === 'tabBtn-calendar-setup' ? APP_HOST_SETUP : APP_HOST_TEACHING;
+        } else if (tabId === 'classes') {
+            btnHost = btn.id === 'tabBtn-classes-setup' ? APP_HOST_SETUP : APP_HOST_TEACHING;
         }
         const active = btnHost === hostId && tabId === subTabId;
         btn.classList.toggle('is-active', active);
@@ -9470,6 +9846,13 @@ function syncHostSubTabNav(hostId, subTabId) {
         const calBtn = getSubTabButton('calendar', hostId);
         if (calBtn) {
             calPanel.setAttribute('aria-labelledby', calBtn.id);
+        }
+    }
+    const classesPanel = document.getElementById('panel-classes');
+    if (classesPanel && subTabId === 'classes') {
+        const classesBtn = getSubTabButton('classes', hostId);
+        if (classesBtn) {
+            classesPanel.setAttribute('aria-labelledby', classesBtn.id);
         }
     }
 }
@@ -10727,6 +11110,7 @@ function navigateToTabBody(tabId, options = {}) {
     if (elements.printOptionsModal && elements.printOptionsModal.classList.contains('active')) {
         closePrintOptionsModal();
     }
+    requestAnimationFrame(syncAppChromeStickyTop);
 }
 
 function initAppTabs() {
@@ -12205,23 +12589,27 @@ function addClassTeacherRow(rowData) {
     applyRowBtn.textContent = t('classApplyCurriculumToTeacher');
     applyRowBtn.addEventListener('click', () => {
         const cid = curriculumSel.value;
-        if (!cid || !window.CCPBooksEditor) {
+        const editor = window.CCPBooksEditor;
+        if (!cid || !editor) {
             return;
         }
         const level = getClassFormCurriculumLevel();
-        const presetId = window.CCPBooksEditor.resolvePresetFromLevelAndBook(level, cid, appData);
-        if (!presetId && !window.CCPBooksEditor.isNoBookCurriculum(cid)) {
-            alert(t('applyCurriculumNoMatch'));
+        const eligibility = editor.getCurriculumApplyEligibility(level, cid, appData);
+        if (!confirmCurriculumApplyEligibility(eligibility, level, cid)) {
             return;
         }
-        const merged = window.CCPBooksEditor.buildMergedClassDefaults(cid, presetId, appData, level);
+        const presetId = eligibility.presetId;
+        const merged = editor.buildMergedClassDefaults(cid, presetId, appData, level);
         if (merged.defaultBook && categorySel && !categorySel.value) {
             const def = getClassTypeDefinitionById(presetId);
             if (def && def.name) {
                 categorySel.value = def.name;
             }
         }
-        setAppStatusMessage(t('classApplyCurriculumToTeacher') + ': ' + window.CCPBooksEditor.getCurriculumDisplayName(cid, appData), false);
+        if (!eligibility.hasSyllabusTemplates) {
+            alert(t('applyCurriculumNoSyllabusPages'));
+        }
+        setAppStatusMessage(t('classApplyCurriculumToTeacher') + ': ' + editor.getCurriculumDisplayName(cid, appData), false);
     });
 
     const removeBtn = document.createElement('button');
@@ -12363,6 +12751,31 @@ function renderClassTeachersRows(classData) {
     }
 }
 
+function updateClassCohortAlsoLinked(classData) {
+    const el = document.getElementById('classCohortAlsoLinked');
+    if (!el) {
+        return;
+    }
+    if (!classData) {
+        el.hidden = true;
+        return;
+    }
+    const api = getTimetableApi();
+    const ids = api ? api.getClassCohortIds(classData) : [];
+    const primary = normalizeStr(classData.cohortId) || (ids[0] || '');
+    const otherIds = ids.filter((id) => id !== primary);
+    if (!otherIds.length) {
+        el.hidden = true;
+        return;
+    }
+    const names = otherIds.map((id) => {
+        const c = (appData.cohorts || []).find((x) => x.id === id);
+        return c ? (c.name || id) : id;
+    });
+    el.hidden = false;
+    el.textContent = t('classCohortAlsoLinked').replace('{names}', names.join(', '));
+}
+
 function updateClassHomeroomLabelDisplay() {
     const el = document.getElementById('classHomeroomLabelDisplay');
     const cohortSel = document.getElementById('classCohort');
@@ -12409,6 +12822,7 @@ function applyClassTeacherFieldsToForm(classData) {
     renderClassTeachersRows(classData);
     refreshClassTeacherPickersFromAccounts();
     updateClassHomeroomLabelDisplay();
+    updateClassCohortAlsoLinked(classData);
     const blockSel = document.getElementById('classScheduleBlock');
     if (blockSel) {
         blockSel.value = (classData && classData.scheduleBlock === 'secondary') ? 'secondary' : 'primary';
@@ -12892,24 +13306,175 @@ function updateCohortsTabCalendarName() {
     }
 }
 
+function getSetupBoardHooks() {
+    const base = getCohortManagementHooks();
+    return Object.assign({}, base, {
+        getMeetingDaysFromClass,
+        formatTeacherLabel: formatTeacherAccountOptionLabel,
+        refreshTimetablePanels,
+        saveUiStateToLocalStorage,
+        getActiveTab,
+        listTeachers: listTimetableTeachers
+    });
+}
+
+function initSetupBoardModule() {
+    if (typeof CCPSetupBoard !== 'undefined') {
+        CCPSetupBoard.initTab(getSetupBoardHooks());
+        CCPSetupBoard.migrateHomeroomHosts();
+    }
+}
+
+const SETUP_GUIDE_BANNER_TEXT_FALLBACK =
+    'Create student cohorts first on the Setup tab → Cohorts, then assign classes and teachers.';
+const SETUP_GUIDE_BANNER_ACTION_FALLBACK = 'Create cohorts';
+const SETUP_GUIDE_BANNER_DISMISS_FALLBACK = 'Dismiss';
+
+function setSetupGuideBannerVisible(banner, visible) {
+    if (!banner) {
+        return;
+    }
+    banner.hidden = !visible;
+    banner.classList.toggle('is-hidden', !visible);
+}
+
+function shouldShowSetupGuideBanner() {
+    try {
+        if (!canAccessTeachersTab()) {
+            return false;
+        }
+        ensureUiState();
+        if (appData.ui.setupGuideBannerDismissed) {
+            return false;
+        }
+        const cohorts = (appData.cohorts || []).filter((c) => c && c.id);
+        if (!cohorts.length) {
+            return true;
+        }
+        if (typeof CCPCohortManagement === 'undefined' || !CCPCohortManagement.computeCohortStatus) {
+            return false;
+        }
+        return cohorts.some((c) => CCPCohortManagement.computeCohortStatus(c, appData) !== 'ready');
+    } catch (_err) {
+        return false;
+    }
+}
+
+function updateSetupGuideBanner() {
+    const banner = document.getElementById('setupGuideBanner');
+    const textEl = document.getElementById('setupGuideBannerText');
+    const actionBtn = document.getElementById('setupGuideBannerAction');
+    const dismissBtn = document.getElementById('setupGuideBannerDismiss');
+    if (!banner || !textEl || !actionBtn || !dismissBtn) {
+        return;
+    }
+    try {
+        ensureUiState();
+        if (appData.ui.setupGuideBannerDismissed) {
+            setSetupGuideBannerVisible(banner, false);
+            return;
+        }
+        const show = shouldShowSetupGuideBanner();
+        if (!show) {
+            setSetupGuideBannerVisible(banner, false);
+            return;
+        }
+        const message =
+            (typeof t === 'function' && t('setupBannerText')) || SETUP_GUIDE_BANNER_TEXT_FALLBACK;
+        const actionLabel =
+            (typeof t === 'function' && t('setupBannerAction')) || SETUP_GUIDE_BANNER_ACTION_FALLBACK;
+        const dismissLabel =
+            (typeof t === 'function' && t('setupBannerDismiss')) || SETUP_GUIDE_BANNER_DISMISS_FALLBACK;
+        if (!String(message || '').trim()) {
+            setSetupGuideBannerVisible(banner, false);
+            return;
+        }
+        textEl.textContent = message;
+        actionBtn.textContent = actionLabel || SETUP_GUIDE_BANNER_ACTION_FALLBACK;
+        dismissBtn.textContent = dismissLabel || SETUP_GUIDE_BANNER_DISMISS_FALLBACK;
+        setSetupGuideBannerVisible(banner, true);
+        if (!banner.dataset.setupGuideBound) {
+            banner.dataset.setupGuideBound = '1';
+            actionBtn.addEventListener('click', () => {
+                navigateToTab('cohorts', { host: APP_HOST_SETUP });
+            });
+            dismissBtn.addEventListener('click', () => {
+                try {
+                    ensureUiState();
+                    appData.ui.setupGuideBannerDismissed = true;
+                    saveUiStateToLocalStorage();
+                } catch (_saveErr) {
+                    /* still hide banner */
+                }
+                setSetupGuideBannerVisible(banner, false);
+            });
+        }
+    } catch (_err) {
+        setSetupGuideBannerVisible(banner, false);
+    }
+}
+
+function setupCohortsUsageTips() {
+    const tips = document.getElementById('cohortsUsageTips');
+    const dismissBtn = document.getElementById('cohortsUsageTipsDismiss');
+    if (!tips) {
+        return;
+    }
+    try {
+        ensureUiState();
+        if (appData.ui.cohortsUsageTipsDismissed) {
+            tips.hidden = true;
+            return;
+        }
+    } catch (_err) {
+        /* show tips */
+    }
+    if (!tips.dataset.cohortsTipsBound) {
+        tips.dataset.cohortsTipsBound = '1';
+        dismissBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                ensureUiState();
+                appData.ui.cohortsUsageTipsDismissed = true;
+                saveUiStateToLocalStorage();
+            } catch (_saveErr) {
+                /* still hide */
+            }
+            tips.hidden = true;
+        });
+    }
+}
+
 async function initCohortsTabControls(options = {}) {
     await ensureExtensionScriptsLoaded();
     if (typeof CCPTabScripts !== 'undefined') {
         await CCPTabScripts.ensureTabScripts('cohorts');
     }
     await ensureTeamTeacherAccountsLoaded();
+    setupCohortsUsageTips();
     initCohortManagementModule();
     if (typeof CCPCohortManagement !== 'undefined') {
-        CCPCohortManagement.initTab(getCohortManagementHooks(), options);
+        try {
+            CCPCohortManagement.initTab(getCohortManagementHooks(), options);
+        } catch (err) {
+            console.error('CCPCohortManagement.initTab failed', err);
+            setAppStatusMessage(t('cohortsModuleMissing'), true);
+        }
     } else {
         setAppStatusMessage(t('cohortsModuleMissing'), true);
+    }
+    try {
+        initSetupBoardModule();
+    } finally {
+        updateSetupGuideBanner();
     }
 }
 
 function getCohortManagementHooks() {
     return {
         getAppData: () => appData,
-        getLang: () => currentLang,
+        getLang: () => currentLanguage,
         t,
         escapeHtml,
         escapeAttr,
@@ -12941,7 +13506,10 @@ function getCohortManagementHooks() {
             fillTeacherSelectElement(sel, userId, name);
             return sel;
         },
-        parseTeacherPickerValue
+        parseTeacherPickerValue,
+        saveUiStateToLocalStorage,
+        openModal,
+        closeModal
     };
 }
 
@@ -12999,9 +13567,6 @@ async function initTeachersTabControls(options = {}) {
     initTeacherManagementModule();
     if (typeof CCPTeacherManagement !== 'undefined') {
         CCPTeacherManagement.onTabActivated();
-        if (options.segment === 'classes' || options.segment === 'cohorts') {
-            CCPTeacherManagement.setCatalogSegment(options.segment);
-        }
     }
 }
 
@@ -13032,6 +13597,10 @@ function refreshCalendarScopedUi() {
     if (getActiveTab() === 'cohorts') {
         void initCohortsTabControls();
     }
+    if (typeof CCPSetupBoard !== 'undefined' && CCPSetupBoard.onCalendarDataChanged) {
+        CCPSetupBoard.onCalendarDataChanged();
+    }
+    updateSetupGuideBanner();
     if (isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab')) {
         const classId = elements.classId && elements.classId.value ? elements.classId.value.trim() : '';
         const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
@@ -13969,112 +14538,6 @@ function renderTimetableCohortsList() {
     if (getActiveTab() === 'cohorts' && typeof CCPCohortManagement !== 'undefined') {
         CCPCohortManagement.initTab(getCohortManagementHooks(), {});
     }
-}
-
-function buildTeacherOptionsForCohort(selectedUserId, selectedName) {
-    const sel = document.createElement('select');
-    sel.className = 'timetable-cohort-homeroom-select field-select';
-    fillTeacherSelectElement(sel, selectedUserId, selectedName);
-    return sel;
-}
-
-function buildCohortEditorCard(cohort) {
-    const card = document.createElement('div');
-    card.className = 'timetable-cohort-card';
-    card.dataset.cohortId = cohort.id;
-
-    const nameLabel = document.createElement('label');
-    nameLabel.textContent = t('timetableCohortName');
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.className = 'timetable-cohort-name-input field-input';
-    nameInput.value = cohort.name || '';
-    nameLabel.appendChild(nameInput);
-
-    const homeroomLabel = document.createElement('label');
-    homeroomLabel.textContent = t('timetableHomeroomTeacher');
-    const homeroomSel = buildTeacherOptionsForCohort(cohort.homeroomTeacherUserId, cohort.homeroomTeacherName);
-    homeroomLabel.appendChild(homeroomSel);
-
-    const homeroomRoleHint = document.createElement('p');
-    homeroomRoleHint.className = 'section-hint timetable-cohort-hr-hint';
-    homeroomRoleHint.textContent = t('timetableHomeroomRoleHint');
-
-    const homeroomNameLabel = document.createElement('label');
-    homeroomNameLabel.textContent = t('classAssignedTeacherName');
-    const homeroomNameInput = document.createElement('input');
-    homeroomNameInput.type = 'text';
-    homeroomNameInput.className = 'timetable-cohort-homeroom-name field-input';
-    homeroomNameInput.value = cohort.homeroomTeacherName || '';
-    homeroomNameLabel.appendChild(homeroomNameInput);
-
-    const suffixLabel = document.createElement('label');
-    suffixLabel.textContent = t('timetableHomeroomDaySuffix');
-    const suffixInput = document.createElement('input');
-    suffixInput.type = 'text';
-    suffixInput.className = 'timetable-cohort-suffix-input field-input';
-    suffixInput.maxLength = 3;
-    suffixInput.value = cohort.homeroomDaySuffix || '';
-    suffixLabel.appendChild(suffixInput);
-
-    const meta = document.createElement('p');
-    meta.className = 'section-hint timetable-cohort-meta';
-    const classCount = (cohort.classIds || []).length;
-    meta.textContent = [cohort.level, cohort.grade, classCount ? `${classCount} classes` : ''].filter(Boolean).join(' · ');
-
-    const actions = document.createElement('div');
-    actions.className = 'timetable-cohort-actions';
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'btn btn-primary btn-small';
-    saveBtn.textContent = t('timetableSaveCohort');
-    saveBtn.addEventListener('click', () => {
-        cohort.name = nameInput.value.trim() || cohort.name;
-        cohort.homeroomDaySuffix = suffixInput.value.trim();
-        const parsed = parseTeacherPickerValue(homeroomSel.value);
-        cohort.homeroomTeacherUserId = parsed.userId;
-        cohort.homeroomTeacherName = homeroomNameInput.value.trim() || parsed.displayName;
-        syncClassCohortLinks(cohort);
-        saveData();
-        populateClassCohortSelect();
-        renderTimetableCohortsList();
-        refreshTimetablePanels();
-        const savedMsg = homeroomTeacherHasClassAssignments(cohort)
-            ? t('timetableCohortSaved')
-            : t('timetableCohortHomeroomOnlySaved');
-        setAppStatusMessage(savedMsg, false);
-    });
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'btn btn-outline btn-small';
-    deleteBtn.textContent = t('timetableDeleteCohort');
-    deleteBtn.addEventListener('click', () => {
-        appData.cohorts = (appData.cohorts || []).filter((c) => c.id !== cohort.id);
-        const unlinkApi = getTimetableApi();
-        (appData.classes || []).forEach((cls) => {
-            if (unlinkApi) {
-                if (unlinkApi.classHasCohortId(cls, cohort.id)) {
-                    unlinkApi.removeClassCohortId(cls, cohort.id);
-                }
-            } else if (normalizeStr(cls.cohortId) === cohort.id) {
-                cls.cohortId = '';
-            }
-        });
-        saveData();
-        populateClassCohortSelect();
-        renderTimetableCohortsList();
-    });
-    actions.appendChild(saveBtn);
-    actions.appendChild(deleteBtn);
-
-    card.appendChild(nameLabel);
-    card.appendChild(homeroomLabel);
-    card.appendChild(homeroomRoleHint);
-    card.appendChild(homeroomNameLabel);
-    card.appendChild(suffixLabel);
-    card.appendChild(meta);
-    card.appendChild(actions);
-    return card;
 }
 
 function syncClassCohortLinks(cohort) {
@@ -15062,6 +15525,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (restoreErr) {
             console.error('restoreAppSessionState failed:', restoreErr);
         }
+        updateSetupGuideBanner();
         syncSetupTabsVisibility();
         if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
             CCPSessionRestore.capturePageSession();
@@ -15437,7 +15901,8 @@ const EXCLUSIVE_MODAL_IDS = [
     'timetablePrintOptionsModal',
     'conflictModal',
     'newCalendarModal',
-    'classTypeModal'
+    'classTypeModal',
+    'cohortEditorModal'
 ];
 
 const CCPModalRegistry = {
@@ -15487,6 +15952,9 @@ const CCPModalRegistry = {
         if (elements.classTypeModal) {
             this.register('classTypeModal', { onClose: () => closeModal(elements.classTypeModal) });
         }
+        this.register('cohortEditorModal', {
+            onClose: () => closeModal(document.getElementById('cohortEditorModal'))
+        });
     }
 };
 
@@ -18805,8 +19273,11 @@ function renderCalendarNow() {
 
     syncHolidaysFromEvents();
     syncShowAllCurriculaControl();
+    // #region agent log
+    fetch('http://127.0.0.1:7286/ingest/b51bd9b9-d682-4f30-b25c-d0d01b2010bd',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b1886d'},body:JSON.stringify({sessionId:'b1886d',location:'app.js:renderCalendarNow',message:'render calendar',data:{showAllUi:appData.ui.showAllClassCurricula===true,cbChecked:document.getElementById('showAllClassCurricula')?.checked},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     if (pruneLessonFiltersToScheduledOptions()) {
-        saveData();
+        saveUiStateToLocalStorage();
     }
     const dayIndex = buildDayIndex();
 
@@ -22122,8 +22593,14 @@ function applyLoadedAppData(data) {
     if (typeof CCPTeacherManagement !== 'undefined' && getActiveTab() === 'teachers') {
         CCPTeacherManagement.onCalendarDataChanged();
     }
+    if (typeof CCPSetupBoard !== 'undefined' && CCPSetupBoard.migrateHomeroomHosts) {
+        CCPSetupBoard.migrateHomeroomHosts();
+    }
     if (migrated) {
         saveData();
+    }
+    if (appShellBootComplete) {
+        updateSetupGuideBanner();
     }
 }
 
@@ -23085,28 +23562,57 @@ async function setupHostEnginePanel() {
     const panel = document.getElementById('hostEnginePanel');
     const input = document.getElementById('hostTeamUrlInput');
     const copyBtn = document.getElementById('hostCopyTeamUrlBtn');
+    const copyBtnSummary = document.getElementById('hostCopyTeamUrlBtnSummary');
     if (!panel || !input) {
         return;
+    }
+    const copyTeamUrl = async () => {
+        const url = input.value;
+        if (!url) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(url);
+            showSyncToast(t('hostLinkCopied'), false);
+        } catch (_) {
+            input.select();
+            document.execCommand('copy');
+            showSyncToast(t('hostLinkCopied'), false);
+        }
+    };
+    if (!panel.dataset.hostEngineBound) {
+        panel.dataset.hostEngineBound = '1';
+        copyBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            void copyTeamUrl();
+        });
+        copyBtnSummary?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void copyTeamUrl();
+        });
+        panel.addEventListener('toggle', () => {
+            try {
+                localStorage.setItem('ccpHostEnginePanelOpen', panel.open ? '1' : '0');
+            } catch (_) {
+                /* ignore */
+            }
+        });
     }
     try {
         const info = await CalendarSync.fetchHostInfo();
         const url = info.primaryTeamUrl || info.localhostUrl;
         if (!url || !isLocalTeamServerUrl(url)) {
-            panel.style.display = 'none';
+            panel.hidden = true;
             return;
         }
         input.value = url;
-        panel.style.display = 'block';
-        copyBtn?.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(url);
-                showSyncToast(t('hostLinkCopied'), false);
-            } catch (_) {
-                input.select();
-                document.execCommand('copy');
-                showSyncToast(t('hostLinkCopied'), false);
-            }
-        });
+        panel.hidden = false;
+        try {
+            panel.open = localStorage.getItem('ccpHostEnginePanelOpen') === '1';
+        } catch (_) {
+            panel.open = false;
+        }
     } catch (_) {
         /* ignore */
     }
@@ -23421,7 +23927,6 @@ function migrateData(data) {
     if (migrateUiHostTabsForSyllabusSetup(data.ui)) {
         migrated = true;
     }
-    ensureUiState();
 
     if (!Array.isArray(data.customClassTypes)) {
         data.customClassTypes = [];
@@ -23770,6 +24275,12 @@ function migrateData(data) {
                     migrated = true;
                 }
             });
+            if (migrateApi && migrateApi.inferCohortScheduleFromLinkedClasses) {
+                const inferResult = migrateApi.inferCohortScheduleFromLinkedClasses(cohort, data);
+                if (inferResult.applied) {
+                    migrated = true;
+                }
+            }
         });
     }
     

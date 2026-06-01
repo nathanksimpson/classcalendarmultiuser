@@ -646,6 +646,9 @@
     }
 
     function getCohortClassIds(appData, cohort) {
+        if (!cohort || !cohort.id) {
+            return [];
+        }
         const ids = new Set(Array.isArray(cohort.classIds) ? cohort.classIds : []);
         (appData.classes || []).forEach((c) => {
             if (classHasCohortId(c, cohort.id)) {
@@ -744,6 +747,197 @@
             }
         }
         return '';
+    }
+
+    const TTH_WEEKDAYS = new Set([2, 4]);
+    const MWF_PATTERN_IDS = new Set(['mwf', 'mw', 'wf', 'mf']);
+
+    function patternBucketForFilter(patternId) {
+        const pat = normalizeStr(patternId);
+        if (pat === 'tth') {
+            return 'tth';
+        }
+        if (MWF_PATTERN_IDS.has(pat)) {
+            return 'mwf';
+        }
+        return '';
+    }
+
+    function bucketFromMeetingDays(days) {
+        const weekdays = (days || []).filter((d) => d >= 1 && d <= 5);
+        if (weekdays.length && weekdays.every((d) => TTH_WEEKDAYS.has(d))) {
+            return 'tth';
+        }
+        return 'mwf';
+    }
+
+    function gatherLinkedClassMeetingDayKeys(appData, cohort) {
+        if (!cohort) {
+            return new Map();
+        }
+        const counts = new Map();
+        getCohortClassIds(appData, cohort).forEach((classId) => {
+            const cls = (appData.classes || []).find((c) => c.id === classId);
+            if (!cls) {
+                return;
+            }
+            const days = getMeetingDaysFromClass(cls).filter((d) => d >= 1 && d <= 5);
+            if (!days.length) {
+                return;
+            }
+            const key = meetingDaysKey(days);
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        return counts;
+    }
+
+    function majorityMeetingDaysFromCounts(counts) {
+        let bestKey = '';
+        let bestCount = 0;
+        counts.forEach((count, key) => {
+            if (count > bestCount) {
+                bestCount = count;
+                bestKey = key;
+            }
+        });
+        if (!bestKey) {
+            return [];
+        }
+        return bestKey.split(',').map((d) => parseInt(d, 10)).filter((n) => !Number.isNaN(n));
+    }
+
+    function cohortScheduleFieldsBlank(cohort) {
+        return !normalizeStr(cohort.schedulePattern)
+            && !(Array.isArray(cohort.meetingDays) && cohort.meetingDays.length);
+    }
+
+    function getEffectiveCohortPattern(cohort, appData) {
+        if (!cohort) {
+            return 'mwf';
+        }
+        const stored = normalizeStr(cohort.schedulePattern);
+        if (stored && stored !== 'custom') {
+            const bucket = patternBucketForFilter(stored);
+            if (bucket) {
+                return bucket;
+            }
+        }
+        if (stored === 'custom' && Array.isArray(cohort.meetingDays) && cohort.meetingDays.length) {
+            return bucketFromMeetingDays(cohort.meetingDays);
+        }
+        const matrix = global.CCPScheduleMatrix;
+        const counts = gatherLinkedClassMeetingDayKeys(appData, cohort);
+        if (counts.size) {
+            const days = majorityMeetingDaysFromCounts(counts);
+            const pid = matrix && matrix.patternIdFromMeetingDays
+                ? matrix.patternIdFromMeetingDays(days)
+                : null;
+            if (pid) {
+                const bucket = patternBucketForFilter(pid);
+                if (bucket) {
+                    return bucket;
+                }
+            }
+            return bucketFromMeetingDays(days);
+        }
+        if (Array.isArray(cohort.meetingDays) && cohort.meetingDays.length) {
+            return bucketFromMeetingDays(cohort.meetingDays);
+        }
+        return 'mwf';
+    }
+
+    /**
+     * Map class meeting days to cohort schedulePattern + meetingDays.
+     * Exact MWF/TTH/etc. when days match a pattern; otherwise bucket (e.g. Tue-only → tth).
+     */
+    function inferCohortScheduleFromMeetingDays(days) {
+        const normalized = normalizeMeetingDaysArray(days).filter((d) => d >= 1 && d <= 5);
+        if (!normalized.length) {
+            return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
+        }
+        const matrix = global.CCPScheduleMatrix;
+        const pid = matrix && matrix.patternIdFromMeetingDays
+            ? matrix.patternIdFromMeetingDays(normalized)
+            : null;
+        if (pid && matrix && matrix.getPatterns) {
+            const pat = matrix.getPatterns()[pid];
+            return {
+                schedulePattern: pid,
+                meetingDays: pat && Array.isArray(pat.meetingDays)
+                    ? pat.meetingDays.slice()
+                    : normalized.slice()
+            };
+        }
+        const bucket = bucketFromMeetingDays(normalized);
+        const patterns = matrix && matrix.getPatterns ? matrix.getPatterns() : {};
+        if (bucket === 'tth' && patterns.tth && Array.isArray(patterns.tth.meetingDays)) {
+            return {
+                schedulePattern: 'tth',
+                meetingDays: patterns.tth.meetingDays.slice()
+            };
+        }
+        if (patterns.mwf && Array.isArray(patterns.mwf.meetingDays)) {
+            return {
+                schedulePattern: 'mwf',
+                meetingDays: patterns.mwf.meetingDays.slice()
+            };
+        }
+        return {
+            schedulePattern: 'custom',
+            meetingDays: normalized.slice()
+        };
+    }
+
+    function applyCohortScheduleFromMeetingDays(cohort, days) {
+        if (!cohort) {
+            return false;
+        }
+        const sched = inferCohortScheduleFromMeetingDays(days);
+        cohort.schedulePattern = sched.schedulePattern;
+        cohort.meetingDays = sched.meetingDays.slice();
+        return true;
+    }
+
+    function syncCohortScheduleFromLinkedClasses(cohort, appData, options) {
+        options = options || {};
+        if (!cohort) {
+            return { applied: false, reason: 'no_cohort' };
+        }
+        if (!options.force && !cohortScheduleFieldsBlank(cohort)) {
+            return { applied: false, reason: 'not_blank' };
+        }
+        const counts = gatherLinkedClassMeetingDayKeys(appData, cohort);
+        if (!counts.size) {
+            return { applied: false, reason: 'no_class_days' };
+        }
+        const days = majorityMeetingDaysFromCounts(counts);
+        if (!days.length) {
+            return { applied: false, reason: 'no_class_days' };
+        }
+        applyCohortScheduleFromMeetingDays(cohort, days);
+        return {
+            applied: true,
+            patternId: cohort.schedulePattern,
+            meetingDays: cohort.meetingDays.slice()
+        };
+    }
+
+    function inferCohortScheduleFromLinkedClasses(cohort, appData) {
+        return syncCohortScheduleFromLinkedClasses(cohort, appData, { force: false });
+    }
+
+    function inferBlankCohortSchedules(appData) {
+        let count = 0;
+        (appData.cohorts || []).forEach((cohort) => {
+            if (!cohort) {
+                return;
+            }
+            const result = inferCohortScheduleFromLinkedClasses(cohort, appData);
+            if (result.applied) {
+                count += 1;
+            }
+        });
+        return count;
     }
 
     function suggestCohortsFromClasses(classes) {
@@ -934,6 +1128,13 @@
         getTeacherCategoryForClass,
         listTeachersFromAppData,
         suggestCohortsFromClasses,
+        getEffectiveCohortPattern,
+        inferCohortScheduleFromMeetingDays,
+        applyCohortScheduleFromMeetingDays,
+        syncCohortScheduleFromLinkedClasses,
+        inferCohortScheduleFromLinkedClasses,
+        inferBlankCohortSchedules,
+        patternBucketForFilter,
         buildTeacherWeeklyGrid,
         teacherKeyFromSelector,
         teacherMatchesTeacherRef,

@@ -243,4 +243,49 @@ assert(
     'teacher reset keeps teamDefault on calendar'
 );
 
+const eligAppData = { bookOverrides: {}, curriculumOverrides: {}, defaultClassTypeOverrides: {} };
+
+const rcGreenBook = CCPBooksEditor.getCurriculaForLevel('Green', eligAppData).find((b) =>
+    (b.name || '').includes('50/80')
+);
+assert(rcGreenBook, 'RC Green-Blue book listed for Green level');
+const rcOk = CCPBooksEditor.getCurriculumApplyEligibility('Green', rcGreenBook.id, eligAppData);
+assert(rcOk.ok && rcOk.presetId === 'preset-rc-green-blue', 'Green + RC book is eligible');
+assert(rcOk.hasSyllabusTemplates, 'RC Green-Blue has syllabus templates');
+
+const rcStubBook = CCPBooksEditor.getCurriculaForLevel('Purple', eligAppData).find((b) =>
+    (b.name || '').toLowerCase().includes('rc')
+);
+if (rcStubBook) {
+    const stubElig = CCPBooksEditor.getCurriculumApplyEligibility('Purple', rcStubBook.id, eligAppData);
+    assert(stubElig.ok, 'RC Purple stub can apply');
+    assert(!stubElig.hasSyllabusTemplates, 'RC Purple stub has no templates');
+    assert(stubElig.reason === 'noSyllabusTemplates', 'stub reason flagged');
+}
+
+const noLevel = CCPBooksEditor.getCurriculumApplyEligibility('', rcGreenBook.id, eligAppData);
+assert(noLevel.reason === 'noLevel' && !noLevel.ok, 'empty level blocked');
+
+const emptyLevel = '__test_level_no_curriculum_books__';
+assert(
+    CCPBooksEditor.getCurriculaForLevel(emptyLevel, eligAppData).length === 0,
+    'synthetic level has no curriculum books'
+);
+const noBooksElig = CCPBooksEditor.getCurriculumApplyEligibility(
+    emptyLevel,
+    CCPBooksEditor.NO_BOOK_CURRICULUM_ID,
+    eligAppData
+);
+assert(
+    noBooksElig.reason === 'noBooksForLevel' && noBooksElig.needsConfirm && noBooksElig.ok,
+    'level with no books: confirm before generic no-book apply'
+);
+
+const badMatch = CCPBooksEditor.getCurriculumApplyEligibility(
+    'Blue',
+    rcGreenBook.id,
+    eligAppData
+);
+assert(badMatch.reason === 'bookLevelMismatch' && !badMatch.ok, 'Blue level cannot use Green RC book');
+
 console.log('books-editor.test.mjs: all passed');

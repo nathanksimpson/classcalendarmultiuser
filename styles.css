@@ -1,6 +1,10 @@
 /* ============================================
    CSS Variables & Reset
    ============================================ */
+[hidden] {
+    display: none !important;
+}
+
 :root {
     color-scheme: light;
     --primary: #2563eb;
@@ -60,6 +64,9 @@
     --radius-full: 9999px;
 
     --touch-min: 44px;
+
+    --chip-bg: #e2e8f0;
+    --chip-color: #1e293b;
 
     --bp-sm: 640px;
     --bp-md: 768px;
@@ -150,9 +157,11 @@
 
     /* Sticky offsets: set from JS to match #appTopBar height */
     --app-chrome-sticky-top: 72px;
-    /* One month ≈ one viewport below the sticky app bar */
+    /* Calendar month headers: app bar + floating visibility dock (set from JS) */
+    --calendar-month-sticky-top: var(--app-chrome-sticky-top);
+    /* One month ≈ one viewport below sticky chrome on the calendar tab */
     --calendar-month-gap: 20px;
-    --calendar-month-view-height: calc(100dvh - var(--app-chrome-sticky-top) - var(--calendar-month-gap));
+    --calendar-month-view-height: calc(100dvh - var(--calendar-month-sticky-top) - var(--calendar-month-gap));
 
 }
 
@@ -586,11 +595,44 @@ body {
     }
 }
 
+.calendar-visibility-dock {
+    position: sticky;
+    top: var(--app-chrome-sticky-top, 72px);
+    z-index: 120;
+    margin: 0 0 12px;
+    padding: 0.5rem 0.65rem;
+    background: var(--top-bar-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.calendar-visibility-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.calendar-visibility-bar__heading {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
 .calendar-visibility-bar__controls {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 10px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .calendar-visibility-bar .lesson-filter-btn {
@@ -1512,7 +1554,7 @@ body:has(#panel-calendar:not([hidden])) {
     min-height: var(--calendar-month-view-height);
     scroll-snap-align: start;
     scroll-snap-stop: normal;
-    scroll-margin-top: var(--app-chrome-sticky-top);
+    scroll-margin-top: var(--calendar-month-sticky-top);
 }
 
 /* Fit one month per viewport: flexible week rows, no fixed cell height */
@@ -1574,7 +1616,7 @@ body:has(#panel-calendar:not([hidden])) {
 
 .month-header {
     position: sticky;
-    top: var(--app-chrome-sticky-top);
+    top: var(--calendar-month-sticky-top);
     z-index: 40;
     flex-shrink: 0;
     padding: 16px 20px;
@@ -2483,6 +2525,7 @@ html.print-color-mode-light[data-theme="dark"] {
     .app-top-bar,
     .app-header,
     .term-selector,
+    .calendar-visibility-dock,
     .calendar-visibility-bar,
     .calendar-context-menu,
     .header-controls,
@@ -3969,7 +4012,7 @@ body[data-active-tab="events"] .app-term-quick-actions {
     cursor: pointer;
 }
 
-.cohort-management-layout {
+.cohort-management-layout:not(.setup-board-layout) {
     display: grid;
     grid-template-columns: minmax(10rem, 14rem) minmax(16rem, 1fr) minmax(12rem, 16rem);
     gap: 12px;
@@ -4191,6 +4234,12 @@ body[data-active-tab="events"] .app-term-quick-actions {
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--border-color);
+}
+
+.cohort-editor-toolbar.cohort-management-actions {
+    margin-top: 0;
+    padding-top: 0.65rem;
+    border-top: none;
 }
 
 .cohort-linked-item {
@@ -5899,11 +5948,87 @@ body[data-active-tab="events"] .app-term-quick-actions {
     padding: 0 20px 20px;
 }
 
-/* Calendar quick-edit pop-outs */
+/* Cohort editor — near full-screen (Setup → Cohorts) */
+.cohort-editor-modal.active {
+    align-items: center;
+    justify-content: center;
+    padding: max(0.5rem, env(safe-area-inset-top, 0)) max(0.5rem, env(safe-area-inset-right, 0))
+        max(0.5rem, env(safe-area-inset-bottom, 0)) max(0.5rem, env(safe-area-inset-left, 0));
+}
+
+.cohort-editor-modal .cohort-editor-modal-content {
+    width: min(96vw, 1600px);
+    max-width: 96vw;
+    height: min(94vh, calc(100dvh - 1rem));
+    max-height: calc(100dvh - 1rem);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalSlideIn 0.22s ease;
+}
+
+.cohort-editor-toolbar {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0.65rem 1.25rem;
+    border-top: none;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--top-bar-bg, var(--bg-card));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.cohort-editor-toolbar[hidden] {
+    display: none !important;
+}
+
+.cohort-editor-modal .modal-body-scroll {
+    flex: 1;
+    min-height: 0;
+    padding: 0 1.25rem 1.25rem;
+}
+
+.cohort-editor-modal .modal-header {
+    flex-shrink: 0;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cohort-editor-modal .cohort-management-editor {
+    max-width: none;
+}
+
+@media (max-width: 640px) {
+    .cohort-editor-modal .cohort-editor-modal-content {
+        width: 100%;
+        max-width: 100%;
+        height: min(100dvh, 100vh);
+        max-height: 100dvh;
+        border-radius: 0;
+    }
+
+    .cohort-editor-modal.active {
+        padding: 0;
+    }
+}
+
+/* Calendar quick-edit pop-outs — panel only captures clicks; board stays usable behind */
 .modal.calendar-popout {
     align-items: flex-start;
     justify-content: flex-end;
     padding: 16px;
+    pointer-events: none;
+    background: transparent;
+    backdrop-filter: none;
+}
+
+.modal.calendar-popout.active .calendar-popout-content {
+    pointer-events: auto;
 }
 
 .modal.calendar-popout .calendar-popout-content {
@@ -6476,6 +6601,10 @@ html.role-super-admin:not([data-theme="dark"]) {
     --banner-error-color: #fecaca;
     --banner-info-bg: #1e3a5f;
     --banner-info-border: #3b82f6;
+    --banner-info-color: #bfdbfe;
+
+    --chip-bg: #334155;
+    --chip-color: #f1f5f9;
 }
 
 html.role-super-admin[data-theme="dark"] {
@@ -6593,6 +6722,11 @@ html.role-super-admin[data-theme="dark"] {
 [data-theme="dark"] .calendar-options {
     background: var(--surface-muted);
     border-color: var(--toolbar-section-border);
+}
+
+[data-theme="dark"] .calendar-visibility-dock {
+    background: var(--top-bar-bg);
+    border-color: var(--border-color);
 }
 
 [data-theme="dark"] .calendar-toolbar-section {
@@ -7199,11 +7333,34 @@ html.role-super-admin[data-theme="dark"] {
 }
 
 .host-engine-panel {
-    padding: 0.6rem 0.75rem;
+    padding: 0.45rem 0.75rem;
     margin-bottom: 0.5rem;
     background: var(--banner-info-bg);
     border: 1px solid var(--banner-info-border);
     border-radius: 8px;
+    color: var(--banner-info-color, var(--text-primary));
+}
+
+.host-engine-panel-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+}
+
+.host-engine-panel-summary::-webkit-details-marker {
+    display: none;
+}
+
+.host-engine-panel-body {
+    margin-top: 0.5rem;
+}
+
+.host-engine-copy-summary {
+    margin-left: auto;
 }
 
 .host-engine-link-row {
@@ -8407,5 +8564,525 @@ body.dino-game-open {
     font-size: 0.75rem;
     color: var(--text-muted, var(--text-secondary));
     text-align: center;
+}
+
+/* Cohorts tab — collapsible usage tips */
+.cohorts-usage-tips {
+    margin: 0 0 0.65rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--banner-info-bg, #eff6ff);
+    font-size: 0.8125rem;
+}
+
+.cohorts-usage-tips[hidden] {
+    display: none !important;
+}
+
+.cohorts-usage-tips-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-primary);
+    list-style: none;
+}
+
+.cohorts-usage-tips-summary::-webkit-details-marker {
+    display: none;
+}
+
+.cohorts-usage-tips-summary::before {
+    content: '▸ ';
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+
+.cohorts-usage-tips[open] .cohorts-usage-tips-summary::before {
+    transform: rotate(90deg);
+}
+
+.cohorts-usage-tips-dismiss {
+    flex: 0 0 auto;
+    font-weight: 500;
+}
+
+.cohorts-usage-tips-body {
+    margin-top: 0.5rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.cohorts-usage-tips-body .section-hint {
+    margin: 0 0 0.35rem;
+}
+
+.cohorts-usage-tips-list {
+    margin: 0.35rem 0 0;
+    padding-left: 1.15rem;
+    color: var(--text-secondary);
+}
+
+.cohorts-usage-tips-list li {
+    margin: 0.2rem 0;
+}
+
+/* Visual cohort setup board */
+.setup-guide-banner {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.setup-guide-banner.is-hidden {
+    display: none !important;
+}
+
+.setup-guide-banner-text {
+    flex: 1 1 12rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.cohorts-floating-toolbar {
+    position: sticky;
+    top: var(--app-chrome-sticky-top, 72px);
+    z-index: 150;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+    margin: 0 0 0.65rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--top-bar-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.cohorts-floating-toolbar-primary {
+    margin-bottom: 0;
+}
+
+.cohorts-floating-toolbar .setup-board-view-switch {
+    margin: 0;
+}
+
+.setup-board-layout {
+    display: grid;
+    grid-template-columns: minmax(12rem, 18rem) minmax(10rem, 14rem) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: stretch;
+    min-height: 28rem;
+}
+
+.setup-board-class-palette,
+.setup-board-teacher-palette {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: calc(100vh - var(--app-chrome-sticky-top, 72px) - 10rem);
+}
+
+.setup-board-center {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    min-width: 0;
+    min-height: 0;
+}
+
+.setup-board-cohort-nav {
+    flex: 0 0 auto;
+    max-height: 14rem;
+    overflow: auto;
+}
+
+.setup-board-cohort-list {
+    max-height: 9rem;
+    overflow-y: auto;
+}
+
+.setup-board-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.setup-board-view-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.setup-board-section-heading {
+    margin: 0 0 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.setup-board-workflow-hint {
+    margin: 0 0 0.5rem;
+    padding: 0.45rem 0.6rem;
+    background: var(--banner-info-bg, #eff6ff);
+    border-radius: 8px;
+    font-size: 0.8125rem;
+}
+
+.setup-board-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex: 1 1 auto;
+    min-height: 3.5rem;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+}
+
+.setup-board-pool.is-drag-over,
+.setup-board-cohort-body.is-drag-over {
+    border-color: var(--accent, #2563eb);
+    background: var(--banner-info-bg, #eff6ff);
+}
+
+.setup-board-pool-group-label {
+    flex: 1 1 100%;
+    margin: 0.35rem 0 0.15rem;
+    font-size: 0.75rem;
+}
+
+.setup-board-pool-card,
+.setup-board-palette-teacher {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--surface, #fff);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    cursor: grab;
+    max-width: 100%;
+}
+
+.setup-board-pool-card--linked {
+    opacity: 0.92;
+    border-style: dashed;
+}
+
+.setup-board-pool-card-label {
+    font-weight: 600;
+}
+
+.setup-board-pool-card-linked {
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+.setup-board-pool-card.is-dragging,
+.setup-board-palette-teacher.is-dragging {
+    opacity: 0.55;
+}
+
+.setup-board-canvas {
+    min-height: 8rem;
+}
+
+.setup-board-cohort-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0.65rem;
+}
+
+.setup-board-cohort {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--surface, #fff);
+    display: flex;
+    flex-direction: column;
+    min-height: 6rem;
+}
+
+.setup-board-cohort.is-selected {
+    border-color: var(--accent, #2563eb);
+    box-shadow: 0 0 0 1px var(--accent, #2563eb);
+}
+
+.setup-board-cohort.is-highlighted {
+    animation: setup-board-highlight 1.5s ease;
+}
+
+@keyframes setup-board-highlight {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    30% { box-shadow: 0 0 0 3px var(--accent, #2563eb); }
+}
+
+.setup-board-cohort-header {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setup-board-cohort-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+
+.setup-board-cohort-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.setup-board-cohort-schedule {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.setup-board-pattern-btn.is-active {
+    background: var(--accent, #2563eb);
+    color: #fff;
+    border-color: var(--accent, #2563eb);
+}
+
+.setup-board-custom-days-badge {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.setup-board-cohort-body {
+    flex: 1;
+    padding: 0.45rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-height: 4rem;
+}
+
+.setup-board-class-card {
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--surface-muted, #f8fafc);
+    font-size: 0.8rem;
+}
+
+.setup-board-class-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.setup-board-card-drag-handle {
+    flex: 0 0 auto;
+    padding: 0 0.25rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+}
+
+.setup-board-card-drag-handle:active {
+    cursor: grabbing;
+}
+
+.setup-board-class-card-title {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.setup-board-teacher-drop-label {
+    margin: 0.35rem 0 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.setup-board-teacher-drop-zone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 6px;
+    margin: 0.15rem 0 0.25rem;
+    border: 2px dashed var(--border-color);
+    background: var(--accent-muted, var(--surface-muted));
+}
+
+.setup-board-class-teachers.is-drag-over,
+.setup-board-teacher-drop-zone.is-drag-over {
+    border-color: var(--accent, #2563eb);
+    background: var(--banner-info-bg, #eff6ff);
+}
+
+.setup-board-class-teachers-empty {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.setup-board-teacher-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: var(--chip-bg);
+    color: var(--chip-color);
+    font-size: 0.75rem;
+}
+
+.setup-board-teacher-chip-remove {
+    border: none;
+    background: transparent;
+    color: var(--chip-color);
+    cursor: pointer;
+    padding: 0 0.15rem;
+    line-height: 1;
+    font-size: 0.9rem;
+}
+
+.setup-board-homeroom-host-wrap {
+    position: relative;
+    z-index: 2;
+    margin: 0.35rem 0 0;
+}
+
+.setup-board-homeroom-host {
+    margin: 0;
+    font-size: 0.75rem;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.setup-board-homeroom-host input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.setup-board-homeroom-host input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+}
+
+.setup-board-class-days-outside {
+    margin: 0.2rem 0;
+    color: var(--banner-warn-color, #78350f);
+}
+
+.setup-board-teacher-palette {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+
+.meeting-days-compact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0.25rem 0;
+}
+
+.meeting-days-compact-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.meeting-days-compact-popover {
+    flex: 1 1 100%;
+    padding: 0.35rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface, #fff);
+}
+
+.meeting-days-compact-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    margin-bottom: 0.35rem;
+}
+
+.teachers-tab-layout--preview {
+    grid-template-columns: minmax(11rem, 16rem) minmax(0, 1fr);
+}
+
+.teachers-tab-preview-section--main {
+    grid-column: 2;
+    min-width: 0;
+}
+
+@media (max-width: 960px) {
+    .setup-board-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .setup-board-class-palette,
+    .setup-board-teacher-palette {
+        max-height: 12rem;
+    }
+
+    .setup-board-teacher-palette {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .cohorts-floating-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .teachers-tab-layout--preview {
+        grid-template-columns: 1fr;
+    }
+}
+
+.cohort-list-filter-intro {
+    margin: 0.35rem 0 0.15rem;
+    font-size: 0.75rem;
+}
+
+.cohort-filter-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.cohort-editor-draft-hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+}
+
+.setup-board-view-label {
+    align-self: center;
+    margin-right: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 

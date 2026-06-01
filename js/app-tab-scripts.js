@@ -4,20 +4,25 @@
 (function (global) {
     const TAB_SCRIPTS = {
         cohorts: [
-            'js/teacher-timetable.js?v=20260601-cohort-ux',
-            'js/cohort-management.js?v=20260601-ui-consistency'
+            'js/teacher-timetable.js?v=20260612-import-schedule',
+            'js/meeting-days-control.js?v=20260610-setup-board',
+            'js/cohort-management.js?v=20260612-import-schedule',
+            'js/setup-board.js?v=20260612-board-view'
         ],
         timetable: [
-            'js/teacher-timetable.js?v=20260608-cohort-first',
+            'js/teacher-timetable.js?v=20260611-board-fix2',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
-            'js/teacher-timetable.js?v=20260608-cohort-first',
-            'js/teacher-management.js?v=20260601-ui-consistency',
+            'js/teacher-timetable.js?v=20260611-board-fix2',
+            'js/teacher-management.js?v=20260610-setup-board',
             'js/class-curriculum-slices.js?v=20260608-teachers-tab'
         ],
         curriculum: ['js/class-curriculum-slices.js?v=20260608-teachers-tab'],
-        calendar: ['js/class-curriculum-slices.js?v=20260608-teachers-tab']
+        calendar: [
+            'js/teacher-timetable.js?v=20260612-lesson-filter',
+            'js/class-curriculum-slices.js?v=20260608-teachers-tab'
+        ]
     };
 
     const loaded = new Set();
@@ -39,8 +44,20 @@
         return list.some((src) => !isScriptLoaded(scriptMarker(src)));
     }
 
+    function scriptVersion(src) {
+        const m = String(src).match(/\?v=([^&]+)/);
+        return m ? m[1] : '';
+    }
+
     function loadScript(src) {
         const marker = scriptMarker(src);
+        const version = scriptVersion(src);
+        const existing = document.querySelector('script[data-cc-tab-src="' + marker + '"]');
+        if (existing && version && (existing.dataset.ccVersion || '') !== version) {
+            existing.remove();
+            loaded.delete(marker);
+            inflight.delete(marker);
+        }
         if (loaded.has(marker)) {
             return Promise.resolve();
         }
@@ -48,15 +65,15 @@
             return inflight.get(marker);
         }
         const p = new Promise((resolve, reject) => {
-            const existing = document.querySelector('script[data-cc-tab-src="' + marker + '"]');
-            if (existing) {
-                if (existing.dataset.ccLoaded === '1') {
+            const prior = document.querySelector('script[data-cc-tab-src="' + marker + '"]');
+            if (prior) {
+                if (prior.dataset.ccLoaded === '1') {
                     loaded.add(marker);
                     resolve();
                     return;
                 }
-                existing.addEventListener('load', () => resolve(), { once: true });
-                existing.addEventListener('error', () => reject(new Error('Failed to load ' + src)), {
+                prior.addEventListener('load', () => resolve(), { once: true });
+                prior.addEventListener('error', () => reject(new Error('Failed to load ' + src)), {
                     once: true
                 });
                 return;
@@ -65,6 +82,9 @@
             script.src = src;
             script.defer = true;
             script.dataset.ccTabSrc = marker;
+            if (version) {
+                script.dataset.ccVersion = version;
+            }
             script.onload = () => {
                 script.dataset.ccLoaded = '1';
                 loaded.add(marker);
