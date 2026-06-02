@@ -5,7 +5,6 @@
                     <h2 id="holidayModalTitle" data-i18n="addHolidayTitle">Add Holiday</h2>
                     <div class="event-editor-header-actions editor-header-actions">
                         <button type="submit" class="btn btn-primary btn-small editor-header-save-btn" data-i18n="saveEvent">Save Event</button>
-                        <button type="button" class="modal-close" id="closeHolidayModal" aria-label="Close">&times;</button>
                         <details class="header-dropdown editor-header-more">
                             <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
                             <div class="header-dropdown-panel editor-header-more-menu">
@@ -13,6 +12,7 @@
                                 <button type="button" id="deleteHolidayBtn" class="header-dropdown-item header-dropdown-item--danger" style="display: none;" data-i18n="delete">Delete</button>
                             </div>
                         </details>
+                        <button type="button" class="modal-close" id="closeHolidayModal" aria-label="Close">&times;</button>
                     </div>
                 </div>
 
@@ -65,6 +65,7 @@
                         <option value="evaluation_period" data-i18n="eventTypeEvalPeriod">Evaluation period</option>
                         <option value="other" data-i18n="eventTypeOther">Other</option>
                     </select>
+                    <p class="section-hint event-type-other-hint" data-i18n="eventTypeOtherHint">Shown on the calendar for reference only; does not cancel class.</p>
                 </div>
 
                 <div class="form-group">

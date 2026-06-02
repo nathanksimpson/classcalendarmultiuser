@@ -730,4 +730,50 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(!body.includes('syllabus-print-homework-hint'), 'no old truncated HW hint class');
 }
 
+// Other events: lesson row stays lesson when inline hook does not pass other (reference-only on calendar)
+{
+    const classData = { name: 'Navy 7A', syllabusUnits: [] };
+    const lessons = [{
+        date: '2026-03-02',
+        monthKey: '2026-03',
+        label: 'Lesson 1',
+        group: { start: 1, end: 1 }
+    }];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, lessons, {
+        isHolidayForClass: () => false,
+        getInlineEventForClass: () => null
+    });
+    assert(rows.length === 1, 'one lesson row');
+    assert(rows[0].kind === 'lesson', 'other events do not replace lesson with event row');
+    assert(!rows[0].planTitle.includes('Field trip'), 'lesson title unchanged');
+}
+
+// Evaluation deadline still becomes inline event row on lesson day
+{
+    const classData = { name: 'Navy 7A', syllabusUnits: [] };
+    const lessons = [{
+        date: '2026-03-02',
+        monthKey: '2026-03',
+        label: 'Lesson 1',
+        group: { start: 1, end: 1 }
+    }];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, lessons, {
+        isHolidayForClass: () => false,
+        getInlineEventForClass: () => ({
+            name: 'Midterm due',
+            type: 'evaluation_deadline',
+            bgColor: '#fecaca',
+            textColor: '#991b1b'
+        }),
+        slotEventDetail: 'Special session — not a regular lesson',
+        getEventColors: (_ev, type) => ({
+            bg: '#fecaca',
+            text: '#991b1b',
+            type: type || 'evaluation_deadline'
+        })
+    });
+    assert(rows[0].kind === 'event', 'evaluation deadline still inline');
+    assert(rows[0].planTitle.includes('Midterm due'), 'eval name in plan');
+}
+
 console.log('All syllabus-table tests passed.');

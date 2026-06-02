@@ -482,6 +482,7 @@ const translations = {
         eventTypeHomeworkDeadline: 'Homework deadline',
         eventTypeEvalPeriod: 'Evaluation period',
         eventTypeOther: 'Other',
+        eventTypeOtherHint: 'Shown on the calendar for reference only; does not cancel class.',
         eventsSummary: 'Events',
         includeEventsList: 'Include events list',
         printCalendarVisibility: 'On printed calendar, show:',
@@ -1503,6 +1504,7 @@ const translations = {
         eventTypeHomeworkDeadline: '숙제 마감',
         eventTypeEvalPeriod: '평가 기간',
         eventTypeOther: '기타',
+        eventTypeOtherHint: '캘린더에 참고용으로만 표시됩니다. 수업을 취소하지 않습니다.',
         eventsSummary: '일정',
         includeEventsList: '일정 목록 포함',
         printCalendarVisibility: '인쇄 캘린더에 표시:',
@@ -5243,22 +5245,31 @@ function ensureClassModalLayout() {
             deleteBtn.classList.add('btn-small');
             actions.insertBefore(deleteBtn, actions.firstChild);
         }
+        const moreMenu = actions.querySelector('.editor-header-more');
         if (saveBtn && !actions.contains(saveBtn)) {
             saveBtn.classList.add('btn-small');
-            const closeInActions = closeBtn && actions.contains(closeBtn);
-            if (closeInActions) {
+            if (moreMenu) {
+                actions.insertBefore(saveBtn, moreMenu);
+            } else if (closeBtn && actions.contains(closeBtn)) {
                 actions.insertBefore(saveBtn, closeBtn);
             } else {
                 actions.appendChild(saveBtn);
             }
         }
-        if (closeBtn && !actions.contains(closeBtn)) {
+        if (closeBtn) {
             closeBtn.type = 'button';
-            actions.appendChild(closeBtn);
-        }
-        if (closeBtn && closeBtn.parentElement === header) {
-            closeBtn.type = 'button';
-            actions.appendChild(closeBtn);
+            if (closeBtn.parentElement === header) {
+                actions.appendChild(closeBtn);
+            }
+            if (!actions.contains(closeBtn)) {
+                if (moreMenu) {
+                    actions.insertBefore(closeBtn, moreMenu.nextSibling);
+                } else {
+                    actions.appendChild(closeBtn);
+                }
+            } else if (moreMenu && closeBtn.previousElementSibling !== moreMenu) {
+                actions.insertBefore(closeBtn, moreMenu.nextSibling);
+            }
         }
     }
 
@@ -6014,6 +6025,11 @@ function initTopBarToggle() {
 function normalizeEventType(type) {
     const valid = Object.values(EVENT_TYPES);
     return valid.includes(type) ? type : EVENT_TYPES.HOLIDAY;
+}
+
+/** Only holiday-type events remove class / consume a meeting slot. */
+function eventTypeBlocksClass(type) {
+    return normalizeEventType(type) === EVENT_TYPES.HOLIDAY;
 }
 
 function normalizeEvent(raw) {
@@ -19267,11 +19283,10 @@ function calculateAutoLessonDates(classData) {
     };
 }
 
-/** Calendar events shown inline in syllabus rows (on lesson days), after holidays. */
+/** Inline syllabus rows for evaluation markers on lesson days (not reference-only `other`). */
 const SYLLABUS_INLINE_EVENT_TYPE_ORDER = [
     EVENT_TYPES.EVALUATION_PERIOD,
-    EVENT_TYPES.EVALUATION_DEADLINE,
-    EVENT_TYPES.OTHER
+    EVENT_TYPES.EVALUATION_DEADLINE
 ];
 
 function targetFilterAppliesToClass(target, classData) {
@@ -19325,7 +19340,10 @@ function getEventsForClassOnDate(dateStr, classData) {
 function getInlineScheduleEventForClassOnDate(dateStr, classData) {
     const onDay = getEventsForClassOnDate(dateStr, classData);
     for (const type of SYLLABUS_INLINE_EVENT_TYPE_ORDER) {
-        const hit = onDay.find(ev => normalizeEventType(ev.type) === type);
+        const hit = onDay.find(ev => {
+            const normalized = normalizeEventType(ev.type);
+            return normalized === type && !eventTypeBlocksClass(normalized);
+        });
         if (hit) {
             return { ...hit, name: getEventDisplayName(hit) };
         }
@@ -19480,11 +19498,8 @@ function getSyllabusYearForClass(classData) {
 
 // Check if a date is a holiday for a specific class
 function isHolidayForClass(dateStr, classData) {
-    const holiday = getHolidayForDate(dateStr);
-    if (!holiday) {
-        return false;
-    }
-    return eventAppliesToClass(holiday, classData);
+    return getEventsForClassOnDate(dateStr, classData)
+        .some((ev) => eventTypeBlocksClass(ev.type));
 }
 
 // Get holiday that covers a specific date (handles both single dates and ranges)
