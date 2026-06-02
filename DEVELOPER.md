@@ -15,7 +15,7 @@ Quick reference for editing this repo and pushing updates. Teachers use [FOR TEA
 
 ### Visual cohort setup board (local preview only)
 
-The **Setup → Cohorts** tab uses a drag-and-drop board (`js/setup-board.js`, `js/meeting-days-control.js`). **Do not run `npm run deploy`** for this feature until it is reviewed — test only with `npm start` and Ctrl+F5 after script changes. Lazy-loaded with the cohorts tab via `js/app-tab-scripts.js`.
+The **Setup → Cohorts** tab uses a drag-and-drop board (`js/setup-board.js`, `js/meeting-days-control.js`). Classes can be saved without a cohort on the Classes tab; assign via the board pool or cohort catalog. Cohort↔class links are synced in `app.js` (`syncClassCohortLinks`, `syncAllClassCohortLinksInData`) and `js/teacher-timetable.js`. Lazy-loaded via `js/app-tab-scripts.js` (shared `teacher-timetable.js?v=20260620-cohort-integration`).
 
 **Windows + Node 24:** Local server needs `better-sqlite3` ^12.10 (prebuilt for Node 24). If `npm install` works but `npm start` fails with `NODE_MODULE_VERSION`, Cursor may have installed native modules for its bundled Node — close integrated terminals, open **Windows PowerShell**, `cd` to the project, delete `node_modules`, and run `npm install` again (system `node -v` should match the Node you use to start the server).
 

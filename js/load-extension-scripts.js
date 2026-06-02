@@ -4,7 +4,7 @@
  */
 (function (global) {
     const EXTENSION_SCRIPTS = [
-        'js/syllabus-table.js?v=20260602-month-first-week',
+        'js/syllabus-table.js?v=20260602-plan-2line-week-wrap',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
         'js/syllabus-curricula-data.js?v=20260602-tab-fast',

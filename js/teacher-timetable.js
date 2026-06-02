@@ -649,7 +649,10 @@
         if (!cohort || !cohort.id) {
             return [];
         }
-        const ids = new Set(Array.isArray(cohort.classIds) ? cohort.classIds : []);
+        const classIdSet = new Set((appData.classes || []).map((c) => c && c.id).filter(Boolean));
+        const ids = new Set(
+            (Array.isArray(cohort.classIds) ? cohort.classIds : []).filter((id) => classIdSet.has(id))
+        );
         (appData.classes || []).forEach((c) => {
             if (classHasCohortId(c, cohort.id)) {
                 ids.add(c.id);

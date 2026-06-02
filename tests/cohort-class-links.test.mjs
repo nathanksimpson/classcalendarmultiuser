@@ -83,4 +83,11 @@ assert(
     'getCohortClassIds matches single remaining class'
 );
 
+cohort.classIds = ['class-1', 'deleted-class'];
+assert(
+    api.getCohortClassIds({ classes }, cohort).length === 1
+        && api.getCohortClassIds({ classes }, cohort)[0] === 'class-1',
+    'getCohortClassIds ignores orphan ids not in classes[]'
+);
+
 console.log('cohort-class-links.test.mjs: all passed');

@@ -655,7 +655,7 @@
                 unlinked += 1;
             }
         });
-        syncAllCohortClassLinks(touchedCohortIds);
+        syncCohortLinksForIds(touchedCohortIds);
         catalogDirty = false;
         hooks.saveData();
         if (hooks.invalidateScheduleCache) {
@@ -673,7 +673,7 @@
         renderAll();
     }
 
-    function syncAllCohortClassLinks(cohortIdSet) {
+    function syncCohortLinksForIds(cohortIdSet) {
         const appData = hooks.getAppData();
         (appData.cohorts || []).forEach((c) => {
             if (cohortIdSet.has(c.id)) {
@@ -1648,8 +1648,9 @@
             );
             if (existing) {
                 sug.classIds.forEach((classId) => {
-                    if (!existing.classIds.includes(classId)) {
-                        existing.classIds.push(classId);
+                    const cls = (appData.classes || []).find((c) => c.id === classId);
+                    if (cls) {
+                        api.addClassCohortId(cls, existing.id);
                     }
                 });
                 hooks.syncClassCohortLinks(existing);
@@ -1676,6 +1677,12 @@
                 homeroomDaySuffix: api.inferHomeroomDaySuffix(sug, {})
             };
             appData.cohorts.push(cohort);
+            sug.classIds.forEach((classId) => {
+                const cls = (appData.classes || []).find((c) => c.id === classId);
+                if (cls) {
+                    api.addClassCohortId(cls, cohort.id);
+                }
+            });
             hooks.syncClassCohortLinks(cohort);
             added += 1;
         });

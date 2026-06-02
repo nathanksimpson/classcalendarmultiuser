@@ -2987,8 +2987,6 @@ html.print-color-mode-light[data-theme="dark"] {
         padding: 2px 2px;
         text-align: center;
         line-height: 1.15;
-        white-space: normal;
-        word-break: break-word;
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-th-class {
@@ -3010,24 +3008,18 @@ html.print-color-mode-light[data-theme="dark"] {
         text-align: center;
     }
 
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-month.syllabus-cell-merged,
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-year.syllabus-cell-merged {
-        font-size: 0.8em;
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-col-month.syllabus-cell-merged {
+        font-size: 0.82em;
         white-space: nowrap;
-        word-break: normal;
-        line-height: 1.12;
-        vertical-align: middle;
-        text-align: center;
-        padding: 2px 3px;
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-col-week.syllabus-cell-merged {
-        font-size: 0.75em;
+        font-size: 0.8em;
         white-space: normal;
         word-break: break-word;
-        line-height: 1.12;
-        vertical-align: middle;
-        text-align: center;
+        overflow-wrap: anywhere;
+        line-height: 1.15;
+        hyphens: auto;
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-col-plan {

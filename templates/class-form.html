@@ -132,14 +132,14 @@
 
                 <section class="form-section class-teacher-section form-group--full-only">
                     <h3 class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
-                    <p class="section-hint" data-i18n="classTeachersHint">Add teachers and pick a student cohort in any order. Homeroom (담임) is set on Setup → Cohorts. Admins: cohort is required when you save. To drag this class on the Cohorts board, save it first on this tab.</p>
+                    <p class="section-hint" data-i18n="classTeachersHint">Add teachers and link a student cohort in any order. Homeroom (담임) is set on Setup → Cohorts. Cohort is optional when you save — use the Cohorts board to assign later. Save here first if you want to drag the class on that board.</p>
                     <div id="classTeachersRows" class="class-teachers-rows" role="list"></div>
                     <button type="button" id="classAddTeacherBtn" class="btn btn-outline btn-small class-add-teacher-btn" data-i18n="classAddTeacher">+ Add teacher</button>
                     <p id="classHomeroomLabelDisplay" class="class-homeroom-label-display section-hint" role="status"></p>
                     <p id="classCohortAlsoLinked" class="class-cohort-also-linked section-hint" hidden></p>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="classCohort" data-i18n="classCohort">Student cohort <span class="cohort-required-mark" data-i18n="classCohortAdminRequired" hidden>(required)</span></label>
+                            <label for="classCohort" data-i18n="classCohort">Student cohort <span class="cohort-required-mark" data-i18n="classCohortRecommended">(recommended)</span></label>
                             <select id="classCohort">
                                 <option value="" data-i18n="classCohortNone">— No cohort —</option>
                             </select>
@@ -156,7 +156,7 @@
 
                 <div class="form-group form-group--full-only">
                     <label for="classBook" data-i18n="defaultBook">Default book (fallback)</label>
-                    <input type="text" id="classBook" required data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
+                    <input type="text" id="classBook" data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
                 </div>
 
                 <details class="form-section-advanced form-group--full-only" id="classBookPeriodsDetails">

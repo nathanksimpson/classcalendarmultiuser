@@ -58,7 +58,7 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 | `homeroomTeacherName` | string | Free-text fallback |
 | `homeroomDaySuffix` | string | Shown in timetable header (e.g. `M`, `T`) |
 
-**Setup workflow:** Create cohorts on the **Cohorts** tab (Setup group), generate subject classes from the schedule matrix, then assign teachers on the **Teachers** tab.
+**Setup workflow:** Create cohorts on the **Cohorts** tab (Setup group), generate subject classes from the schedule matrix, then assign teachers on the **Teachers** tab. A class may be saved **without** a cohort (`cohortId` / `cohortIds` empty); link later via the Cohorts board drag-and-drop pool or the cohort class catalog (Apply). Warnings in the class editor are informational — only class name is required to save.
 
 **Homeroom (담임) vs teaching:** Homeroom is an **administrative cohort role** (student contact, retests). It is **not** a teaching subject and must **not** appear in `classTeachers[].category`. A teacher who is 담임 and also teaches must still be listed in `classTeachers[]` on each class they teach, with the appropriate subject category (Debate, RC, etc.) and curriculum.
 
@@ -135,7 +135,7 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `syllabusGeneralNotes` | string | Optional general notes and instructions (shown at top of printed syllabus) |
 | `syllabusRows` | array | Per-class syllabus table rows for print/export (see below) |
 | `color`, `textColor` | string | Hex colors |
-| `cohortId` | string | Primary cohort link (first in `cohortIds`; kept for older clients) |
+| `cohortId` | string | Primary cohort link (first in `cohortIds`; kept for older clients). Optional at create time. |
 | `cohortIds` | string[] | Optional; all cohorts sharing this class (combined groups). Migrated from `cohortId` on load. |
 | `generatedFromCohort` | boolean | Optional; set when class is created by Cohort tab **Generate subjects** |
 | `classTeachers` | array | Teachers who **teach** this class: `{ id, userId?, name?, category?, curriculumId?, classTypeId?, book?, meetingDays?, period?, periodByWeekday?, placements?, scheduleBlock?, timeSlotId? }[]` — `userId` is the team account id from Accounts management (same as login); each row’s curriculum drives that teacher’s calendar/syllabus/homework view. `category` = **subject taught** in this class (Debate, RC, …), never “Homeroom”. Optional per-teacher schedule: `meetingDays` (0=Sun…6=Sat), `period`, `periodByWeekday`, `placements: [{ dow, period }]`, `scheduleBlock` (`primary` / `secondary`). Empty `classTeachers` clears legacy `assignedTeacher*` fields on save. 담임 for the student group is set on `cohorts[]`, not here. |

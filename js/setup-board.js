@@ -190,23 +190,7 @@
 
     function getClassCohortIdsForBoard(classData) {
         const api = getApi();
-        if (api) {
-            return api.getClassCohortIds(classData);
-        }
-        const ids = [];
-        if (Array.isArray(classData.cohortIds)) {
-            classData.cohortIds.forEach((id) => {
-                const cid = normalizeStr(id);
-                if (cid) {
-                    ids.push(cid);
-                }
-            });
-        }
-        const legacy = normalizeStr(classData.cohortId);
-        if (legacy && !ids.includes(legacy)) {
-            ids.push(legacy);
-        }
-        return ids;
+        return api ? api.getClassCohortIds(classData) : [];
     }
 
     function isClassUnassigned(classData) {
@@ -309,7 +293,7 @@
     function setHomeroomHost(cohort, classData, checked) {
         if (checked) {
             if (!classHasHomeroomTeacher(classData)) {
-                hooks.showMessage(t('setupBoardAssignTeacherFirst'), true);
+                hooks.showMessage(t('setupBoardAssignTeacherFirst'), false);
                 return;
             }
             cohort.homeroomHostClassId = classData.id;
@@ -863,7 +847,7 @@
         return card;
     }
 
-    function syncAllCohortClassLinks() {
+    function syncAllCohortLinksAndInferSchedules() {
         const appData = hooks.getAppData();
         if (!appData) {
             return 0;
@@ -1068,7 +1052,7 @@
                 showBoardRenderError(new Error('setup board DOM missing — hard refresh (Ctrl+F5)'));
                 return;
             }
-            inferredCount = syncAllCohortClassLinks();
+            inferredCount = syncAllCohortLinksAndInferSchedules();
             if (appData.ui && appData.ui.cohortsBoardView) {
                 boardView = normalizeBoardView(appData.ui.cohortsBoardView);
             }

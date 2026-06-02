@@ -4,23 +4,23 @@
 (function (global) {
     const TAB_SCRIPTS = {
         cohorts: [
-            'js/teacher-timetable.js?v=20260612-import-schedule',
+            'js/teacher-timetable.js?v=20260620-cohort-integration',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260602-cohort-remove-fix',
-            'js/setup-board.js?v=20260602-cohort-remove-fix'
+            'js/cohort-management.js?v=20260620-cohort-integration',
+            'js/setup-board.js?v=20260620-cohort-integration'
         ],
         timetable: [
-            'js/teacher-timetable.js?v=20260611-board-fix2',
+            'js/teacher-timetable.js?v=20260620-cohort-integration',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
-            'js/teacher-timetable.js?v=20260611-board-fix2',
+            'js/teacher-timetable.js?v=20260620-cohort-integration',
             'js/teacher-management.js?v=20260610-setup-board',
             'js/class-curriculum-slices.js?v=20260608-teachers-tab'
         ],
         curriculum: ['js/class-curriculum-slices.js?v=20260608-teachers-tab'],
         calendar: [
-            'js/teacher-timetable.js?v=20260612-lesson-filter',
+            'js/teacher-timetable.js?v=20260620-cohort-integration',
             'js/class-curriculum-slices.js?v=20260608-teachers-tab'
         ]
     };

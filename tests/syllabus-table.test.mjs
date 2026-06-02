@@ -30,14 +30,13 @@ function assert(cond, msg) {
         { date: '2026-03-09', monthKey: '2026-03', weekLabel: 'Mar 9–13', sessionNumber: 3, planTitle: 'C' },
         { date: '2026-07-07', monthKey: '2026-07', weekLabel: 'July 6–10', sessionNumber: 4, planTitle: 'D' }
     ]);
-    const merge = CCPSyllabus.computeSyllabusCellMerges(rows, false, true);
-    assert(merge.monthRowspan[0] === 2, 'March month only on first week (2 rows)');
-    assert(merge.monthRowspan[2] === 0, 'second March week has no month cell');
-    assert(merge.monthRowspan[3] === 1, 'July month on first week only');
+    const merge = CCPSyllabus.computeSyllabusCellMerges(rows, true);
+    assert(merge.monthRowspan[0] === 3, 'March spans 3 rows');
+    assert(merge.monthRowspan[3] === 1, 'July spans 1 row');
     assert(merge.weekRowspan[0] === 2, 'first week spans 2 rows');
     assert(merge.weekRowspan[2] === 1, 'second week spans 1 row');
     const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, { pdfLayout: true, tableYear: '2026' });
-    assert(html.includes('rowspan="2"'), 'month rowspan first week only');
+    assert(html.includes('rowspan="3"'), 'month rowspan in html');
     assert(html.includes('syllabus-cell-merged'), 'merged cell class');
     assert(html.includes('July'), 'July label in merged cell');
 }
@@ -60,8 +59,7 @@ function assert(cond, msg) {
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-extra-dense'), '28 rows use normal density');
     assert(docHtml.includes('syllabus-a4-sheet'), 'A4 sheet wrapper per class');
     assert(docHtml.includes('<colgroup>'), 'colgroup for column widths');
-    assert(docHtml.includes('width:67.5%'), 'plan column width');
-    assert(docHtml.includes('width:3em'), 'month column fixed width');
+    assert(docHtml.includes('width:68%'), 'plan column width');
     assert(docHtml.includes('width:2.5em'), 'class column width');
 }
 
@@ -687,7 +685,8 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(!html.includes('syllabus-general-notes-print'), 'general notes not above table');
     assert(html.includes('syllabus-print-plan-brief'), '2-line brief wrapper in plan');
     assert(html.includes('syllabus-print-covered'), 'covered block in plan');
-    assert(!html.includes('syllabus-print-homework-full'), 'homework omitted from brief (continuation only)');
+    assert(html.includes('syllabus-print-homework-full'), 'homework in brief plan');
+    assert(html.includes('Homework:'), 'homework label');
     assert(html.includes('Class policy'), 'general notes in merged column');
     assert(html.includes('#1:'), 'row note in merged column');
     assert(!html.match(/<td class="syllabus-col-note"[^>]*>[^<]*Quiz/s), 'no per-row note cell');
