@@ -645,6 +645,137 @@
         }
     }
 
+    function classesMatchForCombine(classA, classB) {
+        if (!classA || !classB || classA.id === classB.id) {
+            return false;
+        }
+        const typeA = normalizeStr(classA.classTypeId);
+        const typeB = normalizeStr(classB.classTypeId);
+        if (typeA && typeB && typeA === typeB) {
+            return true;
+        }
+        const nameA = normalizeStr(classA.name).toLowerCase();
+        const nameB = normalizeStr(classB.name).toLowerCase();
+        if (!nameA || !nameB) {
+            return false;
+        }
+        const strip = (n) => n.replace(/^[^·]+·\s*/i, '').trim();
+        const coreA = strip(nameA);
+        const coreB = strip(nameB);
+        return coreA && coreB && coreA === coreB;
+    }
+
+    function getClassesForCohort(appData, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!cid) {
+            return [];
+        }
+        return (appData.classes || []).filter((c) => classHasCohortId(c, cid));
+    }
+
+    /**
+     * Pairs of classes (one per cohort) that look like duplicates for combining.
+     * @returns {{ classA: object, classB: object, matchKey: string }[]}
+     */
+    function findDuplicateClassPairsForCohorts(appData, cohortIdA, cohortIdB) {
+        const aId = normalizeStr(cohortIdA);
+        const bId = normalizeStr(cohortIdB);
+        if (!aId || !bId || aId === bId) {
+            return [];
+        }
+        const listA = getClassesForCohort(appData, aId);
+        const listB = getClassesForCohort(appData, bId);
+        const pairs = [];
+        const usedB = new Set();
+        listA.forEach((classA) => {
+            const match = listB.find((classB) =>
+                !usedB.has(classB.id) && classesMatchForCombine(classA, classB)
+            );
+            if (match) {
+                usedB.add(match.id);
+                const matchKey = normalizeStr(classA.classTypeId) || normalizeStr(classA.name);
+                pairs.push({ classA, classB: match, matchKey });
+            }
+        });
+        return pairs;
+    }
+
+    function formatCohortNamesForClass(classData, cohortsById, options) {
+        options = options || {};
+        const maxLen = options.maxLen != null ? options.maxLen : 24;
+        const ids = getClassCohortIds(classData);
+        const names = ids
+            .map((id) => {
+                const c = cohortsById[id];
+                return c ? (c.name || id) : id;
+            })
+            .filter(Boolean);
+        if (!names.length) {
+            return '';
+        }
+        let label = names.join(' + ');
+        if (label.length > maxLen) {
+            label = names.map((n) => (n.length > 8 ? n.slice(0, 7) + '…' : n)).join('+');
+        }
+        return label;
+    }
+
+    /**
+     * Link keeper to both cohorts and optionally remove duplicate class record.
+     * @returns {{ keeperId: string, removedId: string, deleted: boolean }}
+     */
+    function combineCohortClassPair(appData, keeperId, duplicateId, cohortIdA, cohortIdB, options) {
+        options = options || {};
+        const keeper = (appData.classes || []).find((c) => c.id === keeperId);
+        const duplicate = (appData.classes || []).find((c) => c.id === duplicateId);
+        if (!keeper || !duplicate || keeper.id === duplicate.id) {
+            return { keeperId: keeperId || '', removedId: '', deleted: false, error: 'invalid' };
+        }
+        const aId = normalizeStr(cohortIdA);
+        const bId = normalizeStr(cohortIdB);
+        if (aId) {
+            addClassCohortId(keeper, aId);
+        }
+        if (bId) {
+            addClassCohortId(keeper, bId);
+        }
+        removeClassCohortId(duplicate, aId);
+        removeClassCohortId(duplicate, bId);
+        syncClassPrimaryCohortId(keeper);
+
+        let deleted = false;
+        if (options.deleteDuplicate) {
+            const idx = (appData.classes || []).findIndex((c) => c.id === duplicate.id);
+            if (idx >= 0) {
+                appData.classes.splice(idx, 1);
+                deleted = true;
+            }
+        }
+        if (options.renameKeeper && options.renameLabel) {
+            keeper.name = normalizeStr(options.renameLabel) || keeper.name;
+        }
+        return { keeperId: keeper.id, removedId: duplicate.id, deleted };
+    }
+
+    function findPossibleDuplicatePairsAcrossCohorts(appData) {
+        const cohorts = (appData.cohorts || []).filter((c) => c && c.id);
+        const pairs = [];
+        for (let i = 0; i < cohorts.length; i += 1) {
+            for (let j = i + 1; j < cohorts.length; j += 1) {
+                findDuplicateClassPairsForCohorts(appData, cohorts[i].id, cohorts[j].id).forEach((p) => {
+                    pairs.push({
+                        cohortIdA: cohorts[i].id,
+                        cohortIdB: cohorts[j].id,
+                        cohortNameA: cohorts[i].name || cohorts[i].id,
+                        cohortNameB: cohorts[j].name || cohorts[j].id,
+                        ...p
+                    });
+                });
+            }
+        }
+        return pairs;
+    }
+
     function getCohortClassIds(appData, cohort) {
         if (!cohort || !cohort.id) {
             return [];
@@ -1042,14 +1173,28 @@
                 if (!cell) {
                     return;
                 }
+                const cohortIds = getClassCohortIds(classData);
+                const cohortSuffix = cohortIds.length > 1
+                    ? formatCohortNamesForClass(classData, cohortsById, { maxLen: 28 })
+                    : '';
+                let displayName = classData.name || '';
+                let label = category ? `${displayName}\n(${category})` : displayName;
+                if (cohortSuffix) {
+                    label = `${displayName}\n(${cohortSuffix})`;
+                    if (category) {
+                        label += `\n(${category})`;
+                    }
+                }
                 cell.entries.push({
                     classId: classData.id,
-                    className: classData.name || '',
+                    className: displayName,
                     category,
                     homeroomLabel,
                     color,
                     textColor,
-                    label: category ? `${classData.name}\n(${category})` : classData.name
+                    cohortIds: cohortIds.slice(),
+                    combinedCohorts: cohortSuffix,
+                    label
                 });
             });
         });
@@ -1149,6 +1294,12 @@
         addClassCohortId,
         removeClassCohortId,
         syncClassPrimaryCohortId,
+        classesMatchForCombine,
+        getClassesForCohort,
+        findDuplicateClassPairsForCohorts,
+        findPossibleDuplicatePairsAcrossCohorts,
+        formatCohortNamesForClass,
+        combineCohortClassPair,
         getCohortClassIds,
         formatTimeSlotLabel,
         getSortedTimeSlots,

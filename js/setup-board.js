@@ -349,8 +349,8 @@
     }
 
     /**
-     * Assign or move a class onto a cohort (rearrange). From pool + already linked → move to this cohort only.
-     * From another cohort → move from that cohort. Already on this cohort → no-op.
+     * Assign a class onto a cohort. From pool: add link (combined groups); Alt+drag or moveOnly → replace all links.
+     * From another cohort column: move from that cohort only. Already on this cohort → no-op.
      */
     function assignClassToCohort(classData, cohort, payload) {
         if (!classData || !cohort) {
@@ -360,6 +360,7 @@
         const existing = getClassCohortIdsForBoard(classData);
         const fromId = payload && payload.fromCohortId ? payload.fromCohortId : '';
         const fromPool = !!(payload && payload.fromPool);
+        const moveOnly = !!(payload && payload.moveOnly);
 
         if (existing.includes(targetId) && !fromId) {
             return;
@@ -372,8 +373,15 @@
         if (fromId && fromId !== targetId) {
             toRemove.add(fromId);
         }
-        if (fromPool && existing.length) {
+        if (fromPool && existing.length && moveOnly) {
             existing.forEach((id) => toRemove.add(id));
+        }
+        if (moveOnly && !fromPool && existing.length) {
+            existing.forEach((id) => {
+                if (id !== targetId) {
+                    toRemove.add(id);
+                }
+            });
         }
 
         toRemove.forEach((cid) => unlinkClassFromCohortQuiet(classData, cid));
@@ -445,10 +453,10 @@
         }
         el.draggable = true;
         el.addEventListener('dragstart', (e) => {
-            dragPayload = payload;
+            dragPayload = Object.assign({}, payload, { moveOnly: !!e.altKey });
             el.classList.add('is-dragging');
             try {
-                e.dataTransfer.setData('application/x-ccp-setup', JSON.stringify(payload));
+                e.dataTransfer.setData('application/x-ccp-setup', JSON.stringify(dragPayload));
                 e.dataTransfer.effectAllowed = 'move';
             } catch (_) {
                 /* ignore */
@@ -528,12 +536,18 @@
             e.stopPropagation();
             const action = global.prompt(
                 t('setupBoardClassMenuPrompt'),
-                '1=' + t('setupBoardOpenClass') + ', 2=' + t('setupBoardRemoveFromCohort')
+                '1=' + t('setupBoardOpenClass') + ', 2=' + t('setupBoardRemoveFromCohort') + ', 3=' + t('setupBoardMoveClassOnly')
             );
             if (action === '1' || action === '1.') {
                 hooks.navigateToTab('classes', { classId: classData.id, host: 'setup' });
             } else if (action === '2' || action === '2.') {
                 unlinkClassFromCohort(classData, cohort.id);
+            } else if (action === '3' || action === '3.') {
+                assignClassToCohort(classData, cohort, {
+                    fromCohortId: cohort.id,
+                    fromPool: false,
+                    moveOnly: true
+                });
             }
         });
         head.appendChild(menuBtn);
@@ -831,7 +845,10 @@
             const sub = document.createElement('span');
             sub.className = 'setup-board-pool-card-linked section-hint';
             sub.textContent = cohortNamesForClass(classData).join(', ');
+            card.title = t('setupBoardPoolDragAdd');
             card.appendChild(sub);
+        } else {
+            card.title = t('setupBoardPoolDragAdd');
         }
         setupDragSource(card, {
             type: 'class',

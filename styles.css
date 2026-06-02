@@ -8428,6 +8428,14 @@ html:not([data-theme="dark"]) .timetable-cell-entry--colored {
     outline: 2px solid color-mix(in srgb, var(--danger-color, #dc2626) 45%, transparent);
 }
 
+.timetable-cell--combined {
+    outline: 2px dashed color-mix(in srgb, var(--primary-color, #4f46e5) 40%, transparent);
+}
+
+.cohort-combined-callout {
+    margin-top: 0.35rem;
+}
+
 .timetable-grid--secondary {
     margin-top: 0.5rem;
 }

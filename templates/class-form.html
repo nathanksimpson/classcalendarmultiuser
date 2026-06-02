@@ -136,10 +136,14 @@
                     <div id="classTeachersRows" class="class-teachers-rows" role="list"></div>
                     <button type="button" id="classAddTeacherBtn" class="btn btn-outline btn-small class-add-teacher-btn" data-i18n="classAddTeacher">+ Add teacher</button>
                     <p id="classHomeroomLabelDisplay" class="class-homeroom-label-display section-hint" role="status"></p>
-                    <p id="classCohortAlsoLinked" class="class-cohort-also-linked section-hint" hidden></p>
+                    <div class="form-group form-group--full-only">
+                        <span class="form-spacer-label" id="classCohortMultiLabel" data-i18n="classCohortMultiLabel">Linked student cohorts</span>
+                        <p class="section-hint" data-i18n="classCohortPrimaryHint">Primary cohort sets homeroom display below.</p>
+                        <div id="classCohortMulti" class="lesson-filter-chip-grid class-cohort-multi-chips" role="group" aria-labelledby="classCohortMultiLabel"></div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="classCohort" data-i18n="classCohort">Student cohort <span class="cohort-required-mark" data-i18n="classCohortRecommended">(recommended)</span></label>
+                            <label for="classCohort" data-i18n="classCohort">Primary cohort <span class="cohort-required-mark" data-i18n="classCohortRecommended">(recommended)</span></label>
                             <select id="classCohort">
                                 <option value="" data-i18n="classCohortNone">— No cohort —</option>
                             </select>

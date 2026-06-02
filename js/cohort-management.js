@@ -365,6 +365,13 @@
         if (unlinked > 0) {
             text += ' ' + t('cohortsSummaryUnlinked').replace('{n}', String(unlinked));
         }
+        const api = getTimetableApi();
+        if (api && api.findPossibleDuplicatePairsAcrossCohorts) {
+            const dupPairs = api.findPossibleDuplicatePairsAcrossCohorts(appData);
+            if (dupPairs.length) {
+                text += ' ' + t('cohortsReviewDuplicates').replace('{n}', String(dupPairs.length));
+            }
+        }
         el.textContent = text;
     }
 
@@ -797,7 +804,8 @@
         const section = document.createElement('section');
         section.className = 'cohort-class-assignment-section';
         section.innerHTML = `<h3 class="form-section-title">${escapeHtml(t('cohortsSectionClassAssignment'))}</h3>
-            <p class="section-hint">${escapeHtml(t('cohortsClassAssignmentHint'))}</p>`;
+            <p class="section-hint">${escapeHtml(t('cohortsClassAssignmentHint'))}</p>
+            <p class="section-hint cohort-combined-callout">${escapeHtml(t('cohortsCombinedCallout'))}</p>`;
 
         const actions = document.createElement('div');
         actions.className = 'lesson-filter-actions cohort-class-catalog-actions';
@@ -987,6 +995,20 @@
             renderAll();
         });
 
+        const combineBtn = document.createElement('button');
+        combineBtn.type = 'button';
+        combineBtn.className = 'btn btn-outline btn-small';
+        combineBtn.textContent = t('cohortsCombineBtn');
+        combineBtn.disabled = ro;
+        combineBtn.addEventListener('click', () => {
+            if (ro) {
+                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                return;
+            }
+            flushCohortEditorFields();
+            openCombineCohortsModal(cohort);
+        });
+
         const genBtn = document.createElement('button');
         genBtn.type = 'button';
         genBtn.className = 'btn btn-outline btn-small';
@@ -1011,10 +1033,15 @@
         } else if (hooks.populateClassCohortSelect) {
             hooks.populateClassCohortSelect();
         }
-            hooks.showMessage(
-                t('cohortsGenerateDone').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)),
-                false
-            );
+            let msg = t('cohortsGenerateDone').replace('{created}', String(result.created)).replace('{updated}', String(result.updated));
+            const ttApi = getTimetableApi();
+            if (ttApi && ttApi.findPossibleDuplicatePairsAcrossCohorts) {
+                const dupCount = ttApi.findPossibleDuplicatePairsAcrossCohorts(hooks.getAppData()).length;
+                if (dupCount > 0) {
+                    msg += ' ' + t('cohortsReviewDuplicates').replace('{n}', String(dupCount));
+                }
+            }
+            hooks.showMessage(msg, false);
             updateCohortEditorModalTitle(cohort);
             renderAll();
         });
@@ -1066,6 +1093,7 @@
         ttBtn.addEventListener('click', () => hooks.navigateToTab('timetable'));
 
         toolbar.appendChild(saveBtn);
+        toolbar.appendChild(combineBtn);
         toolbar.appendChild(genBtn);
         toolbar.appendChild(dupBtn);
         toolbar.appendChild(deleteBtn);
@@ -1695,6 +1723,260 @@
         }
         hooks.showMessage(t('timetableCohortsSuggested').replace('{n}', String(added)), false);
         renderAll();
+    }
+
+    let combineModalEl = null;
+
+    function ensureCombineModal() {
+        if (combineModalEl) {
+            return combineModalEl;
+        }
+        const wrap = document.createElement('div');
+        wrap.id = 'cohortsCombineModal';
+        wrap.className = 'modal';
+        wrap.setAttribute('role', 'dialog');
+        wrap.setAttribute('aria-modal', 'true');
+        wrap.innerHTML = `
+            <div class="modal-content modal-small">
+                <div class="modal-header">
+                    <h2 id="cohortsCombineModalTitle"></h2>
+                    <button type="button" class="modal-close" id="cohortsCombineModalClose" aria-label="Close">&times;</button>
+                </div>
+                <div class="cohorts-combine-body"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" id="cohortsCombineCancel"></button>
+                    <button type="button" class="btn btn-primary" id="cohortsCombineApply"></button>
+                </div>
+            </div>`;
+        document.body.appendChild(wrap);
+        wrap.querySelector('#cohortsCombineModalClose').addEventListener('click', () => closeCombineModal());
+        wrap.querySelector('#cohortsCombineCancel').addEventListener('click', () => closeCombineModal());
+        wrap.addEventListener('click', (e) => {
+            if (e.target === wrap) {
+                closeCombineModal();
+            }
+        });
+        combineModalEl = wrap;
+        return wrap;
+    }
+
+    function closeCombineModal() {
+        const el = combineModalEl || document.getElementById('cohortsCombineModal');
+        if (el) {
+            el.classList.remove('active', 'is-open');
+            el.hidden = true;
+            el.setAttribute('aria-hidden', 'true');
+        }
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(el);
+        }
+    }
+
+    function openCombineCohortsModal(cohortA) {
+        const api = getTimetableApi();
+        if (!api || !cohortA || !hooks) {
+            return;
+        }
+        const modal = ensureCombineModal();
+        const appData = hooks.getAppData();
+        const titleEl = modal.querySelector('#cohortsCombineModalTitle');
+        const body = modal.querySelector('.cohorts-combine-body');
+        const applyBtn = modal.querySelector('#cohortsCombineApply');
+        const cancelBtn = modal.querySelector('#cohortsCombineCancel');
+        if (titleEl) {
+            titleEl.textContent = t('cohortsCombineTitle');
+        }
+        if (cancelBtn) {
+            cancelBtn.textContent = t('cancel') || 'Cancel';
+        }
+        if (applyBtn) {
+            applyBtn.textContent = t('cohortsCombineApply');
+        }
+        body.innerHTML = '';
+
+        const withLabel = document.createElement('label');
+        withLabel.className = 'form-group';
+        withLabel.innerHTML = `<span>${escapeHtml(t('cohortsCombineWith'))}</span>`;
+        const withSel = document.createElement('select');
+        withSel.className = 'field-select cohort-combine-with-select';
+        const optPh = document.createElement('option');
+        optPh.value = '';
+        optPh.textContent = '—';
+        withSel.appendChild(optPh);
+        (appData.cohorts || []).forEach((c) => {
+            if (!c || c.id === cohortA.id) {
+                return;
+            }
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name || c.id;
+            withSel.appendChild(opt);
+        });
+        withLabel.appendChild(withSel);
+        body.appendChild(withLabel);
+
+        const pairSection = document.createElement('div');
+        pairSection.className = 'cohorts-combine-pairs';
+        body.appendChild(pairSection);
+
+        const optionsSection = document.createElement('div');
+        optionsSection.className = 'cohorts-combine-options';
+        body.appendChild(optionsSection);
+
+        let selectedPairIndex = 0;
+        let pairs = [];
+
+        function defaultRenameLabel(otherCohort, classData) {
+            const aName = cohortDisplayName(cohortA);
+            const bName = cohortDisplayName(otherCohort);
+            const subject = normalizeStr(classData.name).replace(/^[^·]+·\s*/i, '').trim()
+                || normalizeStr(classData.name);
+            return `${aName} + ${bName} · ${subject}`;
+        }
+
+        function renderPairUi() {
+            pairSection.innerHTML = '';
+            optionsSection.innerHTML = '';
+            const cohortBId = withSel.value;
+            if (!cohortBId) {
+                pairSection.innerHTML = `<p class="section-hint">${escapeHtml(t('cohortsCombineWith'))}</p>`;
+                applyBtn.disabled = true;
+                return;
+            }
+            const cohortB = (appData.cohorts || []).find((c) => c.id === cohortBId);
+            pairs = api.findDuplicateClassPairsForCohorts(appData, cohortA.id, cohortBId);
+            if (!pairs.length) {
+                pairSection.innerHTML = `<p class="section-hint">${escapeHtml(t('cohortsCombineNoPairs'))}</p>`;
+                applyBtn.disabled = true;
+                return;
+            }
+            applyBtn.disabled = false;
+            const pairLabel = document.createElement('p');
+            pairLabel.className = 'section-hint';
+            pairLabel.textContent = t('cohortsCombinePickPair');
+            pairSection.appendChild(pairLabel);
+            pairs.forEach((pair, idx) => {
+                const row = document.createElement('label');
+                row.className = 'checkbox-label selection-chip cohort-combine-pair-chip';
+                const nameA = pair.classA.name || pair.classA.id;
+                const nameB = pair.classB.name || pair.classB.id;
+                row.innerHTML = `<input type="radio" name="cohortCombinePair" value="${idx}" ${idx === selectedPairIndex ? 'checked' : ''}>
+                    <span><strong>${escapeHtml(nameA)}</strong> + <strong>${escapeHtml(nameB)}</strong></span>`;
+                row.querySelector('input').addEventListener('change', () => {
+                    selectedPairIndex = idx;
+                    renderKeeperOptions();
+                });
+                pairSection.appendChild(row);
+            });
+
+            function renderKeeperOptions() {
+                const pair = pairs[selectedPairIndex];
+                if (!pair) {
+                    return;
+                }
+                optionsSection.innerHTML = '';
+                const keeperFieldset = document.createElement('fieldset');
+                keeperFieldset.className = 'cohorts-combine-keeper';
+                const leg = document.createElement('legend');
+                leg.textContent = t('cohortsCombinePickPair');
+                keeperFieldset.appendChild(leg);
+                [
+                    ['a', t('cohortsCombineKeeperA'), pair.classA.id],
+                    ['b', t('cohortsCombineKeeperB'), pair.classB.id]
+                ].forEach(([val, label, id], i) => {
+                    const lab = document.createElement('label');
+                    lab.className = 'checkbox-label selection-chip';
+                    lab.innerHTML = `<input type="radio" name="cohortCombineKeeper" value="${val}" ${i === 0 ? 'checked' : ''}>
+                        <span>${escapeHtml(label)}: ${escapeHtml(val === 'a' ? pair.classA.name : pair.classB.name)}</span>`;
+                    keeperFieldset.appendChild(lab);
+                });
+                optionsSection.appendChild(keeperFieldset);
+
+                const delLab = document.createElement('label');
+                delLab.className = 'checkbox-label selection-chip';
+                delLab.innerHTML = `<input type="checkbox" id="cohortCombineDeleteDup" checked>
+                    <span>${escapeHtml(t('cohortsCombineDeleteDuplicate'))}</span>`;
+                optionsSection.appendChild(delLab);
+
+                const renameLab = document.createElement('label');
+                renameLab.className = 'form-group';
+                renameLab.innerHTML = `<span>${escapeHtml(t('cohortsCombineRename'))}</span>`;
+                const renameInput = document.createElement('input');
+                renameInput.type = 'text';
+                renameInput.className = 'field-input cohort-combine-rename';
+                renameInput.value = defaultRenameLabel(cohortB, pair.classA);
+                renameLab.appendChild(renameInput);
+                optionsSection.appendChild(renameLab);
+            }
+            renderKeeperOptions();
+        }
+
+        withSel.addEventListener('change', () => {
+            selectedPairIndex = 0;
+            renderPairUi();
+        });
+        renderPairUi();
+
+        applyBtn.onclick = () => {
+            if (hooks.isViewOnly && hooks.isViewOnly()) {
+                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                return;
+            }
+            const cohortBId = withSel.value;
+            if (!cohortBId || !pairs.length) {
+                return;
+            }
+            const pair = pairs[selectedPairIndex];
+            if (!pair) {
+                return;
+            }
+            const keeperChoice = optionsSection.querySelector('input[name="cohortCombineKeeper"]:checked');
+            const keeperId = keeperChoice && keeperChoice.value === 'b' ? pair.classB.id : pair.classA.id;
+            const duplicateId = keeperId === pair.classA.id ? pair.classB.id : pair.classA.id;
+            const deleteDup = optionsSection.querySelector('#cohortCombineDeleteDup')?.checked === true;
+            const renameInput = optionsSection.querySelector('.cohort-combine-rename');
+            const renameLabel = renameInput ? renameInput.value.trim() : '';
+            api.combineCohortClassPair(appData, keeperId, duplicateId, cohortA.id, cohortBId, {
+                deleteDuplicate: false,
+                renameKeeper: Boolean(renameLabel),
+                renameLabel
+            });
+            if (deleteDup && hooks.deleteClassById) {
+                hooks.deleteClassById(duplicateId);
+            } else if (deleteDup) {
+                const idx = (appData.classes || []).findIndex((c) => c.id === duplicateId);
+                if (idx >= 0) {
+                    appData.classes.splice(idx, 1);
+                }
+            }
+            if (hooks.syncAllClassCohortLinks) {
+                hooks.syncAllClassCohortLinks();
+            } else {
+                hooks.syncClassCohortLinks(cohortA);
+                const cohortB = (appData.cohorts || []).find((c) => c.id === cohortBId);
+                if (cohortB) {
+                    hooks.syncClassCohortLinks(cohortB);
+                }
+            }
+            hooks.saveData();
+            if (hooks.invalidateScheduleCache) {
+                hooks.invalidateScheduleCache();
+            }
+            if (hooks.refreshClassEditorCohortUiIfOpen) {
+                hooks.refreshClassEditorCohortUiIfOpen();
+            }
+            hooks.showMessage(t('cohortsCombineDone').replace('{n}', '1'), false);
+            closeCombineModal();
+            renderAll();
+        };
+
+        modal.hidden = false;
+        if (hooks.openModal) {
+            hooks.openModal(modal);
+        } else {
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+        }
     }
 
     function bindOnce() {

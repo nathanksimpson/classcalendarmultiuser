@@ -130,7 +130,8 @@
         "steps": [
           "Head teachers and admins: create student cohorts here before adding subject classes.",
           "For each cohort: name, level, grade, schedule pattern (MWF / T/Th), homeroom teacher (담임).",
-          "In Class assignment, check which classes belong to this cohort and click Apply (same idea as the Teachers tab). One class can link to multiple cohorts for combined groups.",
+          "In Class assignment, check which classes belong to this cohort and click Apply (same idea as the Teachers tab). One class can link to multiple cohorts for combined groups (합반): same class checked on each cohort, or use Combine cohorts to merge duplicate generated classes.",
+          "Combined groups: one class record, one calendar and syllabus. If Timetable shows a conflict for the same teacher at the same time, you often have two class records — use Combine cohorts or delete the duplicate.",
           "Review the subject schedule grid from the program matrix, then click Generate subjects to create linked classes.",
           "Use Import from existing classes once to migrate older calendars that already have classes.",
           "Delete cohort removes the cohort record and unlinks classes; it does not delete the classes themselves.",

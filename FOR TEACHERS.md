@@ -54,6 +54,17 @@ On shared computers, the site signs you out after a period with no mouse, keyboa
 
 Just use the bookmark.
 
+## Combined cohorts (two groups, one class)
+
+When two student cohorts meet together for the same subject (합반), use **one class** in the calendar — not two separate classes at the same time.
+
+1. Open **Setup → Cohorts** (head teacher / admin).
+2. Select the first cohort, then use **Combine cohorts** (or in **Class assignment**, check the **same** class for each cohort and click **Apply class links**).
+3. Remove or delete the extra class that was generated for the second cohort (otherwise the **Timetable** tab may show a red “conflict” even though students are combined).
+4. On **Setup → Timetable**, you should see one lesson block with both cohort names.
+
+Homeroom (담임) stays on each cohort; the shared class only needs teachers listed under **Classes**.
+
 ## More help
 
 - In the app: **Help** opens [help.html](help.html) — sections 1–14 = planner, **17–19** = team sign-in and locks, **20–21** = Admin and roles.

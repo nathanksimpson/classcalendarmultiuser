@@ -227,7 +227,7 @@ const translations = {
         setupBoardViewLabel: 'Board view',
         setupBoardUnassigned: 'Unassigned classes',
         setupBoardAllClasses: 'All classes',
-        setupBoardPoolHint: 'Drag into a cohort on the board, or back here to unassign.',
+        setupBoardPoolHint: 'Drag into a cohort to add a link (combined groups). Alt+drag replaces links. Drag here to unassign all.',
         setupBoardTeachersApiMissing: 'Could not assign teacher — refresh the page (Ctrl+F5) and try again.',
         setupBoardTeacherAlreadyAssigned: 'That teacher is already assigned to this class.',
         cohortEditorModalTitle: 'Edit cohort: {name}',
@@ -246,7 +246,7 @@ const translations = {
         setupBoardOpenClass: 'Edit class',
         setupBoardRemoveFromCohort: 'Remove from cohort',
         setupBoardClassMenu: 'Class actions',
-        setupBoardClassMenuPrompt: 'Enter 1 to edit class, 2 to remove from cohort',
+        setupBoardClassMenuPrompt: 'Enter 1 to edit class, 2 to remove from this cohort, 3 to keep on this cohort only (unlink others)',
         setupBoardCohortDays: 'Cohort days',
         setupBoardClassDays: 'Class days',
         setupBoardClassDaysOutside: 'This class meets on a day outside this cohort’s schedule (e.g. cohort is Tue/Thu but class includes Monday).',
@@ -309,6 +309,24 @@ const translations = {
         cohortsClassApplySummary: 'Linked {linked} class(es), unlinked {unlinked}.',
         cohortsClassUnassignedOnly: 'Not linked to this cohort',
         cohortsClassAlsoLinked: 'Also: {names}',
+        cohortsCombinedHint: 'Combined cohorts (합반): link one class to both cohorts (catalog Apply or Combine cohorts). Dragging from All classes adds a link; Alt+drag moves the class to one cohort only.',
+        cohortsCombinedCallout: 'Timetable conflicts often mean two class records exist for the same combined lesson — use Combine cohorts or link one class on each cohort.',
+        cohortsCombineBtn: 'Combine cohorts…',
+        cohortsCombineTitle: 'Combine cohorts',
+        cohortsCombineWith: 'Combine with cohort',
+        cohortsCombinePickPair: 'Matching classes',
+        cohortsCombineKeeperA: 'Keep class from this cohort',
+        cohortsCombineKeeperB: 'Keep class from other cohort',
+        cohortsCombineDeleteDuplicate: 'Delete the other class record',
+        cohortsCombineRename: 'Rename kept class to',
+        cohortsCombineApply: 'Combine',
+        cohortsCombineDone: 'Combined {n} class pair(s).',
+        cohortsCombineNoPairs: 'No matching subject classes found between these cohorts.',
+        cohortsReviewDuplicates: '{n} possible combined-class pair(s) on this calendar — open Combine cohorts on a cohort to merge.',
+        classCohortMultiLabel: 'Linked student cohorts',
+        classCohortPrimaryHint: 'Primary cohort sets homeroom display below.',
+        setupBoardPoolDragAdd: 'Drag to a cohort adds a link (combined groups). Alt+drag or Move from menu replaces links.',
+        setupBoardMoveClassOnly: 'Move to this cohort only',
         cohortsListSortLabel: 'Sort',
         cohortsListSortName: 'Name',
         cohortsListSortGrade: 'Grade',
@@ -1269,7 +1287,7 @@ const translations = {
         cohortsDraftEditHint: '아래에 이름과 레벨을 입력한 뒤 반 저장을 클릭하세요.',
         setupBoardUnassigned: '미배정 수업',
         setupBoardAllClasses: '전체 수업',
-        setupBoardPoolHint: '가운데 반으로 끌거나, 여기로 끌어 연결을 해제하세요.',
+        setupBoardPoolHint: '반으로 끌면 연결이 추가됩니다(합반). Alt+끌기는 한 반만 남깁니다. 여기로 끌면 모든 연결이 해제됩니다.',
         setupBoardTeachersApiMissing: '선생님을 배정할 수 없습니다. 새로고침(Ctrl+F5) 후 다시 시도하세요.',
         setupBoardTeacherAlreadyAssigned: '이 수업에 이미 배정된 선생님입니다.',
         cohortEditorModalTitle: '반 편집: {name}',
@@ -1288,7 +1306,7 @@ const translations = {
         setupBoardOpenClass: '수업 편집',
         setupBoardRemoveFromCohort: '반에서 제거',
         setupBoardClassMenu: '수업 메뉴',
-        setupBoardClassMenuPrompt: '1=수업 편집, 2=반에서 제거',
+        setupBoardClassMenuPrompt: '1=수업 편집, 2=이 반에서만 제거, 3=이 반에만 남기기(다른 반 연결 해제)',
         setupBoardClassDaysOutside: '이 수업은 반 일정에 없는 요일이 포함되어 있습니다 (예: 반은 화·목인데 수업에 월요일이 있음).',
         setupBoardPatternMwf: '월수금',
         setupBoardPatternTth: '화목',
@@ -1313,6 +1331,24 @@ const translations = {
         cohortsClassApplySummary: '연결 {linked}개, 해제 {unlinked}개.',
         cohortsClassUnassignedOnly: '이 반에 연결되지 않은 수업만',
         cohortsClassAlsoLinked: '다른 반: {names}',
+        cohortsCombinedHint: '합반: 한 수업을 두 반에 연결하세요(수업 연결 적용 또는 반 합치기). 전체 수업에서 끌면 연결이 추가됩니다. Alt+끌기는 한 반으로만 이동합니다.',
+        cohortsCombinedCallout: '시간표 충돌은 합반인데 수업이 두 개일 때 자주 발생합니다. 반 합치기를 사용하거나 각 반에 같은 수업을 연결하세요.',
+        cohortsCombineBtn: '반 합치기…',
+        cohortsCombineTitle: '반 합치기',
+        cohortsCombineWith: '합칠 반',
+        cohortsCombinePickPair: '같은 과목 수업',
+        cohortsCombineKeeperA: '이 반의 수업 유지',
+        cohortsCombineKeeperB: '다른 반의 수업 유지',
+        cohortsCombineDeleteDuplicate: '다른 수업 기록 삭제',
+        cohortsCombineRename: '유지할 수업 이름',
+        cohortsCombineApply: '합치기',
+        cohortsCombineDone: '{n}개 수업 쌍을 합쳤습니다.',
+        cohortsCombineNoPairs: '두 반 사이에 같은 과목 수업이 없습니다.',
+        cohortsReviewDuplicates: '합반 후보 {n}쌍 — 반에서 반 합치기를 사용하세요.',
+        classCohortMultiLabel: '연결된 학생 반',
+        classCohortPrimaryHint: '대표 반은 아래 담임 표시에 사용됩니다.',
+        setupBoardPoolDragAdd: '반으로 끌면 연결이 추가됩니다(합반). Alt+끌기 또는 메뉴의 이동은 한 반만 남깁니다.',
+        setupBoardMoveClassOnly: '이 반으로만 이동',
         cohortsListSortLabel: '정렬',
         cohortsListSortName: '이름',
         cohortsListSortGrade: '학년',
@@ -12411,6 +12447,110 @@ function populateClassCohortSelect(selectedId) {
     }
 }
 
+function renderClassCohortMultiChips(classData) {
+    const mount = document.getElementById('classCohortMulti');
+    if (!mount) {
+        return;
+    }
+    const admin = canAccessTeachersTab();
+    const api = getTimetableApi();
+    const linked = classData && api
+        ? api.getClassCohortIds(classData)
+        : (classData && normalizeStr(classData.cohortId) ? [classData.cohortId] : []);
+    const linkedSet = new Set(linked);
+    mount.innerHTML = '';
+    const cohorts = appData.cohorts || [];
+    if (!cohorts.length) {
+        return;
+    }
+    cohorts.forEach((cohort) => {
+        if (!cohort || !cohort.id) {
+            return;
+        }
+        const chip = document.createElement('label');
+        chip.className = 'checkbox-label selection-chip class-cohort-multi-chip';
+        const checked = linkedSet.has(cohort.id);
+        chip.innerHTML = `<input type="checkbox" data-cohort-id="${escapeHtml(cohort.id)}" ${checked ? 'checked' : ''} ${admin ? '' : 'disabled'}>
+            <span>${escapeHtml(cohort.name || cohort.id)}</span>`;
+        const cb = chip.querySelector('input');
+        cb.addEventListener('change', () => {
+            const cohortSel = document.getElementById('classCohort');
+            if (cb.checked && cohortSel && !cohortSel.value) {
+                cohortSel.value = cohort.id;
+            }
+            if (!cb.checked && cohortSel && cohortSel.value === cohort.id) {
+                const firstChecked = mount.querySelector('input[data-cohort-id]:checked');
+                cohortSel.value = firstChecked ? firstChecked.getAttribute('data-cohort-id') : '';
+            }
+            updateClassHomeroomLabelDisplay();
+            updateClassCohortAlsoLinkedFromForm();
+        });
+        mount.appendChild(chip);
+    });
+}
+
+function getClassCohortIdsFromForm() {
+    const mount = document.getElementById('classCohortMulti');
+    const ids = [];
+    if (mount) {
+        mount.querySelectorAll('input[data-cohort-id]:checked').forEach((cb) => {
+            const id = (cb.getAttribute('data-cohort-id') || '').trim();
+            if (id) {
+                ids.push(id);
+            }
+        });
+    }
+    const primary = (document.getElementById('classCohort')?.value || '').trim();
+    if (primary && !ids.includes(primary)) {
+        ids.unshift(primary);
+    }
+    return ids;
+}
+
+function updateClassCohortAlsoLinkedFromForm() {
+    const classId = elements.classId && elements.classId.value ? elements.classId.value.trim() : '';
+    const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
+    const pseudo = classData ? Object.assign({}, classData) : { cohortIds: [], cohortId: '' };
+    pseudo.cohortIds = getClassCohortIdsFromForm();
+    pseudo.cohortId = (document.getElementById('classCohort')?.value || '').trim() || pseudo.cohortIds[0] || '';
+    updateClassCohortAlsoLinked(pseudo);
+}
+
+function applyClassCohortLinksFromForm(classData, existingClass) {
+    const cohortLinkApi = getTimetableApi();
+    const desired = getClassCohortIdsFromForm();
+    const primary = (document.getElementById('classCohort')?.value || '').trim() || desired[0] || '';
+    if (cohortLinkApi) {
+        const prev = existingClass ? cohortLinkApi.getClassCohortIds(existingClass) : [];
+        const prevSet = new Set(prev);
+        const desiredSet = new Set(desired);
+        prev.forEach((cid) => {
+            if (!desiredSet.has(cid)) {
+                cohortLinkApi.removeClassCohortId(classData, cid);
+            }
+        });
+        desired.forEach((cid) => {
+            cohortLinkApi.addClassCohortId(classData, cid);
+        });
+        if (primary) {
+            classData.cohortId = primary;
+        } else {
+            cohortLinkApi.syncClassPrimaryCohortId(classData);
+        }
+        classData.cohortIds = cohortLinkApi.getClassCohortIds(classData);
+        const touched = new Set([...prev, ...desired]);
+        touched.forEach((cid) => {
+            const cohort = (appData.cohorts || []).find((c) => c.id === cid);
+            if (cohort) {
+                syncClassCohortLinks(cohort);
+            }
+        });
+    } else {
+        classData.cohortIds = desired;
+        classData.cohortId = primary;
+    }
+}
+
 function getTeacherCategoryPresets() {
     return getTimetableApi()?.TEACHER_CATEGORY_PRESETS || [
         'Debate', 'Wr&Spk', 'Spk&Wr', 'IPE', 'Conversation', 'RC', 'Grammar', 'News', 'Phonics', 'Reading', 'Animation', 'Other'
@@ -12886,6 +13026,7 @@ function refreshClassEditorCohortUiIfOpen() {
     const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
     const preserve = (classData && classData.cohortId) || (cohortSel ? cohortSel.value : '') || '';
     populateClassCohortSelect(preserve);
+    renderClassCohortMultiChips(classData);
     updateClassHomeroomLabelDisplay();
     if (classData) {
         updateClassCohortAlsoLinked(classData);
@@ -12897,7 +13038,18 @@ function initClassTeachersFormListeners() {
     const cohortSel = document.getElementById('classCohort');
     if (cohortSel && !cohortSel.dataset.homeroomLabelInit) {
         cohortSel.dataset.homeroomLabelInit = '1';
-        cohortSel.addEventListener('change', () => updateClassHomeroomLabelDisplay());
+        cohortSel.addEventListener('change', () => {
+            const primary = (cohortSel.value || '').trim();
+            const mount = document.getElementById('classCohortMulti');
+            if (mount && primary) {
+                const cb = mount.querySelector(`input[data-cohort-id="${escapeAttr(primary)}"]`);
+                if (cb) {
+                    cb.checked = true;
+                }
+            }
+            updateClassHomeroomLabelDisplay();
+            updateClassCohortAlsoLinkedFromForm();
+        });
     }
     const levelSel = document.getElementById('classCurriculumLevel');
     if (levelSel && !levelSel.dataset.teacherRowsLevelInit) {
@@ -12913,6 +13065,7 @@ function initClassTeachersFormListeners() {
 function applyClassTeacherFieldsToForm(classData) {
     initClassTeachersFormListeners();
     populateClassCohortSelect(classData ? classData.cohortId : '');
+    renderClassCohortMultiChips(classData);
     renderClassTeachersRows(classData);
     refreshClassTeacherPickersFromAccounts();
     updateClassHomeroomLabelDisplay();
@@ -13577,6 +13730,28 @@ function getCohortManagementHooks() {
         navigateToTab,
         showMessage: (msg, isError) => setAppStatusMessage(msg, isError),
         syncClassCohortLinks,
+        syncAllClassCohortLinks: () => syncAllClassCohortLinksInData(appData),
+        deleteClassById: (classId) => {
+            const api = getTimetableApi();
+            const cls = appData.classes.find((c) => c.id === classId);
+            if (cls && api) {
+                api.getClassCohortIds(cls).forEach((cid) => {
+                    const cohort = (appData.cohorts || []).find((c) => c.id === cid);
+                    if (cohort) {
+                        syncClassCohortLinks(cohort);
+                    }
+                });
+            }
+            appData.classes = appData.classes.filter((c) => c.id !== classId);
+            if (appData.dayNotes) {
+                appData.dayNotes = appData.dayNotes.filter((n) => n.classId !== classId);
+            }
+            saveData();
+            invalidateScheduleCache();
+            renderCalendar();
+            renderClassList();
+            refreshTimetablePanels();
+        },
         populateClassCohortSelect,
         refreshClassEditorCohortUiIfOpen,
         invalidateScheduleCache,
@@ -13887,6 +14062,9 @@ function renderTimetableGridTable(block, lang) {
             }
             if (cell.entries.length === 1) {
                 const entry = cell.entries[0];
+                if (entry.combinedCohorts) {
+                    td.classList.add('timetable-cell--combined');
+                }
                 const { bg, text } = getTimetableEntryDisplayColors(entry);
                 td.classList.add('timetable-cell--colored');
                 td.style.backgroundColor = bg;
@@ -17885,7 +18063,8 @@ function handleClassSubmit(e) {
     }
     const { period, periodByWeekday } = collectPeriodFieldsForSave();
     const teacherFields = collectClassTeacherFieldsForSave();
-    if (canAccessTeachersTab() && !normalizeStr(teacherFields.cohortId)) {
+    const formCohortIds = getClassCohortIdsFromForm();
+    if (canAccessTeachersTab() && !formCohortIds.length && !normalizeStr(teacherFields.cohortId)) {
         alert(t('classCohortRequiredAdmin'));
         return;
     }
@@ -17976,32 +18155,8 @@ function handleClassSubmit(e) {
         ...teacherFields
     };
     
-    const cohortLinkApi = getTimetableApi();
-    const selectedCohortId = normalizeStr(teacherFields.cohortId);
-    if (selectedCohortId) {
-        if (cohortLinkApi) {
-            cohortLinkApi.addClassCohortId(classData, selectedCohortId);
-        } else {
-            classData.cohortId = selectedCohortId;
-        }
-        const cohort = (appData.cohorts || []).find((c) => c.id === selectedCohortId);
-        if (cohort) {
-            syncClassCohortLinks(cohort);
-        }
-    } else if (cohortLinkApi && existingClass) {
-        const prevIds = cohortLinkApi.getClassCohortIds(existingClass);
-        const prevPrimary = normalizeStr(existingClass.cohortId);
-        if (prevPrimary) {
-            cohortLinkApi.removeClassCohortId(classData, prevPrimary);
-            const prevCohort = (appData.cohorts || []).find((c) => c.id === prevPrimary);
-            if (prevCohort) {
-                syncClassCohortLinks(prevCohort);
-            }
-        }
-        classData.cohortIds = cohortLinkApi.getClassCohortIds(classData);
-        classData.cohortId = classData.cohortIds[0] || '';
-    }
-    
+    applyClassCohortLinksFromForm(classData, existingClass);
+
     if (elements.classId.value) {
         // Update existing
         const index = appData.classes.findIndex(c => c.id === classData.id);

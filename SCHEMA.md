@@ -135,8 +135,8 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `syllabusGeneralNotes` | string | Optional general notes and instructions (shown at top of printed syllabus) |
 | `syllabusRows` | array | Per-class syllabus table rows for print/export (see below) |
 | `color`, `textColor` | string | Hex colors |
-| `cohortId` | string | Primary cohort link (first in `cohortIds`; kept for older clients). Optional at create time. |
-| `cohortIds` | string[] | Optional; all cohorts sharing this class (combined groups). Migrated from `cohortId` on load. |
+| `cohortId` | string | Primary cohort link (first in `cohortIds`; kept for older clients). Optional at create time. Drives homeroom display in the class editor. |
+| `cohortIds` | string[] | Optional; all cohorts sharing this class (**combined groups / 합반**). Migrated from `cohortId` on load. One calendar, one syllabus, one timetable cell — link every cohort that meets together. Example: cohorts `grade3-m` and `grade3-t` both list the same Debate class id in `cohortIds`; each cohort’s `classIds` includes that class after sync. |
 | `generatedFromCohort` | boolean | Optional; set when class is created by Cohort tab **Generate subjects** |
 | `classTeachers` | array | Teachers who **teach** this class: `{ id, userId?, name?, category?, curriculumId?, classTypeId?, book?, meetingDays?, period?, periodByWeekday?, placements?, scheduleBlock?, timeSlotId? }[]` — `userId` is the team account id from Accounts management (same as login); each row’s curriculum drives that teacher’s calendar/syllabus/homework view. `category` = **subject taught** in this class (Debate, RC, …), never “Homeroom”. Optional per-teacher schedule: `meetingDays` (0=Sun…6=Sat), `period`, `periodByWeekday`, `placements: [{ dow, period }]`, `scheduleBlock` (`primary` / `secondary`). Empty `classTeachers` clears legacy `assignedTeacher*` fields on save. 담임 for the student group is set on `cohorts[]`, not here. |
 | `assignedTeacherUserId` | string | Legacy: first teacher id (kept in sync with `classTeachers[0]`) |
