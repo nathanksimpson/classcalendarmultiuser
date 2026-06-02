@@ -170,6 +170,10 @@ const translations = {
         termMonthCount: 'Months to display:',
         toolbarTermSettings: 'Term settings',
         calendarVisibility: 'Show on calendar:',
+        calendarDisplayBtn: 'Calendar display…',
+        calendarDisplayBtnActive: 'Calendar display (custom)',
+        calendarDisplayTitle: 'Calendar display',
+        calendarDisplayLessonsHeading: 'Filter lessons',
         showLessons: 'Lessons',
         showHolidays: 'Holidays',
         showEvalDeadlines: 'Evaluation deadlines',
@@ -768,7 +772,7 @@ const translations = {
         timetablePrint: 'Print timetable',
         timetablePrintOptionsTitle: 'Print timetable',
         timetablePrintSectionPage1: 'Page 1 — weekly grid (landscape)',
-        timetablePrintSectionPage1Hint: 'The timetable grid is scaled to fit one A4 landscape page.',
+        timetablePrintSectionPage1Hint: 'Rows are sized evenly to fill one A4 landscape page within the margins.',
         timetablePrintSectionPage2: 'Page 2 — optional extras (portrait)',
         timetablePrintSectionPage2Hint: 'Only included when at least one option below is checked.',
         timetablePrintIncludeTeacher: 'Teacher name',
@@ -1227,6 +1231,10 @@ const translations = {
         termMonthCount: '표시할 개월 수:',
         toolbarTermSettings: '학기 설정',
         calendarVisibility: '캘린더에 표시:',
+        calendarDisplayBtn: '캘린더 표시…',
+        calendarDisplayBtnActive: '캘린더 표시 (사용자 지정)',
+        calendarDisplayTitle: '캘린더 표시',
+        calendarDisplayLessonsHeading: '수업 필터',
         showLessons: '수업',
         showHolidays: '휴일',
         showEvalDeadlines: '평가 마감',
@@ -1789,7 +1797,7 @@ const translations = {
         timetablePrint: '시간표 인쇄',
         timetablePrintOptionsTitle: '시간표 인쇄',
         timetablePrintSectionPage1: '1쪽 — 주간 시간표 (가로)',
-        timetablePrintSectionPage1Hint: '시간표 격자는 A4 가로 한 페이지에 맞게 축소됩니다.',
+        timetablePrintSectionPage1Hint: '여백 안에서 A4 가로 한 페이지를 채우도록 행 높이가 균등하게 맞춰집니다.',
         timetablePrintSectionPage2: '2쪽 — 선택 항목 (세로)',
         timetablePrintSectionPage2Hint: '아래에서 하나 이상 선택한 경우에만 인쇄됩니다.',
         timetablePrintIncludeTeacher: '선생님 이름',
@@ -5923,19 +5931,6 @@ function syncAppChromeStickyTop() {
     }
 
     let monthStickyTop = topHeight > 0 ? topHeight : 72;
-    const panelCalendar = document.getElementById('panel-calendar');
-    const visibilityDock = document.getElementById('calendarVisibilityDock');
-    if (
-        panelCalendar &&
-        !panelCalendar.hidden &&
-        visibilityDock &&
-        visibilityDock.offsetParent !== null
-    ) {
-        const dockHeight = Math.ceil(visibilityDock.getBoundingClientRect().height);
-        if (dockHeight > 0) {
-            monthStickyTop += dockHeight;
-        }
-    }
     document.documentElement.style.setProperty('--calendar-month-sticky-top', `${monthStickyTop}px`);
 }
 
@@ -5953,24 +5948,29 @@ function initAppChromeStickyTop() {
         }
         appChromeStickyResizeObserver = new ResizeObserver(() => syncAppChromeStickyTop());
         appChromeStickyResizeObserver.observe(topBar);
-        const visibilityDock = document.getElementById('calendarVisibilityDock');
-        if (visibilityDock) {
-            appChromeStickyResizeObserver.observe(visibilityDock);
-        }
     }
     window.addEventListener('resize', syncAppChromeStickyTop);
 }
 
 function applyTopBarCollapsedState() {
-    const bar = document.getElementById('calendarOptions') || document.getElementById('appTopBar');
+    const calendarOptions = document.getElementById('calendarOptions');
+    const topBar = document.getElementById('appTopBar');
+    const compactBar = document.querySelector('.app-top-bar-compact');
     const toggle = document.getElementById('topBarToggle');
-    if (!bar) {
+    if (!calendarOptions && !topBar) {
         return;
     }
     ensureUiState();
     const collapsed = appData.ui.topBarCollapsed === true;
-    bar.classList.toggle('calendar-options--collapsed', collapsed);
-    bar.classList.toggle('app-top-bar--collapsed', collapsed);
+    if (calendarOptions) {
+        calendarOptions.classList.toggle('calendar-options--collapsed', collapsed);
+    }
+    if (topBar) {
+        topBar.classList.toggle('app-top-bar--collapsed', collapsed);
+    }
+    if (compactBar) {
+        compactBar.classList.toggle('app-top-bar-compact--collapsed', collapsed);
+    }
     if (toggle) {
         toggle.setAttribute('aria-expanded', String(!collapsed));
         toggle.title = collapsed ? t('topBarExpand') : t('topBarCollapse');
@@ -5991,6 +5991,17 @@ function setTopBarCollapsed(collapsed) {
     saveUiStateToLocalStorage();
 }
 
+function getCollapsedHeaderCalendarName() {
+    const sel = document.getElementById('teamCalendarSelect');
+    if (teamSyncEnabled && sel && sel.value) {
+        const fromSelect = (sel.selectedOptions[0]?.textContent || '').trim();
+        if (fromSelect) {
+            return fromSelect;
+        }
+    }
+    return (appData.calendarName || elements.calendarName?.value || '').trim();
+}
+
 function updateTopBarCalendarLabel() {
     const labelEl = document.getElementById('topBarCalendarLabel');
     if (!labelEl) {
@@ -5998,7 +6009,7 @@ function updateTopBarCalendarLabel() {
     }
     ensureUiState();
     const collapsed = appData.ui.topBarCollapsed === true;
-    const name = (appData.calendarName || elements.calendarName?.value || '').trim();
+    const name = getCollapsedHeaderCalendarName();
     const showSubtitle = collapsed && name && !document.querySelector('.app-top-bar-title-block h1')?.textContent?.includes(name);
     if (showSubtitle) {
         labelEl.textContent = name;
@@ -6446,6 +6457,17 @@ function updateLessonFilterStatusText() {
         .replace('{total}', String(total));
 }
 
+function isVisibilityFiltersDefault() {
+    ensureUiState();
+    return Object.keys(DEFAULT_VISIBILITY_FILTERS).every(
+        (key) => appData.ui.visibilityFilters[key] !== false
+    );
+}
+
+function isCalendarDisplayCustomized() {
+    return !isVisibilityFiltersDefault() || isLessonFilterActive();
+}
+
 function updateLessonFilterButtonLabel() {
     const btn = document.getElementById('lessonFilterBtn');
     if (!btn) {
@@ -6453,13 +6475,17 @@ function updateLessonFilterButtonLabel() {
     }
     const total = countScheduledClassesOnCalendar();
     const visible = countVisibleClassesForLessonFilter();
-    if (isLessonFilterActive() && total > 0) {
-        btn.textContent = t('lessonFilterBtnActive')
-            .replace('{visible}', String(visible))
-            .replace('{total}', String(total));
+    if (isCalendarDisplayCustomized()) {
+        if (isLessonFilterActive() && total > 0) {
+            btn.textContent = t('lessonFilterBtnActive')
+                .replace('{visible}', String(visible))
+                .replace('{total}', String(total));
+        } else {
+            btn.textContent = t('calendarDisplayBtnActive');
+        }
         btn.classList.add('lesson-filter-btn--active');
     } else {
-        btn.textContent = t('lessonFilterBtn');
+        btn.textContent = t('calendarDisplayBtn');
         btn.classList.remove('lesson-filter-btn--active');
     }
 }
@@ -6516,6 +6542,7 @@ function openLessonFilterPopover() {
         searchEl.value = '';
     }
     renderLessonFilterPopoverBody();
+    syncShowAllCurriculaControl();
     updateLessonFilterStatusText();
     popover.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
@@ -9332,6 +9359,7 @@ function syncShowAllCurriculaControl() {
             // #endregion
             saveUiStateToLocalStorage();
             invalidateScheduleCache();
+            updateLessonFilterButtonLabel();
             renderCalendar();
         });
     }
@@ -11109,6 +11137,9 @@ function navigateToTabBody(tabId, options = {}) {
     const hostId = options.host || getHostForTab(tabId);
     document.body.dataset.activeTab = tabId;
     ensureUiState();
+    if (tabId !== 'calendar' && isLessonFilterPopoverOpen()) {
+        closeLessonFilterPopover();
+    }
     appData.ui.activeTab = tabId;
     appData.ui.activeHostTab = hostId;
     if (hostId === APP_HOST_SETUP) {
@@ -13381,6 +13412,7 @@ function renderTimetablePreviewInto(mountEl, selector) {
     grid.blocks.forEach((block) => {
         mountEl.appendChild(renderTimetableGridTable(block, lang));
     });
+    layoutTimetableGridsForScreen(mountEl);
 }
 
 /** Head teacher, super admin, or manage_calendar_access — controls Setup tabs visibility. */
@@ -14072,7 +14104,85 @@ function appendTimetableEntryContent(container, entry) {
     }
 }
 
-function renderTimetableGridTable(block, lang) {
+const TIMETABLE_UI_ROW_HEIGHT_PX = 96;
+const TIMETABLE_SCREEN_GRID_GAP_MM = 4;
+
+function wrapTimetableCellInner(cellEl) {
+    if (!cellEl || cellEl.querySelector(':scope > .timetable-cell-inner')) {
+        return;
+    }
+    const inner = document.createElement('div');
+    inner.className = 'timetable-cell-inner';
+    while (cellEl.firstChild) {
+        inner.appendChild(cellEl.firstChild);
+    }
+    cellEl.appendChild(inner);
+}
+
+function parseTimetableCssLengthToPx(doc, value) {
+    const raw = String(value || '').trim();
+    if (!raw || raw === 'auto' || raw === 'normal') {
+        return null;
+    }
+    const num = parseFloat(raw);
+    if (Number.isNaN(num)) {
+        return null;
+    }
+    if (raw.endsWith('px')) {
+        return num;
+    }
+    if (raw.endsWith('rem')) {
+        const rootSize = parseFloat(doc.defaultView.getComputedStyle(doc.documentElement).fontSize) || 16;
+        return num * rootSize;
+    }
+    return num;
+}
+
+function applyTimetableUniformRowHeights(rootEl, rowHeightPx) {
+    if (!rootEl) {
+        return;
+    }
+    const tables = rootEl.classList && rootEl.classList.contains('timetable-grid')
+        ? [rootEl]
+        : Array.from(rootEl.querySelectorAll('.timetable-grid'));
+    tables.forEach((table) => {
+        const doc = table.ownerDocument;
+        let px = rowHeightPx;
+        if (px == null || px < 1) {
+            const computed = doc.defaultView.getComputedStyle(table);
+            const raw = computed.getPropertyValue('--timetable-row-height').trim()
+                || computed.getPropertyValue('--timetable-print-row-height').trim();
+            px = parseTimetableCssLengthToPx(doc, raw);
+        }
+        if (!px || px < 1) {
+            px = TIMETABLE_UI_ROW_HEIGHT_PX;
+        }
+        const h = `${Math.round(px)}px`;
+        table.style.setProperty('--timetable-row-height', h);
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+            tr.style.height = h;
+            tr.style.maxHeight = h;
+            tr.querySelectorAll('td, th').forEach((cell) => {
+                cell.style.height = h;
+                cell.style.maxHeight = h;
+                cell.style.overflow = 'hidden';
+                cell.style.boxSizing = 'border-box';
+                cell.style.padding = '0';
+                const inner = cell.querySelector(':scope > .timetable-cell-inner');
+                if (inner) {
+                    inner.style.height = h;
+                    inner.style.maxHeight = h;
+                    inner.style.overflow = 'hidden';
+                    inner.style.boxSizing = 'border-box';
+                }
+            });
+        });
+    });
+}
+
+function renderTimetableGridTable(block, lang, options) {
+    options = options || {};
+    const printMode = !!options.printMode;
     const table = document.createElement('table');
     table.className = 'timetable-grid' + (block.id === 'secondary' ? ' timetable-grid--secondary' : '');
     const thead = document.createElement('thead');
@@ -14098,6 +14208,7 @@ function renderTimetableGridTable(block, lang) {
         timeTd.scope = 'row';
         timeTd.className = 'timetable-col-time';
         timeTd.textContent = row.timeLabel || '';
+        wrapTimetableCellInner(timeTd);
         tr.appendChild(timeTd);
         row.cells.forEach((cell) => {
             const td = document.createElement('td');
@@ -14115,7 +14226,9 @@ function renderTimetableGridTable(block, lang) {
                 td.style.backgroundColor = bg;
                 td.style.color = text;
                 appendTimetableEntryContent(td, entry);
-                bindTimetableClassClickTarget(td, entry.classId);
+                if (!printMode) {
+                    bindTimetableClassClickTarget(td, entry.classId);
+                }
             } else if (cell.entries.length > 1) {
                 cell.entries.forEach((entry) => {
                     const { bg, text } = getTimetableEntryDisplayColors(entry);
@@ -14124,16 +14237,26 @@ function renderTimetableGridTable(block, lang) {
                     entryBlock.style.backgroundColor = bg;
                     entryBlock.style.color = text;
                     appendTimetableEntryContent(entryBlock, entry);
-                    bindTimetableClassClickTarget(entryBlock, entry.classId);
+                    if (!printMode) {
+                        bindTimetableClassClickTarget(entryBlock, entry.classId);
+                    }
                     td.appendChild(entryBlock);
                 });
             }
+            wrapTimetableCellInner(td);
             tr.appendChild(td);
         });
         tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     return table;
+}
+
+function setTimetableClassesSidebarVisible(visible) {
+    const sidebar = document.getElementById('timetableClassesSidebar');
+    if (sidebar) {
+        sidebar.hidden = !visible;
+    }
 }
 
 function renderTimetableView(selector) {
@@ -14159,6 +14282,7 @@ function renderTimetableView(selector) {
         if (conflictBadge) {
             conflictBadge.hidden = true;
         }
+        setTimetableClassesSidebarVisible(false);
         return;
     }
     const lang = currentLanguage === 'ko' ? 'ko' : 'en';
@@ -14169,6 +14293,7 @@ function renderTimetableView(selector) {
     if (view) {
         view.hidden = false;
     }
+    setTimetableClassesSidebarVisible(true);
     if (titleEl) {
         const suffix = lang === 'ko' ? ' 선생님' : '';
         titleEl.textContent = `${grid.teacherName || selector.displayName || selector.userId}${suffix}`;
@@ -14223,6 +14348,7 @@ function renderTimetableView(selector) {
     grid.blocks.forEach((block) => {
         gridsMount.appendChild(renderTimetableGridTable(block, lang));
     });
+    layoutTimetableGridsForScreen(gridsMount);
     if (conflictBadge) {
         conflictBadge.hidden = false;
         conflictBadge.textContent = grid.hasConflicts ? t('timetableConflicts') : t('timetableNoConflicts');
@@ -14246,6 +14372,94 @@ const TIMETABLE_PRINT_LANDSCAPE = {
     }
 };
 
+function computeTimetableUniformRowPx(tables, contentHpx, gapPx, minRowPx) {
+    if (!tables.length) {
+        return minRowPx;
+    }
+    let theadHeights = 0;
+    let totalBodyRows = 0;
+    tables.forEach((table) => {
+        const thead = table.querySelector('thead');
+        if (thead) {
+            theadHeights += thead.offsetHeight;
+        }
+        totalBodyRows += table.querySelectorAll('tbody tr').length;
+    });
+    const gapsTotal = Math.max(0, tables.length - 1) * gapPx;
+    const bodyBudget = Math.max(minRowPx, contentHpx - theadHeights - gapsTotal);
+    if (totalBodyRows <= 0) {
+        return minRowPx;
+    }
+    return Math.max(minRowPx, Math.floor(bodyBudget / totalBodyRows));
+}
+
+function measureTimetableScreenPrintHeaderPx() {
+    let total = 0;
+    ['timetableTeacherTitle', 'timetableHomeroomLine', 'timetableTermLabel'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || el.hidden) {
+            return;
+        }
+        const style = window.getComputedStyle(el);
+        total += el.offsetHeight;
+        total += (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+    });
+    return total;
+}
+
+function measureTimetablePreviewHeaderPx(mountEl) {
+    if (!mountEl) {
+        return 0;
+    }
+    let total = 0;
+    Array.from(mountEl.children).forEach((child) => {
+        if (child.classList.contains('timetable-grid')) {
+            return;
+        }
+        const style = window.getComputedStyle(child);
+        total += child.offsetHeight;
+        total += (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+    });
+    return total;
+}
+
+/** Match on-screen row heights to the A4 landscape print grid layout. */
+function layoutTimetableGridsForScreen(mountEl) {
+    if (!mountEl) {
+        return;
+    }
+    const tables = Array.from(mountEl.querySelectorAll('.timetable-grid'));
+    if (!tables.length) {
+        return;
+    }
+
+    const doc = mountEl.ownerDocument;
+    const mmPx = measureMmToPxForPrint(doc);
+    const a4 = TIMETABLE_PRINT_LANDSCAPE;
+    const contentWpx = Math.round(a4.contentW * mmPx);
+    const headerH = mountEl.id === 'timetableGridsMount'
+        ? measureTimetableScreenPrintHeaderPx()
+        : measureTimetablePreviewHeaderPx(mountEl);
+    const contentHpx = Math.max(1, Math.round(a4.fitContentH * mmPx) - headerH - 4);
+    const gapPx = Math.round(TIMETABLE_SCREEN_GRID_GAP_MM * mmPx);
+
+    tables.forEach((table) => {
+        table.style.width = `${contentWpx}px`;
+        table.style.maxWidth = '100%';
+        table.style.tableLayout = 'fixed';
+    });
+
+    void doc.body.offsetHeight;
+
+    const rowPx = computeTimetableUniformRowPx(
+        tables,
+        contentHpx,
+        gapPx,
+        TIMETABLE_UI_ROW_HEIGHT_PX
+    );
+    applyTimetableUniformRowHeights(mountEl, rowPx);
+}
+
 const APP_PRINT_TIMETABLE_INLINE_CSS = `
 @page timetable-landscape {
     size: A4 landscape;
@@ -14265,6 +14479,24 @@ const APP_PRINT_TIMETABLE_INLINE_CSS = `
         print-color-adjust: exact !important;
     }
 }
+html.print-color-mode-light.app-print-timetable-root,
+html.print-color-mode-light.app-print-timetable-root[data-theme="dark"] {
+    color-scheme: light;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --secondary: #64748b;
+    --bg-main: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-hover: #f1f5f9;
+    --surface-elevated: #f1f5f9;
+    --surface-muted: #f1f5f9;
+    --input-bg: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --danger-color: #dc2626;
+}
 html.app-print-timetable-root,
 body.app-print-timetable-doc {
     width: ${TIMETABLE_PRINT_LANDSCAPE.pageW}mm;
@@ -14275,7 +14507,32 @@ body.app-print-timetable-doc {
     color: #1e293b;
 }
 body.app-print-timetable-doc { font-family: "DM Sans", "Noto Sans KR", sans-serif; font-size: 10pt; }
-.app-print-document--timetable { max-width: 100%; padding: 0; }
+.app-print-document--timetable {
+    max-width: 100%;
+    padding: 0;
+    background: #fff;
+    color: #1e293b;
+}
+.app-print-document--timetable .timetable-print-header,
+.app-print-document--timetable .timetable-print-title,
+.app-print-document--timetable .timetable-print-homeroom-line {
+    color: #1e293b !important;
+}
+.app-print-document--timetable .timetable-homeroom-chip {
+    border: 1px solid #cbd5e1 !important;
+    background: #fff !important;
+    color: #1e293b !important;
+}
+.app-print-document--timetable .timetable-print-extras-section,
+.app-print-document--timetable .timetable-print-extras-section h3,
+.app-print-document--timetable .timetable-cohorts-summary,
+.app-print-document--timetable .timetable-cohorts-summary-title,
+.app-print-document--timetable .timetable-cohorts-summary-list,
+.app-print-document--timetable .timetable-cohorts-summary-list li {
+    background: #fff !important;
+    color: #1e293b !important;
+    border-color: #e2e8f0 !important;
+}
 .timetable-print-sheet {
     page: timetable-landscape;
     width: ${TIMETABLE_PRINT_LANDSCAPE.pageW}mm;
@@ -14331,33 +14588,86 @@ body.app-print-timetable-doc { font-family: "DM Sans", "Noto Sans KR", sans-seri
     display: flex;
     flex-direction: column;
     gap: 4mm;
+    --timetable-print-row-height: 3rem;
 }
 .timetable-print-grids .timetable-grid {
     width: 100%;
-    border-collapse: collapse;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 9pt;
+    line-height: 1.15;
+}
+.timetable-print-grids .timetable-grid thead th {
+    padding: 2px 4px;
+}
+.timetable-print-grids .timetable-grid tbody > tr > td,
+.timetable-print-grids .timetable-grid tbody > tr > th.timetable-col-time {
+    padding: 0;
+    overflow: hidden;
+}
+.timetable-print-grids .timetable-cell-inner {
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 2px 4px;
 }
 .timetable-print-grids .timetable-grid th,
 .timetable-print-grids .timetable-grid td {
     border: 1px solid #cbd5e1;
     padding: 2px 4px;
     vertical-align: top;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 .timetable-print-grids .timetable-grid thead th {
     background: #f1f5f9;
     font-weight: 600;
     text-align: center;
 }
+.timetable-print-grids .timetable-grid tbody tr {
+    height: var(--timetable-print-row-height);
+}
+.timetable-print-grids .timetable-grid tbody .timetable-col-time,
+.timetable-print-grids .timetable-grid tbody .timetable-cell {
+    height: var(--timetable-print-row-height);
+    max-height: var(--timetable-print-row-height);
+    overflow: hidden;
+}
 .timetable-print-grids .timetable-col-time {
     white-space: nowrap;
     font-weight: 600;
     background: #f8fafc;
 }
-.timetable-print-grids .timetable-cell-name { font-weight: 600; }
+.timetable-print-grids .timetable-cell-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .timetable-print-grids .timetable-cell-category,
 .timetable-print-grids .timetable-cell-hr {
     font-size: 8pt;
     color: #475569;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.timetable-print-grids .timetable-cell-entry--colored {
+    padding: 1px 3px;
+    margin-bottom: 1px;
+    overflow: hidden;
+    max-height: 100%;
+}
+.app-print-document--timetable .timetable-print-grids .timetable-grid tbody .timetable-cell:not(.timetable-cell--colored) {
+    background: #fff !important;
+    color: #1e293b !important;
+}
+.app-print-document--timetable .timetable-print-grids .timetable-cell--conflict {
+    background: #fef2f2 !important;
+    outline: 2px solid #dc2626 !important;
+}
+.app-print-document--timetable .timetable-print-grids .timetable-cell--combined {
+    outline: 2px dashed #6366f1 !important;
 }
 .timetable-print-grids .timetable-cell--conflict {
     outline: 2px solid #dc2626;
@@ -14458,7 +14768,7 @@ function syncTimetablePrintOptionsUi() {
     }
     const secondaryRow = document.getElementById('timetablePrintIncludeSecondaryRow');
     const secondaryCb = document.getElementById('timetablePrintIncludeSecondary');
-    const hasSecondary = !!document.querySelector('#timetableGridsMount .timetable-grid--secondary');
+    const hasSecondary = !!(grid && grid.blocks.some((b) => b.id === 'secondary'));
     if (secondaryRow && secondaryCb) {
         secondaryRow.hidden = !hasSecondary;
         if (!hasSecondary) {
@@ -14511,35 +14821,35 @@ function closeTimetablePrintOptionsModal() {
     }
 }
 
-function cloneTimetableGridsHtml(opts) {
-    const mount = document.getElementById('timetableGridsMount');
-    if (!mount) {
+function buildTimetableGridsPrintHtml(grid, opts, lang) {
+    if (!grid || !Array.isArray(grid.blocks) || !grid.blocks.length) {
         return '';
     }
-    const clone = mount.cloneNode(true);
-    if (!opts.includeSecondary) {
-        clone.querySelectorAll('.timetable-grid--secondary').forEach((el) => el.remove());
-    }
-    return clone.innerHTML;
+    return grid.blocks
+        .filter((block) => opts.includeSecondary || block.id !== 'secondary')
+        .map((block) => renderTimetableGridTable(block, lang, { printMode: true }).outerHTML)
+        .join('');
 }
 
 function buildTimetablePrintHeaderHtml(opts, grid) {
     const parts = [];
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
     if (opts.includeTeacherName) {
-        const titleEl = document.getElementById('timetableTeacherTitle');
-        const text = titleEl ? titleEl.textContent.trim() : (grid && grid.teacherName) || '';
+        const suffix = lang === 'ko' ? ' 선생님' : '';
+        const name = (grid && grid.teacherName) || '';
+        const text = name ? `${name}${suffix}` : '';
         if (text) {
             parts.push(`<h2 class="timetable-print-title">${escapeHtml(text)}</h2>`);
         }
     }
-    if (opts.includeHomeroom) {
-        const homeroomLine = document.getElementById('timetableHomeroomLine');
-        if (homeroomLine && !homeroomLine.hidden) {
-            const clone = homeroomLine.cloneNode(true);
-            clone.id = '';
-            clone.className = 'timetable-print-homeroom-line';
-            parts.push(clone.outerHTML);
-        }
+    if (opts.includeHomeroom && grid && grid.homeroomLabels && grid.homeroomLabels.length) {
+        const chips = grid.homeroomLabels.map((label) =>
+            `<span class="timetable-homeroom-chip">${escapeHtml(label)}</span>`
+        ).join('');
+        parts.push(`<p class="timetable-print-homeroom-line">
+<span>${escapeHtml(t('timetableHomeroomLabel'))}</span>
+<span class="timetable-homeroom-chips">${chips}</span>
+</p>`);
     }
     if (opts.includeTerm) {
         const termEl = document.getElementById('timetableTermLabel');
@@ -14557,17 +14867,21 @@ function buildTimetablePrintHeaderHtml(opts, grid) {
     return `<header class="timetable-print-header">${parts.join('')}</header>`;
 }
 
-function buildTimetableHomeroomSummaryExtrasHtml() {
-    const summary = document.getElementById('timetableCohortsSummary');
-    if (!summary || summary.hidden || !summary.innerHTML.trim()) {
+function buildTimetableHomeroomSummaryExtrasHtml(grid) {
+    if (!grid || !grid.homeroomCohorts || !grid.homeroomCohorts.length) {
         return '';
     }
-    const clone = summary.cloneNode(true);
-    clone.id = '';
-    clone.hidden = false;
+    const items = grid.homeroomCohorts.map((cohort) => {
+        const suffix = cohort.homeroomDaySuffix ? ` (${cohort.homeroomDaySuffix})` : '';
+        const count = (cohort.classIds || []).length;
+        const text = `${cohort.name || cohort.level || cohort.id}${suffix} — ${t('timetableHomeroomCohortClasses').replace('{n}', String(count))}`;
+        return `<li>${escapeHtml(text)}</li>`;
+    }).join('');
     return `<section class="timetable-print-extras-section">
 <h3>${escapeHtml(t('timetableHomeroomCohortsHeading'))}</h3>
-${clone.outerHTML}
+<div class="timetable-cohorts-summary">
+<ul class="timetable-cohorts-summary-list">${items}</ul>
+</div>
 </section>`;
 }
 
@@ -14610,10 +14924,10 @@ function buildTimetableCohortDirectoryHtml() {
 </section>`;
 }
 
-function buildTimetablePrintExtrasPageHtml(opts) {
+function buildTimetablePrintExtrasPageHtml(opts, grid) {
     const sections = [];
     if (opts.includeHomeroomSummary) {
-        const html = buildTimetableHomeroomSummaryExtrasHtml();
+        const html = buildTimetableHomeroomSummaryExtrasHtml(grid);
         if (html) {
             sections.push(html);
         }
@@ -14628,12 +14942,13 @@ function buildTimetablePrintExtrasPageHtml(opts) {
 }
 
 function buildTimetablePrintDocumentHtml(opts, grid) {
-    const gridsHtml = cloneTimetableGridsHtml(opts);
+    const gridLang = currentLanguage === 'ko' ? 'ko' : 'en';
+    const gridsHtml = buildTimetableGridsPrintHtml(grid, opts, gridLang);
     if (!gridsHtml.trim()) {
         return '';
     }
     const headerHtml = buildTimetablePrintHeaderHtml(opts, grid);
-    const extrasHtml = buildTimetablePrintExtrasPageHtml(opts);
+    const extrasHtml = buildTimetablePrintExtrasPageHtml(opts, grid);
     const teacherName = escapeHtml((grid && grid.teacherName) || '');
     const title = escapeHtml(`${t('timetablePrint')} — ${teacherName}`);
     const cssHref = escapeHtml(getAppStylesheetHref());
@@ -14665,6 +14980,60 @@ ${extrasHtml}
 </html>`;
 }
 
+const TIMETABLE_PRINT_GRID_GAP_MM = 4;
+
+function resetTimetablePrintGridSizing(grids) {
+    if (!grids) {
+        return;
+    }
+    grids.style.removeProperty('--timetable-print-row-height');
+    grids.querySelectorAll('.timetable-grid').forEach((table) => {
+        table.style.width = '';
+        table.style.tableLayout = '';
+        table.style.fontSize = '';
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+            tr.style.height = '';
+            tr.style.maxHeight = '';
+            tr.querySelectorAll('td, th').forEach((cell) => {
+                cell.style.height = '';
+                cell.style.maxHeight = '';
+                cell.style.overflow = '';
+                cell.style.boxSizing = '';
+            });
+        });
+    });
+}
+
+/** Distribute body row height evenly so the grid fills the landscape printable area. */
+function layoutTimetableGridsForPrint(doc, grids, contentWpx, contentHpx, mmPx) {
+    if (!grids) {
+        return 0;
+    }
+    resetTimetablePrintGridSizing(grids);
+
+    const tables = Array.from(grids.querySelectorAll('.timetable-grid'));
+    if (!tables.length) {
+        return 0;
+    }
+
+    const gapPx = Math.round(TIMETABLE_PRINT_GRID_GAP_MM * mmPx);
+
+    tables.forEach((table) => {
+        table.style.width = `${contentWpx}px`;
+        table.style.tableLayout = 'fixed';
+    });
+
+    void doc.body.offsetHeight;
+
+    const rowPx = computeTimetableUniformRowPx(tables, contentHpx, gapPx, 10);
+
+    grids.style.setProperty('--timetable-print-row-height', `${rowPx}px`);
+    applyTimetableUniformRowHeights(grids, rowPx);
+
+    void doc.body.offsetHeight;
+    return rowPx;
+}
+
 function computeTimetableGridScale(naturalH, naturalW, contentWpx, contentHpx) {
     if (!naturalH || naturalH < 1 || !naturalW || naturalW < 1) {
         return 1;
@@ -14693,12 +15062,16 @@ function fitTimetableGridForPrint(doc) {
     wrap.style.width = `${contentWpx}px`;
     wrap.style.height = `${contentHpx}px`;
     wrap.style.maxHeight = `${contentHpx}px`;
+    wrap.style.display = '';
+    wrap.style.justifyContent = '';
+    wrap.style.alignItems = '';
+    wrap.style.paddingTop = '';
 
     inner.style.transform = '';
+    inner.style.transformOrigin = '';
     inner.style.width = '';
-    grids.querySelectorAll('.timetable-grid').forEach((table) => {
-        table.style.fontSize = '';
-    });
+
+    layoutTimetableGridsForPrint(doc, grids, contentWpx, contentHpx, mmPx);
 
     void doc.body.offsetHeight;
 
@@ -15960,6 +16333,7 @@ function setupEventListeners() {
                 appData.ui.visibilityFilters = readVisibilityFiltersFromDom();
                 // UI-only: viewer preference. Never triggers read-only lock flash.
                 saveUiStateToLocalStorage();
+                updateLessonFilterButtonLabel();
                 renderCalendar();
             });
         }
@@ -21681,7 +22055,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     if (el.closest('[data-team-view-allow]')) {
         return true;
     }
-    if (el.closest('#appTabNav, #calendarVisibilityBar, #lessonFilterPopover, #printOptionsModal, #teamLockStatus, #panel-teachers')) {
+    if (el.closest('#appTabNav, #lessonFilterPopover, #printOptionsModal, #teamLockStatus, #panel-teachers')) {
         return true;
     }
     if (
@@ -22988,8 +23362,12 @@ function updateActiveTeamCalendarOptionLabel() {
 
 function setTeamCalendarRowVisible(visible) {
     const row = document.getElementById('teamCalendarRow');
+    const details = document.getElementById('appTopBarTeamDetails');
     if (row) {
         row.hidden = !visible;
+    }
+    if (details) {
+        details.hidden = !visible;
     }
     refreshCalendarNameLabel();
 }
@@ -23302,6 +23680,7 @@ function populateCalendarSelect(calendars, activeId) {
     if (delBtn) {
         updateTeamDeleteCalendarButton(list, sel.value);
     }
+    updateTopBarCalendarLabel();
 }
 
 async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {

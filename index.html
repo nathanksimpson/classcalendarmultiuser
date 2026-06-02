@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-class-popout-menu-parity">
+    <link rel="stylesheet" href="styles.css?v=20260602-header-title-actions">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -75,39 +75,6 @@
                 <pre id="teamLockDebugLog" class="team-lock-debug-log"></pre>
             </div>
 
-            <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
-                <div class="team-calendar-panel-toolbar">
-                    <div class="team-calendar-row-main">
-                        <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
-                        <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
-                        <details class="header-dropdown team-calendar-menu">
-                            <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="teamCalendarMenu">Calendar</summary>
-                            <div class="header-dropdown-panel" role="menu">
-                                <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendar">+ New</button>
-                                <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
-                                <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
-                            </div>
-                        </details>
-                        <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status">Connecting…</span>
-                    </div>
-                    <details class="header-dropdown team-account-menu" id="teamAccountGroup" hidden>
-                        <summary class="btn btn-outline btn-small header-dropdown-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
-                        <div class="header-dropdown-panel" role="menu">
-                            <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
-                            <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
-                            <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
-                            <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
-                            <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
-                            <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
-                        </div>
-                    </details>
-                </div>
-                <details class="team-calendar-help">
-                    <summary data-i18n="teamCalendarHelp">Team help</summary>
-                    <p class="team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
-                </details>
-            </div>
-
             <div class="app-banner-stack">
                 <div id="setupGuideBanner" class="setup-guide-banner remote-newer-banner" hidden role="status">
                     <p id="setupGuideBannerText" class="setup-guide-banner-text"></p>
@@ -137,11 +104,14 @@
             </div>
 
             <div class="app-top-bar-compact">
+                <div class="app-top-bar-primary">
                 <div class="app-top-bar-title-block">
-                    <h1 data-i18n="appTitle">Class Calendar Planner</h1>
-                    <div class="app-term-quick-actions">
-                        <button type="button" id="addClassBtn" class="btn btn-primary btn-small" data-i18n="addClass">+ Add Class</button>
-                        <button type="button" id="addHolidayBtn" class="btn btn-secondary btn-small" data-i18n="addEvent">+ Add Event</button>
+                    <div class="app-top-bar-title-row">
+                        <h1 data-i18n="appTitle">Class Calendar Planner</h1>
+                        <div class="app-term-quick-actions app-top-bar-title-actions">
+                            <button type="button" id="addClassBtn" class="btn btn-primary btn-small" data-i18n="addClass">+ Add Class</button>
+                            <button type="button" id="addHolidayBtn" class="btn btn-secondary btn-small" data-i18n="addEvent">+ Add Event</button>
+                        </div>
                     </div>
                     <span id="topBarCalendarLabel" class="top-bar-calendar-label" hidden></span>
                 </div>
@@ -172,6 +142,9 @@
                 </nav>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
+                    <div class="app-header-tool-group app-header-tool-group--calendar-display">
+                        <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn calendar-display-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarDisplayBtn">Calendar display…</button>
+                    </div>
                     <div class="app-header-tool-group app-header-tool-group--print">
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
@@ -183,75 +156,113 @@
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
                         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
                     </div>
+                    <div class="app-header-tool-group app-header-tool-group--collapse">
+                        <button type="button" id="topBarToggle" class="app-top-bar-toggle calendar-options-toggle" aria-expanded="true" aria-controls="topBarDetails appTopBarTeamDetails">
+                            <span class="app-top-bar-toggle-icon" aria-hidden="true">▲</span>
+                            <span class="top-bar-toggle-label" data-i18n="topBarCollapse">Collapse calendar options</span>
+                        </button>
+                    </div>
+                </div>
+                </div>
+                <div id="appTopBarTeamDetails" class="app-top-bar-team-details">
+                    <div id="teamCalendarRow" class="team-calendar-row team-calendar-row--header" hidden>
+                        <div class="team-calendar-panel-toolbar">
+                            <div class="team-calendar-row-main">
+                                <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
+                                <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
+                                <details class="header-dropdown team-calendar-menu">
+                                    <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="teamCalendarMenu">Calendar</summary>
+                                    <div class="header-dropdown-panel" role="menu">
+                                        <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendar">+ New</button>
+                                        <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
+                                        <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
+                                    </div>
+                                </details>
+                                <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status">Connecting…</span>
+                            </div>
+                            <details class="header-dropdown team-account-menu" id="teamAccountGroup" hidden>
+                                <summary class="btn btn-outline btn-small header-dropdown-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
+                                <div class="header-dropdown-panel" role="menu">
+                                    <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
+                                    <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
+                                    <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
+                                    <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
+                                    <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
+                                    <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
+                                </div>
+                            </details>
+                        </div>
+                        <details class="team-calendar-help">
+                            <summary data-i18n="teamCalendarHelp">Team help</summary>
+                            <p class="team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
+                        </details>
+                    </div>
                 </div>
             </div>
         </header>
 
         <main class="app-main" id="appMain">
             <section id="panel-calendar" class="app-tab-panel is-active" data-tab="calendar" role="tabpanel" aria-labelledby="tabBtn-calendar-teaching">
-                <div id="calendarVisibilityDock" class="calendar-visibility-dock">
-                    <section id="calendarVisibilityBar" class="calendar-visibility-bar" aria-labelledby="toolbarVisibilityHeading">
-                        <h2 id="toolbarVisibilityHeading" class="calendar-visibility-bar__heading" data-i18n="calendarVisibility">Show on calendar:</h2>
-                        <div class="calendar-visibility-bar__controls">
-                            <label class="checkbox-label visibility-chip">
-                                <input type="checkbox" id="visLessons" checked>
-                                <span data-i18n="showLessons">Lessons</span>
-                            </label>
-                            <label class="checkbox-label visibility-chip">
-                                <input type="checkbox" id="visHolidays" checked>
-                                <span data-i18n="showHolidays">Holidays</span>
-                            </label>
-                            <label class="checkbox-label visibility-chip">
-                                <input type="checkbox" id="visEvalDeadline" checked>
-                                <span data-i18n="showEvalDeadlines">Evaluation deadlines</span>
-                            </label>
-                            <label class="checkbox-label visibility-chip">
-                                <input type="checkbox" id="visHomeworkDeadline" checked>
-                                <span data-i18n="showHomeworkDeadlines">Homework deadlines</span>
-                            </label>
-                            <label class="checkbox-label visibility-chip">
-                                <input type="checkbox" id="visEvalPeriod" checked>
-                                <span data-i18n="showEvalPeriods">Evaluation periods</span>
-                            </label>
-                            <label class="checkbox-label visibility-chip">
-                                <input type="checkbox" id="visOther" checked>
-                                <span data-i18n="showOtherEvents">Other events</span>
-                            </label>
-                            <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="lessonFilterBtn">Filter lessons…</button>
-                            <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
-                                <input type="checkbox" id="showAllClassCurricula">
-                                <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
-                            </label>
-                        </div>
-                    </section>
-                </div>
-                <div id="lessonFilterPopover" class="lesson-filter-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
+                <div id="lessonFilterPopover" class="lesson-filter-popover calendar-display-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
                     <div class="lesson-filter-popover-panel">
                         <div class="lesson-filter-header">
-                            <h3 id="lessonFilterTitle" data-i18n="lessonFilterTitle">Filter lessons on calendar</h3>
+                            <h3 id="lessonFilterTitle" data-i18n="calendarDisplayTitle">Calendar display</h3>
                             <button type="button" class="lesson-filter-close" id="lessonFilterCloseBtn" aria-label="Close">&times;</button>
                         </div>
-                        <p id="lessonFilterStatus" class="lesson-filter-status"></p>
-                        <div class="lesson-filter-actions">
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterJustMineBtn" data-i18n="lessonFilterJustMine">Just my classes</button>
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterClearAllBtn" data-i18n="filterClearAll">Clear all</button>
-                            <button type="button" class="btn btn-outline btn-small" id="lessonFilterResetBtn" data-i18n="lessonFilterReset">Reset filters</button>
+                        <div class="calendar-display-popover-scroll">
+                            <section class="calendar-display-visibility-section" aria-labelledby="calendarDisplayVisibilityHeading">
+                                <h4 id="calendarDisplayVisibilityHeading" class="lesson-filter-section-title" data-i18n="calendarVisibility">Show on calendar:</h4>
+                                <div class="calendar-display-visibility-chips">
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visLessons" checked>
+                                        <span data-i18n="showLessons">Lessons</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visHolidays" checked>
+                                        <span data-i18n="showHolidays">Holidays</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visEvalDeadline" checked>
+                                        <span data-i18n="showEvalDeadlines">Evaluation deadlines</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visHomeworkDeadline" checked>
+                                        <span data-i18n="showHomeworkDeadlines">Homework deadlines</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visEvalPeriod" checked>
+                                        <span data-i18n="showEvalPeriods">Evaluation periods</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visOther" checked>
+                                        <span data-i18n="showOtherEvents">Other events</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip" id="showAllCurriculaWrap" hidden title="">
+                                        <input type="checkbox" id="showAllClassCurricula">
+                                        <span data-i18n="showAllClassCurricula">Show all teachers’ curricula</span>
+                                    </label>
+                                </div>
+                            </section>
+                            <section class="calendar-display-lessons-section" aria-labelledby="calendarDisplayLessonsHeading">
+                                <h4 id="calendarDisplayLessonsHeading" class="lesson-filter-section-title" data-i18n="calendarDisplayLessonsHeading">Filter lessons</h4>
+                                <p id="lessonFilterStatus" class="lesson-filter-status"></p>
+                                <div class="lesson-filter-actions">
+                                    <button type="button" class="btn btn-outline btn-small" id="lessonFilterJustMineBtn" data-i18n="lessonFilterJustMine">Just my classes</button>
+                                    <button type="button" class="btn btn-outline btn-small" id="lessonFilterSelectAllBtn" data-i18n="filterSelectAll">Select all</button>
+                                    <button type="button" class="btn btn-outline btn-small" id="lessonFilterClearAllBtn" data-i18n="filterClearAll">Clear all</button>
+                                    <button type="button" class="btn btn-outline btn-small" id="lessonFilterResetBtn" data-i18n="lessonFilterReset">Reset filters</button>
+                                </div>
+                                <div class="lesson-filter-search-wrap">
+                                    <input type="search" id="lessonFilterSearch" class="lesson-filter-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="lessonFilterSearchPlaceholder" placeholder="Search classes, grades, levels…">
+                                </div>
+                                <p id="lessonFilterSearchEmpty" class="lesson-filter-search-empty" hidden data-i18n="lessonFilterSearchEmpty">No matches. Try a different search.</p>
+                                <div id="lessonFilterPopoverBody" class="lesson-filter-body"></div>
+                            </section>
                         </div>
-                        <div class="lesson-filter-search-wrap">
-                            <input type="search" id="lessonFilterSearch" class="lesson-filter-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="lessonFilterSearchPlaceholder" placeholder="Search classes, grades, levels…">
-                        </div>
-                        <p id="lessonFilterSearchEmpty" class="lesson-filter-search-empty" hidden data-i18n="lessonFilterSearchEmpty">No matches. Try a different search.</p>
-                        <div id="lessonFilterPopoverBody" class="lesson-filter-body"></div>
                     </div>
                 </div>
 
                 <div id="calendarOptions" class="calendar-options">
-                <button type="button" id="topBarToggle" class="app-top-bar-toggle calendar-options-toggle" aria-expanded="true" aria-controls="topBarDetails">
-                    <span class="app-top-bar-toggle-icon" aria-hidden="true">▲</span>
-                    <span class="top-bar-toggle-label" data-i18n="topBarCollapse">Collapse calendar options</span>
-                </button>
-
             <div id="topBarDetails" class="app-top-bar-details calendar-options-details">
                 <section class="term-selector calendar-toolbar-section" aria-labelledby="toolbarTermHeading">
                     <h2 id="toolbarTermHeading" class="calendar-toolbar-section__heading" data-i18n="toolbarTermSettings">Term settings</h2>
@@ -562,9 +573,16 @@
                     <span id="timetableConflictBadge" class="timetable-conflict-badge" role="status" hidden></span>
                 </div>
                 <div class="timetable-layout module-split-layout">
-                    <aside class="module-list-panel timetable-teacher-panel" aria-label="Teachers">
-                        <input type="search" id="timetableTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
-                        <div id="timetableTeacherList" class="module-list" role="listbox" aria-label="Teachers"></div>
+                    <aside class="module-list-panel timetable-sidebar" aria-label="Timetable teachers and classes">
+                        <div class="timetable-sidebar-teachers">
+                            <input type="search" id="timetableTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
+                            <div id="timetableTeacherList" class="module-list" role="listbox" aria-label="Teachers"></div>
+                        </div>
+                        <section id="timetableClassesSidebar" class="timetable-classes-section" hidden aria-labelledby="timetableClassesHeading">
+                            <h3 id="timetableClassesHeading" class="timetable-classes-heading" data-i18n="timetableTeacherClassesHeading">Classes</h3>
+                            <input type="search" id="timetableClassListSearch" class="module-list-search timetable-class-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
+                            <div id="timetableClassList" class="module-list timetable-class-list" role="listbox" aria-label="Classes for selected teacher"></div>
+                        </section>
                     </aside>
                     <div class="module-editor-panel timetable-main-panel">
                         <p id="timetablePickTeacherHint" class="module-empty-hint" data-i18n="timetablePickTeacher">Select a teacher from the list to view their classes and weekly timetable.</p>
@@ -578,11 +596,6 @@
                                 <p id="timetableTermLabel" class="timetable-term-label section-hint"></p>
                                 <div id="timetableCohortsSummary" class="timetable-cohorts-summary" hidden></div>
                             </header>
-                            <section class="timetable-classes-section" aria-labelledby="timetableClassesHeading">
-                                <h3 id="timetableClassesHeading" class="timetable-classes-heading" data-i18n="timetableTeacherClassesHeading">Classes</h3>
-                                <input type="search" id="timetableClassListSearch" class="module-list-search timetable-class-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
-                                <div id="timetableClassList" class="module-list timetable-class-list" role="listbox" aria-label="Classes for selected teacher"></div>
-                            </section>
                             <div id="timetableGridsMount" class="timetable-grids-mount"></div>
                         </div>
                     </div>
@@ -1127,7 +1140,7 @@
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260602-notes-text-search"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260602-other-events-ref"></script>
+    <script defer src="app.js?v=20260602-header-title-actions"></script>
 </body>
 </html>
 
