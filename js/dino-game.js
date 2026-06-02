@@ -574,6 +574,9 @@
     }
 
     function onDocumentKeydown(e) {
+        if (isTypingTarget(document.activeElement)) {
+            return;
+        }
         if (gameOpen) {
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -600,10 +603,6 @@
                 setDucking(true);
                 return;
             }
-            return;
-        }
-
-        if (isTypingTarget(document.activeElement)) {
             return;
         }
     }

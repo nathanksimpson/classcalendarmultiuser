@@ -1263,6 +1263,119 @@
         };
     }
 
+    function formatLocalIsoDate(date) {
+        const d = date instanceof Date ? date : new Date(date);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    function parseTimeToMinutes(hhmm) {
+        const raw = normalizeStr(hhmm);
+        if (!raw) {
+            return null;
+        }
+        const parts = raw.split(':');
+        if (parts.length < 2) {
+            return null;
+        }
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (Number.isNaN(h) || Number.isNaN(m)) {
+            return null;
+        }
+        return h * 60 + m;
+    }
+
+    function resolveActiveTimeSlot(appData, at) {
+        const when = at instanceof Date ? at : new Date();
+        if (Number.isNaN(when.getTime())) {
+            return null;
+        }
+        const mins = when.getHours() * 60 + when.getMinutes();
+        const slots = getSortedTimeSlots(appData);
+        for (let i = 0; i < slots.length; i += 1) {
+            const slot = slots[i];
+            const start = parseTimeToMinutes(slot.start);
+            const end = parseTimeToMinutes(slot.end);
+            if (start == null || end == null) {
+                continue;
+            }
+            if (mins >= start && mins < end) {
+                return { slot, inSession: true };
+            }
+        }
+        return null;
+    }
+
+    function resolveActiveTimeSlotId(appData, at) {
+        const active = resolveActiveTimeSlot(appData, at);
+        return active && active.slot ? active.slot.id : null;
+    }
+
+    /**
+     * Map local date/time + teacher weekly schedule to the class in session now (Mon–Fri only).
+     * @param {object} appData
+     * @param {object} teacherSelector
+     * @param {{ at?: Date, classOccursOnIsoDate?: function }} [options]
+     * @returns {object|null}
+     */
+    function resolveCurrentClassContext(appData, teacherSelector, options) {
+        options = options || {};
+        if (!appData || !teacherSelector) {
+            return null;
+        }
+        const at = options.at instanceof Date ? options.at : new Date();
+        if (Number.isNaN(at.getTime())) {
+            return null;
+        }
+        const dow = at.getDay();
+        if (dow < 1 || dow > 5) {
+            return null;
+        }
+        const active = resolveActiveTimeSlot(appData, at);
+        if (!active || !active.slot) {
+            return null;
+        }
+        const dateStr = formatLocalIsoDate(at);
+        const activeSlotId = active.slot.id;
+        const occursOnDate = typeof options.classOccursOnIsoDate === 'function'
+            ? options.classOccursOnIsoDate
+            : null;
+        const scheduleItems = getClassesForTeacherSchedule(appData, teacherSelector);
+        for (let i = 0; i < scheduleItems.length; i += 1) {
+            const item = scheduleItems[i];
+            const classData = item.classData;
+            const teacherRow = item.teacherRow;
+            if (!classData || !classData.id) {
+                continue;
+            }
+            if (occursOnDate && !occursOnDate(classData, dateStr)) {
+                continue;
+            }
+            const placements = getTeacherTimetablePlacements(classData, teacherRow, appData);
+            for (let j = 0; j < placements.length; j += 1) {
+                const pl = placements[j];
+                if (pl.dow === dow && pl.timeSlotId === activeSlotId) {
+                    return {
+                        dateStr,
+                        dow,
+                        timeSlotId: activeSlotId,
+                        timeSlot: active.slot,
+                        classId: classData.id,
+                        className: classData.name || '',
+                        classData,
+                        teacherRow,
+                        inSession: true
+                    };
+                }
+            }
+        }
+        return null;
+    }
+
     global.CCPTeacherTimetable = {
         WEEKDAY_COLUMNS,
         TEACHER_CATEGORY_PRESETS,
@@ -1309,6 +1422,8 @@
         normalizeTeacherRow,
         getTeacherMeetingDays,
         getTeacherTimetablePlacements,
+        resolveActiveTimeSlotId,
+        resolveCurrentClassContext,
         formatTeacherRowScheduleSummary,
         findTeacherRowForSelector,
         getTeacherPeriodNumber,

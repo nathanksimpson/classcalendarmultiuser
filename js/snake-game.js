@@ -478,6 +478,9 @@
     }
 
     function onDocumentKeydown(e) {
+        if (isTypingTarget(document.activeElement)) {
+            return;
+        }
         if (gameOpen) {
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -495,10 +498,6 @@
             if (handleDirectionKey(e.key)) {
                 e.preventDefault();
             }
-            return;
-        }
-
-        if (isTypingTarget(document.activeElement)) {
             return;
         }
     }

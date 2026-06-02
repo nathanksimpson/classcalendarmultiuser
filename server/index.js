@@ -1314,7 +1314,31 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    const { data, revision, force, name } = req.body || {};
+    const { data, revision, force, name, dayNotesOnly, dayNotes } = req.body || {};
+    const label = req.user.displayName || req.user.email || 'Teacher';
+    if (dayNotesOnly) {
+        if (!Array.isArray(dayNotes)) {
+            res.status(400).json({ error: 'dayNotes array is required' });
+            return;
+        }
+        const result = calendars.updateCalendarDayNotes(
+            req.params.id,
+            dayNotes,
+            revision,
+            label,
+            req.user
+        );
+        if (!result.ok) {
+            if (result.status === 409) {
+                res.status(409).json({ conflict: true, document: result.document });
+                return;
+            }
+            res.status(result.status || 500).json({ error: result.error || 'Update failed' });
+            return;
+        }
+        res.json(result.document);
+        return;
+    }
     if (!data) {
         res.status(400).json({ error: 'data is required' });
         return;
@@ -1325,7 +1349,6 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         return;
     }
     const displayName = name != null ? String(name).trim() : existing.name;
-    const label = req.user.displayName || req.user.email || 'Teacher';
     const result = calendars.updateCalendar(
         req.params.id,
         displayName,

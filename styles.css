@@ -157,6 +157,9 @@
 
     /* Sticky offsets: set from JS to match #appTopBar height */
     --app-chrome-sticky-top: 72px;
+    /* Cohorts setup board: palette sticky top + viewport lock (set from JS) */
+    --cohorts-palette-sticky-top: calc(var(--app-chrome-sticky-top) + 4.5rem);
+    --cohorts-board-chrome-height: 12rem;
     /* Calendar month headers: app bar + floating visibility dock (set from JS) */
     --calendar-month-sticky-top: var(--app-chrome-sticky-top);
     /* One month ≈ one viewport below sticky chrome on the calendar tab */
@@ -740,6 +743,38 @@ body[data-active-tab="events"] .app-top-bar-title-actions {
 .calendar-context-menu-item:focus {
     background: var(--bg-hover);
     outline: none;
+}
+
+.calendar-context-menu-date-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 6px 6px 8px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+}
+
+.calendar-context-menu-date-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 140px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.calendar-context-menu-date-input {
+    font-family: var(--font-main);
+    font-size: 0.875rem;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .event-bar--has-day-note {
@@ -3929,8 +3964,33 @@ body:not([data-active-tab="calendar"]) .app-header-tool-group--calendar-display 
     padding-right: 6px;
 }
 
+.app-header-tool-group--notes {
+    padding-left: 6px;
+}
+
 .app-header-tool-group--help {
     padding-left: 6px;
+}
+
+.notes-mobile-app-promo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--surface-muted, #f8fafc);
+}
+
+.notes-mobile-app-promo-hint {
+    flex: 1 1 200px;
+    margin: 0;
+}
+
+.btn-notes-app {
+    white-space: nowrap;
 }
 
 .app-header-tool-group--collapse {
@@ -4099,6 +4159,17 @@ body[data-active-tab="events"] .app-term-quick-actions {
 
 .team-account-menu {
     flex-shrink: 0;
+}
+
+.team-account-menu--header .team-account-menu-trigger {
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-header-tool-group--account .header-dropdown-panel {
+    right: 0;
+    left: auto;
 }
 
 .team-account-toolbar {
@@ -8567,6 +8638,16 @@ body.workspace-page #appStatus {
     z-index: 1;
 }
 
+.timetable-cell--now,
+.timetable-cell-entry.timetable-cell--now {
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92), 0 0 0 2px var(--primary, #6366f1);
+}
+
+html:not([data-theme="dark"]) .timetable-cell--now,
+html:not([data-theme="dark"]) .timetable-cell-entry.timetable-cell--now {
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 2px var(--primary, #6366f1);
+}
+
 .timetable-cell-name {
     font-weight: 600;
     overflow: hidden;
@@ -9167,16 +9248,60 @@ body.dino-game-open {
     display: grid;
     grid-template-columns: minmax(12rem, 18rem) minmax(10rem, 14rem) minmax(0, 1fr);
     gap: 0.75rem;
-    align-items: stretch;
+    align-items: start;
     min-height: 28rem;
 }
 
-.setup-board-class-palette,
-.setup-board-teacher-palette {
+#panel-cohorts .setup-board-layout {
+    height: calc(100dvh - var(--cohorts-board-chrome-height, 12rem));
+    max-height: calc(100dvh - var(--cohorts-board-chrome-height, 12rem));
+    overflow: hidden;
+    align-items: stretch;
+}
+
+#panel-cohorts .setup-board-layout > * {
+    min-height: 0;
+}
+
+.module-list-panel.setup-board-class-palette,
+.module-list-panel.setup-board-teacher-palette {
+    position: sticky;
+    align-self: start;
+    top: var(--cohorts-palette-sticky-top, calc(var(--app-chrome-sticky-top, 72px) + 4.5rem));
+    z-index: 120;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: calc(100vh - var(--app-chrome-sticky-top, 72px) - 10rem);
+    max-height: calc(100dvh - var(--cohorts-palette-sticky-top, calc(var(--app-chrome-sticky-top, 72px) + 4.5rem)) - 1.5rem);
+}
+
+#panel-cohorts .module-list-panel.setup-board-class-palette,
+#panel-cohorts .module-list-panel.setup-board-teacher-palette {
+    position: relative;
+    top: auto;
+    align-self: stretch;
+    max-height: none;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    z-index: auto;
+}
+
+#panel-cohorts .module-list-panel.setup-board-class-palette .setup-board-pool,
+#panel-cohorts aside.setup-board-teacher-palette > .setup-board-teacher-palette,
+#panel-cohorts #setupBoardTeacherPalette.setup-board-teacher-palette {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.module-list-panel.setup-board-class-palette .setup-board-section-heading,
+.module-list-panel.setup-board-teacher-palette .setup-board-section-heading,
+.module-list-panel.setup-board-teacher-palette .module-list-search,
+#panel-cohorts .setup-board-cohort-nav .module-list-search {
+    flex-shrink: 0;
 }
 
 .setup-board-center {
@@ -9187,10 +9312,39 @@ body.dino-game-open {
     min-height: 0;
 }
 
+#panel-cohorts .setup-board-center {
+    display: grid;
+    grid-template-rows: minmax(0, 11rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    align-content: stretch;
+    min-height: 0;
+    overflow: hidden;
+    height: 100%;
+}
+
 .setup-board-cohort-nav {
     flex: 0 0 auto;
     max-height: 14rem;
     overflow: auto;
+}
+
+#panel-cohorts .setup-board-cohort-nav.module-list-panel {
+    position: relative;
+    top: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+}
+
+#panel-cohorts .setup-board-cohort-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .setup-board-cohort-list {
@@ -9203,6 +9357,13 @@ body.dino-game-open {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+}
+
+#panel-cohorts .setup-board-main {
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .setup-board-view-switch {
@@ -9480,7 +9641,8 @@ body.dino-game-open {
     color: var(--banner-warn-color, #78350f);
 }
 
-.setup-board-teacher-palette {
+aside.setup-board-teacher-palette > .setup-board-teacher-palette,
+#setupBoardTeacherPalette.setup-board-teacher-palette {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
@@ -9531,14 +9693,40 @@ body.dino-game-open {
         grid-template-columns: 1fr;
     }
 
-    .setup-board-class-palette,
-    .setup-board-teacher-palette {
-        max-height: 12rem;
+    #panel-cohorts .setup-board-layout {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        align-items: stretch;
     }
 
-    .setup-board-teacher-palette {
-        flex-direction: row;
-        flex-wrap: wrap;
+    #panel-cohorts .setup-board-center {
+        height: auto;
+        overflow: visible;
+        grid-template-rows: minmax(0, 11rem) minmax(0, 20rem);
+    }
+
+    #panel-cohorts .module-list-panel.setup-board-class-palette,
+    #panel-cohorts .module-list-panel.setup-board-teacher-palette {
+        position: relative;
+        top: auto;
+        align-self: stretch;
+        max-height: 14rem;
+        height: auto;
+        min-height: 0;
+        overflow: hidden;
+        z-index: auto;
+    }
+
+    #panel-cohorts .setup-board-main {
+        min-height: 12rem;
+        overflow-y: auto;
+    }
+
+    aside.setup-board-teacher-palette > .setup-board-teacher-palette,
+    #setupBoardTeacherPalette.setup-board-teacher-palette {
+        flex-direction: column;
+        flex-wrap: nowrap;
     }
 
     .cohorts-floating-toolbar {
@@ -9572,5 +9760,441 @@ body.dino-game-open {
     margin-right: 0.35rem;
     font-size: 0.75rem;
     font-weight: 600;
+}
+
+/* Mobile day notes (notes.html) */
+body.notes-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.notes-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: 0.75rem 1rem;
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0));
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    background: var(--surface-elevated);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.notes-header-main {
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
+.notes-back-link {
+    display: inline-block;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+.notes-back-link:hover {
+    text-decoration: underline;
+}
+
+.notes-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.notes-calendar-label {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+}
+
+.notes-header-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+.notes-init-error-banner {
+    margin: 0.5rem 1rem 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    background: var(--warning-bg, #fef3c7);
+    color: var(--warning-text, #92400e);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.notes-init-error-banner[hidden] {
+    display: none !important;
+}
+
+.notes-sync-hint {
+    margin: 0 1rem;
+    flex-shrink: 0;
+}
+
+.notes-remote-banner {
+    margin: 0.5rem 1rem 0;
+    flex-shrink: 0;
+}
+
+.notes-readonly-banner {
+    margin: 0.5rem 1rem 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    background: var(--warning-bg, #fef3c7);
+    color: var(--warning-text, #92400e);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.notes-date-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-card, #fff);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 15;
+}
+
+body.notes-page .notes-date-bar {
+    top: auto;
+}
+
+.notes-date-label {
+    flex: 1 1 8rem;
+    min-width: 0;
+    margin: 0;
+}
+
+.notes-date-input {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 1rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--input-bg, #fff);
+    color: var(--text-primary);
+}
+
+.notes-day-nav-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.notes-filter-my-classes {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.notes-filter-my-classes input {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.notes-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0 1rem;
+}
+
+.notes-class-section {
+    padding: 0.5rem 1rem 0;
+    flex-shrink: 0;
+}
+
+.notes-class-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.notes-class-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 10px;
+    background: var(--bg-card, #fff);
+    text-align: left;
+    cursor: pointer;
+    min-height: 3rem;
+    touch-action: manipulation;
+}
+
+.notes-class-item.is-selected {
+    border-color: var(--accent, #2563eb);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #2563eb) 25%, transparent);
+}
+
+.notes-class-item--has-note {
+    border-left: 4px solid var(--accent, #2563eb);
+}
+
+.notes-class-item-title {
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.3;
+}
+
+.notes-class-item-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted, #64748b);
+}
+
+/* Bottom sheet note editor (mobile) */
+.notes-editor-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.notes-editor-backdrop[hidden] {
+    display: none !important;
+}
+
+body.notes-editor-open.notes-page {
+    overflow: hidden;
+}
+
+.notes-editor-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    max-height: min(88dvh, 720px);
+    border-radius: 16px 16px 0 0;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-bottom: 0;
+    background: var(--bg-card, #fff);
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.18);
+    box-sizing: border-box;
+}
+
+.notes-editor-sheet[hidden] {
+    display: none !important;
+}
+
+.notes-editor-sheet-inner {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: inherit;
+}
+
+.notes-editor-sheet-handle {
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 0.28rem;
+    margin: 0.55rem auto 0;
+    border-radius: 999px;
+    background: var(--border-color, #cbd5e1);
+}
+
+.notes-editor-sheet-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 1rem 0.5rem;
+    flex-shrink: 0;
+}
+
+.notes-editor-sheet-heading {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.notes-editor-close-btn {
+    flex-shrink: 0;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.notes-editor-sheet-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 1rem calc(1rem + env(safe-area-inset-bottom, 0));
+}
+
+.notes-editor-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.notes-editor-meta {
+    margin: 0.25rem 0 0;
+}
+
+.notes-existing-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-bottom: 0.75rem;
+    flex-shrink: 0;
+}
+
+.notes-existing-list .class-notes-preview-entry,
+.notes-existing-list .day-note-list-entry {
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 0.65rem 0.75rem;
+}
+
+.notes-add-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.notes-add-textarea {
+    width: 100%;
+    min-height: 6rem;
+    font-size: 1rem;
+    line-height: 1.45;
+    resize: vertical;
+}
+
+.notes-editor-actions {
+    margin-top: 0.75rem;
+    flex-shrink: 0;
+}
+
+.notes-editor-actions .btn-primary {
+    width: 100%;
+    min-height: 2.85rem;
+    font-size: 1rem;
+}
+
+.notes-status {
+    margin: 0.65rem 0 0;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.notes-status.is-ok {
+    color: var(--success-text, #166534);
+}
+
+.notes-status.is-error {
+    color: var(--error-text, #b91c1c);
+}
+
+.notes-pick-hint {
+    padding: 1rem;
+    text-align: center;
+}
+
+@media (min-width: 720px) {
+    body.notes-editor-open.notes-page {
+        overflow: auto;
+    }
+
+    .notes-editor-backdrop {
+        display: none !important;
+    }
+
+    .notes-editor-sheet {
+        position: static;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        z-index: auto;
+        max-height: none;
+        margin: 0.75rem 0 0;
+        border-radius: 12px;
+        border-bottom: 1px solid var(--border-color, #e2e8f0);
+        box-shadow: none;
+        flex-shrink: 0;
+    }
+
+    .notes-editor-sheet-handle,
+    .notes-editor-close-btn {
+        display: none;
+    }
+
+    .notes-editor-sheet-header {
+        padding-top: 0;
+    }
+
+    .notes-editor-sheet-body {
+        padding-bottom: 1rem;
+    }
+
+    .notes-main {
+        max-width: 32rem;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+    }
+
+    .notes-header,
+    .notes-date-bar,
+    .notes-filter-my-classes,
+    .notes-remote-banner,
+    .notes-readonly-banner {
+        max-width: 32rem;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
 }
 

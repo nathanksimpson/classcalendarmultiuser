@@ -295,6 +295,26 @@
         return sess && sess.workspace ? sess.workspace : null;
     }
 
+    function saveNotesSession(notesPatch) {
+        const userId = getSessionUserId();
+        if (!userId || !notesPatch) {
+            return;
+        }
+        const sess = loadUserSession(userId) || {};
+        saveUserSession(userId, {
+            notes: Object.assign({}, sess.notes || {}, notesPatch)
+        });
+    }
+
+    function getNotesSession() {
+        const userId = getSessionUserId();
+        if (!userId) {
+            return null;
+        }
+        const sess = loadUserSession(userId);
+        return sess && sess.notes ? sess.notes : null;
+    }
+
     function onUserAuthenticated() {
         const userId = getSessionUserId();
         if (userId) {
@@ -362,6 +382,8 @@
         getAdminSession,
         saveWorkspaceSession,
         getWorkspaceSession,
+        saveNotesSession,
+        getNotesSession,
         onUserAuthenticated,
         maybeRestoreLastPath,
         isViewAsSkip

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-header-title-actions">
+    <link rel="stylesheet" href="styles.css?v=20260611-timetable-context">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -148,9 +148,25 @@
                     <div class="app-header-tool-group app-header-tool-group--print">
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
+                    <div class="app-header-tool-group app-header-tool-group--notes">
+                        <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
+                    </div>
                     <input type="file" id="importFile" accept=".json" hidden>
                     <div class="app-header-tool-group app-header-tool-group--help">
                         <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
+                    </div>
+                    <div class="app-header-tool-group app-header-tool-group--account">
+                        <details class="header-dropdown team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                            <summary class="btn btn-outline btn-small header-dropdown-trigger team-account-menu-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
+                            <div class="header-dropdown-panel" role="menu">
+                                <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
+                                <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
+                                <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
+                                <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
+                                <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
+                                <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
+                            </div>
+                        </details>
                     </div>
                     <div class="app-header-tool-group app-header-tool-group--locale">
                         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
@@ -180,17 +196,6 @@
                                 </details>
                                 <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status">Connecting…</span>
                             </div>
-                            <details class="header-dropdown team-account-menu" id="teamAccountGroup" hidden>
-                                <summary class="btn btn-outline btn-small header-dropdown-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
-                                <div class="header-dropdown-panel" role="menu">
-                                    <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
-                                    <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
-                                    <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
-                                    <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
-                                    <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
-                                    <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
-                                </div>
-                            </details>
                         </div>
                         <details class="team-calendar-help">
                             <summary data-i18n="teamCalendarHelp">Team help</summary>
@@ -287,6 +292,7 @@
                     </div>
                     <div id="termSelectorFooter" class="term-selector__footer">
                         <button type="button" id="dayNotesToolbarBtn" class="btn btn-outline btn-small" data-i18n="dayNotesToolbarBtn">Day notes</button>
+                        <a href="/notes.html" id="openNotesAppLink" class="btn btn-outline btn-small notes-app-link" data-i18n="notesOpenMobile">Day notes app</a>
                     </div>
                 </section>
             </div>
@@ -298,6 +304,10 @@
             </section>
 
             <section id="panel-notes" class="app-tab-panel" data-tab="notes" role="tabpanel" aria-labelledby="tabBtn-notes" hidden>
+                <div class="notes-mobile-app-promo">
+                    <p class="section-hint notes-mobile-app-promo-hint" data-i18n="notesMobilePromoHint">Phone-friendly journal: pick a date, tap your class, write what happened.</p>
+                    <button type="button" id="openNotesAppTabBtn" class="btn btn-primary btn-small" data-i18n="notesOpenMobile">Mobile day notes</button>
+                </div>
                 <div id="panelNotesMount" class="class-notes-mount"></div>
             </section>
 
@@ -316,7 +326,13 @@
                                     <input type="date" id="classNotesFilterTo" class="class-notes-date-input">
                                 </label>
                             </div>
+                            <label class="checkbox-label class-notes-meeting-days-label">
+                                <input type="checkbox" id="classNotesMeetingDaysOnly">
+                                <span data-i18n="classNotesMeetingDaysOnly">Only on class meeting days</span>
+                            </label>
                             <div class="class-notes-filter-actions">
+                                <button type="button" id="classNotesJustMineBtn" class="btn btn-outline btn-small" data-i18n="lessonFilterJustMine">Just my classes</button>
+                                <button type="button" id="classNotesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesTodayClasses">Today's classes</button>
                                 <button type="button" id="classNotesFilterSelectAllBtn" class="btn btn-outline btn-small" data-i18n="filterSelectAll">Select all</button>
                                 <button type="button" id="classNotesFilterClearClassesBtn" class="btn btn-outline btn-small" data-i18n="filterClearAll">Clear all</button>
                                 <button type="button" id="classNotesResetFiltersBtn" class="btn btn-outline btn-small" data-i18n="classNotesResetFilters">Reset filters</button>
@@ -1138,9 +1154,9 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
-    <script defer src="js/day-notes.js?v=20260602-notes-text-search"></script>
+    <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260602-header-title-actions"></script>
+    <script defer src="app.js?v=20260603-daynote-author"></script>
 </body>
 </html>
 

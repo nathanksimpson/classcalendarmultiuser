@@ -36,6 +36,7 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 | `date` | string | Calendar day `YYYY-MM-DD` |
 | `text` | string | Note body |
 | `createdAt` | string | ISO-8601 datetime when saved |
+| `authorUserId` | string | Optional. Team user id of the teacher who created the note; stamped on save. Co-teachers may read all notes for a class/day but only edit or delete their own (admins with calendar-access management may bypass). Entries without this field are legacy (editable by admins only). |
 
 **Not the same as** `classes[].notes` (static class memo in the class editor).
 

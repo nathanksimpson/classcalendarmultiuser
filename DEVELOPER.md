@@ -72,6 +72,8 @@ Reference implementations: class editor (`.form-group`), calendar visibility bar
 
 **Day notes vs class Notes:** `classes[].notes` in the class editor is a static class memo. `dayNotes[]` is timestamped per-class, per-calendar-day entries. **Entry:** calendar → right-click lesson → Add note (quick log for that class/day). **Single day:** day right-click or **Day notes** in term settings. **Browse/export range:** top-level **Notes** tab or **Classes** → **Notes** (same UI shell: date range, class/subject/grade filters, saved list, export). Data helpers: `js/day-notes.js` (`filterNotes`, `formatRangeExportByClass`). Tab DOM/preview cards: `js/class-notes-panel.js`; mount, filters, listeners, save/sync: `app.js` (`ensureClassNotesShell`, `initClassNotesPanelListeners`, `refreshClassNotesPanelIfMounted`). Filter checkboxes rebuild when calendar data loads via `refreshClassNotesPanelIfMounted`, not only on first tab open (`classNotesFiltersBuilt` guards one-time date restore).
 
+**Day notes and the edit lock:** Saving notes uses `PUT` with `dayNotesOnly: true` (`CalendarSync.saveDayNotesOnly`) — **no calendar edit lock** required. Schedule changes still use the lock. Each note may include `authorUserId`; co-teachers see all notes for a class/day but may only edit/delete their own (server: `prepareDayNotesForSave` in `server/day-notes-access.js` / `worker/src/day-notes-access.js`). Legacy notes without `authorUserId` are read-only for teachers (admins with `manage_calendar_access` may change them). Concurrent note saves from two teachers can still produce a calendar **revision 409**; reload merges by note `id` via `mergeDayNotesById`.
+
 ## Editing surfaces (popout vs tab vs workspace)
 
 The main app uses **one movable form** per entity (`#classForm`, `#holidayForm`): templates in `index.html` are cloned once and **moved** between mounts via `mountClassForm` / `mountHolidayForm` in `app.js`.
@@ -82,6 +84,9 @@ The main app uses **one movable form** per entity (`#classForm`, `#holidayForm`)
 | **Classes / Events tab** | Full editor | `data-editor-mode="full"` — same shared-field order as popout, then full-only sections (teacher/cohort, default book, book periods, notes, custom schedule, compression) |
 | **Syllabus tab** | Lesson table + notes/units | Table first; header Save + Refresh + ⋮ More |
 | **Workspace** (`workspace.html`) | Homework copy + books editor | Subset of `app.js`; revision banner uses `CalendarSync.onRemoteNewer` (no separate meta poll) |
+| **Day notes app** (`notes.html`) | Mobile day journal — scheduled classes + `dayNotes[]` | `js/notes.js` + `app.js` save helpers; same login/API as main app |
+
+**Teacher bookmark (sign in → notes):** `login.html?return=/notes.html` on the same host as the calendar (local: `http://localhost:8080/login.html?return=/notes.html`). When already signed in, use `/notes.html` directly.
 
 Field-order convention (class and event — **same DOM order** in popout and full tab; popout hides `.form-group--full-only` and `.form-section-advanced`):
 

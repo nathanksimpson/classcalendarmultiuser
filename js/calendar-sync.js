@@ -678,6 +678,53 @@
             return doc;
         },
 
+        async saveDayNotesOnly(dayNotes, options) {
+            assertSignedIn();
+            if (isViewAsMode()) {
+                viewAsNotice('View As: change not saved');
+                setStatus('saved');
+                return { simulated: true, revision: state.revision };
+            }
+            if (state.canEdit === false && state.accessLevel !== 'suggester') {
+                const err = new Error('You do not have edit access to this calendar');
+                err.status = 403;
+                throw err;
+            }
+            const id = CalendarSync.getActiveCalendarId();
+            if (!id) {
+                throw new Error('No active team calendar');
+            }
+            const opts = options || {};
+            setStatus('saving');
+            state.saving = true;
+            try {
+                const doc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                    method: 'PUT',
+                    body: {
+                        dayNotesOnly: true,
+                        dayNotes: Array.isArray(dayNotes) ? dayNotes : [],
+                        revision: opts.force ? undefined : state.revision,
+                        force: Boolean(opts.force)
+                    }
+                });
+                state.revision = doc.revision || state.revision;
+                setStatus('saved');
+                if (typeof handlers.onSaved === 'function') {
+                    handlers.onSaved(doc);
+                }
+                return doc;
+            } catch (err) {
+                if (err.status === 409 && err.body && err.body.document) {
+                    setStatus('conflict');
+                    throw err;
+                }
+                setStatus('error', err.message);
+                throw err;
+            } finally {
+                state.saving = false;
+            }
+        },
+
         async saveCalendar(data, options) {
             assertSignedIn();
             if (isViewAsMode()) {

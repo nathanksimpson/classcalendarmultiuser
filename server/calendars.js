@@ -3,6 +3,7 @@ const users = require('./users');
 const CalAccess = require('./calendar-access');
 const Auth = require('./auth-permissions');
 const { recordActivityForUser } = require('./activity-log');
+const DayNotesAccess = require('./day-notes-access');
 
 function listCalendars() {
     const db = getDb();
@@ -154,6 +155,45 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     return { ok: true, document: getCalendar(id) };
 }
 
+/** Merge dayNotes only — does not require collaborative calendar edit lock. */
+function updateCalendarDayNotes(id, dayNotes, revision, editorLabel, user) {
+    if (!CalAccess.canEditCalendar(user, id) && !CalAccess.canSuggestChanges(user, id)) {
+        return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
+    }
+    const existingDoc = getCalendar(id);
+    if (!existingDoc) {
+        return { ok: false, status: 404, error: 'Calendar not found' };
+    }
+    const prepared = DayNotesAccess.prepareDayNotesForSave(user, existingDoc.data, dayNotes);
+    if (prepared.error) {
+        return { ok: false, status: 403, error: prepared.error };
+    }
+    if (revision != null && Number(revision) !== Number(existingDoc.revision)) {
+        return { ok: false, status: 409, document: existingDoc };
+    }
+    const mergedData = Object.assign({}, existingDoc.data, {
+        dayNotes: Array.isArray(prepared.dayNotes) ? prepared.dayNotes : []
+    });
+    const db = getDb();
+    const nextRevision = Number(existingDoc.revision) + 1;
+    const now = nowIso();
+    const label = editorLabel || user.displayName || user.email || 'Teacher';
+    db.prepare(
+        `UPDATE calendars SET data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
+    ).run(JSON.stringify(mergedData), nextRevision, now, label, id);
+
+    const meta = getCalendarMeta(id);
+    recordActivityForUser(user, {
+        action: 'day_notes_save',
+        calendarId: id,
+        calendarName: meta && meta.name,
+        summary: `Saved class day notes (revision ${nextRevision})`,
+        detail: { revision: nextRevision }
+    });
+
+    return { ok: true, document: getCalendar(id) };
+}
+
 function deleteCalendar(id) {
     const db = getDb();
     const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
@@ -170,6 +210,7 @@ module.exports = {
     assertNameAvailable,
     createCalendar,
     updateCalendar,
+    updateCalendarDayNotes,
     deleteCalendar,
     newId
 };

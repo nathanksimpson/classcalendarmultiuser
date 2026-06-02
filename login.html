@@ -177,6 +177,27 @@
         .login-admin-link a {
             color: var(--primary);
         }
+        .login-notes-entry {
+            margin: 1rem 0 0;
+            text-align: center;
+        }
+        .login-notes-link {
+            display: inline-block;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-main);
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            box-sizing: border-box;
+        }
+        .login-notes-link:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
     </style>
 </head>
 <body>
@@ -227,6 +248,10 @@
                 <a id="kakaoSwitchAccount" href="/api/auth/kakao?prompt=login">Use a different Kakao account</a>
             </p>
             <p id="kakaoConfigHint" class="login-kakao-hint" style="display: none;"></p>
+
+            <p class="login-notes-entry">
+                <a id="loginNotesLink" class="login-notes-link" href="/login.html?return=/notes.html">Class day notes (mobile)</a>
+            </p>
 
             <div class="login-fallback">
                 <p><strong id="passwordFallbackTitle">Password fallback</strong> <span id="passwordFallbackHint">(only if your admin gave you one)</span></p>
@@ -279,7 +304,8 @@
                         'Kakao login is not configured on this site yet. Use the password form below if your admin gave you one.',
                     signInProblemPrefix: 'Sign-in problem: ',
                     bootstrapAdminHint:
-                        'No admin account exists yet. Open Admin and use First-time setup with your BOOTSTRAP_ADMIN_SECRET from .env.'
+                        'No admin account exists yet. Open Admin and use First-time setup with your BOOTSTRAP_ADMIN_SECRET from .env.',
+                    notesEntryLink: 'Class day notes (mobile)'
                 },
                 ko: {
                     langToggle: '🌐 English',
@@ -307,7 +333,8 @@
                         '이 사이트에 카카오 로그인이 아직 설정되어 있지 않습니다. 관리자가 준 비밀번호가 있으면 아래 폼을 사용하세요.',
                     signInProblemPrefix: '로그인 문제: ',
                     bootstrapAdminHint:
-                        '관리자 계정이 아직 없습니다. Admin 페이지에서 .env의 BOOTSTRAP_ADMIN_SECRET으로 최초 설정을 진행하세요.'
+                        '관리자 계정이 아직 없습니다. Admin 페이지에서 .env의 BOOTSTRAP_ADMIN_SECRET으로 최초 설정을 진행하세요.',
+                    notesEntryLink: '수업 일지 (모바일)'
                 }
             };
 
@@ -372,6 +399,10 @@
                 if (kakaoSwitch) {
                     kakaoSwitch.textContent = tLogin('kakaoSwitch');
                 }
+                const loginNotesLink = document.getElementById('loginNotesLink');
+                if (loginNotesLink) {
+                    loginNotesLink.textContent = tLogin('notesEntryLink');
+                }
                 // theme button label is handled by applyLoginTheme
             }
 
@@ -424,11 +455,37 @@
 
             const params = new URLSearchParams(location.search);
             const returnTo = params.get('return') || '/';
+            const safeReturn =
+                returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
             const passwordReturn = document.getElementById('passwordReturn');
             if (passwordReturn) {
-                passwordReturn.value =
-                    returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+                passwordReturn.value = safeReturn;
             }
+            const loginNotesLink = document.getElementById('loginNotesLink');
+            if (loginNotesLink) {
+                loginNotesLink.href =
+                    '/login.html?return=' + encodeURIComponent('/notes.html');
+            }
+
+            fetch('/api/me', { credentials: 'same-origin' })
+                .then(function (r) {
+                    return r.ok ? r.json() : null;
+                })
+                .then(function (me) {
+                    if (!me || !me.id) {
+                        return;
+                    }
+                    const dest =
+                        safeReturn !== '/' && safeReturn !== '/index.html'
+                            ? safeReturn
+                            : params.get('return') === '/notes.html'
+                              ? '/notes.html'
+                              : null;
+                    if (dest) {
+                        location.replace(dest);
+                    }
+                })
+                .catch(function () { /* offline */ });
 
             if (params.has('email') || params.has('password')) {
                 const clean = new URLSearchParams();

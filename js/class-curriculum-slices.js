@@ -244,12 +244,6 @@
                 calendarTitle: classData.name || ''
             });
         }
-        // #region agent log
-        if (teachers.length > 1 && (!global.__ccpDbgSliceLogs || global.__ccpDbgSliceLogs < 5)) {
-            global.__ccpDbgSliceLogs = (global.__ccpDbgSliceLogs || 0) + 1;
-            fetch('http://127.0.0.1:7286/ingest/b51bd9b9-d682-4f30-b25c-d0d01b2010bd',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b1886d'},body:JSON.stringify({sessionId:'b1886d',location:'class-curriculum-slices.js:getClassCurriculumSlices',message:'multi-teacher class slices',data:{classId:classData&&classData.id,className:classData&&classData.name,showAll:showAll,viewerUserId:viewer&&viewer.userId||null,teacherCount:teachers.length,sliceCount:slices.length,teacherUserIds:teachers.map((r)=>r.userId||''),curriculumIds:teachers.map((r)=>r.curriculumId||'')},timestamp:Date.now(),hypothesisId:'B,C'})}).catch(()=>{});
-        }
-        // #endregion
         return slices;
     }
 

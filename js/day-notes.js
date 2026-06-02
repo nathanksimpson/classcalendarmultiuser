@@ -18,13 +18,18 @@
         if (!createdAt) {
             createdAt = new Date().toISOString();
         }
-        return {
+        const out = {
             id: String(raw.id || '').trim() || `dn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
             classId,
             date,
             text,
             createdAt
         };
+        const authorUserId = String(raw.authorUserId || '').trim();
+        if (authorUserId) {
+            out.authorUserId = authorUserId;
+        }
+        return out;
     }
 
     function normalizeDayNotesList(list) {
@@ -160,7 +165,10 @@
         if (idx < 0) {
             return dayNotes;
         }
-        const merged = Object.assign({}, dayNotes[idx], patch || {}, { id: nid });
+        const safePatch = Object.assign({}, patch || {});
+        delete safePatch.authorUserId;
+        delete safePatch.id;
+        const merged = Object.assign({}, dayNotes[idx], safePatch, { id: nid });
         const normalized = normalizeDayNote(merged);
         if (!normalized) {
             return dayNotes;
@@ -204,6 +212,7 @@
      * @param {function} [filters.matchesMeta] (classId) => boolean for subject/grade/etc.
      * @param {string} [filters.textQuery] case-insensitive substring on note text + class hay
      * @param {function} [filters.resolveClassHay] (classId) => string for text search
+     * @param {function} [filters.matchesNote] (note) => boolean for per-note rules (e.g. schedule)
      */
     function filterNotes(dayNotes, filters) {
         const f = filters || {};
@@ -228,6 +237,9 @@
                 return false;
             }
             if (textQuery && !noteMatchesTextQuery(note, textQuery, f.resolveClassHay)) {
+                return false;
+            }
+            if (typeof f.matchesNote === 'function' && !f.matchesNote(note)) {
                 return false;
             }
             return true;
