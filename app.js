@@ -1763,7 +1763,6 @@ const translations = {
         classTeacherCategory: '담당 과목',
         classTeacherCategoryAuto: '수업 유형에서 자동',
         classHomeroomLabel: '담임 선생님',
-        classHomeroomLabelNone: '이 반에 담임 선생님이 없습니다. 시간표 → 학생 반에서 담임을 설정하세요.',
         classHomeroomLabelFromCohort: '담임: {name} — 학생 연락·재시험 담당. 이 수업도 가르치면 위에서 담당 과목과 함께 추가하세요.',
         timetableCellHomeroom: '담임',
         classCohort: '학생 반(코호트)',
@@ -13991,7 +13990,7 @@ function renderTimetableClassList(selector) {
     }
     items.forEach(({ classData, teacherRow }) => {
         list.appendChild(createTimetableClassListButton(classData, teacherRow, () => {
-            navigateToTab('classes', { classId: classData.id });
+            openTimetableClassEditor(classData.id);
         }));
     });
 }
@@ -14003,6 +14002,36 @@ function getTimetableEntryDisplayColors(entry) {
         bg,
         text: getReadableTextOnBackground(bg, preferred)
     };
+}
+
+function openTimetableClassEditor(classId) {
+    if (!classId) {
+        return;
+    }
+    const classData = appData.classes.find((c) => c.id === classId);
+    if (!classData) {
+        return;
+    }
+    openClassEditor(classData, 'calendar-popout');
+}
+
+function bindTimetableClassClickTarget(el, classId) {
+    if (!el || !classId) {
+        return;
+    }
+    const classData = appData.classes.find((c) => c.id === classId);
+    const label = ((classData && classData.name) || '').trim() || t('editClass');
+    el.classList.add('timetable-cell--clickable');
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.setAttribute('aria-label', `${label} — ${t('editClass')}`);
+    el.addEventListener('click', () => openTimetableClassEditor(classId));
+    el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openTimetableClassEditor(classId);
+        }
+    });
 }
 
 function appendTimetableEntryContent(container, entry) {
@@ -14070,6 +14099,7 @@ function renderTimetableGridTable(block, lang) {
                 td.style.backgroundColor = bg;
                 td.style.color = text;
                 appendTimetableEntryContent(td, entry);
+                bindTimetableClassClickTarget(td, entry.classId);
             } else if (cell.entries.length > 1) {
                 cell.entries.forEach((entry) => {
                     const { bg, text } = getTimetableEntryDisplayColors(entry);
@@ -14078,6 +14108,7 @@ function renderTimetableGridTable(block, lang) {
                     entryBlock.style.backgroundColor = bg;
                     entryBlock.style.color = text;
                     appendTimetableEntryContent(entryBlock, entry);
+                    bindTimetableClassClickTarget(entryBlock, entry.classId);
                     td.appendChild(entryBlock);
                 });
             }
