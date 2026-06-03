@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-two-row-tabs">
+    <link rel="stylesheet" href="styles.css?v=20260604-header-fixed-popovers">
     <script src="js/theme-init.js"></script>
+    <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -153,18 +154,6 @@
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
                     <input type="file" id="importFile" accept=".json" hidden>
-                    <details class="app-header-more-dropdown header-dropdown" id="headerMoreDropdown">
-                        <summary class="btn btn-outline btn-small app-header-more-trigger" data-i18n="headerMoreMenu">More</summary>
-                        <div class="header-dropdown-panel app-header-more-panel" role="menu">
-                            <div class="app-header-tool-group app-header-tool-group--notes">
-                                <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
-                            </div>
-                            <div class="app-header-tool-group app-header-tool-group--locale">
-                                <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
-                                <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang header-dropdown-item">🌐 한국어</button>
-                            </div>
-                        </div>
-                    </details>
                     </div>
                     <div class="app-header-unified__tools-pinned">
                     <div class="app-header-tool-group app-header-tool-group--collapse app-header-tool-group--essential">
@@ -176,18 +165,8 @@
                     <div class="app-header-tool-group app-header-tool-group--help app-header-tool-group--essential">
                         <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
                     </div>
-                    <div class="app-header-tool-group app-header-tool-group--account app-header-tool-group--essential">
-                        <details class="header-dropdown team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
-                            <summary class="btn btn-outline btn-small header-dropdown-trigger team-account-menu-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
-                            <div class="header-dropdown-panel" role="menu">
-                                <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
-                                <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
-                                <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
-                                <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
-                                <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
-                                <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
-                            </div>
-                        </details>
+                    <div class="app-header-tool-group app-header-tool-group--account app-header-tool-group--essential team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover" data-i18n="teamAccountMenu">Account</button>
                     </div>
                     </div>
                 </div>
@@ -199,14 +178,7 @@
                                 <div id="teamCalendarPickerGroup" class="team-calendar-picker-group" hidden>
                                 <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
                                 <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
-                                <details class="header-dropdown team-calendar-menu">
-                                    <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="teamCalendarMenu">Calendar</summary>
-                                    <div class="header-dropdown-panel" role="menu">
-                                        <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendar">+ New</button>
-                                        <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
-                                        <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
-                                    </div>
-                                </details>
+                                <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
                                 <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status">Connecting…</span>
                                 </div>
                                 <div class="team-calendar-quick-actions app-term-quick-actions">
@@ -1191,7 +1163,24 @@
     <script defer src="js/dino-game.js?v=20260603-cleanup-review"></script>
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260604-two-row-tabs"></script>
+    <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
+        <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
+        <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
+        <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang header-dropdown-item">🌐 한국어</button>
+        <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
+        <hr class="header-dropdown-divider" aria-hidden="true">
+        <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
+        <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
+        <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
+        <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
+        <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
+    </div>
+    <div id="teamCalendarPopover" class="header-fixed-popover header-dropdown-panel team-calendar-menu-panel" role="menu" hidden>
+        <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendar">+ New</button>
+        <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
+        <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
+    </div>
+    <script defer src="app.js?v=20260604-header-fixed-popovers"></script>
 </body>
 </html>
 

@@ -480,6 +480,9 @@
 
     function getAdminLang() {
         try {
+            if (typeof CCPLanguage !== 'undefined' && CCPLanguage.resolveCalendarLanguage) {
+                return CCPLanguage.resolveCalendarLanguage();
+            }
             const saved = localStorage.getItem('calendarLanguage');
             return saved === 'ko' ? 'ko' : 'en';
         } catch (_) {

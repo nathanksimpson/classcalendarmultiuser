@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sign in — Class Calendar</title>
     <script src="js/theme-init.js"></script>
+    <script src="js/language-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260603-mobile-ui">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -340,6 +341,9 @@
 
             function getLang() {
                 try {
+                    if (typeof CCPLanguage !== 'undefined' && CCPLanguage.resolveCalendarLanguage) {
+                        return CCPLanguage.resolveCalendarLanguage();
+                    }
                     const saved = localStorage.getItem(LANG_KEY);
                     return saved === 'ko' ? 'ko' : 'en';
                 } catch (_) {

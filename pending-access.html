@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Waiting for access — Class Calendar</title>
     <script src="js/theme-init.js"></script>
+    <script src="js/language-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260603-mobile-ui">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -227,6 +228,9 @@
                     }
                     if (s === 'en') {
                         return 'en';
+                    }
+                    if (typeof CCPLanguage !== 'undefined' && CCPLanguage.resolveCalendarLanguage) {
+                        return CCPLanguage.resolveCalendarLanguage();
                     }
                     var appLang = localStorage.getItem(APP_LANG_KEY);
                     if (appLang === 'ko' || appLang === 'en') {

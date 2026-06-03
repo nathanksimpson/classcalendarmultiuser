@@ -53,10 +53,18 @@
             const params = new URLSearchParams(location.search);
             const q = params.get('lang');
             if (q === 'ko' || q === 'en') {
+                try {
+                    localStorage.setItem('calendarLanguage', q);
+                } catch (_) {
+                    /* ignore */
+                }
                 return q;
             }
         } catch (_) {
             /* ignore */
+        }
+        if (typeof CCPLanguage !== 'undefined' && CCPLanguage.resolveCalendarLanguage) {
+            return CCPLanguage.resolveCalendarLanguage();
         }
         try {
             const saved = localStorage.getItem('calendarLanguage');

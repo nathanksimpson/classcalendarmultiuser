@@ -6,7 +6,8 @@
     <meta name="theme-color" content="#0f172a">
     <title>Class day notes — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260604-two-row-tabs">
+    <script src="js/language-init.js"></script>
+    <link rel="stylesheet" href="styles.css?v=20260616-notes-filter-layout">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -58,12 +59,12 @@
         <button type="button" id="notesTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
     </div>
 
-    <label class="notes-filter-my-classes checkbox-label selection-chip" id="notesMyClassesOnlyLabel">
-        <input type="checkbox" id="notesMyClassesOnly">
-        <span data-i18n="notesMyClassesOnly">My classes only</span>
-    </label>
-
     <main class="notes-main">
+        <label class="notes-filter-my-classes checkbox-label selection-chip" id="notesMyClassesOnlyLabel">
+            <input type="checkbox" id="notesMyClassesOnly">
+            <span data-i18n="notesMyClassesOnly">My classes only</span>
+        </label>
+
         <section class="notes-class-section" aria-labelledby="notesClassListHeading">
             <h2 id="notesClassListHeading" class="visually-hidden">Classes</h2>
             <div class="notes-class-search-wrap">
@@ -137,7 +138,7 @@
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260602-notes-text-search"></script>
     <script defer src="js/teacher-timetable.js?v=20260611-timetable-context"></script>
-    <script defer src="app.js?v=20260604-two-row-tabs"></script>
+    <script defer src="app.js?v=20260604-compression-disabled"></script>
     <script defer src="js/notes.js?v=20260616-notes-deselect-on-load"></script>
 </body>
 </html>

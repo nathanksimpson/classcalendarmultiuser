@@ -2471,9 +2471,23 @@ function toggleLanguage() {
 }
 
 function loadLanguage() {
+    if (typeof CCPLanguage !== 'undefined' && CCPLanguage.resolveCalendarLanguage) {
+        currentLanguage = CCPLanguage.resolveCalendarLanguage();
+        return;
+    }
     const saved = localStorage.getItem('calendarLanguage');
-    if (saved && (saved === 'en' || saved === 'ko')) {
+    if (saved === 'en' || saved === 'ko') {
         currentLanguage = saved;
+        return;
+    }
+    currentLanguage =
+        typeof CCPLanguage !== 'undefined' && CCPLanguage.detectBrowserLanguage
+            ? CCPLanguage.detectBrowserLanguage()
+            : 'en';
+    try {
+        localStorage.setItem('calendarLanguage', currentLanguage);
+    } catch (_) {
+        /* ignore */
     }
 }
 
@@ -11128,6 +11142,7 @@ function renderCompressionByPeriodRows(periods, surface) {
             input.dataset.mergeStart = String(i);
             input.checked = selected.includes(i);
             input.addEventListener('change', () => {
+                updateCompressionCheckboxStates(sid);
                 if (sid === 'syllabus') {
                     refreshSyllabusScheduleAdjustmentUi(getSelectedSyllabusClass());
                 }
@@ -11141,6 +11156,7 @@ function renderCompressionByPeriodRows(periods, surface) {
         block.appendChild(checks);
         container.appendChild(block);
     });
+    updateCompressionCheckboxStates(sid);
 }
 
 function collectCompressionMergesByPeriodFromForm(surface) {
@@ -17514,7 +17530,7 @@ function repairCorruptedLangToggleButton() {
         const next = document.createElement('button');
         next.id = 'langToggleBtn';
         next.type = 'button';
-        next.className = 'btn btn-outline btn-lang';
+        next.className = 'btn btn-header-lang btn-small btn-lang header-dropdown-item';
         parent.replaceChild(next, btn);
         return;
     }
@@ -17523,7 +17539,7 @@ function repairCorruptedLangToggleButton() {
         const next = document.createElement('button');
         next.id = 'langToggleBtn';
         next.type = 'button';
-        next.className = 'btn btn-outline btn-lang';
+        next.className = 'btn btn-header-lang btn-small btn-lang header-dropdown-item';
         parent.replaceChild(next, btn);
     }
 }
@@ -17845,6 +17861,172 @@ function initializeTermStart() {
 // ============================================
 // Event Listeners Setup
 // ============================================
+const HEADER_FIXED_POPOVER_MARGIN = 8;
+let openHeaderFixedPopoverId = null;
+
+function getHeaderFixedPopoverTrigger(popoverId) {
+    return document.querySelector(`[aria-controls="${popoverId}"]`);
+}
+
+function positionHeaderFixedPopover(trigger, popover, align) {
+    if (!trigger || !popover) {
+        return;
+    }
+    const rect = trigger.getBoundingClientRect();
+    const margin = HEADER_FIXED_POPOVER_MARGIN;
+    popover.style.top = `${rect.bottom + margin}px`;
+    popover.style.left = '0';
+    popover.style.right = 'auto';
+    const panelRect = popover.getBoundingClientRect();
+    let left = align === 'left' ? rect.left : rect.right - panelRect.width;
+    left = Math.max(margin, Math.min(left, window.innerWidth - panelRect.width - margin));
+    popover.style.left = `${left}px`;
+    let top = rect.bottom + margin;
+    if (top + panelRect.height > window.innerHeight - margin) {
+        top = Math.max(margin, rect.top - panelRect.height - margin);
+    }
+    popover.style.top = `${top}px`;
+}
+
+function closeHeaderFixedPopover(popoverId) {
+    const popover = document.getElementById(popoverId);
+    const trigger = getHeaderFixedPopoverTrigger(popoverId);
+    if (!popover) {
+        return;
+    }
+    popover.hidden = true;
+    if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+    }
+    if (openHeaderFixedPopoverId === popoverId) {
+        openHeaderFixedPopoverId = null;
+    }
+}
+
+function isHeaderFixedPopoverOpen(popoverId) {
+    const popover = document.getElementById(popoverId);
+    return popover && !popover.hidden;
+}
+
+function openHeaderFixedPopover(trigger, popover, align) {
+    if (!trigger || !popover) {
+        return;
+    }
+    if (openHeaderFixedPopoverId && openHeaderFixedPopoverId !== popover.id) {
+        closeHeaderFixedPopover(openHeaderFixedPopoverId);
+    }
+    popover.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    openHeaderFixedPopoverId = popover.id;
+    positionHeaderFixedPopover(trigger, popover, align);
+}
+
+function setupHeaderFixedPopoverDismiss() {
+    if (document.body.dataset.headerFixedPopoverDismissBound === '1') {
+        return;
+    }
+    document.body.dataset.headerFixedPopoverDismissBound = '1';
+    document.addEventListener('click', (e) => {
+        if (!openHeaderFixedPopoverId) {
+            return;
+        }
+        const popover = document.getElementById(openHeaderFixedPopoverId);
+        const trigger = getHeaderFixedPopoverTrigger(openHeaderFixedPopoverId);
+        const target = e.target;
+        if (
+            popover &&
+            (popover.contains(target) || (trigger && trigger.contains(target)))
+        ) {
+            return;
+        }
+        closeHeaderFixedPopover(openHeaderFixedPopoverId);
+    });
+    window.addEventListener('resize', () => {
+        if (!openHeaderFixedPopoverId) {
+            return;
+        }
+        const popover = document.getElementById(openHeaderFixedPopoverId);
+        const trigger = getHeaderFixedPopoverTrigger(openHeaderFixedPopoverId);
+        const align = popover && popover.dataset.popoverAlign === 'left' ? 'left' : 'right';
+        if (popover && trigger && !popover.hidden) {
+            positionHeaderFixedPopover(trigger, popover, align);
+        }
+    });
+}
+
+function setupHeaderFixedPopover(popoverId, align) {
+    const popover = document.getElementById(popoverId);
+    const trigger = getHeaderFixedPopoverTrigger(popoverId);
+    if (!popover || !trigger || trigger.dataset.headerPopoverBound === '1') {
+        return;
+    }
+    trigger.dataset.headerPopoverBound = '1';
+    popover.dataset.popoverAlign = align === 'left' ? 'left' : 'right';
+    if (popover.parentElement !== document.body) {
+        document.body.appendChild(popover);
+    }
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isHeaderFixedPopoverOpen(popoverId)) {
+            closeHeaderFixedPopover(popoverId);
+        } else {
+            openHeaderFixedPopover(trigger, popover, align);
+            // #region agent log
+            requestAnimationFrame(() => {
+                debugHeaderFixedPopoverLayout(popoverId, 'open');
+            });
+            // #endregion
+        }
+    });
+}
+
+// #region agent log
+function debugHeaderFixedPopoverLayout(popoverId, phase) {
+    const popover = document.getElementById(popoverId);
+    const trigger = getHeaderFixedPopoverTrigger(popoverId);
+    const teamDetails = document.getElementById('appTopBarTeamDetails');
+    if (!popover || !trigger) {
+        return;
+    }
+    const panelRect = popover.getBoundingClientRect();
+    const teamRect = teamDetails ? teamDetails.getBoundingClientRect() : null;
+    const overlapsTeamBar =
+        teamRect &&
+        panelRect.height > 0 &&
+        panelRect.bottom > teamRect.top + 2 &&
+        panelRect.right > teamRect.left &&
+        panelRect.left < teamRect.right;
+    fetch('http://127.0.0.1:7286/ingest/b51bd9b9-d682-4f30-b25c-d0d01b2010bd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '7e8b5c' },
+        body: JSON.stringify({
+            sessionId: '7e8b5c',
+            runId: 'post-fix',
+            hypothesisId: overlapsTeamBar ? 'B-fail' : 'fix-ok',
+            location: 'app.js:debugHeaderFixedPopoverLayout',
+            message: 'header fixed popover layout',
+            data: {
+                phase,
+                popoverId,
+                panelPosition: getComputedStyle(popover).position,
+                panelZIndex: getComputedStyle(popover).zIndex,
+                panelOnBody: popover.parentElement === document.body,
+                panelHidden: popover.hidden,
+                panelRect: {
+                    top: panelRect.top,
+                    bottom: panelRect.bottom,
+                    height: panelRect.height
+                },
+                teamRectTop: teamRect ? teamRect.top : null,
+                overlapsTeamBar,
+                gapAboveTeamBar: teamRect ? teamRect.top - panelRect.bottom : null
+            },
+            timestamp: Date.now()
+        })
+    }).catch(() => {});
+}
+// #endregion
+
 function setupHeaderDropdowns() {
     document.querySelectorAll('.header-dropdown-panel .header-dropdown-item').forEach((el) => {
         if (el.dataset.dropdownBound === '1') {
@@ -17852,6 +18034,10 @@ function setupHeaderDropdowns() {
         }
         el.dataset.dropdownBound = '1';
         el.addEventListener('click', () => {
+            const fixedPopover = el.closest('.header-fixed-popover');
+            if (fixedPopover && fixedPopover.id) {
+                closeHeaderFixedPopover(fixedPopover.id);
+            }
             const details = el.closest('details.header-dropdown');
             if (details) {
                 details.open = false;
@@ -17861,6 +18047,9 @@ function setupHeaderDropdowns() {
 }
 
 function setupEventListeners() {
+    setupHeaderFixedPopoverDismiss();
+    setupHeaderFixedPopover('teamAccountPopover', 'right');
+    setupHeaderFixedPopover('teamCalendarPopover', 'left');
     setupHeaderDropdowns();
     const openWsHomework = document.getElementById('openWorkspaceHomeworkBtn');
     if (openWsHomework && openWsHomework.dataset.bound !== '1') {
@@ -20965,24 +21154,55 @@ function renderCompressionOptions(totalLessons, selectedMerges = [], surface) {
     updateCompressionCheckboxStates(sid);
 }
 
-function updateCompressionCheckboxStates(surface) {
-    const sid = surface || getScheduleAdjustmentSurface();
-    const container = scheduleAdjEl(sid, 'compressionCheckboxes');
+function syncCompressionMergeLabelDisabled(checkboxInput) {
+    const label = checkboxInput && checkboxInput.closest('label');
+    if (label) {
+        label.classList.toggle('is-disabled', Boolean(checkboxInput.disabled));
+    }
+}
+
+function applyCompressionMergeDisabledStates(container, skippedSet) {
     if (!container) {
         return;
     }
-    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const checkboxes = container.querySelectorAll('input[type="checkbox"][data-merge-start]');
     const selected = new Set(
         Array.from(checkboxes)
             .filter(cb => cb.checked)
             .map(cb => parseInt(cb.dataset.mergeStart, 10))
+            .filter(n => !Number.isNaN(n))
     );
+    const skipped = skippedSet instanceof Set ? skippedSet : new Set(skippedSet || []);
 
     checkboxes.forEach(cb => {
         const start = parseInt(cb.dataset.mergeStart, 10);
+        if (Number.isNaN(start)) {
+            return;
+        }
         const hasConflict = selected.has(start - 1) || selected.has(start + 1);
-        cb.disabled = !cb.checked && hasConflict;
+        const blockedBySkip = skipped.has(start) || skipped.has(start + 1);
+        cb.disabled = blockedBySkip || (!cb.checked && hasConflict);
+        syncCompressionMergeLabelDisabled(cb);
     });
+}
+
+function updateCompressionCheckboxStates(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const skippedSet = new Set(collectSkippedLessonsFromForm(sid));
+    const legacy = scheduleAdjEl(sid, 'compressionCheckboxes');
+    if (legacy) {
+        applyCompressionMergeDisabledStates(legacy, skippedSet);
+    }
+    const rows = scheduleAdjEl(sid, 'adjustmentRows');
+    if (rows) {
+        applyCompressionMergeDisabledStates(rows, skippedSet);
+    }
+    const byPeriod = scheduleAdjEl(sid, 'compressionByMonthRows');
+    if (byPeriod) {
+        byPeriod.querySelectorAll('.compression-period-checkboxes').forEach(block => {
+            applyCompressionMergeDisabledStates(block, skippedSet);
+        });
+    }
 }
 
 function getSelectedCompressionMerges(surface) {
@@ -21138,6 +21358,7 @@ function renderScheduleAdjustmentRows(totalLessons, classData, surface) {
             renderScheduleAdjustmentRows(total, { ...base, skippedLessons: [...cur] }, sid);
         });
     }
+    updateCompressionCheckboxStates(sid);
     refreshUi();
 }
 
@@ -24456,7 +24677,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     }
     if (
         el.closest(
-            '.app-header-tool-group--print, .app-header-tool-group--notes, .app-header-tool-group--help, .app-header-tool-group--locale, .header-dropdown'
+            '.app-header-tool-group--print, .app-header-tool-group--help, .app-header-tool-group--account, .header-dropdown, #teamAccountPopover, #teamCalendarPopover, .header-fixed-popover'
         )
     ) {
         return true;
