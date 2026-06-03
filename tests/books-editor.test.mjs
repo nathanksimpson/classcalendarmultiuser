@@ -20,7 +20,8 @@ CCPBooksEditor.init({
     saveData: () => {},
     t: (k) => k,
     getLang: () => 'en',
-    canAdoptTeamCurriculumDefault: () => true
+    canAdoptTeamCurriculumDefault: () => true,
+    canManageCurriculumCatalog: () => true
 });
 
 function assert(cond, msg) {
@@ -72,6 +73,110 @@ const debateBooks = books.filter((b) => b.programTrack === 'debate');
 assert(debateBooks.length === 3, 'three debate curriculum books');
 assert(debateBooks.some((b) => b.id === 'debate-purple'), 'debate purple book');
 assert(debateBooks.some((b) => b.id === 'debate-garam-plus'), 'debate garam plus book');
+
+assert(!CCPBooksEditor.isNoBookCurriculum(''), 'empty id is not “no book”');
+assert(CCPBooksEditor.isNoCurriculum(''), 'empty id is no curriculum');
+assert(CCPBooksEditor.isNoCurriculum(CCPBooksEditor.NONE_CURRICULUM_ID), '__none__ is no curriculum');
+assert(CCPBooksEditor.isNoBookCurriculum(CCPBooksEditor.NO_BOOK_CURRICULUM_ID), '__no_book__ is no book only');
+
+const debatePurpleNotes = CCPBooksEditor.getCurriculumSyllabusGeneralNotes('debate-purple', 'preset-debate-purple', {});
+assert(
+    debatePurpleNotes.includes('Month 2'),
+    'factory debate purple curriculum includes shipped general notes'
+);
+const notesData = { curriculumOverrides: {} };
+CCPBooksEditor.saveBookTemplates(
+    'write-now',
+    [{ sessionNumber: 1, planTitle: 'Unit 1', planDetail: 'p', note: '' }],
+    notesData,
+    { syllabusGeneralNotes: 'Team reminder: bring workbook.' }
+);
+assert(
+    notesData.curriculumOverrides['write-now'].syllabusGeneralNotes === 'Team reminder: bring workbook.',
+    'curriculum override stores general notes'
+);
+assert(
+    CCPBooksEditor.resolveSyllabusGeneralNotesForClass(
+        { levelPreset: 'Green', curriculumId: 'write-now' },
+        notesData
+    ) === 'Team reminder: bring workbook.',
+    'print resolver uses curriculum notes when class has none'
+);
+assert(
+    CCPBooksEditor.resolveSyllabusGeneralNotesForClass(
+        { levelPreset: 'Green', curriculumId: 'write-now', syllabusGeneralNotes: 'Class only' },
+        notesData
+    ) === 'Class only',
+    'class syllabusGeneralNotes overrides curriculum'
+);
+assert(
+    CCPBooksEditor.getClassCurriculumWarningKind(
+        { curriculumId: CCPBooksEditor.NONE_CURRICULUM_ID },
+        {}
+    ) === 'none',
+    'explicit none warns'
+);
+assert(
+    CCPBooksEditor.getClassCurriculumWarningKind(
+        { curriculumId: 'deleted-custom-curriculum' },
+        {}
+    ) === 'missing',
+    'unknown curriculum id warns missing'
+);
+assert(
+    CCPBooksEditor.normalizeCurriculumIdForStorage('') === CCPBooksEditor.NONE_CURRICULUM_ID,
+    'empty storage normalizes to none'
+);
+
+const deleteApp = { curriculumOverrides: {} };
+const deleteCustomId = CCPBooksEditor.createCurriculum({ bookTitle: 'Temp To Delete' }, deleteApp);
+assert(deleteCustomId, 'custom curriculum created');
+assert(CCPBooksEditor.canDeleteCurriculumInEditor(deleteCustomId, deleteApp), 'custom can delete');
+assert(CCPBooksEditor.deleteCustomCurriculum(deleteCustomId, deleteApp), 'delete succeeds');
+assert(!deleteApp.curriculumOverrides[deleteCustomId], 'custom record removed');
+
+const adminApp = { curriculumOverrides: {}, curriculumRemovedIds: [] };
+assert(
+    CCPBooksEditor.canDeleteCurriculumInEditor('write-now', adminApp),
+    'admin can delete builtin from editor'
+);
+assert(
+    CCPBooksEditor.removeBuiltinCurriculumFromCalendar('write-now', adminApp),
+    'admin removes builtin from calendar list'
+);
+assert(
+    !CCPBooksEditor.discoverBooks(adminApp).some((b) => b.id === 'write-now'),
+    'write-now hidden after admin remove'
+);
+assert(
+    CCPBooksEditor.restoreRemovedFactoryCurricula(adminApp),
+    'admin restore clears removed list'
+);
+assert(
+    CCPBooksEditor.discoverBooks(adminApp).some((b) => b.id === 'write-now'),
+    'write-now back after restore'
+);
+
+CCPBooksEditor.init({
+    getAppData: () => ({}),
+    saveData: () => {},
+    t: (k) => k,
+    getLang: () => 'en',
+    canAdoptTeamCurriculumDefault: () => false,
+    canManageCurriculumCatalog: () => false
+});
+assert(
+    !CCPBooksEditor.canDeleteCurriculumInEditor('write-now', {}),
+    'teachers cannot delete built-in curricula'
+);
+CCPBooksEditor.init({
+    getAppData: () => ({}),
+    saveData: () => {},
+    t: (k) => k,
+    getLang: () => 'en',
+    canAdoptTeamCurriculumDefault: () => true,
+    canManageCurriculumCatalog: () => true
+});
 
 const appData = { bookOverrides: {} };
 CCPBooksEditor.saveBookTemplates('write-now', [
@@ -369,6 +474,79 @@ assert(
 assert(
     !CCPBooksEditor.getCurriculaForLevel('Orange', writeNowRestrictData).some((b) => b.id === 'write-now'),
     'write-now hidden for Orange when restricted to Green only'
+);
+
+const longDebateTitle = 'Debate — Garam+ (elem. & middle school)';
+const calLabelBook = CCPBooksEditor.getCurriculumCalendarLabel('debate-garam-plus', {});
+assert(
+    calLabelBook === 'Debate — Garam+',
+    'calendar label uses preset fallback for debate book id, not long factory name'
+);
+const calLabelOverride = CCPBooksEditor.getCurriculumCalendarLabel('debate-garam-plus', {
+    curriculumOverrides: {
+        'debate-garam-plus': { bookTitle: longDebateTitle, sessions: [] }
+    }
+});
+assert(
+    calLabelOverride === 'Debate — Garam+',
+    'calendar label strips parenthetical from saved bookTitle override'
+);
+
+function makeMockSessionTbody(rows) {
+    const trList = rows.map((row) => {
+        const fields = {
+            planTitle: row.planTitle ?? '',
+            planDetail: row.planDetail ?? '',
+            note: row.note ?? ''
+        };
+        return {
+            querySelector(selector) {
+                if (selector === '.books-ed-title') {
+                    return {
+                        get value() { return fields.planTitle; },
+                        set value(v) { fields.planTitle = v; },
+                        dispatchEvent() {}
+                    };
+                }
+                if (selector === '.books-ed-detail') {
+                    return {
+                        get value() { return fields.planDetail; },
+                        set value(v) { fields.planDetail = v; },
+                        dispatchEvent() {}
+                    };
+                }
+                if (selector === '.books-ed-note') {
+                    return {
+                        get value() { return fields.note; },
+                        set value(v) { fields.note = v; },
+                        dispatchEvent() {}
+                    };
+                }
+                return null;
+            }
+        };
+    });
+    return {
+        querySelectorAll(sel) {
+            return sel === 'tr' ? trList : [];
+        }
+    };
+}
+
+const colTbody = makeMockSessionTbody([
+    { planTitle: 'A', planDetail: 'p1', note: 'n1' },
+    { planTitle: 'B', planDetail: 'p2', note: 'n2' }
+]);
+CCPBooksEditor.clearColumnInTbody(colTbody, '.books-ed-detail');
+assert(colTbody.querySelectorAll('tr')[0].querySelector('.books-ed-detail').value === '', 'clear column empties detail row 1');
+assert(colTbody.querySelectorAll('tr')[1].querySelector('.books-ed-detail').value === '', 'clear column empties detail row 2');
+assert(colTbody.querySelectorAll('tr')[0].querySelector('.books-ed-title').value === 'A', 'clear column leaves other fields');
+CCPBooksEditor.fillColumnInTbody(colTbody, '.books-ed-note', 'same note');
+assert(colTbody.querySelectorAll('tr')[0].querySelector('.books-ed-note').value === 'same note', 'fill column sets all note cells');
+assert(colTbody.querySelectorAll('tr')[1].querySelector('.books-ed-note').value === 'same note', 'fill column sets all note cells row 2');
+assert(
+    CCPBooksEditor.getSessionColumnSelector('planTitle') === '.books-ed-title',
+    'getSessionColumnSelector maps planTitle'
 );
 
 console.log('books-editor.test.mjs: all passed');

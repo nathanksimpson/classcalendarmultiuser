@@ -4,14 +4,14 @@
  */
 (function (global) {
     const EXTENSION_SCRIPTS = [
-        'js/syllabus-table.js?v=20260602-plan-2line-week-wrap',
+        'js/syllabus-table.js?v=20260603-curriculum-notes',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
         'js/syllabus-curricula-data.js?v=20260602-tab-fast',
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260602-applicable-levels',
+        'js/books-editor.js?v=20260603-col-bulk',
         'js/homework-import.js',
         'js/homework-tab.js?v=20260531-hw-seq',
         'js/syllabus-templates.js?v=20260531-seq-compress'

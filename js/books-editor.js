@@ -5,8 +5,21 @@
 (function (global) {
     const MAX_SESSION_ROWS = 48;
     const MIN_SESSION_ROWS = 1;
+
+    const SESSION_COLUMN_FIELDS = [
+        { key: 'planTitle', selector: '.books-ed-title' },
+        { key: 'planDetail', selector: '.books-ed-detail' },
+        { key: 'note', selector: '.books-ed-note' }
+    ];
+
+    function getSessionColumnSelector(columnKey) {
+        const col = SESSION_COLUMN_FIELDS.find((c) => c.key === columnKey);
+        return col ? col.selector : '';
+    }
     /** Book dropdown value when applying level defaults without a curriculum book. */
     const NO_BOOK_CURRICULUM_ID = '__no_book__';
+    /** Class has no curriculum book or level-default plan assigned. */
+    const NONE_CURRICULUM_ID = '__none__';
     const DEBATE_CURRICULUM_ID = '__debate__';
     const LEVEL_ONLY_PRESET_ID = 'builtin-korean-multiweekly';
     const DEBATE_PRESET_ID = 'builtin-debate';
@@ -32,8 +45,34 @@
         navigateToCurriculumTab: null,
         getSimsonLevelGroups: () => [],
         getSchoolGradeOptions: () => [],
-        canAdoptTeamCurriculumDefault: () => false
+        canAdoptTeamCurriculumDefault: () => false,
+        canManageCurriculumCatalog: null,
+        resolveBookIdForClass: null
     };
+
+    function canManageCurriculumCatalog() {
+        if (typeof hooks.canManageCurriculumCatalog === 'function') {
+            return !!hooks.canManageCurriculumCatalog();
+        }
+        return typeof hooks.canAdoptTeamCurriculumDefault === 'function'
+            && hooks.canAdoptTeamCurriculumDefault();
+    }
+
+    function ensureCurriculumRemovedIds(appData) {
+        const data = appData || getAppData();
+        if (!Array.isArray(data.curriculumRemovedIds)) {
+            data.curriculumRemovedIds = [];
+        }
+        return data.curriculumRemovedIds;
+    }
+
+    function isCurriculumRemovedFromCalendar(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return false;
+        }
+        return ensureCurriculumRemovedIds(appData).includes(id);
+    }
 
     function init(options = {}) {
         hooks = { ...hooks, ...options };
@@ -248,8 +287,75 @@
                 ? td.applicableLevels.filter(Boolean)
                 : undefined,
             bookTitle: td.bookTitle != null ? String(td.bookTitle).trim() : '',
+            syllabusGeneralNotes: td.syllabusGeneralNotes != null ? String(td.syllabusGeneralNotes) : '',
             adoptedAt: td.adoptedAt || ''
         };
+    }
+
+    function getFactorySyllabusGeneralNotes(curriculumId, presetId) {
+        const pid = (presetId || '').trim();
+        if (pid) {
+            const preset = getFactoryPresetById(pid);
+            const notes = preset && preset.syllabusGeneralNotes;
+            return notes ? String(notes).trim() : '';
+        }
+        const presets = getFactoryPresetsForBookKey(curriculumId);
+        for (let i = 0; i < presets.length; i += 1) {
+            const notes = presets[i] && presets[i].syllabusGeneralNotes;
+            if (notes && String(notes).trim()) {
+                return String(notes).trim();
+            }
+        }
+        return '';
+    }
+
+    function getCurriculumSyllabusGeneralNotes(curriculumId, presetId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return '';
+        }
+        const cur = getCurriculumRecord(id, appData);
+        if (cur && cur.syllabusGeneralNotes != null && String(cur.syllabusGeneralNotes).trim()) {
+            return String(cur.syllabusGeneralNotes).trim();
+        }
+        const team = getTeamDefaultRecord(id, appData);
+        if (team && team.syllabusGeneralNotes && String(team.syllabusGeneralNotes).trim()) {
+            return String(team.syllabusGeneralNotes).trim();
+        }
+        return getFactorySyllabusGeneralNotes(id, presetId);
+    }
+
+    function resolveSyllabusGeneralNotesForClass(classData, appData) {
+        if (!classData) {
+            return '';
+        }
+        const classNotes = String(classData.syllabusGeneralNotes ?? '').trim();
+        if (classNotes) {
+            return classNotes;
+        }
+        if (isNoCurriculum(classData.curriculumId)) {
+            return '';
+        }
+        const data = appData || getAppData();
+        let curriculumId = '';
+        if (typeof hooks.resolveBookIdForClass === 'function') {
+            curriculumId = String(hooks.resolveBookIdForClass(classData) || '').trim();
+        }
+        if (!curriculumId) {
+            curriculumId = String(classData.curriculumId || '').trim();
+            if (!curriculumId && classData.classTypeId) {
+                const preset = getFactoryPresetById(classData.classTypeId);
+                if (preset) {
+                    curriculumId = deriveBookKey(preset);
+                }
+            }
+        }
+        if (!curriculumId) {
+            return '';
+        }
+        const level = String(classData.levelPreset || classData.levelCustom || '').trim();
+        const presetId = resolvePresetFromLevelAndBook(level, curriculumId, data);
+        return getCurriculumSyllabusGeneralNotes(curriculumId, presetId, data);
     }
 
     function customCurriculumAdoptedAsTeamDefault(bookId, book, appData) {
@@ -489,7 +595,8 @@
                     levelsLabel: applicable.levelsLabel
                 };
             })
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .filter((book) => !isCurriculumRemovedFromCalendar(book.id, appData));
     }
 
     const discoverCurricula = discoverBooks;
@@ -588,6 +695,89 @@
         return true;
     }
 
+    function removeBuiltinCurriculumFromCalendar(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id || !canManageCurriculumCatalog()) {
+            return false;
+        }
+        if (isCustomCurriculum(id, appData) || isNoCurriculum(id) || isNoBookCurriculum(id)) {
+            return false;
+        }
+        if (id === DEBATE_CURRICULUM_ID) {
+            return false;
+        }
+        const removed = ensureCurriculumRemovedIds(appData);
+        if (!removed.includes(id)) {
+            removed.push(id);
+        }
+        const curricula = ensureCurriculumOverrides(appData);
+        delete curricula[id];
+        delete curricula[DEBATE_CURRICULUM_ID];
+        const overrides = ensureBookOverrides(appData);
+        delete overrides[id];
+        hooks.saveData();
+        hooks.onBooksSaved();
+        return true;
+    }
+
+    function removeCurriculumFromCalendar(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return false;
+        }
+        if (isCustomCurriculum(id, appData)) {
+            return deleteCustomCurriculum(id, appData);
+        }
+        return removeBuiltinCurriculumFromCalendar(id, appData);
+    }
+
+    function restoreRemovedFactoryCurricula(appData) {
+        if (!canManageCurriculumCatalog()) {
+            return false;
+        }
+        const data = appData || getAppData();
+        if (!Array.isArray(data.curriculumRemovedIds) || !data.curriculumRemovedIds.length) {
+            return true;
+        }
+        data.curriculumRemovedIds = [];
+        hooks.saveData();
+        hooks.onBooksSaved();
+        return true;
+    }
+
+    function canDeleteCurriculumInEditor(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id || isNoCurriculum(id) || isNoBookCurriculum(id) || id === DEBATE_CURRICULUM_ID) {
+            return false;
+        }
+        const book = getBookById(id, appData);
+        if (!book) {
+            return false;
+        }
+        if (book.isCustom) {
+            return true;
+        }
+        return canManageCurriculumCatalog();
+    }
+
+    function confirmAndDeleteCurriculum(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!canDeleteCurriculumInEditor(id, appData)) {
+            return false;
+        }
+        const name = getCurriculumDisplayName(id, appData);
+        const isCustom = isCustomCurriculum(id, appData);
+        const msgKey = isCustom ? 'curriculumDeleteConfirm' : 'curriculumDeleteBuiltinConfirm';
+        const template = hooks.t(msgKey);
+        const msg = template.includes('{name}')
+            ? template.replace('{name}', name)
+            : template;
+        if (!confirm(msg)) {
+            return false;
+        }
+        return removeCurriculumFromCalendar(id, appData);
+    }
+
     function duplicateCurriculum(sourceId, appData) {
         const data = appData || getAppData();
         const id = (sourceId || '').trim();
@@ -619,6 +809,10 @@
             const rec = ensureCurriculumOverrides(data)[newId];
             if (rec) {
                 rec.duplicatedFrom = id;
+                const notes = getCurriculumSyllabusGeneralNotes(id, null, data);
+                if (notes) {
+                    rec.syllabusGeneralNotes = notes;
+                }
                 hooks.saveData();
             }
         }
@@ -666,12 +860,71 @@
             const label = hooks.t('classCurriculumNoBook');
             return label && label !== 'classCurriculumNoBook' ? label : 'No book';
         }
+        if (id === NONE_CURRICULUM_ID) {
+            const label = hooks.t('classCurriculumNone');
+            return label && label !== 'classCurriculumNone' ? label : 'No curriculum';
+        }
         const book = getBookById(curriculumId, appData);
         if (book) {
             return book.displayName || book.name;
         }
         const cur = getCurriculumRecord(curriculumId, appData);
         return (cur && cur.bookTitle) || curriculumId;
+    }
+
+    function stripTrailingParentheticals(label) {
+        let s = String(label || '').trim();
+        if (!s) {
+            return '';
+        }
+        let prev;
+        do {
+            prev = s;
+            s = s.replace(/\s*\([^)]*\)\s*$/g, '').trim();
+        } while (s !== prev);
+        return s;
+    }
+
+    /** Short label for calendar lesson bars (avoids long preset subtitles like “elem. & middle school”). */
+    function getCurriculumCalendarLabel(curriculumId, appData) {
+        const id = (curriculumId || '').trim();
+        if (!id) {
+            return '';
+        }
+        if (id === DEBATE_CURRICULUM_ID) {
+            const label = hooks.t('classCurriculumDebate');
+            return label && label !== 'classCurriculumDebate' ? label : 'Debate';
+        }
+        if (id === NO_BOOK_CURRICULUM_ID) {
+            const label = hooks.t('classCurriculumNoBook');
+            return label && label !== 'classCurriculumNoBook' ? label : 'No book';
+        }
+        const dataApi = global.CCPCurriculaData;
+        if (dataApi && dataApi.getById) {
+            const preset = dataApi.getById(id);
+            if (preset && preset.fallbackName) {
+                return stripTrailingParentheticals(preset.fallbackName);
+            }
+            if (preset && preset.name) {
+                return stripTrailingParentheticals(preset.name);
+            }
+        }
+        const factoryPresets = getFactoryPresetsForBookKey(id);
+        if (factoryPresets.length) {
+            const p = factoryPresets[0];
+            if (p.fallbackName) {
+                return stripTrailingParentheticals(p.fallbackName);
+            }
+            if (p.name) {
+                return stripTrailingParentheticals(p.name);
+            }
+        }
+        const full = getCurriculumDisplayName(id, appData);
+        if (!full) {
+            return '';
+        }
+        const stripped = stripTrailingParentheticals(full);
+        return stripped || full;
     }
 
     function getTemplatesForBookId(bookId, appData) {
@@ -725,9 +978,56 @@
         return merged;
     }
 
+    function isNoCurriculum(curriculumId) {
+        const cid = (curriculumId || '').trim();
+        return !cid || cid === NONE_CURRICULUM_ID;
+    }
+
     function isNoBookCurriculum(curriculumId) {
         const cid = (curriculumId || '').trim();
-        return !cid || cid === NO_BOOK_CURRICULUM_ID;
+        return cid === NO_BOOK_CURRICULUM_ID;
+    }
+
+    function normalizeCurriculumIdForStorage(curriculumId) {
+        const cid = (curriculumId || '').trim();
+        if (!cid || cid === NONE_CURRICULUM_ID) {
+            return NONE_CURRICULUM_ID;
+        }
+        return cid;
+    }
+
+    function curriculumExists(curriculumId, appData) {
+        const cid = (curriculumId || '').trim();
+        if (!cid || isNoCurriculum(cid)) {
+            return false;
+        }
+        if (isCurriculumRemovedFromCalendar(cid, appData)) {
+            return false;
+        }
+        if (isNoBookCurriculum(cid) || cid === DEBATE_CURRICULUM_ID || isDebateCurriculum(cid)) {
+            return true;
+        }
+        return !!getBookById(cid, appData);
+    }
+
+    function getClassCurriculumWarningKind(classData, appData) {
+        if (!classData) {
+            return null;
+        }
+        const stored = String(classData.curriculumId ?? '').trim();
+        if (!stored || stored === NONE_CURRICULUM_ID) {
+            return 'none';
+        }
+        if (isNoBookCurriculum(stored) || stored === DEBATE_CURRICULUM_ID) {
+            return null;
+        }
+        if (isDebateCurriculum(stored)) {
+            return null;
+        }
+        if (isCurriculumRemovedFromCalendar(stored, appData)) {
+            return 'missing';
+        }
+        return curriculumExists(stored, appData) ? null : 'missing';
     }
 
     function isDebateCurriculum(curriculumId) {
@@ -1048,8 +1348,8 @@
         if (!levelTrim) {
             return base;
         }
-        if (!cid) {
-            return { ...base, reason: 'noBookSelected' };
+        if (!cid || isNoCurriculum(cid)) {
+            return { ...base, reason: 'noCurriculum' };
         }
 
         if (isDebateCurriculum(cid) || cid === DEBATE_CURRICULUM_ID) {
@@ -1153,6 +1453,9 @@
             && Object.keys(record.classDefaults).length) {
             return true;
         }
+        if (record.syllabusGeneralNotes != null && String(record.syllabusGeneralNotes).trim()) {
+            return true;
+        }
         return false;
     }
 
@@ -1212,6 +1515,15 @@
             next.applicableLevels = prev.applicableLevels || prev.levels || book.levels || [];
             next.levels = next.applicableLevels;
         }
+        if (opt.syllabusGeneralNotes !== undefined) {
+            const notesTrim = String(opt.syllabusGeneralNotes).trim();
+            const factoryNotes = getFactorySyllabusGeneralNotes(saveId, null);
+            if (!notesTrim || notesTrim === factoryNotes) {
+                delete next.syllabusGeneralNotes;
+            } else {
+                next.syllabusGeneralNotes = notesTrim;
+            }
+        }
         const hasTeamDefault = !!(prev.teamDefault && Array.isArray(prev.teamDefault.sessions)
             && prev.teamDefault.sessions.length);
         if (!sessionsMatchFactory || book.isCustom || isDebateBookRecord(book) || hasTeamDefault) {
@@ -1259,6 +1571,9 @@
         if (team.bookTitle) {
             opts.bookTitle = team.bookTitle;
         }
+        if (team.syllabusGeneralNotes != null) {
+            opts.syllabusGeneralNotes = team.syllabusGeneralNotes;
+        }
         return saveBookTemplates(bookId, team.sessions, appData, opts);
     }
 
@@ -1293,6 +1608,9 @@
                 classDefaults,
                 applicableLevels,
                 bookTitle: title || prev.bookTitle,
+                syllabusGeneralNotes: opt.syllabusGeneralNotes !== undefined
+                    ? String(opt.syllabusGeneralNotes)
+                    : (prev.syllabusGeneralNotes != null ? String(prev.syllabusGeneralNotes) : ''),
                 adoptedAt: new Date().toISOString()
             },
             updatedAt: new Date().toISOString()
@@ -1408,6 +1726,83 @@
         })).filter((r) => r.planTitle || r.planDetail || r.note);
     }
 
+    function setColumnFieldValue(el, value) {
+        if (!el) {
+            return;
+        }
+        el.value = value;
+        if (typeof Event === 'function') {
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    function clearColumnInTbody(tbody, selector) {
+        if (!tbody || !selector) {
+            return;
+        }
+        tbody.querySelectorAll('tr').forEach((tr) => {
+            setColumnFieldValue(tr.querySelector(selector), '');
+        });
+    }
+
+    function fillColumnInTbody(tbody, selector, text) {
+        if (!tbody || !selector) {
+            return;
+        }
+        const value = text == null ? '' : String(text);
+        tbody.querySelectorAll('tr').forEach((tr) => {
+            setColumnFieldValue(tr.querySelector(selector), value);
+        });
+    }
+
+    async function pasteColumnInTbody(tbody, selector) {
+        if (!tbody || !selector) {
+            return;
+        }
+        let text = '';
+        try {
+            if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.readText) {
+                text = await navigator.clipboard.readText();
+            }
+        } catch (_) {
+            text = '';
+        }
+        if (!text && typeof prompt === 'function') {
+            const failedHint = hooks.t('booksEditorClipboardFailed');
+            const promptLabel = hooks.t('booksEditorColPasteAll');
+            const msg = failedHint && failedHint !== 'booksEditorClipboardFailed'
+                ? failedHint
+                : (promptLabel && promptLabel !== 'booksEditorColPasteAll' ? promptLabel : 'Paste to all');
+            const entered = prompt(msg, '');
+            if (entered === null) {
+                return;
+            }
+            text = entered;
+        }
+        fillColumnInTbody(tbody, selector, text);
+    }
+
+    function renderEditableColumnHeader(columnKey, labelKey, labelDefault) {
+        const clearLabel = hooks.t('booksEditorColClear');
+        const pasteLabel = hooks.t('booksEditorColPasteAll');
+        const colLabel = hooks.t(labelKey);
+        const labelText = colLabel && colLabel !== labelKey ? colLabel : labelDefault;
+        const clearText = clearLabel && clearLabel !== 'booksEditorColClear' ? clearLabel : 'Clear column';
+        const pasteText = pasteLabel && pasteLabel !== 'booksEditorColPasteAll' ? pasteLabel : 'Paste to all';
+        return `
+                    <th class="books-col-header-editable">
+                      <span class="books-col-header-label" data-i18n="${labelKey}">${escapeHtml(labelText)}</span>
+                      <div class="books-col-header-actions">
+                        <button type="button" class="btn btn-outline btn-small"
+                          data-books-col-clear="${escapeAttr(columnKey)}"
+                          data-i18n="booksEditorColClear">${escapeHtml(clearText)}</button>
+                        <button type="button" class="btn btn-outline btn-small"
+                          data-books-col-paste="${escapeAttr(columnKey)}"
+                          data-i18n="booksEditorColPasteAll">${escapeHtml(pasteText)}</button>
+                      </div>
+                    </th>`;
+    }
+
     function bindSessionsToolbar(toolbarEl, tbody) {
         if (!toolbarEl || toolbarEl.dataset.bound === '1') {
             return;
@@ -1489,6 +1884,15 @@
         return Array.from(root.querySelectorAll('.curriculum-level-cb:checked'))
             .map((cb) => cb.value)
             .filter(Boolean);
+    }
+
+    function collectCurriculumEditorSaveOpts(prefix) {
+        const out = collectApplicabilitySettings(prefix);
+        const notesEl = document.getElementById(`${prefix}EditorGeneralNotes`);
+        if (notesEl) {
+            out.syllabusGeneralNotes = notesEl.value;
+        }
+        return out;
     }
 
     function collectApplicabilitySettings(prefix) {
@@ -1630,11 +2034,30 @@
         mountEl.dataset.curriculumEditorBound = '1';
         mountEl.addEventListener('click', (e) => {
             const prefix = mountEl.dataset.curriculumEditorPrefix || 'curriculum';
+            const tbodyId = `${prefix}EditorTableBody`;
+            const clearBtn = e.target.closest('[data-books-col-clear]');
+            if (clearBtn) {
+                const selector = getSessionColumnSelector(clearBtn.getAttribute('data-books-col-clear'));
+                const tbody = document.getElementById(tbodyId);
+                if (selector && tbody) {
+                    clearColumnInTbody(tbody, selector);
+                }
+                return;
+            }
+            const pasteBtn = e.target.closest('[data-books-col-paste]');
+            if (pasteBtn) {
+                const selector = getSessionColumnSelector(pasteBtn.getAttribute('data-books-col-paste'));
+                const tbody = document.getElementById(tbodyId);
+                if (selector && tbody) {
+                    void pasteColumnInTbody(tbody, selector);
+                }
+                return;
+            }
             const saveId = `${prefix}EditorSaveBtn`;
             const resetId = `${prefix}EditorResetBtn`;
+            const deleteId = `${prefix}EditorDeleteBtn`;
             const adoptId = `${prefix}EditorAdoptDefaultBtn`;
             const duplicateId = `${prefix}EditorDuplicateBtn`;
-            const tbodyId = `${prefix}EditorTableBody`;
             const metaId = `${prefix}EditorMeta`;
             const toolbarId = `${prefix}EditorToolbar`;
             if (e.target.id === saveId && fullPageEditingBookId) {
@@ -1644,7 +2067,7 @@
                     alert(hooks.t('booksEditorNoRows'));
                     return;
                 }
-                const saveOpts = collectApplicabilitySettings(prefix);
+                const saveOpts = collectCurriculumEditorSaveOpts(prefix);
                 saveBookTemplates(fullPageEditingBookId, rows, getAppData(), saveOpts);
                 renderEditorTableInto(
                     fullPageEditingBookId,
@@ -1655,6 +2078,18 @@
                 if (fullPageAfterSave) {
                     fullPageAfterSave(fullPageEditingBookId);
                 }
+            }
+            if (e.target.id === deleteId && fullPageEditingBookId) {
+                const appData = getAppData();
+                if (!confirmAndDeleteCurriculum(fullPageEditingBookId, appData)) {
+                    return;
+                }
+                fullPageEditingBookId = null;
+                mountEl.innerHTML = `<p class="module-empty-hint">${escapeHtml(hooks.t('curriculumTabPick'))}</p>`;
+                if (fullPageAfterSave) {
+                    fullPageAfterSave(null);
+                }
+                return;
             }
             if (e.target.id === resetId && fullPageEditingBookId) {
                 const appData = getAppData();
@@ -1682,7 +2117,7 @@
                     if (!confirm(hooks.t('curriculumDeleteConfirm'))) {
                         return;
                     }
-                    resetBookToFactory(fullPageEditingBookId, appData);
+                    removeCurriculumFromCalendar(fullPageEditingBookId, appData);
                     fullPageEditingBookId = null;
                     mountEl.innerHTML = `<p class="module-empty-hint">${escapeHtml(hooks.t('curriculumTabPick'))}</p>`;
                     if (fullPageAfterSave) {
@@ -1729,7 +2164,7 @@
                 if (!confirm(hooks.t(confirmKey))) {
                     return;
                 }
-                const saveOpts = collectApplicabilitySettings(prefix);
+                const saveOpts = collectCurriculumEditorSaveOpts(prefix);
                 adoptTeamDefault(fullPageEditingBookId, rows, getAppData(), saveOpts);
                 renderEditorTableInto(
                     fullPageEditingBookId,
@@ -1772,30 +2207,44 @@
         const tbodyId = `${prefix}EditorTableBody`;
         const saveId = `${prefix}EditorSaveBtn`;
         const resetId = `${prefix}EditorResetBtn`;
+        const deleteId = `${prefix}EditorDeleteBtn`;
         const adoptId = `${prefix}EditorAdoptDefaultBtn`;
         const duplicateId = `${prefix}EditorDuplicateBtn`;
         const toolbarId = `${prefix}EditorToolbar`;
         const isCustom = !!book.isCustom;
+        const showDelete = canDeleteCurriculumInEditor(curriculumId, getAppData());
         const showAdopt = hooks.canAdoptTeamCurriculumDefault();
         const teamTd = getTeamDefaultRecord(curriculumId, getAppData());
         const applicabilityHtml = renderApplicabilityPanelHtml(prefix, book, curriculumId, getAppData());
+        const generalNotesId = `${prefix}EditorGeneralNotes`;
+        const generalNotesValue = getCurriculumSyllabusGeneralNotes(curriculumId, null, getAppData());
+        const generalNotesHtml = `
+            <div class="curriculum-editor-general-notes syllabus-editor-block">
+              <h3 class="syllabus-block-title" data-i18n="curriculumGeneralNotes">General notes &amp; instructions</h3>
+              <p class="section-hint" data-i18n="curriculumGeneralNotesHint">Printed in the Note column on the 진도표 overview for classes using this curriculum. A class can override these on its syllabus.</p>
+              <textarea id="${generalNotesId}" class="syllabus-general-notes-input" rows="4" spellcheck="true" data-i18n-placeholder="curriculumGeneralNotesPlaceholder" placeholder="e.g., Bring workbook every class. Month 2 outlines may be blank…">${escapeHtml(generalNotesValue)}</textarea>
+            </div>`;
+        const showResetToTeam = isCustom && teamTd && showAdopt;
+        const showResetToFactory = !isCustom;
         let resetLabelKey = 'booksEditorReset';
         let resetDefault = 'Reset sessions to factory';
-        if (isCustom) {
-            if (teamTd && showAdopt) {
-                resetLabelKey = 'booksEditorReset';
-                resetDefault = hooks.t('booksEditorReset');
-            } else {
-                resetLabelKey = 'curriculumDeleteBtn';
-                resetDefault = hooks.t('curriculumDeleteBtn');
-            }
+        if (showResetToTeam) {
+            resetLabelKey = 'curriculumResetToTeamDefault';
+            resetDefault = hooks.t('curriculumResetToTeamDefault');
         }
+        const deleteBtnHtml = showDelete
+            ? `<button type="button" id="${deleteId}" class="btn btn-danger" data-i18n="curriculumDeleteBtn">${escapeHtml(hooks.t('curriculumDeleteBtn'))}</button>`
+            : '';
+        const resetBtnHtml = (showResetToFactory || showResetToTeam)
+            ? `<button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${escapeHtml(resetDefault)}</button>`
+            : '';
         const adoptLabelKey = isCustom ? 'curriculumSaveToDefaultsCustom' : 'curriculumSaveToDefaults';
         const adoptDefault = hooks.t(adoptLabelKey);
         mountEl.innerHTML = `
           <div class="books-editor-fullpage curriculum-editor-panel">
             <div class="curriculum-editor-actions-bar form-actions books-editor-actions" role="toolbar" aria-label="Curriculum editor actions">
-              <button type="button" id="${resetId}" class="btn btn-outline" data-i18n="${resetLabelKey}">${escapeHtml(resetDefault)}</button>
+              ${deleteBtnHtml}
+              ${resetBtnHtml}
               ${showAdopt
         ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="${adoptLabelKey}">${escapeHtml(adoptDefault)}</button>`
         : ''}
@@ -1804,8 +2253,11 @@
             </div>
             <div class="curriculum-editor-body">
               ${applicabilityHtml}
+              ${generalNotesHtml}
               <div id="${metaId}" class="books-editor-meta"></div>
               <p class="section-hint curriculum-editor-apply-hint" data-i18n="curriculumEditorApplyHint">On the class form, pick Level and Book, then Apply from curriculum.</p>
+              ${showDelete || canManageCurriculumCatalog() ? '' : `<p class="section-hint curriculum-editor-builtin-hint" data-i18n="curriculumBuiltinNoDeleteHint">${escapeHtml(hooks.t('curriculumBuiltinNoDeleteHint'))}</p>`}
+              ${showDelete && !isCustom && canManageCurriculumCatalog() ? `<p class="section-hint curriculum-editor-admin-delete-hint" data-i18n="curriculumAdminDeleteHint">${escapeHtml(hooks.t('curriculumAdminDeleteHint'))}</p>` : ''}
               <div id="${toolbarId}" class="books-editor-toolbar">
                 <span data-i18n="booksEditorSessionsHeading">Sessions</span>
                 <button type="button" class="btn btn-outline btn-small" data-books-add-session data-i18n="booksEditorAddSession">Add session</button>
@@ -1814,9 +2266,9 @@
                 <table class="books-editor-table">
                   <thead><tr>
                     <th class="books-col-num">#</th>
-                    <th data-i18n="booksEditorColPlan">Lesson plan</th>
-                    <th data-i18n="booksEditorColPages">Pages / detail</th>
-                    <th data-i18n="booksEditorColNote">Note</th>
+                    ${renderEditableColumnHeader('planTitle', 'booksEditorColPlan', 'Lesson plan')}
+                    ${renderEditableColumnHeader('planDetail', 'booksEditorColPages', 'Pages / detail')}
+                    ${renderEditableColumnHeader('note', 'booksEditorColNote', 'Note')}
                     <th class="books-col-actions"><span class="sr-only">Remove</span></th>
                   </tr></thead>
                   <tbody id="${tbodyId}"></tbody>
@@ -2033,8 +2485,13 @@
         renderCurriculumEditorMount,
         renderCurriculumList,
         NO_BOOK_CURRICULUM_ID,
+        NONE_CURRICULUM_ID,
         DEBATE_CURRICULUM_ID,
+        isNoCurriculum,
         isNoBookCurriculum,
+        normalizeCurriculumIdForStorage,
+        curriculumExists,
+        getClassCurriculumWarningKind,
         isDebateCurriculum,
         isMiddleSchoolSimsonLevel,
         levelSupportsDebateCurriculum,
@@ -2052,14 +2509,29 @@
         getCurriculumApplyEligibility,
         presetHasSyllabusTemplatesForApply,
         getCurriculumDisplayName,
+        getCurriculumCalendarLabel,
+        stripTrailingParentheticals,
         buildMergedClassDefaults,
+        getCurriculumSyllabusGeneralNotes,
+        resolveSyllabusGeneralNotesForClass,
         isCustomCurriculum,
         createCurriculum,
         duplicateCurriculum,
         deleteCustomCurriculum,
+        removeCurriculumFromCalendar,
+        removeBuiltinCurriculumFromCalendar,
+        restoreRemovedFactoryCurricula,
+        canManageCurriculumCatalog,
+        isCurriculumRemovedFromCalendar,
+        canDeleteCurriculumInEditor,
+        confirmAndDeleteCurriculum,
         migrateLegacyToCurriculum,
         ensureCurriculumOverrides,
         collectEditorRowsFromTbody,
+        clearColumnInTbody,
+        fillColumnInTbody,
+        pasteColumnInTbody,
+        getSessionColumnSelector,
         normalizeRowTemplates
     };
 })(typeof window !== 'undefined' ? window : globalThis);

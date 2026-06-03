@@ -182,6 +182,45 @@
         );
     }
 
+    function getKnownTeacherCategories() {
+        const api = global.CCPTeacherTimetable;
+        if (api && Array.isArray(api.TEACHER_CATEGORY_PRESETS)) {
+            return api.TEACHER_CATEGORY_PRESETS;
+        }
+        return ['Debate', 'Wr&Spk', 'Spk&Wr', 'IPE', 'Conversation', 'RC', 'Grammar', 'News', 'Phonics', 'Reading', 'Animation', 'Other'];
+    }
+
+    /** Suffix only when several teachers share one class and the calendar shows all of them. */
+    function needsCalendarTitleSuffix(classData, options) {
+        const teachers = getNormalizedClassTeachers(classData);
+        if (teachers.length <= 1) {
+            return false;
+        }
+        if (options.showAll === true) {
+            return true;
+        }
+        return Array.isArray(options.teacherSelectors) && options.teacherSelectors.length > 0;
+    }
+
+    function resolveCalendarSuffix(row, appData) {
+        const cat = (row.category || '').trim();
+        if (cat && getKnownTeacherCategories().includes(cat)) {
+            return cat;
+        }
+        if (global.CCPBooksEditor && row.curriculumId) {
+            const fn = global.CCPBooksEditor.getCurriculumCalendarLabel
+                || global.CCPBooksEditor.getCurriculumDisplayName;
+            if (fn) {
+                const label = String(fn(row.curriculumId, appData) || '').trim();
+                if (global.CCPBooksEditor.stripTrailingParentheticals) {
+                    return global.CCPBooksEditor.stripTrailingParentheticals(label);
+                }
+                return label.replace(/\s*\([^)]*\)\s*$/g, '').trim() || label;
+            }
+        }
+        return '';
+    }
+
     function getClassCurriculumSlices(classData, appData, options) {
         options = options || {};
         const showAll = options.showAll === true;
@@ -190,6 +229,7 @@
             ? options.teacherSelectors.filter(Boolean)
             : [];
         const teachers = getNormalizedClassTeachers(classData);
+        const appendSuffix = needsCalendarTitleSuffix(classData, options);
         const slices = [];
 
         const accountMatchOpts = viewer && viewer.userId ? { accountOnly: true } : null;
@@ -216,10 +256,8 @@
             const built = buildEffectiveClassForTeacherRow(classData, row, appData);
             const sliceId = row.id || `idx${index}`;
             const sliceKey = `${classData.id}:${sliceId}`;
-            const suffix = row.category
-                || (global.CCPBooksEditor && row.curriculumId
-                    ? global.CCPBooksEditor.getCurriculumDisplayName(row.curriculumId, appData)
-                    : '');
+            const suffix = appendSuffix ? resolveCalendarSuffix(row, appData) : '';
+            const className = classData.name || '';
             slices.push({
                 sliceKey,
                 sliceId,
@@ -227,9 +265,7 @@
                 baseClassData: classData,
                 teacherRow: built.teacherRow,
                 calendarLabelSuffix: suffix,
-                calendarTitle: suffix
-                    ? `${classData.name || ''} (${suffix})`
-                    : (classData.name || '')
+                calendarTitle: suffix ? `${className} (${suffix})` : className
             });
         });
 

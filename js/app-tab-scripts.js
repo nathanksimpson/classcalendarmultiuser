@@ -16,12 +16,12 @@
         teachers: [
             'js/teacher-timetable.js?v=20260611-timetable-context',
             'js/teacher-management.js?v=20260610-setup-board',
-            'js/class-curriculum-slices.js?v=20260603-migration-alert'
+            'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
-        curriculum: ['js/class-curriculum-slices.js?v=20260603-migration-alert'],
+        curriculum: ['js/class-curriculum-slices.js?v=20260603-cal-suffix2'],
         calendar: [
             'js/teacher-timetable.js?v=20260611-timetable-context',
-            'js/class-curriculum-slices.js?v=20260603-migration-alert'
+            'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ]
     };
 

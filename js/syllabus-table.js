@@ -8,6 +8,7 @@
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
+    const MONTH_KO = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 
     /** A4 page margins and printable content area (mm). Tighter = wider table, less line wrap. */
     const SYLLABUS_A4_MARGIN_MM = 7;
@@ -43,6 +44,9 @@
 
     /** Reference layout for printed syllabus (readable type, truncation over tiny fonts). */
     const SYLLABUS_A4_COL_WIDTHS = ['3.5%', '5.5%', '2.5em', '68%', '17%'];
+    /** 진도표-style A4 columns: month | week | date | plan | note */
+    /** Col 1 wide enough for header year (e.g. 2026년) and merged month (3월). */
+    const SYLLABUS_JINDO_COL_WIDTHS = ['6.5%', '5.5%', '3.5em', '68%', '14%'];
     const MIN_SYLLABUS_PRINT_SCALE = 0.92;
     const SYLLABUS_A4_REFERENCE = {
         titlePt: 12,
@@ -66,6 +70,165 @@
             return '';
         }
         return `(${d.getMonth() + 1}/${d.getDate()})`;
+    }
+
+    /** 진도표 date column: 3/4 (no parentheses). */
+    function formatJindoDateMd(dateStr) {
+        const d = parseLocal(dateStr);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+
+    function formatJindoMonthFromKey(monthKey, useKorean) {
+        if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
+            return '';
+        }
+        const m = parseInt(monthKey.slice(5, 7), 10);
+        if (useKorean) {
+            return MONTH_KO[m - 1] || monthKey;
+        }
+        return formatSyllabusMonthFromKey(monthKey, false);
+    }
+
+    function isJindoPdfLayout(labels) {
+        const L = labels || {};
+        if (L.jindoTable === false) {
+            return false;
+        }
+        return L.jindoTable === true || (L.pdfLayout === true && L.a4Pdf === true);
+    }
+
+    function shouldIncludeDetailAppendix(labels) {
+        const L = labels || {};
+        if (L.includeDetailAppendix === true || L.syllabusPrintContinuation === 'always') {
+            return true;
+        }
+        if (L.syllabusPrintContinuation === 'never' || L.includeDetailAppendix === false) {
+            return false;
+        }
+        return L.syllabusPrintContinuation === 'auto' && L.includeDetailAppendix === true;
+    }
+
+    /**
+     * Week-of-month labels for 진도표 print (1주, 2주 … resets each calendar month).
+     */
+    function computeJindoWeekDisplays(rows, useKoreanWeek) {
+        const n = rows.length;
+        const weekDisplays = new Array(n).fill('');
+        let monthKey = '';
+        let weekIndex = 0;
+        let lastWeekMon = '';
+
+        for (let i = 0; i < n; i += 1) {
+            const row = rows[i];
+            const mk = row.monthKey || (row.date ? row.date.slice(0, 7) : '');
+            if (mk && mk !== monthKey) {
+                monthKey = mk;
+                weekIndex = 0;
+                lastWeekMon = '';
+            }
+            const mon = row.date ? getSchoolWeekMonday(row.date) : null;
+            const weekKey = mon ? formatISO(mon) : '';
+            if (weekKey && weekKey !== lastWeekMon) {
+                weekIndex += 1;
+                lastWeekMon = weekKey;
+            }
+            if (weekIndex > 0) {
+                weekDisplays[i] = useKoreanWeek ? `${weekIndex}주` : `W${weekIndex}`;
+            }
+        }
+        return weekDisplays;
+    }
+
+    function computeJindoCellMerges(rows, labels) {
+        const L = labels || {};
+        const useKo = L.useKoreanJindo === true;
+        const n = rows.length;
+        const monthDisplays = [];
+        const weekDisplays = computeJindoWeekDisplays(rows, useKo);
+        const monthRowspan = new Array(n).fill(0);
+        const weekRowspan = new Array(n).fill(0);
+        let carryMonth = '';
+
+        for (let i = 0; i < n; i += 1) {
+            const row = rows[i];
+            let month = '';
+            if (row.monthKey) {
+                month = formatJindoMonthFromKey(row.monthKey, useKo);
+            } else if (row.date) {
+                month = formatJindoMonthFromKey(row.date.slice(0, 7), useKo);
+            }
+            if (month) {
+                carryMonth = month;
+            }
+            monthDisplays.push(carryMonth);
+        }
+
+        let i = 0;
+        while (i < n) {
+            const key = monthDisplays[i];
+            let j = i + 1;
+            while (j < n && monthDisplays[j] === key && key) {
+                j += 1;
+            }
+            if (key) {
+                monthRowspan[i] = j - i;
+            }
+            i = j;
+        }
+
+        i = 0;
+        while (i < n) {
+            const key = weekDisplays[i];
+            let j = i + 1;
+            while (j < n && weekDisplays[j] === key && key) {
+                j += 1;
+            }
+            if (key) {
+                weekRowspan[i] = j - i;
+            }
+            i = j;
+        }
+
+        return { monthDisplays, weekDisplays, monthRowspan, weekRowspan };
+    }
+
+    function findFirstJindoNotesRowIndex(rows) {
+        for (let i = 0; i < rows.length; i += 1) {
+            const r = rows[i];
+            const kind = r.kind || 'lesson';
+            if ((kind === 'lesson' || kind === 'overflow') && r.date && (r.sessionNumber || 0) > 0) {
+                return i;
+            }
+        }
+        for (let i = 0; i < rows.length; i += 1) {
+            if (rows[i].date && String(rows[i].planTitle || '').trim()) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    function resolvePrintGeneralNotes(classData, labels) {
+        const fromClass = classData && String(classData.syllabusGeneralNotes || '').trim();
+        if (fromClass) {
+            return fromClass;
+        }
+        if (global.CCPBooksEditor && typeof global.CCPBooksEditor.resolveSyllabusGeneralNotesForClass === 'function') {
+            return global.CCPBooksEditor.resolveSyllabusGeneralNotesForClass(classData) || '';
+        }
+        return labels && labels.generalNotes ? String(labels.generalNotes).trim() : '';
+    }
+
+    /** Single 비고 block — general notes only (no per-row Note: labels). */
+    function buildPrintNotesColumnHtml(generalNotes) {
+        const general = String(generalNotes ?? '').trim();
+        if (!general) {
+            return '';
+        }
+        return escapeHtml(general).replace(/\n/g, '<br>');
     }
 
     function formatSyllabusMonthFromKey(monthKey, useFullMonth) {
@@ -993,15 +1156,49 @@
         return html;
     }
 
+    /** 진도표 overview: one short line (plan title). */
+    function renderPlanCellJindo(row) {
+        const title = String(row.planTitle || '').trim();
+        if (!title) {
+            return '';
+        }
+        return `<span class="syllabus-print-title">${escapeHtml(title)}</span>`;
+    }
+
+    function syllabusRowNeedsContinuation(row) {
+        if (!row) {
+            return false;
+        }
+        const kind = row.kind || 'lesson';
+        if (kind !== 'lesson' && kind !== 'overflow') {
+            return false;
+        }
+        const detail = String(row.planDetail || '').trim();
+        if (!detail) {
+            return false;
+        }
+        const sections = splitPlanDetailSections(detail);
+        if (sections.homework) {
+            return true;
+        }
+        const covered = stripRedundantPlanDetailLines(row.planTitle, sections.covered || detail);
+        return covered.length > 0 && covered !== String(row.planTitle || '').trim();
+    }
+
     function renderPlanCell(row, options) {
         const opts = options || {};
         const printMode = opts.printMode === true;
+        const jindoMode = opts.jindoMode === true;
         const title = escapeHtml(row.planTitle || '');
         const detail = (row.planDetail || '').trim();
         const kind = row.kind || 'lesson';
         const detailClass = kind === 'holiday' || kind === 'event' || kind === 'extra' || kind === 'overflow'
             ? 'syllabus-plan-subline syllabus-plan-subline-emphasis'
             : 'syllabus-plan-detail';
+
+        if (jindoMode) {
+            return renderPlanCellJindo(row);
+        }
 
         if (printMode) {
             return renderPlanCellBrief(row);
@@ -1120,20 +1317,28 @@
     function renderSyllabusTableHtml(classData, rows, labels) {
         const L = labels || {};
         const pdfLayout = L.pdfLayout === true;
+        const jindoLayout = pdfLayout && isJindoPdfLayout(L);
         const normalized = normalizeRows(rows);
         const useFullMonth = !pdfLayout;
-        const useCompactWeek = pdfLayout;
-        const merge = computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
+        const useCompactWeek = pdfLayout && !jindoLayout;
+        const merge = jindoLayout
+            ? computeJindoCellMerges(normalized, L)
+            : computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
+        const jindoNotesHtml = jindoLayout ? buildPrintNotesColumnHtml(L.generalNotes) : '';
 
         let headerBlock = '';
         if (L.generalNotes && !pdfLayout) {
             const notesHtml = escapeHtml(L.generalNotes).replace(/\n/g, '<br>');
             headerBlock += `<div class="syllabus-general-notes-print">${notesHtml}</div>`;
         }
-        if (L.classTitle) {
+        if (L.classTitle || L.jindoTitle) {
             if (pdfLayout) {
-                headerBlock += `<h2 class="syllabus-pdf-title">${escapeHtml(L.classTitle)}</h2>`;
-            } else {
+                const titleText = (jindoLayout && L.jindoTitle) ? L.jindoTitle : L.classTitle;
+                const titleCls = jindoLayout
+                    ? 'syllabus-pdf-title syllabus-jindo-title'
+                    : 'syllabus-pdf-title';
+                headerBlock += `<h2 class="${titleCls}">${escapeHtml(titleText || '')}</h2>`;
+            } else if (L.classTitle) {
                 const titleParts = [escapeHtml(L.classTitle)];
                 if (L.subtitle) {
                     titleParts.push(escapeHtml(L.subtitle));
@@ -1145,10 +1350,16 @@
             }
         }
 
-        let html = `${headerBlock}<table class="syllabus-table${pdfLayout ? ' syllabus-table-pdf' : ''}">`;
+        const tableClass = [
+            'syllabus-table',
+            pdfLayout ? 'syllabus-table-pdf' : '',
+            jindoLayout ? 'syllabus-table-jindo' : ''
+        ].filter(Boolean).join(' ');
+        let html = `${headerBlock}<table class="${tableClass}">`;
         if (pdfLayout) {
             html += '<colgroup>';
-            SYLLABUS_A4_COL_WIDTHS.forEach(w => {
+            const colWidths = jindoLayout ? SYLLABUS_JINDO_COL_WIDTHS : SYLLABUS_A4_COL_WIDTHS;
+            colWidths.forEach(w => {
                 html += `<col style="width:${w}">`;
             });
             html += '</colgroup>';
@@ -1156,10 +1367,18 @@
         html += '<thead><tr>';
         if (pdfLayout) {
             const year = L.tableYear || '';
-            const planHeader = L.colPlanShort || L.colPlanPrint || L.colPlan || 'Lesson plan';
-            html += `<th class="syllabus-col-year syllabus-th-year">${escapeHtml(year)}</th>`;
+            const yearHeader = L.colYear
+                ? String(L.colYear).replace('{year}', year)
+                : (L.useKoreanJindo && year ? `${year}년` : year);
+            const planHeader = jindoLayout
+                ? (L.colPlanJindo || L.colPlanPrint || L.colPlan || 'Lesson plan')
+                : (L.colPlanShort || L.colPlanPrint || L.colPlan || 'Lesson plan');
+            const dateHeader = jindoLayout
+                ? (L.colDate || L.colClass || 'Date')
+                : (L.colClass || 'Class');
+            html += `<th class="syllabus-col-year syllabus-th-year">${escapeHtml(yearHeader)}</th>`;
             html += `<th class="syllabus-th-week">${escapeHtml(L.colWeek || 'Week')}</th>`;
-            html += `<th class="syllabus-th-class">${escapeHtml(L.colClass || 'Class')}</th>`;
+            html += `<th class="syllabus-th-date syllabus-th-class">${escapeHtml(dateHeader)}</th>`;
             html += `<th class="syllabus-th-plan">${escapeHtml(planHeader)}</th>`;
             html += `<th class="syllabus-th-note">${escapeHtml(L.colNote || 'Note')}</th>`;
         } else {
@@ -1172,19 +1391,42 @@
         html += `</tr></thead><tbody>`;
 
         const rowCount = normalized.length;
-        const mergedNotesHtml = pdfLayout ? buildMergedNotesHtml(L.generalNotes, normalized) : '';
+        const mergedNotesHtml = pdfLayout && !jindoLayout
+            ? buildMergedNotesHtml(L.generalNotes, normalized)
+            : '';
 
         normalized.forEach((row, i) => {
-            const sessionDisplay = row.kind !== 'note' && row.sessionNumber > 0
-                ? String(row.sessionNumber)
-                : '';
+            let dateOrSessionDisplay = '';
+            if (jindoLayout) {
+                dateOrSessionDisplay = row.date
+                    ? formatJindoDateMd(row.date)
+                    : (row.kind !== 'note' && row.sessionNumber > 0 ? String(row.sessionNumber) : '');
+            } else {
+                dateOrSessionDisplay = row.kind !== 'note' && row.sessionNumber > 0
+                    ? String(row.sessionNumber)
+                    : '';
+            }
             const trClass = syllabusRowClass(row);
             const cellStyle = syllabusCellStyleAttr(row);
             html += `<tr class="${trClass}">`;
             html += renderMergedMonthWeekCells(i, merge, pdfLayout, cellStyle);
-            html += `<td class="syllabus-col-class"${cellStyle}>${escapeHtml(sessionDisplay)}</td>`;
-            html += `<td class="syllabus-col-plan"${cellStyle}>${renderPlanCell(row, { printMode: pdfLayout })}</td>`;
-            if (pdfLayout) {
+            const dateColClass = jindoLayout
+                ? 'syllabus-col-date syllabus-col-class'
+                : 'syllabus-col-class';
+            html += `<td class="${dateColClass}"${cellStyle}>${escapeHtml(dateOrSessionDisplay)}</td>`;
+            html += `<td class="syllabus-col-plan"${cellStyle}>${renderPlanCell(row, {
+                printMode: pdfLayout && !jindoLayout,
+                jindoMode: jindoLayout
+            })}</td>`;
+            if (pdfLayout && jindoLayout) {
+                if (i === 0 && rowCount > 0) {
+                    const noteRowspan = rowCount;
+                    const noteCls = noteRowspan > 1
+                        ? 'syllabus-col-note syllabus-note-merged syllabus-jindo-note syllabus-jindo-note-span'
+                        : 'syllabus-col-note syllabus-note-merged syllabus-jindo-note';
+                    html += `<td rowspan="${noteRowspan}" class="${noteCls}"${cellStyle}>${jindoNotesHtml}</td>`;
+                }
+            } else if (pdfLayout) {
                 if (i === 0 && rowCount > 0) {
                     html += `<td rowspan="${rowCount}" class="syllabus-col-note syllabus-note-merged"${cellStyle}>${mergedNotesHtml}</td>`;
                 }
@@ -1344,6 +1586,10 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
 .syllabus-a4-page .syllabus-table th,
 .syllabus-a4-page .syllabus-table td { padding: 3px 4px; border: 1px solid #333; vertical-align: top; }
 .syllabus-a4-page .syllabus-table td { overflow: hidden; }
+.syllabus-a4-page .syllabus-table-jindo td.syllabus-jindo-note,
+.syllabus-a4-page .syllabus-table-jindo td.syllabus-note-merged {
+  overflow: visible !important;
+}
 .syllabus-a4-page .syllabus-table th {
   background: #f3f4f6;
   font-size: 9pt;
@@ -1390,6 +1636,67 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
 .syllabus-a4-page .syllabus-col-class { text-align: center; font-size: 9pt; }
 .syllabus-a4-page .syllabus-col-plan { vertical-align: top; word-break: break-word; overflow: hidden; }
 .syllabus-a4-page .syllabus-col-note { vertical-align: top; word-break: break-word; }
+.syllabus-jindo-title { font-size: 11pt; font-weight: 700; text-align: center; margin: 0 0 2.5mm; line-height: 1.25; }
+.syllabus-table-jindo .syllabus-col-plan { overflow: visible; }
+.syllabus-table-jindo .syllabus-col-plan .syllabus-print-title { font-weight: 600; }
+.syllabus-table-jindo {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.syllabus-table-jindo th,
+.syllabus-table-jindo td {
+  border: 1px solid #333;
+  box-sizing: border-box;
+}
+.syllabus-table-jindo .syllabus-jindo-note.syllabus-note-merged {
+  font-size: 8.5pt;
+  line-height: 1.25;
+  vertical-align: top;
+  word-break: break-word;
+  overflow: visible;
+  display: block;
+  background: #fff;
+}
+.syllabus-table-jindo .syllabus-jindo-note-span {
+  border-bottom: 1px solid #333;
+}
+.syllabus-a4-page .syllabus-table-jindo .syllabus-note-merged,
+.syllabus-a4-page .syllabus-table-jindo .syllabus-jindo-note {
+  -webkit-line-clamp: unset !important;
+  display: block !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+.syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-col-plan,
+.syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-col-date,
+.syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-col-class {
+  border-bottom: 1px solid #333;
+}
+.syllabus-a4-page .syllabus-table-jindo tbody tr:last-child td.syllabus-col-plan,
+.syllabus-a4-page .syllabus-table-jindo tbody tr:last-child td.syllabus-col-date,
+.syllabus-a4-page .syllabus-table-jindo tbody tr:last-child td.syllabus-cell-merged {
+  border-bottom: 1px solid #333;
+}
+.syllabus-table-jindo .syllabus-col-date { text-align: center; white-space: nowrap; font-size: 9pt; }
+.syllabus-table-jindo .syllabus-col-week.syllabus-cell-merged { font-size: 8.5pt; }
+.syllabus-table-jindo .syllabus-col-month.syllabus-cell-merged,
+.syllabus-table-jindo .syllabus-col-year.syllabus-cell-merged {
+  font-size: 9pt;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 5.25em;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+.syllabus-a4-page .syllabus-table-jindo .syllabus-th-year {
+  min-width: 5.25em;
+  white-space: nowrap;
+  font-size: 9.5pt;
+  font-weight: 700;
+  padding: 3px 5px;
+  vertical-align: middle;
+  line-height: 1.2;
+}
 .syllabus-a4-page.syllabus-a4-dense .syllabus-pdf-title { font-size: 11pt; margin-bottom: 1.75mm; }
 .syllabus-a4-page.syllabus-a4-dense .syllabus-table { font-size: 9.25pt; line-height: 1.15; }
 .syllabus-a4-page.syllabus-a4-dense .syllabus-table th { font-size: 8.5pt; }
@@ -1464,9 +1771,11 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
                 {
                     ...labels,
                     classTitle: sec.classTitle,
+                    jindoTitle: sec.jindoTitle || labels.jindoTitle,
                     tableYear: sec.tableYear || labels.tableYear,
                     subtitle: sec.subtitle,
-                    termRange: sec.termRange
+                    termRange: sec.termRange,
+                    generalNotes: resolvePrintGeneralNotes(sec.classData, labels)
                 }
             );
             body += `</section>`;
@@ -1478,15 +1787,15 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
                     tableYear: sec.tableYear || labels.tableYear,
                     subtitle: sec.subtitle,
                     termRange: sec.termRange,
-                    generalNotes: (sec.classData && sec.classData.syllabusGeneralNotes)
-                        ? String(sec.classData.syllabusGeneralNotes).trim()
-                        : (labels.generalNotes || '')
+                    generalNotes: resolvePrintGeneralNotes(sec.classData, labels)
                 };
-                body += renderSyllabusContinuationSheets(
-                    sec.classTitle || '',
-                    sec.rows,
-                    sectionLabels
-                );
+                if (shouldIncludeDetailAppendix(sectionLabels)) {
+                    body += renderSyllabusContinuationSheets(
+                        sec.classTitle || '',
+                        sec.rows,
+                        sectionLabels
+                    );
+                }
             }
         });
 
@@ -1665,6 +1974,10 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         }
         const title = pageEl.querySelector('.syllabus-pdf-title');
         const table = pageEl.querySelector('.syllabus-table');
+        /* 진도표: equal row heights + overflow on cells draws horizontal rules through rowspan note column */
+        if (table?.classList.contains('syllabus-table-jindo')) {
+            return;
+        }
         const tbody = table?.querySelector('tbody');
         const thead = table?.querySelector('thead');
         if (!table || !tbody) {
@@ -1897,7 +2210,18 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         SYLLABUS_A4_PAGE,
         getSyllabusFitDimensions,
         SYLLABUS_A4_COL_WIDTHS,
+        SYLLABUS_JINDO_COL_WIDTHS,
         SYLLABUS_A4_REFERENCE,
+        isJindoPdfLayout,
+        shouldIncludeDetailAppendix,
+        computeJindoCellMerges,
+        computeJindoWeekDisplays,
+        formatJindoDateMd,
+        formatJindoMonthFromKey,
+        findFirstJindoNotesRowIndex,
+        buildPrintNotesColumnHtml,
+        renderPlanCellJindo,
+        syllabusRowNeedsContinuation,
         MIN_SYLLABUS_PRINT_SCALE,
         SYLLABUS_PRINT_SCALE_FLOOR,
         splitPlanDetailSections,

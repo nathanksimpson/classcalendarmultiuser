@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260603-toolbar-collapse">
+    <link rel="stylesheet" href="styles.css?v=20260603-tab-host-anchor">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,11 +115,12 @@
                     </div>
                     <span id="topBarCalendarLabel" class="top-bar-calendar-label" hidden></span>
                 </div>
-                <nav class="app-tab-nav" id="appTabNav" aria-label="App sections">
+                <div class="app-tab-nav-cluster" id="appTabNavCluster">
                     <div class="app-tab-host-row" role="tablist" aria-label="Main sections">
                         <button type="button" class="app-tab-host-btn is-active" role="tab" id="tabHostBtn-teaching" aria-selected="true" data-host="teaching" data-i18n="tabGroupTeaching">Teaching</button>
                         <button type="button" class="app-tab-host-btn" role="tab" id="tabHostBtn-setup" aria-selected="false" data-host="setup" data-i18n="tabGroupSetup" hidden>Setup</button>
                     </div>
+                    <nav class="app-tab-nav" id="appTabNav" aria-label="App sub-sections">
                     <div class="app-tab-subnav-wrap">
                         <div id="appTabSubnavTeaching" class="app-tab-subnav-panel is-active" role="tablist" aria-label="Teaching sections">
                             <button type="button" class="app-tab-sub-btn is-active" role="tab" id="tabBtn-calendar-teaching" aria-selected="true" aria-controls="panel-calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
@@ -139,7 +140,8 @@
                             <button type="button" class="app-tab-sub-btn app-tab-sub-btn--data" role="tab" id="tabBtn-data" aria-selected="false" aria-controls="panel-data" data-tab="data" data-i18n="tabData">Data</button>
                         </div>
                     </div>
-                </nav>
+                    </nav>
+                </div>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
                     <div class="app-header-tool-group app-header-tool-group--calendar-display app-header-tool-group--essential">
@@ -723,6 +725,7 @@
                     <aside class="curriculum-tab-sidebar workspace-books-sidebar">
                         <div class="curriculum-tab-sidebar-toolbar">
                             <button type="button" id="curriculumAddBtn" class="btn btn-primary btn-small" data-i18n="curriculumAddBtn">Add curriculum</button>
+                            <button type="button" id="curriculumRestoreFactoryBtn" class="btn btn-outline btn-small" hidden data-i18n="curriculumRestoreFactoryBtn">Restore built-in curricula</button>
                         </div>
                         <input type="search" id="curriculumTabListSearch" class="module-list-search curriculum-tab-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="curriculumTabListSearchPlaceholder" placeholder="Search curricula…">
                         <div id="curriculumTabList" class="workspace-books-list" role="listbox" aria-label="Curriculum list"></div>
@@ -1178,7 +1181,7 @@
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260603-topbar-overflow"></script>
+    <script defer src="app.js?v=20260603-tab-host-anchor"></script>
 </body>
 </html>
 

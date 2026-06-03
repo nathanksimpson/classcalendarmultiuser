@@ -280,11 +280,9 @@ body {
         flex: 0 1 auto;
     }
 
-    .app-tab-nav {
-        width: auto;
+    .app-tab-nav-cluster {
         flex: 0 0 auto;
         flex-shrink: 0;
-        min-width: max-content;
         max-width: none;
         overflow: visible;
     }
@@ -3268,11 +3266,19 @@ html.print-color-mode-light[data-theme="dark"] {
         line-height: 1.25;
     }
 
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-note-merged {
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-note-merged:not(.syllabus-jindo-note) {
         display: -webkit-box;
         -webkit-line-clamp: 28;
         -webkit-box-orient: vertical;
         overflow: hidden;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo .syllabus-note-merged,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo .syllabus-jindo-note {
+        display: block !important;
+        -webkit-line-clamp: unset !important;
+        overflow: visible !important;
+        max-height: none !important;
     }
 
     #syllabusTablesSummary .syllabus-a4-page.syllabus-a4-dense .syllabus-table {
@@ -3809,7 +3815,7 @@ input.input-readonly {
         height: var(--touch-min);
     }
 
-    .app-tab-nav {
+    .app-tab-nav-cluster {
         order: 5;
         flex: 1 1 100%;
         width: 100%;
@@ -4220,12 +4226,16 @@ body[data-active-tab="events"] .app-term-quick-actions {
         align-items: stretch;
     }
 
-    .app-tab-nav {
+    .app-tab-nav-cluster {
         width: 100%;
-        min-width: 0;
         max-width: 100%;
         flex-shrink: 1;
         overflow: hidden;
+    }
+
+    .app-tab-nav {
+        width: 100%;
+        min-width: 0;
     }
 
     .app-tab-subnav-wrap {
@@ -4295,24 +4305,46 @@ body[data-active-tab="events"] .app-term-quick-actions {
     }
 }
 
-.app-tab-nav {
-    display: grid;
-    grid-template-columns: minmax(5.5rem, auto) minmax(5.5rem, auto);
-    grid-template-rows: auto auto;
-    gap: 0;
-    padding: 0;
+/* Host row + sub-tabs: host stays left when sub-tab row width changes */
+.app-tab-nav-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex-shrink: 0;
+    width: var(--app-tab-nav-min-width, auto);
+    min-width: var(--app-tab-nav-min-width, auto);
+    max-width: 100%;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 10px;
     overflow: visible;
-    width: auto;
-    flex-shrink: 0;
-    align-items: start;
     box-sizing: border-box;
 }
 
+.app-top-bar--global .app-tab-nav-cluster {
+    align-self: flex-start;
+}
+
 .app-tab-host-row {
-    display: contents;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: var(--app-tab-host-strip-width, 12.75rem);
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.app-tab-nav {
+    display: block;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
 }
 
 .app-tab-host-btn {
@@ -4352,14 +4384,9 @@ body[data-active-tab="events"] .app-term-quick-actions {
     z-index: 2;
 }
 
-#tabHostBtn-teaching {
-    grid-column: 1;
-    grid-row: 1;
-}
-
-#tabHostBtn-setup {
-    grid-column: 2;
-    grid-row: 1;
+.app-tab-host-btn--slot-hidden {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 #tabHostBtn-teaching.is-active,
@@ -4384,27 +4411,37 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .app-tab-subnav-wrap {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 4px 6px 6px;
 }
 
 .app-tab-subnav-panel {
-    grid-column: 1;
-    grid-row: 1;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     align-content: flex-start;
+}
+
+.app-tab-subnav-panel:not(.is-active) {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    right: 6px;
     visibility: hidden;
     pointer-events: none;
+    z-index: 0;
 }
 
 .app-tab-subnav-panel.is-active {
+    position: relative;
     visibility: visible;
     pointer-events: auto;
+    z-index: 1;
 }
 
 .app-tab-subnav-panel[hidden] {
@@ -5637,6 +5674,27 @@ body[data-active-tab="events"] .app-term-quick-actions {
     color: var(--text-primary);
 }
 
+.curriculum-editor-general-notes {
+    margin-bottom: 16px;
+}
+
+.class-curriculum-warning {
+    margin: 0 0 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--warning-border, #f59e0b);
+    background: var(--warning-bg, #fffbeb);
+    color: var(--warning-text, #92400e);
+    font-weight: 500;
+}
+
+.module-list-curriculum-warning-badge {
+    margin-left: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--warning-text, #b45309);
+}
+
 .syllabus-general-notes-input {
     display: block;
     width: 100%;
@@ -5981,6 +6039,30 @@ body[data-active-tab="events"] .app-term-quick-actions {
     position: sticky;
     top: 0;
     z-index: 1;
+}
+
+.books-col-header-editable {
+    min-width: 10rem;
+    vertical-align: bottom;
+}
+
+.books-col-header-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.books-col-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.books-col-header-actions .btn-small {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    line-height: 1.3;
 }
 
 .books-col-num {
@@ -10478,7 +10560,14 @@ body.notes-editor-open.notes-page {
         min-height: var(--touch-min);
     }
 
-    html[data-viewport="phone"] #tabHostBtn-setup {
+    html[data-viewport="phone"] .app-tab-host-row {
+        grid-template-columns: 1fr;
+        width: auto;
+        min-width: 5.5rem;
+    }
+
+    html[data-viewport="phone"] #tabHostBtn-setup,
+    html[data-viewport="phone"] .app-tab-host-btn--slot-hidden {
         display: none !important;
     }
 
@@ -10492,12 +10581,23 @@ body.notes-editor-open.notes-page {
     }
 }
 
-.app-tab-subnav-wrap {
-    max-width: 100%;
-    min-width: 0;
-}
-
 @media (max-width: 900px) {
+    .app-tab-nav-cluster {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .app-tab-nav {
+        --app-tab-nav-min-width: auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .app-tab-subnav-wrap {
+        max-width: 100%;
+        min-width: 0;
+    }
+
     .app-tab-subnav-panel.is-active {
         flex-wrap: nowrap;
         scroll-snap-type: x proximity;

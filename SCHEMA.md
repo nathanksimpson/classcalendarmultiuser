@@ -14,7 +14,8 @@
 | `customSyllabusTemplates` | array | Reusable syllabus templates (units + session row templates); see below |
 | `defaultClassTypeOverrides` | object | Per-id edits to built-in / PDF preset defaults (`preset-rc-yeoul-saemmul`, `builtin-wr-sp`, etc.) |
 | `bookOverrides` | object | Legacy per-book session templates (migrated into `curriculumOverrides` on load) |
-| `curriculumOverrides` | object | Per-book curriculum edits: `sessions`, `classDefaults`, `applicableLevels`, optional `teamDefault` (admin/head-teacher adopted baseline for warnings and reset) |
+| `curriculumOverrides` | object | Per-book curriculum edits: `sessions`, `classDefaults`, `applicableLevels`, optional `syllabusGeneralNotes` (printed in 진도표 Note column unless a class overrides), optional `teamDefault` (admin/head-teacher adopted baseline for warnings and reset) |
+| `curriculumRemovedIds` | string[] | Optional. Admins can hide built-in program books from this calendar’s Curriculum tab (factory presets remain in the app; restore clears this list) |
 
 **Syllabus data (not in saved calendar JSON):** `Reference/Syllabi/schedule-matrix.json` (Junior Rainbow / Senior Waterflow slots), session templates in `js/syllabus-curricula-data.js`. Presets include `programTrack`, `levelGroup`, `level`, `subjectTrack` for schedule suggestions; legacy IDs alias to new preset ids (e.g. `preset-rc-greenblue` → `preset-rc-green-blue`).
 | `ui` | object | `visibilityFilters`, `printVisibility`, `lessonFilters` (optional class/grade/level filters) |
@@ -121,6 +122,7 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `debateBookPeriodsMigrated` | boolean | One-time migration flag from `booksByMonth` |
 | `meetingDays` | number[] | 0=Sun … 6=Sat |
 | `classTypeId` | string | Builtin or custom type |
+| `curriculumId` | string | Optional curriculum book key from the Curriculum tab. `__none__` = no curriculum assigned; `__no_book__` = level-only defaults (no shared session pages); otherwise a book id (e.g. `write-now`, `debate-purple`) or a custom curriculum slug until deleted. |
 | `scheduleModel` | string | `debateMonthly` (weekly + day merges) or `sequentialTerm` (lessons 1…N across term) |
 | `startDate`, `endDate` | string | `YYYY-MM-DD` |
 | `termCalendarMonths` | number | |

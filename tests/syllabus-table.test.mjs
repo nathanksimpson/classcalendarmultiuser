@@ -59,8 +59,9 @@ function assert(cond, msg) {
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-extra-dense'), '28 rows use normal density');
     assert(docHtml.includes('syllabus-a4-sheet'), 'A4 sheet wrapper per class');
     assert(docHtml.includes('<colgroup>'), 'colgroup for column widths');
-    assert(docHtml.includes('width:68%'), 'plan column width');
-    assert(docHtml.includes('width:2.5em'), 'class column width');
+    assert(docHtml.includes('width:68%'), 'jindo plan column width');
+    assert(docHtml.includes('width:6.5%'), 'jindo year/month column width');
+    assert(docHtml.includes('width:3.5em'), 'jindo date column width');
 }
 
 // Week label Mon–Fri
@@ -662,37 +663,7 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(!html.includes('#5:'), 'empty row note omitted');
 }
 
-// Print PDF layout: merged note column, print plan cells
-{
-    const rows = CCPSyllabus.normalizeRows([{
-        kind: 'lesson',
-        date: '2026-03-04',
-        monthKey: '2026-03',
-        weekLabel: 'Mar 2–6',
-        sessionNumber: 1,
-        lessonNumber: 1,
-        planTitle: 'Unit 1 Part 1',
-        planDetail: 'Covered in class: SB p. 8-11\nHomework: Complete pages 3-4 with extra instructions that should be truncated on print',
-        note: 'Quiz next week'
-    }]);
-    const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
-        pdfLayout: true,
-        tableYear: '2026',
-        generalNotes: 'Class policy: on time.',
-        colNote: 'Note'
-    });
-    assert(html.includes('rowspan="1"') && html.includes('syllabus-note-merged'), 'merged note cell');
-    assert(!html.includes('syllabus-general-notes-print'), 'general notes not above table');
-    assert(html.includes('syllabus-print-plan-brief'), '2-line brief wrapper in plan');
-    assert(html.includes('syllabus-print-covered'), 'covered block in plan');
-    assert(html.includes('syllabus-print-homework-full'), 'homework in brief plan');
-    assert(html.includes('Homework:'), 'homework label');
-    assert(html.includes('Class policy'), 'general notes in merged column');
-    assert(html.includes('#1:'), 'row note in merged column');
-    assert(!html.match(/<td class="syllabus-col-note"[^>]*>[^<]*Quiz/s), 'no per-row note cell');
-}
-
-// A4 export: main sheet + continuation with every lesson in full
+// 진도표 PDF layout (jindo): dates, week-of-month, title-only plan, sparse 비고
 {
     const rows = CCPSyllabus.normalizeRows([
         {
@@ -701,7 +672,83 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
             monthKey: '2026-03',
             sessionNumber: 1,
             planTitle: 'Unit 1 Part 1',
-            planDetail: 'Covered in class: SB p. 8-11\nHomework: Complete pages 3-4 with extra long homework instructions for continuation page'
+            planDetail: 'Covered in class: SB p. 8-11\nHomework: Complete pages 3-4',
+            note: 'Use for review, extra class, or adjust the calendar.'
+        },
+        {
+            kind: 'lesson',
+            date: '2026-03-06',
+            monthKey: '2026-03',
+            sessionNumber: 2,
+            planTitle: 'Unit 2 (1/2)',
+            planDetail: 'Homework: WB p. 6-7',
+            note: 'Use for review, extra class, or adjust the calendar.'
+        }
+    ]);
+    const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+        pdfLayout: true,
+        a4Pdf: true,
+        jindoTable: true,
+        useKoreanJindo: true,
+        tableYear: '2026',
+        colDate: '날짜',
+        colPlanJindo: '세부 진도계획',
+        colNote: '비고',
+        colYear: '{year}년',
+        generalNotes: '★ SP : 3/4(수)~5/29(금)'
+    });
+    assert(html.includes('syllabus-table-jindo'), 'jindo table class');
+    assert(html.includes('3/4'), 'date in date column');
+    assert(html.includes('1주'), 'week of month label');
+    assert(html.includes('3월'), 'korean month');
+    assert(html.includes('세부 진도계획'), 'korean plan header');
+    assert(html.includes('날짜'), 'korean date header');
+    assert(html.includes('비고'), 'korean note header');
+    assert(html.includes('Unit 2 (1/2)'), 'short plan title');
+    assert(!html.includes('Homework:'), 'no homework in overview');
+    assert(!html.includes('syllabus-merged-note-item'), 'no per-row note labels');
+    assert(html.includes('★ SP'), 'general notes in note column');
+    assert(html.includes('rowspan="2"') && html.includes('syllabus-note-merged'), 'single merged note cell');
+    assert(html.includes('syllabus-jindo-note'), 'jindo note styling');
+    const tbody = html.split('</thead>')[1] || '';
+    const bodyNoteCells = (tbody.match(/syllabus-col-note/g) || []).length;
+    assert(bodyNoteCells === 1, 'one note cell in tbody');
+}
+
+// Legacy PDF layout (jindo off): merged note column, brief plan cells
+{
+    const rows = CCPSyllabus.normalizeRows([{
+        kind: 'lesson',
+        date: '2026-03-04',
+        monthKey: '2026-03',
+        weekLabel: 'Mar 2–6',
+        sessionNumber: 1,
+        planTitle: 'Unit 1 Part 1',
+        planDetail: 'Covered in class: SB p. 8-11\nHomework: Complete pages 3-4',
+        note: 'Quiz next week'
+    }]);
+    const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+        pdfLayout: true,
+        a4Pdf: false,
+        jindoTable: false,
+        tableYear: '2026',
+        generalNotes: 'Class policy: on time.',
+        colNote: 'Note'
+    });
+    assert(html.includes('syllabus-note-merged'), 'merged note cell when not jindo');
+    assert(html.includes('syllabus-print-plan-brief'), '2-line brief wrapper in plan');
+}
+
+// A4 export: no appendix by default; appendix when opted in
+{
+    const rows = CCPSyllabus.normalizeRows([
+        {
+            kind: 'lesson',
+            date: '2026-03-04',
+            monthKey: '2026-03',
+            sessionNumber: 1,
+            planTitle: 'Unit 1 Part 1',
+            planDetail: 'Covered in class: SB p. 8-11\nHomework: extra long homework for appendix'
         },
         {
             kind: 'lesson',
@@ -709,25 +756,30 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
             monthKey: '2026-03',
             sessionNumber: 2,
             planTitle: 'Unit 1 Part 2',
-            planDetail: 'Covered in class: SB p. 12-15\nHomework: Read chapter 2'
-        },
-        {
-            kind: 'holiday',
-            date: '2026-03-18',
-            monthKey: '2026-03',
-            planTitle: '(3/18) Holiday',
-            planDetail: 'No class'
+            planDetail: 'Homework: Read chapter 2'
         }
     ]);
-    const body = CCPSyllabus.renderSyllabusDocumentBody(
+    const bodyDefault = CCPSyllabus.renderSyllabusDocumentBody(
         { title: 'Test' },
         [{ classData: {}, rows, classTitle: 'Navy 7A' }],
-        { pdfLayout: true, a4Pdf: true, tableYear: '2026' }
+        { pdfLayout: true, a4Pdf: true, jindoTable: true, tableYear: '2026', includeDetailAppendix: false }
     );
-    assert(body.includes('syllabus-a4-continuation-sheet'), 'continuation sheet');
-    assert((body.match(/<article class="syllabus-continuation-item"/g) || []).length === 2, 'two lesson continuation items');
-    assert(body.includes('extra long homework instructions'), 'full homework on continuation');
-    assert(!body.includes('syllabus-print-homework-hint'), 'no old truncated HW hint class');
+    assert(!bodyDefault.includes('syllabus-a4-continuation-sheet'), 'no appendix by default');
+
+    const bodyAppendix = CCPSyllabus.renderSyllabusDocumentBody(
+        { title: 'Test' },
+        [{ classData: {}, rows, classTitle: 'Navy 7A' }],
+        { pdfLayout: true, a4Pdf: true, jindoTable: true, tableYear: '2026', includeDetailAppendix: true }
+    );
+    assert(bodyAppendix.includes('syllabus-a4-continuation-sheet'), 'appendix when enabled');
+    assert(bodyAppendix.includes('extra long homework'), 'full homework on appendix');
+}
+
+// syllabusRowNeedsContinuation
+{
+    const row = { kind: 'lesson', planTitle: 'U1', planDetail: 'Covered in class:\nP.1\nHomework:\nWB p.2' };
+    assert(CCPSyllabus.syllabusRowNeedsContinuation(row), 'homework triggers continuation');
+    assert(!CCPSyllabus.syllabusRowNeedsContinuation({ kind: 'lesson', planTitle: 'U1', planDetail: '' }), 'empty detail');
 }
 
 // Other events: lesson row stays lesson when inline hook does not pass other (reference-only on calendar)
