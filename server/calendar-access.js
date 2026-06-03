@@ -18,11 +18,6 @@ function maxAccessLevel(a, b) {
     return ra >= rb ? normalizeAccessLevel(a) : normalizeAccessLevel(b);
 }
 
-/** @deprecated use Auth.hasPermission(user, 'view_all_calendars') */
-function isAdmin(user) {
-    return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
-}
-
 function canViewAllCalendars(user) {
     return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
 }
@@ -469,7 +464,6 @@ function getCalendarSummaryForUser(user) {
 }
 
 module.exports = {
-    isAdmin,
     canViewAllCalendars,
     canViewCalendars,
     getCalendarCreatedByUserId,

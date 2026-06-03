@@ -278,9 +278,9 @@
             state.holdsLock = json.holdsLock;
         } else if (json && json.lock && json.lock.holderUserId && typeof TeamAuth !== 'undefined' && TeamAuth.getUser()) {
             const me = TeamAuth.getUser();
-            state.holdsLock = json.lock.holderUserId === me.id && !state.readOnly;
+            state.holdsLock = json.lock.holderUserId === me.id;
         } else {
-            state.holdsLock = Boolean(state.lock && !state.readOnly);
+            state.holdsLock = false;
         }
         state.pendingEditRequest = Boolean(json && json.pendingEditRequest);
         if (json && json.lockStaleMinutes != null) {
@@ -398,14 +398,6 @@
 
         setHandlers(h) {
             handlers = Object.assign({}, handlers, h || {});
-        },
-
-        getEditorName() {
-            if (typeof TeamAuth !== 'undefined' && TeamAuth.getUser()) {
-                const u = TeamAuth.getUser();
-                return u.displayName || u.email || 'Teacher';
-            }
-            return 'Teacher';
         },
 
         getActiveCalendarId() {

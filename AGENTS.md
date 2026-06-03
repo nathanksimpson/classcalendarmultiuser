@@ -43,7 +43,7 @@ The repo lives in a **Google Drive for Desktop** folder so the same project file
 
 - **Two PCs editing at once** — can create conflict copies (`app (1).js`). Close the project on one PC while editing on the other when possible.
 - **Do not rely on Drive for `.env`, `data/`, `node_modules/`, `.wrangler/`** — keep `.env` per machine (or secure copy manually); DB and installs are local. These should stay gitignored.
-- **Old path** `f:\Calendar App Multi User` — retired; use the Drive path only.
+- **Old path** `f:\Calendar App Multi User` — retired for new work; use the Drive path as canonical. Some PCs may still have an `f:\` copy from before the move—always `git pull` and compare with GitHub/production, do not assume it matches Drive or deploy.
 
 ## Local preview (required for real data)
 

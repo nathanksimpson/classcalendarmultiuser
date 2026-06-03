@@ -2574,11 +2574,6 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         return blocks.length;
     }
 
-    /** @deprecated use fitSyllabusPagesToA4 */
-    function prepareSyllabusPagesForPdfCapture(doc, a4) {
-        return fitSyllabusPagesToA4(doc, a4);
-    }
-
     function resetAllSyllabusFit(doc) {
         doc.querySelectorAll('.syllabus-a4-page').forEach(pageEl => resetSyllabusPageLayout(pageEl));
     }
@@ -2660,7 +2655,6 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         fitSyllabusPagesToA4,
         fitSyllabusPrintClassBlocks,
         resetAllSyllabusFit,
-        prepareSyllabusPagesForPdfCapture,
         newRowId,
         rowKey
     };

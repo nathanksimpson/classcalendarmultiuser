@@ -394,11 +394,6 @@ ${EARLY_WRITERS_INCOMPLETE_HW}`;
         }));
     }
 
-    /** @deprecated Use buildWriteRightTemplates or buildEarlyWritersTemplates */
-    function buildWrSpEarlyWritersTemplates(bookNum) {
-        return buildEarlyWritersTemplates(bookNum);
-    }
-
     /**
      * The Best Writing Starter 1–3: shared SB ranges; Unit N-1 / N-2 + 2 review days.
      */
@@ -1360,7 +1355,6 @@ ${DEBATE_PREVIEW_BLOCK}`,
         buildWriteRightTemplates,
         buildEarlyWritersTemplates,
         buildBestWritingStarterTemplates,
-        buildWrSpEarlyWritersTemplates,
         buildWriteNowTemplates,
         WRITE_RIGHT_SESSION_COUNT,
         EARLY_WRITERS_WR_SESSION_COUNT,

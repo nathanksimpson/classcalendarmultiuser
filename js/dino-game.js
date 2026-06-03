@@ -69,13 +69,16 @@
         return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
     }
 
-    function getCalendarButton() {
-        return document.getElementById('tabBtn-calendar-teaching');
-    }
+    const CALENDAR_TAB_TRIGGER_IDS = ['tabBtn-calendar-teaching', 'tabBtn-calendar'];
 
     function isCalendarClick(target) {
-        const btn = getCalendarButton();
-        return Boolean(btn && target && btn.contains(target));
+        if (!target) {
+            return false;
+        }
+        return CALENDAR_TAB_TRIGGER_IDS.some((id) => {
+            const btn = document.getElementById(id);
+            return Boolean(btn && btn.contains(target));
+        });
     }
 
     function resetStreak() {

@@ -38,7 +38,7 @@ const translations = {
         syncSaved: 'Saved',
         syncError: 'Save error',
         syncReload: 'Reload latest',
-        syncDismiss: 'Keep editing',
+        syncKeepLocalView: 'Keep my view',
         syncRemoteNewer: 'Someone else saved a newer version.',
         syncBackupNow: 'Backup to Drive',
         syncBackupOk: 'Backup completed.',
@@ -119,8 +119,6 @@ const translations = {
         teamLockLineExpiry: 'Lock expires around {time} if not renewed',
         teamLockForceConfirm: 'Take over editing from {name}? They may lose unsaved work.',
         teamLockForceTakenFlash: 'You took over editing.',
-        teamTakeLock: 'Take over editing',
-        teamReleaseLock: 'Release lock',
         teamReadOnlySave: 'Someone else is editing. Take over the lock to save.',
         teamViewOnlyBrowse: 'View only — browse, open details, print, and copy. Request edit access to change the calendar.',
         teamPermissionViewer: 'View only on this calendar — you cannot edit or request the team lock.',
@@ -699,8 +697,6 @@ const translations = {
         simsonLevelsElementary: 'Elementary',
         simsonLevelsMiddleSchool: 'Middle school',
         defaultBook: 'Default book (fallback)',
-        booksByMonth: 'Books by month',
-        booksByMonthHint: 'One book per calendar month. Leave blank to use the default book.',
         debateBookPeriods: 'Book periods (debate)',
         debateBookPeriodsHint: 'Each row is when a new debate book starts. Lessons from that date through the next period use that book and restart Day 1–4.',
         addBookPeriod: 'Add book period',
@@ -1171,7 +1167,7 @@ const translations = {
         syncSaved: '저장됨',
         syncError: '저장 오류',
         syncReload: '최신 불러오기',
-        syncDismiss: '계속 편집',
+        syncKeepLocalView: '내 화면 유지',
         syncRemoteNewer: '다른 사람이 더 새 버전을 저장했습니다.',
         syncBackupNow: 'Drive에 백업',
         syncBackupOk: '백업 완료.',
@@ -1252,8 +1248,6 @@ const translations = {
         teamLockLineExpiry: '갱신하지 않으면 {time}경 잠금 만료',
         teamLockForceConfirm: '{name}님의 편집을 강제로 인수하시겠습니까? 저장하지 않은 내용이 있을 수 있습니다.',
         teamLockForceTakenFlash: '편집 권한을 인수했습니다.',
-        teamTakeLock: '편집 인수',
-        teamReleaseLock: '잠금 해제',
         teamReadOnlySave: '다른 사람이 편집 중입니다. 저장하려면 잠금을 인수하세요.',
         teamViewOnlyBrowse: '보기 전용 — 둘러보기, 세부 정보, 인쇄, 복사는 가능합니다. 수정하려면 편집 권한을 요청하세요.',
         teamPermissionViewer: '이 캘린더는 보기 전용입니다. 수정하거나 팀 잠금을 요청할 수 없습니다.',
@@ -1800,8 +1794,6 @@ const translations = {
         simsonLevelsElementary: '초등',
         simsonLevelsMiddleSchool: '중등',
         defaultBook: '기본 교재 (대체)',
-        booksByMonth: '월별 교재',
-        booksByMonthHint: '달력 월마다 교재를 지정합니다. 비우면 기본 교재를 사용합니다.',
         debateBookPeriods: '교재 기간 (토론)',
         debateBookPeriodsHint: '새 토론 교재가 시작하는 날짜입니다. 해당 날짜부터 다음 기간 전까지 그 교재와 Day 1–4가 적용됩니다.',
         addBookPeriod: '교재 기간 추가',
@@ -6762,15 +6754,6 @@ function applyVisibilityFiltersToDom() {
     });
 }
 
-function applyPrintVisibilityToDom() {
-    ensureUiState();
-    const f = appData.ui.printVisibility;
-    VISIBILITY_FILTER_FIELDS.forEach(({ key, printId }) => {
-        const el = document.getElementById(printId);
-        if (el) el.checked = f[key] !== false;
-    });
-}
-
 function pruneLessonFiltersToScheduledOptions() {
     ensureUiState();
     const groups = getLessonFilterOptionGroups();
@@ -10888,12 +10871,12 @@ function collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule, su
 
 function collectDebateBookPeriodsFromForm() {
     const periods = [];
-    if (!elements.booksByMonthRows) {
+    if (!elements.debateBookPeriodRows) {
         return periods;
     }
-    elements.booksByMonthRows.querySelectorAll('.book-month-row').forEach(row => {
+    elements.debateBookPeriodRows.querySelectorAll('.debate-book-period-row').forEach(row => {
         const dateIn = row.querySelector('input.book-period-start');
-        const bookIn = row.querySelector('input.book-month-title');
+        const bookIn = row.querySelector('input.debate-book-period-title');
         const idIn = row.querySelector('input.book-period-id');
         if (!dateIn || !bookIn) {
             return;
@@ -10937,17 +10920,17 @@ function addBookPeriodRow(period) {
     const title = (period && period.book) || '';
     const periodId = (period && period.id) || '';
     const row = document.createElement('div');
-    row.className = 'book-month-row';
+    row.className = 'debate-book-period-row';
     row.innerHTML = `
         <input type="hidden" class="book-period-id" value="${escapeAttr(periodId)}">
         <input type="date" class="book-period-start" value="${escapeAttr(startDate)}">
-        <input type="text" class="book-month-title" placeholder="" value="${escapeAttr(title)}">
-        <button type="button" class="btn btn-outline btn-small book-month-remove">${t('delete')}</button>
+        <input type="text" class="debate-book-period-title" placeholder="" value="${escapeAttr(title)}">
+        <button type="button" class="btn btn-outline btn-small debate-book-period-remove">${t('delete')}</button>
     `;
-    row.querySelector('.book-month-title').placeholder = t('bookPlaceholder');
-    row.querySelector('.book-month-remove').addEventListener('click', () => {
+    row.querySelector('.debate-book-period-title').placeholder = t('bookPlaceholder');
+    row.querySelector('.debate-book-period-remove').addEventListener('click', () => {
         row.remove();
-        if (!elements.booksByMonthRows.querySelector('.book-month-row')) {
+        if (!elements.debateBookPeriodRows.querySelector('.debate-book-period-row')) {
             addBookPeriodRow(null);
         }
         syncCompressionSectionsForMode();
@@ -10955,7 +10938,7 @@ function addBookPeriodRow(period) {
     row.querySelector('.book-period-start').addEventListener('change', () => {
         syncCompressionSectionsForMode();
     });
-    elements.booksByMonthRows.appendChild(row);
+    elements.debateBookPeriodRows.appendChild(row);
 }
 
 function addBookMonthRow(monthKey, title) {
@@ -10964,7 +10947,7 @@ function addBookMonthRow(monthKey, title) {
 }
 
 function renderDebateBookPeriodRows(periods) {
-    elements.booksByMonthRows.innerHTML = '';
+    elements.debateBookPeriodRows.innerHTML = '';
     const list = Array.isArray(periods) ? periods : [];
     if (list.length === 0) {
         addBookPeriodRow(null);
@@ -10997,7 +10980,7 @@ function fillBooksFromTermDefaultBook() {
     if (!start || !end) {
         return;
     }
-    elements.booksByMonthRows.innerHTML = '';
+    elements.debateBookPeriodRows.innerHTML = '';
     const debateApi = getCCPDebatePeriods();
     const suggested = debateApi
         ? debateApi.suggestPeriodsFromCalendarMonths(start, end, defaultBook)
@@ -11107,8 +11090,6 @@ const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
 const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS];
 const APP_SETUP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
 const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
-/** @deprecated alias — teaching leaf tabs (setup banner, etc.) */
-const APP_OPERATIONS_TAB_IDS = APP_TEACHING_TAB_IDS;
 
 function getHostForTab(tabId) {
     if (APP_SETUP_ONLY_TAB_IDS.includes(tabId)) {
@@ -11349,7 +11330,7 @@ function refreshMountedFormElementRefs() {
     elements.classLevelCustom = document.getElementById('classLevelCustom');
     elements.classGrade = document.getElementById('classGrade');
     elements.classBook = document.getElementById('classBook');
-    elements.booksByMonthRows = document.getElementById('booksByMonthRows');
+    elements.debateBookPeriodRows = document.getElementById('debateBookPeriodRows');
     elements.addBookMonthRowBtn = document.getElementById('addBookMonthRowBtn');
     elements.fillBooksFromDefaultBtn = document.getElementById('fillBooksFromDefaultBtn');
     elements.syllabusUnitsRows = document.getElementById('syllabusUnitsRows');
@@ -17094,7 +17075,7 @@ const elements = {
     classLevelCustom: document.getElementById('classLevelCustom'),
     classGrade: document.getElementById('classGrade'),
     classBook: document.getElementById('classBook'),
-    booksByMonthRows: document.getElementById('booksByMonthRows'),
+    debateBookPeriodRows: document.getElementById('debateBookPeriodRows'),
     addBookMonthRowBtn: document.getElementById('addBookMonthRowBtn'),
     fillBooksFromDefaultBtn: document.getElementById('fillBooksFromDefaultBtn'),
     syllabusUnitsRows: document.getElementById('syllabusUnitsRows'),
@@ -24563,6 +24544,90 @@ function applyTeamViewOnlyEditingState(viewOnly) {
     }
 }
 
+/**
+ * Collaborative lock UI mode from lockState or CalendarSync.state.
+ * @returns {{ mode: string, summaryText: string, actionLabel: string, lockBtnDisabled: boolean }}
+ */
+function getTeamLockInteractionState(lockState) {
+    const permissionReadOnly = Boolean(
+        lockState && lockState.permissionReadOnly != null
+            ? lockState.permissionReadOnly
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state
+              ? CalendarSync.state.permissionReadOnly ||
+                    CalendarSync.state.canEdit === false
+              : false
+    );
+    const accessLevel =
+        (lockState && lockState.accessLevel) ||
+        (typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.accessLevel) ||
+        'editor';
+    const readOnly = Boolean(lockState && lockState.readOnly) || permissionReadOnly;
+    const lock = (lockState && lockState.lock) || (typeof CalendarSync !== 'undefined' ? CalendarSync.state.lock : null);
+    const holdsLock = Boolean(
+        lockState && lockState.holdsLock != null
+            ? lockState.holdsLock
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state.holdsLock
+    );
+    const pendingEditRequest = Boolean(
+        lockState && lockState.pendingEditRequest != null
+            ? lockState.pendingEditRequest
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state.pendingEditRequest
+    );
+    const pending = holdsLock && lock && lock.pendingRequester;
+
+    let mode = 'free';
+    let summaryText = t('teamLockStatusFree');
+    let actionLabel = t('teamLockActionAcquire');
+    let lockBtnDisabled = false;
+
+    if (permissionReadOnly) {
+        mode = 'blocked';
+        summaryText =
+            accessLevel === 'suggester' ? t('teamPermissionSuggester') : t('teamPermissionViewer');
+        actionLabel = summaryText;
+        lockBtnDisabled = true;
+    } else if (pendingEditRequest && readOnly && lock) {
+        mode = 'waiting';
+        summaryText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
+        actionLabel = t('teamLockActionWaiting');
+        lockBtnDisabled = true;
+    } else if (readOnly && lock) {
+        mode = 'blocked';
+        summaryText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
+        actionLabel = t('teamLockActionRequest');
+    } else if (holdsLock) {
+        if (pending) {
+            mode = 'pending';
+            summaryText = t('teamLockStatusPending').replace('{name}', formatLockParty(pending));
+            actionLabel = t('teamLockActionRelease');
+            lockBtnDisabled = true;
+        } else {
+            mode = 'held';
+            summaryText = t('teamLockStatusHeld');
+            actionLabel = t('teamLockActionRelease');
+        }
+    }
+
+    return { mode, summaryText, actionLabel, lockBtnDisabled };
+}
+
+function applyTeamLockButtonChrome(btn, lockState) {
+    if (!btn) {
+        return;
+    }
+    const { mode, summaryText, actionLabel, lockBtnDisabled } = getTeamLockInteractionState(lockState);
+    btn.title = actionLabel;
+    btn.setAttribute('aria-label', summaryText + '. ' + actionLabel);
+    btn.disabled = lockBtnDisabled;
+    const iconOpen = btn.querySelector('.team-lock-icon--open');
+    const iconClosed = btn.querySelector('.team-lock-icon--closed');
+    if (iconOpen && iconClosed) {
+        const showOpen = mode === 'free';
+        iconOpen.hidden = !showOpen;
+        iconClosed.hidden = showOpen;
+    }
+}
+
 function updateTeamLockRoster(lockState) {
     const lineEditing = document.getElementById('teamLockLineEditing');
     const lineWants = document.getElementById('teamLockLineWants');
@@ -24667,8 +24732,6 @@ function applyTeamLockAccessState(lockState) {
     const pendingActions = document.getElementById('teamLockPendingActions');
     const allowBtn = document.getElementById('teamLockAllowBtn');
     const dismissBtn = document.getElementById('teamLockDismissBtn');
-    const iconOpen = statusBar && statusBar.querySelector('.team-lock-icon--open');
-    const iconClosed = statusBar && statusBar.querySelector('.team-lock-icon--closed');
 
     if (main) {
         main.classList.toggle('app-main--team-readonly', readOnly);
@@ -24692,7 +24755,20 @@ function applyTeamLockAccessState(lockState) {
         return;
     }
 
-    if (!statusBar || !btn) {
+    const { mode, summaryText, actionLabel, lockBtnDisabled } = getTeamLockInteractionState(lockState);
+
+    if (!statusBar) {
+        if (btn) {
+            applyTeamLockButtonChrome(btn, lockState);
+        }
+        applyTeamViewOnlyEditingState(readOnly);
+        updateDataTabCalendarSection();
+        updateTeamLockRoster(lockState);
+        notifyLockStateChange(lockState);
+        return;
+    }
+
+    if (!btn) {
         applyTeamViewOnlyEditingState(readOnly);
         updateDataTabCalendarSection();
         notifyLockStateChange(lockState);
@@ -24707,42 +24783,8 @@ function applyTeamLockAccessState(lockState) {
         'team-lock-status--waiting'
     );
 
-    const pending = holdsLock && lock && lock.pendingRequester;
-    let mode = 'free';
-    let summaryText = t('teamLockStatusFree');
-    let actionLabel = t('teamLockActionAcquire');
-    let lockBtnDisabled = false;
-
-    if (permissionReadOnly) {
-        mode = 'blocked';
-        summaryText =
-            accessLevel === 'suggester' ? t('teamPermissionSuggester') : t('teamPermissionViewer');
-        actionLabel = summaryText;
-        lockBtnDisabled = true;
-    } else if (pendingEditRequest && readOnly && lock) {
-        mode = 'waiting';
-        summaryText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
-        actionLabel = t('teamLockActionWaiting');
-        lockBtnDisabled = true;
-    } else if (readOnly && lock) {
-        mode = 'blocked';
-        summaryText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
-        actionLabel = t('teamLockActionRequest');
-    } else if (holdsLock) {
-        if (pending) {
-            mode = 'pending';
-            summaryText = t('teamLockStatusPending').replace('{name}', formatLockParty(pending));
-        } else {
-            mode = 'held';
-            summaryText = t('teamLockStatusHeld');
-        }
-        actionLabel = t('teamLockActionRelease');
-    }
-
     statusBar.classList.add('team-lock-status--' + mode);
-    btn.title = actionLabel;
-    btn.setAttribute('aria-label', summaryText + '. ' + actionLabel);
-    btn.disabled = lockBtnDisabled;
+    applyTeamLockButtonChrome(btn, lockState);
 
     if (allowBtn) {
         allowBtn.textContent = t('teamLockAllow');
@@ -24752,12 +24794,6 @@ function applyTeamLockAccessState(lockState) {
     }
     if (pendingActions) {
         pendingActions.hidden = mode !== 'pending';
-    }
-
-    if (iconOpen && iconClosed) {
-        const showOpen = mode === 'free';
-        iconOpen.hidden = !showOpen;
-        iconClosed.hidden = showOpen;
     }
 
     updateTeamLockRoster(lockState);
@@ -24827,19 +24863,9 @@ function setupTeamLockButtons() {
             return;
         }
 
-        const statusBar = document.getElementById('teamLockStatus');
-        const mode = statusBar
-            ? statusBar.classList.contains('team-lock-status--waiting')
-                ? 'waiting'
-                : statusBar.classList.contains('team-lock-status--held') ||
-                    statusBar.classList.contains('team-lock-status--pending')
-                  ? 'held'
-                  : statusBar.classList.contains('team-lock-status--blocked')
-                    ? 'blocked'
-                    : 'free'
-            : 'free';
+        const { mode } = getTeamLockInteractionState();
 
-        if (mode === 'waiting') {
+        if (mode === 'waiting' || mode === 'pending') {
             return;
         }
 
@@ -24914,10 +24940,8 @@ function setupTeamLockButtons() {
                       : t('teamLockRequestFailed');
             showLockFlash(msg, true);
         } finally {
-            const statusBarAfter = document.getElementById('teamLockStatus');
-            const stillWaiting =
-                statusBarAfter && statusBarAfter.classList.contains('team-lock-status--waiting');
-            btn.disabled = stillWaiting;
+            const after = getTeamLockInteractionState();
+            btn.disabled = after.lockBtnDisabled;
         }
     });
 }

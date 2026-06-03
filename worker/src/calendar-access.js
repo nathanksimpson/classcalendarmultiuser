@@ -17,10 +17,6 @@ function maxAccessLevel(a, b) {
     return ra >= rb ? normalizeAccessLevel(a) : normalizeAccessLevel(b);
 }
 
-export function isAdmin(user) {
-    return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
-}
-
 export function canViewAllCalendars(user) {
     return Auth.hasPermission(user, Auth.PERMS.VIEW_ALL_CALENDARS);
 }

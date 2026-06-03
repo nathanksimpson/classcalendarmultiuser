@@ -234,24 +234,6 @@ function requireAnyPermission(perms) {
     };
 }
 
-/** @deprecated use requireAdminUser (includes canAccessAdminPage) */
-function requireAdminPage(req, res, next) {
-    if (!req.user || !Auth.canAccessAdminPage(req.user)) {
-        res.status(403).json({ error: 'Admin access required' });
-        return;
-    }
-    next();
-}
-
-/** @deprecated use requirePermission */
-function requireAdmin(req, res, next) {
-    if (!req.user || !Auth.hasPermission(req.user, Auth.PERMS.MANAGE_USERS)) {
-        res.status(403).json({ error: 'Admin only' });
-        return;
-    }
-    next();
-}
-
 function kakaoRedirectUri(req) {
     if (process.env.KAKAO_REDIRECT_URI) {
         return process.env.KAKAO_REDIRECT_URI.replace(/\/$/, '');
