@@ -5147,11 +5147,13 @@ body[data-active-tab="events"] .app-term-quick-actions {
     color: var(--color-warning-text, #b45309);
 }
 
-.syllabus-editor-panel .syllabus-editor-shell:not([hidden]) ~ .module-empty-hint {
+#panel-syllabus .syllabus-tab-editor-mount .syllabus-editor-shell:not([hidden]) ~ .module-empty-hint,
+.syllabus-tab-editor-mount .syllabus-editor-shell:not([hidden]) ~ .module-empty-hint {
     display: none;
 }
 
 /* Syllabus tab */
+.syllabus-tab-sidebar,
 .syllabus-list-panel {
     display: flex;
     flex-direction: column;
@@ -5677,46 +5679,25 @@ body[data-active-tab="events"] .app-term-quick-actions {
     width: 100%;
 }
 
-.syllabus-editor-panel {
-    position: sticky;
-    top: var(--app-chrome-sticky-top);
-    align-self: start;
+.syllabus-editor-panel.books-editor-fullpage {
     display: flex;
     flex-direction: column;
+    gap: 0;
     flex: 1;
-    min-width: 0;
     min-height: 0;
-    max-height: calc(100vh - var(--app-chrome-sticky-top) - 48px);
     overflow: hidden;
+    color: var(--text-primary);
 }
 
-.syllabus-editor-shell {
+#panel-syllabus .syllabus-tab-editor-mount .syllabus-editor-shell {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    background: transparent;
+    border: none;
+    border-radius: 0;
     overflow: hidden;
-}
-
-.syllabus-editor-header {
-    position: sticky;
-    top: 0;
-    z-index: 12;
-    flex-shrink: 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-    background: color-mix(in srgb, var(--bg-card) 96%, transparent);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
 .syllabus-editor-title {
@@ -5738,6 +5719,13 @@ body[data-active-tab="events"] .app-term-quick-actions {
     margin: 4px 0 0;
 }
 
+.syllabus-editor-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
 .syllabus-editor-header-actions {
     display: flex;
     flex-wrap: wrap;
@@ -5751,38 +5739,25 @@ body[data-active-tab="events"] .app-term-quick-actions {
     max-width: 200px;
 }
 
-.syllabus-layout.module-split-layout {
-    grid-template-columns: minmax(168px, 220px) minmax(0, 1fr);
-    gap: 20px;
-    align-items: stretch;
-    min-height: calc(100vh - var(--app-chrome-sticky-top) - 48px);
-}
-
-.syllabus-layout .module-list-panel {
-    max-height: calc(100vh - var(--app-chrome-sticky-top) - 32px);
-}
-
 .syllabus-form-mount {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 20px 24px 28px;
     font-size: 1rem;
 }
 
-@media (max-width: 520px) {
-    .syllabus-editor-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
+#panel-syllabus .syllabus-list-section:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 0.35rem;
+}
 
-    .syllabus-editor-header-actions {
+@media (max-width: 520px) {
+    #panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar {
         justify-content: stretch;
     }
 
-    .syllabus-editor-header-actions .btn,
-    .syllabus-editor-header-actions .syllabus-apply-select {
+    #panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar .btn,
+    #panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar .syllabus-apply-select {
         flex: 1 1 auto;
         min-width: 0;
     }
@@ -6270,7 +6245,9 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 .curriculum-tab-layout,
-.curriculum-tab-intro {
+.curriculum-tab-intro,
+.syllabus-tab-layout,
+.syllabus-tab-intro {
     margin-bottom: 0.75rem;
 }
 
@@ -6413,10 +6390,126 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 #panel-curriculum .workspace-books-list,
+#panel-syllabus .workspace-books-list,
 .workspace-books-sidebar .workspace-books-list {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+}
+
+/* Syllabus tab — mirror curriculum split + editor chrome */
+#panel-syllabus .syllabus-tab-layout.workspace-books-layout {
+    display: flex;
+    align-items: stretch;
+    min-height: min(65vh, 640px);
+}
+
+#panel-syllabus .syllabus-tab-editor-mount,
+#panel-syllabus .syllabus-tab-sidebar.workspace-books-sidebar {
+    color: var(--text-primary);
+}
+
+#panel-syllabus .syllabus-tab-editor-mount.workspace-books-editor-mount {
+    position: sticky;
+    top: var(--app-chrome-sticky-top);
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    max-height: calc(100vh - var(--app-chrome-sticky-top) - 48px);
+    overflow: hidden;
+}
+
+#panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    flex-shrink: 0;
+    margin: 0 -1rem;
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    border-top: none;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+#panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 0.75rem;
+}
+
+#panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar .btn-primary {
+    margin-left: auto;
+}
+
+@media (max-width: 520px) {
+    #panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar .btn-primary {
+        margin-left: 0;
+    }
+}
+
+#panel-syllabus .syllabus-tab-sidebar.workspace-books-sidebar {
+    display: flex;
+    flex-direction: column;
+    padding: 0.35rem;
+    gap: 0.35rem;
+}
+
+#panel-syllabus .syllabus-tab-sidebar-toolbar .btn {
+    width: 100%;
+}
+
+#panel-syllabus .syllabus-editor-title-row .syllabus-editor-title {
+    margin: 0;
+    font-size: 1.125rem;
+}
+
+.workspace-books-list .module-list-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.workspace-books-list .module-list-item-meta {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.workspace-books-list .module-list-item:hover {
+    background: var(--surface-muted);
+}
+
+.workspace-books-list .module-list-item.is-selected {
+    background: var(--accent-muted);
+}
+
+.workspace-books-list .module-list-item > span:first-child {
+    font-weight: 600;
+    font-size: 0.9rem;
 }
 
 .workspace-book-list-item.is-custom .workspace-book-list-title::after {
@@ -8588,6 +8681,7 @@ body.workspace-page #appStatus {
     display: none !important;
 }
 
+.syllabus-editor-actions-bar.editor-header-actions,
 .syllabus-editor-header-actions.editor-header-actions {
     flex-wrap: wrap;
 }
@@ -9160,6 +9254,30 @@ html:not([data-theme="dark"]) .timetable-cell-entry--colored {
 
 .class-teacher-section .form-section-title {
     margin-bottom: var(--space-2);
+}
+
+.class-form-section {
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.class-form-section:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.class-form-section .form-section-title {
+    margin-bottom: var(--space-3);
+}
+
+.class-form-section .form-section-advanced {
+    margin-top: var(--space-3);
+}
+
+.class-form-section-syllabus .class-syllabus-summary {
+    margin-top: 0;
 }
 
 .timetable-cell--cohort {

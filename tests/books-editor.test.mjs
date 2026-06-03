@@ -364,7 +364,11 @@ CCPBooksEditor.init({
 });
 CCPBooksEditor.resetBookToFactory('write-now', teacherResetData);
 const afterTeacherReset = CCPBooksEditor.getTemplatesForBookId('write-now', teacherResetData);
-assert(afterTeacherReset.length === 20, 'teacher reset restores shipped factory session count');
+assert(afterTeacherReset.length === 22, 'teacher reset uses team default when personal sessions cleared');
+assert(
+    afterTeacherReset[0].planDetail.includes('TEAM-1'),
+    'team default pages shown after reset, not shipped factory'
+);
 assert(
     teacherResetData.curriculumOverrides['write-now'].teamDefault.sessions.length === 22,
     'teacher reset keeps teamDefault on calendar'
@@ -547,6 +551,46 @@ assert(colTbody.querySelectorAll('tr')[1].querySelector('.books-ed-note').value 
 assert(
     CCPBooksEditor.getSessionColumnSelector('planTitle') === '.books-ed-title',
     'getSessionColumnSelector maps planTitle'
+);
+
+const staleLegacyApp = {
+    bookOverrides: {
+        'write-now': {
+            defaultSyllabusRowTemplates: [
+                { sessionNumber: 1, planTitle: 'Unit 1 Part 1', planDetail: 'STALE-LEGACY-PAGES' }
+            ]
+        }
+    },
+    curriculumOverrides: {
+        'write-now': { classDefaults: { defaultTotalLessons: 20 } }
+    }
+};
+const afterStaleLegacyFix = CCPBooksEditor.getTemplatesForBookId('write-now', staleLegacyApp);
+assert(
+    !afterStaleLegacyFix[0].planDetail.includes('STALE-LEGACY'),
+    'meta-only curriculum record uses factory sessions, not stale legacy bookOverrides'
+);
+assert(
+    afterStaleLegacyFix[0].planDetail.includes('P.8-11') || afterStaleLegacyFix[0].planDetail.includes('p.8-11'),
+    'factory pages returned when legacy would have been stale'
+);
+
+const teamOnlyApp = {
+    bookOverrides: {},
+    curriculumOverrides: {
+        'write-now': {
+            teamDefault: {
+                sessions: [
+                    { sessionNumber: 1, planTitle: 'Unit 1 Part 1', planDetail: 'TEAM-DEFAULT-PAGES-XYZ' }
+                ]
+            }
+        }
+    }
+};
+const teamOnlyTpl = CCPBooksEditor.getTemplatesForBookId('write-now', teamOnlyApp);
+assert(
+    teamOnlyTpl[0].planDetail.includes('TEAM-DEFAULT-PAGES-XYZ'),
+    'teamDefault sessions used when personal sessions are absent'
 );
 
 console.log('books-editor.test.mjs: all passed');

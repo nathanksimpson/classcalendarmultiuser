@@ -11,10 +11,10 @@
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260603-col-bulk',
+        'js/books-editor.js?v=20260603-curriculum-source-fix',
         'js/homework-import.js',
         'js/homework-tab.js?v=20260531-hw-seq',
-        'js/syllabus-templates.js?v=20260603-force-apply'
+        'js/syllabus-templates.js?v=20260603-curriculum-notes'
     ];
 
     let extensionPromise = null;

@@ -596,11 +596,11 @@ const translations = {
         syllabusUnitSpeakingPages: 'Speaking pages',
         syllabusUnitWritingPages: 'Writing pages',
         syllabusTable: 'Syllabus table',
-        syllabusTableHint: 'Edit your full lesson table here. Printed 진도표 shows session titles only — Pages/detail and per-row Note stay in this table (and on the Homework tab) for copy-paste. Choose meeting days first; Refresh from calendar places sessions on class days. Refresh from curriculum updates plan and pages from the Curriculum tab book.',
+        syllabusTableHint: 'Edit your full lesson table here. Printed 진도표 shows session titles only — Pages/detail and per-row Note stay in this table (and on the Homework tab) for copy-paste. Choose meeting days first. Use Refresh from calendar / Refresh from curriculum in the editor header (not duplicated below).',
         syllabusTableEmptyHint: 'No rows yet. Click Refresh from calendar to generate rows from your lesson schedule.',
         refreshSyllabusFromCalendar: 'Refresh from calendar',
         refreshSyllabusFromCurriculum: 'Refresh from curriculum',
-        refreshSyllabusFromCurriculumConfirm: 'Update lesson plan titles and pages from the curriculum book? Matching rows will be overwritten.',
+        refreshSyllabusFromCurriculumConfirm: 'Update lesson plan, pages/detail, row notes, and general notes from the curriculum book? Matching rows will be overwritten.',
         refreshSyllabusFromCurriculumNoTemplates: 'No curriculum sessions found for this class. Pick a book on the class form or edit sessions on the Curriculum tab.',
         refreshSyllabusFromCurriculumDone: 'Syllabus updated from curriculum ({n} rows).',
         refreshSyllabusFromCurriculumNone: 'No matching lesson rows. Refresh from calendar first, then try again.',
@@ -760,6 +760,15 @@ const translations = {
         saveClass: 'Save Class',
         classSaved: 'Class saved.',
         classTeacherSection: 'Teacher & cohort',
+        classFormSectionBasics: 'Basics',
+        classFormSectionSchedule: 'Schedule',
+        classFormSectionProgram: 'Program & curriculum',
+        classFormSectionSyllabus: 'Syllabus',
+        classFormSectionSyllabusHint: 'Lesson dates and pages live on the Syllabus tab. Link a curriculum book above, then edit the dated table there.',
+        classFormSectionAppearance: 'Appearance',
+        classFormSectionBooks: 'Books & materials',
+        classFormSectionAdvanced: 'Advanced scheduling',
+        classFormSectionNotes: 'Notes',
         classAssignedTeacher: 'Assigned teacher',
         classAssignedTeacherNone: '— Not assigned —',
         classAssignedTeacherCustom: 'Other (type name below)',
@@ -927,6 +936,7 @@ const translations = {
         homeworkTabOpenSyllabus: 'Edit syllabus',
         openSyllabusTab: 'Edit syllabus',
         classTabOpenSyllabus: 'Edit syllabus',
+        syllabusTabIntro: 'Edit each class syllabus: lesson table, pages, and notes. Pick a class or a custom template in the list. Refresh from calendar or curriculum using the buttons at the top of the editor.',
         syllabusTabEditorEmpty: 'Select a class or a custom syllabus template.',
         syllabusSegmentClasses: 'Classes',
         syllabusSegmentTemplates: 'My syllabi',
@@ -1687,11 +1697,11 @@ const translations = {
         syllabusUnitSpeakingPages: '스피킹 교재 페이지',
         syllabusUnitWritingPages: '라이팅 교재 페이지',
         syllabusTable: '강의 계획표',
-        syllabusTableHint: '전체 수업 표를 여기서 편집합니다. 인쇄 진도표에는 수업 제목만 나옵니다. 교재/상세·행별 비고는 이 표(및 숙제 탭)에만 두고 복사용으로 사용하세요. 캘린더에서 새로고침은 수업 요일에 맞춰 배치하고, 교재과정에서 새로고침은 교재과정 탭의 계획·페이지를 가져옵니다.',
+        syllabusTableHint: '전체 수업 표를 여기서 편집합니다. 인쇄 진도표에는 수업 제목만 나옵니다. 교재/상세·행별 비고는 이 표(및 숙제 탭)에만 두고 복사용으로 사용하세요. 캘린더·교재과정 새로고침은 아래가 아니라 편집기 상단 버튼을 사용하세요.',
         syllabusTableEmptyHint: '아직 행이 없습니다. 캘린더에서 새로고침을 눌러 수업 일정에서 행을 만드세요.',
         refreshSyllabusFromCalendar: '캘린더에서 새로고침',
         refreshSyllabusFromCurriculum: '교재과정에서 새로고침',
-        refreshSyllabusFromCurriculumConfirm: '교재과정 교재의 수업 계획·페이지로 표를 업데이트할까요? 일치하는 행의 내용이 덮어씌워집니다.',
+        refreshSyllabusFromCurriculumConfirm: '교재과정 교재의 수업 계획·페이지·행 비고·일반 메모로 표를 업데이트할까요? 일치하는 행의 내용이 덮어씌워집니다.',
         refreshSyllabusFromCurriculumNoTemplates: '이 수업에 맞는 교재과정 회차가 없습니다. 수업에서 교재를 선택하거나 교재과정 탭에서 회차를 추가하세요.',
         refreshSyllabusFromCurriculumDone: '교재과정에서 강의 계획표를 업데이트했습니다 ({n}행).',
         refreshSyllabusFromCurriculumNone: '일치하는 수업 행이 없습니다. 먼저 캘린더에서 새로고침한 뒤 다시 시도하세요.',
@@ -1851,6 +1861,15 @@ const translations = {
         saveClass: '수업 저장',
         classSaved: '수업을 저장했습니다.',
         classTeacherSection: '선생님 및 반',
+        classFormSectionBasics: '기본 정보',
+        classFormSectionSchedule: '일정',
+        classFormSectionProgram: '프로그램 및 교재',
+        classFormSectionSyllabus: '강의 계획',
+        classFormSectionSyllabusHint: '수업 날짜와 페이지는 강의 계획 탭에 있습니다. 위에서 교재를 연결한 뒤 날짜별 표를 편집하세요.',
+        classFormSectionAppearance: '표시',
+        classFormSectionBooks: '교재 및 자료',
+        classFormSectionAdvanced: '고급 일정',
+        classFormSectionNotes: '메모',
         classAssignedTeacher: '담당 선생님',
         classAssignedTeacherNone: '— 미배정 —',
         classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
@@ -2017,6 +2036,7 @@ const translations = {
         homeworkTabOpenSyllabus: '강의 계획표 편집',
         openSyllabusTab: '강의 계획표 편집',
         classTabOpenSyllabus: '강의 계획표 편집',
+        syllabusTabIntro: '수업별 강의 계획표(수업 표, 페이지, 비고)를 편집합니다. 목록에서 수업 또는 사용자 템플릿을 선택하세요. 캘린더·교재과정 새로고침은 편집기 상단 버튼을 사용하세요.',
         syllabusTabEditorEmpty: '수업 또는 사용자 강의 계획표 템플릿을 선택하세요.',
         syllabusSegmentClasses: '수업',
         syllabusSegmentTemplates: '내 강의 계획표',
@@ -3949,6 +3969,9 @@ function handleApplyCurriculumToClass() {
     if (elements.classTypeSelect) {
         elements.classTypeSelect.value = link.classTypeId;
     }
+    if (isEdit) {
+        persistCurriculumLinkToSavedClass(elements.classId.value, link);
+    }
     const noBook = editor.isNoBookCurriculum(curriculumId);
     const label = noBook
         ? (getSimsonLevelById(level)?.name || level)
@@ -3963,11 +3986,20 @@ function handleApplyCurriculumToClass() {
             draft.id = classId;
             draft.syllabusRows = saved.syllabusRows;
             if (confirm(t('applyCurriculumSyllabusConfirm'))) {
-                pushCurriculumToClassSyllabus(draft, {
+                const pushResult = pushCurriculumToClassSyllabus(draft, {
                     skipConfirm: true,
                     force: true,
                     confirmMessage: t('applyCurriculumSyllabusConfirm')
                 });
+                if (pushResult.ok && pushResult.rows && elements.syllabusTableBody
+                    && elements.classId && elements.classId.value === classId) {
+                    renderSyllabusEditorTable(pushResult.rows);
+                    updateClassSyllabusSummary(appData.classes.find((c) => c.id === classId));
+                    const savedAfter = appData.classes.find((c) => c.id === classId);
+                    if (savedAfter && savedAfter.syllabusGeneralNotes != null) {
+                        setSyllabusGeneralNotesInForm(savedAfter.syllabusGeneralNotes);
+                    }
+                }
             }
         }
     }
@@ -11464,8 +11496,10 @@ function syncSyllabusEditorChrome() {
     const saveAsBtn = document.getElementById('syllabusSaveAsTemplateBtn');
     const delTplBtn = document.getElementById('syllabusDeleteTemplateBtn');
     const refreshHeaderBtn = document.getElementById('syllabusRefreshHeaderBtn');
+    const refreshCurriculumHeaderBtn = document.getElementById('syllabusRefreshCurriculumHeaderBtn');
     const printHeaderBtn = document.getElementById('syllabusPrintHeaderBtn');
     const refreshBtn = elements.refreshSyllabusBtn;
+    const refreshCurriculumBtn = elements.refreshSyllabusFromCurriculumBtn;
     const blankBtn = elements.startBlankSyllabusBtn;
 
     if (titleEl) {
@@ -11557,11 +11591,17 @@ function syncSyllabusEditorChrome() {
     if (refreshHeaderBtn) {
         refreshHeaderBtn.hidden = !hasClass;
     }
+    if (refreshCurriculumHeaderBtn) {
+        refreshCurriculumHeaderBtn.hidden = !hasClass;
+    }
     if (printHeaderBtn) {
         printHeaderBtn.hidden = !hasClass;
     }
     if (refreshBtn) {
-        refreshBtn.hidden = hasTemplate;
+        refreshBtn.hidden = hasTemplate || hasClass;
+    }
+    if (refreshCurriculumBtn) {
+        refreshCurriculumBtn.hidden = hasClass;
     }
     if (blankBtn) {
         blankBtn.hidden = hasTemplate;
@@ -11782,6 +11822,7 @@ function renderSyllabusTemplateList() {
 function syncSyllabusListSegmentUi() {
     const classSec = document.getElementById('syllabusClassListSection');
     const tplSec = document.getElementById('syllabusTemplateListSection');
+    const tplToolbar = document.getElementById('syllabusTabTemplateToolbar');
     const btnClass = document.getElementById('syllabusSegmentClasses');
     const btnTpl = document.getElementById('syllabusSegmentTemplates');
     const isClass = syllabusListSegment === 'classes';
@@ -11790,6 +11831,9 @@ function syncSyllabusListSegmentUi() {
     }
     if (tplSec) {
         tplSec.hidden = isClass;
+    }
+    if (tplToolbar) {
+        tplToolbar.hidden = isClass;
     }
     if (btnClass) {
         btnClass.classList.toggle('is-active', isClass);
@@ -17900,21 +17944,14 @@ function setupEventListeners() {
     }
 
     const syllabusRefreshHeaderBtn = document.getElementById('syllabusRefreshHeaderBtn');
-    if (syllabusRefreshHeaderBtn && elements.refreshSyllabusBtn && !syllabusRefreshHeaderBtn.dataset.bound) {
+    if (syllabusRefreshHeaderBtn && !syllabusRefreshHeaderBtn.dataset.bound) {
         syllabusRefreshHeaderBtn.dataset.bound = '1';
-        syllabusRefreshHeaderBtn.addEventListener('click', () => elements.refreshSyllabusBtn.click());
+        syllabusRefreshHeaderBtn.addEventListener('click', () => refreshSyllabusFromCalendar());
     }
     const syllabusRefreshCurriculumHeaderBtn = document.getElementById('syllabusRefreshCurriculumHeaderBtn');
-    if (syllabusRefreshCurriculumHeaderBtn && elements.refreshSyllabusFromCurriculumBtn
-        && !syllabusRefreshCurriculumHeaderBtn.dataset.bound) {
+    if (syllabusRefreshCurriculumHeaderBtn && !syllabusRefreshCurriculumHeaderBtn.dataset.bound) {
         syllabusRefreshCurriculumHeaderBtn.dataset.bound = '1';
-        syllabusRefreshCurriculumHeaderBtn.addEventListener('click', () => {
-            if (elements.refreshSyllabusFromCurriculumBtn) {
-                elements.refreshSyllabusFromCurriculumBtn.click();
-            } else {
-                refreshSyllabusFromCurriculum();
-            }
-        });
+        syllabusRefreshCurriculumHeaderBtn.addEventListener('click', () => refreshSyllabusFromCurriculum());
     }
     
     // Holiday "All Classes" toggle
@@ -18519,6 +18556,26 @@ function lessonsForSyllabusBuild(classData) {
     return items;
 }
 
+/** General notes from Curriculum tab (saved sessions, team default, or factory). */
+function getCurriculumGeneralNotesForClass(classData) {
+    const editor = window.CCPBooksEditor;
+    if (!editor || !classData || editor.isNoCurriculum(classData.curriculumId)) {
+        return '';
+    }
+    const level = (classData.levelPreset || classData.levelCustom || classData.level || '').trim();
+    let curriculumId = (classData.curriculumId || '').trim();
+    if (!curriculumId) {
+        return '';
+    }
+    if (editor.isDebateCurriculum(curriculumId) || curriculumId === editor.DEBATE_CURRICULUM_ID) {
+        curriculumId = editor.normalizeDebateCurriculumId(curriculumId, level, appData) || curriculumId;
+    }
+    const presetId = editor.resolvePresetFromLevelAndBook(level, curriculumId, appData)
+        || classData.classTypeId
+        || '';
+    return editor.getCurriculumSyllabusGeneralNotes(curriculumId, presetId, appData);
+}
+
 function getSyllabusRowTemplatesForClass(classData) {
     if (!classData) {
         return [];
@@ -18695,6 +18752,32 @@ function classCurriculumLinkChanged(before, after) {
     return classCurriculumLinkKey(before) !== classCurriculumLinkKey(after);
 }
 
+/** Write curriculum book + class type from the class form onto the saved class record. */
+function persistCurriculumLinkToSavedClass(classId, link) {
+    const id = (classId || '').trim();
+    if (!id || !link) {
+        return;
+    }
+    const index = appData.classes.findIndex((c) => c.id === id);
+    if (index === -1) {
+        return;
+    }
+    const editor = window.CCPBooksEditor;
+    const curriculumId = editor
+        ? editor.normalizeCurriculumIdForStorage(link.curriculumId || '')
+        : (link.curriculumId || '').trim();
+    if (curriculumId) {
+        appData.classes[index].curriculumId = curriculumId;
+    }
+    if (link.classTypeId) {
+        appData.classes[index].classTypeId = link.classTypeId;
+    }
+    if (link.level && getSimsonLevelById(link.level)) {
+        appData.classes[index].levelPreset = link.level;
+    }
+    saveData();
+}
+
 /** Class draft from form: schedule + curriculum link (overrides stale saved curriculumId). */
 function buildClassDraftFromForm() {
     const snap = buildClassSnapshotFromForm();
@@ -18775,11 +18858,21 @@ function pushCurriculumToClassSyllabus(classData, options = {}) {
         force: options.force !== false
     });
     const mergedRows = result.rows;
+    const forceApply = options.force !== false;
+    const copyGeneralNotes = options.copyGeneralNotes !== false;
+    let generalNotes = null;
+    if (forceApply && copyGeneralNotes && editor && !editor.isNoCurriculum(classData.curriculumId)) {
+        generalNotes = getCurriculumGeneralNotesForClass(classData);
+        classData.syllabusGeneralNotes = generalNotes;
+    }
     if (persist && classData.id) {
         const index = appData.classes.findIndex((c) => c.id === classData.id);
         if (index !== -1) {
             appData.classes[index].syllabusRows = mergedRows;
             classData.syllabusRows = mergedRows;
+            if (generalNotes !== null) {
+                appData.classes[index].syllabusGeneralNotes = generalNotes;
+            }
             saveData();
             updateClassSyllabusSummary(appData.classes[index]);
         }
@@ -18787,12 +18880,18 @@ function pushCurriculumToClassSyllabus(classData, options = {}) {
         classData.syllabusRows = mergedRows;
     }
     if (updateEditor && classData.id && elements.syllabusTableBody) {
-        const openId = getActiveTab() === 'syllabus' && syllabusEditorMode === 'class'
+        const onSyllabusTab = getActiveTab() === 'syllabus' && syllabusEditorMode === 'class';
+        const openId = onSyllabusTab
             ? appData.ui.syllabusTabClassId
             : (elements.classId && elements.classId.value);
         if (openId === classData.id) {
             renderSyllabusEditorTable(mergedRows);
+            if (generalNotes !== null) {
+                setSyllabusGeneralNotesInForm(generalNotes);
+            }
         }
+    } else if (updateEditor && generalNotes !== null) {
+        setSyllabusGeneralNotesInForm(generalNotes);
     }
     if (!result.applied) {
         if (!silent) {
@@ -19328,20 +19427,36 @@ function applyPresetSyllabusRowsToTable(options = {}) {
 
 /** Class record (or form draft) used to resolve live curriculum session templates. */
 function getClassDataForSyllabusCurriculumTemplates() {
+    let classData = null;
     if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
-        const classData = getSelectedSyllabusClass();
-        if (classData) {
-            return classData;
+        classData = getSelectedSyllabusClass();
+    }
+    if (!classData) {
+        const classId = elements.classId && elements.classId.value;
+        if (classId) {
+            const saved = appData.classes.find((c) => c.id === classId);
+            if (saved && !(isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab'))) {
+                classData = saved;
+            }
         }
     }
-    const classId = elements.classId && elements.classId.value;
-    if (classId) {
-        const saved = appData.classes.find((c) => c.id === classId);
-        if (saved && !(isClassPopoutOpen() || (getActiveTab() === 'classes' && classEditorMount === 'tab'))) {
-            return saved;
+    if (!classData) {
+        classData = buildClassDraftFromForm();
+    }
+    if (classData && classData.id && elements.classId && elements.classId.value === classData.id) {
+        const link = resolveClassCurriculumLinkFromForm({ includeTeacherFields: false });
+        if (link.curriculumId) {
+            classData = {
+                ...classData,
+                curriculumId: link.curriculumId,
+                classTypeId: link.classTypeId || classData.classTypeId
+            };
+            if (link.level && getSimsonLevelById(link.level)) {
+                classData.levelPreset = link.level;
+            }
         }
     }
-    return buildClassDraftFromForm();
+    return classData;
 }
 
 function persistSyllabusRowsToOpenClass(rows) {
@@ -19369,24 +19484,37 @@ function refreshSyllabusFromCurriculum(options = {}) {
     if (!classData) {
         return;
     }
+    const onSyllabusTab = getActiveTab() === 'syllabus' && syllabusEditorMode === 'class';
     const useFormDraft = classData.id && (
         isClassPopoutOpen()
         || (getActiveTab() === 'classes' && classEditorMount === 'tab')
     );
     const draft = useFormDraft ? buildClassDraftFromForm() : { ...classData };
     if (draft.id) {
-        const saved = appData.classes.find((c) => c.id === draft.id);
-        if (saved && Array.isArray(saved.syllabusRows)) {
-            draft.syllabusRows = saved.syllabusRows;
+        const fromForm = elements.syllabusTableBody ? collectSyllabusRowsFromForm() : [];
+        if (fromForm.length) {
+            draft.syllabusRows = fromForm;
+        } else {
+            const saved = appData.classes.find((c) => c.id === draft.id);
+            if (saved && Array.isArray(saved.syllabusRows)) {
+                draft.syllabusRows = saved.syllabusRows;
+            }
         }
     }
-    pushCurriculumToClassSyllabus(draft, {
+    const result = pushCurriculumToClassSyllabus(draft, {
         silent: !!options.silent,
         skipConfirm: !!options.skipConfirm,
         force: true,
         persist: true,
         updateEditor: true
     });
+    if (onSyllabusTab && result.rows && draft.id && appData.ui.syllabusTabClassId === draft.id) {
+        renderSyllabusEditorTable(result.rows);
+        const saved = appData.classes.find((c) => c.id === draft.id);
+        if (saved) {
+            setSyllabusGeneralNotesInForm(saved.syllabusGeneralNotes || '');
+        }
+    }
 }
 
 function fillSyllabusPagesFromUnits() {
@@ -24279,7 +24407,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
     if (el.closest('.module-list-item, .syllabus-segment-btn')) {
         return true;
     }
-    if (el.closest('.syllabus-list-panel') && !el.closest('.syllabus-editor-panel')) {
+    if (el.closest('.syllabus-tab-sidebar') && !el.closest('.syllabus-tab-editor-mount')) {
         return true;
     }
     if (el.closest('.homework-copy-section') && el.tagName === 'BUTTON') {

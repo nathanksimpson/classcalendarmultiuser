@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260603-syllabus-header-float">
+    <link rel="stylesheet" href="styles.css?v=20260603-class-form-sections">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -467,56 +467,57 @@
             </section>
 
             <section id="panel-syllabus" class="app-tab-panel" data-tab="syllabus" role="tabpanel" aria-labelledby="tabBtn-syllabus" hidden>
-                <div class="syllabus-layout module-split-layout">
-                    <aside class="module-list-panel syllabus-list-panel" aria-label="Syllabus navigation">
+                <p class="section-hint syllabus-tab-intro" data-i18n="syllabusTabIntro">Edit each class syllabus: lesson table, pages, and notes. Pick a class or a custom template in the list. Refresh from calendar or curriculum using the buttons at the top of the editor.</p>
+                <div class="syllabus-tab-layout workspace-books-layout">
+                    <aside class="syllabus-tab-sidebar workspace-books-sidebar" aria-label="Syllabus navigation">
                         <div class="syllabus-list-segments" role="tablist" aria-label="Syllabus list mode">
                             <button type="button" class="syllabus-segment-btn is-active" id="syllabusSegmentClasses" data-segment="classes" data-i18n="syllabusSegmentClasses">Classes</button>
                             <button type="button" class="syllabus-segment-btn" id="syllabusSegmentTemplates" data-segment="templates" data-i18n="syllabusSegmentTemplates">My syllabi</button>
                         </div>
+                        <div id="syllabusTabTemplateToolbar" class="syllabus-tab-sidebar-toolbar curriculum-tab-sidebar-toolbar" hidden>
+                            <button type="button" id="syllabusNewTemplateBtn" class="btn btn-primary btn-small" data-i18n="syllabusNewTemplate">+ New custom syllabus</button>
+                        </div>
                         <div id="syllabusClassListSection" class="syllabus-list-section">
-                            <input type="search" id="syllabusClassListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
-                            <div id="syllabusClassList" class="module-list" role="listbox" aria-label="Classes for syllabus"></div>
+                            <input type="search" id="syllabusClassListSearch" class="module-list-search curriculum-tab-list-search workspace-books-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
+                            <div id="syllabusClassList" class="workspace-books-list module-list" role="listbox" aria-label="Classes for syllabus"></div>
                         </div>
                         <div id="syllabusTemplateListSection" class="syllabus-list-section" hidden>
-                            <div class="syllabus-template-toolbar">
-                                <button type="button" id="syllabusNewTemplateBtn" class="btn btn-primary btn-compact btn-block" data-i18n="syllabusNewTemplate">+ New custom syllabus</button>
-                            </div>
-                            <input type="search" id="syllabusTemplateListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="syllabusTemplateSearchPlaceholder" placeholder="Search templates…">
-                            <div id="syllabusTemplateList" class="module-list" role="listbox" aria-label="Custom syllabus templates"></div>
+                            <input type="search" id="syllabusTemplateListSearch" class="module-list-search curriculum-tab-list-search workspace-books-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="syllabusTemplateSearchPlaceholder" placeholder="Search templates…">
+                            <div id="syllabusTemplateList" class="workspace-books-list module-list" role="listbox" aria-label="Custom syllabus templates"></div>
                         </div>
                     </aside>
-                    <div class="module-editor-panel syllabus-editor-panel">
+                    <div id="syllabusTabEditorMount" class="syllabus-tab-editor-mount workspace-books-editor-mount">
                         <p id="syllabusEditorEmpty" class="module-empty-hint" data-i18n="syllabusTabEditorEmpty">Select a class or a custom syllabus template.</p>
-                        <div id="syllabusEditorShell" class="syllabus-editor-shell" hidden>
-                            <header class="syllabus-editor-header">
-                                <div class="syllabus-editor-title-block">
+                        <div id="syllabusEditorShell" class="syllabus-editor-shell books-editor-fullpage syllabus-editor-panel" hidden>
+                            <div class="syllabus-editor-actions-bar form-actions books-editor-actions" role="toolbar" aria-label="Syllabus editor actions">
+                                <button type="button" id="syllabusRefreshHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
+                                <button type="button" id="syllabusRefreshCurriculumHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCurriculum">Refresh from curriculum</button>
+                                <button type="button" id="syllabusPrintHeaderBtn" class="btn btn-outline btn-small" data-i18n="printClassSyllabus">Print syllabus</button>
+                                <details class="header-dropdown editor-header-more">
+                                    <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
+                                    <div class="header-dropdown-panel editor-header-more-menu">
+                                        <button type="button" id="syllabusOpenClassSettingsBtn" class="header-dropdown-item" data-i18n="syllabusOpenClassSettings">Class schedule &amp; settings</button>
+                                        <button type="button" id="syllabusOpenHomeworkBtn" class="header-dropdown-item" data-i18n="syllabusOpenHomework">Homework copy</button>
+                                        <button type="button" id="syllabusSaveAsTemplateBtn" class="header-dropdown-item" hidden data-i18n="syllabusSaveAsTemplate">Save as template</button>
+                                        <button type="button" id="syllabusDeleteTemplateBtn" class="header-dropdown-item header-dropdown-item--danger" hidden data-i18n="syllabusDeleteTemplate">Delete template</button>
+                                    </div>
+                                </details>
+                                <select id="syllabusApplyTemplateSelect" class="syllabus-apply-select" hidden aria-label="Apply custom syllabus">
+                                    <option value="" data-i18n="syllabusApplyTemplatePick">Apply custom syllabus…</option>
+                                </select>
+                                <button type="button" id="syllabusSaveTemplateBtn" class="btn btn-primary btn-small" hidden data-i18n="syllabusSaveTemplate">Save template</button>
+                                <button type="button" id="syllabusSaveClassBtn" class="btn btn-primary btn-small" data-i18n="syllabusSaveClass">Save syllabus</button>
+                            </div>
+                            <div class="syllabus-editor-body">
+                                <div class="syllabus-editor-title-row curriculum-editor-title-row">
                                     <h2 id="syllabusEditorTitle" class="syllabus-editor-title"></h2>
-                                    <p id="syllabusEditorMeta" class="syllabus-editor-meta"></p>
+                                    <p id="syllabusEditorMeta" class="syllabus-editor-meta books-editor-meta"></p>
                                     <p id="syllabusEditorModeBanner" class="syllabus-mode-banner section-hint" hidden></p>
                                     <p id="syllabusScheduleChip" class="syllabus-schedule-chip section-hint" hidden></p>
                                     <p id="syllabusEditorCurriculumHint" class="section-hint" hidden></p>
                                 </div>
-                                <div class="syllabus-editor-header-actions editor-header-actions">
-                                    <button type="button" id="syllabusSaveClassBtn" class="btn btn-primary btn-small" data-i18n="syllabusSaveClass">Save syllabus</button>
-                                    <button type="button" id="syllabusSaveTemplateBtn" class="btn btn-primary btn-small" hidden data-i18n="syllabusSaveTemplate">Save template</button>
-                                    <button type="button" id="syllabusRefreshHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
-                                    <button type="button" id="syllabusRefreshCurriculumHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCurriculum">Refresh from curriculum</button>
-                                    <button type="button" id="syllabusPrintHeaderBtn" class="btn btn-outline btn-small" data-i18n="printClassSyllabus">Print syllabus</button>
-                                    <details class="header-dropdown editor-header-more">
-                                        <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
-                                        <div class="header-dropdown-panel editor-header-more-menu">
-                                            <button type="button" id="syllabusOpenClassSettingsBtn" class="header-dropdown-item" data-i18n="syllabusOpenClassSettings">Class schedule &amp; settings</button>
-                                            <button type="button" id="syllabusOpenHomeworkBtn" class="header-dropdown-item" data-i18n="syllabusOpenHomework">Homework copy</button>
-                                            <button type="button" id="syllabusSaveAsTemplateBtn" class="header-dropdown-item" hidden data-i18n="syllabusSaveAsTemplate">Save as template</button>
-                                            <button type="button" id="syllabusDeleteTemplateBtn" class="header-dropdown-item header-dropdown-item--danger" hidden data-i18n="syllabusDeleteTemplate">Delete template</button>
-                                        </div>
-                                    </details>
-                                    <select id="syllabusApplyTemplateSelect" class="syllabus-apply-select syllabus-header--full-only" hidden aria-label="Apply custom syllabus">
-                                        <option value="" data-i18n="syllabusApplyTemplatePick">Apply custom syllabus…</option>
-                                    </select>
-                                </div>
-                            </header>
-                            <div id="syllabusFormMountTab" class="syllabus-form-mount"></div>
+                                <div id="syllabusFormMountTab" class="syllabus-form-mount"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1178,7 +1179,7 @@
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260605-boot-nav"></script>
-    <script defer src="js/template-loader.js?v=20260602-connecting-fix"></script>
+    <script defer src="js/template-loader.js?v=20260603-class-form-order"></script>
     <script defer src="js/app-tab-scripts.js?v=20260612-lesson-filter"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-custom-adopted-quiet"></script>
     <script defer src="js/view-as-banner.js?v=20260605-viewas-notes"></script>
@@ -1190,7 +1191,7 @@
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260603-curriculum-pipeline"></script>
+    <script defer src="app.js?v=20260603-class-form-sections"></script>
 </body>
 </html>
 

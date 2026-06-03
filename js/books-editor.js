@@ -432,7 +432,9 @@
                     updatedAt: leg.updatedAt || new Date().toISOString()
                 };
             } else if (!curricula[id].sessions?.length && leg.defaultSyllabusRowTemplates) {
-                curricula[id].sessions = normalizeRowTemplates(leg.defaultSyllabusRowTemplates);
+                // Record exists without personal sessions (cleared or meta-only save).
+                // Drop stale legacy so factory / teamDefault supply current templates.
+                delete books[id];
             }
         });
         const typeOv = data.defaultClassTypeOverrides;
@@ -929,32 +931,40 @@
 
     function getTemplatesForBookId(bookId, appData) {
         migrateLegacyToCurriculum(appData);
+        let templates = [];
         const cur = getCurriculumRecord(bookId, appData);
         if (cur && cur.sessions.length) {
-            return cur.sessions;
-        }
-        const overrides = ensureBookOverrides(appData);
-        if (overrides[bookId] && Array.isArray(overrides[bookId].defaultSyllabusRowTemplates)) {
-            return normalizeRowTemplates(overrides[bookId].defaultSyllabusRowTemplates);
-        }
-        if (isDebateCurriculum(bookId)) {
-            const book = getBookById(bookId, appData);
-            if (book && !book.isVirtualDebate) {
-                const cur = getCurriculumRecord(bookId, appData);
-                if (cur && cur.sessions.length) {
-                    return cur.sessions;
+            templates = cur.sessions;
+        } else {
+            const team = getTeamDefaultRecord(bookId, appData);
+            if (team && team.sessions.length) {
+                templates = team.sessions;
+            } else if (isDebateCurriculum(bookId)) {
+                const book = getBookById(bookId, appData);
+                if (book && !book.isVirtualDebate) {
+                    templates = getFactoryTemplatesForBook(book);
+                } else {
+                    const debateCur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData);
+                    templates = debateCur && debateCur.sessions.length
+                        ? debateCur.sessions
+                        : getFactoryDebateSessions();
                 }
-                return getFactoryTemplatesForBook(book);
+            } else {
+                const book = getBookById(bookId, appData);
+                if (book && book.isCustom) {
+                    templates = [];
+                } else {
+                    templates = getFactoryTemplatesForBook(book);
+                }
             }
-            const cur = getCurriculumRecord(DEBATE_CURRICULUM_ID, appData);
-            return cur && cur.sessions.length ? cur.sessions : getFactoryDebateSessions();
         }
-        const book = getBookById(bookId, appData);
-        if (book && book.isCustom) {
-            const cur = getCurriculumRecord(bookId, appData);
-            return cur && cur.sessions.length ? cur.sessions : [];
+        if (!templates.length) {
+            const overrides = ensureBookOverrides(appData);
+            if (overrides[bookId] && Array.isArray(overrides[bookId].defaultSyllabusRowTemplates)) {
+                templates = normalizeRowTemplates(overrides[bookId].defaultSyllabusRowTemplates);
+            }
         }
-        return getFactoryTemplatesForBook(book);
+        return templates;
     }
 
     function getTemplatesForPresetId(presetId, appData) {

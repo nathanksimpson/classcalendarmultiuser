@@ -20,123 +20,153 @@
                 <div class="class-modal-body">
                 <div id="classScheduleGapWarning" class="schedule-gap-warning form-group--full-only" hidden role="alert"></div>
 
-                <div class="form-group autocomplete-wrapper class-modal-name-field">
-                    <label for="className" data-i18n="className">Class Name</label>
-                    <input type="text" id="className" required data-i18n-placeholder="classNamePlaceholder" placeholder="e.g., Debate" autocomplete="off">
-                    <div id="classNameSuggestions" class="autocomplete-dropdown"></div>
-                </div>
+                <section class="form-section class-form-section class-form-section-basics" aria-labelledby="classFormSectionBasicsTitle">
+                    <h3 id="classFormSectionBasicsTitle" class="form-section-title form-group--full-only" data-i18n="classFormSectionBasics">Basics</h3>
+                    <div class="form-group autocomplete-wrapper class-modal-name-field">
+                        <label for="className" data-i18n="className">Class Name</label>
+                        <input type="text" id="className" required data-i18n-placeholder="classNamePlaceholder" placeholder="e.g., Debate" autocomplete="off">
+                        <div id="classNameSuggestions" class="autocomplete-dropdown"></div>
+                    </div>
 
-                <div class="form-group class-color-group editor-popout-colors">
-                    <div class="class-color-pickers">
-                        <div class="class-color-field">
-                            <label for="classColor" data-i18n="classBackgroundColor">Background color</label>
-                            <input type="color" id="classColor" value="#e67e22">
+                    <input type="hidden" id="classTypeIdHidden" value="">
+                    <select id="classCurriculumLevel" class="visually-hidden" aria-hidden="true" tabindex="-1">
+                        <option value="" data-i18n="selectLevel">Select level</option>
+                    </select>
+                    <select id="classTypeSelect" class="visually-hidden" aria-hidden="true" tabindex="-1"></select>
+                </section>
+
+                <section class="form-section class-form-section class-form-section-appearance form-group--full-only" aria-labelledby="classFormSectionAppearanceTitle">
+                    <h3 id="classFormSectionAppearanceTitle" class="form-section-title" data-i18n="classFormSectionAppearance">Appearance</h3>
+                    <div class="form-group class-color-group editor-popout-colors">
+                        <div class="class-color-pickers">
+                            <div class="class-color-field">
+                                <label for="classColor" data-i18n="classBackgroundColor">Background color</label>
+                                <input type="color" id="classColor" value="#e67e22">
+                            </div>
+                            <div class="class-color-field">
+                                <label for="classTextColor" data-i18n="classTextColor">Text color</label>
+                                <input type="color" id="classTextColor" value="#ffffff">
+                            </div>
                         </div>
-                        <div class="class-color-field">
-                            <label for="classTextColor" data-i18n="classTextColor">Text color</label>
-                            <input type="color" id="classTextColor" value="#ffffff">
-                        </div>
-                    </div>
-                </div>
-
-                <input type="hidden" id="classTypeIdHidden" value="">
-                <select id="classCurriculumLevel" class="visually-hidden" aria-hidden="true" tabindex="-1">
-                    <option value="" data-i18n="selectLevel">Select level</option>
-                </select>
-                <select id="classTypeSelect" class="visually-hidden" aria-hidden="true" tabindex="-1"></select>
-
-                <div class="form-row form-row-term-dates">
-                    <div class="form-group">
-                        <label for="classStartDate" data-i18n="startDate">Start Date</label>
-                        <input type="date" id="classStartDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="classTermMonths" data-i18n="termCalendarMonths">Term (calendar months)</label>
-                        <input type="number" id="classTermMonths" min="1" max="24" value="3" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="classEndDate" data-i18n="endDate">End Date</label>
-                        <input type="date" id="classEndDate" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="classUseAutoTermEnd" checked>
-                        <span data-i18n="useAutoTermEnd">Auto-set end date to the last day of the final month</span>
-                    </label>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group form-group-class-period">
-                        <label for="classPeriod" data-i18n="classPeriod">Period</label>
-                        <select id="classPeriod"></select>
-                        <p class="section-hint form-group--full-only" data-i18n="classPeriodHint">Lower numbers appear first in lists, print summary, and on days with multiple classes (1 = first period).</p>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="classLevel" data-i18n="classLevelPreset">Section (preset)</label>
-                        <select id="classLevel">
-                            <option value="" data-i18n="selectLevel">Select level</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="classLevelCustom" data-i18n="classLevelCustom">Level (custom)</label>
-                        <input type="text" id="classLevelCustom" data-i18n-placeholder="classLevelCustomPlaceholder" placeholder="Optional: full level name">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="classGrade" data-i18n="grade">Grade</label>
-                        <select id="classGrade">
-                            <option value="" data-i18n="selectGrade">Select grade (optional)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <section class="class-curriculum-picker form-row" aria-describedby="classCurriculumHint classCurriculumPipelineHint">
-                    <div class="form-group">
-                        <label for="classCurriculumBook" data-i18n="classCurriculumBook">Book (from Curriculum)</label>
-                        <select id="classCurriculumBook" disabled aria-describedby="classCurriculumHint">
-                            <option value="" data-i18n="classCurriculumBookPickLevel">Select level first</option>
-                        </select>
-                    </div>
-                    <div class="form-group class-curriculum-apply-wrap">
-                        <span class="form-spacer-label" aria-hidden="true">&nbsp;</span>
-                        <button type="button" id="applyCurriculumToClassBtn" class="btn btn-primary btn-small" disabled data-i18n="applyCurriculumToClass">Apply from curriculum</button>
-                    </div>
-                    <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
-                    <p id="classCurriculumWarning" class="class-curriculum-warning section-hint" role="alert" hidden></p>
-                    <p id="classCurriculumPipelineHint" class="section-hint" data-i18n="classCurriculumPipelineHint">Flow: Curriculum (shared books) → this class (link) → Syllabus tab (dated lessons).</p>
-                    <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Choose Section (level) above, then pick a book. Apply updates settings; Save updates the syllabus from this book when the link changes.</p>
-                    <div class="class-curriculum-extra-actions form-group--full-only">
-                        <button type="button" id="openCurriculumFromClassBtn" class="btn btn-outline btn-small" data-i18n="editCurriculumForBook">Edit curriculum</button>
-                        <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
-                        <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
                     </div>
                 </section>
 
-                <div class="form-group">
-                    <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>
-                    <input type="number" id="classTotalLessons" min="1" value="4" required>
-                </div>
-                <div class="form-row form-row-meeting-days">
-                    <div class="form-group form-group-meeting-days">
-                        <label data-i18n="meetingDays">Meeting days</label>
-                        <p class="section-hint form-group--full-only" data-i18n="meetingDaysHint"></p>
-                        <div class="meeting-days-block">
-                            <div class="meeting-days-presets"></div>
-                            <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
+                <section class="form-section class-form-section class-form-section-schedule" aria-labelledby="classFormSectionScheduleTitle">
+                    <h3 id="classFormSectionScheduleTitle" class="form-section-title form-group--full-only" data-i18n="classFormSectionSchedule">Schedule</h3>
+                    <div class="form-row form-row-term-dates">
+                        <div class="form-group">
+                            <label for="classStartDate" data-i18n="startDate">Start Date</label>
+                            <input type="date" id="classStartDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="classTermMonths" data-i18n="termCalendarMonths">Term (calendar months)</label>
+                            <input type="number" id="classTermMonths" min="1" max="24" value="3" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="classEndDate" data-i18n="endDate">End Date</label>
+                            <input type="date" id="classEndDate" required>
                         </div>
                     </div>
-                </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="classUseAutoTermEnd" checked>
+                            <span data-i18n="useAutoTermEnd">Auto-set end date to the last day of the final month</span>
+                        </label>
+                    </div>
+                    <div class="form-row form-row-meeting-days">
+                        <div class="form-group form-group-meeting-days">
+                            <label data-i18n="meetingDays">Meeting days</label>
+                            <p class="section-hint form-group--full-only" data-i18n="meetingDaysHint"></p>
+                            <div class="meeting-days-block">
+                                <div class="meeting-days-presets"></div>
+                                <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-group-class-period">
+                            <label for="classPeriod" data-i18n="classPeriod">Period</label>
+                            <select id="classPeriod"></select>
+                            <p class="section-hint form-group--full-only" data-i18n="classPeriodHint">Lower numbers appear first in lists, print summary, and on days with multiple classes (1 = first period).</p>
+                        </div>
 
-                <section class="form-section class-teacher-section form-group--full-only">
-                    <h3 class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
+                        <div class="form-group">
+                            <label for="classLevel" data-i18n="classLevelPreset">Section (preset)</label>
+                            <select id="classLevel">
+                                <option value="" data-i18n="selectLevel">Select level</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="classLevelCustom" data-i18n="classLevelCustom">Level (custom)</label>
+                            <input type="text" id="classLevelCustom" data-i18n-placeholder="classLevelCustomPlaceholder" placeholder="Optional: full level name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="classGrade" data-i18n="grade">Grade</label>
+                            <select id="classGrade">
+                                <option value="" data-i18n="selectGrade">Select grade (optional)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-group--full-only">
+                            <label for="classScheduleBlock" data-i18n="classScheduleBlock">Schedule block</label>
+                            <select id="classScheduleBlock">
+                                <option value="primary" data-i18n="classScheduleBlockPrimary">Primary (main grid)</option>
+                                <option value="secondary" data-i18n="classScheduleBlockSecondary">Secondary (Conversation / IPE / MS)</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section class-form-section class-form-section-program" aria-labelledby="classFormSectionProgramTitle">
+                    <h3 id="classFormSectionProgramTitle" class="form-section-title form-group--full-only" data-i18n="classFormSectionProgram">Program &amp; curriculum</h3>
+                    <section class="class-curriculum-picker form-row" aria-describedby="classCurriculumHint classCurriculumPipelineHint">
+                        <div class="form-group">
+                            <label for="classCurriculumBook" data-i18n="classCurriculumBook">Book (from Curriculum)</label>
+                            <select id="classCurriculumBook" disabled aria-describedby="classCurriculumHint">
+                                <option value="" data-i18n="classCurriculumBookPickLevel">Select level first</option>
+                            </select>
+                        </div>
+                        <div class="form-group class-curriculum-apply-wrap">
+                            <span class="form-spacer-label" aria-hidden="true">&nbsp;</span>
+                            <button type="button" id="applyCurriculumToClassBtn" class="btn btn-primary btn-small" disabled data-i18n="applyCurriculumToClass">Apply from curriculum</button>
+                        </div>
+                        <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
+                        <p id="classCurriculumWarning" class="class-curriculum-warning section-hint" role="alert" hidden></p>
+                        <p id="classCurriculumPipelineHint" class="section-hint" data-i18n="classCurriculumPipelineHint">Flow: Curriculum (shared books) → this class (link) → Syllabus tab (dated lessons).</p>
+                        <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Choose Section (level) above, then pick a book. Apply updates settings; Save updates the syllabus from this book when the link changes.</p>
+                        <div class="class-curriculum-extra-actions form-group--full-only">
+                            <button type="button" id="openCurriculumFromClassBtn" class="btn btn-outline btn-small" data-i18n="editCurriculumForBook">Edit curriculum</button>
+                            <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
+                            <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
+                        </div>
+                    </section>
+
+                    <div class="form-group">
+                        <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>
+                        <input type="number" id="classTotalLessons" min="1" value="4" required>
+                    </div>
+                </section>
+
+                <section class="form-section class-form-section class-form-section-syllabus form-group--full-only" aria-labelledby="classFormSectionSyllabusTitle">
+                    <h3 id="classFormSectionSyllabusTitle" class="form-section-title" data-i18n="classFormSectionSyllabus">Syllabus</h3>
+                    <p class="section-hint" data-i18n="classFormSectionSyllabusHint">Lesson dates and pages live on the Syllabus tab. Link a curriculum book above, then edit the dated table there.</p>
+                    <div id="classSyllabusSummary" class="class-syllabus-summary form-group" hidden>
+                        <label data-i18n="syllabusTable">Syllabus</label>
+                        <p id="classSyllabusSummaryText" class="section-hint class-syllabus-summary-text"></p>
+                        <button type="button" id="classOpenSyllabusTabBtn" class="btn btn-outline btn-small" data-i18n="classTabOpenSyllabus">Edit syllabus</button>
+                    </div>
+                </section>
+
+                <section class="form-section class-form-section class-teacher-section form-group--full-only" aria-labelledby="classTeacherSectionTitle">
+                    <h3 id="classTeacherSectionTitle" class="form-section-title" data-i18n="classTeacherSection">Teacher &amp; cohort</h3>
                     <p class="section-hint" data-i18n="classTeachersHint">Add teachers and link a student cohort in any order. Homeroom (담임) is set on Setup → Cohorts. Cohort is optional when you save — use the Cohorts board to assign later. Save here first if you want to drag the class on that board.</p>
                     <div id="classTeachersRows" class="class-teachers-rows" role="list"></div>
                     <button type="button" id="classAddTeacherBtn" class="btn btn-outline btn-small class-add-teacher-btn" data-i18n="classAddTeacher">+ Add teacher</button>
                     <p id="classHomeroomLabelDisplay" class="class-homeroom-label-display section-hint" role="status"></p>
-                    <div class="form-group form-group--full-only">
+                    <div class="form-group">
                         <span class="form-spacer-label" id="classCohortMultiLabel" data-i18n="classCohortMultiLabel">Linked student cohorts</span>
                         <p class="section-hint" data-i18n="classCohortPrimaryHint">Primary cohort sets homeroom display below.</p>
                         <div id="classCohortMulti" class="lesson-filter-chip-grid class-cohort-multi-chips" role="group" aria-labelledby="classCohortMultiLabel"></div>
@@ -148,101 +178,97 @@
                                 <option value="" data-i18n="classCohortNone">— No cohort —</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="classScheduleBlock" data-i18n="classScheduleBlock">Schedule block</label>
-                            <select id="classScheduleBlock">
-                                <option value="primary" data-i18n="classScheduleBlockPrimary">Primary (main grid)</option>
-                                <option value="secondary" data-i18n="classScheduleBlockSecondary">Secondary (Conversation / IPE / MS)</option>
-                            </select>
-                        </div>
                     </div>
                 </section>
 
-                <div class="form-group form-group--full-only">
-                    <label for="classBook" data-i18n="defaultBook">Default book (fallback)</label>
-                    <input type="text" id="classBook" data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
-                </div>
-
-                <details class="form-section-advanced form-group--full-only" id="classBookPeriodsDetails">
-                    <summary data-i18n="debateBookPeriods">Book periods (debate)</summary>
-                    <div class="form-group books-by-month-section debate-book-periods-section">
-                        <p class="section-hint" data-i18n="debateBookPeriodsHint">Each row is when a new debate book starts (any date in the term). Lessons from that date through the next period use that book and restart Day 1–4.</p>
-                        <p class="section-hint" data-i18n="termCalendarMonthsHint">Suggested: one period per calendar month; adjust start dates (e.g. last week of the prior month).</p>
-                        <div id="booksByMonthRows" class="books-by-month-rows debate-book-period-rows"></div>
-                        <div class="form-row books-by-month-actions">
-                            <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookPeriod">Add book period</button>
-                            <button type="button" id="fillBooksFromDefaultBtn" class="btn btn-outline btn-small" data-i18n="fillBooksFromDefault">Fill term from default book</button>
-                        </div>
-                    </div>
-                </details>
-
-                <div class="form-group form-group--full-only">
-                    <label for="classNotes" data-i18n="notes">Notes</label>
-                    <textarea id="classNotes" rows="2" data-i18n-placeholder="notesPlaceholder" placeholder="Optional notes about this class..."></textarea>
-                </div>
-
-                <details class="form-section-advanced form-group--full-only" id="classCustomScheduleDetails">
-                    <summary data-i18n="customSchedule">Custom Schedule (manually pick dates for each lesson)</summary>
+                <section class="form-section class-form-section class-form-section-books form-group--full-only" aria-labelledby="classFormSectionBooksTitle">
+                    <h3 id="classFormSectionBooksTitle" class="form-section-title" data-i18n="classFormSectionBooks">Books &amp; materials</h3>
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="customScheduleEnabled">
-                            <span data-i18n="customScheduleEnable">Enable custom schedule</span>
-                        </label>
+                        <label for="classBook" data-i18n="defaultBook">Default book (fallback)</label>
+                        <input type="text" id="classBook" data-i18n-placeholder="bookPlaceholder" placeholder="Used when a month has no book set">
                     </div>
-                    <div id="customScheduleSection" class="custom-schedule-section" style="display: none;">
-                        <p class="section-hint" data-i18n="selectDatesHint">Select specific dates for each lesson day:</p>
-                        <div id="customLessonDates" class="custom-lesson-dates"></div>
-                    </div>
-                </details>
 
-                <details class="form-section-advanced form-group--full-only" id="classCompressionDetails">
-                    <summary data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</summary>
-                    <div class="form-group compression-mode-group">
-                        <div class="radio-group">
+                    <details class="form-section-advanced" id="classBookPeriodsDetails">
+                        <summary data-i18n="debateBookPeriods">Book periods (debate)</summary>
+                        <div class="form-group books-by-month-section debate-book-periods-section">
+                            <p class="section-hint" data-i18n="debateBookPeriodsHint">Each row is when a new debate book starts (any date in the term). Lessons from that date through the next period use that book and restart Day 1–4.</p>
+                            <p class="section-hint" data-i18n="termCalendarMonthsHint">Suggested: one period per calendar month; adjust start dates (e.g. last week of the prior month).</p>
+                            <div id="booksByMonthRows" class="books-by-month-rows debate-book-period-rows"></div>
+                            <div class="form-row books-by-month-actions">
+                                <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookPeriod">Add book period</button>
+                                <button type="button" id="fillBooksFromDefaultBtn" class="btn btn-outline btn-small" data-i18n="fillBooksFromDefault">Fill term from default book</button>
+                            </div>
+                        </div>
+                    </details>
+                </section>
+
+                <section class="form-section class-form-section class-form-section-advanced form-group--full-only" aria-labelledby="classFormSectionAdvancedTitle">
+                    <h3 id="classFormSectionAdvancedTitle" class="form-section-title" data-i18n="classFormSectionAdvanced">Advanced scheduling</h3>
+                    <details class="form-section-advanced" id="classCustomScheduleDetails">
+                        <summary data-i18n="customSchedule">Custom Schedule (manually pick dates for each lesson)</summary>
+                        <div class="form-group">
                             <label class="checkbox-label">
-                                <input type="radio" name="compressionMode" id="compressionModeAuto" value="autoWhenNeeded" checked>
-                                <span data-i18n="compressionModeAuto">Auto compress when a month does not have enough class days</span>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="radio" name="compressionMode" id="compressionModeManual" value="manual">
-                                <span data-i18n="compressionModeManual">Manual only (use my merge choices below)</span>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="radio" name="compressionMode" id="compressionModeManualPerMonth" value="manualPerMonth">
-                                <span data-i18n="compressionModeManualPerMonth">Per book period (choose merges for each period)</span>
+                                <input type="checkbox" id="customScheduleEnabled">
+                                <span data-i18n="customScheduleEnable">Enable custom schedule</span>
                             </label>
                         </div>
-                    </div>
-
-                    <div id="compressionByMonthSection" class="compression-by-month-section" style="display: none;">
-                        <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each book period (typical for weekly debate). Each period can differ when holidays shorten the schedule.</p>
-                        <div id="compressionByMonthRows" class="compression-by-month-rows"></div>
-                    </div>
-
-                    <div id="scheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
-
-                    <div class="compression-options" id="compressionGlobalSection">
-                        <p id="scheduleAdjustmentDebateHint" class="section-hint schedule-adjustment-hint" data-i18n="scheduleAdjustmentHint">Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan). Debate classes can also use auto-compress per book period above.</p>
-                        <p id="scheduleAdjustmentSequentialHint" class="section-hint schedule-adjustment-hint" hidden data-i18n="scheduleAdjustmentNonDebateHint">Skip or combine lessons below to fit this term's class days. Auto-compress is only for debate classes.</p>
-                        <div class="schedule-skip-range-row">
-                            <span class="schedule-skip-range-label" data-i18n="scheduleSkipRangeLabel">Skip lesson range</span>
-                            <input type="number" id="scheduleSkipRangeFrom" class="schedule-skip-range-input" min="1" step="1" aria-label="From lesson">
-                            <span data-i18n="scheduleSkipRangeTo">to</span>
-                            <input type="number" id="scheduleSkipRangeTo" class="schedule-skip-range-input" min="1" step="1" aria-label="To lesson">
-                            <button type="button" id="scheduleSkipRangeAddBtn" class="btn btn-outline btn-small" data-i18n="scheduleSkipRangeAdd">Add range</button>
+                        <div id="customScheduleSection" class="custom-schedule-section" style="display: none;">
+                            <p class="section-hint" data-i18n="selectDatesHint">Select specific dates for each lesson day:</p>
+                            <div id="customLessonDates" class="custom-lesson-dates"></div>
                         </div>
-                        <p class="section-hint" data-i18n="compressionMergeCheckboxesNote">Merge checkboxes apply in Manual mode only. Per month uses the section above. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.</p>
-                        <div id="scheduleAdjustmentRows" class="schedule-adjustment-rows"></div>
-                        <div id="compressionCheckboxes" class="compression-checkboxes" style="display: none;"></div>
-                        <p class="section-hint" data-i18n="compressionOverlapHint">Only adjacent lessons can be merged. Overlapping merges are disabled.</p>
-                    </div>
-                </details>
+                    </details>
 
-                <div id="classSyllabusSummary" class="class-syllabus-summary form-group form-group--full-only" hidden>
-                    <label data-i18n="syllabusTable">Syllabus</label>
-                    <p id="classSyllabusSummaryText" class="section-hint class-syllabus-summary-text"></p>
-                    <button type="button" id="classOpenSyllabusTabBtn" class="btn btn-outline btn-small" data-i18n="classTabOpenSyllabus">Edit syllabus</button>
-                </div>
+                    <details class="form-section-advanced" id="classCompressionDetails">
+                        <summary data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</summary>
+                        <div class="form-group compression-mode-group">
+                            <div class="radio-group">
+                                <label class="checkbox-label">
+                                    <input type="radio" name="compressionMode" id="compressionModeAuto" value="autoWhenNeeded" checked>
+                                    <span data-i18n="compressionModeAuto">Auto compress when a month does not have enough class days</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="radio" name="compressionMode" id="compressionModeManual" value="manual">
+                                    <span data-i18n="compressionModeManual">Manual only (use my merge choices below)</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="radio" name="compressionMode" id="compressionModeManualPerMonth" value="manualPerMonth">
+                                    <span data-i18n="compressionModeManualPerMonth">Per book period (choose merges for each period)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="compressionByMonthSection" class="compression-by-month-section" style="display: none;">
+                            <p class="section-hint" data-i18n="compressionByMonthHint">Choose which lesson pairs to merge for each book period (typical for weekly debate). Each period can differ when holidays shorten the schedule.</p>
+                            <div id="compressionByMonthRows" class="compression-by-month-rows"></div>
+                        </div>
+
+                        <div id="scheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
+
+                        <div class="compression-options" id="compressionGlobalSection">
+                            <p id="scheduleAdjustmentDebateHint" class="section-hint schedule-adjustment-hint" data-i18n="scheduleAdjustmentHint">Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan). Debate classes can also use auto-compress per book period above.</p>
+                            <p id="scheduleAdjustmentSequentialHint" class="section-hint schedule-adjustment-hint" hidden data-i18n="scheduleAdjustmentNonDebateHint">Skip or combine lessons below to fit this term's class days. Auto-compress is only for debate classes.</p>
+                            <div class="schedule-skip-range-row">
+                                <span class="schedule-skip-range-label" data-i18n="scheduleSkipRangeLabel">Skip lesson range</span>
+                                <input type="number" id="scheduleSkipRangeFrom" class="schedule-skip-range-input" min="1" step="1" aria-label="From lesson">
+                                <span data-i18n="scheduleSkipRangeTo">to</span>
+                                <input type="number" id="scheduleSkipRangeTo" class="schedule-skip-range-input" min="1" step="1" aria-label="To lesson">
+                                <button type="button" id="scheduleSkipRangeAddBtn" class="btn btn-outline btn-small" data-i18n="scheduleSkipRangeAdd">Add range</button>
+                            </div>
+                            <p class="section-hint" data-i18n="compressionMergeCheckboxesNote">Merge checkboxes apply in Manual mode only. Per month uses the section above. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.</p>
+                            <div id="scheduleAdjustmentRows" class="schedule-adjustment-rows"></div>
+                            <div id="compressionCheckboxes" class="compression-checkboxes" style="display: none;"></div>
+                            <p class="section-hint" data-i18n="compressionOverlapHint">Only adjacent lessons can be merged. Overlapping merges are disabled.</p>
+                        </div>
+                    </details>
+                </section>
+
+                <section class="form-section class-form-section class-form-section-notes form-group--full-only" aria-labelledby="classFormSectionNotesTitle">
+                    <h3 id="classFormSectionNotesTitle" class="form-section-title" data-i18n="classFormSectionNotes">Notes</h3>
+                    <div class="form-group">
+                        <label for="classNotes" data-i18n="notes">Notes</label>
+                        <textarea id="classNotes" rows="2" data-i18n-placeholder="notesPlaceholder" placeholder="Optional notes about this class..."></textarea>
+                    </div>
+                </section>
 
                 </div>
             </form>

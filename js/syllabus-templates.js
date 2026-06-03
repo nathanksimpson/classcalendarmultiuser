@@ -209,13 +209,14 @@
             row.planDetail = tpl.planDetail;
             applied = true;
         }
-        if (tpl.note) {
-            if (force || !row.note) {
-                row.note = tpl.note;
-                if (force && tpl.note) {
-                    applied = true;
-                }
+        if (force) {
+            row.note = tpl.note || '';
+            if (tpl.note) {
+                applied = true;
             }
+        } else if (tpl.note && !row.note) {
+            row.note = tpl.note;
+            applied = true;
         }
         return applied;
     }

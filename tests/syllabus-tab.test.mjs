@@ -64,4 +64,13 @@ assert.equal(forceResult.applied, 1);
 assert.equal(forceResult.rows[0].planTitle, 'Unit 1');
 assert.equal(forceResult.rows[0].planDetail, 'Pages 1-3');
 
+const noteRows = [
+    { id: 'n1', kind: 'lesson', sessionNumber: 1, planTitle: 'Unit 1', planDetail: 'Pages 1-3', note: 'Old row note', source: 'manual' }
+];
+const noteTemplates = [
+    { sessionNumber: 1, planTitle: 'Unit 1', planDetail: 'Pages 1-3', note: 'Curriculum session note' }
+];
+const noteForce = api.applyRowTemplatesToSyllabusRows(noteRows, noteTemplates, { force: true });
+assert.equal(noteForce.rows[0].note, 'Curriculum session note', 'force refresh overwrites row note');
+
 console.log('syllabus-tab.test.mjs: all passed');

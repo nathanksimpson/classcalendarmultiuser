@@ -3,7 +3,7 @@
  */
 (function (global) {
     const TEMPLATES = [
-        { id: 'classFormTemplate', url: 'templates/class-form.html' },
+        { id: 'classFormTemplate', url: 'templates/class-form.html?v=20260603-class-form-order' },
         { id: 'syllabusEditorTemplate', url: 'templates/syllabus-editor.html' },
         { id: 'holidayFormTemplate', url: 'templates/holiday-form.html' },
         { id: 'printFormTemplate', url: 'templates/print-form.html' }
