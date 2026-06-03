@@ -70,6 +70,25 @@ Typography, spacing, and colors are defined in [`styles.css`](styles.css) `:root
 
 Reference implementations: class editor (`.form-group`), calendar visibility bar (`.visibility-chip` — legacy alias; prefer `.selection-chip` in new setup-tab UI), lesson-filter popover (plain `.lesson-filter-chip` without borders is intentional for dense calendar filters only).
 
+**Breakpoints (CSS + JS must agree):**
+
+| Tier | Width | `html[data-viewport]` | JS |
+|------|-------|----------------------|-----|
+| Phone | ≤640px | `phone` | `isViewportPhone()` / `VIEWPORT_BP_PHONE` |
+| Small tablet | 641–900px | `tablet-sm` | `matchMedia('(max-width: 900px)')` for narrow header |
+| Tablet | 901–1024px | `tablet` | `isViewportTabletOrBelow()` |
+| Desktop | >1024px | (unset) | default |
+
+Use `--bp-sm`, `--bp-md`, `--bp-lg`, `--bp-tablet`, `--bp-xl` in new `@media` rules instead of ad-hoc pixel values. Split sidebars: `--split-sidebar-min` / `--split-sidebar-max`. Editor prose max width: `--editor-prose-max`.
+
+**Mobile UX notes:**
+
+- **Setup host** is hidden on phone (`syncSetupTabsVisibility`); `mobileSetupLimitedBanner` shows on setup tabs if user lands there on a small screen.
+- **Notes tab** on phone redirects to `notes.html` (`prefersMobileNotesNav`); tab label becomes “Day notes” via `syncNotesTabPhoneChrome`.
+- **Calendar** defaults to agenda on phone; Month segment hidden when `data-calendar-view="agenda"`.
+- **Touch targets:** `--touch-min` (44px) on primary controls at `max-width: var(--bp-md)`.
+- New UI: use tokens and shared classes — do not add one-off `padding`/`font-size` in feature CSS.
+
 **Day notes vs class Notes:** `classes[].notes` in the class editor is a static class memo. `dayNotes[]` is timestamped per-class, per-calendar-day entries. **Entry:** calendar → right-click lesson → Add note (quick log for that class/day). **Single day:** day right-click or **Day notes** in term settings. **Browse/export range:** top-level **Notes** tab or **Classes** → **Notes** (same UI shell: date range, class/subject/grade filters, saved list, export). Data helpers: `js/day-notes.js` (`filterNotes`, `formatRangeExportByClass`). Tab DOM/preview cards: `js/class-notes-panel.js`; mount, filters, listeners, save/sync: `app.js` (`ensureClassNotesShell`, `initClassNotesPanelListeners`, `refreshClassNotesPanelIfMounted`). Filter checkboxes rebuild when calendar data loads via `refreshClassNotesPanelIfMounted`, not only on first tab open (`classNotesFiltersBuilt` guards one-time date restore).
 
 **Day notes and the edit lock:** Saving notes uses `PUT` with `dayNotesOnly: true` (`CalendarSync.saveDayNotesOnly`) — **no calendar edit lock** required. Schedule changes still use the lock. Each note may include `authorUserId`; co-teachers see all notes for a class/day but may only edit/delete their own (server: `prepareDayNotesForSave` in `server/day-notes-access.js` / `worker/src/day-notes-access.js`). Legacy notes without `authorUserId` are read-only for teachers (admins with `manage_calendar_access` may change them). Concurrent note saves from two teachers can still produce a calendar **revision 409**; reload merges by note `id` via `mergeDayNotesById`.

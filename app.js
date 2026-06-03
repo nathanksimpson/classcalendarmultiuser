@@ -211,6 +211,7 @@ const translations = {
         tabEvents: 'Events',
         tabHomework: 'Homework',
         tabNotes: 'Notes',
+        tabNotesMobile: 'Day notes',
         tabTimetable: 'Timetable',
         tabTeachers: 'Teachers',
         tabCohorts: 'Cohorts',
@@ -1037,6 +1038,7 @@ const translations = {
         calendarViewMonth: 'Month',
         calendarAgendaEmpty: 'No lessons or events in the next two weeks.',
         mobileSetupLimitedHint: 'This setup screen works best on a tablet or computer. You can view here, but editing is limited on a phone.',
+        workspaceTabCalendarHint: 'Opens main calendar in this tab area; tap 8 times for a surprise',
         classNotesFilterMobileNone: 'Filter actions…',
 
         // Holiday Modal
@@ -1340,6 +1342,7 @@ const translations = {
         tabEvents: '일정',
         tabHomework: '숙제',
         tabNotes: '특히사항',
+        tabNotesMobile: '일지',
         tabTimetable: '시간표',
         tabTeachers: '선생님 관리',
         tabCohorts: '반 관리',
@@ -2133,6 +2136,7 @@ const translations = {
         calendarViewMonth: '월',
         calendarAgendaEmpty: '앞으로 2주간 수업이나 일정이 없습니다.',
         mobileSetupLimitedHint: '설정 화면은 태블릿이나 컴퓨터에서 편집하기 좋습니다. 휴대폰에서는 보기만 가능합니다.',
+        workspaceTabCalendarHint: '캘린더로 돌아가기(8번 탭하면 숨은 기능)',
         classNotesFilterMobileNone: '필터…',
         
         // Holiday Modal
@@ -2403,14 +2407,16 @@ function refreshCalendarNameLabel() {
 }
 
 function updateCalendarTitle() {
-    const titleEl = document.querySelector('.app-top-bar-title-block h1');
+    const titleBlock = document.querySelector('.app-top-bar-title-block');
+    const titleEl = titleBlock?.querySelector('h1');
+    const name = (appData.calendarName || '').trim();
     if (titleEl) {
-        if (appData.calendarName && appData.calendarName.trim()) {
-            titleEl.textContent = appData.calendarName;
-        } else {
-            titleEl.textContent = t('appTitle');
-        }
+        titleEl.textContent = t('appTitle');
     }
+    if (titleBlock) {
+        titleBlock.hidden = Boolean(name);
+    }
+    updateTopBarCalendarLabel();
     requestAnimationFrame(syncAppChromeStickyTop);
 }
 
@@ -6303,6 +6309,15 @@ function syncAppChromeStickyTop() {
     }
 
     let monthStickyTop = topHeight > 0 ? topHeight : 72;
+    const dock = document.querySelector('.calendar-visibility-dock');
+    if (
+        dock
+        && typeof getActiveTab === 'function'
+        && getActiveTab() === 'calendar'
+        && !dock.hidden
+    ) {
+        monthStickyTop += Math.ceil(dock.getBoundingClientRect().height) + 8;
+    }
     document.documentElement.style.setProperty('--calendar-month-sticky-top', `${monthStickyTop}px`);
     syncCohortsBoardStickyOffsets();
 }
@@ -6347,6 +6362,8 @@ function syncViewportTier() {
     applyMobileUiDefaults();
     syncCalendarViewModeDom();
     syncMobileSetupLimitedBanner();
+    syncNotesTabPhoneChrome();
+    syncWorkspaceMobileLimitedBanner();
     syncHeaderCompactLabels();
     if (typeof renderTimetableView === 'function' && getActiveTab() === 'timetable') {
         const selector = getTimetableTeacherSelectorFromUi();
@@ -6399,6 +6416,32 @@ function syncMobileSetupLimitedBanner() {
     const tab = typeof getActiveTab === 'function' ? getActiveTab() : '';
     const show = isViewportPhone() && APP_SETUP_PHONE_TAB_IDS.includes(tab);
     banner.hidden = !show;
+}
+
+/** On phone, Notes tab opens notes.html — relabel tab and hide in-app promo panel. */
+function syncWorkspaceMobileLimitedBanner() {
+    if (!document.body.classList.contains('workspace-page')) {
+        return;
+    }
+    const banner = document.getElementById('workspaceMobileLimitedBanner');
+    if (!banner) {
+        return;
+    }
+    banner.hidden = !isViewportPhone();
+}
+
+function syncNotesTabPhoneChrome() {
+    const btn = document.getElementById('tabBtn-notes');
+    if (btn) {
+        const phone = isViewportPhone();
+        const label = phone ? t('tabNotesMobile') : t('tabNotes');
+        btn.textContent = label;
+        btn.setAttribute('aria-label', label);
+    }
+    const termNotesLink = document.getElementById('openNotesAppLink');
+    if (termNotesLink) {
+        termNotesLink.hidden = isViewportPhone();
+    }
 }
 
 function getCalendarViewMode() {
@@ -6524,6 +6567,16 @@ function initAppChromeStickyTop() {
         }
         appChromeStickyResizeObserver = new ResizeObserver(() => syncAppChromeStickyTop());
         appChromeStickyResizeObserver.observe(topBar);
+        ['teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                appChromeStickyResizeObserver.observe(el);
+            }
+        });
+        const dock = document.querySelector('.calendar-visibility-dock');
+        if (dock) {
+            appChromeStickyResizeObserver.observe(dock);
+        }
     }
     window.addEventListener('resize', syncAppChromeStickyTop);
 }
@@ -6583,11 +6636,8 @@ function updateTopBarCalendarLabel() {
     if (!labelEl) {
         return;
     }
-    ensureUiState();
-    const collapsed = appData.ui.topBarCollapsed === true;
     const name = getCollapsedHeaderCalendarName();
-    const showSubtitle = collapsed && name && !document.querySelector('.app-top-bar-title-block h1')?.textContent?.includes(name);
-    if (showSubtitle) {
+    if (name) {
         labelEl.textContent = name;
         labelEl.hidden = false;
     } else {
@@ -11136,53 +11186,42 @@ function defaultTabForHost(hostId) {
     return hostId === APP_HOST_SETUP ? defaultLastSetupTabId() : 'calendar';
 }
 
+/** When switching Teaching/Setup: keep calendar/classes; else open that host's last sub-tab. */
+function resolveSubTabForHostSwitch(hostId) {
+    ensureUiState();
+    const currentTab = appData.ui.activeTab || getActiveTab();
+    if (currentTab && APP_SHARED_TAB_IDS.includes(currentTab)) {
+        if (hostId === APP_HOST_SETUP && APP_SETUP_TAB_IDS.includes(currentTab)) {
+            return currentTab;
+        }
+        if (hostId === APP_HOST_TEACHING && APP_TEACHING_TAB_IDS.includes(currentTab)) {
+            return currentTab;
+        }
+    }
+    if (hostId === APP_HOST_SETUP) {
+        const last = appData.ui.lastSetupTab;
+        if (typeof last === 'string' && APP_SETUP_TAB_IDS.includes(last)) {
+            return last;
+        }
+        return defaultTabForHost(APP_HOST_SETUP);
+    }
+    const last = appData.ui.lastTeachingTab;
+    if (typeof last === 'string' && APP_TEACHING_TAB_IDS.includes(last)) {
+        return last;
+    }
+    return defaultTabForHost(APP_HOST_TEACHING);
+}
+
 let appTabNavShellWidthTimer = 0;
 
-/** Lock tab nav card width to widest sub-tab row so Teaching/Setup do not shift when sub-tabs change. */
+/** Clear legacy inline tab-nav width (layout is CSS: context strip + scrollable sub-tabs + fixed hosts). */
 function syncAppTabNavShellWidth() {
     const cluster = document.getElementById('appTabNavCluster');
     const nav = document.getElementById('appTabNav');
     if (!cluster || !nav || isNotesPage()) {
         return;
     }
-    if (isViewportPhone() || window.matchMedia('(max-width: 900px)').matches) {
-        cluster.style.removeProperty('--app-tab-nav-min-width');
-        nav.style.removeProperty('--app-tab-nav-min-width');
-        return;
-    }
-    const wrap = nav.querySelector('.app-tab-subnav-wrap');
-    if (!wrap) {
-        return;
-    }
-    const hostRow = document.querySelector('.app-tab-host-row');
-    const hostStripPx = hostRow
-        ? Math.ceil(hostRow.getBoundingClientRect().width) || 204
-        : 204;
-    const panels = [...wrap.querySelectorAll('.app-tab-subnav-panel')];
-    let maxPanelPx = 0;
-    panels.forEach((panel) => {
-        const prevStyle = panel.getAttribute('style');
-        panel.style.cssText = [
-            'position:absolute',
-            'left:-10000px',
-            'top:0',
-            'visibility:visible',
-            'pointer-events:none',
-            'display:flex',
-            'flex-wrap:nowrap',
-            'width:max-content'
-        ].join(';');
-        maxPanelPx = Math.max(maxPanelPx, Math.ceil(panel.scrollWidth));
-        if (prevStyle) {
-            panel.setAttribute('style', prevStyle);
-        } else {
-            panel.removeAttribute('style');
-        }
-    });
-    const wrapStyle = window.getComputedStyle(wrap);
-    const padX = (parseFloat(wrapStyle.paddingLeft) || 0) + (parseFloat(wrapStyle.paddingRight) || 0);
-    const minPx = Math.max(hostStripPx, maxPanelPx + padX + 2);
-    cluster.style.setProperty('--app-tab-nav-min-width', `${minPx}px`);
+    cluster.style.removeProperty('--app-tab-nav-min-width');
     nav.style.removeProperty('--app-tab-nav-min-width');
 }
 
@@ -11271,11 +11310,7 @@ function navigateToHost(hostId, options = {}) {
     ensureUiState();
     let subTab = options.subTab || '';
     if (!subTab || !APP_TAB_IDS.includes(subTab)) {
-        if (hostId === APP_HOST_SETUP) {
-            subTab = appData.ui.lastSetupTab || defaultTabForHost(APP_HOST_SETUP);
-        } else {
-            subTab = appData.ui.lastTeachingTab || defaultTabForHost(APP_HOST_TEACHING);
-        }
+        subTab = resolveSubTabForHostSwitch(hostId);
     }
     if (hostId === APP_HOST_SETUP && !APP_SETUP_TAB_IDS.includes(subTab)) {
         subTab = defaultTabForHost(APP_HOST_SETUP);
@@ -25791,11 +25826,15 @@ function updateActiveTeamCalendarOptionLabel() {
 function setTeamCalendarRowVisible(visible) {
     const row = document.getElementById('teamCalendarRow');
     const details = document.getElementById('appTopBarTeamDetails');
+    const picker = document.getElementById('teamCalendarPickerGroup');
     if (row) {
-        row.hidden = !visible;
+        row.hidden = false;
     }
     if (details) {
-        details.hidden = !visible;
+        details.hidden = false;
+    }
+    if (picker) {
+        picker.hidden = !visible;
     }
     refreshCalendarNameLabel();
 }

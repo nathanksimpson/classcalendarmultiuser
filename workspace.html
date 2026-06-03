@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Curriculum workspace — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260603-cleanup-review">
+    <link rel="stylesheet" href="styles.css?v=20260604-two-row-tabs">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -51,8 +51,12 @@
         <button type="button" id="workspaceReloadBtn" class="btn btn-primary btn-small" data-i18n="workspaceReload">Reload</button>
     </div>
 
+    <div id="workspaceMobileLimitedBanner" class="mobile-setup-limited-banner" hidden role="status">
+        <p class="mobile-setup-limited-banner-text" data-i18n="mobileSetupLimitedHint">This setup screen works best on a tablet or computer. You can view here, but editing is limited on a phone.</p>
+    </div>
+
     <nav class="workspace-tab-nav" role="tablist">
-        <button type="button" id="tabBtn-calendar" class="workspace-tab-btn workspace-dino-calendar-tab" data-i18n="tabCalendar">Calendar</button>
+        <button type="button" id="tabBtn-calendar" class="workspace-tab-btn workspace-dino-calendar-tab" data-i18n="tabCalendar" data-i18n-title="workspaceTabCalendarHint" title="Back to main calendar (8 taps for a surprise)">Calendar</button>
         <button type="button" class="workspace-tab-btn is-active" data-ws-tab="homework" role="tab" aria-selected="true" data-i18n="workspaceTabHomework">Homework copy</button>
         <button type="button" class="workspace-tab-btn" data-ws-tab="books" role="tab" aria-selected="false" data-i18n="workspaceTabBooks">Curriculum</button>
     </nav>
@@ -158,7 +162,7 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260603-cleanup-review"></script>
-    <script defer src="app.js?v=20260603-cleanup-review"></script>
+    <script defer src="app.js?v=20260604-two-row-tabs"></script>
     <script defer src="js/workspace.js?v=20260604-connecting-fix"></script>
 </body>
 </html>
