@@ -9812,15 +9812,20 @@ body.dino-game-open {
     margin-bottom: 0;
 }
 
-.cohorts-floating-toolbar .setup-board-view-switch {
+.cohorts-toolbar-search {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+    max-width: 22rem;
     margin: 0;
 }
 
+.cohorts-floating-toolbar .setup-board-view-switch {
+    margin: 0;
+    flex-shrink: 0;
+}
+
 .setup-board-layout {
-    display: grid;
-    grid-template-columns: minmax(12rem, 18rem) minmax(10rem, 14rem) minmax(0, 1fr);
-    gap: 0.75rem;
-    align-items: start;
+    display: block;
     min-height: 28rem;
 }
 
@@ -9835,47 +9840,6 @@ body.dino-game-open {
     min-height: 0;
 }
 
-.module-list-panel.setup-board-class-palette,
-.module-list-panel.setup-board-teacher-palette {
-    position: sticky;
-    align-self: start;
-    top: var(--cohorts-palette-sticky-top, calc(var(--app-chrome-sticky-top, 72px) + 4.5rem));
-    z-index: 120;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    max-height: calc(100dvh - var(--cohorts-palette-sticky-top, calc(var(--app-chrome-sticky-top, 72px) + 4.5rem)) - 1.5rem);
-}
-
-#panel-cohorts .module-list-panel.setup-board-class-palette,
-#panel-cohorts .module-list-panel.setup-board-teacher-palette {
-    position: relative;
-    top: auto;
-    align-self: stretch;
-    max-height: none;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    z-index: auto;
-}
-
-#panel-cohorts .module-list-panel.setup-board-class-palette .setup-board-pool,
-#panel-cohorts aside.setup-board-teacher-palette > .setup-board-teacher-palette,
-#panel-cohorts #setupBoardTeacherPalette.setup-board-teacher-palette {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-}
-
-.module-list-panel.setup-board-class-palette .setup-board-section-heading,
-.module-list-panel.setup-board-teacher-palette .setup-board-section-heading,
-.module-list-panel.setup-board-teacher-palette .module-list-search,
-#panel-cohorts .setup-board-cohort-nav .module-list-search {
-    flex-shrink: 0;
-}
-
 .setup-board-center {
     display: flex;
     flex-direction: column;
@@ -9885,43 +9849,11 @@ body.dino-game-open {
 }
 
 #panel-cohorts .setup-board-center {
-    display: grid;
-    grid-template-rows: minmax(0, 11rem) minmax(0, 1fr);
-    grid-template-columns: minmax(0, 1fr);
-    align-content: stretch;
-    min-height: 0;
-    overflow: hidden;
-    height: 100%;
-}
-
-.setup-board-cohort-nav {
-    flex: 0 0 auto;
-    max-height: 14rem;
-    overflow: auto;
-}
-
-#panel-cohorts .setup-board-cohort-nav.module-list-panel {
-    position: relative;
-    top: auto;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: none;
     overflow: hidden;
-}
-
-#panel-cohorts .setup-board-cohort-list {
-    flex: 1 1 auto;
-    min-height: 0;
-    max-height: none;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-}
-
-.setup-board-cohort-list {
-    max-height: 9rem;
-    overflow-y: auto;
+    height: 100%;
 }
 
 .setup-board-main {
@@ -9958,63 +9890,91 @@ body.dino-game-open {
     font-size: 0.8125rem;
 }
 
-.setup-board-pool {
+.setup-board-cohort-header-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    flex: 1 1 auto;
-    min-height: 3.5rem;
-    overflow-y: auto;
-    padding: 0.5rem;
-    border: 1px dashed var(--border-color);
-    border-radius: 8px;
-    background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+    gap: 0.25rem;
+    margin-bottom: 0.35rem;
 }
 
-.setup-board-pool.is-drag-over,
-.setup-board-cohort-body.is-drag-over {
-    border-color: var(--accent, #2563eb);
-    background: var(--banner-info-bg, #eff6ff);
+.setup-board-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin: 0.25rem 0;
 }
 
-.setup-board-pool-group-label {
-    flex: 1 1 100%;
-    margin: 0.35rem 0 0.15rem;
-    font-size: 0.75rem;
+.setup-board-picker-dialog {
+    max-width: min(28rem, 92vw);
+    max-height: min(80dvh, 32rem);
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
 }
 
-.setup-board-pool-card,
-.setup-board-palette-teacher {
+.setup-board-picker-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.setup-board-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setup-board-picker-title {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.setup-board-picker-body {
+    padding: 0.6rem 0.75rem;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
-    padding: 0.35rem 0.55rem;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--surface, #fff);
-    color: var(--text-primary);
-    font-size: 0.8rem;
-    cursor: grab;
-    max-width: 100%;
+    gap: 0.5rem;
+    overflow: hidden;
 }
 
-.setup-board-pool-card--linked {
-    opacity: 0.92;
-    border-style: dashed;
+.setup-board-picker-list {
+    max-height: min(50dvh, 20rem);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
-.setup-board-pool-card-label {
+.setup-board-picker-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setup-board-picker-row:last-child {
+    border-bottom: none;
+}
+
+.setup-board-picker-row-label {
     font-weight: 600;
+    font-size: 0.85rem;
 }
 
-.setup-board-pool-card-linked {
-    font-size: 0.7rem;
-    line-height: 1.2;
+.setup-board-picker-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
 }
 
-.setup-board-pool-card.is-dragging,
-.setup-board-palette-teacher.is-dragging {
-    opacity: 0.55;
+.setup-board-picker-intro {
+    margin: 0;
 }
 
 .setup-board-canvas {
@@ -10023,8 +9983,14 @@ body.dino-game-open {
 
 .setup-board-cohort-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
     gap: 0.65rem;
+}
+
+@media (min-width: 1200px) {
+    .setup-board-cohort-grid {
+        grid-template-columns: repeat(auto-fill, minmax(24rem, 32rem));
+    }
 }
 
 .setup-board-cohort {
@@ -10060,31 +10026,59 @@ body.dino-game-open {
     flex-wrap: wrap;
     align-items: center;
     gap: 0.35rem;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.2rem;
+}
+
+.cohort-schedule-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border-radius: 4px;
+    background: var(--accent-muted, #e0e7ff);
+    color: var(--accent, #2563eb);
+    border: 1px solid var(--accent, #2563eb);
+    flex-shrink: 0;
+}
+
+.setup-board-cohort-meta {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
 }
 
 .setup-board-cohort-title {
     margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
     font-size: 0.95rem;
     font-weight: 600;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: transparent;
 }
 
-.setup-board-cohort-schedule {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    align-items: center;
+.setup-board-cohort-title:hover:not(:disabled),
+.setup-board-cohort-title:focus-visible:not(:disabled) {
+    text-decoration-color: var(--accent, #2563eb);
+    color: var(--accent, #2563eb);
 }
 
-.setup-board-pattern-btn.is-active {
-    background: var(--accent, #2563eb);
-    color: #fff;
-    border-color: var(--accent, #2563eb);
+.setup-board-cohort-title:disabled {
+    cursor: default;
+    text-decoration: none;
 }
 
-.setup-board-custom-days-badge {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+.setup-board-cohort-title-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
 }
 
 .setup-board-cohort-body {
@@ -10094,6 +10088,115 @@ body.dino-game-open {
     flex-direction: column;
     gap: 0.45rem;
     min-height: 4rem;
+}
+
+.setup-board-cohort-homeroom {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.setup-board-cohort-classes-heading,
+.setup-board-cohort-warnings-heading {
+    margin: 0.25rem 0 0.1rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+}
+
+.setup-board-cohort-class-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.setup-board-cohort-class-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.5rem;
+    align-items: start;
+    padding: 0.35rem 0.4rem;
+    border-radius: 6px;
+    background: var(--surface-muted, #f8fafc);
+    font-size: 0.8rem;
+}
+
+.setup-board-cohort-class-row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.setup-board-cohort-class-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-align: left;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent, #2563eb);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.setup-board-cohort-class-name:hover {
+    color: var(--accent-hover, #1d4ed8);
+}
+
+.setup-board-cohort-class-teachers {
+    color: var(--text-primary);
+}
+
+.setup-board-cohort-class-schedule,
+.setup-board-cohort-class-also {
+    font-size: 0.75rem;
+}
+
+.setup-board-cohort-class-edit {
+    align-self: start;
+    flex-shrink: 0;
+}
+
+.setup-board-cohort-warnings {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.setup-board-cohort-warning {
+    margin: 0;
+    padding: 0.35rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.setup-board-cohort-warning.is-warn {
+    background: var(--warn-bg, #fffbeb);
+    color: var(--warn-text, #92400e);
+    border: 1px solid var(--warn-border, #fcd34d);
+}
+
+.setup-board-cohort-warning.is-error {
+    background: var(--error-bg, #fef2f2);
+    color: var(--error-text, #991b1b);
+    border: 1px solid var(--error-border, #fca5a5);
+}
+
+.setup-board-cohort-warning.is-info {
+    background: var(--surface-muted, #f8fafc);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
 }
 
 .setup-board-class-card {
@@ -10111,28 +10214,12 @@ body.dino-game-open {
     gap: 0.25rem;
 }
 
-.setup-board-card-drag-handle {
-    flex: 0 0 auto;
-    padding: 0 0.25rem;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 1rem;
-    line-height: 1;
-    cursor: grab;
-    touch-action: none;
-}
-
-.setup-board-card-drag-handle:active {
-    cursor: grabbing;
-}
-
 .setup-board-class-card-title {
     font-size: 0.85rem;
     color: var(--text-primary);
 }
 
-.setup-board-teacher-drop-label {
+.setup-board-teacher-assign-label {
     margin: 0.35rem 0 0.15rem;
     font-size: 0.7rem;
     font-weight: 600;
@@ -10141,23 +10228,29 @@ body.dino-game-open {
     letter-spacing: 0.02em;
 }
 
-.setup-board-teacher-drop-zone {
+.setup-board-class-teachers-section {
+    margin: 0.15rem 0 0.25rem;
+}
+
+.setup-board-class-teachers {
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
     align-items: center;
-    min-height: 2.25rem;
-    padding: 0.35rem 0.45rem;
-    border-radius: 6px;
-    margin: 0.15rem 0 0.25rem;
-    border: 2px dashed var(--border-color);
-    background: var(--accent-muted, var(--surface-muted));
+    min-height: 1.5rem;
 }
 
-.setup-board-class-teachers.is-drag-over,
-.setup-board-teacher-drop-zone.is-drag-over {
-    border-color: var(--accent, #2563eb);
-    background: var(--banner-info-bg, #eff6ff);
+.setup-board-teacher-assign-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+    margin-top: 0.35rem;
+}
+
+.setup-board-teacher-select {
+    flex: 1 1 8rem;
+    min-width: 0;
 }
 
 .setup-board-class-teachers-empty {
@@ -10213,16 +10306,6 @@ body.dino-game-open {
     color: var(--banner-warn-color, #78350f);
 }
 
-aside.setup-board-teacher-palette > .setup-board-teacher-palette,
-#setupBoardTeacherPalette.setup-board-teacher-palette {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-}
-
 .meeting-days-compact {
     display: flex;
     flex-wrap: wrap;
@@ -10261,44 +10344,20 @@ aside.setup-board-teacher-palette > .setup-board-teacher-palette,
 }
 
 @media (max-width: 960px) {
-    .setup-board-layout {
-        grid-template-columns: 1fr;
-    }
-
     #panel-cohorts .setup-board-layout {
         height: auto;
         max-height: none;
         overflow: visible;
-        align-items: stretch;
     }
 
     #panel-cohorts .setup-board-center {
         height: auto;
         overflow: visible;
-        grid-template-rows: minmax(0, 11rem) minmax(0, 20rem);
-    }
-
-    #panel-cohorts .module-list-panel.setup-board-class-palette,
-    #panel-cohorts .module-list-panel.setup-board-teacher-palette {
-        position: relative;
-        top: auto;
-        align-self: stretch;
-        max-height: 14rem;
-        height: auto;
-        min-height: 0;
-        overflow: hidden;
-        z-index: auto;
     }
 
     #panel-cohorts .setup-board-main {
         min-height: 12rem;
         overflow-y: auto;
-    }
-
-    aside.setup-board-teacher-palette > .setup-board-teacher-palette,
-    #setupBoardTeacherPalette.setup-board-teacher-palette {
-        flex-direction: column;
-        flex-wrap: nowrap;
     }
 
     .cohorts-floating-toolbar {

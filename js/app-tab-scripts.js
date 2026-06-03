@@ -4,10 +4,10 @@
 (function (global) {
     const TAB_SCRIPTS = {
         cohorts: [
-            'js/teacher-timetable.js?v=20260611-timetable-context',
+            'js/teacher-timetable.js?v=20260603-title-rename',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260602-combined-cohorts',
-            'js/setup-board.js?v=20260602-combined-cohorts'
+            'js/cohort-management.js?v=20260603-title-rename',
+            'js/setup-board.js?v=20260603-title-rename'
         ],
         timetable: [
             'js/teacher-timetable.js?v=20260611-timetable-context',

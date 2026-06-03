@@ -776,6 +776,200 @@
         return pairs;
     }
 
+    function getCohortMeetingDaysForWarnings(cohort) {
+        if (!cohort) {
+            return [];
+        }
+        const g = typeof global !== 'undefined' ? global : null;
+        if (g && g.CCPCohortManagement && g.CCPCohortManagement.getCohortMeetingDays) {
+            return g.CCPCohortManagement.getCohortMeetingDays(cohort);
+        }
+        const matrix = g && g.CCPScheduleMatrix ? g.CCPScheduleMatrix : null;
+        const patternId = normalizeStr(cohort.schedulePattern);
+        if (patternId && patternId !== 'custom' && matrix) {
+            const pat = matrix.getPatterns()[patternId];
+            if (pat && Array.isArray(pat.meetingDays)) {
+                return pat.meetingDays.slice();
+            }
+        }
+        return normalizeMeetingDaysArray(cohort.meetingDays).filter((d) => d >= 1 && d <= 5);
+    }
+
+    function teacherRefKeyFromRow(row) {
+        const uid = normalizeStr(row.userId);
+        const name = normalizeStr(row.name);
+        return uid || (name ? name.toLowerCase() : '');
+    }
+
+    function classLabelForWarning(classData) {
+        return normalizeStr(classData.name) || classData.id || '';
+    }
+
+    function getClassTimetableSlotKeys(classData, appData) {
+        const seen = new Set();
+        const keys = [];
+        const rows = getClassTeachersList(classData);
+        const sources = rows.length ? rows : [normalizeTeacherRow({})];
+        sources.forEach((row) => {
+            getTeacherTimetablePlacements(classData, row, appData).forEach((pl) => {
+                const k = `${pl.dow}|${pl.timeSlotId}`;
+                if (!seen.has(k)) {
+                    seen.add(k);
+                    keys.push(k);
+                }
+            });
+        });
+        return keys;
+    }
+
+    /**
+     * Cohort-scoped setup warnings for the cohort board tiles.
+     * @returns {Array<{ code: string, severity: string, messageKey: string, params?: object, classId?: string }>}
+     */
+    function collectCohortSetupWarnings(cohort, appData, options) {
+        options = options || {};
+        const warnings = [];
+        if (!cohort || !cohort.id || !appData) {
+            return warnings;
+        }
+        const cohortId = cohort.id;
+
+        const hrUid = normalizeStr(cohort.homeroomTeacherUserId);
+        const hrName = normalizeStr(cohort.homeroomTeacherName);
+        if (!hrUid && !hrName) {
+            warnings.push({
+                code: 'no_homeroom',
+                severity: 'warn',
+                messageKey: 'setupBoardWarnNoHomeroom'
+            });
+        }
+
+        const classIds = getCohortClassIds(appData, cohort);
+        const classes = classIds
+            .map((id) => (appData.classes || []).find((c) => c && c.id === id))
+            .filter(Boolean);
+
+        if (!classes.length) {
+            warnings.push({
+                code: 'no_classes',
+                severity: 'info',
+                messageKey: 'setupBoardWarnNoClasses'
+            });
+            return warnings;
+        }
+
+        const cohortDays = getCohortMeetingDaysForWarnings(cohort);
+        const cohortSet = new Set(cohortDays);
+
+        classes.forEach((cls) => {
+            const className = classLabelForWarning(cls);
+            const teachers = getClassTeachersList(cls);
+            if (!teachers.length) {
+                warnings.push({
+                    code: 'class_no_teacher',
+                    severity: 'warn',
+                    messageKey: 'setupBoardWarnClassNoTeacher',
+                    params: { class: className },
+                    classId: cls.id
+                });
+            }
+            const classDays = getMeetingDaysFromClass(cls).filter((d) => d >= 1 && d <= 5);
+            if (classDays.length && cohortDays.length && classDays.some((d) => !cohortSet.has(d))) {
+                warnings.push({
+                    code: 'class_days_outside',
+                    severity: 'warn',
+                    messageKey: 'setupBoardWarnDaysOutside',
+                    params: { class: className },
+                    classId: cls.id
+                });
+            }
+        });
+
+        const teacherSlotMap = new Map();
+        classes.forEach((cls) => {
+            const className = classLabelForWarning(cls);
+            getClassTeachersList(cls).forEach((row) => {
+                const tKey = teacherRefKeyFromRow(row);
+                if (!tKey) {
+                    return;
+                }
+                const tLabel = normalizeStr(row.name) || row.userId || tKey;
+                getTeacherTimetablePlacements(cls, row, appData).forEach((pl) => {
+                    const slotKey = `${tKey}|${pl.dow}|${pl.timeSlotId}`;
+                    if (!teacherSlotMap.has(slotKey)) {
+                        teacherSlotMap.set(slotKey, { teacherLabel: tLabel, classes: [] });
+                    }
+                    const entry = teacherSlotMap.get(slotKey);
+                    if (!entry.classes.includes(className)) {
+                        entry.classes.push(className);
+                    }
+                });
+            });
+        });
+        teacherSlotMap.forEach((entry) => {
+            if (entry.classes.length > 1) {
+                warnings.push({
+                    code: 'teacher_double_book',
+                    severity: 'error',
+                    messageKey: 'setupBoardWarnTeacherDoubleBook',
+                    params: {
+                        teacher: entry.teacherLabel,
+                        classes: entry.classes.join(', ')
+                    }
+                });
+            }
+        });
+
+        const slotClassMap = new Map();
+        classes.forEach((cls) => {
+            const className = classLabelForWarning(cls);
+            getClassTimetableSlotKeys(cls, appData).forEach((k) => {
+                if (!slotClassMap.has(k)) {
+                    slotClassMap.set(k, []);
+                }
+                const arr = slotClassMap.get(k);
+                if (!arr.includes(className)) {
+                    arr.push(className);
+                }
+            });
+        });
+        slotClassMap.forEach((names) => {
+            if (names.length > 1) {
+                warnings.push({
+                    code: 'period_collision',
+                    severity: 'warn',
+                    messageKey: 'setupBoardWarnPeriodCollision',
+                    params: { classes: names.join(', ') }
+                });
+            }
+        });
+
+        const dupReported = new Set();
+        findPossibleDuplicatePairsAcrossCohorts(appData).forEach((pair) => {
+            if (pair.cohortIdA !== cohortId && pair.cohortIdB !== cohortId) {
+                return;
+            }
+            const key = `${pair.classA.id}|${pair.classB.id}`;
+            if (dupReported.has(key)) {
+                return;
+            }
+            dupReported.add(key);
+            const otherName = pair.cohortIdA === cohortId ? pair.cohortNameB : pair.cohortNameA;
+            warnings.push({
+                code: 'duplicate_combined',
+                severity: 'warn',
+                messageKey: 'setupBoardWarnDuplicateCombined',
+                params: {
+                    classA: classLabelForWarning(pair.classA),
+                    classB: classLabelForWarning(pair.classB),
+                    otherCohort: otherName
+                }
+            });
+        });
+
+        return warnings;
+    }
+
     function getCohortClassIds(appData, cohort) {
         if (!cohort || !cohort.id) {
             return [];
@@ -1089,7 +1283,7 @@
             if (!groups.has(key)) {
                 groups.set(key, {
                     id: '',
-                    name: [levelCustom || levelPreset, grade, md ? `days ${md}` : ''].filter(Boolean).join(' · '),
+                    name: [levelCustom || levelPreset, grade].filter(Boolean).join(' · '),
                     level: levelCustom || levelPreset,
                     levelPreset,
                     grade,
@@ -1411,6 +1605,7 @@
         getClassesForCohort,
         findDuplicateClassPairsForCohorts,
         findPossibleDuplicatePairsAcrossCohorts,
+        collectCohortSetupWarnings,
         formatCohortNamesForClass,
         combineCohortClassPair,
         getCohortClassIds,

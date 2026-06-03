@@ -665,12 +665,11 @@
                         <button type="button" id="cohortsUsageTipsDismiss" class="btn btn-outline btn-small cohorts-usage-tips-dismiss" data-i18n="cohortsUsageTipsDismiss">Don't show again</button>
                     </summary>
                     <div class="cohorts-usage-tips-body">
-                        <p class="section-hint" data-i18n="cohortsTabIntro">Classes on the left, teachers next, cohort board in the center. Drag to assign; click a cohort header to edit.</p>
-                        <p class="section-hint" data-i18n="setupBoardWorkflowHint">1) Drag classes into cohorts · 2) Drag teachers onto each class · 3) Check Homeroom host on one class per cohort.</p>
+                        <p class="section-hint" data-i18n="cohortsTabIntro">Pick a cohort from the list, use the board to add classes and teachers, and click Edit cohort for identity, subjects, and bulk class links.</p>
+                        <p class="section-hint" data-i18n="setupBoardWorkflowHint">1) + Add class on a cohort · 2) Assign teachers on each class card · 3) Check Homeroom host on one class per cohort.</p>
                         <ul class="cohorts-usage-tips-list">
-                            <li data-i18n="setupBoardPoolHint">Drag into a cohort on the board, or back to All classes to unassign.</li>
-                            <li data-i18n="setupBoardDropTeacher">Drag a teacher onto a class card to assign.</li>
-                            <li data-i18n="cohortsCombinedHint">Combined cohorts (합반): link one class to both cohorts (catalog Apply or Combine cohorts). Dragging from All classes adds a link; Alt+drag moves the class to one cohort only.</li>
+                            <li data-i18n="setupBoardDropTeacher">Use the teacher dropdown on each class card, then Add teacher.</li>
+                            <li data-i18n="cohortsCombinedHint">Combined cohorts (합반): link one class to both cohorts (Edit cohort catalog Apply or Combine cohorts). + Add class → Link adds a link; Move here only clears other cohort links.</li>
                         </ul>
                     </div>
                 </details>
@@ -680,8 +679,10 @@
                     <div class="cohorts-floating-toolbar-primary module-toolbar">
                         <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
                         <button type="button" id="cohortsImportBtn" class="btn btn-outline btn-compact" data-i18n="cohortsImportFromClasses">Import from existing classes</button>
+                        <button type="button" id="cohortsEditBtn" class="btn btn-outline btn-compact" hidden data-i18n="cohortsEditBtn">Edit cohort</button>
                         <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
                     </div>
+                    <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts…" aria-label="Search cohorts">
                     <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
                         <span class="setup-board-view-label section-hint" data-i18n="setupBoardViewLabel">Board view</span>
                         <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
@@ -690,20 +691,7 @@
                     </div>
                 </div>
                 <div class="setup-board-layout">
-                    <aside class="module-list-panel setup-board-class-palette" aria-label="All classes">
-                        <h3 id="setupBoardPoolHeading" class="setup-board-section-heading" data-i18n="setupBoardAllClasses">All classes</h3>
-                        <div id="setupBoardPool" class="setup-board-pool" data-drop-zone="pool"></div>
-                    </aside>
-                    <aside class="module-list-panel setup-board-teacher-palette" aria-label="Teachers">
-                        <h3 class="setup-board-section-heading" data-i18n="setupBoardTeachers">Teachers</h3>
-                        <input type="search" id="setupBoardTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
-                        <div id="setupBoardTeacherPalette" class="setup-board-teacher-palette"></div>
-                    </aside>
                     <div class="setup-board-center">
-                        <div class="setup-board-cohort-nav module-list-panel" aria-label="Cohorts">
-                            <input type="search" id="cohortsListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts…">
-                            <div id="cohortsList" class="module-list setup-board-cohort-list" role="listbox" aria-label="Student cohorts"></div>
-                        </div>
                         <div class="setup-board-main">
                             <div id="setupBoardViewMwf" class="setup-board-canvas" data-board-canvas="mwf"></div>
                             <div id="setupBoardViewTth" class="setup-board-canvas" data-board-canvas="tth" hidden></div>

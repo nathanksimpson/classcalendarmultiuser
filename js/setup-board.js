@@ -1,14 +1,13 @@
 /**
- * Visual cohort setup board — drag classes into cohorts, teachers onto classes, homeroom host.
+ * Visual cohort setup board — assign classes and teachers via buttons and pickers.
  */
 (function (global) {
     let hooks = null;
     let boardView = 'mwf';
-    let dragPayload = null;
+    let activePickerDialog = null;
+    let activeTitleEdit = null;
 
-    const PATTERN_IDS = ['mwf', 'tth', 'mw', 'wf', 'mf', 'custom'];
     const COHORT_DOW = { en: ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], ko: ['', '월', '화', '수', '목', '금'] };
-    const MWF_SET = new Set([1, 3, 5]);
     const TTH_SET = new Set([2, 4]);
 
     function normalizeStr(v) {
@@ -51,24 +50,6 @@
         return Array.isArray(cohort.meetingDays) ? cohort.meetingDays.slice() : [];
     }
 
-    function setCohortPattern(cohort, patternId) {
-        const matrix = getMatrixApi();
-        cohort.schedulePattern = patternId;
-        if (patternId !== 'custom' && matrix) {
-            const pat = matrix.getPatterns()[patternId];
-            if (pat && Array.isArray(pat.meetingDays)) {
-                cohort.meetingDays = pat.meetingDays.slice();
-            }
-        }
-        if (global.CCPCohortManagement && global.CCPCohortManagement.buildSubjectSlotsFromMatrix) {
-            try {
-                cohort.subjectSlots = global.CCPCohortManagement.buildSubjectSlotsFromMatrix(cohort) || [];
-            } catch (slotErr) {
-                console.warn('CCPSetupBoard: subject slots skipped', slotErr);
-            }
-        }
-    }
-
     function getCohortBoardView(cohort) {
         if (!cohort) {
             return 'mwf';
@@ -89,25 +70,6 @@
             return 'tth';
         }
         return 'mwf';
-    }
-
-    function getClassMeetingDaysArray(classData) {
-        if (hooks && hooks.getMeetingDaysFromClass) {
-            return hooks.getMeetingDaysFromClass(classData).slice();
-        }
-        const raw = classData && classData.meetingDays;
-        return Array.isArray(raw) ? raw.filter((d) => d >= 1 && d <= 5) : [];
-    }
-
-    /** True only when class meets on a weekday outside this cohort's schedule (subset days are OK). */
-    function classDaysOutsideCohort(classData, cohort) {
-        const classDays = getClassMeetingDaysArray(classData);
-        const cohortDays = getCohortMeetingDays(cohort);
-        if (!classDays.length || !cohortDays.length) {
-            return false;
-        }
-        const cohortSet = new Set(cohortDays);
-        return classDays.some((d) => !cohortSet.has(d));
     }
 
     function normalizeBoardView(view) {
@@ -193,10 +155,6 @@
         return api ? api.getClassCohortIds(classData) : [];
     }
 
-    function isClassUnassigned(classData) {
-        return getClassCohortIdsForBoard(classData).length === 0;
-    }
-
     function getClassesInCohort(cohortId) {
         const appData = hooks.getAppData();
         const api = getApi();
@@ -212,12 +170,16 @@
         return list;
     }
 
-    function cohortNamesForClass(classData) {
-        const appData = hooks.getAppData();
-        return getClassCohortIdsForBoard(classData).map((id) => {
-            const cohort = (appData.cohorts || []).find((c) => c.id === id);
-            return cohort ? (cohort.name || id) : id;
-        });
+    function classDisplayLabel(classData) {
+        let label = classData.name || '';
+        if (!label && hooks.formatClassLabel) {
+            try {
+                label = hooks.formatClassLabel(classData) || '';
+            } catch (_) {
+                label = classData.id || '';
+            }
+        }
+        return label || classData.id || '?';
     }
 
     function getTeachersOnClass(classData) {
@@ -241,76 +203,6 @@
         return normalizeStr(
             row.displayName || row.assignedTeacherName || row.name || row.userId || row.assignedTeacherUserId
         );
-    }
-
-    function firstTeacherOnClass(classData) {
-        const rows = getTeachersOnClass(classData);
-        if (!rows.length) {
-            return null;
-        }
-        const row = rows[0];
-        const userId = normalizeStr(row.userId || row.assignedTeacherUserId);
-        const displayName = teacherRowLabel(row);
-        if (!userId && !displayName) {
-            return null;
-        }
-        return { userId, displayName };
-    }
-
-    function classHasHomeroomTeacher(classData) {
-        return !!firstTeacherOnClass(classData);
-    }
-
-    function stopCohortCardEventBubble(el) {
-        if (!el) {
-            return;
-        }
-        el.addEventListener('click', (e) => e.stopPropagation());
-    }
-
-    function applyHomeroomFromHostClass(cohort, classData) {
-        const api = getApi();
-        const teacher = firstTeacherOnClass(classData);
-        if (!teacher || (!teacher.userId && !teacher.displayName)) {
-            cohort.homeroomHostClassId = '';
-            if (api) {
-                api.clearCohortHomeroom(cohort);
-            } else {
-                cohort.homeroomTeacherUserId = '';
-                cohort.homeroomTeacherName = '';
-            }
-            return;
-        }
-        cohort.homeroomHostClassId = classData.id;
-        if (api) {
-            api.setCohortHomeroom(cohort, teacher);
-        } else {
-            cohort.homeroomTeacherUserId = teacher.userId;
-            cohort.homeroomTeacherName = teacher.displayName;
-        }
-    }
-
-    function setHomeroomHost(cohort, classData, checked) {
-        if (checked) {
-            if (!classHasHomeroomTeacher(classData)) {
-                hooks.showMessage(t('setupBoardAssignTeacherFirst'), false);
-                return;
-            }
-            cohort.homeroomHostClassId = classData.id;
-            applyHomeroomFromHostClass(cohort, classData);
-        } else {
-            if (normalizeStr(cohort.homeroomHostClassId) === classData.id) {
-                cohort.homeroomHostClassId = '';
-                const api = getApi();
-                if (api) {
-                    api.clearCohortHomeroom(cohort);
-                } else {
-                    cohort.homeroomTeacherUserId = '';
-                    cohort.homeroomTeacherName = '';
-                }
-            }
-        }
-        persistAndRefresh();
     }
 
     function unlinkClassFromCohortQuiet(classData, cohortId) {
@@ -348,10 +240,6 @@
         }
     }
 
-    /**
-     * Assign a class onto a cohort. From pool: add link (combined groups); Alt+drag or moveOnly → replace all links.
-     * From another cohort column: move from that cohort only. Already on this cohort → no-op.
-     */
     function assignClassToCohort(classData, cohort, payload) {
         if (!classData || !cohort) {
             return;
@@ -401,354 +289,341 @@
         persistAndRefresh();
     }
 
-    function assignTeacherToClass(classData, selector) {
-        const api = getApi();
-        const appData = hooks.getAppData();
-        if (!selector) {
-            return;
-        }
-        if (!api) {
-            hooks.showMessage(t('setupBoardTeachersApiMissing'), true);
-            return;
-        }
-        const added = api.addTeacherRowToClass(classData, selector, {
-            appData,
-            category: '',
-            generateId: hooks.generateId
+    function formatWarningMessage(warning) {
+        let msg = t(warning.messageKey);
+        const params = warning.params || {};
+        Object.keys(params).forEach((key) => {
+            msg = msg.replace(new RegExp(`\\{${key}\\}`, 'g'), String(params[key]));
         });
-        if (!added) {
-            hooks.showMessage(t('setupBoardTeacherAlreadyAssigned'), false);
-            return;
-        }
-        const cohorts = (appData.cohorts || []).filter((coh) =>
-            normalizeStr(coh.homeroomHostClassId) === classData.id
-        );
-        cohorts.forEach((coh) => applyHomeroomFromHostClass(coh, classData));
-        persistAndRefresh();
+        return msg;
     }
 
-    function removeTeacherFromClass(classData, selector) {
-        const api = getApi();
-        if (!api) {
-            return;
+    function homeroomDisplayName(cohort) {
+        const name = normalizeStr(cohort.homeroomTeacherName);
+        if (name) {
+            return name;
         }
-        api.removeTeacherFromClass(classData, selector);
-        const appData = hooks.getAppData();
-        (appData.cohorts || []).forEach((coh) => {
-            if (normalizeStr(coh.homeroomHostClassId) === classData.id) {
-                applyHomeroomFromHostClass(coh, classData);
-            }
+        const uid = normalizeStr(cohort.homeroomTeacherUserId);
+        return uid || '';
+    }
+
+    function otherCohortNamesForClass(classData, currentCohortId, appData) {
+        return getClassCohortIdsForBoard(classData)
+            .filter((id) => id !== currentCohortId)
+            .map((id) => {
+                const c = (appData.cohorts || []).find((x) => x && x.id === id);
+                return c ? (c.name || id) : id;
+            })
+            .filter(Boolean);
+    }
+
+    function renderCohortClassSummaryRow(classData, cohort, appData) {
+        const li = document.createElement('li');
+        li.className = 'setup-board-cohort-class-row';
+        li.dataset.classId = classData.id;
+
+        const main = document.createElement('div');
+        main.className = 'setup-board-cohort-class-row-main';
+
+        const nameBtn = document.createElement('button');
+        nameBtn.type = 'button';
+        nameBtn.className = 'setup-board-cohort-class-name';
+        nameBtn.textContent = classDisplayLabel(classData);
+        nameBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            hooks.navigateToTab('classes', { classId: classData.id, host: 'setup' });
         });
-        persistAndRefresh();
+        main.appendChild(nameBtn);
+
+        const teachersEl = document.createElement('span');
+        teachersEl.className = 'setup-board-cohort-class-teachers';
+        const rows = getTeachersOnClass(classData);
+        teachersEl.textContent = rows.length
+            ? rows.map(teacherRowLabel).filter(Boolean).join(', ')
+            : t('cohortsNoTeacher');
+        main.appendChild(teachersEl);
+
+        const api = getApi();
+        if (api && rows.length && api.formatTeacherRowScheduleSummary) {
+            const scheduleHint = api.formatTeacherRowScheduleSummary(classData, rows[0], appData);
+            if (scheduleHint) {
+                const sched = document.createElement('span');
+                sched.className = 'setup-board-cohort-class-schedule section-hint';
+                sched.textContent = scheduleHint;
+                main.appendChild(sched);
+            }
+        }
+
+        const others = otherCohortNamesForClass(classData, cohort.id, appData);
+        if (others.length) {
+            const also = document.createElement('span');
+            also.className = 'setup-board-cohort-class-also section-hint';
+            also.textContent = t('cohortsClassAlsoLinked').replace('{names}', others.join(', '));
+            main.appendChild(also);
+        }
+
+        li.appendChild(main);
+
+        const editLink = document.createElement('button');
+        editLink.type = 'button';
+        editLink.className = 'btn btn-outline btn-small setup-board-cohort-class-edit';
+        editLink.textContent = t('setupBoardOpenClass');
+        editLink.addEventListener('click', (e) => {
+            e.stopPropagation();
+            hooks.navigateToTab('classes', { classId: classData.id, host: 'setup' });
+        });
+        li.appendChild(editLink);
+
+        return li;
+    }
+
+    function renderCohortWarningsList(cohort, appData) {
+        const api = getApi();
+        const frag = document.createDocumentFragment();
+        if (!api || !api.collectCohortSetupWarnings) {
+            return frag;
+        }
+        const warnings = api.collectCohortSetupWarnings(cohort, appData);
+        if (!warnings.length) {
+            return frag;
+        }
+
+        const heading = document.createElement('p');
+        heading.className = 'setup-board-cohort-warnings-heading';
+        heading.textContent = t('setupBoardCohortWarningsHeading');
+        frag.appendChild(heading);
+
+        const ul = document.createElement('ul');
+        ul.className = 'setup-board-cohort-warnings';
+        const hasError = warnings.some((w) => w.severity === 'error');
+        if (hasError) {
+            ul.setAttribute('role', 'alert');
+        }
+
+        warnings.forEach((w) => {
+            const li = document.createElement('li');
+            li.className = 'setup-board-cohort-warning';
+            if (w.severity === 'error') {
+                li.classList.add('is-error');
+            } else if (w.severity === 'warn') {
+                li.classList.add('is-warn');
+            } else {
+                li.classList.add('is-info');
+            }
+            li.textContent = formatWarningMessage(w);
+            ul.appendChild(li);
+        });
+        frag.appendChild(ul);
+        return frag;
     }
 
     function isReadOnly() {
         return hooks.isViewOnly && hooks.isViewOnly();
     }
 
-    function setupDragSource(el, payload) {
-        if (isReadOnly()) {
-            el.draggable = false;
-            return;
-        }
-        el.draggable = true;
-        el.addEventListener('dragstart', (e) => {
-            dragPayload = Object.assign({}, payload, { moveOnly: !!e.altKey });
-            el.classList.add('is-dragging');
-            try {
-                e.dataTransfer.setData('application/x-ccp-setup', JSON.stringify(dragPayload));
-                e.dataTransfer.effectAllowed = 'move';
-            } catch (_) {
-                /* ignore */
+    function closeActivePicker() {
+        if (activePickerDialog) {
+            if (activePickerDialog.open) {
+                activePickerDialog.close();
             }
-        });
-        el.addEventListener('dragend', () => {
-            el.classList.remove('is-dragging');
-            dragPayload = null;
-            document.querySelectorAll('.is-drag-over').forEach((n) => n.classList.remove('is-drag-over'));
-        });
+            activePickerDialog.remove();
+            activePickerDialog = null;
+        }
     }
 
-    function setupDropZone(el, onDrop) {
-        if (isReadOnly()) {
-            return;
+    function openPickerDialog(title, bodyEl) {
+        closeActivePicker();
+        const dialog = document.createElement('dialog');
+        dialog.className = 'setup-board-picker-dialog';
+        const header = document.createElement('div');
+        header.className = 'setup-board-picker-header';
+        const h = document.createElement('h3');
+        h.className = 'setup-board-picker-title';
+        h.textContent = title;
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn btn-outline btn-small setup-board-picker-close';
+        closeBtn.textContent = t('setupBoardPickerClose');
+        closeBtn.addEventListener('click', () => closeActivePicker());
+        header.appendChild(h);
+        header.appendChild(closeBtn);
+        dialog.appendChild(header);
+        dialog.appendChild(bodyEl);
+        dialog.addEventListener('cancel', () => closeActivePicker());
+        document.body.appendChild(dialog);
+        activePickerDialog = dialog;
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        } else {
+            dialog.setAttribute('open', '');
         }
-        el.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            el.classList.add('is-drag-over');
-        });
-        el.addEventListener('dragleave', () => {
-            el.classList.remove('is-drag-over');
-        });
-        el.addEventListener('drop', (e) => {
-            e.preventDefault();
-            el.classList.remove('is-drag-over');
-            let payload = dragPayload;
-            try {
-                const raw = e.dataTransfer.getData('application/x-ccp-setup');
-                if (raw) {
-                    payload = JSON.parse(raw);
-                }
-            } catch (_) {
-                /* use dragPayload */
-            }
-            if (payload) {
-                onDrop(payload);
-            }
-        });
     }
 
-    function renderClassCard(classData, cohort) {
-        const card = document.createElement('article');
-        card.className = 'setup-board-class-card';
-        card.dataset.classId = classData.id;
-
-        const head = document.createElement('div');
-        head.className = 'setup-board-class-card-head';
-        const dragHandle = document.createElement('button');
-        dragHandle.type = 'button';
-        dragHandle.className = 'setup-board-card-drag-handle';
-        dragHandle.textContent = '⠿';
-        dragHandle.setAttribute('aria-label', t('setupBoardDragClass') || 'Drag class');
-        dragHandle.title = t('setupBoardDragClass') || 'Drag to move class';
-        stopCohortCardEventBubble(dragHandle);
-        const title = document.createElement('strong');
-        title.className = 'setup-board-class-card-title';
-        let cardTitle = classData.name || '';
-        if (!cardTitle && hooks.formatClassLabel) {
-            try {
-                cardTitle = hooks.formatClassLabel(classData) || '';
-            } catch (_) {
-                cardTitle = classData.id || '';
-            }
-        }
-        title.textContent = cardTitle || classData.id || '?';
-        head.appendChild(dragHandle);
-        head.appendChild(title);
-
-        const menuBtn = document.createElement('button');
-        menuBtn.type = 'button';
-        menuBtn.className = 'btn btn-outline btn-small setup-board-class-menu-btn';
-        menuBtn.textContent = '⋯';
-        menuBtn.setAttribute('aria-label', t('setupBoardClassMenu'));
-        menuBtn.addEventListener('click', (e) => {
+    function buildPickerActionBtn(label, onClick) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline btn-small';
+        btn.textContent = label;
+        btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const action = global.prompt(
-                t('setupBoardClassMenuPrompt'),
-                '1=' + t('setupBoardOpenClass') + ', 2=' + t('setupBoardRemoveFromCohort') + ', 3=' + t('setupBoardMoveClassOnly')
-            );
-            if (action === '1' || action === '1.') {
-                hooks.navigateToTab('classes', { classId: classData.id, host: 'setup' });
-            } else if (action === '2' || action === '2.') {
-                unlinkClassFromCohort(classData, cohort.id);
-            } else if (action === '3' || action === '3.') {
-                assignClassToCohort(classData, cohort, {
-                    fromCohortId: cohort.id,
-                    fromPool: false,
-                    moveOnly: true
-                });
-            }
+            onClick();
+            closeActivePicker();
         });
-        head.appendChild(menuBtn);
-        card.appendChild(head);
-
-        const meta = document.createElement('p');
-        meta.className = 'setup-board-class-card-meta section-hint';
-        const metaParts = [];
-        if (hooks.getClassCatalogCategory) {
-            const cat = hooks.getClassCatalogCategory(classData);
-            if (cat) {
-                metaParts.push(cat);
-            }
-        }
-        if (hooks.getClassLevelDisplay) {
-            const lv = hooks.getClassLevelDisplay(classData);
-            if (lv) {
-                metaParts.push(lv);
-            }
-        }
-        meta.textContent = metaParts.join(' · ');
-        if (meta.textContent) {
-            card.appendChild(meta);
-        }
-
-        const daysMount = document.createElement('div');
-        daysMount.className = 'setup-board-class-days';
-        const mdc = global.CCPMeetingDaysControl;
-        const classDays = hooks.getMeetingDaysFromClass
-            ? hooks.getMeetingDaysFromClass(classData)
-            : (classData.meetingDays || []);
-        if (mdc) {
-            mdc.renderCompactMeetingDays(daysMount, {
-                days: classDays,
-                t,
-                readOnly: isReadOnly(),
-                onChange: (days) => {
-                    classData.meetingDays = days.slice();
-                    if (classData.dayOfWeek != null && days.length === 1) {
-                        classData.dayOfWeek = days[0];
-                    }
-                    persistAndRefresh();
-                }
-            });
-        }
-        card.appendChild(daysMount);
-
-        if (classDaysOutsideCohort(classData, cohort)) {
-            const hint = document.createElement('p');
-            hint.className = 'setup-board-class-days-outside section-hint';
-            hint.textContent = t('setupBoardClassDaysOutside');
-            card.appendChild(hint);
-        }
-
-        const teachersLabel = document.createElement('p');
-        teachersLabel.className = 'setup-board-teacher-drop-label';
-        teachersLabel.textContent = t('setupBoardTeacherDropLabel');
-        card.appendChild(teachersLabel);
-
-        const teachersWrap = document.createElement('div');
-        teachersWrap.className = 'setup-board-class-teachers setup-board-teacher-drop-zone';
-        teachersWrap.dataset.dropZone = 'class-teachers';
-        setupDropZone(teachersWrap, (payload) => {
-            if (payload.type === 'teacher') {
-                assignTeacherToClass(classData, payload.selector);
-            }
-        });
-
-        const teacherRows = getTeachersOnClass(classData);
-        teacherRows.forEach((row) => {
-            const sel = {
-                userId: normalizeStr(row.userId || row.assignedTeacherUserId),
-                displayName: teacherRowLabel(row)
-            };
-            const chip = document.createElement('span');
-            chip.className = 'setup-board-teacher-chip';
-            chip.textContent = sel.displayName || sel.userId || '?';
-            if (!isReadOnly()) {
-                const rm = document.createElement('button');
-                rm.type = 'button';
-                rm.className = 'setup-board-teacher-chip-remove';
-                rm.textContent = '×';
-                rm.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    removeTeacherFromClass(classData, sel);
-                });
-                chip.appendChild(rm);
-            }
-            teachersWrap.appendChild(chip);
-        });
-        if (!teacherRows.length) {
-            const empty = document.createElement('span');
-            empty.className = 'setup-board-class-teachers-empty';
-            empty.textContent = t('setupBoardDropTeacherHere');
-            teachersWrap.appendChild(empty);
-        }
-        card.appendChild(teachersWrap);
-
-        const hostWrap = document.createElement('div');
-        hostWrap.className = 'setup-board-homeroom-host-wrap';
-        const hostLabel = document.createElement('label');
-        hostLabel.className = 'setup-board-homeroom-host checkbox-label';
-        const hostCb = document.createElement('input');
-        hostCb.type = 'checkbox';
-        hostCb.className = 'setup-board-homeroom-host-cb';
-        const isHost = normalizeStr(cohort.homeroomHostClassId) === classData.id;
-        hostCb.checked = isHost;
-        const canHost = classHasHomeroomTeacher(classData);
-        hostCb.disabled = isReadOnly() || !canHost;
-        hostCb.title = hostCb.disabled && !isReadOnly()
-            ? t('setupBoardAssignTeacherFirst')
-            : t('setupBoardHomeroomHostHint');
-        const onHostToggle = () => {
-            const wantChecked = hostCb.checked;
-            if (wantChecked) {
-                setHomeroomHost(cohort, classData, true);
-            } else {
-                setHomeroomHost(cohort, classData, false);
-            }
-            if (wantChecked && normalizeStr(cohort.homeroomHostClassId) !== classData.id) {
-                hostCb.checked = false;
-            }
-        };
-        hostCb.addEventListener('change', onHostToggle);
-        const hostSpan = document.createElement('span');
-        hostSpan.textContent = t('setupBoardHomeroomHost');
-        hostLabel.appendChild(hostCb);
-        hostLabel.appendChild(hostSpan);
-        hostWrap.appendChild(hostLabel);
-        stopCohortCardEventBubble(hostWrap);
-        card.appendChild(hostWrap);
-
-        stopCohortCardEventBubble(teachersWrap);
-        stopCohortCardEventBubble(daysMount);
-
-        setupDragSource(dragHandle, {
-            type: 'class',
-            classId: classData.id,
-            fromCohortId: cohort.id,
-            fromPool: false
-        });
-
-        return card;
+        return btn;
     }
 
-    function renderCohortScheduleHeader(cohort, headerEl) {
-        const wrap = document.createElement('div');
-        wrap.className = 'setup-board-cohort-schedule';
+    function showAddClassToCohortPicker(cohort) {
+        const appData = hooks.getAppData();
+        const body = document.createElement('div');
+        body.className = 'setup-board-picker-body';
+        const search = document.createElement('input');
+        search.type = 'search';
+        search.className = 'module-list-search';
+        search.placeholder = t('classListSearchPlaceholder') || 'Search classes…';
+        const list = document.createElement('div');
+        list.className = 'setup-board-picker-list';
 
-        const mwfBtn = document.createElement('button');
-        mwfBtn.type = 'button';
-        mwfBtn.className = 'btn btn-outline btn-small setup-board-pattern-btn';
-        mwfBtn.textContent = t('setupBoardPatternMwf');
-        mwfBtn.classList.toggle('is-active', cohort.schedulePattern === 'mwf' || getCohortBoardView(cohort) === 'mwf' && cohort.schedulePattern !== 'tth');
-
-        const tthBtn = document.createElement('button');
-        tthBtn.type = 'button';
-        tthBtn.className = 'btn btn-outline btn-small setup-board-pattern-btn';
-        tthBtn.textContent = t('setupBoardPatternTth');
-        tthBtn.classList.toggle('is-active', cohort.schedulePattern === 'tth');
-
-        const applyPattern = (pid) => {
-            if (isReadOnly()) {
+        function renderList() {
+            const q = normalizeStr(search.value).toLowerCase();
+            list.innerHTML = '';
+            const classes = (appData.classes || []).filter((cls) => {
+                if (!cls || !cls.id) {
+                    return false;
+                }
+                if (getClassCohortIdsForBoard(cls).includes(cohort.id)) {
+                    return false;
+                }
+                if (!q) {
+                    return true;
+                }
+                return classDisplayLabel(cls).toLowerCase().includes(q);
+            });
+            classes.sort((a, b) =>
+                classDisplayLabel(a).localeCompare(classDisplayLabel(b), undefined, { sensitivity: 'base' })
+            );
+            if (!classes.length) {
+                list.innerHTML = `<p class="module-list-empty">${escapeHtml(t('setupBoardPickerNoClasses'))}</p>`;
                 return;
             }
-            setCohortPattern(cohort, pid);
-            const active = getActiveBoardView();
-            if (active !== 'all') {
-                const newView = getCohortBoardView(cohort);
-                if (newView !== active) {
-                    setActiveBoardView(newView);
+            classes.forEach((cls) => {
+                const row = document.createElement('div');
+                row.className = 'setup-board-picker-row';
+                const label = document.createElement('span');
+                label.className = 'setup-board-picker-row-label';
+                label.textContent = classDisplayLabel(cls);
+                const actions = document.createElement('div');
+                actions.className = 'setup-board-picker-row-actions';
+                const linked = getClassCohortIdsForBoard(cls);
+                actions.appendChild(
+                    buildPickerActionBtn(t('setupBoardLinkToCohort'), () => {
+                        assignClassToCohort(cls, cohort, { fromPool: true, moveOnly: false });
+                    })
+                );
+                if (linked.length) {
+                    actions.appendChild(
+                        buildPickerActionBtn(t('setupBoardMoveToCohortOnly'), () => {
+                            assignClassToCohort(cls, cohort, { fromPool: true, moveOnly: true });
+                        })
+                    );
                 }
-            }
-            persistAndRefresh();
-        };
-
-        mwfBtn.addEventListener('click', () => applyPattern('mwf'));
-        tthBtn.addEventListener('click', () => applyPattern('tth'));
-
-        wrap.appendChild(mwfBtn);
-        wrap.appendChild(tthBtn);
-
-        const patStr = normalizeStr(cohort.schedulePattern);
-        if (patStr === 'custom' || (getCohortBoardView(cohort) === 'mwf' && patStr !== 'mwf' && patStr !== 'tth')) {
-            const badge = document.createElement('span');
-            badge.className = 'setup-board-custom-days-badge';
-            const lang = hooks.getLang ? hooks.getLang() : 'en';
-            const labels = COHORT_DOW[lang] || COHORT_DOW.en;
-            badge.textContent = getCohortMeetingDays(cohort)
-                .map((d) => labels[d] || d)
-                .join(' ') || t('cohortsPatternCustom');
-            wrap.appendChild(badge);
+                row.appendChild(label);
+                row.appendChild(actions);
+                list.appendChild(row);
+            });
         }
 
-        headerEl.appendChild(wrap);
+        search.addEventListener('input', renderList);
+        body.appendChild(search);
+        body.appendChild(list);
+        renderList();
+        openPickerDialog(t('setupBoardAddClass'), body);
+    }
+
+    function openCohortEditorFor(cohortId) {
+        if (global.CCPCohortManagement) {
+            if (global.CCPCohortManagement.selectCohort) {
+                global.CCPCohortManagement.selectCohort(cohortId);
+            }
+            if (global.CCPCohortManagement.openCohortEditor) {
+                global.CCPCohortManagement.openCohortEditor();
+            }
+        }
+    }
+
+    function formatCohortClassCountMeta(n) {
+        const key = n === 1 ? 'setupBoardCohortClassCountOne' : 'setupBoardCohortClassCount';
+        return t(key).replace('{n}', String(n));
+    }
+
+    function getCohortDisplayTitle(cohort) {
+        if (global.CCPCohortManagement && global.CCPCohortManagement.formatCohortDisplayTitle) {
+            const label = global.CCPCohortManagement.formatCohortDisplayTitle(cohort);
+            if (label) {
+                return label;
+            }
+        }
+        return normalizeStr(cohort.name) || t('timetableAddCohort');
+    }
+
+    function finishCohortTitleEdit(commit) {
+        if (!activeTitleEdit) {
+            return;
+        }
+        const edit = activeTitleEdit;
+        activeTitleEdit = null;
+        const value = edit.input.value;
+        if (commit && global.CCPCohortManagement && global.CCPCohortManagement.setCohortNameFromBoard) {
+            global.CCPCohortManagement.setCohortNameFromBoard(edit.cohortId, value);
+            return;
+        }
+        edit.input.replaceWith(edit.titleBtn);
+    }
+
+    function beginCohortTitleEdit(cohort, titleBtn) {
+        if (isReadOnly() || !cohort || !cohort.id) {
+            return;
+        }
+        finishCohortTitleEdit(true);
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'setup-board-cohort-title-input field-input';
+        input.value = cohort.name || '';
+        input.setAttribute('aria-label', t('cohortsSectionIdentity'));
+        const commit = () => finishCohortTitleEdit(true);
+        const cancel = () => finishCohortTitleEdit(false);
+        input.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+            }
+        });
+        input.addEventListener('click', (e) => e.stopPropagation());
+        input.addEventListener('blur', () => {
+            window.setTimeout(() => {
+                if (activeTitleEdit && activeTitleEdit.input === input) {
+                    commit();
+                }
+            }, 0);
+        });
+        activeTitleEdit = {
+            cohortId: cohort.id,
+            input,
+            titleBtn
+        };
+        titleBtn.replaceWith(input);
+        input.focus();
+        input.select();
     }
 
     function renderCohortContainer(cohort, appData) {
         if (!cohort || !cohort.id) {
             return document.createDocumentFragment();
         }
+        const ro = isReadOnly();
         const box = document.createElement('article');
         box.className = 'setup-board-cohort';
         box.dataset.cohortId = cohort.id;
@@ -762,10 +637,30 @@
 
         const titleRow = document.createElement('div');
         titleRow.className = 'setup-board-cohort-title-row';
-        const title = document.createElement('h3');
+        const title = document.createElement('button');
+        title.type = 'button';
         title.className = 'setup-board-cohort-title';
-        title.textContent = cohort.name || t('timetableAddCohort');
+        title.textContent = getCohortDisplayTitle(cohort);
+        title.title = isReadOnly() ? '' : t('setupBoardCohortRenameHint');
+        title.disabled = isReadOnly();
+        title.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!isReadOnly()) {
+                beginCohortTitleEdit(cohort, title);
+            }
+        });
         titleRow.appendChild(title);
+
+        if (global.CCPCohortManagement && global.CCPCohortManagement.formatCohortScheduleChipLabel) {
+            const scheduleLabel = global.CCPCohortManagement.formatCohortScheduleChipLabel(cohort, appData);
+            if (scheduleLabel) {
+                const scheduleChip = document.createElement('span');
+                scheduleChip.className = 'cohort-schedule-chip';
+                scheduleChip.textContent = scheduleLabel;
+                scheduleChip.setAttribute('aria-label', t('setupBoardCohortScheduleChipAria').replace('{days}', scheduleLabel));
+                titleRow.appendChild(scheduleChip);
+            }
+        }
 
         if (global.CCPCohortManagement && global.CCPCohortManagement.computeCohortStatus) {
             const status = global.CCPCohortManagement.computeCohortStatus(cohort, appData) || 'draft';
@@ -778,24 +673,55 @@
         }
         header.appendChild(titleRow);
 
-        renderCohortScheduleHeader(cohort, header);
+        const api = getApi();
+        const classCount = api
+            ? api.getCohortClassIds(appData, cohort).length
+            : (cohort.classIds || []).length;
+        const meta = document.createElement('p');
+        meta.className = 'setup-board-cohort-meta section-hint';
+        meta.textContent = formatCohortClassCountMeta(classCount);
+        header.appendChild(meta);
+
+        const headerActions = document.createElement('div');
+        headerActions.className = 'setup-board-cohort-header-actions';
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'btn btn-outline btn-small';
+        editBtn.textContent = t('cohortsEditBtn');
+        editBtn.disabled = ro;
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openCohortEditorFor(cohort.id);
+        });
+        headerActions.appendChild(editBtn);
+
+        if (!ro) {
+            const addClassBtn = document.createElement('button');
+            addClassBtn.type = 'button';
+            addClassBtn.className = 'btn btn-primary btn-small';
+            addClassBtn.textContent = t('setupBoardAddClass');
+            addClassBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (global.CCPCohortManagement && global.CCPCohortManagement.selectCohort) {
+                    global.CCPCohortManagement.selectCohort(cohort.id);
+                }
+                showAddClassToCohortPicker(cohort);
+            });
+            headerActions.appendChild(addClassBtn);
+        }
+        header.appendChild(headerActions);
+
         box.appendChild(header);
 
         const body = document.createElement('div');
         body.className = 'setup-board-cohort-body';
-        body.dataset.dropZone = 'cohort';
         body.dataset.cohortId = cohort.id;
 
-        setupDropZone(body, (payload) => {
-            if (payload.type !== 'class') {
-                return;
-            }
-            const cls = (appData.classes || []).find((c) => c.id === payload.classId);
-            if (!cls) {
-                return;
-            }
-            assignClassToCohort(cls, cohort, payload);
-        });
+        const homeroomLine = document.createElement('p');
+        homeroomLine.className = 'setup-board-cohort-homeroom';
+        const hrName = homeroomDisplayName(cohort);
+        homeroomLine.textContent = `${t('timetableHomeroomLabel')}: ${hrName || t('cohortsNoHomeroom')}`;
+        body.appendChild(homeroomLine);
 
         const classes = getClassesInCohort(cohort.id);
         if (!classes.length) {
@@ -804,17 +730,27 @@
             empty.textContent = t('setupBoardEmptyCohort');
             body.appendChild(empty);
         } else {
+            const classesHeading = document.createElement('p');
+            classesHeading.className = 'setup-board-cohort-classes-heading';
+            classesHeading.textContent = t('setupBoardCohortClassesHeading');
+            body.appendChild(classesHeading);
+
+            const classList = document.createElement('ul');
+            classList.className = 'setup-board-cohort-class-list';
             classes.forEach((cls) => {
                 if (!cls || !cls.id) {
                     return;
                 }
                 try {
-                    body.appendChild(renderClassCard(cls, cohort));
-                } catch (cardErr) {
-                    console.error('CCPSetupBoard: class card failed', cls.id, cardErr);
+                    classList.appendChild(renderCohortClassSummaryRow(cls, cohort, appData));
+                } catch (rowErr) {
+                    console.error('CCPSetupBoard: class summary row failed', cls.id, rowErr);
                 }
             });
+            body.appendChild(classList);
         }
+
+        body.appendChild(renderCohortWarningsList(cohort, appData));
 
         box.appendChild(body);
 
@@ -829,39 +765,6 @@
         });
 
         return box;
-    }
-
-    function renderPoolClassCard(classData) {
-        const card = document.createElement('article');
-        const linkedIds = getClassCohortIdsForBoard(classData);
-        const unassigned = linkedIds.length === 0;
-        card.className = 'setup-board-pool-card' + (unassigned ? '' : ' setup-board-pool-card--linked');
-        card.dataset.classId = classData.id;
-        const label = document.createElement('span');
-        label.className = 'setup-board-pool-card-label';
-        label.textContent = classData.name || (hooks.formatClassLabel ? hooks.formatClassLabel(classData) : classData.id);
-        card.appendChild(label);
-        if (!unassigned) {
-            const sub = document.createElement('span');
-            sub.className = 'setup-board-pool-card-linked section-hint';
-            sub.textContent = cohortNamesForClass(classData).join(', ');
-            card.title = t('setupBoardPoolDragAdd');
-            card.appendChild(sub);
-        } else {
-            card.title = t('setupBoardPoolDragAdd');
-        }
-        setupDragSource(card, {
-            type: 'class',
-            classId: classData.id,
-            fromCohortId: linkedIds[0] || '',
-            fromPool: true
-        });
-        if (!isReadOnly()) {
-            card.addEventListener('dblclick', () => {
-                hooks.navigateToTab('classes', { classId: classData.id, host: 'setup' });
-            });
-        }
-        return card;
     }
 
     function syncAllCohortLinksAndInferSchedules() {
@@ -888,9 +791,6 @@
         if (!main) {
             return false;
         }
-        if (!document.getElementById('setupBoardPool')) {
-            return false;
-        }
         let mwf = document.getElementById('setupBoardViewMwf');
         let tth = document.getElementById('setupBoardViewTth');
         if (!mwf || !tth) {
@@ -913,37 +813,19 @@
         return true;
     }
 
-    function renderPool() {
-        const pool = document.getElementById('setupBoardPool');
-        if (!pool) {
-            return;
+    function getBoardSearchQuery() {
+        return normalizeStr(document.getElementById('cohortsListSearch')?.value).toLowerCase();
+    }
+
+    function cohortPassesBoardSearch(cohort, appData, query) {
+        if (!query) {
+            return true;
         }
-        pool.innerHTML = '';
-        const appData = hooks.getAppData();
-        const classes = (appData.classes || []).slice();
-        if (!classes.length) {
-            pool.innerHTML = `<p class="module-list-empty">${escapeHtml(t('setupBoardPoolNoClasses'))}</p>`;
-            return;
+        if (global.CCPCohortManagement && global.CCPCohortManagement.cohortMatchesSearchQuery) {
+            return global.CCPCohortManagement.cohortMatchesSearchQuery(cohort, appData, query);
         }
-        classes.sort((a, b) => {
-            const au = isClassUnassigned(a) ? 0 : 1;
-            const bu = isClassUnassigned(b) ? 0 : 1;
-            if (au !== bu) {
-                return au - bu;
-            }
-            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
-        });
-        classes.forEach((cls) => {
-            pool.appendChild(renderPoolClassCard(cls));
-        });
-        setupDropZone(pool, (payload) => {
-            if (payload.type === 'class' && payload.fromCohortId) {
-                const cls = (appData.classes || []).find((c) => c.id === payload.classId);
-                if (cls) {
-                    unlinkClassFromCohort(cls, payload.fromCohortId);
-                }
-            }
-        });
+        const hay = [cohort.name, cohort.grade, cohort.schedulePattern].join(' ').toLowerCase();
+        return hay.includes(query);
     }
 
     function renderCohortCanvas(canvasId, viewKey) {
@@ -953,7 +835,8 @@
         }
         canvas.innerHTML = '';
         const appData = hooks.getAppData();
-        const cohorts = (appData.cohorts || []).filter((c) => {
+        const searchQ = getBoardSearchQuery();
+        const viewCohorts = (appData.cohorts || []).filter((c) => {
             if (!c || !c.id) {
                 return false;
             }
@@ -962,10 +845,13 @@
             }
             return getCohortBoardView(c) === viewKey;
         });
+        const cohorts = viewCohorts.filter((c) => cohortPassesBoardSearch(c, appData, searchQ));
         if (!cohorts.length) {
             const empty = document.createElement('p');
             empty.className = 'module-empty-hint setup-board-view-empty';
-            if (viewKey === 'all') {
+            if (searchQ) {
+                empty.textContent = t('lessonFilterSearchEmpty');
+            } else if (viewKey === 'all') {
                 empty.textContent = t('setupBoardEmptyAll');
             } else {
                 empty.textContent = viewKey === 'tth' ? t('setupBoardEmptyTth') : t('setupBoardEmptyMwf');
@@ -995,39 +881,6 @@
         } else {
             canvas.appendChild(grid);
         }
-    }
-
-    function renderTeacherPalette() {
-        const mount = document.getElementById('setupBoardTeacherPalette');
-        if (!mount) {
-            return;
-        }
-        const q = normalizeStr(document.getElementById('setupBoardTeacherSearch')?.value).toLowerCase();
-        mount.innerHTML = '';
-        const teachers = hooks.listTeachers ? hooks.listTeachers() : [];
-        const filtered = teachers.filter((row) => {
-            if (!q) {
-                return true;
-            }
-            const hay = [row.displayName, row.userId, row.email].filter(Boolean).join(' ').toLowerCase();
-            return hay.includes(q);
-        });
-        if (!filtered.length) {
-            mount.innerHTML = `<p class="module-list-empty">${escapeHtml(t('timetableTeachersListEmpty'))}</p>`;
-            return;
-        }
-        filtered.forEach((row) => {
-            const chip = document.createElement('div');
-            chip.className = 'setup-board-palette-teacher';
-            chip.textContent = hooks.formatTeacherLabel
-                ? hooks.formatTeacherLabel(row)
-                : (row.displayName || row.userId);
-            setupDragSource(chip, {
-                type: 'teacher',
-                selector: { userId: row.userId, displayName: row.displayName }
-            });
-            mount.appendChild(chip);
-        });
     }
 
     function clearBoardRenderError() {
@@ -1074,7 +927,6 @@
                 boardView = normalizeBoardView(appData.ui.cohortsBoardView);
             }
             setActiveBoardView(boardView);
-            renderPool();
         } catch (err) {
             boardError = err;
             console.error('CCPSetupBoard.renderBoard (setup phase) failed:', err);
@@ -1093,12 +945,6 @@
         } catch (err) {
             boardError = boardError || err;
             console.error('CCPSetupBoard.renderBoard (cohort canvas) failed:', err);
-        }
-        try {
-            renderTeacherPalette();
-        } catch (err) {
-            boardError = boardError || err;
-            console.error('CCPSetupBoard.renderBoard (teachers) failed:', err);
         }
         if (boardError) {
             showBoardRenderError(boardError);
@@ -1151,7 +997,9 @@
             setActiveBoardView('all');
             renderBoard();
         });
-        document.getElementById('setupBoardTeacherSearch')?.addEventListener('input', () => renderTeacherPalette());
+        document.getElementById('cohortsListSearch')?.addEventListener('input', () => {
+            renderBoard();
+        });
     }
 
     function initTab(tabHooks) {

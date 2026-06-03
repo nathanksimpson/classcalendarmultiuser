@@ -106,6 +106,81 @@
         return '—';
     }
 
+    const SCHEDULE_CHIP_MWF = 'M/W/F';
+    const SCHEDULE_CHIP_TTH = 'T/T';
+    const DOW_CHIP_LETTER = { 1: 'M', 2: 'T', 3: 'W', 4: 'T', 5: 'F' };
+    const COHORT_DAYS_SUFFIX_RE = /\s*(?:[-·]\s*)?days\s+[\d,\s]+$/i;
+
+    function formatCohortDisplayTitle(cohort) {
+        const raw = normalizeStr(cohort && cohort.name);
+        if (!raw) {
+            return '';
+        }
+        const stripped = raw.replace(COHORT_DAYS_SUFFIX_RE, '').replace(/\s*[-·]\s*$/, '').trim();
+        return stripped || raw;
+    }
+
+    /**
+     * Compact schedule label for cohort board title chip (M/W/F, T/T, or custom M/T/W).
+     */
+    function cohortMatchesSearchQuery(cohort, appData, query) {
+        const q = normalizeStr(query).toLowerCase();
+        if (!q || !cohort) {
+            return true;
+        }
+        const scheduleChip = formatCohortScheduleChipLabel(cohort, appData);
+        const displayTitle = formatCohortDisplayTitle(cohort);
+        const hay = [
+            cohort.name,
+            displayTitle,
+            cohortLevelDisplay(cohort),
+            cohort.grade,
+            cohort.schedulePattern,
+            getEffectiveCohortPattern(cohort, appData),
+            scheduleChip
+        ]
+            .join(' ')
+            .toLowerCase();
+        return hay.includes(q);
+    }
+
+    function formatCohortScheduleChipLabel(cohort, appData) {
+        if (!cohort) {
+            return '';
+        }
+        const api = getTimetableApi();
+        const stored = normalizeStr(cohort.schedulePattern);
+        if (api && api.patternBucketForFilter && stored) {
+            const bucket = api.patternBucketForFilter(stored);
+            if (bucket === 'tth') {
+                return SCHEDULE_CHIP_TTH;
+            }
+            if (bucket === 'mwf') {
+                return SCHEDULE_CHIP_MWF;
+            }
+        }
+        const effective = getEffectiveCohortPattern(cohort, appData);
+        if (effective === 'tth') {
+            return SCHEDULE_CHIP_TTH;
+        }
+        const days = getCohortMeetingDays(cohort)
+            .filter((d) => d >= 1 && d <= 5)
+            .sort((a, b) => a - b);
+        if (days.length === 3 && days[0] === 1 && days[1] === 3 && days[2] === 5) {
+            return SCHEDULE_CHIP_MWF;
+        }
+        if (days.length === 2 && days[0] === 2 && days[1] === 4) {
+            return SCHEDULE_CHIP_TTH;
+        }
+        if (days.length) {
+            return days.map((d) => DOW_CHIP_LETTER[d] || '?').join('/');
+        }
+        if (effective === 'mwf' || !effective) {
+            return SCHEDULE_CHIP_MWF;
+        }
+        return '';
+    }
+
     function cohortLevelDisplay(cohort) {
         const preset = normalizeStr(cohort.levelPreset);
         if (preset && hooks.getSimsonLevelById) {
@@ -1070,7 +1145,6 @@
             persistSelectedCohortId();
             hooks.saveData();
             renderAll();
-            openCohortEditor();
         });
 
         const deleteBtn = document.createElement('button');
@@ -1228,21 +1302,41 @@
         return wrap;
     }
 
-    function syncCohortsToolbarDeleteBtn() {
-        const btn = document.getElementById('cohortsDeleteBtn');
-        if (!btn || !hooks) {
+    function syncCohortsToolbarActionBtns() {
+        if (!hooks) {
             return;
         }
         const appData = hooks.getAppData();
         const cohort = selectedCohortId
             ? (appData.cohorts || []).find((c) => c.id === selectedCohortId)
             : null;
-        btn.hidden = !cohort;
-        btn.disabled = !!(hooks.isViewOnly && hooks.isViewOnly());
-        btn.title = btn.disabled ? t('teamReadOnlySave') : '';
-        if (!btn.dataset.cohortsDeleteBound) {
-            btn.dataset.cohortsDeleteBound = '1';
-            btn.addEventListener('click', () => {
+        const ro = !!(hooks.isViewOnly && hooks.isViewOnly());
+
+        const editBtn = document.getElementById('cohortsEditBtn');
+        if (editBtn) {
+            editBtn.hidden = !cohort;
+            editBtn.disabled = ro || !cohort;
+            editBtn.title = editBtn.disabled && ro ? t('teamReadOnlySave') : '';
+            if (!editBtn.dataset.cohortsEditBound) {
+                editBtn.dataset.cohortsEditBound = '1';
+                editBtn.addEventListener('click', () => {
+                    if (selectedCohortId) {
+                        openCohortEditor();
+                    }
+                });
+            }
+        }
+
+        const deleteBtn = document.getElementById('cohortsDeleteBtn');
+        if (!deleteBtn) {
+            return;
+        }
+        deleteBtn.hidden = !cohort;
+        deleteBtn.disabled = ro;
+        deleteBtn.title = deleteBtn.disabled ? t('teamReadOnlySave') : '';
+        if (!deleteBtn.dataset.cohortsDeleteBound) {
+            deleteBtn.dataset.cohortsDeleteBound = '1';
+            deleteBtn.addEventListener('click', () => {
                 const data = hooks.getAppData();
                 const selected = selectedCohortId
                     ? (data.cohorts || []).find((c) => c.id === selectedCohortId)
@@ -1265,19 +1359,7 @@
         const allCohorts = appData.cohorts || [];
         list.innerHTML = '';
         let cohorts = sortCohortsForList(allCohorts.slice());
-        cohorts = cohorts.filter((cohort) => {
-            if (!q) {
-                return true;
-            }
-            const hay = [
-                cohort.name,
-                cohortLevelDisplay(cohort),
-                cohort.grade,
-                cohort.schedulePattern,
-                getEffectiveCohortPattern(cohort, appData)
-            ].join(' ').toLowerCase();
-            return hay.includes(q);
-        });
+        cohorts = cohorts.filter((cohort) => cohortMatchesSearchQuery(cohort, appData, q));
         if (!cohorts.length) {
             const empty = document.createElement('p');
             empty.className = 'module-list-empty';
@@ -1600,7 +1682,7 @@
     function renderAll() {
         renderSummary();
         renderCohortList();
-        syncCohortsToolbarDeleteBtn();
+        syncCohortsToolbarActionBtns();
         renderEditor();
         if (global.CCPSetupBoard && global.CCPSetupBoard.renderBoard && global.CCPSetupBoard.isReady()) {
             global.CCPSetupBoard.renderBoard();
@@ -1649,7 +1731,6 @@
         }
         global.__ccpFocusCohortName = true;
         renderAll();
-        openCohortEditor();
     }
 
     function importFromClasses() {
@@ -1986,7 +2067,12 @@
         document.body.dataset.cohortsTabBound = '1';
         document.getElementById('cohortsAddBtn')?.addEventListener('click', () => addCohort());
         document.getElementById('cohortsImportBtn')?.addEventListener('click', () => importFromClasses());
-        document.getElementById('cohortsListSearch')?.addEventListener('input', () => renderCohortList());
+        document.getElementById('cohortsListSearch')?.addEventListener('input', () => {
+            renderCohortList();
+            if (global.CCPSetupBoard && global.CCPSetupBoard.renderBoard) {
+                global.CCPSetupBoard.renderBoard();
+            }
+        });
         document.getElementById('closeCohortEditorModal')?.addEventListener('click', () => closeCohortEditor());
     }
 
@@ -2019,6 +2105,38 @@
         renderAll();
     }
 
+    function setCohortNameFromBoard(cohortId, name) {
+        if (!hooks) {
+            return false;
+        }
+        flushCohortEditorFields();
+        const appData = hooks.getAppData();
+        const cohort = (appData.cohorts || []).find((c) => c && c.id === cohortId);
+        if (!cohort) {
+            return false;
+        }
+        const trimmed = normalizeStr(name);
+        if (trimmed) {
+            cohort.name = trimmed;
+        }
+        if (hooks.saveData) {
+            hooks.saveData();
+        }
+        if (selectedCohortId === cohortId) {
+            syncDraftFromData(cohort);
+        }
+        renderSummary();
+        syncCohortsToolbarActionBtns();
+        if (global.CCPSetupBoard && global.CCPSetupBoard.renderBoard) {
+            global.CCPSetupBoard.renderBoard();
+        }
+        const mount = document.getElementById('cohortsEditorMount');
+        if (mount && !mount.hidden && normalizeStr(mount.dataset.editorCohortId) === cohortId) {
+            renderEditor();
+        }
+        return true;
+    }
+
     function selectCohort(cohortId) {
         flushCohortEditorFields();
         selectedCohortId = cohortId || null;
@@ -2035,19 +2153,21 @@
             closeCohortEditor();
         }
         renderAll();
-        if (cohort) {
-            openCohortEditor();
-        }
     }
 
     global.CCPCohortManagement = {
         initTab,
         selectCohort,
+        openCohortEditor,
         onBoardChanged,
         computeCohortStatus,
         statusLabel,
         getCohortMeetingDays,
         getEffectiveCohortPattern,
+        formatCohortScheduleChipLabel,
+        formatCohortDisplayTitle,
+        cohortMatchesSearchQuery,
+        setCohortNameFromBoard,
         buildSubjectSlotsFromMatrix,
         generateClassesForCohort,
         importFromClasses,
