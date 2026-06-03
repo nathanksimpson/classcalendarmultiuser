@@ -8,6 +8,7 @@
     "sync-from-main": "node scripts/sync-from-main.mjs",
     "build": "node scripts/build-assets.mjs",
     "build:help-content": "node scripts/export-help-content.mjs",
+    "test": "node tests/language-init.test.mjs",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:remote": "wrangler d1 migrations apply calendar-team --remote"
   },

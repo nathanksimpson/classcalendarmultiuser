@@ -1,18 +1,17 @@
 /**
  * Blocking language bootstrap (include in <head> after theme-init).
- * Uses saved calendarLanguage, else browser locale (Korean → ko, otherwise en).
+ * Uses saved calendarLanguage, else browser locale: ko → Korean, en → English,
+ * any other tag → English (fallback).
  */
 (function (global) {
     var STORAGE_KEY = 'calendarLanguage';
 
-    function detectBrowserLanguage() {
+    /** @param {string[]} list BCP 47 tags in preference order */
+    function detectLanguageFromPreferenceList(list) {
         try {
-            var list =
-                global.navigator.languages && global.navigator.languages.length
-                    ? global.navigator.languages
-                    : [global.navigator.language || 'en'];
-            for (var i = 0; i < list.length; i++) {
-                var code = String(list[i] || '')
+            var langs = list && list.length ? list : ['en'];
+            for (var i = 0; i < langs.length; i++) {
+                var code = String(langs[i] || '')
                     .toLowerCase()
                     .split('-')[0];
                 if (code === 'ko') {
@@ -22,6 +21,20 @@
                     return 'en';
                 }
             }
+        } catch (e) {
+            /* ignore */
+        }
+        return 'en';
+    }
+
+    function detectBrowserLanguage() {
+        try {
+            var nav = global.navigator;
+            var list =
+                nav && nav.languages && nav.languages.length
+                    ? nav.languages
+                    : [nav && nav.language ? nav.language : 'en'];
+            return detectLanguageFromPreferenceList(list);
         } catch (e) {
             /* ignore */
         }
@@ -58,6 +71,7 @@
 
     global.CCPLanguage = {
         STORAGE_KEY: STORAGE_KEY,
+        detectLanguageFromPreferenceList: detectLanguageFromPreferenceList,
         detectBrowserLanguage: detectBrowserLanguage,
         resolveCalendarLanguage: resolveCalendarLanguage,
         applyDocumentLang: applyDocumentLang
