@@ -3215,6 +3215,108 @@ html.print-color-mode-light[data-theme="dark"] {
     #syllabusTablesSummary .syllabus-a4-page .syllabus-note-merged {
         vertical-align: top;
         word-break: break-word;
+        font-size: 8.5pt;
+        line-height: 1.25;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-col-plan,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-col-date,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-col-class,
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo tbody tr td.syllabus-cell-merged {
+        vertical-align: middle;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+        box-sizing: border-box;
+        border: 2px solid #111;
+        overflow: hidden;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-main,
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-notes {
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        border: 0 !important;
+        table-layout: fixed;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-main {
+        flex: 0 0 85%;
+        width: 85%;
+        max-width: 85%;
+        min-width: 0;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-notes {
+        flex: 0 0 15%;
+        width: 15%;
+        max-width: 15%;
+        min-width: 0;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-notes th,
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-notes td {
+        border-left-width: 0;
+        border-right-width: 0;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-main thead tr:first-child th,
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-notes thead tr:first-child th {
+        border-top-width: 0;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-main tbody tr:last-child td,
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-notes tbody tr:last-child td {
+        border-bottom-width: 0;
+    }
+
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-main th:first-child,
+    #syllabusTablesSummary .syllabus-jindo-print-grid .syllabus-table-jindo-main td:first-child {
+        border-left-width: 0;
+    }
+
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-th-year,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-th-week,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-th-date,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-col-month,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-col-week,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-col-date,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-col-class {
+        white-space: nowrap;
+        word-break: keep-all;
+    }
+
+    #syllabusTablesSummary .syllabus-table-jindo-notes .syllabus-jindo-notes-th {
+        background: #f3f4f6;
+        font-weight: 600;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    #syllabusTablesSummary .syllabus-table-jindo-notes .syllabus-jindo-notes-body-cell {
+        position: relative;
+        vertical-align: top;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-col-week.syllabus-cell-merged,
+    #syllabusTablesSummary .syllabus-table-jindo-main .syllabus-col-month.syllabus-cell-merged {
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+
+    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo .syllabus-col-plan .syllabus-print-title {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     #syllabusTablesSummary .syllabus-a4-page .syllabus-print-covered {
@@ -3277,12 +3379,20 @@ html.print-color-mode-light[data-theme="dark"] {
         overflow: hidden;
     }
 
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo .syllabus-note-merged,
-    #syllabusTablesSummary .syllabus-a4-page .syllabus-table-jindo .syllabus-jindo-note {
-        display: block !important;
-        -webkit-line-clamp: unset !important;
-        overflow: visible !important;
-        max-height: none !important;
+    #syllabusTablesSummary .syllabus-jindo-note-body {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        box-sizing: border-box;
+        padding: 4px 5px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        line-height: 1.35;
+        text-align: left;
+        overflow: hidden;
     }
 
     #syllabusTablesSummary .syllabus-a4-page.syllabus-a4-dense .syllabus-table {
@@ -6164,6 +6274,37 @@ body[data-active-tab="events"] .app-term-quick-actions {
     margin-bottom: 0.75rem;
 }
 
+.curriculum-updated-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--accent-color, #2563eb);
+    background: color-mix(in srgb, var(--accent-color, #2563eb) 12%, transparent);
+}
+
+.curriculum-updated-banner-text {
+    margin: 0;
+    flex: 1 1 12rem;
+    font-size: 0.9rem;
+}
+
+.curriculum-updated-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.classes-notes-same-tab-hint {
+    margin: 0 0 10px;
+    padding: 0 4px;
+}
+
 #panel-curriculum .curriculum-tab-layout.workspace-books-layout {
     display: flex;
     align-items: stretch;
@@ -6410,7 +6551,10 @@ body[data-active-tab="events"] .app-term-quick-actions {
     grid-column: 1 / -1;
 }
 
-.class-curriculum-preview {
+.class-curriculum-preview,
+.class-curriculum-warning,
+#classCurriculumHint,
+#classCurriculumPipelineHint {
     grid-column: 1 / -1;
     margin: 0;
 }

@@ -298,6 +298,35 @@
         };
     }
 
+    function normalizeCurriculumIdForMatch(curriculumId, appData) {
+        const id = normalizeStr(curriculumId);
+        if (!id) {
+            return '';
+        }
+        if (global.CCPBooksEditor && global.CCPBooksEditor.normalizeCurriculumIdForStorage) {
+            return global.CCPBooksEditor.normalizeCurriculumIdForStorage(id) || id;
+        }
+        return id;
+    }
+
+    function classUsesCurriculumId(classData, curriculumId) {
+        const target = normalizeCurriculumIdForMatch(curriculumId);
+        if (!target || !classData) {
+            return false;
+        }
+        if (normalizeCurriculumIdForMatch(classData.curriculumId) === target) {
+            return true;
+        }
+        return getNormalizedClassTeachers(classData).some(
+            (row) => normalizeCurriculumIdForMatch(row.curriculumId) === target
+        );
+    }
+
+    function getClassesUsingCurriculumId(curriculumId, appData) {
+        const classes = (appData && appData.classes) || [];
+        return classes.filter((c) => classUsesCurriculumId(c, curriculumId));
+    }
+
     global.CCPClassCurriculumSlices = {
         normalizeClassTeacherRow,
         getNormalizedClassTeachers,
@@ -305,6 +334,8 @@
         buildEffectiveClassForTeacherRow,
         getViewerTeacherSelector,
         teacherMatchesTeacherRef,
-        resolvePresetForRow
+        resolvePresetForRow,
+        classUsesCurriculumId,
+        getClassesUsingCurriculumId
     };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -459,6 +459,7 @@
                     </div>
                 </div>
                 <div id="classesSegmentNotesPanel" class="classes-segment-panel class-notes-segment-panel" role="tabpanel" aria-labelledby="classesSegmentNotes" hidden>
+                    <p class="section-hint classes-notes-same-tab-hint" data-i18n="classesSegmentNotesSameAsTab">Same notes as the Notes tab.</p>
                     <div id="classesSegmentNotesMount" class="class-notes-mount"></div>
                 </div>
                     </div>
@@ -721,7 +722,14 @@
             </section>
 
             <section id="panel-curriculum" class="app-tab-panel" data-tab="curriculum" role="tabpanel" aria-labelledby="tabBtn-curriculum" hidden>
-                <p class="section-hint curriculum-tab-intro" data-i18n="curriculumTabIntro">Edit session pages and default schedule settings for each program book. On the class form, pick Level and Book, then Apply from curriculum.</p>
+                <p class="section-hint curriculum-tab-intro" data-i18n="curriculumTabIntro">Edit session pages and default schedule settings for each program book. On the class form, pick Section (level) and Book, then Apply from curriculum.</p>
+                <div id="curriculumUpdatedBanner" class="curriculum-updated-banner" role="status" hidden>
+                    <p id="curriculumUpdatedBannerText" class="curriculum-updated-banner-text"></p>
+                    <div class="curriculum-updated-banner-actions">
+                        <button type="button" id="curriculumUpdatedBannerBtn" class="btn btn-primary btn-small" data-i18n="curriculumUpdatedBannerAction">Update their syllabi</button>
+                        <button type="button" id="curriculumUpdatedBannerDismiss" class="btn btn-outline btn-small" aria-label="Dismiss">&times;</button>
+                    </div>
+                </div>
                 <div class="curriculum-tab-layout workspace-books-layout">
                     <aside class="curriculum-tab-sidebar workspace-books-sidebar">
                         <div class="curriculum-tab-sidebar-toolbar">
@@ -1182,7 +1190,7 @@
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260603-curriculum-refresh"></script>
+    <script defer src="app.js?v=20260603-curriculum-pipeline"></script>
 </body>
 </html>
 

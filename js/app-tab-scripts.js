@@ -18,7 +18,9 @@
             'js/teacher-management.js?v=20260610-setup-board',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
-        curriculum: ['js/class-curriculum-slices.js?v=20260603-cal-suffix2'],
+        curriculum: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
+        classes: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
+        syllabus: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         calendar: [
             'js/teacher-timetable.js?v=20260611-timetable-context',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'

@@ -40,32 +40,9 @@
                 </div>
 
                 <input type="hidden" id="classTypeIdHidden" value="">
-                <section class="class-curriculum-picker form-row">
-                    <div class="form-group">
-                        <label for="classCurriculumLevel" data-i18n="classCurriculumLevel">Level</label>
-                        <select id="classCurriculumLevel" aria-describedby="classCurriculumHint">
-                            <option value="" data-i18n="selectLevel">Select level</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="classCurriculumBook" data-i18n="classCurriculumBook">Book</label>
-                        <select id="classCurriculumBook" disabled>
-                            <option value="" data-i18n="classCurriculumBookPickLevel">Select level first</option>
-                        </select>
-                    </div>
-                    <div class="form-group class-curriculum-apply-wrap">
-                        <span class="form-spacer-label" aria-hidden="true">&nbsp;</span>
-                        <button type="button" id="applyCurriculumToClassBtn" class="btn btn-primary btn-small" disabled data-i18n="applyCurriculumToClass">Apply from curriculum</button>
-                    </div>
-                    <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
-                    <p id="classCurriculumWarning" class="class-curriculum-warning section-hint" role="alert" hidden></p>
-                    <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Pick level and book, then Apply to fill class settings from curriculum. Name and dates stay yours.</p>
-                    <div class="class-curriculum-extra-actions form-group--full-only">
-                        <button type="button" id="openCurriculumFromClassBtn" class="btn btn-outline btn-small" data-i18n="editCurriculumForBook">Edit curriculum</button>
-                        <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
-                        <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
-                    </div>
-                </section>
+                <select id="classCurriculumLevel" class="visually-hidden" aria-hidden="true" tabindex="-1">
+                    <option value="" data-i18n="selectLevel">Select level</option>
+                </select>
                 <select id="classTypeSelect" class="visually-hidden" aria-hidden="true" tabindex="-1"></select>
 
                 <div class="form-row form-row-term-dates">
@@ -115,6 +92,28 @@
                         </select>
                     </div>
                 </div>
+
+                <section class="class-curriculum-picker form-row" aria-describedby="classCurriculumHint classCurriculumPipelineHint">
+                    <div class="form-group">
+                        <label for="classCurriculumBook" data-i18n="classCurriculumBook">Book (from Curriculum)</label>
+                        <select id="classCurriculumBook" disabled aria-describedby="classCurriculumHint">
+                            <option value="" data-i18n="classCurriculumBookPickLevel">Select level first</option>
+                        </select>
+                    </div>
+                    <div class="form-group class-curriculum-apply-wrap">
+                        <span class="form-spacer-label" aria-hidden="true">&nbsp;</span>
+                        <button type="button" id="applyCurriculumToClassBtn" class="btn btn-primary btn-small" disabled data-i18n="applyCurriculumToClass">Apply from curriculum</button>
+                    </div>
+                    <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
+                    <p id="classCurriculumWarning" class="class-curriculum-warning section-hint" role="alert" hidden></p>
+                    <p id="classCurriculumPipelineHint" class="section-hint" data-i18n="classCurriculumPipelineHint">Flow: Curriculum (shared books) → this class (link) → Syllabus tab (dated lessons).</p>
+                    <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Choose Section (level) above, then pick a book. Apply updates settings; Save updates the syllabus from this book when the link changes.</p>
+                    <div class="class-curriculum-extra-actions form-group--full-only">
+                        <button type="button" id="openCurriculumFromClassBtn" class="btn btn-outline btn-small" data-i18n="editCurriculumForBook">Edit curriculum</button>
+                        <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
+                        <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
+                    </div>
+                </section>
 
                 <div class="form-group">
                     <label for="classTotalLessons" data-i18n="totalLessons">Total Lessons</label>

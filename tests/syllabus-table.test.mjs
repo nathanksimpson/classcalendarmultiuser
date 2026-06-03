@@ -59,9 +59,14 @@ function assert(cond, msg) {
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-extra-dense'), '28 rows use normal density');
     assert(docHtml.includes('syllabus-a4-sheet'), 'A4 sheet wrapper per class');
     assert(docHtml.includes('<colgroup>'), 'colgroup for column widths');
-    assert(docHtml.includes('width:68%'), 'jindo plan column width');
-    assert(docHtml.includes('width:6.5%'), 'jindo year/month column width');
-    assert(docHtml.includes('width:3.5em'), 'jindo date column width');
+    assert(docHtml.includes('width:70%'), 'jindo main plan column');
+    assert(docHtml.includes('width:11%'), 'jindo month column width');
+    assert(docHtml.includes('width:70%'), 'jindo plan column width');
+    assert(docHtml.includes('15%'), 'jindo notes column 15%');
+    assert(docHtml.includes('85%'), 'jindo main grid 85%');
+    assert(docHtml.includes('syllabus-jindo-print-grid'), 'jindo uses side notes table');
+    assert(docHtml.includes('width:10%'), 'jindo date column width');
+    assert(docHtml.includes('width:9%'), 'jindo week column width');
 }
 
 // Week label Mon–Fri
@@ -328,6 +333,19 @@ function assert(cond, msg) {
     assert(Math.abs(scaleDown - 0.5) < 0.001, 'tall content scales down to fit height');
     const scaleWidth = CCPSyllabus.computeSyllabusPageScale(500, 900, contentW, contentH);
     assert(scaleWidth < 2 && Math.abs(900 * scaleWidth - contentW) < 1, 'width cap when scaled up');
+}
+
+// Print fit: lesson group vs note column scales
+{
+    const both = CCPSyllabus.normalizeSyllabusPrintScales(0.9, 0.8);
+    assert(both.lessonGroupScale === 0.9 && both.noteScale === 0.8, 'independent lesson and note scales');
+    const single = CCPSyllabus.normalizeSyllabusPrintScales(0.85);
+    assert(single.lessonGroupScale === 0.85 && single.noteScale === 0.85, 'single scale applies to both');
+    assert(CCPSyllabus.SYLLABUS_JINDO_PLAN_LINE_CLAMP === 1, 'jindo plan uses one line in overview');
+    const styles = CCPSyllabus.getSyllabusExportStyles(true);
+    assert(styles.includes('syllabus-jindo-note'), 'export CSS styles jindo note column');
+    assert(styles.includes('syllabus-jindo-note-body') && styles.includes('pre-wrap'), 'note body preserves line breaks');
+    assert(styles.includes('text-overflow: ellipsis'), 'jindo plan titles ellipsize when long');
 }
 
 // Debate: merged Day 2+3 and month-bridge Day 4 + Day 1 templates
@@ -650,17 +668,29 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(short === 'Line one', 'first line only');
 }
 
-// buildMergedNotesHtml
+// Print notes: general only (per-lesson row notes are not printed)
 {
-    const rows = [
-        { kind: 'lesson', sessionNumber: 2, note: 'Bring workbook' },
-        { kind: 'lesson', sessionNumber: 5, note: '' }
-    ];
-    const html = CCPSyllabus.buildMergedNotesHtml('General reminder', rows);
-    assert(html.includes('General reminder'), 'general notes');
-    assert(html.includes('#2:'), 'session prefix');
-    assert(html.includes('Bring workbook'), 'row note');
-    assert(!html.includes('#5:'), 'empty row note omitted');
+    const html = CCPSyllabus.buildMergedNotesHtml('General reminder');
+    assert(html.includes('General reminder'), 'general notes only');
+    assert(!html.includes('Bring workbook'), 'per-lesson row notes excluded');
+    assert(!html.includes('syllabus-merged-note-item'), 'no per-row note labels');
+}
+
+// PDF print drops editor note rows (general notes only in 비고 column)
+{
+    const withNote = CCPSyllabus.normalizeRows([
+        { kind: 'note', planTitle: 'Each unit is one week.', planDetail: '', note: '' },
+        {
+            kind: 'lesson',
+            date: '2026-03-04',
+            monthKey: '2026-03',
+            sessionNumber: 1,
+            planTitle: 'Unit 1'
+        }
+    ]);
+    const filtered = CCPSyllabus.filterRowsForPdfPrint(withNote);
+    assert(filtered.length === 1, 'note row removed from print');
+    assert(filtered[0].planTitle === 'Unit 1', 'first print row is first lesson');
 }
 
 // 진도표 PDF layout (jindo): dates, week-of-month, title-only plan, sparse 비고
@@ -685,7 +715,11 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
             note: 'Use for review, extra class, or adjust the calendar.'
         }
     ]);
-    const html = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+    const rowsWithEditorNote = [
+        { kind: 'note', planTitle: 'Lesson plan intro', planDetail: '', note: '' },
+        ...rows
+    ];
+    const html = CCPSyllabus.renderSyllabusTableHtml({}, rowsWithEditorNote, {
         pdfLayout: true,
         a4Pdf: true,
         jindoTable: true,
@@ -697,10 +731,18 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
         colYear: '{year}년',
         generalNotes: '★ SP : 3/4(수)~5/29(금)'
     });
+    const mainBody = html.split('syllabus-table-jindo-notes')[0].split('<tbody>')[1] || '';
+    assert(!mainBody.includes('Lesson plan intro'), 'editor note row not in main tbody');
+    assert(mainBody.includes('3/4'), 'first body row is first dated lesson');
     assert(html.includes('syllabus-table-jindo'), 'jindo table class');
     assert(html.includes('3/4'), 'date in date column');
     assert(html.includes('1주'), 'week of month label');
-    assert(html.includes('3월'), 'korean month');
+    assert(html.includes('3월'), 'korean month in month column');
+    assert(html.includes('syllabus-jindo-print-grid'), 'main + notes side-by-side');
+    assert(html.includes('syllabus-table-jindo-notes'), 'separate notes table');
+    assert(html.includes('syllabus-jindo-notes-th'), 'notes table header cell');
+    const mainTbody = (html.split('syllabus-table-jindo-notes')[0].split('</thead>')[1]) || '';
+    assert(!mainTbody.includes('syllabus-jindo-note'), 'no note column in main table');
     assert(html.includes('세부 진도계획'), 'korean plan header');
     assert(html.includes('날짜'), 'korean date header');
     assert(html.includes('비고'), 'korean note header');
@@ -708,11 +750,10 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(!html.includes('Homework:'), 'no homework in overview');
     assert(!html.includes('syllabus-merged-note-item'), 'no per-row note labels');
     assert(html.includes('★ SP'), 'general notes in note column');
-    assert(html.includes('rowspan="2"') && html.includes('syllabus-note-merged'), 'single merged note cell');
-    assert(html.includes('syllabus-jindo-note'), 'jindo note styling');
-    const tbody = html.split('</thead>')[1] || '';
-    const bodyNoteCells = (tbody.match(/syllabus-col-note/g) || []).length;
-    assert(bodyNoteCells === 1, 'one note cell in tbody');
+    assert(html.includes('syllabus-jindo-note-body'), 'jindo notes wrapped for pre-wrap layout');
+    const notesSection = html.split('syllabus-table-jindo-notes')[1] || '';
+    assert(notesSection.includes('syllabus-jindo-notes-body-cell'), 'notes body cell');
+    assert(notesSection.includes('syllabus-jindo-note-body'), 'notes content wrapper');
 }
 
 // Legacy PDF layout (jindo off): merged note column, brief plan cells
