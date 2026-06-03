@@ -321,12 +321,16 @@ body {
 }
 
 body:not([data-active-tab="calendar"]) .app-top-bar-title-actions {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
 }
 
 body[data-active-tab="classes"] .app-top-bar-title-actions,
 body[data-active-tab="events"] .app-top-bar-title-actions {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
 }
 
 .app-top-bar-title-block h1 {
@@ -3989,7 +3993,16 @@ input.input-readonly {
 }
 
 body:not([data-active-tab="calendar"]) .app-header-tool-group--calendar-display {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+}
+
+@media (min-width: 901px) {
+    .calendar-display-btn {
+        min-width: 9.5rem;
+        box-sizing: border-box;
+    }
 }
 
 .app-header-tool-group--locale {
