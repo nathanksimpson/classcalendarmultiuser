@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260611-timetable-context">
+    <link rel="stylesheet" href="styles.css?v=20260603-toolbar-collapse">
     <script src="js/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -142,42 +142,47 @@
                 </nav>
                 <div class="app-top-bar-actions" role="group" aria-label="Quick actions">
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
-                    <div class="app-header-tool-group app-header-tool-group--calendar-display">
+                    <div class="app-header-tool-group app-header-tool-group--calendar-display app-header-tool-group--essential">
                         <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn calendar-display-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarDisplayBtn">Calendar display…</button>
                     </div>
-                    <div class="app-header-tool-group app-header-tool-group--print">
+                    <div class="app-header-tool-group app-header-tool-group--print app-header-tool-group--essential">
                         <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     </div>
-                    <div class="app-header-tool-group app-header-tool-group--notes">
-                        <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
-                    </div>
-                    <input type="file" id="importFile" accept=".json" hidden>
-                    <div class="app-header-tool-group app-header-tool-group--help">
-                        <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    </div>
-                    <div class="app-header-tool-group app-header-tool-group--account">
-                        <details class="header-dropdown team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
-                            <summary class="btn btn-outline btn-small header-dropdown-trigger team-account-menu-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
-                            <div class="header-dropdown-panel" role="menu">
-                                <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
-                                <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
-                                <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
-                                <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
-                                <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
-                                <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
-                            </div>
-                        </details>
-                    </div>
-                    <div class="app-header-tool-group app-header-tool-group--locale">
-                        <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
-                        <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang">🌐 한국어</button>
-                    </div>
-                    <div class="app-header-tool-group app-header-tool-group--collapse">
+                    <div class="app-header-tool-group app-header-tool-group--collapse app-header-tool-group--essential">
                         <button type="button" id="topBarToggle" class="app-top-bar-toggle calendar-options-toggle" aria-expanded="true" aria-controls="topBarDetails appTopBarTeamDetails">
                             <span class="app-top-bar-toggle-icon" aria-hidden="true">▲</span>
                             <span class="top-bar-toggle-label" data-i18n="topBarCollapse">Collapse calendar options</span>
                         </button>
                     </div>
+                    <input type="file" id="importFile" accept=".json" hidden>
+                    <details class="app-header-more-dropdown header-dropdown" id="headerMoreDropdown">
+                        <summary class="btn btn-outline btn-small app-header-more-trigger" data-i18n="headerMoreMenu">More</summary>
+                        <div class="header-dropdown-panel app-header-more-panel" role="menu">
+                            <div class="app-header-tool-group app-header-tool-group--notes">
+                                <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
+                            </div>
+                            <div class="app-header-tool-group app-header-tool-group--help">
+                                <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-dropdown-item" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
+                            </div>
+                            <div class="app-header-tool-group app-header-tool-group--account">
+                                <details class="header-dropdown team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                                    <summary class="btn btn-outline btn-small header-dropdown-trigger team-account-menu-trigger" id="teamAccountMenuBtn" data-i18n="teamAccountMenu">Account</summary>
+                                    <div class="header-dropdown-panel" role="menu">
+                                        <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
+                                        <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
+                                        <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
+                                        <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
+                                        <button type="button" id="teamLogoutBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOut">Sign out</button>
+                                        <button type="button" id="teamLogoutAllBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamSignOutAll">Sign out all devices</button>
+                                    </div>
+                                </details>
+                            </div>
+                            <div class="app-header-tool-group app-header-tool-group--locale">
+                                <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
+                                <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang header-dropdown-item">🌐 한국어</button>
+                            </div>
+                        </div>
+                    </details>
                 </div>
                 </div>
                 <div id="appTopBarTeamDetails" class="app-top-bar-team-details">
@@ -207,6 +212,9 @@
         </header>
 
         <main class="app-main" id="appMain">
+            <div id="mobileSetupLimitedBanner" class="mobile-setup-limited-banner" hidden role="status">
+                <p class="mobile-setup-limited-banner-text" data-i18n="mobileSetupLimitedHint">This setup screen works best on a tablet or computer. You can view here, but editing is limited on a phone.</p>
+            </div>
             <section id="panel-calendar" class="app-tab-panel is-active" data-tab="calendar" role="tabpanel" aria-labelledby="tabBtn-calendar-teaching">
                 <div id="lessonFilterPopover" class="lesson-filter-popover calendar-display-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
                     <div class="lesson-filter-popover-panel">
@@ -298,6 +306,12 @@
             </div>
                 </div>
 
+                <div class="calendar-view-toolbar" role="toolbar" aria-label="Calendar view">
+                    <div class="calendar-view-switch" role="tablist" aria-label="Calendar layout">
+                        <button type="button" id="calendarViewAgendaBtn" class="syllabus-segment-btn" role="tab" aria-selected="false" data-calendar-view="agenda" data-i18n="calendarViewAgenda">Agenda</button>
+                        <button type="button" id="calendarViewMonthBtn" class="syllabus-segment-btn is-active" role="tab" aria-selected="true" data-calendar-view="month" data-i18n="calendarViewMonth">Month</button>
+                    </div>
+                </div>
                 <div id="calendarContainer" class="calendar-container">
                     <!-- Calendars will be rendered here by JavaScript -->
                 </div>
@@ -337,6 +351,14 @@
                                 <button type="button" id="classNotesFilterClearClassesBtn" class="btn btn-outline btn-small" data-i18n="filterClearAll">Clear all</button>
                                 <button type="button" id="classNotesResetFiltersBtn" class="btn btn-outline btn-small" data-i18n="classNotesResetFilters">Reset filters</button>
                             </div>
+                            <select id="classNotesFilterMobileSelect" class="class-notes-filter-select-mobile" aria-label="Quick filter">
+                                <option value="" data-i18n="classNotesFilterMobileNone">Filter actions…</option>
+                                <option value="justMine" data-i18n="lessonFilterJustMine">Just my classes</option>
+                                <option value="today" data-i18n="classNotesTodayClasses">Today's classes</option>
+                                <option value="selectAll" data-i18n="filterSelectAll">Select all</option>
+                                <option value="clearAll" data-i18n="filterClearAll">Clear all</option>
+                                <option value="reset" data-i18n="classNotesResetFilters">Reset filters</option>
+                            </select>
                             <input type="search" id="classNotesClassSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
                             <div class="class-notes-filter-scroll">
                                 <div id="classNotesFilterClasses" class="class-notes-filter-body lesson-filter-body"></div>
@@ -523,7 +545,7 @@
                         <button type="button" id="homeworkReferenceTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
                     </div>
                 </div>
-                <div class="homework-layout module-split-layout">
+                <div class="homework-layout module-split-layout module-split-layout--homework">
                     <aside class="module-list-panel homework-sidebar-panel" aria-label="Class list">
                         <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application" data-i18n-aria-label="homeworkTabMiniCalendarLabel" aria-label="Pick reference date"></div>
                         <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Update homework copy paste</button>
@@ -588,7 +610,7 @@
                     <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
                     <span id="timetableConflictBadge" class="timetable-conflict-badge" role="status" hidden></span>
                 </div>
-                <div class="timetable-layout module-split-layout">
+                <div class="timetable-layout module-split-layout module-split-layout--timetable">
                     <aside class="module-list-panel timetable-sidebar" aria-label="Timetable teachers and classes">
                         <div class="timetable-sidebar-teachers">
                             <input type="search" id="timetableTeacherSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="timetableTeacherSearchPlaceholder" placeholder="Search teachers…">
@@ -1156,7 +1178,7 @@
     <script defer src="js/dino-game.js?v=20260609-stable-host-tabs"></script>
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260605-notes-cleanup"></script>
-    <script defer src="app.js?v=20260603-daynote-author"></script>
+    <script defer src="app.js?v=20260603-topbar-overflow"></script>
 </body>
 </html>
 

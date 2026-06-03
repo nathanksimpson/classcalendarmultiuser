@@ -6,6 +6,7 @@
     let notesSelectedClassId = null;
     let notesEditingId = null;
     let notesMyClassesOnly = false;
+    let notesClassSearchQuery = '';
     let notesDayIndexCache = null;
     /** Unsaved add-note text per class (survives list re-render / sync refresh). */
     const notesAddDraftByClass = Object.create(null);
@@ -257,6 +258,7 @@
             date: notesSelectedDate,
             classId: notesSelectedClassId || '',
             myClassesOnly: notesMyClassesOnly,
+            classSearch: notesClassSearchQuery,
             calendarId: getActiveNotesCalendarId()
         });
         if (CCPSessionRestore.capturePageSession) {
@@ -386,9 +388,27 @@
     function closeNotesEditorSheet() {
         captureNotesAddDraft();
         setNotesEditorOpen(false);
+        clearNotesClassSelection();
         const hint = document.getElementById('notesPickClassHint');
-        if (hint && !normalizeNotesClassId(notesSelectedClassId)) {
+        if (hint) {
             hint.hidden = false;
+        }
+    }
+
+    function clearNotesClassSelection(options = {}) {
+        const skipUrl = options.skipUrl === true;
+        const skipListRender = options.skipListRender === true;
+        const skipSave = options.skipSave === true;
+        notesSelectedClassId = null;
+        notesEditingId = null;
+        if (!skipUrl) {
+            syncNotesUrlFromSelection('', notesSelectedDate || resolveSelectedDate());
+        }
+        if (!skipListRender) {
+            renderNotesClassList();
+        }
+        if (!skipSave) {
+            saveNotesSessionState();
         }
     }
 
@@ -490,23 +510,7 @@
     function resolveNotesRestoreSelection() {
         const resolved = resolveInitialNotesDate();
         const dateStr = (notesSelectedDate || resolved.dateStr || '').trim() || todayIso();
-        let classId = normalizeNotesClassId(notesSelectedClassId || resolved.classId || '');
-        const activeCal = getActiveNotesCalendarId();
-        const saved =
-            typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getNotesSession
-                ? CCPSessionRestore.getNotesSession()
-                : null;
-        const urlClassId = (getParams().get('classId') || '').trim();
-        if (
-            saved
-            && saved.calendarId
-            && activeCal
-            && String(saved.calendarId) !== String(activeCal)
-            && !urlClassId
-        ) {
-            classId = '';
-        }
-        return { dateStr, classId };
+        return { dateStr };
     }
 
     function syncNotesUrlFromSelection(classId, dateStr) {
@@ -532,6 +536,28 @@
         if (myOnlyEl) {
             myOnlyEl.checked = notesMyClassesOnly;
         }
+        syncNotesClassSearchInput();
+    }
+
+    function handleNotesMyClassesOnlyChange() {
+        const myOnly = document.getElementById('notesMyClassesOnly');
+        const editorWasOpen = document.body.classList.contains('notes-editor-open');
+        notesMyClassesOnly = myOnly ? myOnly.checked : false;
+        invalidateDayIndexCache();
+        renderNotesClassList();
+        const selectedId = normalizeNotesClassId(notesSelectedClassId);
+        if (
+            editorWasOpen
+            && selectedId
+            && classExistsInAppData(selectedId)
+            && isSelectedClassVisibleInNotesList(selectedId)
+        ) {
+            renderNotesEditor(selectedId);
+            setNotesEditorOpen(true);
+        } else if (editorWasOpen) {
+            hideNotesEditor();
+        }
+        saveNotesSessionState();
     }
 
     function scrollNotesSelectionIntoView(classId) {
@@ -674,6 +700,92 @@
         syncNotesReadOnlyBanner();
     }
 
+    function normalizeNotesSearchQuery(query) {
+        return String(query || '').trim().toLowerCase();
+    }
+
+    function getNotesClassDisplayName(classData, lessonByClassId) {
+        if (!classData) {
+            return '';
+        }
+        const lessonEntry =
+            lessonByClassId && lessonByClassId.get ? lessonByClassId.get(classData.id) : null;
+        return (
+            (lessonEntry && (lessonEntry.calendarTitle || lessonEntry.classData?.name)) ||
+            (typeof formatClassLabelWithPeriod === 'function'
+                ? formatClassLabelWithPeriod(classData)
+                : '') ||
+            classData.name ||
+            classData.id ||
+            ''
+        );
+    }
+
+    function classMatchesNotesSearch(classData, lessonByClassId, query) {
+        const q = normalizeNotesSearchQuery(query);
+        if (!q || !classData) {
+            return true;
+        }
+        const subject =
+            typeof getClassSubjectForDayNotes === 'function'
+                ? getClassSubjectForDayNotes(classData)
+                : '';
+        const haystack = [
+            getNotesClassDisplayName(classData, lessonByClassId),
+            subject,
+            classData.name,
+            classData.id
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+        return haystack.includes(q);
+    }
+
+    function filterNotesClassGroupsForSearch(groups, query) {
+        const q = normalizeNotesSearchQuery(query);
+        if (!q) {
+            return groups;
+        }
+        const filterList = (list) =>
+            (list || []).filter((classData) =>
+                classMatchesNotesSearch(classData, groups.lessonByClassId, q)
+            );
+        const onDay = filterList(groups.onDay);
+        const offDay = filterList(groups.offDay);
+        return {
+            onDay,
+            offDay,
+            lessonByClassId: groups.lessonByClassId,
+            totalCount: onDay.length + offDay.length
+        };
+    }
+
+    function isSelectedClassVisibleInNotesList(classId) {
+        const id = normalizeNotesClassId(classId);
+        if (!id) {
+            return false;
+        }
+        try {
+            const groups = filterNotesClassGroupsForSearch(
+                getNotesListGroupsForUi(resolveSelectedDate()),
+                notesClassSearchQuery
+            );
+            return groups.onDay.concat(groups.offDay).some(
+                (classData) => classData && normalizeNotesClassId(classData.id) === id
+            );
+        } catch (_) {
+            return classExistsInAppData(id);
+        }
+    }
+
+    function syncNotesClassSearchInput() {
+        const input = document.getElementById('notesClassSearch');
+        if (input && input.value !== notesClassSearchQuery) {
+            input.value = notesClassSearchQuery;
+        }
+    }
+
     function getNotesListGroupsForUi(dateStr) {
         if (typeof getNotesClassListGroupsForDate !== 'function') {
             return { onDay: [], offDay: [], lessonByClassId: new Map(), totalCount: 0 };
@@ -709,13 +821,7 @@
         }
         const title = document.createElement('span');
         title.className = 'notes-class-item-title';
-        const displayName =
-            (lessonEntry && (lessonEntry.calendarTitle || lessonEntry.classData?.name)) ||
-            (typeof formatClassLabelWithPeriod === 'function'
-                ? formatClassLabelWithPeriod(classData)
-                : '') ||
-            classData.name ||
-            classData.id;
+        const displayName = getNotesClassDisplayName(classData, lessonByClassId);
         title.textContent = displayName;
         const meta = document.createElement('span');
         meta.className = 'notes-class-item-meta';
@@ -760,19 +866,26 @@
         notesSelectedDate = dateStr;
         let groups;
         try {
-            groups = getNotesListGroupsForUi(dateStr);
+            groups = filterNotesClassGroupsForSearch(
+                getNotesListGroupsForUi(dateStr),
+                notesClassSearchQuery
+            );
         } catch (err) {
             console.error('Notes class list groups failed:', err);
             groups = { onDay: [], offDay: [], lessonByClassId: new Map(), totalCount: 0 };
         }
         const { onDay, offDay, lessonByClassId, totalCount } = groups;
         const allClasses = onDay.concat(offDay);
+        const searchActive = normalizeNotesSearchQuery(notesClassSearchQuery).length > 0;
         listEl.replaceChildren();
 
         if (emptyEl) {
             let emptyMessage =
                 typeof t === 'function' ? t('notesNoClasses') : 'No classes in this calendar.';
-            if (totalCount === 0 && notesMyClassesOnly) {
+            if (searchActive && totalCount === 0) {
+                emptyMessage =
+                    typeof t === 'function' ? t('notesNoSearchMatch') : 'No classes match your search.';
+            } else if (totalCount === 0 && notesMyClassesOnly) {
                 const uid = getCurrentUserId();
                 if (!uid) {
                     emptyMessage =
@@ -876,16 +989,29 @@
         const closeBtn = document.getElementById('notesEditorCloseBtn');
         if (closeBtn && closeBtn.dataset.bound !== '1') {
             closeBtn.dataset.bound = '1';
-            closeBtn.addEventListener('click', () => {
+            closeBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
                 closeNotesEditorSheet();
             });
         }
         const backdrop = getNotesEditorBackdrop();
         if (backdrop && backdrop.dataset.bound !== '1') {
             backdrop.dataset.bound = '1';
-            backdrop.addEventListener('click', () => {
+            backdrop.addEventListener('pointerup', (ev) => {
+                if (ev.target !== backdrop) {
+                    return;
+                }
                 closeNotesEditorSheet();
             });
+        }
+        const sheet = getNotesEditorSheet();
+        if (sheet && sheet.dataset.bound !== '1') {
+            sheet.dataset.bound = '1';
+            const stopBackdropDismiss = (ev) => {
+                ev.stopPropagation();
+            };
+            sheet.addEventListener('pointerdown', stopBackdropDismiss);
+            sheet.addEventListener('click', stopBackdropDismiss);
         }
         if (!bindNotesEditorSheetControls._escapeBound) {
             bindNotesEditorSheetControls._escapeBound = true;
@@ -928,18 +1054,42 @@
             });
         }
         const myOnly = document.getElementById('notesMyClassesOnly');
+        const myOnlyLabel = document.getElementById('notesMyClassesOnlyLabel');
+        if (myOnlyLabel && myOnlyLabel.dataset.bound !== '1') {
+            myOnlyLabel.dataset.bound = '1';
+            ['pointerdown', 'click', 'touchstart'].forEach((type) => {
+                myOnlyLabel.addEventListener(
+                    type,
+                    (ev) => {
+                        ev.stopPropagation();
+                    },
+                    { passive: type === 'touchstart' }
+                );
+            });
+        }
         if (myOnly && myOnly.dataset.bound !== '1') {
             myOnly.dataset.bound = '1';
-            myOnly.addEventListener('change', () => {
-                notesMyClassesOnly = myOnly.checked;
-                invalidateDayIndexCache();
+            myOnly.addEventListener('change', (ev) => {
+                ev.stopPropagation();
+                handleNotesMyClassesOnlyChange();
+            });
+            myOnly.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+            });
+        }
+        const classSearch = document.getElementById('notesClassSearch');
+        if (classSearch && classSearch.dataset.bound !== '1') {
+            classSearch.dataset.bound = '1';
+            classSearch.addEventListener('input', () => {
+                notesClassSearchQuery = classSearch.value || '';
                 renderNotesClassList();
-                const selectedId = normalizeNotesClassId(notesSelectedClassId);
-                if (selectedId && classExistsInAppData(selectedId)) {
-                    renderNotesEditor(selectedId);
-                    setNotesEditorOpen(true);
-                }
                 saveNotesSessionState();
+            });
+            classSearch.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+            });
+            classSearch.addEventListener('keydown', (ev) => {
+                ev.stopPropagation();
             });
         }
         const saveBtn = document.getElementById('notesSaveBtn');
@@ -992,7 +1142,6 @@
     function resolveInitialNotesDate() {
         const params = getParams();
         let dateStr = (params.get('date') || '').trim();
-        let classId = (params.get('classId') || '').trim();
         if (
             typeof CCPSessionRestore !== 'undefined'
             && CCPSessionRestore.getNotesSession
@@ -1002,33 +1151,18 @@
                 if (!dateStr && saved.date) {
                     dateStr = saved.date;
                 }
-                if (!classId && saved.classId) {
-                    classId = saved.classId;
-                }
                 if (saved.myClassesOnly != null) {
                     notesMyClassesOnly = Boolean(saved.myClassesOnly);
+                }
+                if (saved.classSearch != null) {
+                    notesClassSearchQuery = String(saved.classSearch);
                 }
             }
         }
         if (!dateStr) {
             dateStr = todayIso();
         }
-        if (
-            !classId
-            && typeof getCurrentClassContext === 'function'
-            && typeof classOccursOnIsoDate === 'function'
-        ) {
-            const ctx = getCurrentClassContext();
-            if (
-                ctx
-                && ctx.classId
-                && ctx.classData
-                && classOccursOnIsoDate(ctx.classData, dateStr)
-            ) {
-                classId = ctx.classId;
-            }
-        }
-        return { dateStr, classId };
+        return { dateStr };
     }
 
     function applyInitialNotesDate(dateStr) {
@@ -1044,6 +1178,8 @@
         if (!document.body.classList.contains('notes-page')) {
             return;
         }
+        const initialBoot = options.initialBoot === true;
+        const editorWasOpen = document.body.classList.contains('notes-editor-open');
         const preserveFocus = options.preserveFocus === true;
         const textEl = document.getElementById('notesAddText');
         const typingInAddField = preserveFocus && textEl && document.activeElement === textEl;
@@ -1051,21 +1187,28 @@
             captureNotesAddDraft();
         }
 
-        const { dateStr, classId: resolvedClassId } = resolveNotesRestoreSelection();
-        const prevClassId = notesSelectedClassId;
+        const { dateStr } = resolveNotesRestoreSelection();
         applyPersistedNotesChrome(dateStr);
-        let classId = normalizeNotesClassId(resolvedClassId || '');
-        if (classId && !classExistsInAppData(classId)) {
-            classId = '';
-        }
-        notesSelectedClassId = classId || null;
-        syncNotesUrlFromSelection(classId, dateStr);
 
         if (options.invalidateIndex !== false) {
             invalidateDayIndexCache();
         }
         setupNotesChrome();
         syncNotesReadOnlyBanner();
+
+        let classId = '';
+        if (initialBoot) {
+            notesSelectedClassId = null;
+            syncNotesUrlFromSelection('', dateStr);
+        } else {
+            const inMemoryId = normalizeNotesClassId(notesSelectedClassId);
+            if (editorWasOpen && inMemoryId && classExistsInAppData(inMemoryId)) {
+                classId = inMemoryId;
+            } else {
+                notesSelectedClassId = null;
+                syncNotesUrlFromSelection('', dateStr);
+            }
+        }
 
         try {
             renderNotesClassList();
@@ -1080,9 +1223,6 @@
             const hint = document.getElementById('notesPickClassHint');
             if (hint) {
                 hint.hidden = true;
-            }
-            if (normalizeNotesClassId(prevClassId) !== classId) {
-                scrollNotesSelectionIntoView(classId);
             }
             if (!typingInAddField) {
                 focusNotesAddField();
@@ -1215,7 +1355,11 @@
                 applyLanguage();
             }
             setupNotesChrome();
-            window.finalizeNotesPageBoot({ invalidateIndex: false, preserveFocus: false });
+            window.finalizeNotesPageBoot({
+                invalidateIndex: false,
+                preserveFocus: false,
+                initialBoot: true
+            });
 
             if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
                 CCPSessionRestore.capturePageSession();

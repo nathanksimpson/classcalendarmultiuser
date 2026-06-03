@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0f172a">
     <title>Class day notes — Class Calendar</title>
     <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260615-notes-bottom-sheet">
+    <link rel="stylesheet" href="styles.css?v=20260616-notes-class-search">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -58,7 +58,7 @@
         <button type="button" id="notesTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
     </div>
 
-    <label class="notes-filter-my-classes">
+    <label class="notes-filter-my-classes" id="notesMyClassesOnlyLabel">
         <input type="checkbox" id="notesMyClassesOnly">
         <span data-i18n="notesMyClassesOnly">My classes only</span>
     </label>
@@ -66,50 +66,61 @@
     <main class="notes-main">
         <section class="notes-class-section" aria-labelledby="notesClassListHeading">
             <h2 id="notesClassListHeading" class="visually-hidden">Classes</h2>
+            <div class="notes-class-search-wrap">
+                <label class="visually-hidden" for="notesClassSearch" data-i18n="classListSearchPlaceholder">Search classes…</label>
+                <input
+                    type="search"
+                    id="notesClassSearch"
+                    class="module-list-search notes-class-search"
+                    autocomplete="off"
+                    spellcheck="false"
+                    data-i18n-placeholder="classListSearchPlaceholder"
+                    placeholder="Search classes…"
+                >
+            </div>
             <p id="notesClassListEmpty" class="module-empty-hint" hidden data-i18n="notesNoClasses">No classes in this calendar.</p>
             <div id="notesClassList" class="notes-class-list" role="list" aria-label="Classes"></div>
         </section>
-
-        <aside
-            id="notesEditorSheet"
-            class="notes-editor-sheet"
-            hidden
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="notesEditorTitle"
-        >
-            <div class="notes-editor-sheet-inner">
-                <div class="notes-editor-sheet-handle" aria-hidden="true"></div>
-                <header class="notes-editor-sheet-header">
-                    <div class="notes-editor-sheet-heading">
-                        <h2 id="notesEditorTitle" class="notes-editor-title"></h2>
-                        <p id="notesEditorMeta" class="notes-editor-meta section-hint"></p>
-                    </div>
-                    <button
-                        type="button"
-                        id="notesEditorCloseBtn"
-                        class="btn btn-outline btn-small notes-editor-close-btn"
-                        data-i18n-aria-label="notesEditorClose"
-                    >×</button>
-                </header>
-                <div id="notesEditorSection" class="notes-editor-sheet-body">
-                    <div id="notesExistingList" class="notes-existing-list" role="list"></div>
-                    <label class="notes-add-label" for="notesAddText">
-                        <span data-i18n="dayNoteTextLabel">What happened in this class?</span>
-                        <textarea id="notesAddText" class="day-note-textarea notes-add-textarea" rows="4" spellcheck="true"></textarea>
-                    </label>
-                    <div class="notes-editor-actions">
-                        <button type="button" id="notesSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
-                    </div>
-                    <p id="notesStatus" class="notes-status" role="status" aria-live="polite" hidden></p>
-                </div>
-            </div>
-        </aside>
 
         <p id="notesPickClassHint" class="module-empty-hint notes-pick-hint" data-i18n="notesSelectClass">Tap a class to add or view notes.</p>
     </main>
 
     <div id="notesEditorBackdrop" class="notes-editor-backdrop" hidden aria-hidden="true"></div>
+    <aside
+        id="notesEditorSheet"
+        class="notes-editor-sheet"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notesEditorTitle"
+    >
+        <div class="notes-editor-sheet-inner">
+            <div class="notes-editor-sheet-handle" aria-hidden="true"></div>
+            <header class="notes-editor-sheet-header">
+                <div class="notes-editor-sheet-heading">
+                    <h2 id="notesEditorTitle" class="notes-editor-title"></h2>
+                    <p id="notesEditorMeta" class="notes-editor-meta section-hint"></p>
+                </div>
+                <button
+                    type="button"
+                    id="notesEditorCloseBtn"
+                    class="btn btn-outline btn-small notes-editor-close-btn"
+                    data-i18n-aria-label="notesEditorClose"
+                >×</button>
+            </header>
+            <div id="notesEditorSection" class="notes-editor-sheet-body">
+                <div id="notesExistingList" class="notes-existing-list" role="list"></div>
+                <label class="notes-add-label" for="notesAddText">
+                    <span data-i18n="dayNoteTextLabel">What happened in this class?</span>
+                    <textarea id="notesAddText" class="day-note-textarea notes-add-textarea" rows="4" spellcheck="true"></textarea>
+                </label>
+                <div class="notes-editor-actions">
+                    <button type="button" id="notesSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
+                </div>
+                <p id="notesStatus" class="notes-status" role="status" aria-live="polite" hidden></p>
+            </div>
+        </div>
+    </aside>
 
     <div id="appStatus" class="app-status" role="status" aria-live="polite"></div>
 
@@ -126,7 +137,7 @@
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/class-notes-panel.js?v=20260602-notes-text-search"></script>
     <script defer src="js/teacher-timetable.js?v=20260611-timetable-context"></script>
-    <script defer src="app.js?v=20260615-notes-bottom-sheet"></script>
-    <script defer src="js/notes.js?v=20260615-notes-bottom-sheet"></script>
+    <script defer src="app.js?v=20260616-notes-class-search"></script>
+    <script defer src="js/notes.js?v=20260616-notes-deselect-on-load"></script>
 </body>
 </html>

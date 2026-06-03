@@ -172,6 +172,8 @@ const translations = {
         calendarVisibility: 'Show on calendar:',
         calendarDisplayBtn: 'Calendar display…',
         calendarDisplayBtnActive: 'Calendar display (custom)',
+        calendarDisplayBtnShort: 'Display',
+        calendarDisplayBtnActiveShort: 'Display (custom)',
         calendarDisplayTitle: 'Calendar display',
         calendarDisplayLessonsHeading: 'Filter lessons',
         showLessons: 'Lessons',
@@ -985,10 +987,17 @@ const translations = {
         notesMyClassesSignIn: 'Sign in to filter by your classes, or turn off “My classes only”.',
         notesSelectClass: 'Tap a class to add or view notes.',
         notesEditorClose: 'Close note editor',
+        notesNoSearchMatch: 'No classes match your search.',
         notesLessonLabel: 'Lesson {n}',
         notesOpenMobile: 'Mobile day notes',
         notesOpenMobileTitle: 'Open the mobile day-notes journal (date and class list)',
         notesMobilePromoHint: 'Phone-friendly journal: pick a date, tap your class, write what happened.',
+        headerMoreMenu: 'More',
+        calendarViewAgenda: 'Agenda',
+        calendarViewMonth: 'Month',
+        calendarAgendaEmpty: 'No lessons or events in the next two weeks.',
+        mobileSetupLimitedHint: 'This setup screen works best on a tablet or computer. You can view here, but editing is limited on a phone.',
+        classNotesFilterMobileNone: 'Filter actions…',
 
         // Holiday Modal
         addHolidayTitle: 'Add Holiday',
@@ -1252,6 +1261,8 @@ const translations = {
         calendarVisibility: '캘린더에 표시:',
         calendarDisplayBtn: '캘린더 표시…',
         calendarDisplayBtnActive: '캘린더 표시 (사용자 지정)',
+        calendarDisplayBtnShort: '표시',
+        calendarDisplayBtnActiveShort: '표시 (사용자)',
         calendarDisplayTitle: '캘린더 표시',
         calendarDisplayLessonsHeading: '수업 필터',
         showLessons: '수업',
@@ -2029,10 +2040,17 @@ const translations = {
         notesMyClassesSignIn: '내 수업만 보려면 로그인하거나 “내 수업만”을 끄세요.',
         notesSelectClass: '수업을 눌러 메모를 추가하거나 보세요.',
         notesEditorClose: '일지 편집 닫기',
+        notesNoSearchMatch: '검색어와 일치하는 수업이 없습니다.',
         notesLessonLabel: '{n}차시',
         notesOpenMobile: '모바일 일지',
         notesOpenMobileTitle: '날짜·수업 목록 모바일 일지 화면 열기',
         notesMobilePromoHint: '날짜를 고르고 수업을 눌러 그날 수업 내용을 적는 모바일 일지입니다.',
+        headerMoreMenu: '더보기',
+        calendarViewAgenda: '일정',
+        calendarViewMonth: '월',
+        calendarAgendaEmpty: '앞으로 2주간 수업이나 일정이 없습니다.',
+        mobileSetupLimitedHint: '설정 화면은 태블릿이나 컴퓨터에서 편집하기 좋습니다. 휴대폰에서는 보기만 가능합니다.',
+        classNotesFilterMobileNone: '필터…',
         
         // Holiday Modal
         addHolidayTitle: '휴일 추가',
@@ -6019,6 +6037,145 @@ function syncAppChromeStickyTop() {
     syncCohortsBoardStickyOffsets();
 }
 
+const VIEWPORT_BP_PHONE = 640;
+const VIEWPORT_BP_TABLET = 1024;
+const APP_SETUP_PHONE_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
+let viewportTierResizeBound = false;
+
+function isViewportPhone() {
+    return typeof window !== 'undefined'
+        && window.matchMedia
+        && window.matchMedia(`(max-width: ${VIEWPORT_BP_PHONE}px)`).matches;
+}
+
+function isViewportTabletOrBelow() {
+    return typeof window !== 'undefined'
+        && window.matchMedia
+        && window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches;
+}
+
+/** Phone or tablet portrait — use compact top-bar labels. */
+function isViewportNarrowHeader() {
+    return typeof window !== 'undefined'
+        && window.matchMedia
+        && window.matchMedia('(max-width: 900px)').matches;
+}
+
+function syncViewportTier() {
+    if (typeof document === 'undefined') {
+        return 'desktop';
+    }
+    let tier = 'desktop';
+    if (window.matchMedia(`(max-width: ${VIEWPORT_BP_PHONE}px)`).matches) {
+        tier = 'phone';
+    } else if (window.matchMedia('(max-width: 900px)').matches) {
+        tier = 'tablet-sm';
+    } else if (window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches) {
+        tier = 'tablet';
+    }
+    document.documentElement.dataset.viewport = tier;
+    applyMobileUiDefaults();
+    syncCalendarViewModeDom();
+    syncMobileSetupLimitedBanner();
+    syncHeaderCompactLabels();
+    if (typeof renderTimetableView === 'function' && getActiveTab() === 'timetable') {
+        const selector = getTimetableTeacherSelectorFromUi();
+        if (selector) {
+            renderTimetableView(selector);
+        }
+    }
+    if (typeof CCPTeacherManagement !== 'undefined' && CCPTeacherManagement.refreshTeachersTabPreview) {
+        CCPTeacherManagement.refreshTeachersTabPreview();
+    }
+    return tier;
+}
+
+function initViewportTier() {
+    syncViewportTier();
+    if (!viewportTierResizeBound) {
+        viewportTierResizeBound = true;
+        window.addEventListener('resize', syncViewportTier);
+    }
+}
+
+function applyMobileUiDefaults() {
+    if (!isViewportPhone() || isNotesPage()) {
+        return;
+    }
+    ensureUiState();
+    let changed = false;
+    if (appData.ui.mobileUiDefaultsApplied !== true) {
+        appData.ui.mobileUiDefaultsApplied = true;
+        if (appData.ui.topBarCollapsed !== true) {
+            appData.ui.topBarCollapsed = true;
+            applyTopBarCollapsedState();
+        }
+        changed = true;
+    }
+    if (appData.ui.calendarViewMode !== 'agenda' && appData.ui.calendarViewMode !== 'month') {
+        appData.ui.calendarViewMode = 'agenda';
+        changed = true;
+    }
+    if (changed) {
+        saveUiStateToLocalStorage();
+    }
+}
+
+function syncMobileSetupLimitedBanner() {
+    const banner = document.getElementById('mobileSetupLimitedBanner');
+    if (!banner) {
+        return;
+    }
+    const tab = typeof getActiveTab === 'function' ? getActiveTab() : '';
+    const show = isViewportPhone() && APP_SETUP_PHONE_TAB_IDS.includes(tab);
+    banner.hidden = !show;
+}
+
+function getCalendarViewMode() {
+    ensureUiState();
+    const stored = appData.ui.calendarViewMode;
+    if (stored === 'agenda' || stored === 'month') {
+        return stored;
+    }
+    return isViewportPhone() ? 'agenda' : 'month';
+}
+
+function setCalendarViewMode(mode) {
+    ensureUiState();
+    appData.ui.calendarViewMode = mode === 'agenda' ? 'agenda' : 'month';
+    saveUiStateToLocalStorage();
+    syncCalendarViewModeDom();
+    renderCalendar();
+}
+
+function syncCalendarViewModeDom() {
+    const mode = getCalendarViewMode();
+    document.documentElement.dataset.calendarView = mode;
+    const agendaBtn = document.getElementById('calendarViewAgendaBtn');
+    const monthBtn = document.getElementById('calendarViewMonthBtn');
+    if (agendaBtn) {
+        agendaBtn.classList.toggle('is-active', mode === 'agenda');
+        agendaBtn.setAttribute('aria-selected', String(mode === 'agenda'));
+    }
+    if (monthBtn) {
+        monthBtn.classList.toggle('is-active', mode === 'month');
+        monthBtn.setAttribute('aria-selected', String(mode === 'month'));
+    }
+}
+
+function initCalendarViewToggle() {
+    const agendaBtn = document.getElementById('calendarViewAgendaBtn');
+    const monthBtn = document.getElementById('calendarViewMonthBtn');
+    if (!agendaBtn || !monthBtn || initCalendarViewToggle._bound) {
+        syncCalendarViewModeDom();
+        return;
+    }
+    initCalendarViewToggle._bound = true;
+    agendaBtn.addEventListener('click', () => setCalendarViewMode('agenda'));
+    monthBtn.addEventListener('click', () => setCalendarViewMode('month'));
+    syncCalendarViewModeDom();
+}
+
 /** Cohorts setup board: palette sticky top + viewport height for the board grid. */
 function syncCohortsBoardStickyOffsets() {
     const panel = document.getElementById('panel-cohorts');
@@ -6624,18 +6781,25 @@ function updateLessonFilterButtonLabel() {
     }
     const total = countScheduledClassesOnCalendar();
     const visible = countVisibleClassesForLessonFilter();
+    const narrow = isViewportNarrowHeader();
     if (isCalendarDisplayCustomized()) {
         if (isLessonFilterActive() && total > 0) {
             btn.textContent = t('lessonFilterBtnActive')
                 .replace('{visible}', String(visible))
                 .replace('{total}', String(total));
         } else {
-            btn.textContent = t('calendarDisplayBtnActive');
+            btn.textContent = narrow ? t('calendarDisplayBtnActiveShort') : t('calendarDisplayBtnActive');
         }
         btn.classList.add('lesson-filter-btn--active');
     } else {
-        btn.textContent = t('calendarDisplayBtn');
+        btn.textContent = narrow ? t('calendarDisplayBtnShort') : t('calendarDisplayBtn');
         btn.classList.remove('lesson-filter-btn--active');
+    }
+}
+
+function syncHeaderCompactLabels() {
+    if (typeof updateLessonFilterButtonLabel === 'function') {
+        updateLessonFilterButtonLabel();
     }
 }
 
@@ -8914,7 +9078,7 @@ function refreshNotesPageIfMounted() {
 }
 
 function prefersMobileNotesNav() {
-    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_PHONE}px)`).matches;
 }
 
 async function openNotesPage(options = {}) {
@@ -9723,6 +9887,29 @@ function initClassNotesPanelListeners() {
         renderClassNotesTab();
     });
     shell.querySelector('#classNotesResetFiltersBtn')?.addEventListener('click', resetClassNotesFilters);
+    shell.querySelector('#classNotesFilterMobileSelect')?.addEventListener('change', (e) => {
+        const value = e.target.value;
+        e.target.value = '';
+        if (value === 'justMine') {
+            applyClassNotesJustMine();
+        } else if (value === 'today') {
+            applyClassNotesTodayClasses();
+        } else if (value === 'selectAll') {
+            shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+                input.checked = true;
+            });
+            populateClassNotesAddClassSelect();
+            renderClassNotesTab();
+        } else if (value === 'clearAll') {
+            shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+                input.checked = false;
+            });
+            populateClassNotesAddClassSelect();
+            renderClassNotesTab();
+        } else if (value === 'reset') {
+            resetClassNotesFilters();
+        }
+    });
     shell.querySelector('#classNotesExportCopyBtn')?.addEventListener('click', () => {
         void copyClassNotesExport();
     });
@@ -10757,6 +10944,10 @@ function navigateToHost(hostId, options = {}) {
         hostId = APP_HOST_TEACHING;
     }
     if (hostId === APP_HOST_SETUP && !canAccessSetupHost()) {
+        navigateToTab('calendar', { host: APP_HOST_TEACHING });
+        return;
+    }
+    if (hostId === APP_HOST_SETUP && isViewportPhone()) {
         navigateToTab('calendar', { host: APP_HOST_TEACHING });
         return;
     }
@@ -11881,7 +12072,17 @@ function navigateToTabBody(tabId, options = {}) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
     }
-    const hostId = options.host || getHostForTab(tabId);
+    if (tabId === 'notes' && prefersMobileNotesNav()) {
+        openNotesPage({ sameTab: true });
+        return;
+    }
+    let hostId = options.host || getHostForTab(tabId);
+    if (isViewportPhone() && hostId === APP_HOST_SETUP) {
+        hostId = APP_HOST_TEACHING;
+        if (APP_SETUP_ONLY_TAB_IDS.includes(tabId) || tabId === 'classes') {
+            tabId = 'calendar';
+        }
+    }
     document.body.dataset.activeTab = tabId;
     ensureUiState();
     if (tabId !== 'calendar' && isLessonFilterPopoverOpen()) {
@@ -12011,6 +12212,7 @@ function navigateToTabBody(tabId, options = {}) {
             requestAnimationFrame(syncCohortsBoardStickyOffsets);
         }
     });
+    syncMobileSetupLimitedBanner();
 }
 
 function initAppTabs() {
@@ -14139,6 +14341,64 @@ function persistTeachersTabCatalogUiFromControls() {
     saveUiStateToLocalStorage();
 }
 
+function preferTimetableListView() {
+    return isViewportPhone();
+}
+
+function renderTimetableListInto(mountEl, grid, lang, options) {
+    options = options || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'timetable-list-view';
+    grid.blocks.forEach((block) => {
+        block.columns.forEach((col, colIdx) => {
+            const dayDiv = document.createElement('section');
+            dayDiv.className = 'timetable-list-day';
+            const title = document.createElement('div');
+            title.className = 'timetable-list-day-title';
+            title.textContent = `${lang === 'ko' ? col.ko : col.en}`;
+            dayDiv.appendChild(title);
+            block.rows.forEach((row) => {
+                const cell = row.cells[colIdx];
+                const slot = document.createElement('div');
+                slot.className = 'timetable-list-slot';
+                const time = document.createElement('div');
+                time.className = 'timetable-list-time';
+                time.textContent = row.timeLabel || '';
+                slot.appendChild(time);
+                const entries = document.createElement('div');
+                entries.className = 'timetable-list-entries';
+                if (!cell || !cell.entries.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'timetable-list-entry timetable-list-entry--empty';
+                    empty.textContent = '—';
+                    entries.appendChild(empty);
+                } else {
+                    cell.entries.forEach((entry) => {
+                        const el = document.createElement('div');
+                        el.className = 'timetable-list-entry timetable-list-entry--colored';
+                        const { bg, text } = getTimetableEntryDisplayColors(entry);
+                        el.style.backgroundColor = bg;
+                        el.style.color = text;
+                        appendTimetableEntryContent(el, entry);
+                        if (!options.printMode) {
+                            bindTimetableClassClickTarget(el, entry.classId, {
+                                displayName: entry.className,
+                                dow: cell.dow,
+                                timeSlotId: row.timeSlotId
+                            });
+                        }
+                        entries.appendChild(el);
+                    });
+                }
+                slot.appendChild(entries);
+                dayDiv.appendChild(slot);
+            });
+            wrap.appendChild(dayDiv);
+        });
+    });
+    mountEl.appendChild(wrap);
+}
+
 function renderTimetablePreviewInto(mountEl, selector) {
     const api = getTimetableApi();
     if (!mountEl || !api || !selector || (!selector.userId && !selector.displayName)) {
@@ -14162,6 +14422,10 @@ function renderTimetablePreviewInto(mountEl, selector) {
         mountEl.appendChild(hr);
     }
     const highlightCurrent = isViewingOwnTimetableSchedule(selector);
+    if (preferTimetableListView()) {
+        renderTimetableListInto(mountEl, grid, lang, { highlightCurrentClass: highlightCurrent });
+        return;
+    }
     grid.blocks.forEach((block) => {
         mountEl.appendChild(renderTimetableGridTable(block, lang, { highlightCurrentClass: highlightCurrent }));
     });
@@ -14273,7 +14537,7 @@ function syncSetupTabsVisibility() {
         syncHeaderMyScheduleButton();
         return;
     }
-    const showSetup = canAccessSetupHost();
+    const showSetup = canAccessSetupHost() && !isViewportPhone();
     const setupHost = document.getElementById('tabHostBtn-setup');
     if (setupHost) {
         setupHost.hidden = !showSetup;
@@ -15165,10 +15429,14 @@ function renderTimetableView(selector) {
     }
     gridsMount.innerHTML = '';
     const highlightCurrent = isViewingOwnTimetableSchedule(selector);
-    grid.blocks.forEach((block) => {
-        gridsMount.appendChild(renderTimetableGridTable(block, lang, { highlightCurrentClass: highlightCurrent }));
-    });
-    layoutTimetableGridsForScreen(gridsMount);
+    if (preferTimetableListView()) {
+        renderTimetableListInto(gridsMount, grid, lang, { highlightCurrentClass: highlightCurrent });
+    } else {
+        grid.blocks.forEach((block) => {
+            gridsMount.appendChild(renderTimetableGridTable(block, lang, { highlightCurrentClass: highlightCurrent }));
+        });
+        layoutTimetableGridsForScreen(gridsMount);
+    }
     if (conflictBadge) {
         conflictBadge.hidden = false;
         conflictBadge.textContent = grid.hasConflicts ? t('timetableConflicts') : t('timetableNoConflicts');
@@ -17030,6 +17298,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         initCalendarContextMenu();
         initDayNotesUi();
         initTopBarToggle();
+        initViewportTier();
+        initCalendarViewToggle();
         initAppChromeStickyTop();
         applyLanguage();
         renderCalendar();
@@ -20768,6 +21038,152 @@ function renderCalendar() {
     scheduleRenderCalendar();
 }
 
+function getAgendaDateStrings(dayCount = 14) {
+    ensureTermStartData();
+    const dayIndex = buildDayIndex();
+    const termStart = new Date(dayIndex.startDate);
+    termStart.setHours(0, 0, 0, 0);
+    const termEnd = new Date(termStart.getFullYear(), termStart.getMonth() + dayIndex.monthCount, 0);
+    termEnd.setHours(23, 59, 59, 999);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let cursor = today >= termStart ? new Date(today) : new Date(termStart);
+    const dates = [];
+    while (dates.length < dayCount && cursor <= termEnd) {
+        dates.push(formatDateISO(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return dates;
+}
+
+function formatAgendaDayHeading(dateStr) {
+    const d = parseISODateLocal(dateStr);
+    if (!d || Number.isNaN(d.getTime())) {
+        return dateStr;
+    }
+    const dayNames = t('dayNamesFull');
+    const monthNames = t('monthNames');
+    return `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
+}
+
+function openAgendaDayNotes(dateStr) {
+    if (prefersMobileNotesNav()) {
+        openNotesPage({ dateStr, sameTab: true });
+        return;
+    }
+    if (typeof openDayNotesSummaryModal === 'function') {
+        openDayNotesSummaryModal(dateStr);
+    }
+}
+
+function renderCalendarAgenda(dayIndex) {
+    const list = document.createElement('div');
+    list.className = 'calendar-agenda-list';
+    const dates = getAgendaDateStrings(14);
+    let anyItems = false;
+    const dayNames = t('dayNamesFull');
+
+    dates.forEach((dateStr) => {
+        const lessons = dayIndex.scheduledLessons[dateStr] || [];
+        const dayEvents = (dayIndex.eventsByDate[dateStr] || []).filter((ev) => {
+            const type = normalizeEventType(ev.type);
+            if (type === EVENT_TYPES.HOLIDAY) {
+                return isCalendarItemVisible('holiday');
+            }
+            return isCalendarItemVisible(type);
+        });
+        if (!lessons.length && !dayEvents.length) {
+            return;
+        }
+        anyItems = true;
+        const dayWrap = document.createElement('section');
+        dayWrap.className = 'calendar-agenda-day';
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'calendar-agenda-day-header';
+        const title = document.createElement('span');
+        title.className = 'calendar-agenda-day-title';
+        title.textContent = formatAgendaDayHeading(dateStr);
+        const meta = document.createElement('span');
+        meta.className = 'calendar-agenda-day-meta';
+        const d = parseISODateLocal(dateStr);
+        meta.textContent = d ? dayNames[d.getDay()] : '';
+        header.appendChild(title);
+        header.appendChild(meta);
+        header.addEventListener('click', () => openAgendaDayNotes(dateStr));
+        dayWrap.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'calendar-agenda-day-body';
+
+        dayEvents.forEach((ev) => {
+            const type = normalizeEventType(ev.type);
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'calendar-agenda-item calendar-agenda-item--event';
+            if (type === EVENT_TYPES.HOLIDAY) {
+                item.classList.add('calendar-agenda-item--holiday');
+            }
+            const swatch = document.createElement('span');
+            swatch.className = 'calendar-agenda-item-swatch';
+            swatch.style.backgroundColor = ev.bgColor || EVENT_TYPE_DEFAULT_COLORS[type]?.bg || '#cbd5e1';
+            const main = document.createElement('span');
+            main.className = 'calendar-agenda-item-main';
+            const itemTitle = document.createElement('div');
+            itemTitle.className = 'calendar-agenda-item-title';
+            itemTitle.textContent = getEventDisplayName(ev);
+            main.appendChild(itemTitle);
+            item.appendChild(swatch);
+            item.appendChild(main);
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEventEditor(ev, 'calendar-popout');
+            });
+            body.appendChild(item);
+        });
+
+        lessons.forEach(({ classData, lesson, calendarTitle }) => {
+            if (!isCalendarItemVisible('lessons') || !classPassesLessonFilters(classData)) {
+                return;
+            }
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'calendar-agenda-item calendar-agenda-item--lesson';
+            const swatch = document.createElement('span');
+            swatch.className = 'calendar-agenda-item-swatch';
+            swatch.style.backgroundColor = classData.color || '#2563eb';
+            const main = document.createElement('span');
+            main.className = 'calendar-agenda-item-main';
+            const itemTitle = document.createElement('div');
+            itemTitle.className = 'calendar-agenda-item-title';
+            itemTitle.textContent = `${calendarTitle || classData.name || ''} — ${lesson.label || ''}`;
+            main.appendChild(itemTitle);
+            item.appendChild(swatch);
+            item.appendChild(main);
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (prefersMobileNotesNav()) {
+                    openNotesPage({ dateStr, classId: classData.id, sameTab: true });
+                } else {
+                    openClassEditor(classData, 'calendar-popout');
+                }
+            });
+            body.appendChild(item);
+        });
+
+        dayWrap.appendChild(body);
+        list.appendChild(dayWrap);
+    });
+
+    if (!anyItems) {
+        const empty = document.createElement('p');
+        empty.className = 'calendar-agenda-empty';
+        empty.textContent = t('calendarAgendaEmpty');
+        list.appendChild(empty);
+    }
+    elements.calendarContainer.appendChild(list);
+}
+
 function renderCalendarNow() {
     if (!elements.calendarContainer) {
         return;
@@ -20780,13 +21196,18 @@ function renderCalendarNow() {
         saveUiStateToLocalStorage();
     }
     const dayIndex = buildDayIndex();
+    const viewMode = getCalendarViewMode();
 
     elements.calendarContainer.innerHTML = '';
 
-    for (let i = 0; i < dayIndex.monthCount; i++) {
-        const monthDate = new Date(dayIndex.startDate);
-        monthDate.setMonth(monthDate.getMonth() + i);
-        renderMonth(monthDate, dayIndex);
+    if (viewMode === 'agenda') {
+        renderCalendarAgenda(dayIndex);
+    } else {
+        for (let i = 0; i < dayIndex.monthCount; i++) {
+            const monthDate = new Date(dayIndex.startDate);
+            monthDate.setMonth(monthDate.getMonth() + i);
+            renderMonth(monthDate, dayIndex);
+        }
     }
 
     updatePrintSummary();

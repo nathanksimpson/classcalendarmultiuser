@@ -72,6 +72,7 @@
     --bp-md: 768px;
     --bp-lg: 900px;
     --bp-xl: 1100px;
+    --bp-tablet: 1024px;
 
     --shadow-sm: 0 1px 4px rgba(12, 12, 13, 0.1), 0 1px 4px rgba(12, 12, 13, 0.05);
     --shadow-md: 0 4px 4px -1px rgba(12, 12, 13, 0.1), 0 4px 4px -1px rgba(12, 12, 13, 0.05);
@@ -207,6 +208,9 @@ body {
     -webkit-backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border-color);
     box-shadow: var(--top-bar-shadow);
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: clip;
 }
 
 .app-top-bar-compact {
@@ -214,6 +218,9 @@ body {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-2);
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
 }
 
 .app-top-bar-primary {
@@ -222,6 +229,9 @@ body {
     gap: var(--space-2);
     flex-wrap: wrap;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .app-top-bar-team-details {
@@ -262,13 +272,28 @@ body {
         flex-wrap: nowrap;
     }
 
+    .app-top-bar--global .app-top-bar-primary {
+        align-items: center;
+    }
+
     .app-top-bar-title-block {
         flex: 0 1 auto;
     }
 
     .app-tab-nav {
+        width: auto;
         flex: 0 0 auto;
+        flex-shrink: 0;
         min-width: max-content;
+        max-width: none;
+        overflow: visible;
+    }
+
+    .app-top-bar-actions {
+        flex-shrink: 0;
+        width: auto;
+        max-width: none;
+        margin-left: auto;
     }
 }
 
@@ -3934,6 +3959,7 @@ input.input-readonly {
     border: 1px solid var(--border-color);
     border-radius: 10px;
     box-shadow: var(--shadow-sm);
+    box-sizing: border-box;
 }
 
 .app-header-tool-group {
@@ -3997,6 +4023,10 @@ body:not([data-active-tab="calendar"]) .app-header-tool-group--calendar-display 
     padding-right: 6px;
 }
 
+.app-header-tool-group--collapse.app-header-tool-group--essential {
+    flex-shrink: 0;
+}
+
 .app-header-tool-group--collapse .calendar-options-toggle {
     margin-bottom: 0;
 }
@@ -4047,11 +4077,13 @@ body:not([data-active-tab="calendar"]) .app-header-tool-group--calendar-display 
     align-items: stretch;
     gap: var(--space-1);
     min-width: 10.5rem;
+    max-width: min(16rem, calc(100vw - 2 * var(--app-gutter, var(--space-4)) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
     padding: var(--space-2);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
+    box-sizing: border-box;
 }
 
 .team-calendar-menu .header-dropdown-panel {
@@ -4183,17 +4215,47 @@ body[data-active-tab="events"] .app-term-quick-actions {
 }
 
 @media (max-width: 900px) {
+    .app-top-bar--global .app-top-bar-primary {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
     .app-tab-nav {
-        flex-wrap: nowrap;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        flex-shrink: 1;
+        overflow: hidden;
+    }
+
+    .app-tab-subnav-wrap {
         overflow-x: auto;
         overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-top-bar-actions {
+        width: 100%;
         max-width: 100%;
         min-width: 0;
-        -webkit-overflow-scrolling: touch;
+        margin-left: 0;
+        flex-shrink: 1;
+    }
+
+    #headerMyScheduleBtn:not([hidden]) {
+        flex: 1 1 100%;
+        max-width: 100%;
     }
 
     .app-top-bar-title-block h1 {
         font-size: 1.05rem;
+    }
+
+    .calendar-display-btn {
+        max-width: min(9.5rem, 42vw);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 }
 
@@ -4243,10 +4305,10 @@ body[data-active-tab="events"] .app-term-quick-actions {
     border: 1px solid var(--border-color);
     border-radius: 10px;
     overflow: visible;
-    min-width: max-content;
-    max-width: 100%;
+    width: auto;
     flex-shrink: 0;
     align-items: start;
+    box-sizing: border-box;
 }
 
 .app-tab-host-row {
@@ -10195,6 +10257,607 @@ body.notes-editor-open.notes-page {
         margin-right: auto;
         width: 100%;
         box-sizing: border-box;
+    }
+}
+
+/* ============================================
+   Mobile UI pass (2026-06) — teaching-first
+   Breakpoints: --bp-sm 640, --bp-md 768, --bp-lg 900, --bp-tablet 1024
+   ============================================ */
+
+/* Top bar — prevent page-level horizontal overflow */
+.app-top-bar-team-details,
+.app-banner-stack,
+.team-lock-status,
+.team-lock-debug-panel {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.team-lock-line-text {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.view-as-banner {
+    padding-top: max(var(--space-2), env(safe-area-inset-top, 0px));
+    padding-left: max(0px, env(safe-area-inset-left, 0px));
+    padding-right: max(0px, env(safe-area-inset-right, 0px));
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.app-top-bar {
+    padding-top: max(var(--space-2), env(safe-area-inset-top, 0px));
+}
+
+.app-status {
+    padding-left: max(var(--space-4), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--space-4), env(safe-area-inset-right, 0px));
+}
+
+.app-header-more-dropdown {
+    position: relative;
+}
+
+.app-header-more-panel {
+    min-width: 12rem;
+}
+
+@media (max-width: 900px) {
+    .app-header-more-panel {
+        max-width: min(16rem, calc(100vw - 2 * var(--app-gutter, var(--space-4)) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    }
+}
+
+.app-header-more-panel .app-header-tool-group {
+    border: none;
+    padding: 0;
+    width: 100%;
+}
+
+.app-header-more-panel .header-dropdown-item,
+.app-header-more-panel .btn {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+@media (min-width: 901px) {
+    .app-header-more-dropdown {
+        display: contents;
+    }
+
+    .app-header-more-trigger {
+        display: none !important;
+    }
+
+    .app-header-more-panel {
+        display: contents;
+        position: static;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        min-width: 0;
+    }
+
+    .app-header-more-panel .app-header-tool-group {
+        display: flex;
+        align-items: center;
+        width: auto;
+    }
+
+    .app-header-more-panel .header-dropdown-item,
+    .app-header-more-panel .btn {
+        width: auto;
+    }
+
+    .app-header-more-panel .app-header-tool-group + .app-header-tool-group {
+        border-top: none;
+        border-left: 1px solid var(--border-color);
+    }
+}
+
+@media (max-width: 900px) {
+    .app-header-more-dropdown {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .app-header-tool-group--essential {
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .app-header-tool-group--essential .btn {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .app-top-bar-actions {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        justify-content: space-between;
+        width: 100%;
+        max-width: 100%;
+        flex-shrink: 1;
+    }
+
+    .app-header-tool-group--essential {
+        flex: 0 1 auto;
+    }
+
+    .app-header-more-dropdown {
+        margin-left: auto;
+    }
+
+    .team-calendar-row-main {
+        flex-wrap: wrap;
+    }
+
+    .team-calendar-row .team-calendar-select {
+        max-width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .app-header-more-panel .app-header-tool-group + .app-header-tool-group {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        padding-top: var(--space-1);
+        margin-top: var(--space-1);
+    }
+
+    .app-header-more-panel .app-header-tool-group--locale {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .app-header-more-panel .app-header-tool-group--locale .btn {
+        flex: 1 1 calc(50% - var(--space-2));
+    }
+
+    .app-top-bar-title-row {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .app-term-quick-actions {
+        flex: 1 1 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .app-term-quick-actions .btn {
+        flex: 1 1 calc(50% - var(--space-1));
+    }
+
+    #addHolidayBtn {
+        display: none;
+    }
+
+    .team-lock-status {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .team-lock-details {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .team-lock-line--updates {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+    }
+
+    .team-lock-line-actions {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        width: 100%;
+    }
+
+    .team-lock-line-actions .btn {
+        width: 100%;
+    }
+
+    .team-lock-pending-actions {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .team-lock-pending-actions .btn {
+        flex: 1 1 calc(50% - var(--space-1));
+        min-height: var(--touch-min);
+    }
+
+    html[data-viewport="phone"] #tabHostBtn-setup {
+        display: none !important;
+    }
+
+    html[data-viewport="phone"] .app-tab-sub-btn[data-tab="cohorts"],
+    html[data-viewport="phone"] .app-tab-sub-btn[data-tab="teachers"],
+    html[data-viewport="phone"] .app-tab-sub-btn[data-tab="curriculum"],
+    html[data-viewport="phone"] .app-tab-sub-btn[data-tab="syllabus"],
+    html[data-viewport="phone"] .app-tab-sub-btn[data-tab="events"],
+    html[data-viewport="phone"] .app-tab-sub-btn[data-tab="data"] {
+        display: none !important;
+    }
+}
+
+.app-tab-subnav-wrap {
+    max-width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .app-tab-subnav-panel.is-active {
+        flex-wrap: nowrap;
+        scroll-snap-type: x proximity;
+        mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    }
+}
+
+.app-tab-sub-btn {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .app-tab-host-btn,
+    .app-tab-sub-btn {
+        min-height: var(--touch-min);
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+}
+
+@media (max-width: 1024px) {
+    .module-split-layout--homework,
+    .module-split-layout--timetable,
+    .teachers-tab-layout.module-split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .homework-layout.module-split-layout--homework .module-list-panel {
+        max-height: 35vh;
+        position: relative;
+        top: auto;
+    }
+
+    .timetable-layout.module-split-layout--timetable .module-list-panel {
+        max-height: 40vh;
+        position: relative;
+        top: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    .homework-tab-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+    }
+
+    .homework-tab-toolbar .btn,
+    .homework-ref-date-controls {
+        width: 100%;
+    }
+
+    .homework-ref-date-controls {
+        flex-wrap: wrap;
+    }
+
+    .timetable-tab-toolbar {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .timetable-tab-toolbar .btn {
+        flex: 1 1 calc(50% - var(--space-1));
+        min-height: var(--touch-min);
+    }
+
+    .class-notes-filter-actions {
+        display: none;
+    }
+
+    .class-notes-filter-select-mobile {
+        display: block;
+        width: 100%;
+        min-height: var(--touch-min);
+        font-size: 16px;
+        margin-bottom: var(--space-2);
+    }
+}
+
+.class-notes-filter-select-mobile {
+    display: none;
+}
+
+.calendar-view-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.calendar-view-switch {
+    display: inline-flex;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.calendar-view-switch .syllabus-segment-btn {
+    min-height: var(--touch-min);
+    border-radius: 0;
+    border: none;
+}
+
+@media (min-width: 641px) {
+    html:not([data-calendar-view="agenda"]) .calendar-view-toolbar {
+        display: none;
+    }
+}
+
+html[data-calendar-view="agenda"] .calendar-container .month-calendar {
+    display: none;
+}
+
+.calendar-agenda-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding-bottom: var(--space-5);
+}
+
+.calendar-agenda-day {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.calendar-agenda-day-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-hover);
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    min-height: var(--touch-min);
+}
+
+.calendar-agenda-day-header:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.calendar-agenda-day-title {
+    font-weight: 600;
+    font-size: var(--text-body-lg);
+}
+
+.calendar-agenda-day-meta {
+    font-size: var(--text-body-sm);
+    color: var(--text-secondary);
+}
+
+.calendar-agenda-day-body {
+    padding: var(--space-2) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.calendar-agenda-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    min-height: var(--touch-min);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font: inherit;
+    color: inherit;
+}
+
+.calendar-agenda-item--holiday {
+    border-color: var(--holiday-border);
+}
+
+.calendar-agenda-item-swatch {
+    width: 4px;
+    align-self: stretch;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.calendar-agenda-item-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.calendar-agenda-item-title {
+    font-weight: 600;
+    line-height: var(--leading-body);
+}
+
+.calendar-agenda-item-sub {
+    font-size: var(--text-body-sm);
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.calendar-agenda-empty {
+    padding: var(--space-5);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.timetable-list-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.timetable-list-day {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.timetable-list-day-title {
+    padding: var(--space-3) var(--space-4);
+    font-weight: 600;
+    background: var(--bg-hover);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.timetable-list-slot {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    align-items: flex-start;
+}
+
+.timetable-list-slot:last-child {
+    border-bottom: none;
+}
+
+.timetable-list-time {
+    flex: 0 0 4.5rem;
+    font-size: var(--text-body-sm);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.timetable-list-entries {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.timetable-list-entry {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    font-size: var(--text-body-md);
+}
+
+.timetable-list-entry--colored {
+    border-color: transparent;
+}
+
+.timetable-list-entry--empty {
+    color: var(--text-muted);
+    font-style: italic;
+    border-style: dashed;
+}
+
+.mobile-setup-limited-banner {
+    margin: 0 0 var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--banner-info-bg);
+    border: 1px solid var(--banner-info-border);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+}
+
+.mobile-setup-limited-banner-text {
+    margin: 0;
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body);
+}
+
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout,
+html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap,
+html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel {
+    pointer-events: none;
+    opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+    .workspace-header {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        padding-top: max(var(--space-3), env(safe-area-inset-top, 0px));
+    }
+
+    .workspace-header-actions {
+        flex-wrap: wrap;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .workspace-tab-nav {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        scroll-snap-type: x proximity;
+        mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    }
+
+    .workspace-tab-btn {
+        scroll-snap-align: start;
+        flex-shrink: 0;
+        min-height: var(--touch-min);
+    }
+
+    body.workspace-page .module-split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    body.workspace-page .module-list-panel {
+        max-height: 35vh;
+        position: relative;
+        top: auto;
+    }
+}
+
+@media (max-width: 1024px) {
+    body.workspace-page .module-split-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.login-page {
+    padding-top: max(2rem, env(safe-area-inset-top, 0px));
+    padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+.login-theme-bar {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+@media (max-width: 640px) {
+    .login-card {
+        padding: 1.25rem;
     }
 }
 
