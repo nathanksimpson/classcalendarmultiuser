@@ -14,7 +14,7 @@
         'js/books-editor.js?v=20260603-col-bulk',
         'js/homework-import.js',
         'js/homework-tab.js?v=20260531-hw-seq',
-        'js/syllabus-templates.js?v=20260531-seq-compress'
+        'js/syllabus-templates.js?v=20260603-force-apply'
     ];
 
     let extensionPromise = null;

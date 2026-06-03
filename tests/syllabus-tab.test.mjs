@@ -56,4 +56,12 @@ assert.equal(collected.syllabusUnits.length, 1);
     assert.equal(linked.rows[0].planDetail, 'PAGES-UNIT-1-PART-1', 'pages follow plan title not class #');
 }
 
+const keptDetail = [
+    { id: 'k1', kind: 'lesson', sessionNumber: 1, planTitle: 'Custom title', planDetail: 'Old pages', source: 'manual' }
+];
+const forceResult = api.applyRowTemplatesToSyllabusRows(keptDetail, templates, { force: true });
+assert.equal(forceResult.applied, 1);
+assert.equal(forceResult.rows[0].planTitle, 'Unit 1');
+assert.equal(forceResult.rows[0].planDetail, 'Pages 1-3');
+
 console.log('syllabus-tab.test.mjs: all passed');

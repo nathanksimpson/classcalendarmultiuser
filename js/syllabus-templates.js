@@ -197,24 +197,34 @@
             return false;
         }
         const opts = options || {};
+        const force = opts.force === true;
         let applied = false;
         if (opts.syncTitle !== false && tpl.planTitle) {
             row.planTitle = tpl.planTitle;
+            if (force) {
+                applied = true;
+            }
         }
         if (tpl.planDetail) {
             row.planDetail = tpl.planDetail;
             applied = true;
         }
-        if (tpl.note && !row.note) {
-            row.note = tpl.note;
+        if (tpl.note) {
+            if (force || !row.note) {
+                row.note = tpl.note;
+                if (force && tpl.note) {
+                    applied = true;
+                }
+            }
         }
         return applied;
     }
 
-    function applyRowTemplatesToSyllabusRows(rows, templates) {
+    function applyRowTemplatesToSyllabusRows(rows, templates, options) {
         if (!Array.isArray(rows) || !Array.isArray(templates) || templates.length === 0) {
             return { rows: rows || [], applied: 0 };
         }
+        const opts = options || {};
         const indexes = buildTemplateIndexes(templates);
         let applied = 0;
         (rows || []).forEach((row) => {
@@ -225,7 +235,10 @@
             if (!tpl) {
                 return;
             }
-            if (applyTemplateToRow(row, tpl, { syncTitle: row.kind === 'lesson' })) {
+            if (applyTemplateToRow(row, tpl, {
+                syncTitle: row.kind === 'lesson',
+                force: opts.force === true
+            })) {
                 if (row.kind === 'lesson') {
                     row.source = 'manual';
                 }
