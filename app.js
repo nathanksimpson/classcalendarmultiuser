@@ -574,6 +574,18 @@ const translations = {
         classNotesResetFilters: 'Reset filters',
         classNotesMeetingDaysOnly: 'Only on class meeting days',
         classNotesTodayClasses: "Today's classes",
+        classNotesMyClassesToday: 'My classes · Today',
+        filterActiveMyClasses: 'My classes',
+        filterActiveToday: 'Today',
+        filterActiveSubject: '{subject}',
+        classNotesSummaryLayers: '{notes} note(s) · {classes} class(es) · {layers}',
+        classNotesSummarySearchLayers: '{notes} note(s) · {classes} class(es) (search: "{query}") · {layers}',
+        homeworkMyClassesOnly: 'My classes only',
+        homeworkTodayOnly: "Today's classes only",
+        homeworkFilterSubject: 'Subject',
+        homeworkJustMine: 'Just my classes',
+        homeworkTodayClasses: "Today's classes",
+        homeworkMyClassesToday: 'My classes · Today',
         classNotesSummary: '{notes} note(s) · {classes} class(es)',
         classNotesSummarySearch: '{notes} note(s) · {classes} class(es) (search: "{query}")',
         classNotesTextSearchPlaceholder: 'Search notes, classes…',
@@ -1695,6 +1707,18 @@ const translations = {
         classNotesResetFilters: '필터 초기화',
         classNotesMeetingDaysOnly: '수업 있는 날만',
         classNotesTodayClasses: '오늘 수업',
+        classNotesMyClassesToday: '내 수업 · 오늘',
+        filterActiveMyClasses: '내 수업',
+        filterActiveToday: '오늘',
+        filterActiveSubject: '{subject}',
+        classNotesSummaryLayers: '메모 {notes}개 · 수업 {classes}개 · {layers}',
+        classNotesSummarySearchLayers: '메모 {notes}개 · 수업 {classes}개 (검색: "{query}") · {layers}',
+        homeworkMyClassesOnly: '내 수업만',
+        homeworkTodayOnly: '오늘 수업만',
+        homeworkFilterSubject: '과목',
+        homeworkJustMine: '내 수업만',
+        homeworkTodayClasses: '오늘 수업',
+        homeworkMyClassesToday: '내 수업 · 오늘',
         classNotesSummary: '메모 {notes}개 · 수업 {classes}개',
         classNotesSummarySearch: '메모 {notes}개 · 수업 {classes}개 (검색: "{query}")',
         classNotesTextSearchPlaceholder: '메모, 수업 검색…',
@@ -6324,6 +6348,23 @@ function ensureUiState() {
     if (!appData.ui.classNotesFilters || typeof appData.ui.classNotesFilters !== 'object') {
         appData.ui.classNotesFilters = null;
     }
+    if (!appData.ui.homeworkFilters || typeof appData.ui.homeworkFilters !== 'object') {
+        appData.ui.homeworkFilters = {
+            myClassesOnly: false,
+            todayOnly: false,
+            subjects: null
+        };
+    } else {
+        if (typeof appData.ui.homeworkFilters.myClassesOnly !== 'boolean') {
+            appData.ui.homeworkFilters.myClassesOnly = false;
+        }
+        if (typeof appData.ui.homeworkFilters.todayOnly !== 'boolean') {
+            appData.ui.homeworkFilters.todayOnly = false;
+        }
+        if (appData.ui.homeworkFilters.subjects != null && !Array.isArray(appData.ui.homeworkFilters.subjects)) {
+            appData.ui.homeworkFilters.subjects = null;
+        }
+    }
     const dayNotesApi = typeof window !== 'undefined' ? window.CCPDayNotes : null;
     if (dayNotesApi && dayNotesApi.normalizeClassNotesSortMode) {
         appData.ui.classNotesSort = dayNotesApi.normalizeClassNotesSortMode(appData.ui.classNotesSort);
@@ -6378,6 +6419,13 @@ function syncAppChromeStickyTop() {
     }
     document.documentElement.style.setProperty('--calendar-month-sticky-top', `${monthStickyTop}px`);
     syncCohortsBoardStickyOffsets();
+    if (
+        openHeaderFixedPopoverId
+        || isLessonFilterPopoverOpen()
+        || isEventApplicabilityPopoverOpen()
+    ) {
+        scheduleForcedRepositionAllFixedAnchorPopovers();
+    }
 }
 
 const VIEWPORT_BP_PHONE = 640;
@@ -7187,30 +7235,86 @@ function updatePrintLessonFilterHint() {
         .replace('{total}', String(countScheduledClassesOnCalendar()));
 }
 
+const FIXED_ANCHOR_POPOVER_MARGIN = 8;
+const fixedAnchorPopoverLastRects = new Map();
+
+function getFixedAnchorViewportHeight() {
+    return window.visualViewport ? window.visualViewport.height : window.innerHeight;
+}
+
+function isFixedAnchorTriggerVisible(rect) {
+    const margin = FIXED_ANCHOR_POPOVER_MARGIN;
+    const viewportHeight = getFixedAnchorViewportHeight();
+    return rect.bottom >= margin && rect.top <= viewportHeight - margin;
+}
+
+function shouldSkipFixedAnchorReposition(anchorKey, rect) {
+    const last = fixedAnchorPopoverLastRects.get(anchorKey);
+    const next = {
+        top: Math.round(rect.top),
+        bottom: Math.round(rect.bottom),
+        left: Math.round(rect.left),
+        right: Math.round(rect.right)
+    };
+    fixedAnchorPopoverLastRects.set(anchorKey, next);
+    if (!last) {
+        return false;
+    }
+    return (
+        last.top === next.top &&
+        last.bottom === next.bottom &&
+        last.left === next.left &&
+        last.right === next.right
+    );
+}
+
+function clearFixedAnchorPopoverRectCache(anchorKey) {
+    if (anchorKey) {
+        fixedAnchorPopoverLastRects.delete(anchorKey);
+    }
+}
+
+function positionFixedPopoverBelowTrigger(trigger, popover, options = {}) {
+    if (!trigger || !popover) {
+        return false;
+    }
+    const rect = trigger.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+        return false;
+    }
+    if (!isFixedAnchorTriggerVisible(rect)) {
+        return false;
+    }
+    const margin = options.margin ?? FIXED_ANCHOR_POPOVER_MARGIN;
+    const align = options.align === 'right' ? 'right' : 'left';
+    const minMaxHeight = options.minMaxHeight ?? 120;
+    const viewportHeight = getFixedAnchorViewportHeight();
+    const top = rect.bottom + margin;
+    const maxHeight = Math.max(minMaxHeight, viewportHeight - top - margin);
+    popover.style.position = 'fixed';
+    popover.style.top = `${top}px`;
+    popover.style.maxHeight = `${maxHeight}px`;
+    popover.style.overflowY = 'auto';
+    popover.style.left = '0';
+    popover.style.right = 'auto';
+    const panelRect = popover.getBoundingClientRect();
+    let left = align === 'left' ? rect.left : rect.right - panelRect.width;
+    left = Math.max(margin, Math.min(left, window.innerWidth - panelRect.width - margin));
+    popover.style.left = `${left}px`;
+    const innerPanel = popover.querySelector('.lesson-filter-popover-panel');
+    if (innerPanel) {
+        innerPanel.style.maxHeight = `${maxHeight}px`;
+    }
+    return true;
+}
+
 function positionLessonFilterPopover() {
     const popover = document.getElementById('lessonFilterPopover');
     const btn = document.getElementById('lessonFilterBtn');
     if (!popover || !btn) {
         return;
     }
-    const rect = btn.getBoundingClientRect();
-    const panel = popover.querySelector('.lesson-filter-popover-panel');
-    const margin = 8;
-    let top = rect.bottom + margin;
-    let left = rect.left;
-    popover.style.top = `${top}px`;
-    popover.style.left = `${left}px`;
-    if (panel) {
-        const panelRect = panel.getBoundingClientRect();
-        if (left + panelRect.width > window.innerWidth - margin) {
-            left = Math.max(margin, window.innerWidth - panelRect.width - margin);
-            popover.style.left = `${left}px`;
-        }
-        if (top + panelRect.height > window.innerHeight - margin) {
-            top = Math.max(margin, rect.top - panelRect.height - margin);
-            popover.style.top = `${top}px`;
-        }
-    }
+    positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 });
 }
 
 function openLessonFilterPopover() {
@@ -7218,6 +7322,10 @@ function openLessonFilterPopover() {
     const btn = document.getElementById('lessonFilterBtn');
     const searchEl = document.getElementById('lessonFilterSearch');
     if (!popover || !btn) {
+        return;
+    }
+    const rect = btn.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
         return;
     }
     if (searchEl) {
@@ -7228,7 +7336,14 @@ function openLessonFilterPopover() {
     updateLessonFilterStatusText();
     popover.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
-    positionLessonFilterPopover();
+    clearFixedAnchorPopoverRectCache('lessonFilterPopover');
+    repositionLessonFilterPopoverIfOpen(true);
+    requestAnimationFrame(() => {
+        if (!isLessonFilterPopoverOpen()) {
+            return;
+        }
+        repositionLessonFilterPopoverIfOpen(true);
+    });
     if (searchEl) {
         requestAnimationFrame(() => searchEl.focus());
     }
@@ -7241,6 +7356,7 @@ function closeLessonFilterPopover() {
         return;
     }
     popover.hidden = true;
+    clearFixedAnchorPopoverRectCache('lessonFilterPopover');
     if (btn) {
         btn.setAttribute('aria-expanded', 'false');
     }
@@ -7285,8 +7401,9 @@ function applyLessonFilterForTeacher(selector) {
     }
     appData.ui.showAllClassCurricula = true;
     appData.ui.lessonFilters = normalizeLessonFilters({
-        ...DEFAULT_LESSON_FILTERS,
-        teacherUserIds: [selector.userId]
+        ...appData.ui.lessonFilters,
+        teacherUserIds: [selector.userId],
+        hideAllLessons: false
     });
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
@@ -7611,24 +7728,7 @@ function positionEventApplicabilityPopover() {
     if (!popover || !btn) {
         return;
     }
-    const rect = btn.getBoundingClientRect();
-    const panel = popover.querySelector('.lesson-filter-popover-panel');
-    const margin = 8;
-    let top = rect.bottom + margin;
-    let left = rect.left;
-    popover.style.top = `${top}px`;
-    popover.style.left = `${left}px`;
-    if (panel) {
-        const panelRect = panel.getBoundingClientRect();
-        if (left + panelRect.width > window.innerWidth - margin) {
-            left = Math.max(margin, window.innerWidth - panelRect.width - margin);
-            popover.style.left = `${left}px`;
-        }
-        if (top + panelRect.height > window.innerHeight - margin) {
-            top = Math.max(margin, rect.top - panelRect.height - margin);
-            popover.style.top = `${top}px`;
-        }
-    }
+    positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 });
 }
 
 function openEventApplicabilityPopover() {
@@ -7638,6 +7738,10 @@ function openEventApplicabilityPopover() {
     if (!popover || !btn) {
         return;
     }
+    const rect = btn.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+        return;
+    }
     if (searchEl) {
         searchEl.value = '';
     }
@@ -7645,7 +7749,14 @@ function openEventApplicabilityPopover() {
     updateEventApplicabilityStatusText();
     popover.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
-    positionEventApplicabilityPopover();
+    clearFixedAnchorPopoverRectCache('eventApplicabilityPopover');
+    repositionEventApplicabilityPopoverIfOpen(true);
+    requestAnimationFrame(() => {
+        if (!isEventApplicabilityPopoverOpen()) {
+            return;
+        }
+        repositionEventApplicabilityPopoverIfOpen(true);
+    });
     if (searchEl) {
         requestAnimationFrame(() => searchEl.focus());
     }
@@ -7658,6 +7769,7 @@ function closeEventApplicabilityPopover() {
         return;
     }
     popover.hidden = true;
+    clearFixedAnchorPopoverRectCache('eventApplicabilityPopover');
     if (btn) {
         btn.setAttribute('aria-expanded', 'false');
     }
@@ -7760,11 +7872,6 @@ function setupEventApplicabilityFilterUi() {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && isEventApplicabilityPopoverOpen()) {
                 closeEventApplicabilityPopover();
-            }
-        });
-        window.addEventListener('resize', () => {
-            if (isEventApplicabilityPopoverOpen()) {
-                positionEventApplicabilityPopover();
             }
         });
     }
@@ -7874,11 +7981,6 @@ function setupLessonFilterUi() {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && isLessonFilterPopoverOpen()) {
                 closeLessonFilterPopover();
-            }
-        });
-        window.addEventListener('resize', () => {
-            if (isLessonFilterPopoverOpen()) {
-                positionLessonFilterPopover();
             }
         });
     }
@@ -8981,7 +9083,7 @@ async function copyDayNotesForDate(dateStr) {
 }
 
 function downloadDayNotesForDate(dateStr) {
-    const text = buildDayNotesExportForDate(dateStr);
+    const text = normalizeTextForClipboard(buildDayNotesExportForDate(dateStr));
     if (!text.trim()) {
         showDayNotesCopyStatus(false, t('dayNotesEmpty'));
         return;
@@ -9308,6 +9410,8 @@ function initDayNotesUi() {
 const CLASS_NOTES_FILTER_ATTR = (typeof ClassNotesPanel !== 'undefined' && ClassNotesPanel.FILTER_ATTR)
     ? ClassNotesPanel.FILTER_ATTR
     : 'data-class-notes-filter';
+
+const HOMEWORK_FILTER_ATTR = 'data-homework-filter';
 
 function isClassNotesUiActive() {
     const tab = getActiveTab();
@@ -9788,6 +9892,7 @@ function resetClassNotesFilters() {
     if (meetingEl) {
         meetingEl.checked = false;
     }
+    syncClassNotesMyClassesOnlyCheckbox(false);
     renderClassNotesTab();
     saveClassNotesFiltersToUi();
 }
@@ -9798,6 +9903,68 @@ function applyClassNotesClassSearch() {
         const hay = chip.getAttribute('data-search-hay') || '';
         chip.style.display = !query || hay.includes(query) ? '' : 'none';
     });
+}
+
+function intersectClassIdSets(...lists) {
+    const nonEmpty = lists.filter((list) => Array.isArray(list) && list.length > 0);
+    if (!nonEmpty.length) {
+        return [];
+    }
+    if (nonEmpty.length === 1) {
+        return nonEmpty[0].map(String);
+    }
+    let result = new Set(nonEmpty[0].map(String));
+    for (let i = 1; i < nonEmpty.length; i++) {
+        const next = new Set(nonEmpty[i].map(String));
+        result = new Set([...result].filter((id) => next.has(id)));
+        if (!result.size) {
+            return [];
+        }
+    }
+    return [...result];
+}
+
+function getClassIdsForSubjectFilter(subjectSet) {
+    if (!subjectSet || !(subjectSet instanceof Set) || !subjectSet.size) {
+        return null;
+    }
+    return getClassesInDisplayOrder()
+        .filter((classData) => {
+            const subject = getClassSubjectForDayNotes(classData) || '__no_subject__';
+            return subjectSet.has(subject);
+        })
+        .map((c) => c.id);
+}
+
+function resolveClassListFilter(options = {}) {
+    const {
+        myClassesOnly = false,
+        todayIso = '',
+        subjectSet = null,
+        baseClassIds = null
+    } = options;
+    const layers = [];
+    if (Array.isArray(baseClassIds) && baseClassIds.length) {
+        layers.push(baseClassIds);
+    } else {
+        layers.push(getClassesInDisplayOrder().map((c) => c.id));
+    }
+    if (myClassesOnly) {
+        const mine = getClassIdsAssignedToViewer();
+        if (!mine) {
+            return [];
+        }
+        layers.push(mine);
+    }
+    const date = String(todayIso || '').trim();
+    if (date) {
+        layers.push(getClassIdsScheduledOnDate(date));
+    }
+    const subjectIds = getClassIdsForSubjectFilter(subjectSet);
+    if (subjectIds) {
+        layers.push(subjectIds);
+    }
+    return intersectClassIdSets(...layers);
 }
 
 function getClassIdsAssignedToViewer() {
@@ -9835,13 +10002,55 @@ function setClassNotesClassCheckboxes(classIds) {
     saveClassNotesFiltersToUi();
 }
 
-function applyClassNotesJustMine() {
-    const classIds = getClassIdsAssignedToViewer();
-    if (!classIds) {
-        setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
-        return;
+function getClassNotesCheckedClassIds() {
+    const classIds = [];
+    document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
+        if (input.checked) {
+            classIds.push(input.value);
+        }
+    });
+    return classIds;
+}
+
+function getClassNotesMyClassesOnlyFromDom() {
+    const el = document.getElementById('classNotesMyClassesOnly');
+    return el ? el.checked === true : false;
+}
+
+function syncClassNotesMyClassesOnlyCheckbox(checked) {
+    const el = document.getElementById('classNotesMyClassesOnly');
+    if (el) {
+        el.checked = checked === true;
     }
-    setClassNotesClassCheckboxes(classIds);
+}
+
+function getClassNotesActiveFilterLabels(filters) {
+    const parts = [];
+    if (getClassNotesMyClassesOnlyFromDom()) {
+        parts.push(t('filterActiveMyClasses'));
+    }
+    const today = formatDateISO(new Date());
+    if (filters && filters.dateFrom === today && filters.dateTo === today) {
+        parts.push(t('filterActiveToday'));
+    }
+    if (filters && filters.meetingDaysOnly) {
+        parts.push(t('classNotesMeetingDaysOnly'));
+    }
+    if (filters && filters.subjectSet && filters.subjectSet.size) {
+        const labels = [];
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="subjects"]`).forEach((input) => {
+            if (input.checked && filters.subjectSet.has(input.value)) {
+                const label = input.closest('label')?.querySelector('span')?.textContent?.trim();
+                if (label) {
+                    labels.push(label);
+                }
+            }
+        });
+        if (labels.length) {
+            parts.push(labels.join(', '));
+        }
+    }
+    return parts;
 }
 
 function applyClassNotesTodayClasses() {
@@ -9858,7 +10067,82 @@ function applyClassNotesTodayClasses() {
     if (meetingEl) {
         meetingEl.checked = true;
     }
-    setClassNotesClassCheckboxes(getClassIdsScheduledOnDate(today));
+    const todayIds = getClassIdsScheduledOnDate(today);
+    const current = getClassNotesCheckedClassIds();
+    const base = current.length ? current : todayIds;
+    const narrowed = resolveClassListFilter({
+        baseClassIds: base,
+        myClassesOnly: getClassNotesMyClassesOnlyFromDom(),
+        todayIso: today
+    });
+    if (getClassNotesMyClassesOnlyFromDom() && !getClassIdsAssignedToViewer()) {
+        setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+        return;
+    }
+    setClassNotesClassCheckboxes(narrowed);
+    saveClassNotesFiltersToUi();
+}
+
+function applyClassNotesMyClassesToday() {
+    const classIds = getClassIdsAssignedToViewer();
+    if (!classIds) {
+        setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+        return;
+    }
+    const today = formatDateISO(new Date());
+    const fromEl = document.getElementById('classNotesFilterFrom');
+    const toEl = document.getElementById('classNotesFilterTo');
+    if (fromEl) {
+        fromEl.value = today;
+    }
+    if (toEl) {
+        toEl.value = today;
+    }
+    const meetingEl = document.getElementById('classNotesMeetingDaysOnly');
+    if (meetingEl) {
+        meetingEl.checked = true;
+    }
+    syncClassNotesMyClassesOnlyCheckbox(true);
+    setClassNotesClassCheckboxes(intersectClassIdSets(getClassIdsScheduledOnDate(today), classIds));
+    saveClassNotesFiltersToUi();
+}
+
+function handleClassNotesMyClassesOnlyChange() {
+    const myOnlyEl = document.getElementById('classNotesMyClassesOnly');
+    if (!myOnlyEl) {
+        return;
+    }
+    if (myOnlyEl.checked) {
+        const mine = getClassIdsAssignedToViewer();
+        if (!mine) {
+            myOnlyEl.checked = false;
+            setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+            return;
+        }
+        const current = getClassNotesCheckedClassIds();
+        const base = current.length ? current : getClassesInDisplayOrder().map((c) => c.id);
+        setClassNotesClassCheckboxes(intersectClassIdSets(base, mine));
+    }
+    renderClassNotesTab();
+    saveClassNotesFiltersToUi();
+}
+
+function applyClassNotesSubjectChipNarrowing() {
+    const subjectSet = getClassNotesPartialFilterSet('subjects');
+    if (!subjectSet) {
+        return;
+    }
+    const current = getClassNotesCheckedClassIds();
+    const base = current.length ? current : getClassesInDisplayOrder().map((c) => c.id);
+    const narrowed = resolveClassListFilter({
+        baseClassIds: base,
+        myClassesOnly: getClassNotesMyClassesOnlyFromDom(),
+        subjectSet
+    });
+    if (getClassNotesMyClassesOnlyFromDom() && !getClassIdsAssignedToViewer()) {
+        return;
+    }
+    setClassNotesClassCheckboxes(narrowed);
 }
 
 function getClassNotesPartialFilterSet(filterKey) {
@@ -10033,8 +10317,23 @@ function renderClassNotesTab() {
         ? (sorted.groups || []).length
         : new Set(notes.map((n) => n.classId)).size;
     const textQuery = filters.textQuery || '';
+    const layerLabels = getClassNotesActiveFilterLabels(filters);
+    const layersText = layerLabels.join(' · ');
     if (summaryEl) {
-        if (textQuery) {
+        if (layersText) {
+            if (textQuery) {
+                summaryEl.textContent = t('classNotesSummarySearchLayers')
+                    .replace('{notes}', String(notes.length))
+                    .replace('{classes}', String(groupCount))
+                    .replace('{query}', textQuery)
+                    .replace('{layers}', layersText);
+            } else {
+                summaryEl.textContent = t('classNotesSummaryLayers')
+                    .replace('{notes}', String(notes.length))
+                    .replace('{classes}', String(groupCount))
+                    .replace('{layers}', layersText);
+            }
+        } else if (textQuery) {
             summaryEl.textContent = t('classNotesSummarySearch')
                 .replace('{notes}', String(notes.length))
                 .replace('{classes}', String(groupCount))
@@ -10119,7 +10418,7 @@ async function copyClassNotesExport() {
 }
 
 function downloadClassNotesExport() {
-    const text = buildClassNotesRangeExportText();
+    const text = normalizeTextForClipboard(buildClassNotesRangeExportText());
     if (!text.trim()) {
         const { filters } = getFilteredClassNotesForExport();
         if (!filters || !filters.classIds.length) {
@@ -10208,8 +10507,9 @@ function initClassNotesPanelListeners() {
         renderClassNotesTab();
         saveClassNotesFiltersToUi();
     });
-    shell.querySelector('#classNotesJustMineBtn')?.addEventListener('click', applyClassNotesJustMine);
+    shell.querySelector('#classNotesMyClassesOnly')?.addEventListener('change', handleClassNotesMyClassesOnlyChange);
     shell.querySelector('#classNotesTodayBtn')?.addEventListener('click', applyClassNotesTodayClasses);
+    shell.querySelector('#classNotesMyClassesTodayBtn')?.addEventListener('click', applyClassNotesMyClassesToday);
     shell.querySelector('#classNotesAddForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         saveClassNoteFromNotesTab();
@@ -10231,6 +10531,8 @@ function initClassNotesPanelListeners() {
     });
     shell.querySelector('#classNotesFilterSubjects')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            applyClassNotesSubjectChipNarrowing();
+            populateClassNotesAddClassSelect();
             renderClassNotesTab();
             saveClassNotesFiltersToUi();
         }
@@ -10259,10 +10561,10 @@ function initClassNotesPanelListeners() {
     shell.querySelector('#classNotesFilterMobileSelect')?.addEventListener('change', (e) => {
         const value = e.target.value;
         e.target.value = '';
-        if (value === 'justMine') {
-            applyClassNotesJustMine();
-        } else if (value === 'today') {
+        if (value === 'today') {
             applyClassNotesTodayClasses();
+        } else if (value === 'myClassesToday') {
+            applyClassNotesMyClassesToday();
         } else if (value === 'selectAll') {
             shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
                 input.checked = true;
@@ -13009,12 +13311,151 @@ function classOccursOnIsoDate(classData, isoDate) {
     return meetingDays.includes(d.getDay());
 }
 
+function getHomeworkPartialFilterSet(filterKey) {
+    const inputs = document.querySelectorAll(`input[${HOMEWORK_FILTER_ATTR}="${filterKey}"]`);
+    if (!inputs.length) {
+        return null;
+    }
+    const checked = [];
+    inputs.forEach((input) => {
+        if (input.checked) {
+            checked.push(input.value);
+        }
+    });
+    if (!checked.length || checked.length === inputs.length) {
+        return null;
+    }
+    return new Set(checked);
+}
+
+function getHomeworkFiltersFromDom() {
+    return {
+        myClassesOnly: document.getElementById('homeworkMyClassesOnly')?.checked === true,
+        todayOnly: document.getElementById('homeworkTodayOnly')?.checked === true,
+        subjectSet: getHomeworkPartialFilterSet('subjects')
+    };
+}
+
+function saveHomeworkFiltersToUi() {
+    ensureUiState();
+    const filters = getHomeworkFiltersFromDom();
+    appData.ui.homeworkFilters = {
+        myClassesOnly: filters.myClassesOnly,
+        todayOnly: filters.todayOnly,
+        subjects: filters.subjectSet ? Array.from(filters.subjectSet) : null
+    };
+    saveUiStateToLocalStorage();
+}
+
+function syncHomeworkFiltersToDom() {
+    ensureUiState();
+    const saved = appData.ui.homeworkFilters || {};
+    const myEl = document.getElementById('homeworkMyClassesOnly');
+    const todayEl = document.getElementById('homeworkTodayOnly');
+    if (myEl) {
+        myEl.checked = saved.myClassesOnly === true;
+    }
+    if (todayEl) {
+        todayEl.checked = saved.todayOnly === true;
+    }
+    if (Array.isArray(saved.subjects)) {
+        const set = new Set(saved.subjects);
+        document.querySelectorAll(`input[${HOMEWORK_FILTER_ATTR}="subjects"]`).forEach((input) => {
+            input.checked = set.has(input.value);
+        });
+    }
+}
+
+function renderHomeworkFilterSubjects() {
+    const groups = getClassNotesFilterOptionGroups();
+    const wrap = document.getElementById('homeworkFilterSubjectsWrap');
+    const mount = document.getElementById('homeworkFilterSubjects');
+    if (!mount || !wrap) {
+        return;
+    }
+    const saved = appData.ui.homeworkFilters?.subjects;
+    const savedSet = Array.isArray(saved) ? new Set(saved) : null;
+    if (groups.subjects.length) {
+        wrap.hidden = false;
+        mount.innerHTML = groups.subjects.map((opt) => {
+            const checked = !savedSet || savedSet.has(opt.value) ? 'checked' : '';
+            return `<label class="lesson-filter-chip selection-chip">
+                <input type="checkbox" ${HOMEWORK_FILTER_ATTR}="subjects" value="${escapeAttr(opt.value)}" ${checked}>
+                <span>${escapeHtml(opt.label)}</span>
+            </label>`;
+        }).join('');
+    } else {
+        wrap.hidden = true;
+        mount.innerHTML = '';
+    }
+}
+
+function applyHomeworkTodayClasses() {
+    const el = document.getElementById('homeworkTodayOnly');
+    if (el) {
+        el.checked = true;
+    }
+    saveHomeworkFiltersToUi();
+    setHomeworkReferenceDate(formatDateISO(new Date()), { syncView: true });
+}
+
+function applyHomeworkMyClassesToday() {
+    if (!getClassIdsAssignedToViewer()) {
+        setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+        return;
+    }
+    const myEl = document.getElementById('homeworkMyClassesOnly');
+    const todayEl = document.getElementById('homeworkTodayOnly');
+    if (myEl) {
+        myEl.checked = true;
+    }
+    if (todayEl) {
+        todayEl.checked = true;
+    }
+    saveHomeworkFiltersToUi();
+    setHomeworkReferenceDate(formatDateISO(new Date()), { syncView: true });
+}
+
+function initHomeworkFilterControls() {
+    const panel = document.querySelector('.homework-filter-panel');
+    if (!panel || panel.dataset.homeworkFilterInit === '1') {
+        return;
+    }
+    panel.dataset.homeworkFilterInit = '1';
+    renderHomeworkFilterSubjects();
+    syncHomeworkFiltersToDom();
+
+    document.getElementById('homeworkMyClassesOnly')?.addEventListener('change', () => {
+        const el = document.getElementById('homeworkMyClassesOnly');
+        if (el?.checked && !getClassIdsAssignedToViewer()) {
+            el.checked = false;
+            setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+            return;
+        }
+        saveHomeworkFiltersToUi();
+        renderHomeworkClassList();
+    });
+    document.getElementById('homeworkTodayOnly')?.addEventListener('change', () => {
+        saveHomeworkFiltersToUi();
+        renderHomeworkClassList();
+    });
+    document.getElementById('homeworkFilterSubjects')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${HOMEWORK_FILTER_ATTR}]`)) {
+            saveHomeworkFiltersToUi();
+            renderHomeworkClassList();
+        }
+    });
+    document.getElementById('homeworkTodayBtn')?.addEventListener('click', applyHomeworkTodayClasses);
+    document.getElementById('homeworkMyClassesTodayBtn')?.addEventListener('click', applyHomeworkMyClassesToday);
+}
+
 function initHomeworkTabControls() {
     const input = document.getElementById('homeworkReferenceDate');
     const miniCal = document.getElementById('homeworkReferenceMiniCalendar');
     if (!input) {
         return;
     }
+    initHomeworkFilterControls();
     const mod = getHomeworkTabModule();
     ensureUiState();
     const savedDate = appData.ui.homeworkReferenceDate;
@@ -13106,22 +13547,46 @@ function renderHomeworkClassList() {
     const selectedWeekday = (selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime()))
         ? selectedDate.getDay()
         : null;
-    const selectedId = appData.ui.homeworkTabClassId || '';
+    let selectedId = appData.ui.homeworkTabClassId || '';
     list.innerHTML = '';
     const baseOrder = getClassesInDisplayOrder();
-    const classes = baseOrder.filter((c) => {
+    const hwFilters = getHomeworkFiltersFromDom();
+    let filteredIds = resolveClassListFilter({
+        myClassesOnly: hwFilters.myClassesOnly,
+        todayIso: hwFilters.todayOnly ? selectedIso : '',
+        subjectSet: hwFilters.subjectSet,
+        baseClassIds: baseOrder.map((c) => c.id)
+    });
+    if (hwFilters.myClassesOnly && !getClassIdsAssignedToViewer()) {
+        filteredIds = [];
+    }
+    const filteredIdSet = new Set(filteredIds);
+    let classes = baseOrder.filter((c) => filteredIdSet.has(c.id));
+    classes = classes.filter((c) => {
         if (!q) {
             return true;
         }
         const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c)].join(' ').toLowerCase();
         return hay.includes(q);
     });
+    if (selectedId && !classes.some((c) => c.id === selectedId)) {
+        selectedId = '';
+        appData.ui.homeworkTabClassId = '';
+        saveData();
+        renderHomeworkEditor();
+    }
     if (classes.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
         empty.style.padding = '12px';
         empty.style.color = 'var(--text-secondary)';
-        empty.textContent = q ? t('lessonFilterSearchEmpty') : t('classEditorEmpty');
+        if (q) {
+            empty.textContent = t('lessonFilterSearchEmpty');
+        } else if (hwFilters.myClassesOnly) {
+            empty.textContent = t('notesNoMyClassesOnDay');
+        } else {
+            empty.textContent = t('classEditorEmpty');
+        }
         list.appendChild(empty);
         return;
     }
@@ -13131,6 +13596,7 @@ function renderHomeworkClassList() {
     if (selectedWeekday !== null) {
         classes.forEach((c) => (classOccursOnIsoDate(c, selectedIso) ? onDay : offDay).push(c));
         onDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
+        offDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
     } else {
         offDay.push(...classes);
     }
@@ -13153,6 +13619,14 @@ function renderHomeworkClassList() {
             }
         }));
     };
+
+    if (hwFilters.todayOnly) {
+        if (onDay.length > 0) {
+            appendSectionTitle(t('homeworkTabSelectedDateClasses') || "Selected date's classes");
+            onDay.forEach(renderClassButton);
+        }
+        return;
+    }
 
     if (onDay.length > 0) {
         appendSectionTitle(t('homeworkTabSelectedDateClasses') || "Selected date's classes");
@@ -13419,8 +13893,81 @@ function renderHomeworkEditor() {
     }
 }
 
+function normalizeTextForClipboard(text) {
+    if (typeof CCPUtils !== 'undefined' && CCPUtils.normalizeClipboardText) {
+        return CCPUtils.normalizeClipboardText(text);
+    }
+    return String(text ?? '')
+        .replace(/\u2014/g, '-')
+        .replace(/\u2013/g, '-')
+        .replace(/\u2212/g, '-');
+}
+
+function clipboardNormalizeSkipTarget(node) {
+    if (!node) {
+        return false;
+    }
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    return !!(el && el.closest('[data-skip-clipboard-normalize]'));
+}
+
+let clipboardNormalizeHandlersBound = false;
+
+function setupClipboardNormalizeHandlers() {
+    if (clipboardNormalizeHandlersBound) {
+        return;
+    }
+    clipboardNormalizeHandlersBound = true;
+
+    document.addEventListener('copy', (e) => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) {
+            return;
+        }
+        if (clipboardNormalizeSkipTarget(sel.anchorNode) || clipboardNormalizeSkipTarget(sel.focusNode)) {
+            return;
+        }
+        const text = sel.toString();
+        if (!text) {
+            return;
+        }
+        const normalized = normalizeTextForClipboard(text);
+        if (normalized === text) {
+            return;
+        }
+        e.preventDefault();
+        e.clipboardData.setData('text/plain', normalized);
+    });
+
+    document.addEventListener('paste', (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement)) {
+            return;
+        }
+        if (target.closest('[data-skip-clipboard-normalize]')) {
+            return;
+        }
+        const raw = e.clipboardData?.getData('text/plain');
+        if (!raw) {
+            return;
+        }
+        const normalized = normalizeTextForClipboard(raw);
+        if (normalized === raw) {
+            return;
+        }
+        e.preventDefault();
+        const start = target.selectionStart ?? 0;
+        const end = target.selectionEnd ?? 0;
+        const val = target.value;
+        target.value = val.slice(0, start) + normalized + val.slice(end);
+        const pos = start + normalized.length;
+        target.setSelectionRange(pos, pos);
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+}
+
 async function copyTextToClipboard(text) {
-    const value = (text || '').trim();
+    const value = normalizeTextForClipboard((text || '').trim());
     if (!value) {
         return false;
     }
@@ -17723,6 +18270,7 @@ if (typeof window !== 'undefined') {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    setupClipboardNormalizeHandlers();
     if (document.body.classList.contains('workspace-page')) {
         return;
     }
@@ -17861,31 +18409,116 @@ function initializeTermStart() {
 // ============================================
 // Event Listeners Setup
 // ============================================
-const HEADER_FIXED_POPOVER_MARGIN = 8;
 let openHeaderFixedPopoverId = null;
+let fixedAnchorPopoverRepositionRaf = 0;
 
 function getHeaderFixedPopoverTrigger(popoverId) {
     return document.querySelector(`[aria-controls="${popoverId}"]`);
 }
 
 function positionHeaderFixedPopover(trigger, popover, align) {
-    if (!trigger || !popover) {
+    return positionFixedPopoverBelowTrigger(trigger, popover, {
+        align: align === 'left' ? 'left' : 'right',
+        minMaxHeight: 120
+    });
+}
+
+function repositionLessonFilterPopoverIfOpen(force) {
+    if (!isLessonFilterPopoverOpen()) {
+        return;
+    }
+    const popover = document.getElementById('lessonFilterPopover');
+    const btn = document.getElementById('lessonFilterBtn');
+    if (!popover || !btn) {
+        return;
+    }
+    const rect = btn.getBoundingClientRect();
+    if (!isFixedAnchorTriggerVisible(rect)) {
+        closeLessonFilterPopover();
+        return;
+    }
+    if (!force && shouldSkipFixedAnchorReposition('lessonFilterPopover', rect)) {
+        return;
+    }
+    if (!positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 })) {
+        closeLessonFilterPopover();
+    }
+}
+
+function repositionEventApplicabilityPopoverIfOpen(force) {
+    if (!isEventApplicabilityPopoverOpen()) {
+        return;
+    }
+    const popover = document.getElementById('eventApplicabilityPopover');
+    const btn = document.getElementById('eventApplicabilityFilterBtn');
+    if (!popover || !btn) {
+        return;
+    }
+    const rect = btn.getBoundingClientRect();
+    if (!isFixedAnchorTriggerVisible(rect)) {
+        closeEventApplicabilityPopover();
+        return;
+    }
+    if (!force && shouldSkipFixedAnchorReposition('eventApplicabilityPopover', rect)) {
+        return;
+    }
+    if (!positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 })) {
+        closeEventApplicabilityPopover();
+    }
+}
+
+function repositionAllFixedAnchorPopovers(force) {
+    repositionOpenHeaderFixedPopover(force);
+    repositionLessonFilterPopoverIfOpen(force);
+    repositionEventApplicabilityPopoverIfOpen(force);
+}
+
+function repositionOpenHeaderFixedPopover(force) {
+    if (!openHeaderFixedPopoverId) {
+        return;
+    }
+    const popover = document.getElementById(openHeaderFixedPopoverId);
+    const trigger = getHeaderFixedPopoverTrigger(openHeaderFixedPopoverId);
+    if (!popover || !trigger || popover.hidden) {
         return;
     }
     const rect = trigger.getBoundingClientRect();
-    const margin = HEADER_FIXED_POPOVER_MARGIN;
-    popover.style.top = `${rect.bottom + margin}px`;
-    popover.style.left = '0';
-    popover.style.right = 'auto';
-    const panelRect = popover.getBoundingClientRect();
-    let left = align === 'left' ? rect.left : rect.right - panelRect.width;
-    left = Math.max(margin, Math.min(left, window.innerWidth - panelRect.width - margin));
-    popover.style.left = `${left}px`;
-    let top = rect.bottom + margin;
-    if (top + panelRect.height > window.innerHeight - margin) {
-        top = Math.max(margin, rect.top - panelRect.height - margin);
+    if (!isFixedAnchorTriggerVisible(rect)) {
+        closeHeaderFixedPopover(openHeaderFixedPopoverId);
+        return;
     }
-    popover.style.top = `${top}px`;
+    if (!force && shouldSkipFixedAnchorReposition(openHeaderFixedPopoverId, rect)) {
+        return;
+    }
+    const align = popover.dataset.popoverAlign === 'left' ? 'left' : 'right';
+    if (!positionHeaderFixedPopover(trigger, popover, align)) {
+        closeHeaderFixedPopover(openHeaderFixedPopoverId);
+    }
+}
+
+function scheduleRepositionAllFixedAnchorPopovers() {
+    const hasOpen =
+        openHeaderFixedPopoverId ||
+        isLessonFilterPopoverOpen() ||
+        isEventApplicabilityPopoverOpen();
+    if (!hasOpen) {
+        return;
+    }
+    if (fixedAnchorPopoverRepositionRaf) {
+        return;
+    }
+    fixedAnchorPopoverRepositionRaf = requestAnimationFrame(() => {
+        fixedAnchorPopoverRepositionRaf = 0;
+        repositionAllFixedAnchorPopovers(false);
+    });
+}
+
+function scheduleForcedRepositionAllFixedAnchorPopovers() {
+    if (fixedAnchorPopoverRepositionRaf) {
+        cancelAnimationFrame(fixedAnchorPopoverRepositionRaf);
+        fixedAnchorPopoverRepositionRaf = 0;
+    }
+    repositionAllFixedAnchorPopovers(true);
 }
 
 function closeHeaderFixedPopover(popoverId) {
@@ -17898,6 +18531,7 @@ function closeHeaderFixedPopover(popoverId) {
     if (trigger) {
         trigger.setAttribute('aria-expanded', 'false');
     }
+    clearFixedAnchorPopoverRectCache(popoverId);
     if (openHeaderFixedPopoverId === popoverId) {
         openHeaderFixedPopoverId = null;
     }
@@ -17912,13 +18546,24 @@ function openHeaderFixedPopover(trigger, popover, align) {
     if (!trigger || !popover) {
         return;
     }
+    const rect = trigger.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+        return;
+    }
     if (openHeaderFixedPopoverId && openHeaderFixedPopoverId !== popover.id) {
         closeHeaderFixedPopover(openHeaderFixedPopoverId);
     }
     popover.hidden = false;
     trigger.setAttribute('aria-expanded', 'true');
     openHeaderFixedPopoverId = popover.id;
-    positionHeaderFixedPopover(trigger, popover, align);
+    clearFixedAnchorPopoverRectCache(popover.id);
+    scheduleForcedRepositionAllFixedAnchorPopovers();
+    requestAnimationFrame(() => {
+        if (!isHeaderFixedPopoverOpen(popover.id)) {
+            return;
+        }
+        repositionOpenHeaderFixedPopover(true);
+    });
 }
 
 function setupHeaderFixedPopoverDismiss() {
@@ -17941,17 +18586,22 @@ function setupHeaderFixedPopoverDismiss() {
         }
         closeHeaderFixedPopover(openHeaderFixedPopoverId);
     });
-    window.addEventListener('resize', () => {
-        if (!openHeaderFixedPopoverId) {
-            return;
-        }
-        const popover = document.getElementById(openHeaderFixedPopoverId);
-        const trigger = getHeaderFixedPopoverTrigger(openHeaderFixedPopoverId);
-        const align = popover && popover.dataset.popoverAlign === 'left' ? 'left' : 'right';
-        if (popover && trigger && !popover.hidden) {
-            positionHeaderFixedPopover(trigger, popover, align);
-        }
+    window.addEventListener('resize', scheduleForcedRepositionAllFixedAnchorPopovers);
+    window.addEventListener('scroll', scheduleRepositionAllFixedAnchorPopovers, { passive: true });
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleForcedRepositionAllFixedAnchorPopovers);
+        window.visualViewport.addEventListener('scroll', scheduleRepositionAllFixedAnchorPopovers);
+    }
+    document.querySelectorAll('.app-header-unified__tools, .app-tab-subnav-wrap').forEach((el) => {
+        el.addEventListener('scroll', scheduleRepositionAllFixedAnchorPopovers, { passive: true });
     });
+    const appTopBar = document.getElementById('appTopBar');
+    if (appTopBar && typeof ResizeObserver !== 'undefined') {
+        const headerPopoverResizeObserver = new ResizeObserver(() => {
+            scheduleForcedRepositionAllFixedAnchorPopovers();
+        });
+        headerPopoverResizeObserver.observe(appTopBar);
+    }
 }
 
 function setupHeaderFixedPopover(popoverId, align) {
@@ -17971,61 +18621,9 @@ function setupHeaderFixedPopover(popoverId, align) {
             closeHeaderFixedPopover(popoverId);
         } else {
             openHeaderFixedPopover(trigger, popover, align);
-            // #region agent log
-            requestAnimationFrame(() => {
-                debugHeaderFixedPopoverLayout(popoverId, 'open');
-            });
-            // #endregion
         }
     });
 }
-
-// #region agent log
-function debugHeaderFixedPopoverLayout(popoverId, phase) {
-    const popover = document.getElementById(popoverId);
-    const trigger = getHeaderFixedPopoverTrigger(popoverId);
-    const teamDetails = document.getElementById('appTopBarTeamDetails');
-    if (!popover || !trigger) {
-        return;
-    }
-    const panelRect = popover.getBoundingClientRect();
-    const teamRect = teamDetails ? teamDetails.getBoundingClientRect() : null;
-    const overlapsTeamBar =
-        teamRect &&
-        panelRect.height > 0 &&
-        panelRect.bottom > teamRect.top + 2 &&
-        panelRect.right > teamRect.left &&
-        panelRect.left < teamRect.right;
-    fetch('http://127.0.0.1:7286/ingest/b51bd9b9-d682-4f30-b25c-d0d01b2010bd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '7e8b5c' },
-        body: JSON.stringify({
-            sessionId: '7e8b5c',
-            runId: 'post-fix',
-            hypothesisId: overlapsTeamBar ? 'B-fail' : 'fix-ok',
-            location: 'app.js:debugHeaderFixedPopoverLayout',
-            message: 'header fixed popover layout',
-            data: {
-                phase,
-                popoverId,
-                panelPosition: getComputedStyle(popover).position,
-                panelZIndex: getComputedStyle(popover).zIndex,
-                panelOnBody: popover.parentElement === document.body,
-                panelHidden: popover.hidden,
-                panelRect: {
-                    top: panelRect.top,
-                    bottom: panelRect.bottom,
-                    height: panelRect.height
-                },
-                teamRectTop: teamRect ? teamRect.top : null,
-                overlapsTeamBar,
-                gapAboveTeamBar: teamRect ? teamRect.top - panelRect.bottom : null
-            },
-            timestamp: Date.now()
-        })
-    }).catch(() => {});
-}
-// #endregion
 
 function setupHeaderDropdowns() {
     document.querySelectorAll('.header-dropdown-panel .header-dropdown-item').forEach((el) => {
@@ -22491,6 +23089,88 @@ function renderMonth(date, dayIndex) {
     elements.calendarContainer.appendChild(monthDiv);
 }
 
+/** Print calendar merge line: Day 2+3 (no "Merge" wording). */
+function formatCalendarPrintDayMergeLabel(start, end) {
+    return t('lessonDayLabel').replace('{n}', `${start}+${end}`);
+}
+
+function lessonLabelLooksLikeMerge(label) {
+    const text = (label || '').trim();
+    if (!text) {
+        return false;
+    }
+    if (/^Merge\s+Day\s+\d+\+\d+$/i.test(text)) {
+        return true;
+    }
+    if (/^\d+\+\d+일차(?:\s*합치기)?$/.test(text)) {
+        return true;
+    }
+    return /^Day\s+\d+\+\d+$/i.test(text);
+}
+
+function isLessonMergedForPrint(lesson) {
+    if (!lesson) {
+        return false;
+    }
+    const group = lesson.group;
+    if (group && group.start != null && group.end != null && group.end > group.start
+        && (lesson.compressed === true || group.compressed === true)) {
+        return true;
+    }
+    return lessonLabelLooksLikeMerge(lesson.label);
+}
+
+function formatCalendarPrintLessonLabel(lesson, scheduleClass) {
+    if (!lesson) {
+        return '';
+    }
+    const group = lesson.group;
+    if (group && group.start != null && group.end != null && group.end > group.start
+        && (lesson.compressed || group.compressed || isLessonMergedForPrint(lesson))) {
+        if (classUsesDebateCompression(scheduleClass)) {
+            return formatCalendarPrintDayMergeLabel(group.start, group.end);
+        }
+        return getSequentialGroupLabel(scheduleClass, group);
+    }
+    const label = (lesson.label || '').trim();
+    const mergeDayMatch = label.match(/^Merge\s+Day\s+(\d+)\+(\d+)$/i);
+    if (mergeDayMatch) {
+        return formatCalendarPrintDayMergeLabel(mergeDayMatch[1], mergeDayMatch[2]);
+    }
+    const mergeDayKoMatch = label.match(/^(\d+)\+(\d+)일차(?:\s*합치기)?$/);
+    if (mergeDayKoMatch) {
+        return formatCalendarPrintDayMergeLabel(mergeDayKoMatch[1], mergeDayKoMatch[2]);
+    }
+    return label.replace(/^Merge\s+/i, '').replace(/\s*합치기\s*$/i, '').trim();
+}
+
+function buildCalendarEventBarInnerHtml(options) {
+    const {
+        displayName,
+        lessonLabel,
+        bookLabel,
+        forPrint,
+        isDebateLesson,
+        isCompressed
+    } = options;
+    if (forPrint) {
+        if (isCompressed) {
+            return `<span class="event-title">${escapeHtml(displayName)}</span>
+                <span class="event-merge">${escapeHtml(lessonLabel)}</span>`;
+        }
+        if (isDebateLesson) {
+            return `<span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lessonLabel)}</span>`;
+        }
+        return `<span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lessonLabel)}</span>
+                <span class="event-book">${escapeHtml(bookLabel)}</span>`;
+    }
+    if (isDebateLesson) {
+        return `<span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lessonLabel)}</span>`;
+    }
+    return `<span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lessonLabel)}</span>
+                <span class="event-book">${escapeHtml(bookLabel)}</span>`;
+}
+
 function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], dateStr = '') {
     const dayDiv = document.createElement('div');
     dayDiv.className = 'calendar-day';
@@ -22596,17 +23276,43 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
                 eventBar.classList.add('event-bar--has-day-note');
             }
             const titleLine = `${displayName} - ${lesson.label}`;
-            if (isDebateLesson) {
+            if (calendarRenderForPrint) {
+                const isPrintMerged = isLessonMergedForPrint(lesson);
+                const printLessonLabel = isPrintMerged
+                    ? formatCalendarPrintLessonLabel(lesson, scheduleClass)
+                    : lesson.label;
+                if (isPrintMerged) {
+                    eventBar.classList.add('event-bar--print-merged');
+                } else if (isDebateLesson) {
+                    eventBar.classList.add('event-bar--debate-compact');
+                }
+                eventBar.title = bookLabel ? `${titleLine} — ${bookLabel}` : titleLine;
+                eventBar.innerHTML = buildCalendarEventBarInnerHtml({
+                    displayName,
+                    lessonLabel: printLessonLabel,
+                    bookLabel,
+                    forPrint: true,
+                    isDebateLesson,
+                    isCompressed: isPrintMerged
+                });
+            } else if (isDebateLesson) {
                 eventBar.classList.add('event-bar--debate-compact');
                 eventBar.title = bookLabel ? `${titleLine} — ${bookLabel}` : titleLine;
-                eventBar.innerHTML = `
-                <span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lesson.label)}</span>
-            `;
+                eventBar.innerHTML = buildCalendarEventBarInnerHtml({
+                    displayName,
+                    lessonLabel: lesson.label,
+                    bookLabel,
+                    forPrint: false,
+                    isDebateLesson: true
+                });
             } else {
-                eventBar.innerHTML = `
-                <span class="event-title">${escapeHtml(displayName)} - ${escapeHtml(lesson.label)}</span>
-                <span class="event-book">${escapeHtml(bookLabel)}</span>
-            `;
+                eventBar.innerHTML = buildCalendarEventBarInnerHtml({
+                    displayName,
+                    lessonLabel: lesson.label,
+                    bookLabel,
+                    forPrint: false,
+                    isDebateLesson: false
+                });
             }
             
             // Store data for popup
@@ -22831,6 +23537,10 @@ const CALENDAR_PRINT_LANDSCAPE = {
 };
 
 const APP_PRINT_CALENDAR_INLINE_CSS = `
+/* Hide until fitCalendarMonthsForPrint finishes (avoids flash + style overwrite). */
+body.app-print-calendar-doc:not(.calendar-print-ready) .app-print-document--calendar {
+    visibility: hidden;
+}
 @page {
     size: A4 landscape;
     margin: 0;
@@ -22930,7 +23640,7 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
 }
 .app-print-document--calendar .calendar-day .holiday-name,
 .app-print-document--calendar .calendar-day .calendar-event-chips {
-    flex-shrink: 0;
+    min-height: 0;
 }
 .app-print-document--calendar .calendar-day .day-events {
     flex: 1 1 auto;
@@ -22938,6 +23648,9 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+.app-print-document--calendar .calendar-day .day-events {
+    justify-content: flex-start;
 }
 .app-print-document--calendar .calendar-day .event-bar {
     flex: 1 1 0;
@@ -22966,7 +23679,7 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     line-height: 1.1;
 }
 .app-print-document--calendar .holiday-name {
-    font-size: min(var(--cal-tile-font, 5.5pt), 10pt) !important;
+    font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 5.5pt) * 1.12)), 10pt) !important;
     padding: 0 2px 1px !important;
     line-height: 1.1;
 }
@@ -23006,6 +23719,30 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.app-print-document--calendar .event-bar--print-merged {
+    flex: 2 2 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    line-height: 1.05;
+    justify-content: center;
+    min-height: 0;
+}
+.app-print-document--calendar .event-bar--print-merged .event-title,
+.app-print-document--calendar .event-bar--print-merged .event-merge {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.05;
+    max-width: 100%;
+}
+.app-print-document--calendar .event-bar--print-merged .event-merge {
+    font-weight: 700;
 }
 .app-print-document--calendar .calendar-event-chip {
     font-size: min(var(--cal-tile-font, 5pt), 10pt);
@@ -23135,6 +23872,7 @@ function buildAppPrintCalendarDocumentHtml() {
     if (!elements.calendarContainer) {
         return '';
     }
+    clearCalendarTileTypography(document, elements.calendarContainer);
     const title = escapeHtml(`Calendar — ${getAppPrintCalendarName()}`);
     const bodyClass = collectAppPrintCalendarBodyClasses().join(' ');
     const cssHref = escapeHtml(getAppStylesheetHref());
@@ -23210,6 +23948,9 @@ function measureMmToPxForPrint(doc) {
     return px;
 }
 
+/** Holiday labels read slightly larger than lesson/event chips (evaluation periods, etc.). */
+const CALENDAR_TILE_HOLIDAY_FONT_SCALE = 1.12;
+
 /** Screen / print typography bounds for calendar class, holiday, and event tiles. */
 const CALENDAR_TILE_TYPO = {
     screen: {
@@ -23225,13 +23966,13 @@ const CALENDAR_TILE_TYPO = {
     },
     print: {
         min: 5,
-        max: 10,
+        max: 9,
         unit: 'pt',
         lineHeight: 1.05,
         heightRatio: 0.36,
         widthRatio: 0.09,
-        gap: 1,
-        padding: 4,
+        gap: 0,
+        padding: 2,
         bookWeight: 1
     }
 };
@@ -23250,7 +23991,50 @@ function resolveCalendarTileTypographyRoot(doc, root) {
     return root;
 }
 
-function countCalendarDayTileWeight(day) {
+function getPrintCalendarBarLineWeight(bar) {
+    if (!bar) {
+        return 0;
+    }
+    if (bar.classList.contains('event-bar--print-merged')) {
+        return 2;
+    }
+    if (bar.querySelector('.event-book')) {
+        return 2;
+    }
+    return 1;
+}
+
+function countCalendarDayTextLines(day, mode) {
+    let lines = 0;
+    day.querySelectorAll('.holiday-name, .calendar-event-chip').forEach(() => {
+        lines += 1;
+    });
+    day.querySelectorAll('.event-bar').forEach((bar) => {
+        if (mode === 'print') {
+            lines += getPrintCalendarBarLineWeight(bar);
+            return;
+        }
+        if (bar.classList.contains('event-bar--debate-compact')) {
+            lines += 1;
+            return;
+        }
+        lines += 1;
+        if (bar.querySelector('.event-book')) {
+            lines += 1;
+        }
+    });
+    return lines;
+}
+
+/** Print cells: day number + holiday/chips/lesson lines for font budget. */
+function countCalendarPrintDayTextLines(day) {
+    return countCalendarDayTextLines(day, 'print') + 1;
+}
+
+function countCalendarDayTileWeight(day, mode) {
+    if (mode === 'print') {
+        return countCalendarDayTextLines(day, mode);
+    }
     let weight = 0;
     day.querySelectorAll('.holiday-name, .calendar-event-chip').forEach(() => {
         weight += 1;
@@ -23305,10 +24089,72 @@ function getCalendarDayCellBudget(day, mode) {
     return { cellH: Math.max(rowH, measured, 52), cellW };
 }
 
+const PRINT_DAY_CELL_FLEX_SELECTOR = '.holiday-name, .calendar-event-chips, .day-events, .event-bar, .calendar-event-chip';
+
+function clearPrintDayCellFlexLayout(day) {
+    day.querySelectorAll(PRINT_DAY_CELL_FLEX_SELECTOR).forEach((el) => {
+        el.style.removeProperty('flex');
+        el.style.removeProperty('min-height');
+        el.style.removeProperty('overflow');
+    });
+}
+
+function balancePrintDayCellLayout(day) {
+    clearPrintDayCellFlexLayout(day);
+
+    const holiday = day.querySelector('.holiday-name');
+    const chipsWrap = day.querySelector('.calendar-event-chips');
+    const dayEvents = day.querySelector('.day-events');
+    const sections = [];
+
+    if (holiday) {
+        sections.push({ el: holiday, lines: 1 });
+    }
+    if (chipsWrap) {
+        const chipCount = Math.max(1, chipsWrap.querySelectorAll('.calendar-event-chip').length);
+        sections.push({ el: chipsWrap, lines: chipCount });
+        chipsWrap.querySelectorAll('.calendar-event-chip').forEach((chip) => {
+            chip.style.flex = '1 1 0';
+            chip.style.minHeight = '0';
+            chip.style.overflow = 'hidden';
+        });
+    }
+    if (dayEvents) {
+        const bars = Array.from(dayEvents.querySelectorAll('.event-bar'));
+        let lessonLines = 0;
+        bars.forEach((bar) => {
+            const barLines = getPrintCalendarBarLineWeight(bar);
+            lessonLines += barLines;
+            bar.style.flex = `${barLines} ${barLines} 0`;
+            bar.style.minHeight = '0';
+            bar.style.overflow = 'hidden';
+        });
+        if (lessonLines > 0) {
+            sections.push({ el: dayEvents, lines: lessonLines });
+        }
+    }
+
+    sections.forEach(({ el, lines }) => {
+        el.style.flex = `${lines} ${lines} 0`;
+        el.style.minHeight = '0';
+        el.style.overflow = 'hidden';
+    });
+}
+
 function clearCalendarTileTypographyOnDay(day) {
     day.style.removeProperty('--cal-tile-font');
     day.style.removeProperty('--cal-tile-font-sm');
+    day.style.removeProperty('--cal-tile-font-holiday');
     day.removeAttribute('data-cal-tile-lines');
+    clearPrintDayCellFlexLayout(day);
+}
+
+function applyCalendarTileFontVariables(day, fontSize, cfg) {
+    const unit = cfg.unit || 'px';
+    const holidayFont = Math.min(fontSize * CALENDAR_TILE_HOLIDAY_FONT_SCALE, cfg.max);
+    day.style.setProperty('--cal-tile-font', `${fontSize.toFixed(2)}${unit}`);
+    day.style.setProperty('--cal-tile-font-sm', `${(fontSize * 0.85).toFixed(2)}${unit}`);
+    day.style.setProperty('--cal-tile-font-holiday', `${holidayFont.toFixed(2)}${unit}`);
 }
 
 function clearCalendarTileTypography(doc, root) {
@@ -23322,7 +24168,7 @@ function clearCalendarTileTypography(doc, root) {
 function fitCalendarDayTileTypography(day, cfg, mode) {
     clearCalendarTileTypographyOnDay(day);
 
-    const tileWeight = countCalendarDayTileWeight(day);
+    const tileWeight = countCalendarDayTileWeight(day, mode);
     if (tileWeight <= 0) {
         return;
     }
@@ -23334,45 +24180,58 @@ function fitCalendarDayTileTypography(day, cfg, mode) {
 
     const dayNum = day.querySelector('.day-number');
     const dayNumH = dayNum ? dayNum.offsetHeight : 0;
-    const topH = Math.max(dayNumH, 22) + cfg.padding;
+    const topH = (mode === 'print' ? dayNumH : Math.max(dayNumH, 22)) + cfg.padding;
     const contentH = Math.max(0, cellH - topH);
-    const totalGap = cfg.gap * Math.max(0, Math.ceil(tileWeight) - 1);
-    const perTileH = (contentH - totalGap) / tileWeight;
-    if (perTileH < 1) {
+    const fontFromW = cellW * cfg.widthRatio;
+    let fontSize = cfg.min;
+
+    if (mode === 'print') {
+        const totalLines = countCalendarPrintDayTextLines(day);
+        if (totalLines > 0) {
+            const gapTotal = cfg.gap * Math.max(0, totalLines - 1);
+            const fontFromLines = (cellH - cfg.padding - gapTotal) / (totalLines * cfg.lineHeight);
+            fontSize = Math.min(fontFromLines, fontFromW, cfg.max);
+            fontSize = Math.max(fontSize, cfg.min);
+        }
+    } else {
+        const totalGap = cfg.gap * Math.max(0, Math.ceil(tileWeight) - 1);
+        const perTileH = (contentH - totalGap) / tileWeight;
+        if (perTileH < 1) {
+            return;
+        }
+        const fontFromH = perTileH * cfg.heightRatio;
+        fontSize = Math.min(fontFromH, fontFromW, cfg.max);
+        fontSize = Math.max(fontSize, cfg.min);
+
+        const lessonBars = day.querySelectorAll('.event-bar');
+        const allLessonBarsDebateCompact = lessonBars.length > 0
+            && Array.from(lessonBars).every((bar) => bar.classList.contains('event-bar--debate-compact'));
+
+        const tileCount = Math.ceil(tileWeight);
+        let allowTwoLines = false;
+        if (tileCount <= 2 && !allLessonBarsDebateCompact) {
+            const twoLineFont = Math.min(
+                perTileH / (2 * cfg.lineHeight),
+                fontFromW,
+                cfg.max
+            );
+            const clampedTwoLine = Math.max(twoLineFont, cfg.min);
+            const twoLineBlock = (2 * clampedTwoLine * cfg.lineHeight) + cfg.gap;
+            if (perTileH >= twoLineBlock) {
+                allowTwoLines = true;
+                fontSize = clampedTwoLine;
+            }
+        }
+
+        applyCalendarTileFontVariables(day, fontSize, cfg);
+        if (allowTwoLines) {
+            day.setAttribute('data-cal-tile-lines', '2');
+        }
         return;
     }
 
-    const fontFromH = perTileH * cfg.heightRatio;
-    const fontFromW = cellW * cfg.widthRatio;
-    let fontSize = Math.min(fontFromH, fontFromW, cfg.max);
-    fontSize = Math.max(fontSize, cfg.min);
-
-    const lessonBars = day.querySelectorAll('.event-bar');
-    const allLessonBarsDebateCompact = lessonBars.length > 0
-        && Array.from(lessonBars).every((bar) => bar.classList.contains('event-bar--debate-compact'));
-
-    const tileCount = Math.ceil(tileWeight);
-    let allowTwoLines = false;
-    if (tileCount <= 2 && !allLessonBarsDebateCompact) {
-        const twoLineFont = Math.min(
-            perTileH / (2 * cfg.lineHeight),
-            fontFromW,
-            cfg.max
-        );
-        const clampedTwoLine = Math.max(twoLineFont, cfg.min);
-        const twoLineBlock = (2 * clampedTwoLine * cfg.lineHeight) + cfg.gap;
-        if (perTileH >= twoLineBlock) {
-            allowTwoLines = true;
-            fontSize = clampedTwoLine;
-        }
-    }
-
-    const unit = cfg.unit || 'px';
-    day.style.setProperty('--cal-tile-font', `${fontSize.toFixed(2)}${unit}`);
-    day.style.setProperty('--cal-tile-font-sm', `${(fontSize * 0.85).toFixed(2)}${unit}`);
-    if (allowTwoLines) {
-        day.setAttribute('data-cal-tile-lines', '2');
-    }
+    applyCalendarTileFontVariables(day, fontSize, cfg);
+    balancePrintDayCellLayout(day);
 }
 
 /**
@@ -23399,9 +24258,13 @@ let calendarTileTypographyResizeTimer = null;
 let calendarTileTypographyLastSize = { w: 0, h: 0 };
 const CALENDAR_TILE_TYPO_RESIZE_EPS = 2;
 
+function calendarDomHasPrintSnapshotLessonBars(root) {
+    return !!(root && root.querySelector('.event-bar--print-merged'));
+}
+
 function runCalendarTileTypographyFit() {
     const container = elements.calendarContainer;
-    if (!container) {
+    if (!container || calendarDomHasPrintSnapshotLessonBars(container)) {
         return;
     }
     if (calendarTileTypographyResizeObserver) {
@@ -23421,7 +24284,7 @@ function runCalendarTileTypographyFit() {
 }
 
 function scheduleCalendarTileTypographyFit() {
-    if (calendarTileTypographyFitScheduled) {
+    if (calendarRenderForPrint || calendarTileTypographyFitScheduled) {
         return;
     }
     calendarTileTypographyFitScheduled = true;
@@ -23519,32 +24382,8 @@ function layoutCalendarMonthForLandscapePrint(month, contentWpx, contentHpx) {
         el.style.boxSizing = 'border-box';
     });
 
+    void month.offsetHeight;
     fitCalendarTileTypography(month.ownerDocument, month, { mode: 'print' });
-
-    cells.forEach((el) => {
-        if (!el.classList.contains('calendar-day')) {
-            return;
-        }
-
-        let topH = 2;
-        const num = el.querySelector('.day-number');
-        const hol = el.querySelector('.holiday-name');
-        const chips = el.querySelector('.calendar-event-chips');
-        if (num) {
-            topH += num.offsetHeight;
-        }
-        if (hol) {
-            topH += hol.offsetHeight;
-        }
-        if (chips) {
-            topH += chips.offsetHeight;
-        }
-        const dayEvents = el.querySelector('.day-events');
-        if (dayEvents) {
-            dayEvents.style.maxHeight = `${Math.max(10, rowMinPx - topH - 2)}px`;
-        }
-    });
-
     void month.offsetHeight;
 }
 
@@ -23702,6 +24541,9 @@ function isMainPrintPrepActive() {
 
 function restoreMainUiAfterPrintCapture() {
     cleanupAfterAppPrint(null);
+    if (calendarDomHasPrintSnapshotLessonBars(elements.calendarContainer)) {
+        renderCalendar();
+    }
 }
 
 function setupAppPrintOpenerSafeties() {
@@ -23767,11 +24609,15 @@ function runAppPrintJobs(jobs, opts) {
             if (job.kind === 'summary') {
                 fitSyllabusInPrintWindow(printWin, opts);
             } else if (job.kind === 'calendar') {
-                fitCalendarMonthsForPrint(printWin.document);
-                const orient = printWin.document.createElement('style');
-                orient.setAttribute('data-calendar-print-orient', '1');
-                orient.textContent = '@page { size: A4 landscape; margin: 0; }';
-                printWin.document.head.appendChild(orient);
+                try {
+                    fitCalendarMonthsForPrint(printWin.document);
+                    const orient = printWin.document.createElement('style');
+                    orient.setAttribute('data-calendar-print-orient', '1');
+                    orient.textContent = '@page { size: A4 landscape; margin: 0; }';
+                    printWin.document.head.appendChild(orient);
+                } finally {
+                    printWin.document.body.classList.add('calendar-print-ready');
+                }
             }
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -23974,7 +24820,13 @@ function runAppPrint(printMode) {
     calendarRenderForPrint = printCalendar;
     try {
         if (printCalendar && appData.termStart) {
-            renderCalendar();
+            // Print capture must render synchronously while calendarRenderForPrint is true.
+            // renderCalendar() debounces 75ms and would run after the flag is cleared.
+            if (renderCalendarTimer) {
+                clearTimeout(renderCalendarTimer);
+                renderCalendarTimer = null;
+            }
+            renderCalendarNow();
         } else {
             updatePrintSummary();
         }
@@ -25784,7 +26636,8 @@ function saveClassNotesFiltersToUi() {
         subjects: filters.subjectSet ? Array.from(filters.subjectSet) : null,
         grades: filters.gradeSet ? Array.from(filters.gradeSet) : null,
         textQuery: filters.textQuery || '',
-        meetingDaysOnly: filters.meetingDaysOnly === true
+        meetingDaysOnly: filters.meetingDaysOnly === true,
+        myClassesOnly: getClassNotesMyClassesOnlyFromDom()
     };
     saveUiStateToLocalStorage();
 }
@@ -25812,6 +26665,7 @@ function applyClassNotesFiltersFromUi() {
         if (meetingEl) {
             meetingEl.checked = saved.meetingDaysOnly === true;
         }
+        syncClassNotesMyClassesOnlyCheckbox(saved.myClassesOnly === true);
     }
     refreshClassNotesPanelIfMounted();
     if (!saved || typeof saved !== 'object') {

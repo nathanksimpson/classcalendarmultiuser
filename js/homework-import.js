@@ -15,10 +15,19 @@
     const UNIT_PART_ALT = /Unit\s*(\d+)\s+pt\s*(\d+)/i;
 
     function normalizePasteText(text) {
-        return String(text ?? '')
+        let n = String(text ?? '')
             .replace(/\r\n/g, '\n')
             .replace(/\r/g, '\n')
             .trim();
+        if (global.CCPUtils && global.CCPUtils.normalizeClipboardText) {
+            n = global.CCPUtils.normalizeClipboardText(n);
+        } else {
+            n = n
+                .replace(/\u2014/g, '-')
+                .replace(/\u2013/g, '-')
+                .replace(/\u2212/g, '-');
+        }
+        return n;
     }
 
     function splitBlocks(text, delimiterRe) {

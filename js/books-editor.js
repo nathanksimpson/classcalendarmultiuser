@@ -1789,6 +1789,14 @@
             }
             text = entered;
         }
+        if (global.CCPUtils && global.CCPUtils.normalizeClipboardText) {
+            text = global.CCPUtils.normalizeClipboardText(text);
+        } else {
+            text = String(text ?? '')
+                .replace(/\u2014/g, '-')
+                .replace(/\u2013/g, '-')
+                .replace(/\u2212/g, '-');
+        }
         fillColumnInTbody(tbody, selector, text);
     }
 

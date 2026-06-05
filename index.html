@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner — Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-top-bar-full-bleed-v2">
+    <link rel="stylesheet" href="styles.css?v=20260606-print-tile-flex">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -330,17 +330,21 @@
                                 <input type="checkbox" id="classNotesMeetingDaysOnly">
                                 <span data-i18n="classNotesMeetingDaysOnly">Only on class meeting days</span>
                             </label>
+                            <label class="checkbox-label class-notes-my-classes-label">
+                                <input type="checkbox" id="classNotesMyClassesOnly">
+                                <span data-i18n="notesMyClassesOnly">My classes only</span>
+                            </label>
                             <div class="class-notes-filter-actions">
-                                <button type="button" id="classNotesJustMineBtn" class="btn btn-outline btn-small" data-i18n="lessonFilterJustMine">Just my classes</button>
                                 <button type="button" id="classNotesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesTodayClasses">Today's classes</button>
+                                <button type="button" id="classNotesMyClassesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesMyClassesToday">My classes · Today</button>
                                 <button type="button" id="classNotesFilterSelectAllBtn" class="btn btn-outline btn-small" data-i18n="filterSelectAll">Select all</button>
                                 <button type="button" id="classNotesFilterClearClassesBtn" class="btn btn-outline btn-small" data-i18n="filterClearAll">Clear all</button>
                                 <button type="button" id="classNotesResetFiltersBtn" class="btn btn-outline btn-small" data-i18n="classNotesResetFilters">Reset filters</button>
                             </div>
                             <select id="classNotesFilterMobileSelect" class="class-notes-filter-select-mobile" aria-label="Quick filter">
                                 <option value="" data-i18n="classNotesFilterMobileNone">Filter actions…</option>
-                                <option value="justMine" data-i18n="lessonFilterJustMine">Just my classes</option>
                                 <option value="today" data-i18n="classNotesTodayClasses">Today's classes</option>
+                                <option value="myClassesToday" data-i18n="classNotesMyClassesToday">My classes · Today</option>
                                 <option value="selectAll" data-i18n="filterSelectAll">Select all</option>
                                 <option value="clearAll" data-i18n="filterClearAll">Clear all</option>
                                 <option value="reset" data-i18n="classNotesResetFilters">Reset filters</option>
@@ -538,6 +542,24 @@
                     <aside class="module-list-panel homework-sidebar-panel" aria-label="Class list">
                         <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application" data-i18n-aria-label="homeworkTabMiniCalendarLabel" aria-label="Pick reference date"></div>
                         <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Update homework copy paste</button>
+                        <div class="homework-filter-panel">
+                            <label class="checkbox-label homework-filter-my-classes">
+                                <input type="checkbox" id="homeworkMyClassesOnly">
+                                <span data-i18n="homeworkMyClassesOnly">My classes only</span>
+                            </label>
+                            <label class="checkbox-label homework-filter-today-only">
+                                <input type="checkbox" id="homeworkTodayOnly">
+                                <span data-i18n="homeworkTodayOnly">Today's classes only</span>
+                            </label>
+                            <div class="homework-filter-actions">
+                                <button type="button" id="homeworkTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTodayClasses">Today's classes</button>
+                                <button type="button" id="homeworkMyClassesTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkMyClassesToday">My classes · Today</button>
+                            </div>
+                            <section id="homeworkFilterSubjectsWrap" class="homework-filter-section lesson-filter-section" hidden>
+                                <h3 class="homework-filter-subtitle lesson-filter-section-title" data-i18n="homeworkFilterSubject">Subject</h3>
+                                <div id="homeworkFilterSubjects" class="homework-filter-chips lesson-filter-chip-grid"></div>
+                            </section>
+                        </div>
                         <input type="search" id="homeworkClassListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
                         <div id="homeworkClassList" class="module-list" role="listbox" aria-label="Classes for homework"></div>
                     </aside>
@@ -1146,7 +1168,7 @@
     </div>
 
     <script defer src="js/schedule-core.js"></script>
-    <script defer src="js/utils.js?v=20260527-modal-ux"></script>
+    <script defer src="js/utils.js?v=20260606-clipboard-dash"></script>
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
@@ -1180,7 +1202,7 @@
         <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
         <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
     </div>
-    <script defer src="app.js?v=20260604-header-fixed-popovers"></script>
+    <script defer src="app.js?v=20260606-print-tile-flex"></script>
 </body>
 </html>
 

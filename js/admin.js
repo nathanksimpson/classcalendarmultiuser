@@ -627,6 +627,27 @@ function closeAllActionMenus(except) {
     });
 }
 
+let adminActionMenuRepositionRaf = 0;
+
+function repositionOpenActionMenus() {
+    document.querySelectorAll('.admin-actions-menu[open]').forEach((menu) => {
+        positionActionMenu(menu);
+    });
+}
+
+function scheduleRepositionOpenActionMenus() {
+    if (!document.querySelector('.admin-actions-menu[open]')) {
+        return;
+    }
+    if (adminActionMenuRepositionRaf) {
+        return;
+    }
+    adminActionMenuRepositionRaf = requestAnimationFrame(() => {
+        adminActionMenuRepositionRaf = 0;
+        repositionOpenActionMenus();
+    });
+}
+
 function positionActionMenu(menu) {
     if (!menu || !menu.open) {
         return;
@@ -646,15 +667,14 @@ function positionActionMenu(menu) {
     const margin = 8;
     const gap = 6;
     const summaryRect = summary.getBoundingClientRect();
+    if (summaryRect.width === 0 && summaryRect.height === 0) {
+        dropdown.style.visibility = prevVisibility;
+        dropdown.style.display = prevDisplay;
+        return;
+    }
     const ddWidth = Math.min(dropdown.offsetWidth || 220, window.innerWidth - margin * 2);
-    const ddHeight = dropdown.offsetHeight || 200;
-
-    const spaceBelow = window.innerHeight - summaryRect.bottom - margin;
-    const spaceAbove = summaryRect.top - margin;
-    const openUp = spaceBelow < ddHeight && spaceAbove > spaceBelow;
-
-    let top = openUp ? summaryRect.top - ddHeight - gap : summaryRect.bottom + gap;
-    top = Math.max(margin, Math.min(top, window.innerHeight - ddHeight - margin));
+    const top = summaryRect.bottom + gap;
+    const maxHeight = Math.max(140, window.innerHeight - top - margin);
 
     let left = summaryRect.right - ddWidth;
     left = Math.max(margin, Math.min(left, window.innerWidth - ddWidth - margin));
@@ -662,7 +682,7 @@ function positionActionMenu(menu) {
     dropdown.style.left = left + 'px';
     dropdown.style.top = top + 'px';
     dropdown.style.minWidth = Math.max(176, Math.min(ddWidth, 320)) + 'px';
-    dropdown.style.maxHeight = Math.max(140, window.innerHeight - margin * 2) + 'px';
+    dropdown.style.maxHeight = maxHeight + 'px';
     dropdown.style.overflowY = 'auto';
 
     dropdown.style.visibility = prevVisibility;
@@ -691,8 +711,26 @@ function setupActionMenuCloseOnOutside() {
         }
     }, true);
 
-    window.addEventListener('scroll', () => closeAllActionMenus(), true);
-    window.addEventListener('resize', () => closeAllActionMenus());
+    document.addEventListener('scroll', (e) => {
+        if (e.target && e.target.closest && e.target.closest('.admin-actions-dropdown')) {
+            return;
+        }
+        const target = e.target;
+        const scrollsPage =
+            target === document ||
+            target === document.documentElement ||
+            target === document.body;
+        const scrollsAdminTable =
+            target &&
+            target.closest &&
+            (target.closest('.admin-table-wrap') || target.closest('.admin-access-grid'));
+        if (!scrollsPage && !scrollsAdminTable) {
+            return;
+        }
+        scheduleRepositionOpenActionMenus();
+    }, true);
+    window.addEventListener('scroll', scheduleRepositionOpenActionMenus, { passive: true });
+    window.addEventListener('resize', scheduleRepositionOpenActionMenus);
 }
 
 function createActionsMenu(items) {

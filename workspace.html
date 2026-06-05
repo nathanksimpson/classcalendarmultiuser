@@ -78,6 +78,24 @@
                 <aside class="module-list-panel homework-sidebar-panel">
                     <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application"></div>
                     <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Refresh syllabi from calendar</button>
+                    <div class="homework-filter-panel">
+                        <label class="checkbox-label homework-filter-my-classes">
+                            <input type="checkbox" id="homeworkMyClassesOnly">
+                            <span data-i18n="homeworkMyClassesOnly">My classes only</span>
+                        </label>
+                        <label class="checkbox-label homework-filter-today-only">
+                            <input type="checkbox" id="homeworkTodayOnly">
+                            <span data-i18n="homeworkTodayOnly">Today's classes only</span>
+                        </label>
+                        <div class="homework-filter-actions">
+                            <button type="button" id="homeworkTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTodayClasses">Today's classes</button>
+                            <button type="button" id="homeworkMyClassesTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkMyClassesToday">My classes · Today</button>
+                        </div>
+                        <section id="homeworkFilterSubjectsWrap" class="homework-filter-section lesson-filter-section" hidden>
+                            <h3 class="homework-filter-subtitle lesson-filter-section-title" data-i18n="homeworkFilterSubject">Subject</h3>
+                            <div id="homeworkFilterSubjects" class="homework-filter-chips lesson-filter-chip-grid"></div>
+                        </section>
+                    </div>
                     <input type="search" id="homeworkClassListSearch" class="module-list-search" autocomplete="off" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…">
                     <div id="homeworkClassList" class="module-list" role="listbox"></div>
                 </aside>
@@ -152,7 +170,7 @@
     <div id="appStatus" class="app-status" role="status" aria-live="polite"></div>
 
     <script defer src="js/schedule-core.js"></script>
-    <script defer src="js/utils.js?v=20260527-modal-ux"></script>
+    <script defer src="js/utils.js?v=20260606-clipboard-dash"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260605-boot-nav"></script>
@@ -163,7 +181,7 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/snake-game.js?v=20260531-star"></script>
     <script defer src="js/dino-game.js?v=20260603-cleanup-review"></script>
-    <script defer src="app.js?v=20260604-compression-disabled"></script>
+    <script defer src="app.js?v=20260606-clipboard-dash"></script>
     <script defer src="js/workspace.js?v=20260604-connecting-fix"></script>
 </body>
 </html>

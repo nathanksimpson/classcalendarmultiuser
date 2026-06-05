@@ -37,5 +37,20 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    global.CCPUtils = { escapeHtml, escapeAttr, escapeRegExp, parseISODateLocal, formatDateISO };
+    /** Em/en dash and minus sign → ASCII hyphen for external paste targets (e.g. Simson). */
+    function normalizeClipboardText(text) {
+        return String(text ?? '')
+            .replace(/\u2014/g, '-')
+            .replace(/\u2013/g, '-')
+            .replace(/\u2212/g, '-');
+    }
+
+    global.CCPUtils = {
+        escapeHtml,
+        escapeAttr,
+        escapeRegExp,
+        parseISODateLocal,
+        formatDateISO,
+        normalizeClipboardText
+    };
 })(typeof window !== 'undefined' ? window : globalThis);

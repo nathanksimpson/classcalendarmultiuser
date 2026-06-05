@@ -1039,6 +1039,19 @@
             todayBtn.dataset.bound = '1';
             todayBtn.addEventListener('click', () => setNotesDate(todayIso()));
         }
+        const myClassesTodayBtn = document.getElementById('notesMyClassesTodayBtn');
+        if (myClassesTodayBtn && myClassesTodayBtn.dataset.bound !== '1') {
+            myClassesTodayBtn.dataset.bound = '1';
+            myClassesTodayBtn.addEventListener('click', () => {
+                notesMyClassesOnly = true;
+                const myOnlyEl = document.getElementById('notesMyClassesOnly');
+                if (myOnlyEl) {
+                    myOnlyEl.checked = true;
+                }
+                setNotesDate(todayIso());
+                saveNotesSessionState();
+            });
+        }
         const prevBtn = document.getElementById('notesPrevDayBtn');
         if (prevBtn && prevBtn.dataset.bound !== '1') {
             prevBtn.dataset.bound = '1';

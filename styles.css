@@ -2013,13 +2013,13 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .holiday-name {
-    font-size: min(var(--cal-tile-font, 0.7rem), 13px);
+    font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 0.7rem) * 1.12)), 13px);
     /* Color set dynamically via JS */
     font-weight: 600;
     padding: 0 6px 4px;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    line-height: 1.15;
+    line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2917,7 +2917,7 @@ html.print-color-mode-light[data-theme="dark"] {
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day .holiday-name,
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day .calendar-event-chips {
-        flex-shrink: 0;
+        min-height: 0;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day .day-events {
@@ -2926,6 +2926,10 @@ html.print-color-mode-light[data-theme="dark"] {
         display: flex;
         flex-direction: column;
         overflow: hidden;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .calendar-day .day-events {
+        justify-content: flex-start;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day .event-bar {
@@ -2943,6 +2947,33 @@ html.print-color-mode-light[data-theme="dark"] {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .event-bar--print-merged {
+        flex: 2 2 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        line-height: 1.05;
+        justify-content: center;
+        min-height: 0;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .event-bar--print-merged .event-title,
+    body.app-print-calendar-doc .app-print-document--calendar .event-bar--print-merged .event-merge {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.05;
+        max-width: 100%;
+    }
+
+    body.app-print-calendar-doc .app-print-document--calendar .event-bar--print-merged .event-merge {
+        font-weight: 700;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-day .calendar-event-chips {
@@ -2970,9 +3001,9 @@ html.print-color-mode-light[data-theme="dark"] {
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .holiday-name {
-        font-size: min(var(--cal-tile-font, 5.5pt), 10pt) !important;
+        font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 5.5pt) * 1.12)), 10pt) !important;
         padding: 0 2px 1px !important;
-        line-height: 1.1;
+        line-height: 1.15;
     }
 
     body.app-print-calendar-doc .app-print-document--calendar .calendar-event-chips {
@@ -3145,8 +3176,35 @@ html.print-color-mode-light[data-theme="dark"] {
         font-size: min(var(--cal-tile-font-sm, 6pt), 8.5pt);
     }
 
+    .event-bar--print-merged {
+        flex: 2 2 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        line-height: 1.05;
+        justify-content: center;
+        min-height: 0;
+    }
+
+    .event-bar--print-merged .event-title,
+    .event-bar--print-merged .event-merge {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.05;
+        max-width: 100%;
+    }
+
+    .event-bar--print-merged .event-merge {
+        font-weight: 700;
+    }
+
     .holiday-name {
-        font-size: min(var(--cal-tile-font, 7pt), 10pt);
+        font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 7pt) * 1.12)), 10pt);
     }
     
     /* Print Summary */
@@ -4395,6 +4453,15 @@ body:not([data-active-tab="calendar"]) .app-header-tool-group--calendar-display 
     box-sizing: border-box;
 }
 
+/* Body-portaled Account/Calendar menus: fixed to viewport (JS uses getBoundingClientRect). */
+.header-fixed-popover.header-dropdown-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: auto;
+    z-index: 650;
+}
+
 details.header-dropdown:not([open]) > .header-dropdown-panel {
     display: none;
 }
@@ -5245,13 +5312,22 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     }
 }
 
-.module-list-panel {
+/* Left sidebars: pin under sticky header; scroll class/list inside the panel */
+.module-list-panel,
+.homework-sidebar-panel.module-list-panel,
+.class-notes-filters-panel.module-list-panel,
+.timetable-sidebar.module-list-panel,
+.curriculum-tab-sidebar.workspace-books-sidebar,
+.syllabus-tab-sidebar.workspace-books-sidebar {
+    position: sticky;
+    top: calc(var(--app-chrome-sticky-top, 72px) + 8px);
+    align-self: start;
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 16px);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     gap: 8px;
-    max-height: min(75vh, 720px);
-    position: sticky;
-    top: 100px;
 }
 
 .module-list-search {
@@ -5566,6 +5642,10 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     border-radius: var(--border-radius);
     background: var(--input-bg);
     color: var(--text-primary);
+}
+
+.class-notes-my-classes-label {
+    margin-top: 4px;
 }
 
 .class-notes-filter-actions {
@@ -7240,8 +7320,43 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     min-height: 0;
 }
 
+.homework-filter-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.homework-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.homework-filter-section {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.homework-filter-subtitle {
+    margin: 0 0 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.homework-filter-chips.lesson-filter-chip-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .homework-sidebar-panel .homework-ref-mini-calendar,
 .homework-sidebar-panel .homework-update-copy-btn,
+.homework-sidebar-panel .homework-filter-panel,
 .homework-sidebar-panel .module-list-search {
     flex-shrink: 0;
 }
@@ -8722,7 +8837,7 @@ body.workspace-page {
     flex: 0 0 var(--split-sidebar-min);
     min-width: var(--split-sidebar-min);
     max-width: var(--split-sidebar-max);
-    overflow: auto;
+    overflow: hidden;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background: var(--surface-elevated);

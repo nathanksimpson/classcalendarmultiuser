@@ -11,8 +11,8 @@
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260603-curriculum-source-fix',
-        'js/homework-import.js',
+        'js/books-editor.js?v=20260606-clipboard-dash',
+        'js/homework-import.js?v=20260606-clipboard-dash',
         'js/homework-tab.js?v=20260531-hw-seq',
         'js/syllabus-templates.js?v=20260603-curriculum-notes'
     ];
