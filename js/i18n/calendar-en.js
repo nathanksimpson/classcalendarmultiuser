@@ -1177,6 +1177,27 @@
         lockDebugHide: 'Hide',
         lockDebugHint: 'Add ?lockDebug=1 to URL or CalendarSync.setLockDebugEnabled(true)',
         lockDebugCopyPrompt: 'Copy lock debug:',
-        lockDebugCopied: 'Lock debug copied to clipboard.'
+        lockDebugCopied: 'Lock debug copied to clipboard.',
+        tabWarningsPopoverTitle: 'Notifications',
+        tabWarningsDismissAll: 'Dismiss all',
+        tabWarningsActiveSection: 'Active',
+        tabWarningsHistorySection: 'Dismissed',
+        tabWarningsNone: 'No notifications',
+        tabWarningsHistoryBadge: 'Dismissed',
+        tabWarningsGo: 'Go',
+        tabWarningsDismiss: 'Dismiss',
+        appNotificationsBtnTitle: 'Notifications',
+        appNotificationsBtnAriaEmpty: 'Notifications',
+        appNotificationsBtnAria: '{count} active notifications',
+        appNotificationsBtnAriaHistory: '{count} dismissed notifications',
+        tabWarnTermNotSet: 'Set a term start month so the calendar can place lessons.',
+        tabWarnTermNotSetAction: 'Go to Events',
+        tabWarnNoMeetingDays: '{name}: no meeting days selected.',
+        tabWarnDebateBookPeriods: '{name}: add debate book periods (or use custom schedule).',
+        tabWarnEmptySyllabus: '{name}: {count} scheduled lesson(s) have empty plan detail.',
+        tabWarnTimetableConflicts: '{teacher}: schedule conflicts on the timetable.',
+        tabWarnRemoteNewer: 'Someone else saved a newer version. Reload to see their changes.',
+        tabWarnPendingSuggestions: '{count} pending suggestion(s) waiting for review.',
+        tabWarnPendingSuggestionsAction: 'Open admin to review suggestions.'
     };
 })(typeof window !== 'undefined' ? window : globalThis);

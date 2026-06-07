@@ -1187,6 +1187,27 @@
         lockDebugHide: '숨기기',
         lockDebugHint: 'URL에 ?lockDebug=1을 추가하거나 CalendarSync.setLockDebugEnabled(true)를 실행하세요',
         lockDebugCopyPrompt: '잠금 디버그 복사:',
-        lockDebugCopied: '잠금 디버그가 클립보드에 복사되었습니다.'
+        lockDebugCopied: '잠금 디버그가 클립보드에 복사되었습니다.',
+        tabWarningsPopoverTitle: '알림',
+        tabWarningsDismissAll: '모두 닫기',
+        tabWarningsActiveSection: '활성',
+        tabWarningsHistorySection: '닫힘',
+        tabWarningsNone: '알림 없음',
+        tabWarningsHistoryBadge: '닫힘',
+        tabWarningsGo: '이동',
+        tabWarningsDismiss: '닫기',
+        appNotificationsBtnTitle: '알림',
+        appNotificationsBtnAriaEmpty: '알림',
+        appNotificationsBtnAria: '활성 알림 {count}개',
+        appNotificationsBtnAriaHistory: '닫힌 알림 {count}개',
+        tabWarnTermNotSet: '학기 시작 월을 설정하면 캘린더에 수업을 배치할 수 있습니다.',
+        tabWarnTermNotSetAction: '일정 탭으로 이동',
+        tabWarnNoMeetingDays: '{name}: 수업 요일이 선택되지 않았습니다.',
+        tabWarnDebateBookPeriods: '{name}: 토론 교재 기간을 추가하거나 사용자 지정 일정을 사용하세요.',
+        tabWarnEmptySyllabus: '{name}: 예정된 수업 {count}개에 계획 내용이 비어 있습니다.',
+        tabWarnTimetableConflicts: '{teacher}: 시간표에 일정 충돌이 있습니다.',
+        tabWarnRemoteNewer: '다른 사람이 더 새 버전을 저장했습니다. 다시 불러오면 변경 사항을 볼 수 있습니다.',
+        tabWarnPendingSuggestions: '검토 대기 중인 제안 {count}개가 있습니다.',
+        tabWarnPendingSuggestionsAction: '제안을 검토하려면 관리 페이지를 여세요.'
     };
 })(typeof window !== 'undefined' ? window : globalThis);
