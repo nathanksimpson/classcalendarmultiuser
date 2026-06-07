@@ -4,9 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Curriculum workspace — Class Calendar</title>
+    <script>
+        (function () {
+            var params = new URLSearchParams(location.search);
+            var tab = params.get('tab');
+            var zone = tab === 'books' ? 'content' : 'schedule';
+            var segment = tab === 'books' ? 'curriculum' : 'homework';
+            var dest = '/?zone=' + zone + '&segment=' + segment + '&contentExpanded=1';
+            if (params.get('book')) {
+                dest += '&book=' + encodeURIComponent(params.get('book'));
+            }
+            if (params.get('classId')) {
+                dest += '&classId=' + encodeURIComponent(params.get('classId'));
+            }
+            location.replace(dest);
+        })();
+    </script>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260604-full-width-top-bar">
+    <link rel="stylesheet" href="styles.css?v=20260608-sidebar-top-row">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,7 +34,7 @@
                 <strong id="viewAsBannerPrimary" class="view-as-banner-primary"></strong>
                 <span id="viewAsBannerSecondary" class="view-as-banner-secondary"></span>
             </div>
-            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit">Exit View As</button>
+            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit" data-view-as-i18n="viewAsExitBtn">Exit View As</button>
         </div>
     </div>
     <header class="workspace-header">
@@ -175,13 +191,16 @@
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260605-boot-nav"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-hw-seq"></script>
-    <script defer src="js/view-as-banner.js?v=20260601-role-palette"></script>
+    <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
+    <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
     <script defer src="js/team-auth.js?v=20260601-role-palette"></script>
-    <script defer src="js/calendar-sync.js?v=20260603-cleanup-review"></script>
+    <script defer src="js/calendar-sync.js?v=20260608-i18n-audit"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
-    <script defer src="js/snake-game.js?v=20260531-star"></script>
-    <script defer src="js/dino-game.js?v=20260603-cleanup-review"></script>
-    <script defer src="app.js?v=20260606-clipboard-dash"></script>
+    <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260608-i18n-extract"></script>
+    <script defer src="js/i18n/calendar-ko.js?v=20260608-i18n-extract"></script>
+    <script defer src="js/i18n/calendar-i18n.js?v=20260608-i18n-extract"></script>
+    <script defer src="app.js?v=20260608-i18n-extract"></script>
     <script defer src="js/workspace.js?v=20260604-connecting-fix"></script>
 </body>
 </html>

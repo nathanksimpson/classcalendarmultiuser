@@ -13,14 +13,14 @@
     const DOW_LABELS = { en: ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], ko: ['', '월', '화', '수', '목', '금'] };
 
     const SUBJECT_TRACK_LABELS = {
-        phonics: 'Phonics',
-        handInHand: 'Hand in Hand',
-        spkWr: 'Speaking & Writing',
-        animation: 'Animation',
-        reading: 'Reading',
-        debate: 'Debate',
-        writeNow: 'Write Now',
-        writeRight: 'Write Right'
+        phonics: { en: 'Phonics', ko: '파닉스' },
+        handInHand: { en: 'Hand in Hand', ko: 'Hand in Hand' },
+        spkWr: { en: 'Speaking & Writing', ko: '말하기 & 쓰기' },
+        animation: { en: 'Animation', ko: '애니메이션' },
+        reading: { en: 'Reading', ko: '리딩' },
+        debate: { en: 'Debate', ko: '토론' },
+        writeNow: { en: 'Write Now', ko: 'Write Now' },
+        writeRight: { en: 'Write Right', ko: 'Write Right' }
     };
 
     function normalizeStr(v) {
@@ -46,6 +46,9 @@
     function escapeHtml(s) {
         if (hooks && hooks.escapeHtml) {
             return hooks.escapeHtml(s);
+        }
+        if (typeof CCPUtils !== 'undefined' && CCPUtils.escapeHtml) {
+            return CCPUtils.escapeHtml(s);
         }
         return String(s || '')
             .replace(/&/g, '&amp;')
@@ -334,7 +337,17 @@
     }
 
     function subjectTrackLabel(track) {
-        return SUBJECT_TRACK_LABELS[track] || track;
+        const entry = SUBJECT_TRACK_LABELS[track];
+        if (!entry) {
+            return track;
+        }
+        const lang = getLang();
+        return entry[lang] || entry.en || track;
+    }
+
+    function formatCohortClassCountMeta(n) {
+        const key = n === 1 ? 'setupBoardCohortClassCountOne' : 'setupBoardCohortClassCount';
+        return t(key).replace('{n}', String(n));
     }
 
     function generateClassesForCohort(cohort, options) {
@@ -433,7 +446,6 @@
             }
             return !normalizeStr(c.cohortId);
         }).length;
-        el.hidden = false;
         let text = t('cohortsSummaryStrip')
             .replace('{cohorts}', String(cohorts.length))
             .replace('{classes}', String(classes.length));
@@ -448,6 +460,11 @@
             }
         }
         el.textContent = text;
+        if (typeof hooks.onSummaryRendered === 'function') {
+            hooks.onSummaryRendered();
+        } else {
+            el.hidden = false;
+        }
     }
 
     function persistSelectedCohortId() {
@@ -1382,7 +1399,7 @@
             btn.setAttribute('aria-selected', String(selected));
             const classCount = api ? api.getCohortClassIds(appData, cohort).length : (cohort.classIds || []).length;
             const pat = formatCohortPatternListMeta(cohort, appData);
-            btn.innerHTML = `<span>${escapeHtml(cohort.name || t('timetableAddCohort'))}<span class="cohort-status-chip cohort-status-chip--${statusClass(status)}">${escapeHtml(statusLabel(status))}</span></span><span class="cohort-list-item-meta">${escapeHtml([cohortLevelDisplay(cohort), cohort.grade, pat, `${classCount} classes`].filter(Boolean).join(' · '))}</span>`;
+            btn.innerHTML = `<span>${escapeHtml(cohort.name || t('timetableAddCohort'))}<span class="cohort-status-chip cohort-status-chip--${statusClass(status)}">${escapeHtml(statusLabel(status))}</span></span><span class="cohort-list-item-meta">${escapeHtml([cohortLevelDisplay(cohort), cohort.grade, pat, formatCohortClassCountMeta(classCount)].filter(Boolean).join(' · '))}</span>`;
             btn.addEventListener('click', () => {
                 selectCohort(cohort.id);
                 if (global.CCPSetupBoard && global.CCPSetupBoard.scrollToCohort) {
@@ -1687,12 +1704,20 @@
         if (global.CCPSetupBoard && global.CCPSetupBoard.renderBoard && global.CCPSetupBoard.isReady()) {
             global.CCPSetupBoard.renderBoard();
         }
+        const scopeHint = document.getElementById('cohortsCalendarExclusivityHint');
+        if (scopeHint) {
+            scopeHint.textContent = t('timetableCohortsScopeHint');
+            scopeHint.hidden = false;
+        }
         const calName = document.getElementById('cohortsTabCalendarName');
         if (calName && hooks.getCalendarName) {
             const name = hooks.getCalendarName();
             if (name) {
                 calName.hidden = false;
-                calName.textContent = t('timetableCohortsScopeHint').split('.')[0] + ': ' + name;
+                calName.textContent = `${t('dataCalendarNameLabel')}: ${name}`;
+            } else {
+                calName.hidden = true;
+                calName.textContent = '';
             }
         }
     }
@@ -1821,7 +1846,7 @@
             <div class="modal-content modal-small">
                 <div class="modal-header">
                     <h2 id="cohortsCombineModalTitle"></h2>
-                    <button type="button" class="modal-close" id="cohortsCombineModalClose" aria-label="Close">&times;</button>
+                    <button type="button" class="modal-close" id="cohortsCombineModalClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
                 </div>
                 <div class="cohorts-combine-body"></div>
                 <div class="form-actions">

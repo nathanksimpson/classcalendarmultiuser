@@ -5,6 +5,31 @@
     const VIEW_AS_STORAGE_KEY = 'cal_view_as_session';
     const VIEW_AS_HEADER = 'X-View-As-Session';
 
+    function tViewAs(key, vars) {
+        if (typeof global.CCPViewAsI18n !== 'undefined' && global.CCPViewAsI18n.tViewAs) {
+            return global.CCPViewAsI18n.tViewAs(key, vars);
+        }
+        const fallbacks = {
+            viewAsBannerPrimary: 'Viewing as: {name}',
+            viewAsBannerSecondary: 'Super Admin: {actor} · Changes are not saved',
+            viewAsExitBtn: 'Exit View As',
+            viewAsEnded: 'View As ended. You can close this tab.',
+            viewAsActivationFailed: 'View As activation failed',
+            viewAsExitFailed: 'Could not exit View As',
+            viewAsLinkExpired: 'View As link expired. Close this tab and try again from Admin.',
+            viewAsDocTitle: 'View as: {name}',
+            viewAsUserFallback: 'User',
+            viewAsSuperAdminFallback: 'Super Admin'
+        };
+        let str = fallbacks[key] || key;
+        if (vars) {
+            Object.keys(vars).forEach((k) => {
+                str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), String(vars[k]));
+            });
+        }
+        return str;
+    }
+
     function getViewAsToken() {
         try {
             return sessionStorage.getItem(VIEW_AS_STORAGE_KEY) || '';
@@ -60,7 +85,8 @@
             json = null;
         }
         if (!res.ok || !json || !json.viewAsSessionToken) {
-            throw new Error((json && json.error) || 'View As activation failed');
+            const serverErr = json && json.error;
+            throw new Error(serverErr || tViewAs('viewAsActivationFailed'));
         }
         storeViewAsToken(json.viewAsSessionToken);
         params.delete('viewAsExchange');
@@ -72,12 +98,12 @@
 
     function viewAsTargetLabel(user) {
         if (!user) {
-            return 'User';
+            return tViewAs('viewAsUserFallback');
         }
         if (user.viewAs && user.viewAs.targetDisplayName) {
             return user.viewAs.targetDisplayName;
         }
-        return user.displayName || user.email || 'User';
+        return user.displayName || user.email || tViewAs('viewAsUserFallback');
     }
 
     function syncRolePalette(user) {
@@ -86,10 +112,13 @@
         }
     }
 
+    let lastBannerUser = null;
+
     function renderViewAsBanner(user) {
         if (typeof document === 'undefined') {
             return;
         }
+        lastBannerUser = user;
         const banner = document.getElementById('viewAsBanner');
         if (!banner) {
             syncRolePalette(user);
@@ -108,29 +137,35 @@
         }
         const targetName = viewAsTargetLabel(user);
         const actorName =
-            (user.viewAs && user.viewAs.actorDisplayName) || 'Super Admin';
+            (user.viewAs && user.viewAs.actorDisplayName) || tViewAs('viewAsSuperAdminFallback');
         const primary = document.getElementById('viewAsBannerPrimary');
         const secondary = document.getElementById('viewAsBannerSecondary');
         const exitBtn = document.getElementById('viewAsBannerExitBtn');
         if (primary) {
-            primary.textContent = 'Viewing as: ' + targetName;
+            primary.textContent = tViewAs('viewAsBannerPrimary', { name: targetName });
         }
         if (secondary) {
-            secondary.textContent =
-                'Super Admin: ' + actorName + ' · Changes are not saved';
+            secondary.textContent = tViewAs('viewAsBannerSecondary', { actor: actorName });
         }
-        if (exitBtn && !exitBtn.dataset.viewAsBound) {
-            exitBtn.dataset.viewAsBound = '1';
-            exitBtn.addEventListener('click', () => {
-                ViewAsBanner.exitViewAs().catch((err) => {
-                    alert(err && err.message ? err.message : 'Could not exit View As');
+        if (exitBtn) {
+            exitBtn.textContent = tViewAs('viewAsExitBtn');
+            if (!exitBtn.dataset.viewAsBound) {
+                exitBtn.dataset.viewAsBound = '1';
+                exitBtn.addEventListener('click', () => {
+                    ViewAsBanner.exitViewAs().catch((err) => {
+                        const msg =
+                            err && err.message
+                                ? err.message
+                                : tViewAs('viewAsExitFailed');
+                        alert(msg);
+                    });
                 });
-            });
+            }
         }
         banner.hidden = false;
         document.documentElement.classList.add('view-as-active');
         const baseTitle = document.title.replace(/^View as: [^—]+ — /, '');
-        document.title = 'View as: ' + targetName + ' — ' + baseTitle;
+        document.title = tViewAs('viewAsDocTitle', { name: targetName }) + ' — ' + baseTitle;
         syncRolePalette(user);
     }
 
@@ -164,8 +199,24 @@
         }
         setTimeout(() => {
             document.body.innerHTML =
-                '<p style="font-family:sans-serif;padding:2rem;">View As ended. You can close this tab.</p>';
+                '<p style="font-family:sans-serif;padding:2rem;">' +
+                tViewAs('viewAsEnded') +
+                '</p>';
         }, 300);
+    }
+
+    function onLanguageChanged() {
+        if (typeof global.CCPViewAsI18n !== 'undefined' && global.CCPViewAsI18n.applyViewAsBannerLanguage) {
+            global.CCPViewAsI18n.applyViewAsBannerLanguage();
+        }
+        if (lastBannerUser) {
+            renderViewAsBanner(lastBannerUser);
+        }
+    }
+
+    if (typeof document !== 'undefined') {
+        document.addEventListener('calendarLanguageChanged', onLanguageChanged);
+        document.addEventListener('adminLanguageChanged', onLanguageChanged);
     }
 
     const ViewAsBanner = {

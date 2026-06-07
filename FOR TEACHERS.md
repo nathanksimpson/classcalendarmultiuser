@@ -20,9 +20,9 @@ If you sign in but have **no team calendars yet**, you will see a **waiting** pa
 
 ## Team calendars
 
-1. Pick a calendar from **Team calendar** in the header (admins can click **+ New** to create calendars).
+1. Pick a calendar from the **Calendar** menu in the header (admins can click **+ New** to create calendars).
 2. Edit the schedule as usual — changes **save automatically** to the cloud.
-3. Rename with **Calendar name (saved)** on the Calendar tab.
+3. Rename with **Calendar name (saved)** on **Schedule → Calendar**.
 4. **Export** downloads a backup file to your computer; **Backup** runs a server backup (admins manage the site).
 
 If you see **Someone else saved a newer version**, click **Reload latest**.
@@ -58,10 +58,10 @@ Just use the bookmark.
 
 When two student cohorts meet together for the same subject (합반), use **one class** in the calendar — not two separate classes at the same time.
 
-1. Open **Setup → Cohorts** (head teacher / admin).
+1. Open **Classes → Cohorts** (head teacher / admin).
 2. Select the first cohort, then use **Combine cohorts** (or in **Class assignment**, check the **same** class for each cohort and click **Apply class links**).
 3. Remove or delete the extra class that was generated for the second cohort (otherwise the **Timetable** tab may show a red “conflict” even though students are combined).
-4. On **Setup → Timetable**, you should see one lesson block with both cohort names.
+4. On **Schedule → Timetable**, you should see one lesson block with both cohort names.
 
 Homeroom (담임) stays on each cohort; the shared class only needs teachers listed under **Classes**.
 

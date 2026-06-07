@@ -1,12 +1,17 @@
 <div id="syllabusEditorForm" class="syllabus-editor-form" data-homework-import-mode="" data-lesson-label-mode="">
                 <section id="syllabusScheduleAdjustmentSection" class="syllabus-editor-block syllabus-schedule-adjustment-block" hidden>
-                    <h3 class="syllabus-block-title" data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</h3>
-                    <p class="section-hint" data-i18n="syllabusScheduleSetupHint">Set skips and lesson merges here before the term. Homework and the lesson table use these after Refresh from calendar.</p>
-                    <p id="syllabusScheduleUnsavedHint" class="section-hint syllabus-schedule-unsaved-hint" hidden data-i18n="syllabusScheduleUnsavedHint">Save the class in Classes first for meeting days and term dates, or use Class schedule &amp; settings above.</p>
-                    <div id="syllabusScheduleGapWarning" class="schedule-gap-warning" hidden role="alert"></div>
-                    <div id="syllabusScheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
-                    <details class="syllabus-schedule-adjustment-details" open>
-                        <summary class="syllabus-schedule-adjustment-summary-label" data-i18n="syllabusScheduleAdjustments">Schedule adjustments</summary>
+                    <details class="syllabus-schedule-adjustment-details form-section-advanced schedule-adjustment-details">
+                        <summary class="schedule-adjustment-summary-header">
+                            <span class="term-settings-caret schedule-adjustment-caret" aria-hidden="true">
+                                <span class="term-settings-caret-icon" aria-hidden="true"></span>
+                            </span>
+                            <span class="schedule-adjustment-summary-title" data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</span>
+                            <span id="syllabusScheduleAdjustmentBarNotification" class="schedule-adjustment-bar-notification" hidden role="status"></span>
+                        </summary>
+                        <p class="section-hint" data-i18n="syllabusScheduleSetupHint">Set skips and lesson merges here before the term. Homework and the lesson table use these after Refresh from calendar.</p>
+                        <p id="syllabusScheduleUnsavedHint" class="section-hint syllabus-schedule-unsaved-hint" hidden data-i18n="syllabusScheduleUnsavedHint">Save the class in Classes first for meeting days and term dates, or use Class schedule &amp; settings above.</p>
+                        <div id="syllabusScheduleGapWarning" class="schedule-gap-warning" hidden role="alert"></div>
+                        <div id="syllabusScheduleAdjustmentSummary" class="schedule-adjustment-summary" hidden></div>
                         <div class="form-group compression-mode-group">
                             <div class="radio-group">
                                 <label class="checkbox-label">
@@ -46,6 +51,12 @@
                     </details>
                 </section>
 
+                <section class="syllabus-editor-block syllabus-general-notes-block">
+                    <h3 class="syllabus-block-title" data-i18n="syllabusGeneralNotes">General notes &amp; instructions</h3>
+                    <p class="section-hint" data-i18n="syllabusGeneralNotesHint">For parents, substitutes, or your own reminders. Overrides curriculum general notes when set. Printed in the Note column on the 진도표 overview.</p>
+                    <textarea id="syllabusGeneralNotes" class="syllabus-general-notes-input" rows="5" spellcheck="true" data-i18n-placeholder="syllabusGeneralNotesPlaceholder" placeholder="e.g., Bring workbook every class. Quiz on Unit 3 at session 8…"></textarea>
+                </section>
+
                 <section class="syllabus-editor-block syllabus-table-section">
                     <h3 class="syllabus-block-title" data-i18n="syllabusTable">Lesson schedule table</h3>
                     <p class="section-hint" data-i18n="syllabusTableHint">Build a printable table (Month, Week, Class #, lesson plan, pages/work). Refresh after you change the calendar schedule.</p>
@@ -74,22 +85,6 @@
                         </table>
                         <p id="syllabusTableEmptyHint" class="section-hint" data-i18n="syllabusTableEmptyHint">No rows yet. Click Refresh from calendar to generate rows from your lesson schedule.</p>
                     </div>
-                    <details class="homework-import-panel syllabus-editor-block syllabus-import-block">
-                        <summary data-i18n="homeworkImportTitle">Import homework from paste</summary>
-                        <p class="section-hint" data-i18n="homeworkImportHint">Paste debate Day blocks or Unit Part blocks. Run Refresh from calendar first so session numbers match.</p>
-                        <textarea id="homeworkImportPaste" class="homework-import-paste" rows="8" data-i18n-placeholder="homeworkImportPlaceholder" placeholder="Paste homework text here…"></textarea>
-                        <div class="homework-import-actions">
-                            <button type="button" id="homeworkImportPreviewBtn" class="btn btn-outline btn-small" data-i18n="homeworkImportPreview">Preview match</button>
-                            <button type="button" id="homeworkImportApplyBtn" class="btn btn-outline btn-small" data-i18n="homeworkImportApply">Apply to table</button>
-                        </div>
-                        <pre id="homeworkImportPreview" class="homework-import-preview" aria-live="polite"></pre>
-                    </details>
-                </section>
-
-                <section class="syllabus-editor-block syllabus-general-notes-block">
-                    <h3 class="syllabus-block-title" data-i18n="syllabusGeneralNotes">General notes &amp; instructions</h3>
-                    <p class="section-hint" data-i18n="syllabusGeneralNotesHint">For parents, substitutes, or your own reminders. Overrides curriculum general notes when set. Printed in the Note column on the 진도표 overview.</p>
-                    <textarea id="syllabusGeneralNotes" class="syllabus-general-notes-input" rows="5" spellcheck="true" data-i18n-placeholder="syllabusGeneralNotesPlaceholder" placeholder="e.g., Bring workbook every class. Quiz on Unit 3 at session 8…"></textarea>
                 </section>
 
                 <section class="syllabus-editor-block syllabus-units-block">

@@ -19,6 +19,9 @@
     }
 
     function escapeHtml(s) {
+        if (typeof CCPUtils !== 'undefined' && CCPUtils.escapeHtml) {
+            return CCPUtils.escapeHtml(s);
+        }
         return hooks && hooks.escapeHtml
             ? hooks.escapeHtml(s)
             : String(s || '')

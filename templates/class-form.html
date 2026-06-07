@@ -13,12 +13,11 @@
                                 <button type="button" id="deleteClassBtn" class="header-dropdown-item header-dropdown-item--danger class-modal-delete-btn" data-i18n="deleteClass">Delete class</button>
                             </div>
                         </details>
-                        <button type="button" class="modal-close" id="closeClassModal" aria-label="Close">&times;</button>
+                        <button type="button" class="modal-close" id="closeClassModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
                     </div>
                 </div>
 
                 <div class="class-modal-body">
-                <div id="classScheduleGapWarning" class="schedule-gap-warning form-group--full-only" hidden role="alert"></div>
 
                 <section class="form-section class-form-section class-form-section-basics" aria-labelledby="classFormSectionBasicsTitle">
                     <h3 id="classFormSectionBasicsTitle" class="form-section-title form-group--full-only" data-i18n="classFormSectionBasics">Basics</h3>
@@ -218,8 +217,15 @@
                         </div>
                     </details>
 
-                    <details class="form-section-advanced" id="classCompressionDetails">
-                        <summary data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</summary>
+                    <details class="form-section-advanced schedule-adjustment-details" id="classCompressionDetails">
+                        <summary class="schedule-adjustment-summary-header">
+                            <span class="term-settings-caret schedule-adjustment-caret" aria-hidden="true">
+                                <span class="term-settings-caret-icon" aria-hidden="true"></span>
+                            </span>
+                            <span class="schedule-adjustment-summary-title" data-i18n="scheduleAdjustmentSectionTitle">Schedule adjustment</span>
+                            <span id="scheduleAdjustmentBarNotification" class="schedule-adjustment-bar-notification" hidden role="status"></span>
+                        </summary>
+                        <div id="classScheduleGapWarning" class="schedule-gap-warning" hidden role="alert"></div>
                         <div class="form-group compression-mode-group">
                             <div class="radio-group">
                                 <label class="checkbox-label">

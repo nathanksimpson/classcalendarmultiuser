@@ -19,6 +19,15 @@ const DEFAULT_SESSION_MAX_DAYS = 14;
 const MIN_SESSION_MAX_DAYS = 1;
 const MAX_SESSION_MAX_DAYS = 14;
 
+const SETTING_NAV_NOTIFICATION_ACTIVE_DAYS = 'nav_notification_active_days';
+const SETTING_NAV_NOTIFICATION_DISMISSED_DAYS = 'nav_notification_dismissed_days';
+const DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS = 14;
+const MIN_NAV_NOTIFICATION_ACTIVE_DAYS = 1;
+const MAX_NAV_NOTIFICATION_ACTIVE_DAYS = 90;
+const DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS = 3;
+const MIN_NAV_NOTIFICATION_DISMISSED_DAYS = 1;
+const MAX_NAV_NOTIFICATION_DISMISSED_DAYS = 30;
+
 function clampLockStaleMinutes(n) {
     const v = Math.floor(Number(n));
     if (!Number.isFinite(v)) {
@@ -99,13 +108,43 @@ function getSessionMaxAgeSec() {
     return getSessionMaxDays() * 86400;
 }
 
+function clampNavNotificationActiveDays(n) {
+    const v = Math.floor(Number(n));
+    if (!Number.isFinite(v)) {
+        return DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS;
+    }
+    return Math.min(MAX_NAV_NOTIFICATION_ACTIVE_DAYS, Math.max(MIN_NAV_NOTIFICATION_ACTIVE_DAYS, v));
+}
+
+function clampNavNotificationDismissedDays(n) {
+    const v = Math.floor(Number(n));
+    if (!Number.isFinite(v)) {
+        return DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS;
+    }
+    return Math.min(MAX_NAV_NOTIFICATION_DISMISSED_DAYS, Math.max(MIN_NAV_NOTIFICATION_DISMISSED_DAYS, v));
+}
+
+function getNavNotificationActiveDays() {
+    return clampNavNotificationActiveDays(
+        getSetting(SETTING_NAV_NOTIFICATION_ACTIVE_DAYS) || DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS
+    );
+}
+
+function getNavNotificationDismissedDays() {
+    return clampNavNotificationDismissedDays(
+        getSetting(SETTING_NAV_NOTIFICATION_DISMISSED_DAYS) || DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS
+    );
+}
+
 function getAdminSettings() {
     const pair = normalizeIdlePair(getIdleLogoutMinutes(), getSetting(SETTING_IDLE_WARNING_MINUTES) || DEFAULT_IDLE_WARNING_MINUTES);
     return {
         lockStaleMinutes: getLockStaleMinutes(),
         idleLogoutMinutes: pair.idleLogoutMinutes,
         idleWarningMinutes: pair.idleWarningMinutes,
-        sessionMaxDays: getSessionMaxDays()
+        sessionMaxDays: getSessionMaxDays(),
+        navNotificationActiveDays: getNavNotificationActiveDays(),
+        navNotificationDismissedDays: getNavNotificationDismissedDays()
     };
 }
 
@@ -141,6 +180,18 @@ function patchAdminSettings(body) {
     if (body.sessionMaxDays !== undefined) {
         setSetting(SETTING_SESSION_MAX_DAYS, String(clampSessionMaxDays(body.sessionMaxDays)));
     }
+    if (body.navNotificationActiveDays !== undefined) {
+        setSetting(
+            SETTING_NAV_NOTIFICATION_ACTIVE_DAYS,
+            String(clampNavNotificationActiveDays(body.navNotificationActiveDays))
+        );
+    }
+    if (body.navNotificationDismissedDays !== undefined) {
+        setSetting(
+            SETTING_NAV_NOTIFICATION_DISMISSED_DAYS,
+            String(clampNavNotificationDismissedDays(body.navNotificationDismissedDays))
+        );
+    }
     return getAdminSettings();
 }
 
@@ -151,6 +202,8 @@ module.exports = {
     getIdleWarningMinutes,
     getSessionMaxDays,
     getSessionMaxAgeSec,
+    getNavNotificationActiveDays,
+    getNavNotificationDismissedDays,
     getAdminSettings,
     setLockStaleMinutes,
     patchAdminSettings,
@@ -165,5 +218,11 @@ module.exports = {
     DEFAULT_IDLE_LOGOUT_MINUTES,
     MIN_IDLE_WARNING_MINUTES,
     MAX_IDLE_WARNING_MINUTES,
-    DEFAULT_IDLE_WARNING_MINUTES
+    DEFAULT_IDLE_WARNING_MINUTES,
+    MIN_NAV_NOTIFICATION_ACTIVE_DAYS,
+    MAX_NAV_NOTIFICATION_ACTIVE_DAYS,
+    DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS,
+    MIN_NAV_NOTIFICATION_DISMISSED_DAYS,
+    MAX_NAV_NOTIFICATION_DISMISSED_DAYS,
+    DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS
 };

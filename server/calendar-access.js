@@ -136,20 +136,24 @@ function canAccessCalendar(user, calendarId) {
     return getUserAccessLevel(user, calendarId) != null;
 }
 
-function canEditCalendar(user, calendarId) {
+function resolveCalendarPermissions(user, calendarId) {
     if (!user || !calendarId) {
-        return false;
+        return { accessLevel: null, canEdit: false, canSuggest: false };
     }
-    const level = getUserAccessLevel(user, calendarId);
-    return level === 'editor';
+    const accessLevel = getUserAccessLevel(user, calendarId);
+    return {
+        accessLevel,
+        canEdit: accessLevel === 'editor',
+        canSuggest: accessLevel === 'suggester' || accessLevel === 'editor'
+    };
+}
+
+function canEditCalendar(user, calendarId) {
+    return resolveCalendarPermissions(user, calendarId).canEdit;
 }
 
 function canSuggestChanges(user, calendarId) {
-    if (!user || !calendarId) {
-        return false;
-    }
-    const level = getUserAccessLevel(user, calendarId);
-    return level === 'suggester' || level === 'editor';
+    return resolveCalendarPermissions(user, calendarId).canSuggest;
 }
 
 function listCalendarsForUser(user) {
@@ -408,6 +412,21 @@ function setGroupMembers(groupId, userIds) {
     return users;
 }
 
+function assembleCalendarAccessFromRows(userRows, groupRows) {
+    return {
+        userAccess: userRows.map((r) => ({
+            userId: r.userId,
+            accessLevel: normalizeAccessLevel(r.accessLevel)
+        })),
+        groupAccess: groupRows.map((r) => ({
+            groupId: r.groupId,
+            accessLevel: normalizeAccessLevel(r.accessLevel)
+        })),
+        userIds: userRows.map((r) => r.userId),
+        groupIds: groupRows.map((r) => r.groupId)
+    };
+}
+
 function listAdminCalendarsWithAccess() {
     const db = getDb();
     const cals = db
@@ -415,7 +434,45 @@ function listAdminCalendarsWithAccess() {
             'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars ORDER BY name COLLATE NOCASE'
         )
         .all();
-    return cals.map((cal) => Object.assign({}, cal, getCalendarAccess(cal.id)));
+    if (cals.length === 0) {
+        return [];
+    }
+    const allMembers = db
+        .prepare(
+            `SELECT calendar_id AS calendarId, user_id AS userId, access_level AS accessLevel
+             FROM calendar_members ORDER BY calendar_id, user_id`
+        )
+        .all();
+    const allGroups = db
+        .prepare(
+            `SELECT calendar_id AS calendarId, group_id AS groupId, access_level AS accessLevel
+             FROM calendar_groups ORDER BY calendar_id, group_id`
+        )
+        .all();
+    const membersByCal = new Map();
+    for (const row of allMembers) {
+        if (!membersByCal.has(row.calendarId)) {
+            membersByCal.set(row.calendarId, []);
+        }
+        membersByCal.get(row.calendarId).push(row);
+    }
+    const groupsByCal = new Map();
+    for (const row of allGroups) {
+        if (!groupsByCal.has(row.calendarId)) {
+            groupsByCal.set(row.calendarId, []);
+        }
+        groupsByCal.get(row.calendarId).push(row);
+    }
+    return cals.map((cal) =>
+        Object.assign(
+            {},
+            cal,
+            assembleCalendarAccessFromRows(
+                membersByCal.get(cal.id) || [],
+                groupsByCal.get(cal.id) || []
+            )
+        )
+    );
 }
 
 function listAdminCalendarsForUser(user) {
@@ -472,6 +529,7 @@ module.exports = {
     canDeleteCalendar,
     canListAdminCalendars,
     getUserAccessLevel,
+    resolveCalendarPermissions,
     canAccessCalendar,
     canEditCalendar,
     canSuggestChanges,

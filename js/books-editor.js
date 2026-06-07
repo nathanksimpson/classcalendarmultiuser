@@ -1839,6 +1839,18 @@
         }
     }
 
+    function bookHasSessionCountMismatch(bookId, appData) {
+        const book = getBookById(bookId, appData);
+        if (!book || book.isVirtualDebate) {
+            return false;
+        }
+        const rows = getTemplatesForBookId(bookId, appData);
+        const baselineCount = book.baselineSessionCount != null
+            ? book.baselineSessionCount
+            : getEffectiveSessionBaselineCount(bookId, appData, book.factorySessionCount);
+        return rows.length !== baselineCount;
+    }
+
     function renderEditorTableInto(bookId, tbody, meta, options) {
         if (!tbody || !meta) {
             return;
@@ -1852,7 +1864,7 @@
         const baselineCount = book.baselineSessionCount != null
             ? book.baselineSessionCount
             : getEffectiveSessionBaselineCount(bookId, appData, book.factorySessionCount);
-        const countWarn = !book.isVirtualDebate && rows.length !== baselineCount
+        const countWarn = bookHasSessionCountMismatch(bookId, appData)
             ? `<p class="section-hint books-editor-count-warn">${escapeHtml(
                 hooks.t('booksEditorSessionCountWarn')
                     .replace('{n}', String(rows.length))
@@ -2390,6 +2402,19 @@
                 badge.textContent = hooks.t('booksListEdited');
                 btn.appendChild(badge);
             }
+            if (bookHasSessionCountMismatch(book.id, appData)) {
+                const rows = getTemplatesForBookId(book.id, appData);
+                const baselineCount = book.baselineSessionCount != null
+                    ? book.baselineSessionCount
+                    : getEffectiveSessionBaselineCount(book.id, appData, book.factorySessionCount);
+                const warnBadge = document.createElement('span');
+                warnBadge.className = 'workspace-book-list-warn-badge';
+                warnBadge.textContent = '!';
+                warnBadge.title = hooks.t('booksEditorSessionCountWarn')
+                    .replace('{n}', String(rows.length))
+                    .replace('{factory}', String(baselineCount));
+                btn.appendChild(warnBadge);
+            }
             listEl.appendChild(btn);
         });
     }
@@ -2492,6 +2517,7 @@
         restoreFromTeamDefault,
         getTeamDefaultRecord,
         getEffectiveSessionBaselineCount,
+        bookHasSessionCountMismatch,
         resetBookToFactory,
         countBookOverrides,
         renderPrintBooksList,

@@ -166,13 +166,24 @@ export async function canAccessCalendar(env, user, calendarId) {
     return (await getUserAccessLevel(env, user, calendarId)) != null;
 }
 
+export async function resolveCalendarPermissions(env, user, calendarId) {
+    if (!user || !calendarId) {
+        return { accessLevel: null, canEdit: false, canSuggest: false };
+    }
+    const accessLevel = await getUserAccessLevel(env, user, calendarId);
+    return {
+        accessLevel,
+        canEdit: accessLevel === 'editor',
+        canSuggest: accessLevel === 'suggester' || accessLevel === 'editor'
+    };
+}
+
 export async function canEditCalendar(env, user, calendarId) {
-    return (await getUserAccessLevel(env, user, calendarId)) === 'editor';
+    return (await resolveCalendarPermissions(env, user, calendarId)).canEdit;
 }
 
 export async function canSuggestChanges(env, user, calendarId) {
-    const level = await getUserAccessLevel(env, user, calendarId);
-    return level === 'suggester' || level === 'editor';
+    return (await resolveCalendarPermissions(env, user, calendarId)).canSuggest;
 }
 
 export async function listCalendarsForUser(env, user) {
@@ -423,16 +434,61 @@ export async function setGroupMembers(env, groupId, userIds) {
     return users;
 }
 
+function assembleCalendarAccessFromRows(userRows, groupRows) {
+    return {
+        userAccess: userRows.map((r) => ({
+            userId: r.userId,
+            accessLevel: normalizeAccessLevel(r.accessLevel)
+        })),
+        groupAccess: groupRows.map((r) => ({
+            groupId: r.groupId,
+            accessLevel: normalizeAccessLevel(r.accessLevel)
+        })),
+        userIds: userRows.map((r) => r.userId),
+        groupIds: groupRows.map((r) => r.groupId)
+    };
+}
+
 export async function listAdminCalendarsWithAccess(env) {
     const cals = await env.DB.prepare(
         'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars ORDER BY name COLLATE NOCASE'
     ).all();
-    const out = [];
-    for (const cal of cals.results || []) {
-        const access = await getCalendarAccess(env, cal.id);
-        out.push(Object.assign({}, cal, access));
+    const calRows = cals.results || [];
+    if (calRows.length === 0) {
+        return [];
     }
-    return out;
+    const allMembers = await env.DB.prepare(
+        `SELECT calendar_id AS calendarId, user_id AS userId, access_level AS accessLevel
+         FROM calendar_members ORDER BY calendar_id, user_id`
+    ).all();
+    const allGroups = await env.DB.prepare(
+        `SELECT calendar_id AS calendarId, group_id AS groupId, access_level AS accessLevel
+         FROM calendar_groups ORDER BY calendar_id, group_id`
+    ).all();
+    const membersByCal = new Map();
+    for (const row of allMembers.results || []) {
+        if (!membersByCal.has(row.calendarId)) {
+            membersByCal.set(row.calendarId, []);
+        }
+        membersByCal.get(row.calendarId).push(row);
+    }
+    const groupsByCal = new Map();
+    for (const row of allGroups.results || []) {
+        if (!groupsByCal.has(row.calendarId)) {
+            groupsByCal.set(row.calendarId, []);
+        }
+        groupsByCal.get(row.calendarId).push(row);
+    }
+    return calRows.map((cal) =>
+        Object.assign(
+            {},
+            cal,
+            assembleCalendarAccessFromRows(
+                membersByCal.get(cal.id) || [],
+                groupsByCal.get(cal.id) || []
+            )
+        )
+    );
 }
 
 export async function listAdminCalendarsForUser(env, user) {

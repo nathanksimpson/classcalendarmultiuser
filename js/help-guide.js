@@ -7,7 +7,7 @@
 
     function loadGuideContent() {
         if (!guideContentPromise) {
-            guideContentPromise = fetch('/help/guide-content.json')
+            guideContentPromise = fetch('/help/guide-content.json?v=20260608-zones')
                 .then((res) => {
                     if (!res.ok) {
                         throw new Error('Failed to load help content');

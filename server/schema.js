@@ -141,6 +141,8 @@ function migrateAppSettings(db) {
         );
         INSERT OR IGNORE INTO app_settings (key, value) VALUES ('lock_stale_minutes', '20');
         INSERT OR IGNORE INTO app_settings (key, value) VALUES ('session_max_days', '14');
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('nav_notification_active_days', '14');
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('nav_notification_dismissed_days', '3');
     `);
 }
 

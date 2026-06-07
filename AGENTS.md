@@ -82,7 +82,7 @@ Without `npm start`, the app cannot load or save calendar data.
 | Worker API | `worker/src/index.js`, `worker/src/app-settings.js`, `worker/src/calendar-access.js` |
 | Local server | `server/index.js`, `server/users.js`, `server/calendars.js`, `server/app-settings.js` |
 | Client sync | `js/calendar-sync.js`, `js/team-auth.js` |
-| Client UI | `app.js`, `index.html`, `styles.css` |
+| Client UI | `app.js`, `index.html`, `styles.css` — follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); syllabus print also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
 | Debate book periods | `js/debate-periods.js` — start-date book periods (not calendar month only) |
 | Kakao / waiting | `login.html`, `pending-access.html`, `server/kakao.js`, `server/users.js` (`resolveKakaoLoginUser`) |
 | Admin | `admin.html`, `js/admin.js` |
@@ -122,3 +122,4 @@ Stopping local dev does **not** affect the production Cloudflare worker.
 3. Read lock routes in `worker/src/index.js` and polling in `js/calendar-sync.js`
 4. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
 5. Match worker + server; bump `index.html` cache strings; `npm run deploy` from one PC, then `git push`
+6. **UI updates:** follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); syllabus print layout also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)

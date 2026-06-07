@@ -57,6 +57,8 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 
 ### UI tokens and shared controls
 
+Full guide for agents and UI work: **[UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md)** (on-screen UI). Syllabus A4 print/PDF: **[Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)**.
+
 Typography, spacing, and colors are defined in [`styles.css`](styles.css) `:root` (Simple Design System + 8px grid: `--space-*`, `--text-body-*`, `--text-h*`).
 
 | Use case | Class / token |
@@ -130,9 +132,11 @@ Use this whenever you change auth, routes, locks, calendars, admin, or DB behavi
 - [ ] **Worker** — Mirror the same behavior in `worker/src/index.js` (and `worker/src/*.js` if logic is shared).
 - [ ] **Response shape** — Match status codes, JSON fields, and error messages so `js/calendar-sync.js` and `js/admin.js` work on both hosts.
 - [ ] **Schema** (if tables/columns changed):
-  - [ ] Add migration SQL: `worker/migrations/NNNN_description.sql`
+  - [ ] Add migration SQL: `worker/migrations/NNNN_description.sql` (use the next sequential number — see note below)
   - [ ] Update local schema: `server/schema.js`
   - [ ] Run `npm run db:migrate:remote` before or right after deploy (see below)
+
+**D1 migration numbering:** Files live in `worker/migrations/`. Apply in lexicographic order. Historical duplicate prefixes (`0008_session_login_context.sql` vs `0008_nav_notification_ttl.sql`, etc.) are already applied on production — do not rename. For new migrations use the next free number (e.g. `0015_*.sql`). Local SQLite mirrors the same tables via `migrate*()` functions in `server/schema.js` — keep both in sync.
 - [ ] **Local test** — `npm start`, exercise the changed flow at http://localhost:8080
 - [ ] **No secrets in git** — Kakao keys and `BOOTSTRAP_ADMIN_SECRET` stay in `.env` (local) or `wrangler secret put` (production)
 
@@ -159,7 +163,7 @@ Production: https://classcalendarmultiuser.nathanksimpson.workers.dev (see `PUBL
 **Important:** `git push origin main` alone does **not** update the live site unless **Cloudflare Workers Builds** is connected (it runs `wrangler deploy` on push; `wrangler.toml` `[build]` runs `npm run build` first). For manual deploy, run **`npm run deploy`** (`npm run build` then `wrangler deploy`). Local dev still uses source files from the repo root (`npm start`); production static assets are minified into `dist/` (gitignored).
 
 - [ ] **Local smoke test** — `npm start`; confirm the feature works with `ALLOW_OPEN_ACCESS=1`.
-- [ ] **Tests** (if syllabus/homework touched) — `node tests/<name>.test.mjs`
+- [ ] **Tests** — `npm test` (language-init + `tests/i18n-parity.test.mjs` for en/ko key parity); add `node tests/<name>.test.mjs` if you touched syllabus/homework logic.
 - [ ] **Cache bust** (if `app.js`, `calendar-sync.js`, or `team-auth.js` changed) — bump `?v=` on those script tags in `index.html` (e.g. `?v=20260526-delete-refresh`).
 - [ ] **Push** (optional backup on GitHub) — `git push origin main`
 - [ ] **Deploy** — `npm run deploy` from project folder (requires `npx wrangler login` once).

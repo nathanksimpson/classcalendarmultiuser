@@ -14,6 +14,7 @@ const Auth = require('./auth-permissions');
 const ActivityLog = require('./activity-log');
 const Presence = require('./presence');
 const Suggestions = require('./suggestions');
+const CalendarMeta = require('./calendar-meta');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
 const ViewAs = require('./view-as');
@@ -567,22 +568,6 @@ app.post('/api/admin/bootstrap', rateLimit.rateLimitMiddleware('admin_bootstrap'
     res.status(201).json({ ok: true, userId: user.id });
 });
 
-function enrichAdminUserRow(u) {
-    const summary = CalAccess.getCalendarSummaryForUser(u);
-    const hasCalendarAccess =
-        Boolean(u.active) &&
-        (summary.calendarAccessMode === 'all' || summary.calendarAccessMode === 'some');
-    const stored = Auth.parseStoredPermissions(u);
-    return Object.assign({}, u, {
-        hasCalendarAccess,
-        calendarAccessMode: summary.calendarAccessMode,
-        calendarSummary: summary.calendarSummary,
-        permissions: Auth.getEffectivePermissions(u),
-        customPermissions: stored,
-        role: Auth.normalizeRole(u.role)
-    });
-}
-
 app.post('/api/admin/view-as/activate', (req, res) => {
     const { exchangeToken } = req.body || {};
     const viewAsSessionToken = ViewAs.redeemExchange(exchangeToken);
@@ -656,7 +641,7 @@ app.get(
 );
 
 app.get('/api/admin/users', requireAdminUser, requirePermission(Auth.PERMS.MANAGE_USERS), (_req, res) => {
-    res.json(users.listUsers().map(enrichAdminUserRow));
+    res.json(users.listUsers().map(CalendarMeta.enrichAdminUserRow));
 });
 
 app.get(
@@ -709,7 +694,7 @@ app.post('/api/admin/users', requireAdminUser, rejectViewAsWrites, requirePermis
                 actorName: req.user.displayName || req.user.email || 'Admin'
             });
         }
-        res.status(201).json(enrichAdminUserRow(user));
+        res.status(201).json(CalendarMeta.enrichAdminUserRow(user));
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Create failed' });
     }
@@ -836,7 +821,7 @@ app.patch('/api/admin/users/:id', requireAdminUser, rejectViewAsWrites, requireP
     } else if (passwordSecurityChange) {
         users.deleteAllSessionsForUser(targetId);
     }
-    res.json(enrichAdminUserRow(users.getUserById(targetId)));
+    res.json(CalendarMeta.enrichAdminUserRow(users.getUserById(targetId)));
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Update failed' });
     }
@@ -986,37 +971,6 @@ app.put('/api/admin/calendars/:id/access', requireAdminUser, rejectViewAsWrites,
     res.json(result);
 });
 
-function calendarMetaExtras(user, calendarId, meta) {
-    const lock = users.lockStatusForClient(calendarId, user.id, user);
-    const accessLevel = CalAccess.getUserAccessLevel(user, calendarId);
-    const canEdit = CalAccess.canEditCalendar(user, calendarId);
-    const permissionReadOnly = !canEdit;
-    const lockReadOnly = Boolean(lock.readOnly);
-    return Object.assign({}, meta, {
-        lock: lock.lock,
-        readOnly: permissionReadOnly || lockReadOnly,
-        permissionReadOnly,
-        holdsLock: Boolean(lock.holdsLock),
-        pendingEditRequest: lock.pendingEditRequest,
-        lockStaleMinutes: lock.lockStaleMinutes,
-        lockExpiresAt: lock.lockExpiresAt != null ? lock.lockExpiresAt : null,
-        lockTimedOut: Boolean(lock.lockTimedOut),
-        bypassLock: Boolean(lock.bypassLock),
-        viewers: Presence.listViewersForCalendar(calendarId, user.id),
-        accessLevel,
-        canEdit,
-        canSuggest: CalAccess.canSuggestChanges(user, calendarId),
-        pendingSuggestions: Suggestions.countPendingSuggestions(calendarId),
-        createdByUserId: meta.createdByUserId || null,
-        canManageAccess: CalAccess.canManageCalendarAccess(
-            user,
-            calendarId,
-            meta.createdByUserId
-        ),
-        canDeleteCalendar: CalAccess.canDeleteCalendar(user, calendarId, meta.createdByUserId)
-    });
-}
-
 app.post('/api/backup', requireUser, rejectViewAsWrites, (_req, res) => {
     res.json({ skipped: true, reason: 'Use Synology or export from Print & data tab for backups' });
 });
@@ -1035,7 +989,7 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    res.json(calendarMetaExtras(req.user, req.params.id, meta));
+    res.json(CalendarMeta.calendarMetaExtras(req.user, req.params.id, meta));
 });
 
 app.get('/api/calendars/:id', requireUser, (req, res) => {
@@ -1048,7 +1002,7 @@ app.get('/api/calendars/:id', requireUser, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    res.json(calendarMetaExtras(req.user, req.params.id, doc));
+    res.json(CalendarMeta.calendarMetaExtras(req.user, req.params.id, doc));
 });
 
 app.post('/api/calendars/:id/lock/touch', requireUser, rejectViewAsWrites, (req, res) => {
@@ -1088,7 +1042,7 @@ app.post('/api/calendars/:id/lock', requireUser, rejectViewAsWrites, (req, res) 
     const result = users.acquireLock(req.params.id, req.user, { force });
     const calId = req.params.id;
     const meta = calendars.getCalendarMeta(calId) || { id: calId };
-    const payload = calendarMetaExtras(req.user, calId, meta);
+    const payload = CalendarMeta.calendarMetaExtras(req.user, calId, meta);
     payload.editRequestRecorded = Boolean(result.editRequestRecorded);
     if (result.acquired) {
         payload.acquired = true;
@@ -1113,7 +1067,7 @@ app.post('/api/calendars/:id/lock/grant', requireUser, rejectViewAsWrites, (req,
         }
         users.grantLockToPending(calId, req.user.id);
         const meta = calendars.getCalendarMeta(calId) || { id: calId };
-        res.json(calendarMetaExtras(req.user, calId, meta));
+        res.json(CalendarMeta.calendarMetaExtras(req.user, calId, meta));
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Grant failed' });
     }

@@ -29,7 +29,10 @@
         pendingEditRequest: false,
         lockStaleMinutes: 20,
         lockExpiresAt: null,
-        viewers: []
+        viewers: [],
+        pendingSuggestions: 0,
+        navNotificationActiveDays: 14,
+        navNotificationDismissedDays: 3
     };
 
     let handlers = {
@@ -162,6 +165,10 @@
     }
 
     function redirectToLogin() {
+        if (typeof CCPApi !== 'undefined' && CCPApi.redirectToLogin) {
+            CCPApi.redirectToLogin();
+            return;
+        }
         const ret = encodeURIComponent(location.pathname + location.search);
         location.replace('/login.html?return=' + ret);
     }
@@ -178,10 +185,18 @@
         return typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode();
     }
 
+    function localizeError(message) {
+        if (typeof handlers.translateError === 'function') {
+            return handlers.translateError(message);
+        }
+        return message;
+    }
+
     function viewAsNotice(message) {
-        setStatus('error', message || 'View As: change not saved');
+        const raw = message || 'View As: change not saved';
+        setStatus('error', localizeError(raw));
         if (typeof handlers.onViewAsBlocked === 'function') {
-            handlers.onViewAsBlocked(message);
+            handlers.onViewAsBlocked(raw);
         }
     }
 
@@ -286,6 +301,15 @@
         if (json && json.lockStaleMinutes != null) {
             state.lockStaleMinutes = json.lockStaleMinutes;
         }
+        if (json && json.navNotificationActiveDays != null) {
+            state.navNotificationActiveDays = json.navNotificationActiveDays;
+        }
+        if (json && json.navNotificationDismissedDays != null) {
+            state.navNotificationDismissedDays = json.navNotificationDismissedDays;
+        }
+        if (json && json.pendingSuggestions != null) {
+            state.pendingSuggestions = json.pendingSuggestions;
+        }
         if (json && json.lockExpiresAt !== undefined) {
             state.lockExpiresAt = json.lockExpiresAt;
         }
@@ -302,6 +326,9 @@
             holdsLock: state.holdsLock,
             pendingEditRequest: state.pendingEditRequest,
             lockStaleMinutes: state.lockStaleMinutes,
+            navNotificationActiveDays: state.navNotificationActiveDays,
+            navNotificationDismissedDays: state.navNotificationDismissedDays,
+            pendingSuggestions: state.pendingSuggestions,
             lockExpiresAt: state.lockExpiresAt,
             viewers: state.viewers,
             wasReadOnly,
@@ -334,7 +361,9 @@
 
     function setStatus(status, detail) {
         if (typeof handlers.onStatusChange === 'function') {
-            handlers.onStatusChange(status, detail);
+            const resolved =
+                status === 'error' && detail ? localizeError(detail) : detail;
+            handlers.onStatusChange(status, resolved);
         }
     }
 

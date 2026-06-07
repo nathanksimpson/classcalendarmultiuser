@@ -77,6 +77,10 @@
             idleWarningSuffix: 'minutes before sign-out',
             sessionMaxDaysLabel: 'Stay signed in up to',
             sessionMaxDaysSuffix: 'days (new logins; shared PCs: use shorter idle sign-out above)',
+            navNotifyActiveDaysLabel: 'Active notifications stay visible for',
+            navNotifyActiveDaysSuffix: 'days',
+            navNotifyDismissedDaysLabel: 'Dismissed notifications stay in history for',
+            navNotifyDismissedDaysSuffix: 'days',
             saveSettings: 'Save settings',
             usersHeading: 'Teachers & admins',
             usersHint1:
@@ -313,6 +317,10 @@
             idleWarningSuffix: '분 전 (로그아웃 전)',
             sessionMaxDaysLabel: '로그인 유지',
             sessionMaxDaysSuffix: '일까지 (새 로그인 기준; 공용 PC는 위 유휴 로그아웃을 짧게)',
+            navNotifyActiveDaysLabel: '새 알림 표시 기간',
+            navNotifyActiveDaysSuffix: '일',
+            navNotifyDismissedDaysLabel: '숨긴 알림 기록 유지',
+            navNotifyDismissedDaysSuffix: '일',
             saveSettings: '설정 저장',
             usersHeading: '선생님 및 관리자',
             usersHint1:

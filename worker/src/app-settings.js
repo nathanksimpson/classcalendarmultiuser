@@ -17,10 +17,21 @@ const DEFAULT_SESSION_MAX_DAYS = 14;
 const MIN_SESSION_MAX_DAYS = 1;
 const MAX_SESSION_MAX_DAYS = 14;
 
+const SETTING_NAV_NOTIFICATION_ACTIVE_DAYS = 'nav_notification_active_days';
+const SETTING_NAV_NOTIFICATION_DISMISSED_DAYS = 'nav_notification_dismissed_days';
+const DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS = 14;
+const MIN_NAV_NOTIFICATION_ACTIVE_DAYS = 1;
+const MAX_NAV_NOTIFICATION_ACTIVE_DAYS = 90;
+const DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS = 3;
+const MIN_NAV_NOTIFICATION_DISMISSED_DAYS = 1;
+const MAX_NAV_NOTIFICATION_DISMISSED_DAYS = 30;
+
 let cachedStaleMinutes = null;
 let cachedIdleLogoutMinutes = null;
 let cachedIdleWarningMinutes = null;
 let cachedSessionMaxDays = null;
+let cachedNavNotificationActiveDays = null;
+let cachedNavNotificationDismissedDays = null;
 let cachedAt = 0;
 const CACHE_MS = 60 * 1000;
 
@@ -65,11 +76,29 @@ export function clampSessionMaxDays(n) {
     return Math.min(MAX_SESSION_MAX_DAYS, Math.max(MIN_SESSION_MAX_DAYS, v));
 }
 
+export function clampNavNotificationActiveDays(n) {
+    const v = Math.floor(Number(n));
+    if (!Number.isFinite(v)) {
+        return DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS;
+    }
+    return Math.min(MAX_NAV_NOTIFICATION_ACTIVE_DAYS, Math.max(MIN_NAV_NOTIFICATION_ACTIVE_DAYS, v));
+}
+
+export function clampNavNotificationDismissedDays(n) {
+    const v = Math.floor(Number(n));
+    if (!Number.isFinite(v)) {
+        return DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS;
+    }
+    return Math.min(MAX_NAV_NOTIFICATION_DISMISSED_DAYS, Math.max(MIN_NAV_NOTIFICATION_DISMISSED_DAYS, v));
+}
+
 function invalidateCache() {
     cachedStaleMinutes = null;
     cachedIdleLogoutMinutes = null;
     cachedIdleWarningMinutes = null;
     cachedSessionMaxDays = null;
+    cachedNavNotificationActiveDays = null;
+    cachedNavNotificationDismissedDays = null;
     cachedAt = 0;
 }
 
@@ -138,6 +167,38 @@ async function readSessionMaxDays(env) {
     return days;
 }
 
+async function readNavNotificationActiveDays(env) {
+    const now = Date.now();
+    if (cachedNavNotificationActiveDays != null && now - cachedAt < CACHE_MS) {
+        return cachedNavNotificationActiveDays;
+    }
+    const row = await readSetting(env, SETTING_NAV_NOTIFICATION_ACTIVE_DAYS);
+    const days = clampNavNotificationActiveDays(row || DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS);
+    cachedNavNotificationActiveDays = days;
+    cachedAt = now;
+    return days;
+}
+
+async function readNavNotificationDismissedDays(env) {
+    const now = Date.now();
+    if (cachedNavNotificationDismissedDays != null && now - cachedAt < CACHE_MS) {
+        return cachedNavNotificationDismissedDays;
+    }
+    const row = await readSetting(env, SETTING_NAV_NOTIFICATION_DISMISSED_DAYS);
+    const days = clampNavNotificationDismissedDays(row || DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS);
+    cachedNavNotificationDismissedDays = days;
+    cachedAt = now;
+    return days;
+}
+
+export async function getNavNotificationActiveDays(env) {
+    return readNavNotificationActiveDays(env);
+}
+
+export async function getNavNotificationDismissedDays(env) {
+    return readNavNotificationDismissedDays(env);
+}
+
 export async function getSessionMaxDays(env) {
     return readSessionMaxDays(env);
 }
@@ -157,7 +218,9 @@ export async function getAdminSettings(env) {
         lockStaleMinutes: await readLockStaleMinutes(env),
         idleLogoutMinutes: pair.idleLogoutMinutes,
         idleWarningMinutes: pair.idleWarningMinutes,
-        sessionMaxDays: await readSessionMaxDays(env)
+        sessionMaxDays: await readSessionMaxDays(env),
+        navNotificationActiveDays: await readNavNotificationActiveDays(env),
+        navNotificationDismissedDays: await readNavNotificationDismissedDays(env)
     };
 }
 
@@ -220,6 +283,28 @@ export async function patchAdminSettings(env, body) {
         cachedSessionMaxDays = days;
         cachedAt = Date.now();
     }
+    if (body.navNotificationActiveDays !== undefined) {
+        const days = clampNavNotificationActiveDays(body.navNotificationActiveDays);
+        await env.DB.prepare(
+            `INSERT INTO app_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+        )
+            .bind(SETTING_NAV_NOTIFICATION_ACTIVE_DAYS, String(days))
+            .run();
+        cachedNavNotificationActiveDays = days;
+        cachedAt = Date.now();
+    }
+    if (body.navNotificationDismissedDays !== undefined) {
+        const days = clampNavNotificationDismissedDays(body.navNotificationDismissedDays);
+        await env.DB.prepare(
+            `INSERT INTO app_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+        )
+            .bind(SETTING_NAV_NOTIFICATION_DISMISSED_DAYS, String(days))
+            .run();
+        cachedNavNotificationDismissedDays = days;
+        cachedAt = Date.now();
+    }
     return getAdminSettings(env);
 }
 
@@ -235,5 +320,11 @@ export {
     DEFAULT_IDLE_WARNING_MINUTES,
     MIN_SESSION_MAX_DAYS,
     MAX_SESSION_MAX_DAYS,
-    DEFAULT_SESSION_MAX_DAYS
+    DEFAULT_SESSION_MAX_DAYS,
+    MIN_NAV_NOTIFICATION_ACTIVE_DAYS,
+    MAX_NAV_NOTIFICATION_ACTIVE_DAYS,
+    DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS,
+    MIN_NAV_NOTIFICATION_DISMISSED_DAYS,
+    MAX_NAV_NOTIFICATION_DISMISSED_DAYS,
+    DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS
 };

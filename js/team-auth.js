@@ -67,12 +67,23 @@
             return;
         }
         const warnMin = Math.max(1, Math.round(idleWarningMs / 60000));
-        el.textContent =
+        let msg =
             'You will be signed out in ' +
             warnMin +
             ' minute' +
             (warnMin === 1 ? '' : 's') +
             ' due to inactivity. Move the mouse or press a key to stay signed in.';
+        try {
+            if (typeof t === 'function') {
+                const localized = t('idleWarningBanner');
+                if (localized && localized !== 'idleWarningBanner') {
+                    msg = localized.replace('{minutes}', String(warnMin));
+                }
+            }
+        } catch (_) {
+            /* use English fallback */
+        }
+        el.textContent = msg;
     }
 
     function onActivity() {
@@ -325,7 +336,12 @@
                 }
             } catch (err) {
                 checked = true;
-                alert(err.message || 'View As link expired. Close this tab and try again from Admin.');
+                alert(
+                    (err && err.message) ||
+                        (typeof CCPViewAsI18n !== 'undefined' && CCPViewAsI18n.tViewAs
+                            ? CCPViewAsI18n.tViewAs('viewAsLinkExpired')
+                            : 'View As link expired. Close this tab and try again from Admin.')
+                );
                 throw err;
             }
             try {

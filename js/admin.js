@@ -2034,6 +2034,8 @@ async function loadLockSettings() {
     const idleLogoutInput = document.getElementById('idleLogoutMinutesInput');
     const idleWarningInput = document.getElementById('idleWarningMinutesInput');
     const sessionMaxDaysInput = document.getElementById('sessionMaxDaysInput');
+    const navActiveDaysInput = document.getElementById('navNotificationActiveDaysInput');
+    const navDismissedDaysInput = document.getElementById('navNotificationDismissedDaysInput');
     if (lockInput && settings.lockStaleMinutes != null) {
         lockInput.value = String(settings.lockStaleMinutes);
     }
@@ -2045,6 +2047,12 @@ async function loadLockSettings() {
     }
     if (sessionMaxDaysInput && settings.sessionMaxDays != null) {
         sessionMaxDaysInput.value = String(settings.sessionMaxDays);
+    }
+    if (navActiveDaysInput && settings.navNotificationActiveDays != null) {
+        navActiveDaysInput.value = String(settings.navNotificationActiveDays);
+    }
+    if (navDismissedDaysInput && settings.navNotificationDismissedDays != null) {
+        navDismissedDaysInput.value = String(settings.navNotificationDismissedDays);
     }
 }
 
@@ -2060,6 +2068,8 @@ function setupLockSettingsForm() {
         const idleLogoutInput = document.getElementById('idleLogoutMinutesInput');
         const idleWarningInput = document.getElementById('idleWarningMinutesInput');
         const sessionMaxDaysInput = document.getElementById('sessionMaxDaysInput');
+        const navActiveDaysInput = document.getElementById('navNotificationActiveDaysInput');
+        const navDismissedDaysInput = document.getElementById('navNotificationDismissedDaysInput');
         try {
             const saved = await api('/admin/settings', {
                 method: 'PATCH',
@@ -2068,7 +2078,9 @@ function setupLockSettingsForm() {
                     lockStaleMinutes: Number(lockInput && lockInput.value),
                     idleLogoutMinutes: Number(idleLogoutInput && idleLogoutInput.value),
                     idleWarningMinutes: Number(idleWarningInput && idleWarningInput.value),
-                    sessionMaxDays: Number(sessionMaxDaysInput && sessionMaxDaysInput.value)
+                    sessionMaxDays: Number(sessionMaxDaysInput && sessionMaxDaysInput.value),
+                    navNotificationActiveDays: Number(navActiveDaysInput && navActiveDaysInput.value),
+                    navNotificationDismissedDays: Number(navDismissedDaysInput && navDismissedDaysInput.value)
                 })
             });
             if (lockInput && saved.lockStaleMinutes != null) {
@@ -2082,6 +2094,12 @@ function setupLockSettingsForm() {
             }
             if (sessionMaxDaysInput && saved.sessionMaxDays != null) {
                 sessionMaxDaysInput.value = String(saved.sessionMaxDays);
+            }
+            if (navActiveDaysInput && saved.navNotificationActiveDays != null) {
+                navActiveDaysInput.value = String(saved.navNotificationActiveDays);
+            }
+            if (navDismissedDaysInput && saved.navNotificationDismissedDays != null) {
+                navDismissedDaysInput.value = String(saved.navNotificationDismissedDays);
             }
             if (typeof TeamAuth !== 'undefined' && TeamAuth.refresh) {
                 await TeamAuth.refresh();

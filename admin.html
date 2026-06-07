@@ -7,7 +7,7 @@
     <title>Admin — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260604-full-width-top-bar">
+    <link rel="stylesheet" href="styles.css?v=20260607-ui-unify">
     <link rel="stylesheet" href="admin.css?v=20260605-viewas-admin">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,11 +20,11 @@
                 <strong id="viewAsBannerPrimary" class="view-as-banner-primary"></strong>
                 <span id="viewAsBannerSecondary" class="view-as-banner-secondary"></span>
             </div>
-            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit">Exit View As</button>
+            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit" data-view-as-i18n="viewAsExitBtn">Exit View As</button>
         </div>
     </div>
-    <div class="admin-page">
-        <nav class="admin-nav" id="adminNav" aria-label="Admin toolbar">
+    <div class="admin-page page-shell">
+        <nav class="admin-nav page-shell-nav" id="adminNav" aria-label="Admin toolbar">
             <a href="/" data-i18n="backToCalendar">← Back to calendar</a>
             <span aria-hidden="true">·</span>
             <a href="login.html" id="adminSignInLink" data-i18n="signIn">Sign in</a>
@@ -198,6 +198,16 @@
                     <input type="number" id="sessionMaxDaysInput" min="1" max="14" step="1" value="14" required>
                     <span data-i18n="sessionMaxDaysSuffix">days (new logins; shared PCs: use shorter idle sign-out above)</span>
                 </label>
+                <label class="admin-lock-label">
+                    <span data-i18n="navNotifyActiveDaysLabel">Active notifications stay visible for</span>
+                    <input type="number" id="navNotificationActiveDaysInput" min="1" max="90" step="1" value="14" required>
+                    <span data-i18n="navNotifyActiveDaysSuffix">days</span>
+                </label>
+                <label class="admin-lock-label">
+                    <span data-i18n="navNotifyDismissedDaysLabel">Dismissed notifications stay in history for</span>
+                    <input type="number" id="navNotificationDismissedDaysInput" min="1" max="30" step="1" value="3" required>
+                    <span data-i18n="navNotifyDismissedDaysSuffix">days</span>
+                </label>
                 <button type="submit" class="btn btn-primary" data-i18n="saveSettings">Save settings</button>
             </form>
         </section>
@@ -315,8 +325,9 @@
     </div>
     <script charset="utf-8" src="js/admin-i18n.js?v=20260605-viewas-admin"></script>
     <script charset="utf-8" src="js/session-restore.js?v=20260605-boot-nav"></script>
-    <script charset="utf-8" src="js/view-as-banner.js?v=20260605-viewas-admin"></script>
+    <script charset="utf-8" src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
+    <script charset="utf-8" src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
     <script charset="utf-8" src="js/team-auth.js?v=20260601-role-palette"></script>
-    <script charset="utf-8" src="js/admin.js?v=20260605-admin-scroll-fix"></script>
+    <script charset="utf-8" src="js/admin.js?v=20260608-notify-ttl"></script>
 </body>
 </html>

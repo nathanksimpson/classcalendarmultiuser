@@ -3,2305 +3,33 @@
 // ============================================
 let currentLanguage = 'en';
 
-const translations = {
-    en: {
-        // Header
-        appTitle: 'Class Calendar Planner',
-        addClass: '+ Add Class',
-        addHoliday: '+ Add Holiday',
-        export: 'Export',
-        import: 'Import',
-        print: 'Print',
-        printCalendarBtn: 'Print calendar',
-        printSummaryBtn: 'Print summary',
-        printSectionCalendar: 'Calendar (landscape)',
-        printSectionCalendarHint: 'Opens one preview tab with the month grid. Use your browser\'s Print or Save as PDF there.',
-        printSectionSummary: 'Summary & syllabi (portrait)',
-        printSectionSummaryHint: 'Opens one preview tab with lists and syllabus tables (one class per page).',
-        printNothingSelectedSummary: 'Choose at least one summary section to print.',
-        printCalendarNeedsTerm: 'Set a term start month before printing the calendar.',
-        printCalendarWarnManyTypes: 'You turned on {count} event types on the printed calendar (this layout works best with {max} or fewer). Extra types crowd each day and may be cut off.',
-        printCalendarWarnManyClasses: 'You have {count} classes showing on the calendar. Printed day cells are small; some lesson details may be cut off. Use “Filter lessons…” to show fewer classes.',
-        printCalendarWarnContinue: 'Print anyway?',
-        clearAllData: 'Clear All Data',
-        topBarCollapse: 'Collapse toolbar',
-        topBarExpand: 'Expand toolbar',
-        teamCalendar: 'Team calendar:',
-        teamNewCalendar: '+ New',
-        teamCalendarMenu: 'Calendar',
-        teamAccountMenu: 'Account',
-        syncConnecting: 'Connecting…',
-        syncSyncing: 'Syncing…',
-        syncConnected: 'Connected — saved to team folder',
-        syncOffline: 'Offline — changes saved in this browser only',
-        syncSaving: 'Saving…',
-        syncSaved: 'Saved',
-        syncError: 'Save error',
-        syncReload: 'Reload latest',
-        syncKeepLocalView: 'Keep my view',
-        syncRemoteNewer: 'Someone else saved a newer version.',
-        syncBackupNow: 'Backup to Drive',
-        syncBackupOk: 'Backup completed.',
-        syncBackupSkipped: 'Google Drive not configured on server.',
-        syncConflictTitle: 'Save conflict',
-        syncConflictHint: 'Someone else saved while you were editing. Choose which version to keep.',
-        syncUseTheirs: 'Use their version',
-        syncUseMine: 'Use my version',
-        syncSmartMerge: 'Smart merge',
-        editorNamePrompt: 'Your name (shown when you save):',
-        uploadLocalPrompt: 'Upload your browser calendar to the team folder?',
-        newCalendarNamePrompt: 'Name for the new team calendar:',
-        newCalendarFailed: 'Could not create calendar',
-        duplicateCalendarName: 'A calendar named "{name}" already exists. Choose a different name.',
-        teamDeleteCalendar: 'Remove',
-        teamCalendarHint: 'Pick a calendar from the list, or click + New. Changes auto-save to the cloud. Edit Calendar Name below to rename. Open Help (sections 17–21) for sign-in, locks, roles, and collaboration.',
-        newCalendarCreating: 'Creating…',
-        deleteCalendarRemoving: 'Removing…',
-        teamCalendarNameLabel: 'Calendar name (saved):',
-        teamCalendarEmpty: '— No calendars yet — click + New',
-        teamCalendarNoneAssigned:
-            '— No calendars assigned — open Admin to grant access, or ask a head teacher',
-        teamSyncOffline: 'Not connected to team server',
-        newCalendarTitle: 'Add team calendar',
-        newCalendarHint: 'Enter a name (e.g. Spring 2026). It will be saved to the team and selected in the dropdown above.',
-        newCalendarCreate: 'Create calendar',
-        newCalendarCreated: 'Created "{name}" — now selected in Team calendar ↑',
-        defaultTeamCalendarName: 'Team Calendar',
-        defaultTeamCalendarTermSuffix: 'Term',
-        defaultTeamCalendarCreated:
-            'Created a starter calendar: {name}. You can rename it under Calendar name.',
-        newCalendarAccessTeachers: 'Who can access this calendar?',
-        newCalendarAccessHint: 'Check teachers and/or groups. You are always included. Admins can see all calendars.',
-        newCalendarAccessGroupsLabel: 'Groups',
-        newCalendarNoAccessList: 'No other teachers or groups yet. Only you will have access until an admin adds more.',
-        teamCalendarAccessLost: 'You no longer have access to that calendar. Switched to another calendar.',
-        deleteCalendarTitle: 'Remove team calendar',
-        deleteCalendarConfirm: 'Remove permanently',
-        deleteCalendarPrompt: 'Remove "{name}" from the team? This cannot be undone.',
-        deleteCalendarDone: 'Removed "{name}".',
-        cancel: 'Cancel',
-        openFromDriveTitle: 'Use the team link, not this file',
-        openFromDriveHint: 'Open the app from your team URL in the browser — do not double-click index.html from a folder.',
-        hostEngineTitle: 'Local team server — share this link',
-        hostEngineHint: 'Other teachers on your school Wi‑Fi use this URL while the calendar server is running on this PC (npm start or START TEAM CALENDAR.bat).',
-        hostTeamLinkLabel: 'Team link:',
-        hostCopyLink: 'Copy link',
-        teamLockStatusFree: 'Anyone can edit',
-        teamLockStatusHeld: 'You are editing',
-        teamLockStatusBlocked: '{name} has the lock',
-        teamLockStatusPending: '{name} wants to edit',
-        teamLockActionAcquire: 'Start editing',
-        teamLockActionRelease: 'Release lock',
-        teamLockActionRequest: 'Request to edit',
-        teamLockActionWaiting: 'Request sent',
-        teamLockStatusWaiting: 'Waiting for {name} to allow editing',
-        teamLockAllow: 'Allow',
-        teamLockDismiss: 'Dismiss',
-        teamLockWaitingFlash: 'Waiting for {name} to allow you to edit.',
-        teamLockRequestSentFlash: 'Edit request sent. Waiting for {name}.',
-        teamLockGrantedFlash: 'You can edit now.',
-        teamLockAllowedOtherFlash: '{name} can edit now.',
-        teamLockDismissedFlash: 'Edit request dismissed.',
-        teamLockedBy: '{name} is editing this calendar.',
-        teamLockedByFlash: '{name} is editing this calendar. Click the lock to request editing.',
-        teamLockHeld: 'You have the edit lock for this calendar.',
-        teamLockHeldFlash: 'You are editing this calendar.',
-        teamEditRequestedFlash: '{name} wants to edit this calendar.',
-        teamLockReleasedFlash: 'Edit lock released. Others can edit now.',
-        teamLockReleaseFailed: 'Could not release the lock. Only the current editor can release it.',
-        teamLockRequestFailed: 'Could not send edit request. Try again.',
-        teamLockGrantFailed: 'Could not allow editing. Try again.',
-        teamLockDismissFailed: 'Could not dismiss the request. Try again.',
-        teamLockUnknownUser: 'Another user',
-        teamLockLineEditing: '{name} is editing',
-        teamLockLineWants: '{name} wants to edit',
-        teamLockLineViewing: 'Also viewing: {names}',
-        teamLockLineExpiry: 'Lock expires around {time} if not renewed',
-        teamLockForceConfirm: 'Take over editing from {name}? They may lose unsaved work.',
-        teamLockForceTakenFlash: 'You took over editing.',
-        teamReadOnlySave: 'Someone else is editing. Take over the lock to save.',
-        teamViewOnlyBrowse: 'View only — browse, open details, print, and copy. Request edit access to change the calendar.',
-        teamPermissionViewer: 'View only on this calendar — you cannot edit or request the team lock.',
-        teamPermissionSuggester: 'Suggester on this calendar — view only in the app; submit changes through your admin.',
-        teamSignOut: 'Sign out',
-        teamSignOutAll: 'Sign out all devices',
-        teamAdminLink: 'Admin',
-        editDisplayName: 'Edit name',
-        editDisplayNameTitle: 'Edit display name',
-        displayNameLabel: 'Display name',
-        editDisplayNameHint: 'This name appears in the team calendar header and when you request to edit a calendar.',
-        saveDisplayName: 'Save name',
-        displayNameRequired: 'Please enter a display name.',
-        displayNameTooLong: 'Display name must be 120 characters or fewer.',
-        displayNameSaved: 'Display name updated.',
-        displayNameSaveFailed: 'Could not update display name.',
-        changePassword: 'Change password',
-        changePasswordTitle: 'Change password',
-        currentPassword: 'Current password',
-        newPassword: 'New password',
-        confirmPassword: 'Confirm new password',
-        passwordMismatch: 'New passwords do not match.',
-        passwordTooShort: 'Password must be at least 8 characters.',
-        passwordChanged: 'Password updated.',
-        passwordChangeFailed: 'Could not change password.',
-        noPasswordSet: 'No password is set on your account. Ask your admin to set one.',
-        hostLinkCopied: 'Team link copied!',
-        langToggle: '🌐 한국어',
-        themeDark: '🌙 Dark',
-        themeLight: '☀️ Light',
-        themeToggleTitle: 'Switch light/dark theme',
-        howToBtn: 'Help',
-        howToBtnTitle: 'How to use this app',
-        printBtn: 'Print',
-        printIncludeLabel: 'Include in this print:',
-        printIncludeCalendar: 'Calendar (landscape)',
-        printUseCalendarFilters: 'Use current calendar filters',
-        printUseCalendarFiltersHint: 'When checked, lesson and event visibility matches the calendar bar above the grid.',
-        printIncludeSummary: 'Summary & syllabi (portrait)',
-        printNothingSelected: 'Choose at least one: calendar or summary.',
-        teamCalendarHelp: 'Team help',
-        
-        // Term Selector
-        calendarName: 'Calendar Name:',
-        calendarNamePlaceholder: 'e.g., Fall 2025 Term',
-        termStartMonth: 'Term Start Month:',
-        termMonthCount: 'Months to display:',
-        toolbarTermSettings: 'Term settings',
-        calendarVisibility: 'Show on calendar:',
-        calendarDisplayBtn: 'Calendar display…',
-        calendarDisplayBtnActive: 'Calendar display (custom)',
-        calendarDisplayBtnShort: 'Display',
-        calendarDisplayBtnActiveShort: 'Display (custom)',
-        calendarDisplayTitle: 'Calendar display',
-        calendarDisplayLessonsHeading: 'Filter lessons',
-        showLessons: 'Lessons',
-        showHolidays: 'Holidays',
-        showEvalDeadlines: 'Evaluation deadlines',
-        showHomeworkDeadlines: 'Homework deadlines',
-        showEvalPeriods: 'Evaluation periods',
-        showOtherEvents: 'Other events',
-        lessonFilterBtn: 'Filter lessons…',
-        lessonFilterTitle: 'Filter lessons on calendar',
-        lessonFilterStatus: 'Showing {visible} of {total} classes on the calendar and print summary.',
-        filterSelectAll: 'Select all',
-        filterClearAll: 'Clear all',
-        lessonFilterReset: 'Reset filters',
-        lessonFilterSectionClasses: 'By class',
-        lessonFilterSectionGrade: 'By grade',
-        lessonFilterSectionLevel: 'By level',
-        lessonFilterSectionType: 'By class type',
-        lessonFilterSectionPeriod: 'By period',
-        lessonFilterSectionBook: 'By default book',
-        lessonFilterSectionTeacher: 'By teacher',
-        lessonFilterNoGrade: '(no grade)',
-        lessonFilterNoLevel: '(no level set)',
-        lessonFilterNoType: '(no type)',
-        lessonFilterNoBook: '(no default book)',
-        lessonFilterNoTeacher: '(no teacher assigned)',
-        lessonFilterJustMine: 'Just my classes',
-        lessonFilterJustMineUnavailable: 'Sign in to filter to your classes, or assign your account on the Teachers tab.',
-        lessonFilterBtnActive: 'Filter lessons ({visible}/{total})',
-        lessonFilterSearchPlaceholder: 'Search classes, grades, levels, teachers…',
-        lessonFilterSearchEmpty: 'No matches. Try a different search.',
-        lessonFilterNoClassesOnCalendar: 'No classes have lessons in the displayed term months. Add classes or adjust the term dates.',
-        printLessonFilterActive: 'Lesson filter is on: only {visible} of {total} classes appear on the calendar and in class-related print sections.',
-        tabCalendar: 'Calendar',
-        tabClasses: 'Classes',
-        tabSyllabus: 'Syllabus',
-        tabEvents: 'Events',
-        tabHomework: 'Homework',
-        tabNotes: 'Notes',
-        tabNotesMobile: 'Day notes',
-        tabTimetable: 'Timetable',
-        tabTeachers: 'Teachers',
-        tabCohorts: 'Cohorts',
-        tabGroupOperations: 'Operations',
-        tabGroupTeaching: 'Teaching',
-        tabGroupSetup: 'Setup',
-        headerMySchedule: 'My schedule',
-        setupBannerText: 'Create student cohorts first on the Setup tab → Cohorts, then assign classes and teachers.',
-        setupBannerAction: 'Create cohorts',
-        setupBannerDismiss: 'Dismiss',
-        setupBoardViewMwf: 'MWF cohorts',
-        setupBoardViewTth: 'Tue/Thu cohorts',
-        setupBoardViewAll: 'View all',
-        setupBoardEmptyAll: 'No cohorts yet. Click + Add cohort.',
-        setupBoardEmptyMwf: 'No Mon/Wed/Fri cohorts on this board view. Click + Add cohort, or switch to Tue/Thu cohorts.',
-        setupBoardEmptyTth: 'No Tue/Thu cohorts on this board view. Click + Add cohort, or switch to MWF cohorts.',
-        setupBoardOtherViewHint: '{n} cohort(s) on the {view} board view — switch view',
-        setupBoardViewLabel: 'Board view',
-        setupBoardUnassigned: 'Unassigned classes',
-        setupBoardAllClasses: 'All classes',
-        setupBoardPoolHint: 'Use Add to… on a class to link it to a cohort. Link keeps other cohort links (combined groups); Move only clears other links.',
-        setupBoardTeachersApiMissing: 'Could not assign teacher — refresh the page (Ctrl+F5) and try again.',
-        setupBoardTeacherAlreadyAssigned: 'That teacher is already assigned to this class.',
-        cohortEditorModalTitle: 'Edit cohort: {name}',
-        cohortEditorModalTitleNew: 'New cohort',
-        cohortsEditBtn: 'Edit cohort',
-        setupBoardWorkflowHint: '1) + Add class on a cohort · 2) Review warnings on each tile · 3) Edit cohort or Edit class for teachers, homeroom, and subjects.',
-        setupBoardCohortHomeroom: 'Homeroom',
-        setupBoardCohortClassesHeading: 'Classes',
-        setupBoardCohortWarningsHeading: 'Warnings',
-        setupBoardCohortClassCount: '{n} classes',
-        setupBoardCohortClassCountOne: '1 class',
-        setupBoardCohortScheduleChipAria: 'Schedule: {days}',
-        setupBoardCohortRenameHint: 'Click to rename this cohort',
-        setupBoardWarnNoHomeroom: 'No homeroom teacher set for this cohort.',
-        setupBoardWarnNoClasses: 'No classes linked to this cohort yet.',
-        setupBoardWarnClassNoTeacher: '{class}: no teacher assigned.',
-        setupBoardWarnTeacherDoubleBook: '{teacher} is scheduled for two classes at the same time in this cohort ({classes}).',
-        setupBoardWarnPeriodCollision: 'Two or more classes share the same period in this cohort: {classes}.',
-        setupBoardWarnDaysOutside: '{class}: class meeting days are outside this cohort’s schedule.',
-        setupBoardWarnDuplicateCombined: 'Possible combined-class duplicate: {classA} and {classB} (see {otherCohort}). Use Edit cohort → Combine cohorts.',
-        setupBoardTeacherAssignLabel: 'Teachers',
-        setupBoardDropTeacher: 'Use the teacher dropdown on each class card, then Add teacher.',
-        setupBoardTeachers: 'Teachers',
-        setupBoardHomeroomHost: 'Homeroom host',
-        setupBoardHomeroomHostHint: 'Sets 담임 from the first teacher on this class.',
-        setupBoardEmptyCohort: 'No classes yet. Click + Add class on this cohort.',
-        setupBoardAddToCohort: 'Add to…',
-        setupBoardAddClass: '+ Add class',
-        setupBoardLinkToCohort: 'Link',
-        setupBoardMoveToCohortOnly: 'Move here only',
-        setupBoardAssignTeacher: 'Add teacher',
-        setupBoardPickTeacherFirst: 'Choose a teacher from the dropdown first.',
-        setupBoardRemoveFromAllCohorts: 'Remove from all cohorts',
-        setupBoardAlreadyInCohort: 'Already linked',
-        setupBoardPickerClose: 'Close',
-        setupBoardPickerNoClasses: 'No classes available to add.',
-        setupBoardRemoveTeacher: 'Remove teacher',
-        setupBoardAssignTeacherFirst: 'Assign a teacher before setting homeroom host.',
-        setupBoardOpenClass: 'Edit class',
-        setupBoardRemoveFromCohort: 'Remove from cohort',
-        setupBoardClassMenu: 'Class actions',
-        setupBoardClassMenuPrompt: 'Enter 1 to edit class, 2 to remove from this cohort, 3 to keep on this cohort only (unlink others)',
-        setupBoardCohortDays: 'Cohort days',
-        setupBoardClassDays: 'Class days',
-        setupBoardClassDaysOutside: 'This class meets on a day outside this cohort’s schedule (e.g. cohort is Tue/Thu but class includes Monday).',
-        setupBoardPatternMwf: 'MWF',
-        setupBoardPatternTth: 'Tue/Thu',
-        setupBoardEditDays: 'Days',
-        setupBoardPoolEmpty: 'All classes are linked to a cohort.',
-        setupBoardPoolNoClasses: 'No saved classes yet. Add and save classes under Setup → Classes, then use Add to… here.',
-        setupBoardPoolUnassigned: 'Not in any cohort — use Add to…',
-        setupBoardPoolLinked: 'Already in a cohort — use Add to… to link or move',
-        setupBoardRenderError: 'Could not draw the setup board. Hard refresh (Ctrl+F5) and try again.',
-        setupBoardCohortRenderPartial: 'Some cohort cards could not be drawn. Check the browser console (F12), then refresh.',
-        cohortsUsageTipsSummary: 'Cohort board — usage tips',
-        cohortsUsageTipsDismiss: "Don't show again",
-        cohortsTabIntro: 'The board shows each cohort with homeroom, classes, and warnings. Use + Add class on a tile; use Edit cohort or Edit class for teachers, homeroom, and subjects.',
-        cohortsEditorEmpty: 'Click a cohort tile’s Edit cohort, or click + Add cohort.',
-        cohortsLinkedHeading: 'Linked subject classes',
-        cohortsLinkedEmpty: 'Select a cohort to see linked classes.',
-        cohortsLinkedNone: 'No subject classes yet. Set level and pattern, then Generate subjects.',
-        cohortsImportFromClasses: 'Import from existing classes',
-        cohortsListSearchPlaceholder: 'Search cohorts…',
-        cohortsFilterAll: 'All',
-        cohortsFilterLabel: 'List filter',
-        cohortsListFilterEmpty: 'No cohorts match this filter. Click All, or set each cohort’s schedule pattern in the editor below.',
-        cohortsPatternInferred: 'inferred',
-        cohortsDraftEditHint: 'Add a name and level below, then click Save cohort.',
-        cohortStatusDraft: 'Draft',
-        cohortStatusSchedule: 'Schedule',
-        cohortStatusPending: 'Subjects pending',
-        cohortStatusReady: 'Ready',
-        cohortStatusIncomplete: 'Incomplete',
-        cohortsSectionIdentity: 'Identity',
-        cohortsSectionSchedule: 'Schedule pattern',
-        cohortsSectionSubjects: 'Subject schedule',
-        cohortsPatternCustom: 'Custom',
-        cohortsGenerateSubjects: 'Generate subjects',
-        cohortsRegenerateConfirm: 'Regenerate subject classes? Schedule fields on generated classes may be updated.',
-        cohortsGenerateDone: 'Created {created}, updated {updated} subject class(es).',
-        cohortsDuplicate: 'Duplicate cohort',
-        cohortsDeleteConfirm: 'Delete cohort "{name}"?\n\nClasses linked to this cohort will stay on the calendar but will no longer belong to it. This cannot be undone.',
-        cohortsDeleteBtn: 'Delete cohort',
-        cohortsDeleted: 'Deleted cohort "{name}".',
-        cohortsOpenTeachers: 'Open Teachers tab',
-        cohortsOpenTimetable: 'Open Timetable',
-        cohortsOpenClass: 'Edit class',
-        cohortsOpenSyllabus: 'Syllabus',
-        cohortsAssignTeacher: 'Assign teacher',
-        cohortsNoTeacher: 'No teacher',
-        cohortsMatrixNoMatch: 'Pick a level to load subject slots from the schedule matrix.',
-        cohortsPeriodCountHint: 'Distinct periods in grid: {n}',
-        cohortsSubjectCol: 'Subject',
-        cohortsEnabledCol: 'On',
-        cohortsSummaryStrip: '{cohorts} cohort(s), {classes} class(es) on this calendar.',
-        cohortsSummaryUnlinked: '{n} class(es) not linked to a cohort.',
-        cohortsImportNone: 'No classes found to import. Classes need a level or grade.',
-        cohortsImportConfirm: 'Import {n} suggested cohort(s)?',
-        cohortsSectionClassAssignment: 'Class assignment',
-        cohortsClassAssignmentHint: 'Check classes that belong to this student group, then Apply. One class can be linked to multiple cohorts (combined groups).',
-        cohortsClassApply: 'Apply class links',
-        cohortsClassApplySummary: 'Linked {linked} class(es), unlinked {unlinked}.',
-        cohortsClassUnassignedOnly: 'Not linked to this cohort',
-        cohortsClassAlsoLinked: 'Also: {names}',
-        cohortsCombinedHint: 'Combined cohorts (합반): link one class to both cohorts (catalog Apply or Combine cohorts). Add to… → Link adds a link; Move here only clears other cohort links.',
-        cohortsCombinedCallout: 'Timetable conflicts often mean two class records exist for the same combined lesson — use Combine cohorts or link one class on each cohort.',
-        cohortsCombineBtn: 'Combine cohorts…',
-        cohortsCombineTitle: 'Combine cohorts',
-        cohortsCombineWith: 'Combine with cohort',
-        cohortsCombinePickPair: 'Matching classes',
-        cohortsCombineKeeperA: 'Keep class from this cohort',
-        cohortsCombineKeeperB: 'Keep class from other cohort',
-        cohortsCombineDeleteDuplicate: 'Delete the other class record',
-        cohortsCombineRename: 'Rename kept class to',
-        cohortsCombineApply: 'Combine',
-        cohortsCombineDone: 'Combined {n} class pair(s).',
-        cohortsCombineNoPairs: 'No matching subject classes found between these cohorts.',
-        cohortsReviewDuplicates: '{n} possible combined-class pair(s) on this calendar — open Combine cohorts on a cohort to merge.',
-        classCohortMultiLabel: 'Linked student cohorts',
-        classCohortPrimaryHint: 'Primary cohort sets homeroom display below.',
-        setupBoardMoveClassOnly: 'Move to this cohort only',
-        cohortsListSortLabel: 'Sort',
-        cohortsListSortName: 'Name',
-        cohortsListSortGrade: 'Grade',
-        cohortsListSortLevel: 'Level',
-        cohortsListSortStatus: 'Status',
-        cohortsListSortClassCount: 'Class count',
-        cohortsListSortPattern: 'Schedule pattern',
-        cohortsSummaryClassCount: '{n} classes',
-        cohortsNoHomeroom: 'No homeroom teacher',
-        cohortsSectionHomeroom: 'Homeroom teacher (담임)',
-        cohortsHomeroomApply: 'Save homeroom',
-        cohortsHomeroomSaved: 'Homeroom teacher saved for this cohort.',
-        cohortsHomeroomClear: 'Clear homeroom',
-        cohortsDangerZone: 'Danger zone',
-        cohortsModuleMissing: 'Cohort tools failed to load. Hard refresh (Ctrl+F5) and try again.',
-        classCohortRequiredAdmin: 'Select a student cohort for this class, or create one on the Cohorts tab.',
-        classAddFromCohortPrompt: 'Create classes from a cohort (recommended) or add a blank class for advanced setup?',
-        classAddFromCohortBtn: 'From cohort',
-        classAddBlankClassBtn: 'Blank class',
-        teachersTabManageCohorts: 'Open Cohorts board',
-        teachersTabUnassignedCohort: 'No cohort',
-        teachersTabCohortsEmpty: 'No cohorts yet. Add cohorts on the Cohorts tab.',
-        teachersTabIntro: 'Preview a teacher’s weekly timetable. Assign classes and homeroom on Setup → Cohorts.',
-        classCohortAlsoLinked: 'Also linked to: {names}. Manage on Cohorts tab.',
-        teachersTabSegmentClasses: 'Class schedules',
-        teachersTabSegmentCohorts: 'Homeroom cohorts',
-        teachersTabCatalogClasses: 'Class schedules',
-        teachersTabCatalogCohorts: 'Homeroom cohorts',
-        teachersTabHomeroomHint: 'Homeroom (담임) is a cohort role for student contact — not the subject they teach. Use Class schedules for teaching assignments.',
-        teachersTabDefaultCategory: 'Default subject for newly checked classes',
-        teachersTabUnassignedOnly: 'Show unassigned only',
-        teachersTabApply: 'Apply assignments',
-        teachersTabApplySummary: 'Added {added} class(es), removed {removed}; set 담임 on {homeroom}, cleared {cleared}.',
-        teachersTabReplaceHomeroomConfirm: 'Replace homeroom teacher on {n} cohort(s)? ({names})',
-        teachersTabOpenTimetable: 'Open in Timetable',
-        teachersTabFilterCalendar: 'Filter calendar to this teacher',
-        teachersTabPreviewHeading: 'Weekly timetable preview',
-        teachersTabScrollToPreview: 'Jump to preview',
-        teachersTabCatalogSortLabel: 'Sort',
-        teachersTabCatalogCategoryLabel: 'Category',
-        teachersTabSortDisplay: 'Default order',
-        teachersTabSortName: 'Name (A–Z)',
-        teachersTabSortCategory: 'Category',
-        teachersTabSortLevel: 'Level / grade',
-        teachersTabSortPeriod: 'Period',
-        teachersTabCategoryAll: 'All categories',
-        teachersTabCategoryNone: 'Uncategorized',
-        teachersTabBadgeSyllabus: 'Syllabus ({n} rows)',
-        teachersTabBadgeOnCalendar: 'On calendar this term',
-        tabData: 'Data',
-        tabPrintDataHeading: 'Data & settings',
-        printBooksHeading: 'Books',
-        printBooksHint: 'Curriculum books (Write Now, Write Right, Hand in Hand, etc.): lesson plans and page blocks that class syllabi pull from. Green / Blue / Navy levels share one book where pagination is the same.',
-        printBooksStats: '{books} book(s) in catalog · {edited} edited',
-        printBooksEmpty: 'No curriculum books with page data are registered yet.',
-        booksListEdit: 'Edit book',
-        booksListSessions: '{n} sessions',
-        booksListEdited: 'Edited',
-        booksEditorTitle: 'Edit book',
-        booksEditorHint: 'Lesson plans and page blocks for this book. Changes apply to all linked class types (e.g. Green, Blue, Navy).',
-        booksEditorMetaLevels: 'Levels: {levels}',
-        booksEditorMetaLessons: 'Typical lessons per term: {n}',
-        booksEditorMetaPresets: 'Linked presets: {ids}',
-        booksEditorCustomBadge: 'You have custom page data saved for this book.',
-        booksEditorSessionsHeading: 'Sessions',
-        booksEditorColPlan: 'Lesson plan',
-        booksEditorColPages: 'Pages / detail',
-        booksEditorSave: 'Save book',
-        booksEditorReset: 'Reset to factory',
-        booksEditorResetConfirm: 'Reset this book to factory page data? All linked class types will use the built-in pages again.',
-        booksEditorNoRows: 'Add at least one session row before saving.',
-        booksEditorAddSession: 'Add session',
-        booksEditorColNote: 'Note',
-        booksEditorSaveCurriculum: 'Save curriculum',
-        booksEditorSessionCountWarn: 'You have {n} sessions; factory default is {factory}. Update total lessons on the class form if needed.',
-        curriculumSaveToDefaults: 'Save to defaults',
-        curriculumSaveToDefaultsConfirm: 'Save these sessions and class defaults as this calendar’s default for this book? Warnings will clear. Reset will restore this version, not the original factory pages.',
-        curriculumSaveToDefaultsCustom: 'Save to defaults',
-        curriculumSaveToDefaultsConfirmCustom: 'Save these sessions and class defaults as this calendar’s default for this custom curriculum? Warnings will clear. Reset will restore this version; use Delete only if you want to remove the curriculum entirely.',
-        booksEditorResetTeamDefaultConfirm: 'Restore this book to the team default saved on {date}? Unsaved edits will be lost.',
-        tabCurriculum: 'Curriculum',
-        curriculumTabIntro: 'Edit session pages and default schedule for each program book, or add your own curriculum. On the class form, pick Level and Book, then Apply from curriculum.',
-        curriculumTabPick: 'Select a curriculum to edit sessions and defaults.',
-        curriculumTabListSearchPlaceholder: 'Search curricula…',
-        curriculumAddBtn: 'Add curriculum',
-        curriculumAddPrompt: 'Name for the new curriculum (e.g. Middle school reading):',
-        curriculumAddTitleRequired: 'Enter a name for the curriculum.',
-        curriculumAllLevels: 'All levels',
-        curriculumCustomBadge: 'Custom curriculum you created.',
-        curriculumEditorNameLabel: 'Curriculum name',
-        curriculumDeleteBtn: 'Delete curriculum',
-        curriculumDeleteConfirm: 'Delete this curriculum? It will be removed from the list. Classes that used it keep their own settings; they may show a missing-curriculum warning until you pick another book.',
-        curriculumDeleteBuiltinConfirm: 'Remove “{name}” from this calendar’s curriculum list? Built-in books can be restored later with “Restore built-in curricula”. Classes using it keep their settings.',
-        curriculumResetToTeamDefault: 'Reset to team default',
-        curriculumBuiltinNoDeleteHint: 'Built-in program books cannot be deleted. Use Reset to factory to undo your edits, or Duplicate to make your own copy you can delete.',
-        curriculumAdminDeleteHint: 'Admins: removing a built-in book hides it on this calendar only (not for other calendars). Use Restore built-in curricula to bring defaults back.',
-        curriculumRestoreFactoryBtn: 'Restore built-in curricula',
-        curriculumRestoreFactoryConfirm: 'Bring back all built-in program books removed from this calendar?',
-        curriculumRestoreFactoryDone: 'Built-in curricula restored to this calendar.',
-        curriculumDuplicateBtn: 'Duplicate curriculum',
-        curriculumDuplicateDone: 'Duplicated as “{name}”.',
-        curriculumDuplicateFailed: 'Could not duplicate this curriculum.',
-        curriculumEditorApplyHint: 'On the class form, pick Level and Book, then Apply from curriculum.',
-        curriculumGeneralNotes: 'General notes & instructions',
-        curriculumGeneralNotesHint: 'Printed in the Note column on the 진도표 overview for classes using this curriculum. A class can override these on its syllabus.',
-        curriculumGeneralNotesPlaceholder: 'e.g., Bring workbook every class. Month 2 outlines may be blank…',
-        dataCurriculumLinkHint: 'Edit books, session pages, and program defaults using the Curriculum tab in the bar above.',
-        classCurriculumLevel: 'Level',
-        classCurriculumBook: 'Book',
-        classCurriculumBookPickLevel: 'Select level first',
-        classCurriculumNone: 'No curriculum',
-        classCurriculumNoBook: 'No book (level defaults only)',
-        classCurriculumWarningNone: 'This class has no curriculum assigned. Pick a book (or “No book”) and Apply from curriculum, or leave as-is for a custom setup.',
-        classCurriculumWarningMissing: 'The saved curriculum “{book}” is missing (it may have been deleted). Choose another book or “No curriculum”.',
-        classCurriculumWarningList: 'No curriculum',
-        classCurriculumWarningListMissing: 'Missing curriculum',
-        classCurriculumDebate: 'Debate',
-        curriculumDebateLevelsLabel: 'Purple and above, middle school',
-        curriculumDebateListTag: 'Debate',
-        curriculumApplicabilityHeading: 'Applicability & class defaults',
-        curriculumApplicabilityHint: 'Check which levels can pick this curriculum on the class form. Defaults apply when you click Apply from curriculum.',
-        curriculumDisplayNameLabel: 'Display name',
-        curriculumDefaultLessons: 'Default total lessons',
-        curriculumDefaultGrade: 'Default grade',
-        curriculumDefaultGradeNone: '— None —',
-        curriculumDefaultLevel: 'Default section (optional)',
-        curriculumDefaultLevelNone: '— None —',
-        classCurriculumHint: 'Choose Section (level) below, then pick a book from Curriculum. Apply updates class settings; syllabus pages update from your class’s book after Apply or Save.',
-        classCurriculumPipelineHint: 'Flow: Curriculum (shared books) → this class (link) → Syllabus tab (dated lessons).',
-        applyCurriculumSyllabusConfirm: 'Also update this class’s syllabus lesson pages from the curriculum book? Matching rows will be overwritten.',
-        curriculumUpdatedBanner: 'Curriculum “{name}” was saved. {count} class(es) use this book.',
-        curriculumUpdatedBannerAction: 'Update their syllabi',
-        curriculumUpdatedBatchConfirm: 'Update syllabus pages from curriculum for {n} class(es)? Matching lesson rows will be overwritten.',
-        curriculumUpdatedBatchDone: 'Updated syllabi from curriculum ({n} class(es)).',
-        classesSegmentNotesSameAsTab: 'Same notes as the Notes tab.',
-        applyCurriculumNoCurriculum: 'Select a curriculum book, “No book”, or leave “No curriculum” if you are not using a shared plan.',
-        applyCurriculumToClass: 'Apply from curriculum',
-        applyCurriculumConfirm: 'Replace class settings from the selected curriculum? Class name and dates are kept.',
-        applyCurriculumNoMatch: 'Select a level (and book, or “No book”).',
-        applyCurriculumNoLevel: 'Select a level first, then choose a book (or “No book”).',
-        applyCurriculumNoBookSelected: 'Select a book (or “No book”) for this level.',
-        applyCurriculumNoBooksForLevel: 'No curriculum books are available for level “{level}”. RC and other lesson plans only apply when a book matches this level.',
-        applyCurriculumNoBooksHint: 'No curriculum books for this level. Apply will use generic defaults only (no lesson-plan pages).',
-        applyCurriculumNoBooksConfirm: 'No curriculum books exist for level “{level}”. Apply generic class defaults only (no syllabus pages)?',
-        applyCurriculumBookLevelMismatch: '“{book}” is not available for level “{level}”. Pick a book from the list for that level.',
-        applyCurriculumDebateNotForLevel: 'Debate curriculum is not available for level “{level}”.',
-        applyCurriculumNoSyllabusPages: 'Class settings were applied, but this book has no lesson-plan pages yet. Add pages under Curriculum or pick another book.',
-        applyCurriculumPreview: 'Will apply: book “{book}”, {lessons} lessons.',
-        applyCurriculumPreviewNoBook: 'Will apply: level “{level}”, {lessons} lessons (no book; blank syllabus pages).',
-        editCurriculumForBook: 'Edit curriculum',
-        printSyllabusPresetsHeading: 'My lesson plans/books',
-        printSyllabusPresetsHint: 'Custom lesson plans you save under My syllabi on the Syllabus tab, plus edited curriculum books. Export or import a pack to back up lesson plans, book page data, and class-type defaults.',
-        printSyllabusStats: '{templates} custom lesson plan(s) · {overrides} edited class-type default(s)',
-        printExportSyllabusPack: 'Export lesson plans/books pack',
-        printImportSyllabusPack: 'Import lesson plans/books pack',
-        printOpenSyllabusTab: 'Open Syllabus tab',
-        printEditPdfPresets: 'Edit PDF preset defaults',
-        printSyllabusPackExported: 'Lesson plans/books pack downloaded.',
-        printSyllabusPackImported: 'Imported {templates} lesson plan(s), {books} book(s), and {overrides} class-type override(s).',
-        printSyllabusPackInvalid: 'Not a valid lesson plans/books pack file.',
-        printSyllabusManageTemplate: 'Edit',
-        printSyllabusNoTemplates: 'No custom lesson plans yet. Use the Syllabus tab → My syllabi, or import a pack.',
-        printSyllabusTemplateListLabel: 'Custom lesson plans',
-        openFullClassEditor: 'Open full editor',
-        viewClassInCalendar: 'View in Calendar',
-        viewEventInCalendar: 'View in Calendar',
-        openFullEventEditor: 'Open full editor',
-        classEditorEmpty: 'Select a class from the list, or click + Add Class to create one.',
-        eventEditorEmpty: 'Select an event from the list, or click + Add Event to create one.',
-        classListSearchPlaceholder: 'Search classes…',
-        eventListSearchPlaceholder: 'Search events…',
-        addEvent: '+ Add Event',
-        eventType: 'Event type',
-        eventTypeHoliday: 'Holiday / no class',
-        eventTypeEvalDeadline: 'Evaluation deadline',
-        eventTypeHomeworkDeadline: 'Homework deadline',
-        eventTypeEvalPeriod: 'Evaluation period',
-        eventTypeOther: 'Other',
-        eventTypeOtherHint: 'Shown on the calendar for reference only; does not cancel class.',
-        eventsSummary: 'Events',
-        includeEventsList: 'Include events list',
-        printCalendarVisibility: 'On printed calendar, show:',
-        saveEvent: 'Save Event',
-        editEvent: 'Edit Event',
-        addEventTitle: 'Add Event',
-        contextAddEventOnDate: 'Add event on {date}',
-        contextOpenClass: 'Open class',
-        contextAddClassNote: 'Add note',
-        contextViewDayNotes: 'View day notes ({date})',
-        contextCopyDayNotes: 'Copy day notes ({date})',
-        contextDownloadDayNotes: 'Download day notes (.txt)',
-        contextPickDateFirst: 'Pick a date first.',
-        dayNoteModalTitle: 'Class day note',
-        dayNoteTextLabel: 'What happened in this class?',
-        dayNoteSave: 'Save note',
-        dayNoteExistingHeading: 'Earlier notes today',
-        dayNoteReadOnlyHint: 'You can only add or edit notes for classes you teach.',
-        dayNoteOtherTeacherHint: 'You cannot edit or delete another teacher’s note.',
-        dayNoteLegacyReadOnlyHint: 'This note was created before author tracking and can only be changed by an admin.',
-        dayNoteViewOnlyHint: 'You have view-only access to this calendar.',
-        dayNotesSummaryTitle: 'Day notes',
-        dayNotesSummaryDate: 'Date',
-        dayNotesEmpty: 'No notes for this day yet. Right-click a class on the calendar or timetable to add one.',
-        dayNotesCopy: 'Copy all',
-        dayNotesDownload: 'Download .txt',
-        dayNotesToolbarBtn: 'Day notes',
-        dayNotesCopyOk: 'Day notes copied.',
-        dayNotesCopyFail: 'Could not copy. Select the text and copy manually.',
-        dayNotesExportHeader: 'Daily class notes',
-        classesSegmentInfo: 'Class info',
-        classesSegmentNotes: 'Notes',
-        classesSubTabLegend: 'Within Classes',
-        classNotesFiltersTitle: 'Filters',
-        classNotesDateFrom: 'From',
-        classNotesDateTo: 'To',
-        classNotesFilterSubject: 'Subject',
-        classNotesFilterGrade: 'Grade',
-        classNotesResetFilters: 'Reset filters',
-        classNotesMeetingDaysOnly: 'Only on class meeting days',
-        classNotesTodayClasses: "Today's classes",
-        classNotesMyClassesToday: 'My classes · Today',
-        filterActiveMyClasses: 'My classes',
-        filterActiveToday: 'Today',
-        filterActiveSubject: '{subject}',
-        classNotesSummaryLayers: '{notes} note(s) · {classes} class(es) · {layers}',
-        classNotesSummarySearchLayers: '{notes} note(s) · {classes} class(es) (search: "{query}") · {layers}',
-        homeworkMyClassesOnly: 'My classes only',
-        homeworkTodayOnly: "Today's classes only",
-        homeworkFilterSubject: 'Subject',
-        homeworkJustMine: 'Just my classes',
-        homeworkTodayClasses: "Today's classes",
-        homeworkMyClassesToday: 'My classes · Today',
-        classNotesSummary: '{notes} note(s) · {classes} class(es)',
-        classNotesSummarySearch: '{notes} note(s) · {classes} class(es) (search: "{query}")',
-        classNotesTextSearchPlaceholder: 'Search notes, classes…',
-        classNotesEmptySearch: 'No notes match your search. Clear the search or widen filters.',
-        classNotesExportCopy: 'Copy export',
-        classNotesExportDownload: 'Download .txt',
-        classNotesEmptyFiltered: 'No notes match these filters. Add a note above or from the calendar or timetable (right-click a class).',
-        classNotesExportHeader: 'Class notes export',
-        classNotesNoClassSelected: 'Select at least one class in the filters.',
-        classNotesNoClassesDefined: 'No classes in this calendar yet. Add a class on the Classes tab, then add notes here.',
-        classNotesAddHeading: 'Add note',
-        classNotesListHeading: 'Saved notes',
-        classNotesAddClass: 'Class',
-        classNotesAddDatetime: 'Date & time',
-        classNotesAddNow: 'Now',
-        classNotesPickClass: 'Select a class.',
-        classNotesSaved: 'Note saved.',
-        classNotesSavedViewAs: 'Note saved for this View As session only (not on the teacher’s calendar until you exit View As).',
-        classNotesInvalidDatetime: 'Enter a valid date and time.',
-        classNotesSortLabel: 'Sort',
-        classNotesSortClassGroup: 'By class',
-        classNotesSortNewest: 'Newest (time)',
-        classNotesSortOldest: 'Oldest (time)',
-        classNotesSortDateAsc: 'By day (oldest)',
-        classNotesSortDateDesc: 'By day (newest)',
-        classNotesSortHint: 'Newest/Oldest use exact time. By day sorts calendar dates.',
-        classNotesEdit: 'Edit',
-        classNotesDelete: 'Delete',
-        classNotesSaveEdit: 'Save',
-        classNotesCancelEdit: 'Cancel',
-        classNotesDeleted: 'Note deleted.',
-        classNotesUpdated: 'Note updated.',
-        classNotesConfirmDelete: 'Delete this note?',
-        classNotesDeleteReadOnly: 'You cannot delete notes while viewing a read-only calendar.',
-        classNotesEditReadOnly: 'You cannot edit notes while viewing a read-only calendar.',
-        confirmDeleteEvent: 'Are you sure you want to delete this event?',
-        eventNotesPlaceholder: 'Optional notes...',
-        syllabusUnits: 'Syllabus / curriculum units',
-        syllabusUnitsHint: 'Optional units for planning. Link events to a unit when editing an event.',
-        addSyllabusUnit: 'Add unit',
-        syllabusUnitSpeakingPages: 'Speaking pages',
-        syllabusUnitWritingPages: 'Writing pages',
-        syllabusTable: 'Syllabus table',
-        syllabusTableHint: 'Edit your full lesson table here. Printed 진도표 shows session titles only — Pages/detail and per-row Note stay in this table (and on the Homework tab) for copy-paste. Choose meeting days first. Use Refresh from calendar / Refresh from curriculum in the editor header (not duplicated below).',
-        syllabusTableEmptyHint: 'No rows yet. Click Refresh from calendar to generate rows from your lesson schedule.',
-        refreshSyllabusFromCalendar: 'Refresh from calendar',
-        refreshSyllabusFromCurriculum: 'Refresh from curriculum',
-        refreshSyllabusFromCurriculumConfirm: 'Update lesson plan, pages/detail, row notes, and general notes from the curriculum book? Matching rows will be overwritten.',
-        refreshSyllabusFromCurriculumNoTemplates: 'No curriculum sessions found for this class. Pick a book on the class form or edit sessions on the Curriculum tab.',
-        refreshSyllabusFromCurriculumDone: 'Syllabus updated from curriculum ({n} rows).',
-        refreshSyllabusFromCurriculumNone: 'No matching lesson rows. Refresh from calendar first, then try again.',
-        addSyllabusNoteRow: 'Add note row',
-        syllabusColMonth: 'Month',
-        syllabusColWeek: 'Week',
-        syllabusColClass: 'Class',
-        syllabusColDate: 'Date',
-        syllabusColPlan: 'Weekly Lesson Plan',
-        syllabusColPlanPrint: 'Lesson plan',
-        syllabusColPlanJindo: 'Lesson plan',
-        syllabusColYear: '{year}',
-        syllabusPrintMeetingDaysSuffix: '[{days}]',
-        syllabusPrintContinuedTitle: 'Lesson plan details (appendix)',
-        syllabusPrintContinuedHint: 'Optional appendix: full homework and lesson detail. The 진도표 table above shows titles only.',
-        printSyllabusDetailAppendix: 'Include homework detail pages (appendix, optional)',
-        syllabusPrintContinuedPage: 'Page {n} of {total}',
-        syllabusPrintContinuedHomework: 'Homework',
-        syllabusColPages: 'Pages / detail',
-        syllabusColNote: 'Note',
-        syllabusTables: 'Syllabus tables',
-        includeSyllabusTables: 'Syllabus tables (per class)',
-        syllabusModuleMissing: 'Syllabus module did not load. Press Ctrl+F5 to refresh the page. If it still fails, check that js/syllabus-table.js is present.',
-        printClassSyllabus: 'Print syllabus',
-        printClassSyllabusHint: 'Opens the print dialog; choose Save as PDF to download.',
-        printClassSyllabusTitle: 'Syllabus',
-        printSyllabusBlocked: 'Could not open the print window. Allow pop-ups for this page and try again.',
-        syllabusScheduleAdjustments: 'Schedule adjustments',
-        syllabusScheduleAdjustmentsEmpty: 'No holidays or evaluation periods apply to this class during its term.',
-        syllabusAdjColType: 'Type',
-        syllabusAdjColName: 'Name',
-        syllabusAdjColDates: 'Dates',
-        syllabusSlotHolidayDetail: 'No regular lesson — holiday / no class',
-        syllabusSlotEventDetail: 'Special session — not a regular lesson',
-        syllabusOverflowIntro: 'Lessons below were not placed on the calendar before the term ended (holidays and special days used class periods).',
-        syllabusOverflowNote: 'Not scheduled in term — extend dates or reduce holidays to fit.',
-        syllabusSkippedDetail: 'Skipped this term — not on calendar',
-        scheduleAdjustmentSectionTitle: 'Schedule adjustment',
-        scheduleAdjustmentHint: 'Skip lessons or combine adjacent pairs for this class this term only (does not change the curriculum plan). Debate classes can also use auto-compress per book period above.',
-        scheduleAdjustmentNonDebateHint: 'Skip or combine lessons below to fit this term\'s class days. Auto-compress is only for debate classes.',
-        scheduleAdjustmentSummaryTitle: 'This term\'s schedule adjustments',
-        scheduleAdjustmentSummaryEmpty: 'No lessons skipped or combined for this term.',
-        scheduleAdjustmentSkipping: 'Skipping',
-        scheduleAdjustmentCombining: 'Combining',
-        scheduleAdjustmentSkipSingle: 'Lesson {n} ({label})',
-        scheduleAdjustmentSkipRange: 'Lessons {start}–{end} ({startLabel} … {endLabel})',
-        scheduleAdjustmentCombine: 'Lessons {start}+{end} ({startLabel} + {endLabel})',
-        scheduleSkipRangeLabel: 'Skip lesson range',
-        scheduleSkipRangeTo: 'to',
-        scheduleSkipRangeAdd: 'Add range',
-        scheduleSkipLesson: 'Skip',
-        scheduleCombineWithNext: 'Combine with next',
-        scheduleGapWarning: '{name}: {unplaced} of {total} curriculum sessions have no class day (holidays may have used meeting slots).',
-        scheduleGapAdjustAction: 'Adjust schedule',
-        scheduleConfirmTitle: 'Not enough class days for all lessons',
-        scheduleConfirmBody: '{name}: {eligible} class days in term, {needed} sessions need dates. Adjustments apply to this class this term only.',
-        scheduleConfirmCombining: 'Combine',
-        scheduleConfirmSkipping: 'Skip',
-        scheduleConfirmApply: 'Apply adjustments',
-        scheduleConfirmKeep: 'Keep as-is',
-        scheduleConfirmCancel: 'Cancel',
-        scheduleConfirmApplied: 'Schedule adjustments applied.',
-        scheduleConfirmCannotFit: 'Even with compression, not all lessons fit. Extend the term, skip more lessons, or reduce total lessons.',
-        syllabusExtraPeriodTitle: 'Open class period',
-        syllabusExtraPeriodDetail: 'No lesson scheduled — extra period at end of term',
-        syllabusExtraPeriodNote: 'Use for review, extra class, or adjust the calendar.',
-        syllabusUnitTitle: 'Unit title',
-        linkedSyllabusUnit: 'Syllabus unit (optional)',
-        noSyllabusUnit: '— None —',
-        fetchKrHolidays: 'Import Korean public holidays',
-        fetchKrHolidaysLoading: 'Loading holidays…',
-        fetchKrHolidaysConfirm: 'Import South Korea public holidays for your current term from a free public calendar (based on the official lunar gazette)? Includes substitute holidays (대체공휴일). Existing matching holidays will be skipped.',
-        fetchKrHolidaysDone: 'Added {added} holiday(s). Skipped {skipped} duplicate(s).',
-        fetchKrHolidaysError: 'Could not load Korean holidays. Check your internet connection and try again.',
-        fetchKrHolidaysYearUnavailable: 'Holiday data for {year} is not available yet. Try again later or add holidays manually.',
-        fetchKrHolidaysCorsError: 'Could not reach the holiday calendar from the browser. Try opening this app from a local web server instead of a file:// link.',
-        fetchKrHolidaysNoTerm: 'Set a term start month first.',
-        krHolidaysSourceHint: 'Source: holidays.hyunbin.page — free public calendar (official gazette, includes substitute holidays).',
-        krPublicHolidayImportNote: 'Auto-imported (KR public calendar)',
-        
-        // Class Modal
-        addNewClass: 'Add New Class',
-        editClass: 'Edit Class',
-        className: 'Class Name',
-        classNamePlaceholder: 'e.g., Debate',
-        classPeriod: 'Period',
-        classPeriodHint: 'Lower numbers appear first in lists, print summary, and on days with multiple classes (1 = first period).',
-        classPeriodVariesByDay: 'Different period on some meeting days',
-        classPeriodVariesByDayHint: 'Use when this class is not the same period every day it meets (e.g. Period 1 on Monday, Period 3 on Wednesday).',
-        classPeriodByDayLabel: 'Period by day',
-        classLevel: 'Class Level',
-        classLevelPreset: 'Simson level (preset)',
-        classLevelCustom: 'Level (custom)',
-        classLevelCustomPlaceholder: 'Optional: level not in the list',
-        selectLevel: 'Select level',
-        simsonLevelsElementary: 'Elementary',
-        simsonLevelsMiddleSchool: 'Middle school',
-        defaultBook: 'Default book (fallback)',
-        debateBookPeriods: 'Book periods (debate)',
-        debateBookPeriodsHint: 'Each row is when a new debate book starts. Lessons from that date through the next period use that book and restart Day 1–4.',
-        addBookPeriod: 'Add book period',
-        addBookMonth: 'Add month',
-        compressionModeManualPerMonth: 'Per book period (choose merges for each period)',
-        compressionByMonthHint: 'Choose which lesson pairs to merge for each book period. Periods can differ when holidays shorten the schedule.',
-        periodAutoMergeHint: '{period}: auto merges applied ({merges})',
-        periodIncompleteHint: '{period}: only {scheduled}/{total} lesson groups placed',
-        fillBooksFromDefault: 'Fill term from default book',
-        compressionModeLabel: 'Compression',
-        compressionModeAuto: 'Auto compress when a month does not have enough class days',
-        compressionModeManual: 'Manual only (use my merge choices below)',
-        termCalendarMonths: 'Term (calendar months)',
-        termCalendarMonthsHint: 'One book unit per month. Default is 3 months = 3 books.',
-        useAutoTermEnd: 'Auto-set end date to the last day of the final month',
-        bookThisLesson: 'Book (this lesson):',
-        levelRequired: 'Please select a Simson level preset or enter a custom level.',
-        monthAutoMergeHint: '{month}: auto merges applied ({merges})',
-        monthIncompleteHint: '{month}: only {scheduled}/{total} lesson groups placed',
-        grade: 'Grade',
-        selectGrade: 'Select grade (optional)',
-        book: 'Book',
-        bookPlaceholder: 'e.g., Debate 2025 Fall Nov. A',
-        notes: 'Notes',
-        notesPlaceholder: 'Optional notes about this class...',
-        startDate: 'Start Date',
-        endDate: 'End Date',
-        dayOfWeek: 'Day of Week',
-        selectDay: 'Select Day',
-        sunday: 'Sunday',
-        monday: 'Monday',
-        tuesday: 'Tuesday',
-        wednesday: 'Wednesday',
-        thursday: 'Thursday',
-        friday: 'Friday',
-        saturday: 'Saturday',
-        color: 'Color',
-        classBackgroundColor: 'Background color',
-        classTextColor: 'Text color',
-        customSchedule: 'Custom Schedule (manually pick dates for each lesson)',
-        selectDatesHint: 'Select specific dates for each lesson day:',
-        day1: 'Day 1',
-        day2: 'Day 2',
-        day3: 'Day 3',
-        day4: 'Day 4',
-        totalLessons: 'Total Lessons',
-        lessonDayLabel: 'Day {n}',
-        mergeDaysLabel: 'Merge Day {start}+{end}',
-        compressionHint: 'Compression groups (choose merges):',
-        compressionOverlapHint: 'Only adjacent lessons can be merged. Overlapping merges are disabled.',
-        compressionMergeCheckboxesNote: 'Merge checkboxes apply in Manual mode only. In Auto mode, pairs merge only when a month has fewer class meetings than lesson days.',
-        combineDay12: "Combine Day 1+2 on Day 1's date",
-        combineDay34: "Combine Day 3+4 on Day 3's date",
-        customScheduleLabel: 'Custom',
-        delete: 'Delete',
-        deleteClass: 'Delete class',
-        saveClass: 'Save Class',
-        classSaved: 'Class saved.',
-        classTeacherSection: 'Teacher & cohort',
-        classFormSectionBasics: 'Basics',
-        classFormSectionSchedule: 'Schedule',
-        classFormSectionProgram: 'Program & curriculum',
-        classFormSectionSyllabus: 'Syllabus',
-        classFormSectionSyllabusHint: 'Lesson dates and pages live on the Syllabus tab. Link a curriculum book above, then edit the dated table there.',
-        classFormSectionAppearance: 'Appearance',
-        classFormSectionBooks: 'Books & materials',
-        classFormSectionAdvanced: 'Advanced scheduling',
-        classFormSectionNotes: 'Notes',
-        classAssignedTeacher: 'Assigned teacher',
-        classAssignedTeacherNone: '— Not assigned —',
-        classAssignedTeacherCustom: 'Other (type name below)',
-        classAssignedTeacherName: 'Teacher name (if not in list)',
-        classTeachersHint: 'Add teachers and pick a student cohort in any order. Homeroom (담임) is set on Setup → Cohorts. Admins: cohort is required when you save. To drag this class on the Cohorts board, save it first on this tab.',
-        classTeachersRowsMissing: 'Teacher rows could not be loaded. Hard refresh the page (Ctrl+F5) and try again.',
-        classCohortAdminRequired: '(required for admins)',
-        classTeacherAccountRequired: 'Select a teacher account from the list (not only a typed name) so their login shows the right curriculum.',
-        classTeacherLegacyUnlinked: 'link account',
-        classAddTeacher: '+ Add teacher',
-        classRemoveTeacher: 'Remove',
-        classRemoveTeacherHint: 'Remove a teacher row, then Save Class, to unassign them from this class.',
-        classTeacherDaysInherit: 'Same meeting days as class',
-        classTeacherDaysCustom: 'Custom meeting days',
-        classTeacherPeriodInherit: 'Same period as class',
-        classTeacherPeriodCustom: 'Custom period',
-        classTeacherAddTimeSlot: '+ Add time slot',
-        classTeacherScheduleBlock: 'Schedule block',
-        timetableExportExcel: 'Export Excel',
-        timetableExportExcelFailed: 'Could not export timetable.',
-        dataCalendarBackupHeading: 'Calendar backup',
-        dataCalendarBackupHint: 'Export a full backup of this calendar (classes, events, holidays, cohorts, timetable settings). Export before importing if unsure.',
-        dataExportCalendar: 'Export calendar',
-        dataImportCalendar: 'Import calendar',
-        dataCalendarNameLabel: 'Current calendar',
-        classTeacherCategory: 'Subject taught',
-        classTeacherCategoryAuto: 'Auto from class type',
-        classTeacherCategoryStale: 'Old label cleared — pick Auto or a category',
-        classHomeroomLabel: 'Homeroom teacher (담임)',
-        classHomeroomLabelNone: 'No homeroom teacher for this cohort. Mark a homeroom host class on Setup → Cohorts.',
-        classHomeroomLabelFromCohort: 'Homeroom (담임): {name} — student contact and retests. If they also teach this class, add them above with the subject they teach.',
-        timetableCellHomeroom: '담임',
-        classCohort: 'Student cohort',
-        classCohortNone: '— No cohort —',
-        classScheduleBlock: 'Schedule block',
-        classScheduleBlockPrimary: 'Primary (main grid)',
-        classScheduleBlockSecondary: 'Secondary (Conversation / IPE / MS)',
-        timetableTeacherLabel: 'Teacher',
-        timetableSelectTeacher: 'Select a teacher',
-        timetablePickTeacher: 'Select a teacher from the list to view their classes and weekly timetable.',
-        timetableTeacherSearchPlaceholder: 'Search teachers…',
-        timetableTeacherClassesHeading: 'Classes',
-        timetableNoClassesForTeacher: 'No classes assigned to this teacher yet. Assign them on the Classes tab.',
-        timetableHomeroomOnlyTeacher: 'Homeroom teacher (담임) only — no teaching slots yet. To show classes on the grid, add this teacher under Class teachers on each class they teach (with the subject they teach).',
-        timetableTeachersListEmpty: 'No teachers found. Assign teachers on classes or add team accounts.',
-        timetableCohortsScopeHint: 'Cohorts belong to this calendar only (not shared across team calendars). 담임 is a cohort role here; teaching slots come from Class teachers on the Classes tab.',
-        timetableHomeroomRoleHint: '담임 is a cohort role (student contact, retests), not a teaching subject. If this teacher also teaches, add them on each class under Class teachers with the subject they teach.',
-        timetableCohortHomeroomOnlySaved: 'Cohort saved. This teacher is 담임 only — add them as a class teacher on subjects they teach when ready.',
-        timetableEmptyHint: 'Assign teachers on the Classes tab to build a weekly timetable.',
-        timetableHomeroomLabel: 'Homeroom',
-        timetableTimeHeader: 'Time',
-        timetablePrint: 'Print timetable',
-        timetablePrintOptionsTitle: 'Print timetable',
-        timetablePrintSectionPage1: 'Page 1 — weekly grid (landscape)',
-        timetablePrintSectionPage1Hint: 'Rows are sized evenly to fill one A4 landscape page within the margins.',
-        timetablePrintSectionPage2: 'Page 2 — optional extras (portrait)',
-        timetablePrintSectionPage2Hint: 'Only included when at least one option below is checked.',
-        timetablePrintIncludeTeacher: 'Teacher name',
-        timetablePrintIncludeHomeroom: 'Homeroom day letters',
-        timetablePrintIncludeTerm: 'Calendar / term label',
-        timetablePrintIncludeConflicts: 'Schedule conflict notice',
-        timetablePrintIncludeSecondary: 'Secondary schedule block',
-        timetablePrintIncludeHomeroomSummary: 'Homeroom cohorts summary',
-        timetablePrintIncludeCohortDirectory: 'Cohort directory (all cohorts)',
-        timetablePrintCohortDirectoryHeading: 'Student cohorts',
-        timetablePrintColCohort: 'Cohort',
-        timetablePrintColHomeroomTeacher: 'Homeroom teacher',
-        timetablePrintColDaySuffix: 'Day letter',
-        timetablePrintColClassCount: 'Classes',
-        timetableConflicts: 'Schedule conflicts detected',
-        timetableNoConflicts: 'No conflicts',
-        timetableSuggestCohorts: 'Suggest cohorts from classes',
-        timetableCohortsHeading: 'Student cohorts (담임)',
-        timetableAddCohort: 'Add cohort',
-        timetableCohortName: 'Cohort name',
-        timetableHomeroomTeacher: 'Homeroom teacher (담임)',
-        timetableHomeroomDaySuffix: 'Homeroom day letter',
-        timetableSaveCohort: 'Save cohort',
-        timetableDeleteCohort: 'Delete cohort',
-        timetableCohortSaved: 'Cohort saved.',
-        timetableCohortsSuggested: 'Suggested {n} cohort(s). Review and save homeroom teachers.',
-        timetableMySchedule: 'My schedule',
-        timetableCohortsEmpty: 'No cohorts on this calendar. Open the Setup tab → Cohorts, then click + Add cohort.',
-        timetableHomeroomCohortsHeading: 'Homeroom cohorts on this schedule',
-        timetableHomeroomCohortClasses: '{n} classes',
-        classTeacherCurriculum: 'Curriculum (this teacher)',
-        classApplyCurriculumToTeacher: 'Apply curriculum',
-        showAllClassCurricula: 'Show all teachers’ curricula',
-        showAllClassCurriculaHint: 'When off, the calendar shows only lessons for curricula assigned to you.',
-        syllabusViewingCurriculum: 'Syllabus for your curriculum assignment',
-        classTypeLabel: 'Class type',
-        classTypeHint: 'Pick a preset for typical lesson counts and meeting days. You can still edit every field.',
-        classTypeCustom: 'Custom (no preset)',
-        classTypeDebate: 'Debate (once per week)',
-        classTypeWrSp: 'WR+SP (2× per week, 1 unit/week)',
-        classTypeKoreanMulti: 'Korean / multi-day (2× per week)',
-        wrSpTypeHint: 'Write Right: 18 lessons (Lesson A/B + combined projects). Early Writers: 21 lessons (Unit [1/2]/[2/2] with SB/WB ranges, revision weeks, level test). Pick the preset that matches your book. (Write Now is separate.)',
-        sequentialScheduleHint: 'Lessons run in order across the whole term (1, 2, 3…). Day-pair compression is for weekly debate only.',
-        unitLessonSpeaking: 'Unit {u} [1/2] – Speaking',
-        unitLessonWriting: 'Unit {u} [2/2] – Writing',
-        lessonNumberLabel: 'Lesson {n}',
-        termLessonsIncompleteHint: '{name}: {scheduled}/{total} lessons placed (not enough class days in the term)',
-        classTypeNewType: 'New class type',
-        classTypeCreateTitle: 'Create a class type',
-        classTypeName: 'Type name',
-        classTypeNamePlaceholder: 'e.g., Science club',
-        classTypeMeetingDaysHint: 'Check the weekdays this type usually meets. You can change them later for each class.',
-        classTypeSave: 'Save type',
-        classTypeDelete: 'Delete type',
-        confirmDeleteClassType: 'Remove this saved class type? Classes already added stay unchanged.',
-        defaultClassEditorOpen: 'Edit defaults',
-        defaultClassEditorTitle: 'Edit default class types',
-        defaultClassEditorHint: 'Change factory defaults for built-in and PDF preset types. Your classes keep their own settings; new classes use these values.',
-        defaultClassEditorPickType: 'Type to edit',
-        defaultClassEditorDisplayName: 'Display name',
-        defaultClassEditorImportMode: 'Homework paste mode',
-        defaultClassEditorLabelMode: 'Lesson label style',
-        defaultClassEditorUnitPair: 'Unit pair labels (speaking / writing)',
-        defaultClassEditorSave: 'Save default',
-        defaultClassEditorResetType: 'Reset this type',
-        defaultClassEditorResetAll: 'Reset all to factory',
-        defaultClassEditorResetTypeConfirm: 'Reset this type to factory settings?',
-        defaultClassEditorResetAllConfirm: 'Reset every built-in and PDF preset to factory settings?',
-        defaultClassEditorFactoryValues: 'Factory: {lessons} lessons, book “{book}”.',
-        defaultClassEditorDuplicate: 'Duplicate class type',
-        defaultClassEditorDuplicatePick: 'Select a class type to duplicate first.',
-        defaultClassEditorCustomTypeNote: 'Custom copy — edit below and click Save custom type. Remove via Delete type when adding a class.',
-        defaultClassEditorResetTypeDisabled: 'Only built-in / PDF presets can be reset to factory.',
-        defaultClassEditorSaveCustom: 'Save custom type',
-        meetingDays: 'Meeting days',
-        meetingDaysHint: 'Check each weekday this class meets on the calendar. Use one day for weekly debate; two or more for classes that meet several times a week.',
-        meetingDaysRequired: 'Select at least one meeting day, or turn on Custom schedule.',
-        meetingDaysQuick: 'Quick:',
-        meetingDaysPresetMwf: 'MWF',
-        meetingDaysPresetMw: 'Mon/Wed',
-        meetingDaysPresetWf: 'Wed/Fri',
-        meetingDaysPresetMf: 'Mon/Fri',
-        meetingDaysPresetTt: 'T/T',
-        meetingDaysPresetClear: 'Clear',
-        fillSyllabusFromUnits: 'Fill pages from units',
-        applyPresetSyllabus: 'Apply preset pages',
-        syllabusPresetTypeHint: 'Choose your meeting days and term dates. The calendar places each session on those days. Then use Refresh from calendar and Apply preset pages.',
-        scheduleMatrixSuggestHint: 'Schedule tip: this subject is often Period {period} on {days} ({pattern}). You can change meeting days anytime.',
-        homeworkImportTitle: 'Import homework from paste',
-        homeworkImportHint: 'Paste debate Day blocks or Unit Part blocks. Run Refresh from calendar first so session numbers match.',
-        homeworkImportPlaceholder: 'Paste homework text here…',
-        homeworkImportPreview: 'Preview match',
-        homeworkImportApply: 'Apply to table',
-        homeworkImportNoPaste: 'Paste some homework text first.',
-        homeworkImportNoRows: 'Refresh from calendar first to create syllabus rows.',
-        homeworkImportPreviewHeader: 'Matched {matched}, unmatched {unmatched}',
-        homeworkImportApplied: 'Applied homework to {n} row(s).',
-        homeworkTabReferenceDate: 'Reference date',
-        homeworkTabToday: 'Today',
-        homeworkTabMiniCalendarLabel: 'Pick reference date',
-        homeworkTabPrevMonth: 'Previous month',
-        homeworkTabNextMonth: 'Next month',
-        homeworkTabRefreshSyllabi: 'Refresh syllabi from calendar',
-        homeworkTabOnSelectedDay: 'On selected day',
-        homeworkTabAllClasses: 'All classes',
-        homeworkTabSelectedDateClasses: "Selected date's classes",
-        homeworkTabOtherClasses: 'Other classes',
-        homeworkTabEditorEmpty: 'Select a class to see homework copy blocks from its syllabus.',
-        homeworkTabOpenClass: 'Edit syllabus in Classes',
-        homeworkTabOpenSyllabus: 'Edit syllabus',
-        openSyllabusTab: 'Edit syllabus',
-        classTabOpenSyllabus: 'Edit syllabus',
-        syllabusTabIntro: 'Edit each class syllabus: lesson table, pages, and notes. Pick a class or a custom template in the list. Refresh from calendar or curriculum using the buttons at the top of the editor.',
-        syllabusTabEditorEmpty: 'Select a class or a custom syllabus template.',
-        syllabusSegmentClasses: 'Classes',
-        syllabusSegmentTemplates: 'My syllabi',
-        syllabusNewTemplate: '+ New custom syllabus',
-        syllabusTemplateSearchPlaceholder: 'Search templates…',
-        syllabusSaveClass: 'Save syllabus',
-        syllabusSaveTemplate: 'Save template',
-        syllabusOpenClassSettings: 'Class schedule & settings',
-        syllabusOpenHomework: 'Homework copy',
-        syllabusApplyTemplatePick: 'Apply custom syllabus…',
-        syllabusSaveAsTemplate: 'Save as template',
-        syllabusDeleteTemplate: 'Delete template',
-        syllabusModeTemplate: 'Editing template: {name} — apply to a class when ready.',
-        syllabusScheduleChip: 'Schedule (saved): {days} · {start} – {end}',
-        syllabusScheduleUnsavedHint: 'Set meeting days and term dates under Class schedule & settings (Classes tab) before Refresh from calendar.',
-        syllabusScheduleSetupHint: 'Set skips and lesson merges here before the term. Homework and the lesson table use these after Refresh from calendar.',
-        syllabusCompressionByPeriodReadonlyHint: 'Per-period merges use book periods saved on the class. Edit book periods under Class schedule & settings.',
-        syllabusClassSummary: '{rows} rows in syllabus',
-        syllabusClassSummaryEmpty: 'No syllabus rows yet',
-        syllabusStartBlank: 'Start blank syllabus',
-        addSyllabusLessonRow: 'Add lesson row',
-        syllabusConfirmBlank: 'Clear all syllabus units and rows for this class?',
-        syllabusConfirmApplyTemplate: 'Replace this class syllabus units and merge page content from the template?',
-        syllabusConfirmDeleteTemplate: 'Delete this custom syllabus template?',
-        syllabusTemplateNamePrompt: 'Template name',
-        syllabusTemplateSaved: 'Template saved.',
-        syllabusTemplateApplied: 'Custom syllabus applied.',
-        syllabusSaved: 'Syllabus saved.',
-        syllabusDuplicateFromClass: 'Duplicate from class',
-        syllabusNoTemplates: 'No custom syllabi yet. Click + New custom syllabus.',
-        syllabusGeneralNotes: 'General notes & instructions',
-        syllabusGeneralNotesHint: 'For parents, substitutes, or your own reminders. Overrides curriculum general notes when set. Printed in the Note column on the 진도표 overview. Per-lesson notes in the table are not printed.',
-        syllabusGeneralNotesPlaceholder: 'e.g., Bring workbook every class. Quiz on Unit 3 at session 8…',
-        homeworkTabHint: 'This tab only prepares text to copy. Paste it into your separate Simson grading website and homework assignment website — those pages are not part of this app. Text comes from each class syllabus (Pages / detail). Refresh syllabi after calendar changes.',
-        homeworkTabExternalBanner: 'Copy from here, then paste on your other websites (Simson grading and homework assignment).',
-        homeworkTabDueDate: 'Homework due (next class)',
-        homeworkTabGradingTitle: 'Previous week — for Simson grading site',
-        homeworkTabAssignTitle: 'This week — for homework assignment site',
-        homeworkTabGradingHint: 'Copy this block, open your Simson grading webpage in another tab, and paste there. This is homework due at the current class (from the previous session’s Pages / detail).',
-        homeworkTabAssignHint: 'Copy this block, open your homework assignment webpage in another tab, and paste there. Due on the next in-person class (skips holidays and no-class days).',
-        homeworkTabCopy: 'Copy',
-        homeworkTabCopyDate: 'Copy date',
-        homeworkTabCopyHomework: 'Copy homework',
-        homeworkTabCopyHomeworkTitle: 'Homework text — paste into the description field on your homework assignment site.',
-        homeworkTabCopyBoth: 'Copy both blocks',
-        homeworkTabSyllabiRefreshed: 'Syllabi updated from calendar.',
-        homeworkTabCopied: 'Copied to clipboard.',
-        homeworkTabCopyFailed: 'Could not copy. Select the text and copy manually.',
-        homeworkTabNoLessons: 'No scheduled lessons in the syllabus. Open the class editor and click Refresh from calendar.',
-        homeworkTabNoHomeworkText: 'Lessons are scheduled but Pages / detail is empty. Add homework in the syllabus or use Import homework from paste.',
-        homeworkTabNoAssignText: 'No homework text for this week in the syllabus.',
-        homeworkTabNoGradingText: 'No previous-week homework in the syllabus (first lesson of term).',
-        homeworkTabNoDueDate: 'No next class date before term end. Check meeting days and end date.',
-        homeworkTabTargetLesson: 'Assign at class on {date} · Session {n}: {title}',
-        homeworkTabGradingFrom: 'Grade homework from session {n} ({date}): {title}',
-        homeworkTabModuleMissing: 'Homework tab module did not load. Press Ctrl+F5 to refresh.',
-        homeworkTabDueLabel: 'Due',
-        homeworkTabSessionLabel: 'Session',
-        homeworkTabEditableHint: 'Edit the text areas below to update the syllabus (Pages / detail). Copy adds the class name and session header.',
-        homeworkTabSavesTo: 'Saves to syllabus: Session {n} · {title}',
-        homeworkTabSaved: 'Homework saved to syllabus.',
-        homeworkTabNoSyllabusRow: 'No syllabus row linked. Click Refresh syllabi from calendar first.',
-        homeworkTabSkippedHeading: 'Regular class days skipped before due date:',
-        homeworkTabSkipHoliday: '{date} — {name} (no class)',
-        homeworkTabSkipHolidayNoName: '{date} — holiday (no class)',
-        workspaceTitle: 'Curriculum workspace',
-        workspaceBackCalendar: '← Back to calendar',
-        workspaceTabHomework: 'Homework copy',
-        workspaceTabBooks: 'Book editor',
-        workspaceOpen: 'Open expanded workspace',
-        workspaceOpenBooks: 'Open in workspace',
-        workspaceHomeworkFlowHint:
-            'Text comes from syllabus Pages / detail, which comes from the curriculum book. Edit the book, refresh syllabi, then copy here.',
-        workspaceBooksIntro:
-            'Edit shared page blocks for each curriculum book. Save, then refresh syllabi on the Homework copy tab.',
-        workspaceBooksPick: 'Select a book to edit session pages.',
-        workspaceSourceBook: 'Source book:',
-        workspaceEditBook: 'Edit book →',
-        workspaceBooksFeedHint:
-            'Pages / detail here feed class syllabi when you refresh from calendar. Homework copy uses syllabus rows.',
-        workspaceBooksSavedRefresh:
-            'Book saved. Use Refresh syllabi from calendar on the Homework copy tab to update copy text.',
-        workspaceRemoteNewer: 'Calendar was updated elsewhere.',
-        workspaceReload: 'Reload',
-        workspaceLoadFailed: 'Could not load calendar data. Return to the main calendar or click Reload.',
-        notesPageTitle: 'Class day notes',
-        notesBackCalendar: '← Calendar',
-        notesLoadFailed: 'Could not load notes. Return to the calendar or click Reload.',
-        notesNoClasses: 'No classes in this calendar.',
-        notesMyClassesOnly: 'My classes only',
-        notesNoMyClassesOnDay: 'No classes assigned to you on this day. Turn off “My classes only” to see every class.',
-        notesMyClassesSignIn: 'Sign in to filter by your classes, or turn off “My classes only”.',
-        notesSelectClass: 'Tap a class to add or view notes.',
-        notesEditorClose: 'Close note editor',
-        notesNoSearchMatch: 'No classes match your search.',
-        notesLessonLabel: 'Lesson {n}',
-        notesOpenMobile: 'Mobile day notes',
-        notesOpenMobileTitle: 'Open the mobile day-notes journal (date and class list)',
-        notesMobilePromoHint: 'Phone-friendly journal: pick a date, tap your class, write what happened.',
-        headerMoreMenu: 'More',
-        calendarViewAgenda: 'Agenda',
-        calendarViewMonth: 'Month',
-        calendarAgendaEmpty: 'No lessons or events in the next two weeks.',
-        mobileSetupLimitedHint: 'This setup screen works best on a tablet or computer. You can view here, but editing is limited on a phone.',
-        workspaceTabCalendarHint: 'Opens main calendar in this tab area; tap 8 times for a surprise',
-        classNotesFilterMobileNone: 'Filter actions…',
+const translations =
+    typeof CCPCalendarI18n !== 'undefined' && CCPCalendarI18n.translations
+        ? CCPCalendarI18n.translations
+        : { en: {}, ko: {} };
 
-        // Holiday Modal
-        addHolidayTitle: 'Add Holiday',
-        editHoliday: 'Edit Holiday',
-        holidayName: 'Holiday/Event Name',
-        holidayNamePlaceholder: 'e.g., Thanksgiving',
-        dateRange: 'Date Range (multiple days)',
-        date: 'Date',
-        bgColor: 'Background Color',
-        textColor: 'Text Color',
-        appliesTo: 'Applies To',
-        allClasses: 'All Classes',
-        byGrade: 'By Grade:',
-        byClassName: 'By Class Name:',
-        bySection: 'By Simson level:',
-        allElementaryLabel: 'All elementary (초1–초6)',
-        allMiddleSchoolLabel: 'All middle school (중1–중3)',
-        sectionsLabel: 'Levels',
-        bySchoolBand: 'School level (quick):',
-        holidayFilterRequired: 'Select at least one filter (section, grade band, grades, or class names), or turn on All Classes.',
-        eventApplicabilityFilterBtn: 'Choose applicability…',
-        eventApplicabilityFilterTitle: 'Event applies to',
-        eventApplicabilityFilterStatus: '{selected} of {total} filters selected',
-        eventApplicabilityFilterBtnActive: 'Applicability ({selected}/{total})',
-        eventApplicabilitySectionSchoolBand: 'School level (quick)',
-        eventApplicabilitySectionLevel: 'By Simson level',
-        eventApplicabilityNoOptions: 'No classes yet. Add classes in the Classes tab.',
-        eventApplicabilitySummaryEmpty: 'No filters selected — open the filter and choose at least one.',
-        saveHoliday: 'Save Holiday',
-        
-        // Popup
-        level: 'Level:',
-        lesson: 'Lesson:',
-        
-        // Print Modal
-        printOptions: 'Print Options',
-        printCalendar: 'Print Calendar',
-        printSummaryPage: 'Print Summary Page',
-        includeClassList: 'Include Class List',
-        includeLessonSchedule: 'Include Lesson Schedule',
-        includeCompressionNotes: 'Include Compression Notes',
-        
-        // Print Summary
-        termSummary: 'Term Summary',
-        classes: 'Classes',
-        holidays: 'Holidays',
-        lessonSchedule: 'Lesson Schedule',
-        compressionNotes: 'Compression Notes',
-        day: 'Day',
-        mergedGroupsLabel: 'Merged: {groups}',
-        scheduledGroupsLabel: 'Scheduled {scheduled}/{total} lesson groups',
-        compressionNoteAutoSuffix: '({available} available dates)',
-        compressionNoteCustomSuffix: '(custom schedule)',
-        
-        // Term seasons (from class/calendar start month)
-        termSeasonSpring: 'Spring',
-        termSeasonSummer: 'Summer',
-        termSeasonFall: 'Fall',
-        termSeasonWinter: 'Winter',
-
-        // Calendar
-        monthNames: ['January', 'February', 'March', 'April', 'May', 'June',
-                     'July', 'August', 'September', 'October', 'November', 'December'],
-        dayNamesShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        dayNamesFull: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-        
-        // Autocomplete
-        selectToAutofill: 'Select to auto-fill fields:',
-        
-        // Messages
-        allClassesLabel: 'All Classes',
-        gradesLabel: 'Grades',
-        classesLabel: 'Classes',
-        noClassesYet: 'No classes created yet',
-        noCompressedDays: 'No classes have compressed days.',
-        confirmDeleteClass: 'Are you sure you want to delete this class?',
-        confirmDeleteHoliday: 'Are you sure you want to delete this holiday?',
-        confirmClearAllData: 'Are you sure you want to clear all data? This will delete all classes, holidays, and calendar settings. This action cannot be undone.',
-        clearDataSuccess: 'All data has been cleared.',
-        importSuccess: 'Data imported successfully!',
-        importDestinationTitle: 'Import calendar data',
-        importToCurrent: 'Import into current calendar',
-        importToNew: 'Create new team calendar from file',
-        importOverwriteWarning: 'Replaces all data in this calendar. Export a backup first if unsure.',
-        importOverwriteConfirm: 'Replace all data in "{name}" with the imported file? This cannot be undone.',
-        importReadOnlyHint: 'This calendar is locked by another teacher. Request to edit first, or choose “Create new team calendar from file”.',
-        importConfirm: 'Import',
-        importImporting: 'Importing…',
-        importNoActiveCalendar: 'No team calendar selected. Create a new calendar from the file instead.',
-        importNewCreated: 'Imported into new calendar "{name}".',
-        importToCurrentDone: 'Imported into "{name}".',
-        invalidFile: 'Invalid file format. Please select a valid calendar export file.',
-        errorReadingFile: 'Error reading file. Please select a valid JSON file.',
-        migrationNotice: 'Data migrated to new format:\n- {classes} class(es) updated\n- {holidays} holiday(s) updated\n\nPlease review and update Class Levels (A/B/C) for migrated classes.'
-    },
-    ko: {
-        // Header
-        appTitle: '수업 캘린더 플래너',
-        addClass: '+ 수업 추가',
-        addHoliday: '+ 휴일 추가',
-        export: '내보내기',
-        import: '가져오기',
-        print: '인쇄',
-        printCalendarBtn: '캘린더 인쇄',
-        printSummaryBtn: '요약 인쇄',
-        printSectionCalendar: '캘린더 (가로)',
-        printSectionCalendarHint: '월별 그리드 미리 보기 탭이 열립니다. 브라우저에서 인쇄하거나 PDF로 저장하세요.',
-        printSectionSummary: '요약 및 강의계획표 (세로)',
-        printSectionSummaryHint: '목록과 강의계획표(반별 1페이지) 미리 보기 탭이 열립니다.',
-        printNothingSelectedSummary: '인쇄할 요약 항목을 하나 이상 선택하세요.',
-        printCalendarNeedsTerm: '캘린더를 인쇄하려면 먼저 학기 시작 월을 설정하세요.',
-        printCalendarWarnManyTypes: '인쇄 캘린더에 {count}개 유형이 켜져 있습니다(이 레이아웃은 {max}개 이하가 가장 잘 보입니다). 유형이 많으면 날짜 칸이 비좁고 잘릴 수 있습니다.',
-        printCalendarWarnManyClasses: '캘린더에 {count}개 수업이 표시됩니다. 인쇄 칸이 작아 일부 수업 정보가 잘릴 수 있습니다. “수업 필터…”로 수업 수를 줄여 보세요.',
-        printCalendarWarnContinue: '그래도 인쇄할까요?',
-        clearAllData: '모든 데이터 지우기',
-        topBarCollapse: '도구 모음 접기',
-        topBarExpand: '도구 모음 펼치기',
-        teamCalendar: '팀 캘린더:',
-        teamNewCalendar: '+ 새로 만들기',
-        teamCalendarMenu: '캘린더',
-        teamAccountMenu: '계정',
-        syncConnecting: '연결 중…',
-        syncSyncing: '동기화 중…',
-        syncConnected: '연결됨 — 팀 폴더에 저장',
-        syncOffline: '오프라인 — 이 브라우저에만 저장',
-        syncSaving: '저장 중…',
-        syncSaved: '저장됨',
-        syncError: '저장 오류',
-        syncReload: '최신 불러오기',
-        syncKeepLocalView: '내 화면 유지',
-        syncRemoteNewer: '다른 사람이 더 새 버전을 저장했습니다.',
-        syncBackupNow: 'Drive에 백업',
-        syncBackupOk: '백업 완료.',
-        syncBackupSkipped: '서버에 Google Drive가 설정되지 않았습니다.',
-        syncConflictTitle: '저장 충돌',
-        syncConflictHint: '편집 중 다른 사람이 저장했습니다. 유지할 버전을 선택하세요.',
-        syncUseTheirs: '상대 버전 사용',
-        syncUseMine: '내 버전 사용',
-        syncSmartMerge: '스마트 병합',
-        editorNamePrompt: '이름 (저장 시 표시):',
-        uploadLocalPrompt: '브라우저 캘린더를 팀 폴더에 업로드할까요?',
-        newCalendarNamePrompt: '새 팀 캘린더 이름:',
-        newCalendarFailed: '캘린더를 만들지 못했습니다',
-        duplicateCalendarName: '"{name}"(이)라는 이름의 캘린더가 이미 있습니다. 다른 이름을 사용하세요.',
-        teamDeleteCalendar: '삭제',
-        teamCalendarHint: '목록에서 선택하거나 + 새로 만들기. 수정은 클라우드에 자동 저장됩니다. 아래 캘린더 이름으로 이름 변경. 로그인·잠금·역할·협업은 도움말 17–21절을 보세요.',
-        teamCalendarNameLabel: '캘린더 이름 (저장됨):',
-        teamCalendarEmpty: '— 캘린더 없음 — + 새로 만들기 클릭',
-        teamCalendarNoneAssigned:
-            '— 배정된 캘린더 없음 — 관리자에서 접근 권한을 부여하거나 헤드 티처에게 문의하세요',
-        teamSyncOffline: '팀 서버에 연결되지 않음',
-        newCalendarTitle: '팀 캘린더 추가',
-        newCalendarHint: '이름을 입력하세요 (예: 2026 봄). 팀에 저장되고 위 목록에서 선택됩니다.',
-        newCalendarCreating: '만드는 중…',
-        deleteCalendarRemoving: '삭제 중…',
-        newCalendarCreate: '캘린더 만들기',
-        newCalendarCreated: '"{name}" 생성됨 — 팀 캘린더 ↑ 에서 선택됨',
-        defaultTeamCalendarName: '팀 캘린더',
-        defaultTeamCalendarTermSuffix: '학기',
-        defaultTeamCalendarCreated:
-            '시작용 캘린더를 만들었습니다: {name}. 캘린더 이름에서 바꿀 수 있습니다.',
-        newCalendarAccessTeachers: '이 캘린더에 접근할 수 있는 사람',
-        newCalendarAccessHint: '선생님 및/또는 그룹을 선택하세요. 본인은 항상 포함됩니다. 관리자는 모든 캘린더를 볼 수 있습니다.',
-        newCalendarAccessGroupsLabel: '그룹',
-        newCalendarNoAccessList: '다른 선생님이나 그룹이 없습니다. 관리자가 추가할 때까지 본인만 접근할 수 있습니다.',
-        teamCalendarAccessLost: '해당 캘린더에 더 이상 접근할 수 없습니다. 다른 캘린더로 전환했습니다.',
-        deleteCalendarTitle: '팀 캘린더 삭제',
-        deleteCalendarConfirm: '영구 삭제',
-        deleteCalendarPrompt: '팀에서 "{name}"을(를) 삭제할까요? 되돌릴 수 없습니다.',
-        deleteCalendarDone: '"{name}" 삭제됨.',
-        cancel: '취소',
-        openFromDriveTitle: '팀 링크를 사용하세요 (이 파일 말고)',
-        openFromDriveHint: '브라우저에서 팀 링크로 여세요. 폴더의 index.html을 더블클릭하지 마세요.',
-        hostEngineTitle: '로컬 팀 서버 — 이 링크를 공유하세요',
-        hostEngineHint: '이 PC에서 서버(npm start 또는 START TEAM CALENDAR.bat)를 켠 뒤, 같은 Wi‑Fi의 선생님이 아래 링크로 접속합니다.',
-        hostTeamLinkLabel: '팀 링크:',
-        hostCopyLink: '링크 복사',
-        teamLockStatusFree: '누구나 편집할 수 있음',
-        teamLockStatusHeld: '편집 중',
-        teamLockStatusBlocked: '{name}님이 잠금 보유',
-        teamLockStatusPending: '{name}님이 편집 요청',
-        teamLockActionAcquire: '편집 시작',
-        teamLockActionRelease: '잠금 해제',
-        teamLockActionRequest: '편집 요청',
-        teamLockActionWaiting: '요청 전송됨',
-        teamLockStatusWaiting: '{name}님의 허용을 기다리는 중',
-        teamLockAllow: '허용',
-        teamLockDismiss: '거절',
-        teamLockWaitingFlash: '{name}님이 편집을 허용할 때까지 기다리는 중입니다.',
-        teamLockRequestSentFlash: '편집 요청을 보냈습니다. {name}님을 기다리는 중입니다.',
-        teamLockGrantedFlash: '이제 편집할 수 있습니다.',
-        teamLockAllowedOtherFlash: '{name}님이 편집할 수 있습니다.',
-        teamLockDismissedFlash: '편집 요청이 거절되었습니다.',
-        teamLockedBy: '{name}님이 이 캘린더를 편집 중입니다.',
-        teamLockedByFlash: '{name}님이 편집 중입니다. 자물쇠를 눌러 편집을 요청하세요.',
-        teamLockHeld: '이 캘린더의 편집 잠금을 보유 중입니다.',
-        teamLockHeldFlash: '이 캘린더를 편집 중입니다.',
-        teamEditRequestedFlash: '{name}님이 편집을 요청했습니다.',
-        teamLockReleasedFlash: '편집 잠금을 해제했습니다. 다른 선생님도 편집할 수 있습니다.',
-        teamLockReleaseFailed: '잠금을 해제할 수 없습니다. 현재 편집 중인 사람만 해제할 수 있습니다.',
-        teamLockRequestFailed: '편집 요청을 보낼 수 없습니다. 다시 시도하세요.',
-        teamLockGrantFailed: '편집을 허용할 수 없습니다. 다시 시도하세요.',
-        teamLockDismissFailed: '요청을 거절할 수 없습니다. 다시 시도하세요.',
-        teamLockUnknownUser: '다른 사용자',
-        teamLockLineEditing: '{name}님이 편집 중',
-        teamLockLineWants: '{name}님이 편집 요청',
-        teamLockLineViewing: '함께 보는 중: {names}',
-        teamLockLineExpiry: '갱신하지 않으면 {time}경 잠금 만료',
-        teamLockForceConfirm: '{name}님의 편집을 강제로 인수하시겠습니까? 저장하지 않은 내용이 있을 수 있습니다.',
-        teamLockForceTakenFlash: '편집 권한을 인수했습니다.',
-        teamReadOnlySave: '다른 사람이 편집 중입니다. 저장하려면 잠금을 인수하세요.',
-        teamViewOnlyBrowse: '보기 전용 — 둘러보기, 세부 정보, 인쇄, 복사는 가능합니다. 수정하려면 편집 권한을 요청하세요.',
-        teamPermissionViewer: '이 캘린더는 보기 전용입니다. 수정하거나 팀 잠금을 요청할 수 없습니다.',
-        teamPermissionSuggester: '이 캘린더는 제안자 권한입니다. 앱에서는 보기만 가능하며 변경은 관리자에게 요청하세요.',
-        teamSignOut: '로그아웃',
-        teamSignOutAll: '모든 기기에서 로그아웃',
-        teamAdminLink: '관리',
-        editDisplayName: '이름 변경',
-        editDisplayNameTitle: '표시 이름 변경',
-        displayNameLabel: '표시 이름',
-        editDisplayNameHint: '이 이름은 팀 캘린더 상단과 편집 요청 시 다른 선생님에게 표시됩니다.',
-        saveDisplayName: '이름 저장',
-        displayNameRequired: '표시 이름을 입력하세요.',
-        displayNameTooLong: '표시 이름은 120자 이하여야 합니다.',
-        displayNameSaved: '표시 이름이 저장되었습니다.',
-        displayNameSaveFailed: '표시 이름을 저장할 수 없습니다.',
-        changePassword: '비밀번호 변경',
-        changePasswordTitle: '비밀번호 변경',
-        currentPassword: '현재 비밀번호',
-        newPassword: '새 비밀번호',
-        confirmPassword: '새 비밀번호 확인',
-        passwordMismatch: '새 비밀번호가 일치하지 않습니다.',
-        passwordTooShort: '비밀번호는 8자 이상이어야 합니다.',
-        passwordChanged: '비밀번호가 변경되었습니다.',
-        passwordChangeFailed: '비밀번호를 변경할 수 없습니다.',
-        noPasswordSet: '비밀번호가 설정되어 있지 않습니다. 관리자에게 문의하세요.',
-        hostLinkCopied: '팀 링크가 복사되었습니다!',
-        langToggle: '🌐 English',
-        themeDark: '🌙 다크',
-        themeLight: '☀️ 라이트',
-        themeToggleTitle: '라이트/다크 테마 전환',
-        howToBtn: '도움말',
-        howToBtnTitle: '앱 사용 방법',
-        printBtn: '인쇄',
-        printIncludeLabel: '이번 인쇄에 포함:',
-        printIncludeCalendar: '캘린더 (가로)',
-        printUseCalendarFilters: '현재 캘린더 필터 사용',
-        printUseCalendarFiltersHint: '선택하면 수업·일정 표시가 캘린더 상단 필터와 같습니다.',
-        printIncludeSummary: '요약 및 강의계획 (세로)',
-        printNothingSelected: '캘린더 또는 요약 중 하나 이상을 선택하세요.',
-        teamCalendarHelp: '팀 도움말',
-        
-        // Term Selector
-        calendarName: '캘린더 이름:',
-        calendarNamePlaceholder: '예: 2025 가을 학기',
-        termStartMonth: '학기 시작 월:',
-        termMonthCount: '표시할 개월 수:',
-        toolbarTermSettings: '학기 설정',
-        calendarVisibility: '캘린더에 표시:',
-        calendarDisplayBtn: '캘린더 표시…',
-        calendarDisplayBtnActive: '캘린더 표시 (사용자 지정)',
-        calendarDisplayBtnShort: '표시',
-        calendarDisplayBtnActiveShort: '표시 (사용자)',
-        calendarDisplayTitle: '캘린더 표시',
-        calendarDisplayLessonsHeading: '수업 필터',
-        showLessons: '수업',
-        showHolidays: '휴일',
-        showEvalDeadlines: '평가 마감',
-        showHomeworkDeadlines: '숙제 마감',
-        showEvalPeriods: '평가 기간',
-        showOtherEvents: '기타 일정',
-        lessonFilterBtn: '수업 필터…',
-        lessonFilterTitle: '캘린더 수업 필터',
-        lessonFilterStatus: '캘린더·인쇄에 {total}개 중 {visible}개 수업이 표시됩니다.',
-        filterSelectAll: '전체 선택',
-        filterClearAll: '전체 해제',
-        lessonFilterReset: '필터 초기화',
-        lessonFilterSectionClasses: '수업별',
-        lessonFilterSectionGrade: '학년별',
-        lessonFilterSectionLevel: '레벨별',
-        lessonFilterSectionType: '수업 유형별',
-        lessonFilterSectionPeriod: '교시별',
-        lessonFilterSectionBook: '기본 교재별',
-        lessonFilterSectionTeacher: '선생님별',
-        lessonFilterNoGrade: '(학년 없음)',
-        lessonFilterNoLevel: '(레벨 없음)',
-        lessonFilterNoType: '(유형 없음)',
-        lessonFilterNoBook: '(기본 교재 없음)',
-        lessonFilterNoTeacher: '(배정된 선생님 없음)',
-        lessonFilterJustMine: '내 수업만',
-        lessonFilterJustMineUnavailable: '내 수업만 보려면 로그인하거나 Teachers 탭에서 계정을 연결하세요.',
-        lessonFilterBtnActive: '수업 필터 ({visible}/{total})',
-        lessonFilterSearchPlaceholder: '수업, 학년, 레벨, 선생님 검색…',
-        lessonFilterSearchEmpty: '일치하는 항목이 없습니다. 다른 검색어를 입력해 보세요.',
-        lessonFilterNoClassesOnCalendar: '표시된 학기 달에 수업이 없습니다. 수업을 추가하거나 학기 날짜를 조정하세요.',
-        printLessonFilterActive: '수업 필터 적용 중: {total}개 중 {visible}개만 캘린더와 수업 관련 인쇄에 표시됩니다.',
-        tabCalendar: '캘린더',
-        tabClasses: '수업',
-        tabSyllabus: '강의 계획표',
-        tabEvents: '일정',
-        tabHomework: '숙제',
-        tabNotes: '특히사항',
-        tabNotesMobile: '일지',
-        tabTimetable: '시간표',
-        tabTeachers: '선생님 관리',
-        tabCohorts: '반 관리',
-        tabGroupOperations: '운영',
-        tabGroupTeaching: '수업',
-        tabGroupSetup: '설정',
-        headerMySchedule: '내 시간표',
-        setupBannerText: '먼저 설정 탭 → 반 관리에서 학생 반을 만든 다음, 수업과 선생님을 배정하세요.',
-        setupBannerAction: '반 만들기',
-        setupBannerDismiss: '닫기',
-        setupBoardViewMwf: '월수금 반',
-        setupBoardViewTth: '화목 반',
-        setupBoardViewAll: '전체 보기',
-        setupBoardEmptyAll: '반이 없습니다. + 반 추가를 클릭하세요.',
-        setupBoardEmptyMwf: '이 보기에 월수금 반이 없습니다. + 반 추가를 클릭하거나 화목 보기로 전환하세요.',
-        setupBoardEmptyTth: '이 보기에 화목 반이 없습니다. + 반 추가를 클릭하거나 월수금 보기로 전환하세요.',
-        setupBoardOtherViewHint: '{view} 보기에 반 {n}개 — 보기 전환',
-        setupBoardViewLabel: '보드 보기',
-        cohortsFilterLabel: '목록 필터',
-        cohortsListFilterEmpty: '이 필터에 맞는 반이 없습니다. 전체를 선택하거나 아래 편집기에서 요일 패턴을 설정하세요.',
-        cohortsPatternInferred: '추정',
-        cohortsDraftEditHint: '아래에 이름과 레벨을 입력한 뒤 반 저장을 클릭하세요.',
-        setupBoardUnassigned: '미배정 수업',
-        setupBoardAllClasses: '전체 수업',
-        setupBoardPoolHint: '수업의 반에 추가…로 반에 연결하세요. 연결은 다른 반 연결을 유지합니다(합반). 여기만 이동은 다른 연결을 해제합니다.',
-        setupBoardTeachersApiMissing: '선생님을 배정할 수 없습니다. 새로고침(Ctrl+F5) 후 다시 시도하세요.',
-        setupBoardTeacherAlreadyAssigned: '이 수업에 이미 배정된 선생님입니다.',
-        cohortEditorModalTitle: '반 편집: {name}',
-        cohortEditorModalTitleNew: '새 반',
-        cohortsEditBtn: '반 편집',
-        setupBoardWorkflowHint: '1) 반의 + 수업 추가 · 2) 타일의 경고 확인 · 3) 반 편집·수업 편집에서 선생님·담임·과목 설정',
-        setupBoardCohortHomeroom: '담임',
-        setupBoardCohortClassesHeading: '수업',
-        setupBoardCohortWarningsHeading: '경고',
-        setupBoardCohortClassCount: '수업 {n}개',
-        setupBoardCohortClassCountOne: '수업 1개',
-        setupBoardCohortScheduleChipAria: '일정: {days}',
-        setupBoardCohortRenameHint: '클릭하여 반 이름 변경',
-        setupBoardWarnNoHomeroom: '이 반에 담임 선생님이 없습니다.',
-        setupBoardWarnNoClasses: '연결된 수업이 없습니다.',
-        setupBoardWarnClassNoTeacher: '{class}: 배정된 선생님이 없습니다.',
-        setupBoardWarnTeacherDoubleBook: '{teacher} 선생님이 이 반에서 같은 시간에 두 수업에 배정되어 있습니다 ({classes}).',
-        setupBoardWarnPeriodCollision: '이 반에서 같은 교시에 겹치는 수업: {classes}.',
-        setupBoardWarnDaysOutside: '{class}: 수업 요일이 반 일정 밖입니다.',
-        setupBoardWarnDuplicateCombined: '합반 후보: {classA}, {classB} ({otherCohort} 참고). 반 편집 → 반 합치기를 사용하세요.',
-        setupBoardTeacherAssignLabel: '선생님',
-        setupBoardDropTeacher: '각 수업 카드의 드롭다운에서 선생님을 고른 뒤 선생님 추가를 클릭하세요.',
-        setupBoardTeachers: '선생님',
-        setupBoardHomeroomHost: '담임 대표 수업',
-        setupBoardHomeroomHostHint: '이 수업의 첫 번째 선생님이 반 담임이 됩니다.',
-        setupBoardEmptyCohort: '수업이 없습니다. 이 반의 + 수업 추가를 클릭하세요.',
-        setupBoardAddToCohort: '반에 추가…',
-        setupBoardAddClass: '+ 수업 추가',
-        setupBoardLinkToCohort: '연결',
-        setupBoardMoveToCohortOnly: '여기만 이동',
-        setupBoardAssignTeacher: '선생님 추가',
-        setupBoardPickTeacherFirst: '드롭다운에서 선생님을 먼저 선택하세요.',
-        setupBoardRemoveFromAllCohorts: '모든 반에서 제거',
-        setupBoardAlreadyInCohort: '이미 연결됨',
-        setupBoardPickerClose: '닫기',
-        setupBoardPickerNoClasses: '추가할 수업이 없습니다.',
-        setupBoardRemoveTeacher: '선생님 제거',
-        setupBoardAssignTeacherFirst: '담임을 지정하려면 먼저 선생님을 배정하세요.',
-        setupBoardOpenClass: '수업 편집',
-        setupBoardRemoveFromCohort: '반에서 제거',
-        setupBoardClassMenu: '수업 메뉴',
-        setupBoardClassMenuPrompt: '1=수업 편집, 2=이 반에서만 제거, 3=이 반에만 남기기(다른 반 연결 해제)',
-        setupBoardClassDaysOutside: '이 수업은 반 일정에 없는 요일이 포함되어 있습니다 (예: 반은 화·목인데 수업에 월요일이 있음).',
-        setupBoardPatternMwf: '월수금',
-        setupBoardPatternTth: '화목',
-        setupBoardEditDays: '요일',
-        setupBoardPoolEmpty: '모든 수업이 반에 연결되어 있습니다.',
-        setupBoardPoolNoClasses: '저장된 수업이 없습니다. 설정 → 수업에서 수업을 추가·저장한 뒤 여기서 반에 추가…를 사용하세요.',
-        setupBoardPoolUnassigned: '반 없음 — 반에 추가… 사용',
-        setupBoardPoolLinked: '이미 반에 연결됨 — 반에 추가…로 연결·이동',
-        setupBoardRenderError: '설정 보드를 그리지 못했습니다. Ctrl+F5로 새로고침하세요.',
-        setupBoardCohortRenderPartial: '일부 반 카드를 그릴 수 없습니다. 브라우저 콘솔(F12)을 확인한 뒤 새로고침하세요.',
-        cohortsUsageTipsSummary: '반 보드 — 사용 안내',
-        cohortsUsageTipsDismiss: '다시 표시 안 함',
-        cohortsTabIntro: '보드 타일에 담임·수업·경고가 표시됩니다. 타일의 + 수업 추가를 사용하고, 선생님·담임·과목은 반 편집·수업 편집에서 설정하세요.',
-        teachersTabIntro: '선생님 주간 시간표 미리보기. 수업·담임 배정은 설정 → 반 관리에서 하세요.',
-        teachersTabManageCohorts: '반 관리 보드 열기',
-        classCohortAlsoLinked: '다른 반에도 연결됨: {names}. 반 관리 탭에서 수정.',
-        classHomeroomLabelNone: '이 반에 담임이 없습니다. 설정 → 반 관리에서 담임 대표 수업을 지정하세요.',
-        cohortsEditorEmpty: '반 타일의 반 편집을 클릭하거나 + 반 추가를 클릭하세요.',
-        cohortsSectionClassAssignment: '수업 연결',
-        cohortsClassAssignmentHint: '이 학생 반에 속한 수업을 선택한 뒤 적용하세요. 한 수업에 여러 반을 연결할 수 있습니다(합반).',
-        cohortsClassApply: '수업 연결 적용',
-        cohortsClassApplySummary: '연결 {linked}개, 해제 {unlinked}개.',
-        cohortsClassUnassignedOnly: '이 반에 연결되지 않은 수업만',
-        cohortsClassAlsoLinked: '다른 반: {names}',
-        cohortsCombinedHint: '합반: 한 수업을 두 반에 연결하세요(수업 연결 적용 또는 반 합치기). 반에 추가… → 연결은 링크 추가, 여기만 이동은 다른 반 연결을 해제합니다.',
-        cohortsCombinedCallout: '시간표 충돌은 합반인데 수업이 두 개일 때 자주 발생합니다. 반 합치기를 사용하거나 각 반에 같은 수업을 연결하세요.',
-        cohortsCombineBtn: '반 합치기…',
-        cohortsCombineTitle: '반 합치기',
-        cohortsCombineWith: '합칠 반',
-        cohortsCombinePickPair: '같은 과목 수업',
-        cohortsCombineKeeperA: '이 반의 수업 유지',
-        cohortsCombineKeeperB: '다른 반의 수업 유지',
-        cohortsCombineDeleteDuplicate: '다른 수업 기록 삭제',
-        cohortsCombineRename: '유지할 수업 이름',
-        cohortsCombineApply: '합치기',
-        cohortsCombineDone: '{n}개 수업 쌍을 합쳤습니다.',
-        cohortsCombineNoPairs: '두 반 사이에 같은 과목 수업이 없습니다.',
-        cohortsReviewDuplicates: '합반 후보 {n}쌍 — 반에서 반 합치기를 사용하세요.',
-        classCohortMultiLabel: '연결된 학생 반',
-        classCohortPrimaryHint: '대표 반은 아래 담임 표시에 사용됩니다.',
-        setupBoardMoveClassOnly: '이 반으로만 이동',
-        cohortsListSortLabel: '정렬',
-        cohortsListSortName: '이름',
-        cohortsListSortGrade: '학년',
-        cohortsListSortLevel: '레벨',
-        cohortsListSortStatus: '상태',
-        cohortsListSortClassCount: '수업 수',
-        cohortsListSortPattern: '요일 패턴',
-        cohortsSummaryClassCount: '수업 {n}개',
-        cohortsNoHomeroom: '담임 없음',
-        cohortsSectionHomeroom: '담임 선생님',
-        cohortsHomeroomApply: '담임 저장',
-        cohortsHomeroomSaved: '이 반의 담임을 저장했습니다.',
-        cohortsHomeroomClear: '담임 지우기',
-        cohortsDangerZone: '위험 작업',
-        cohortsDeleteConfirm: '반 "{name}"을(를) 삭제할까요?\n\n연결된 수업은 캘린더에 남지만 이 반과의 연결은 해제됩니다. 되돌릴 수 없습니다.',
-        cohortsDeleteBtn: '반 삭제',
-        cohortsDeleted: '반 "{name}"을(를) 삭제했습니다.',
-        cohortsModuleMissing: '반 관리 도구를 불러오지 못했습니다. Ctrl+F5로 새로고침하세요.',
-        cohortsLinkedHeading: '연결된 과목 수업',
-        cohortsImportFromClasses: '기존 수업에서 가져오기',
-        cohortsGenerateSubjects: '과목 수업 생성',
-        teachersTabUnassignedCohort: '반 없음',
-        teachersTabSegmentClasses: '수업 일정',
-        teachersTabSegmentCohorts: '담임 반',
-        teachersTabCatalogClasses: '수업 일정',
-        teachersTabCatalogCohorts: '담임 반',
-        teachersTabHomeroomHint: '담임은 학생 연락·행정 역할입니다. 가르치는 과목은 수업 일정에서 배정하세요.',
-        teachersTabDefaultCategory: '새로 선택한 수업의 기본 과목',
-        teachersTabUnassignedOnly: '미배정만 표시',
-        teachersTabApply: '배정 적용',
-        teachersTabApplySummary: '수업 {added}개 추가, {removed}개 제거; 담임 {homeroom}개 설정, {cleared}개 해제.',
-        teachersTabReplaceHomeroomConfirm: '{n}개 반의 담임을 바꿉니다? ({names})',
-        teachersTabOpenTimetable: '시간표에서 보기',
-        teachersTabFilterCalendar: '캘린더를 이 선생님으로 필터',
-        teachersTabPreviewHeading: '주간 시간표 미리보기',
-        teachersTabScrollToPreview: '미리보기로 이동',
-        teachersTabCatalogSortLabel: '정렬',
-        teachersTabCatalogCategoryLabel: '과목',
-        teachersTabSortDisplay: '기본 순서',
-        teachersTabSortName: '이름 (가–하)',
-        teachersTabSortCategory: '과목별',
-        teachersTabSortLevel: '레벨 / 학년',
-        teachersTabSortPeriod: '교시',
-        teachersTabCategoryAll: '모든 과목',
-        teachersTabCategoryNone: '미분류',
-        teachersTabBadgeSyllabus: '강의계획 ({n}행)',
-        teachersTabBadgeOnCalendar: '이번 학기 캘린더 표시',
-        teachersTabCohortsEmpty: '반이 없습니다. 설정 → 반 관리에서 반을 추가하세요.',
-        tabData: '데이터',
-        tabPrintDataHeading: '데이터 및 설정',
-        printBooksHeading: '교재',
-        printBooksHint: 'Write Now, Write Right, Hand in Hand 등 교재별 수업 계획·페이지 데이터입니다. 수업 강의 계획표에 불러옵니다. Green/Blue/Navy는 페이지가 같으면 하나의 교재로 묶입니다.',
-        printBooksStats: '교재 {books}권 · 수정 {edited}권',
-        printBooksEmpty: '등록된 교재 페이지 데이터가 없습니다.',
-        booksListEdit: '교재 편집',
-        booksListSessions: '수업 {n}회',
-        booksListEdited: '수정됨',
-        booksEditorTitle: '교재 편집',
-        booksEditorHint: '이 교재의 수업 계획과 페이지 블록입니다. 저장하면 연결된 모든 수업 유형(Green, Blue, Navy 등)에 적용됩니다.',
-        booksEditorMetaLevels: '레벨: {levels}',
-        booksEditorMetaLessons: '학기 기본 수업 수: {n}',
-        booksEditorMetaPresets: '연결 프리셋: {ids}',
-        booksEditorCustomBadge: '이 교재에 저장된 사용자 페이지 데이터가 있습니다.',
-        booksEditorSessionsHeading: '회차',
-        booksEditorColPlan: '수업 계획',
-        booksEditorColPages: '페이지 / 상세',
-        booksEditorColClear: '열 비우기',
-        booksEditorColPasteAll: '모두에 붙여넣기',
-        booksEditorClipboardFailed: '클립보드를 읽을 수 없습니다. 아래에 텍스트를 붙여넣으세요.',
-        booksEditorSave: '교재 저장',
-        booksEditorReset: '공장 기본값 복원',
-        booksEditorResetConfirm: '이 교재를 공장 기본 페이지로 되돌릴까요? 연결된 모든 수업 유형에 적용됩니다.',
-        booksEditorNoRows: '저장하려면 최소 한 개의 회차가 필요합니다.',
-        booksEditorAddSession: '회차 추가',
-        booksEditorColNote: '메모',
-        booksEditorSaveCurriculum: '교재과정 저장',
-        booksEditorSessionCountWarn: '회차 {n}개입니다. 공장 기본값은 {factory}개입니다. 필요하면 수업의 총 수업 수를 맞추세요.',
-        curriculumSaveToDefaults: '기본값으로 저장',
-        curriculumSaveToDefaultsConfirm: '이 회차·수업 기본값을 이 캘린더의 교재 기본값으로 저장할까요? 경고가 사라집니다. 초기화 시 공장 페이지가 아니라 이 버전으로 복원됩니다.',
-        curriculumSaveToDefaultsCustom: '기본값으로 저장',
-        curriculumSaveToDefaultsConfirmCustom: '이 사용자 교재과정의 회차·수업 기본값을 이 캘린더의 기본값으로 저장할까요? 경고가 사라집니다. 초기화 시 이 버전으로 복원됩니다. 교재과정을 없애려면 삭제를 사용하세요.',
-        booksEditorResetTeamDefaultConfirm: '{date}에 저장한 팀 기본값으로 되돌릴까요? 저장하지 않은 편집 내용은 사라집니다.',
-        tabCurriculum: '교재과정',
-        curriculumTabIntro: '프로그램 교재를 편집하거나 새 교재과정을 추가할 수 있습니다. 수업 양식에서 레벨·교재 선택 후 적용하세요.',
-        curriculumTabPick: '편집할 교재과정을 선택하세요.',
-        curriculumTabListSearchPlaceholder: '교재과정 검색…',
-        curriculumAddBtn: '교재과정 추가',
-        curriculumAddPrompt: '새 교재과정 이름 (예: 중등 리딩):',
-        curriculumAddTitleRequired: '교재과정 이름을 입력하세요.',
-        curriculumAllLevels: '모든 레벨',
-        curriculumCustomBadge: '직접 만든 교재과정입니다.',
-        curriculumEditorNameLabel: '교재과정 이름',
-        curriculumDeleteBtn: '교재과정 삭제',
-        curriculumDeleteConfirm: '이 교재과정을 삭제할까요? 목록에서 사라집니다. 이미 쓰는 수업 설정은 남으며, 다른 교재를 고르기 전까지 교재과정 없음 경고가 나올 수 있습니다.',
-        curriculumDeleteBuiltinConfirm: '“{name}”을(를) 이 캘린더 교재과정 목록에서 제거할까요? 나중에 “기본 교재과정 복원”으로 되돌릴 수 있습니다. 사용 중인 수업 설정은 유지됩니다.',
-        curriculumResetToTeamDefault: '팀 기본값으로 되돌리기',
-        curriculumBuiltinNoDeleteHint: '기본 제공 교재과정은 삭제할 수 없습니다. 편집을 취소하려면 공장 기본값 복원을, 삭제 가능한 복사본을 만들려면 복제를 사용하세요.',
-        curriculumAdminDeleteHint: '관리자: 기본 교재를 제거하면 이 캘린더에서만 숨겨집니다. “기본 교재과정 복원”으로 다시 표시할 수 있습니다.',
-        curriculumRestoreFactoryBtn: '기본 교재과정 복원',
-        curriculumRestoreFactoryConfirm: '이 캘린더에서 제거한 모든 기본 교재과정을 다시 표시할까요?',
-        curriculumRestoreFactoryDone: '기본 교재과정을 복원했습니다.',
-        curriculumDuplicateBtn: '교재과정 복제',
-        curriculumDuplicateDone: '“{name}”(으)로 복제했습니다.',
-        curriculumDuplicateFailed: '교재과정을 복제할 수 없습니다.',
-        curriculumEditorApplyHint: '수업 양식에서 레벨·교재 선택 후 교재과정에서 적용을 누르세요.',
-        curriculumGeneralNotes: '일반 메모 및 안내',
-        curriculumGeneralNotesHint: '이 교재과정을 쓰는 수업의 인쇄 진도표 비고 칸에 표시됩니다. 수업별 강의 계획표에서 덮어쓸 수 있습니다.',
-        curriculumGeneralNotesPlaceholder: '예: 매 수업 교재 지참. 2개월째 개요가 비어 있을 수 있음…',
-        dataCurriculumLinkHint: '위 탭 바의 교재과정 탭에서 교재, 회차, 기본 설정을 편집하세요.',
-        classCurriculumLevel: '레벨',
-        classCurriculumBook: '교재',
-        classCurriculumBookPickLevel: '먼저 레벨을 선택하세요',
-        classCurriculumNone: '교재과정 없음',
-        classCurriculumNoBook: '교재 없음 (레벨 기본만)',
-        classCurriculumWarningNone: '이 수업에 교재과정이 지정되지 않았습니다. 교재(또는 “교재 없음”)를 고른 뒤 교재과정에서 적용하거나, 직접 설정을 유지하세요.',
-        classCurriculumWarningMissing: '저장된 교재과정 “{book}”을(를) 찾을 수 없습니다(삭제되었을 수 있음). 다른 교재나 “교재과정 없음”을 선택하세요.',
-        classCurriculumWarningList: '교재과정 없음',
-        classCurriculumWarningListMissing: '교재과정 없음(삭제됨)',
-        classCurriculumDebate: '토론 (Debate)',
-        curriculumDebateLevelsLabel: 'Purple 이상, 중등',
-        curriculumDebateListTag: '토론',
-        curriculumApplicabilityHeading: '적용 레벨·수업 기본값',
-        curriculumApplicabilityHint: '수업 양식의 교재 목록에 이 교재과정이 보일 레벨을 고릅니다. 적용 시 기본값이 채워집니다.',
-        curriculumDisplayNameLabel: '표시 이름',
-        curriculumDefaultLessons: '기본 총 수업 수',
-        curriculumDefaultGrade: '기본 학년',
-        curriculumDefaultGradeNone: '— 없음 —',
-        curriculumDefaultLevel: '기본 심슨 레벨 (선택)',
-        curriculumDefaultLevelNone: '— 없음 —',
-        classCurriculumHint: '아래 심슨 레벨(프리셋)을 고른 뒤 교재과정 교재를 선택하세요. 적용은 수업 설정을, 저장·적용 후에는 이 수업의 강의 계획표 페이지가 교재에서 갱신됩니다.',
-        classCurriculumPipelineHint: '데이터 흐름: 교재과정(공유 교재) → 수업(연결) → 강의 계획표 탭(날짜별 수업).',
-        applyCurriculumSyllabusConfirm: '이 수업의 강의 계획표 페이지도 교재과정에서 업데이트할까요? 일치하는 행은 덮어씌워집니다.',
-        curriculumUpdatedBanner: '교재과정 “{name}”을(를) 저장했습니다. 이 교재를 쓰는 수업 {count}개.',
-        curriculumUpdatedBannerAction: '강의 계획표 업데이트',
-        curriculumUpdatedBatchConfirm: '이 교재를 쓰는 {n}개 수업의 강의 계획표를 교재과정에서 업데이트할까요? 일치하는 수업 행은 덮어씌워집니다.',
-        curriculumUpdatedBatchDone: '교재과정에서 강의 계획표를 업데이트했습니다 ({n}개 수업).',
-        classesSegmentNotesSameAsTab: '메모 탭과 동일한 메모입니다.',
-        applyCurriculumNoCurriculum: '교재, “교재 없음”, 또는 공유 계획을 쓰지 않으면 “교재과정 없음”을 선택하세요.',
-        applyCurriculumToClass: '교재과정에서 적용',
-        applyCurriculumConfirm: '선택한 교재과정으로 수업 설정을 바꿀까요? 수업 이름과 날짜는 유지됩니다.',
-        applyCurriculumNoMatch: '레벨을 선택하세요 (교재 또는 “교재 없음”).',
-        applyCurriculumNoLevel: '먼저 레벨을 선택한 다음 교재(또는 “교재 없음”)를 고르세요.',
-        applyCurriculumNoBookSelected: '이 레벨에 맞는 교재(또는 “교재 없음”)를 선택하세요.',
-        applyCurriculumNoBooksForLevel: '레벨 “{level}”에 사용할 수 있는 교재과정 교재가 없습니다. RC 등 수업 계획은 이 레벨에 맞는 교재가 있을 때만 적용됩니다.',
-        applyCurriculumNoBooksHint: '이 레벨에 맞는 교재과정 교재가 없습니다. 적용 시 일반 기본값만 채워지며 수업 계획 페이지는 비어 있습니다.',
-        applyCurriculumNoBooksConfirm: '레벨 “{level}”에 교재과정 교재가 없습니다. 일반 수업 기본값만 적용할까요? (수업 계획 페이지 없음)',
-        applyCurriculumBookLevelMismatch: '“{book}”은(는) 레벨 “{level}”에서 사용할 수 없습니다. 목록에서 이 레벨용 교재를 선택하세요.',
-        applyCurriculumDebateNotForLevel: '레벨 “{level}”에는 토론 교재과정을 사용할 수 없습니다.',
-        applyCurriculumNoSyllabusPages: '수업 설정은 적용되었지만 이 교재에는 수업 계획 페이지가 없습니다. 교재과정 탭에서 추가하거나 다른 교재를 선택하세요.',
-        applyCurriculumPreview: '적용 예: 교재 “{book}”, 수업 {lessons}회',
-        applyCurriculumPreviewNoBook: '적용 예: 레벨 “{level}”, 수업 {lessons}회 (교재 없음, 빈 페이지)',
-        editCurriculumForBook: '교재과정 편집',
-        printSyllabusPresetsHeading: '내 수업 계획/교재',
-        printSyllabusPresetsHint: '강의 계획표 탭의 내 강의 계획표에 저장한 사용자 수업 계획과 수정한 교재입니다. 팩으로보내거나 가져와 수업 계획, 교재 페이지, 수업 유형 기본값을 백업할 수 있습니다.',
-        printSyllabusStats: '사용자 수업 계획 {templates}개 · 수정한 유형 기본값 {overrides}개',
-        printExportSyllabusPack: '수업 계획·교재 팩보내기',
-        printImportSyllabusPack: '수업 계획·교재 팩 가져오기',
-        printOpenSyllabusTab: '강의 계획표 탭 열기',
-        printEditPdfPresets: 'PDF 프리셋 기본값 편집',
-        printSyllabusPackExported: '수업 계획·교재 팩을 다운로드했습니다.',
-        printSyllabusPackImported: '수업 계획 {templates}개, 교재 {books}권, 유형 덮어쓰기 {overrides}개를 가져왔습니다.',
-        printSyllabusPackInvalid: '올바른 수업 계획·교재 팩 파일이 아닙니다.',
-        printSyllabusManageTemplate: '편집',
-        printSyllabusNoTemplates: '사용자 수업 계획이 없습니다. 강의 계획표 탭 → 내 강의 계획표를 사용하거나 팩을 가져오세요.',
-        printSyllabusTemplateListLabel: '사용자 수업 계획',
-        openFullClassEditor: '전체 편집기 열기',
-        viewClassInCalendar: '캘린더에서 보기',
-        viewEventInCalendar: '캘린더에서 보기',
-        openFullEventEditor: '전체 편집기 열기',
-        classEditorEmpty: '목록에서 수업을 선택하거나 + 수업 추가를 클릭하세요.',
-        eventEditorEmpty: '목록에서 일정을 선택하거나 + 일정 추가를 클릭하세요.',
-        classListSearchPlaceholder: '수업 검색…',
-        eventListSearchPlaceholder: '일정 검색…',
-        addEvent: '+ 일정 추가',
-        eventType: '일정 유형',
-        eventTypeHoliday: '휴일 / 수업 없음',
-        eventTypeEvalDeadline: '평가 마감',
-        eventTypeHomeworkDeadline: '숙제 마감',
-        eventTypeEvalPeriod: '평가 기간',
-        eventTypeOther: '기타',
-        eventTypeOtherHint: '캘린더에 참고용으로만 표시됩니다. 수업을 취소하지 않습니다.',
-        eventsSummary: '일정',
-        includeEventsList: '일정 목록 포함',
-        printCalendarVisibility: '인쇄 캘린더에 표시:',
-        saveEvent: '일정 저장',
-        editEvent: '일정 편집',
-        addEventTitle: '일정 추가',
-        contextAddEventOnDate: '{date}에 일정 추가',
-        contextOpenClass: '수업 열기',
-        contextAddClassNote: '메모 추가',
-        contextViewDayNotes: '하루 메모 보기 ({date})',
-        contextCopyDayNotes: '하루 메모 복사 ({date})',
-        contextDownloadDayNotes: '하루 메모 다운로드 (.txt)',
-        contextPickDateFirst: '먼저 날짜를 선택하세요.',
-        dayNoteModalTitle: '수업 일지',
-        dayNoteTextLabel: '오늘 수업에서 있었던 일',
-        dayNoteSave: '메모 저장',
-        dayNoteExistingHeading: '오늘 이전 메모',
-        dayNoteReadOnlyHint: '담당 수업에 대해서만 메모를 추가하거나 수정할 수 있습니다.',
-        dayNoteOtherTeacherHint: '다른 선생님이 작성한 메모는 수정하거나 삭제할 수 없습니다.',
-        dayNoteLegacyReadOnlyHint: '작성자 정보가 없는 이전 메모는 관리자만 변경할 수 있습니다.',
-        dayNoteViewOnlyHint: '이 캘린더는 보기 전용 권한입니다.',
-        dayNotesSummaryTitle: '하루 메모',
-        dayNotesSummaryDate: '날짜',
-        dayNotesEmpty: '이 날짜에 메모가 없습니다. 캘린더나 시간표에서 수업을 우클릭하여 추가하세요.',
-        dayNotesCopy: '전체 복사',
-        dayNotesDownload: '.txt 다운로드',
-        dayNotesToolbarBtn: '하루 메모',
-        dayNotesCopyOk: '하루 메모를 복사했습니다.',
-        dayNotesCopyFail: '복사할 수 없습니다. 텍스트를 선택해 직접 복사하세요.',
-        dayNotesExportHeader: '수업 일지',
-        classesSegmentInfo: '수업 정보',
-        classesSegmentNotes: '메모',
-        classesSubTabLegend: '수업 탭 안',
-        classNotesFiltersTitle: '필터',
-        classNotesDateFrom: '시작',
-        classNotesDateTo: '끝',
-        classNotesFilterSubject: '과목',
-        classNotesFilterGrade: '학년',
-        classNotesResetFilters: '필터 초기화',
-        classNotesMeetingDaysOnly: '수업 있는 날만',
-        classNotesTodayClasses: '오늘 수업',
-        classNotesMyClassesToday: '내 수업 · 오늘',
-        filterActiveMyClasses: '내 수업',
-        filterActiveToday: '오늘',
-        filterActiveSubject: '{subject}',
-        classNotesSummaryLayers: '메모 {notes}개 · 수업 {classes}개 · {layers}',
-        classNotesSummarySearchLayers: '메모 {notes}개 · 수업 {classes}개 (검색: "{query}") · {layers}',
-        homeworkMyClassesOnly: '내 수업만',
-        homeworkTodayOnly: '오늘 수업만',
-        homeworkFilterSubject: '과목',
-        homeworkJustMine: '내 수업만',
-        homeworkTodayClasses: '오늘 수업',
-        homeworkMyClassesToday: '내 수업 · 오늘',
-        classNotesSummary: '메모 {notes}개 · 수업 {classes}개',
-        classNotesSummarySearch: '메모 {notes}개 · 수업 {classes}개 (검색: "{query}")',
-        classNotesTextSearchPlaceholder: '메모, 수업 검색…',
-        classNotesEmptySearch: '검색과 일치하는 메모가 없습니다. 검색어를 지우거나 필터를 넓혀 보세요.',
-        classNotesExportCopy: '전체 복사',
-        classNotesExportDownload: '.txt 다운로드',
-        classNotesEmptyFiltered: '필터에 맞는 메모가 없습니다. 위에서 추가하거나 캘린더·시간표에서 수업을 우클릭하세요.',
-        classNotesExportHeader: '수업 메모보내기',
-        classNotesNoClassSelected: '필터에서 수업을 하나 이상 선택하세요.',
-        classNotesNoClassesDefined: '이 캘린더에 수업이 없습니다. 수업 탭에서 수업을 추가한 뒤 메모를 추가하세요.',
-        classNotesAddHeading: '메모 추가',
-        classNotesListHeading: '저장된 메모',
-        classNotesAddClass: '수업',
-        classNotesAddDatetime: '날짜 및 시간',
-        classNotesAddNow: '지금',
-        classNotesPickClass: '수업을 선택하세요.',
-        classNotesSaved: '메모를 저장했습니다.',
-        classNotesSavedViewAs: 'View As 세션에만 저장되었습니다(선생님 캘린더에는 반영되지 않음).',
-        classNotesInvalidDatetime: '올바른 날짜와 시간을 입력하세요.',
-        classNotesSortLabel: '정렬',
-        classNotesSortClassGroup: '수업별',
-        classNotesSortNewest: '최신순 (시간)',
-        classNotesSortOldest: '오래된순 (시간)',
-        classNotesSortDateAsc: '날짜순 (과거→최근)',
-        classNotesSortDateDesc: '날짜순 (최근→과거)',
-        classNotesSortHint: '최신/오래된순은 정확한 시각 기준, 날짜순은 달력 날짜 기준입니다.',
-        classNotesEdit: '수정',
-        classNotesDelete: '삭제',
-        classNotesSaveEdit: '저장',
-        classNotesCancelEdit: '취소',
-        classNotesDeleted: '메모를 삭제했습니다.',
-        classNotesUpdated: '메모를 수정했습니다.',
-        classNotesConfirmDelete: '이 메모를 삭제할까요?',
-        classNotesDeleteReadOnly: '읽기 전용 캘린더에서는 메모를 삭제할 수 없습니다.',
-        classNotesEditReadOnly: '읽기 전용 캘린더에서는 메모를 수정할 수 없습니다.',
-        confirmDeleteEvent: '이 일정을 삭제하시겠습니까?',
-        eventNotesPlaceholder: '메모 (선택)...',
-        syllabusUnits: '교육과정 / 단원',
-        syllabusUnitsHint: '선택 사항. 일정 편집 시 단원과 연결할 수 있습니다.',
-        addSyllabusUnit: '단원 추가',
-        syllabusUnitSpeakingPages: '스피킹 교재 페이지',
-        syllabusUnitWritingPages: '라이팅 교재 페이지',
-        syllabusTable: '강의 계획표',
-        syllabusTableHint: '전체 수업 표를 여기서 편집합니다. 인쇄 진도표에는 수업 제목만 나옵니다. 교재/상세·행별 비고는 이 표(및 숙제 탭)에만 두고 복사용으로 사용하세요. 캘린더·교재과정 새로고침은 아래가 아니라 편집기 상단 버튼을 사용하세요.',
-        syllabusTableEmptyHint: '아직 행이 없습니다. 캘린더에서 새로고침을 눌러 수업 일정에서 행을 만드세요.',
-        refreshSyllabusFromCalendar: '캘린더에서 새로고침',
-        refreshSyllabusFromCurriculum: '교재과정에서 새로고침',
-        refreshSyllabusFromCurriculumConfirm: '교재과정 교재의 수업 계획·페이지·행 비고·일반 메모로 표를 업데이트할까요? 일치하는 행의 내용이 덮어씌워집니다.',
-        refreshSyllabusFromCurriculumNoTemplates: '이 수업에 맞는 교재과정 회차가 없습니다. 수업에서 교재를 선택하거나 교재과정 탭에서 회차를 추가하세요.',
-        refreshSyllabusFromCurriculumDone: '교재과정에서 강의 계획표를 업데이트했습니다 ({n}행).',
-        refreshSyllabusFromCurriculumNone: '일치하는 수업 행이 없습니다. 먼저 캘린더에서 새로고침한 뒤 다시 시도하세요.',
-        addSyllabusNoteRow: '메모 행 추가',
-        syllabusColMonth: '월',
-        syllabusColWeek: '주',
-        syllabusColClass: '수업',
-        syllabusColDate: '날짜',
-        syllabusColPlan: '주간 수업 계획',
-        syllabusColPlanPrint: '수업 계획',
-        syllabusColPlanJindo: '세부 진도계획',
-        syllabusColYear: '{year}년',
-        syllabusPrintMeetingDaysSuffix: '[{days} 기준]',
-        syllabusPrintContinuedTitle: '수업 계획 상세 (부록)',
-        syllabusPrintContinuedHint: '선택 부록: 숙제·상세 전문. 위 진도표에는 제목만 표시됩니다.',
-        printSyllabusDetailAppendix: '숙제·상세 부록 페이지 포함 (선택)',
-        syllabusPrintContinuedPage: '{n} / {total}쪽',
-        syllabusPrintContinuedHomework: '숙제',
-        syllabusColPages: '교재 / 상세',
-        syllabusColNote: '비고',
-        syllabusTables: '강의 계획표',
-        includeSyllabusTables: '강의 계획표 (수업별)',
-        syllabusModuleMissing: '강의 계획표 모듈을 불러오지 못했습니다. Ctrl+F5로 새로고침하세요. js/syllabus-table.js 파일을 확인하세요.',
-        printClassSyllabus: '강의 계획표 인쇄',
-        printClassSyllabusHint: '인쇄 창이 열립니다. PDF로 저장을 선택하면 파일로 저장할 수 있습니다.',
-        printClassSyllabusTitle: '강의 계획표',
-        printSyllabusBlocked: '인쇄 창을 열 수 없습니다. 팝업을 허용한 뒤 다시 시도하세요.',
-        syllabusScheduleAdjustments: '일정 조정',
-        syllabusScheduleAdjustmentsEmpty: '이 수업 기간에 해당하는 공휴일·평가 기간이 없습니다.',
-        syllabusAdjColType: '유형',
-        syllabusAdjColName: '이름',
-        syllabusAdjColDates: '기간',
-        syllabusSlotHolidayDetail: '정규 수업 없음 — 공휴일 / 휴업',
-        syllabusSlotEventDetail: '특별 일정 — 정규 수업 대신 진행',
-        syllabusOverflowIntro: '아래 수업은 학기 종료 전에 달력에 배치되지 않았습니다 (공휴일·특별 일정이 수업일을 사용함).',
-        syllabusOverflowNote: '학기 내 미배정 — 기간 연장 또는 공휴일 조정이 필요합니다.',
-        syllabusSkippedDetail: '이번 학기 생략 — 달력에 없음',
-        scheduleAdjustmentSectionTitle: '일정 조정',
-        scheduleAdjustmentHint: '이 수업·이번 학기만 적용됩니다 (교육과정 계획은 변경되지 않음). 수업 생략 또는 인접 수업 합치기. 토론 수업은 위에서 기간별 자동 압축도 사용할 수 있습니다.',
-        scheduleAdjustmentNonDebateHint: '아래에서 수업을 생략하거나 합쳐 이번 학기 수업일에 맞추세요. 자동 압축은 토론 수업만 해당됩니다.',
-        scheduleAdjustmentSummaryTitle: '이번 학기 일정 조정',
-        scheduleAdjustmentSummaryEmpty: '생략·합친 수업 없음.',
-        scheduleAdjustmentSkipping: '생략',
-        scheduleAdjustmentCombining: '합치기',
-        scheduleAdjustmentSkipSingle: '수업 {n} ({label})',
-        scheduleAdjustmentSkipRange: '수업 {start}–{end} ({startLabel} … {endLabel})',
-        scheduleAdjustmentCombine: '수업 {start}+{end} ({startLabel} + {endLabel})',
-        scheduleSkipRangeLabel: '수업 범위 생략',
-        scheduleSkipRangeTo: '~',
-        scheduleSkipRangeAdd: '범위 추가',
-        scheduleSkipLesson: '생략',
-        scheduleCombineWithNext: '다음과 합치기',
-        scheduleGapWarning: '{name}: {total}회 중 {unplaced}회에 수업일 없음 (공휴일 등으로 교시 사용).',
-        scheduleGapAdjustAction: '일정 조정',
-        scheduleConfirmTitle: '수업일이 부족합니다',
-        scheduleConfirmBody: '{name}: 수업 가능일 {eligible}일, 배치 필요 {needed}회. 이 수업·이번 학기만 적용.',
-        scheduleConfirmCombining: '합치기',
-        scheduleConfirmSkipping: '생략',
-        scheduleConfirmApply: '조정 적용',
-        scheduleConfirmKeep: '그대로 두기',
-        scheduleConfirmCancel: '취소',
-        scheduleConfirmApplied: '일정 조정이 적용되었습니다.',
-        scheduleConfirmCannotFit: '조정만으로는 모두 배치할 수 없습니다. 기간 연장, 더 생략, 또는 총 수업 수 줄이기.',
-        syllabusExtraPeriodTitle: '여유 교시',
-        syllabusExtraPeriodDetail: '배정된 수업 없음 — 학기 말 여유 교시',
-        syllabusExtraPeriodNote: '복습, 보충 수업 등에 활용하거나 일정을 조정하세요.',
-        syllabusUnitTitle: '단원 제목',
-        linkedSyllabusUnit: '교육과정 단원 (선택)',
-        noSyllabusUnit: '— 없음 —',
-        fetchKrHolidays: '한국 공휴일 가져오기',
-        fetchKrHolidaysLoading: '공휴일 불러오는 중…',
-        fetchKrHolidaysConfirm: '현재 학기의 대한민국 공휴일을 무료 공개 달력(공식 월력요항 기준)에서 가져올까요? 대체공휴일을 포함합니다. 이미 있는 공휴일은 건너뜁니다.',
-        fetchKrHolidaysDone: '공휴일 {added}개 추가, {skipped}개 중복 건너뜀.',
-        fetchKrHolidaysError: '공휴일을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도하세요.',
-        fetchKrHolidaysYearUnavailable: '{year}년 공휴일 데이터를 아직 사용할 수 없습니다. 나중에 다시 시도하거나 직접 추가하세요.',
-        fetchKrHolidaysCorsError: '브라우저에서 공휴일 달력에 연결할 수 없습니다. file:// 대신 로컬 웹 서버로 열어 보세요.',
-        fetchKrHolidaysNoTerm: '먼저 학기 시작 월을 설정하세요.',
-        krHolidaysSourceHint: '출처: holidays.hyunbin.page — 무료 공개 달력(공식 월력요항, 대체공휴일 포함).',
-        krPublicHolidayImportNote: '자동 가져옴 (한국 공휴일 공개 달력)',
-        
-        // Class Modal
-        addNewClass: '새 수업 추가',
-        editClass: '수업 편집',
-        className: '수업 이름',
-        classNamePlaceholder: '예: 토론',
-        classPeriod: '교시',
-        classPeriodHint: '숫자가 작을수록 목록·인쇄 요약·같은 날 여러 수업에서 먼저 표시됩니다 (1 = 1교시).',
-        classPeriodVariesByDay: '요일마다 교시가 다름',
-        classPeriodVariesByDayHint: '만나는 요일마다 교시가 다를 때 사용하세요 (예: 월 1교시, 수 3교시).',
-        classPeriodByDayLabel: '요일별 교시',
-        classLevel: '반',
-        classLevelPreset: '심슨 레벨 (프리셋)',
-        classLevelCustom: '레벨 (직접 입력)',
-        classLevelCustomPlaceholder: '선택: 목록에 없는 레벨',
-        selectLevel: '레벨 선택',
-        simsonLevelsElementary: '초등',
-        simsonLevelsMiddleSchool: '중등',
-        defaultBook: '기본 교재 (대체)',
-        debateBookPeriods: '교재 기간 (토론)',
-        debateBookPeriodsHint: '새 토론 교재가 시작하는 날짜입니다. 해당 날짜부터 다음 기간 전까지 그 교재와 Day 1–4가 적용됩니다.',
-        addBookPeriod: '교재 기간 추가',
-        addBookMonth: '월 추가',
-        compressionModeManualPerMonth: '교재 기간별 (기간마다 합치기 선택)',
-        compressionByMonthHint: '각 교재 기간마다 합칠 수업 쌍을 선택합니다. 공휴일로 일정이 짧아지면 기간마다 다르게 설정할 수 있습니다.',
-        periodAutoMergeHint: '{period}: 자동 합침 ({merges})',
-        periodIncompleteHint: '{period}: {scheduled}/{total} 그룹만 배치',
-        fillBooksFromDefault: '기간에 기본 교재 채우기',
-        compressionModeLabel: '압축',
-        compressionModeAuto: '한 달 수업일이 부족하면 자동으로 합치기',
-        compressionModeManual: '수동만 (아래 선택한 합치기만 사용)',
-        termCalendarMonths: '기간 (달력 개월 수)',
-        termCalendarMonthsHint: '월마다 교재 1권. 기본 3개월 = 교재 3권.',
-        useAutoTermEnd: '종료일을 마지막 달의 말일로 자동 설정',
-        bookThisLesson: '교재 (이 수업):',
-        levelRequired: '심슨 레벨 프리셋 또는 직접 입력 중 하나를 선택하세요.',
-        monthAutoMergeHint: '{month}: 자동 합침 ({merges})',
-        monthIncompleteHint: '{month}: {scheduled}/{total} 그룹만 배치',
-        grade: '학년',
-        selectGrade: '학년 선택 (선택)',
-        book: '교재',
-        bookPlaceholder: '예: 토론 2025 가을 11월 A',
-        notes: '메모',
-        notesPlaceholder: '이 수업에 대한 메모...',
-        startDate: '시작일',
-        endDate: '종료일',
-        dayOfWeek: '요일',
-        selectDay: '요일 선택',
-        sunday: '일요일',
-        monday: '월요일',
-        tuesday: '화요일',
-        wednesday: '수요일',
-        thursday: '목요일',
-        friday: '금요일',
-        saturday: '토요일',
-        color: '색상',
-        classBackgroundColor: '배경색',
-        classTextColor: '글자색',
-        customSchedule: '사용자 지정 일정 (각 수업 날짜 직접 선택)',
-        selectDatesHint: '각 수업일의 특정 날짜를 선택하세요:',
-        day1: '1일차',
-        day2: '2일차',
-        day3: '3일차',
-        day4: '4일차',
-        totalLessons: '총 수업 횟수',
-        lessonDayLabel: '{n}일차',
-        mergeDaysLabel: '{start}+{end}일차 합치기',
-        compressionHint: '압축 그룹 선택:',
-        compressionOverlapHint: '인접 수업만 합칠 수 있습니다. 겹치는 합치기는 비활성화됩니다.',
-        compressionMergeCheckboxesNote: '아래 합치기는 수동 모드에서만 적용됩니다. 자동 모드에서는 그 달 수업 횟수가 부족할 때만 합칩니다.',
-        combineDay12: '1+2일차를 1일차 날짜에 합치기',
-        combineDay34: '3+4일차를 3일차 날짜에 합치기',
-        customScheduleLabel: '사용자 지정',
-        delete: '삭제',
-        deleteClass: '수업 삭제',
-        saveClass: '수업 저장',
-        classSaved: '수업을 저장했습니다.',
-        classTeacherSection: '선생님 및 반',
-        classFormSectionBasics: '기본 정보',
-        classFormSectionSchedule: '일정',
-        classFormSectionProgram: '프로그램 및 교재',
-        classFormSectionSyllabus: '강의 계획',
-        classFormSectionSyllabusHint: '수업 날짜와 페이지는 강의 계획 탭에 있습니다. 위에서 교재를 연결한 뒤 날짜별 표를 편집하세요.',
-        classFormSectionAppearance: '표시',
-        classFormSectionBooks: '교재 및 자료',
-        classFormSectionAdvanced: '고급 일정',
-        classFormSectionNotes: '메모',
-        classAssignedTeacher: '담당 선생님',
-        classAssignedTeacherNone: '— 미배정 —',
-        classAssignedTeacherCustom: '기타 (아래에 이름 입력)',
-        classAssignedTeacherName: '선생님 이름 (목록에 없을 때)',
-        classTeachersHint: '선생님 추가와 반 선택 순서는 자유롭습니다. 담임은 설정 → 반 관리에서 지정합니다. 관리자: 저장 시 반 선택이 필요합니다. 반 보드에서 끌어오려면 이 탭에서 먼저 저장하세요.',
-        classTeachersRowsMissing: '선생님 행을 불러오지 못했습니다. 강력 새로고침(Ctrl+F5) 후 다시 시도하세요.',
-        classCohortAdminRequired: '(관리자 필수)',
-        classTeacherAccountRequired: '로그인 계정과 연결하려면 목록에서 선생님 계정을 선택하세요. 이름만 입력하면 안 됩니다.',
-        classTeacherLegacyUnlinked: '계정 연결 필요',
-        classAddTeacher: '+ 선생님 추가',
-        classRemoveTeacher: '삭제',
-        classRemoveTeacherHint: '선생님 행을 삭제한 뒤 수업 저장을 누르면 이 수업에서 배정이 해제됩니다.',
-        classTeacherDaysInherit: '수업과 같은 요일',
-        classTeacherDaysCustom: '요일 직접 지정',
-        classTeacherPeriodInherit: '수업과 같은 교시',
-        classTeacherPeriodCustom: '교시 직접 지정',
-        classTeacherAddTimeSlot: '+ 시간 추가',
-        classTeacherScheduleBlock: '시간표 블록',
-        timetableExportExcel: '엑셀보내기',
-        timetableExportExcelFailed: '시간표를보낼 수 없습니다.',
-        dataCalendarBackupHeading: '캘린더 백업',
-        dataCalendarBackupHint: '이 캘린더 전체(수업, 일정, 휴일, 반, 시간표 설정)를 백업합니다. 불확실하면 가져오기 전에 먼저보내세요.',
-        dataExportCalendar: '캘린더보내기',
-        dataImportCalendar: '캘린더 가져오기',
-        dataCalendarNameLabel: '현재 캘린더',
-        classTeacherCategory: '담당 과목',
-        classTeacherCategoryAuto: '수업 유형에서 자동',
-        classTeacherCategoryStale: '이전 긴 이름 제거됨 — 자동 또는 항목 선택',
-        classHomeroomLabel: '담임 선생님',
-        classHomeroomLabelFromCohort: '담임: {name} — 학생 연락·재시험 담당. 이 수업도 가르치면 위에서 담당 과목과 함께 추가하세요.',
-        timetableCellHomeroom: '담임',
-        classCohort: '학생 반(코호트)',
-        classCohortNone: '— 반 없음 —',
-        classScheduleBlock: '시간표 블록',
-        classScheduleBlockPrimary: '주 시간표',
-        classScheduleBlockSecondary: '보조 (Conversation / IPE / 중등 등)',
-        timetableTeacherLabel: '선생님',
-        timetableSelectTeacher: '선생님 선택',
-        timetablePickTeacher: '목록에서 선생님을 선택하면 담당 수업과 주간 시간표가 표시됩니다.',
-        timetableTeacherSearchPlaceholder: '선생님 검색…',
-        timetableTeacherClassesHeading: '담당 수업',
-        timetableNoClassesForTeacher: '이 선생님에게 배정된 수업이 없습니다. 수업 탭에서 배정하세요.',
-        timetableHomeroomOnlyTeacher: '담임만 배정됨 — 가르치는 수업이 아직 없습니다. 시간표에 표시하려면 각 수업의 Class teachers에서 이 선생님과 담당 과목을 추가하세요.',
-        timetableTeachersListEmpty: '선생님이 없습니다. 수업에 선생님을 배정하거나 팀 계정을 추가하세요.',
-        timetableCohortsScopeHint: '반(담임) 설정은 이 캘린더에만 적용됩니다(팀 캘린더 간 공유되지 않음). 담임은 역할이며, 수업 시간표는 수업 탭의 Class teachers에서 정합니다.',
-        timetableHomeroomRoleHint: '담임은 반 역할(학생 연락·재시험)이며 가르치는 과목이 아닙니다. 수업도 담당하면 각 수업의 Class teachers에 담당 과목과 함께 추가하세요.',
-        timetableCohortHomeroomOnlySaved: '반을 저장했습니다. 담임만 지정됨 — 수업도 담당하면 Class teachers에 추가하세요.',
-        timetableEmptyHint: '수업 탭에서 선생님을 배정하면 주간 시간표가 표시됩니다.',
-        timetableHomeroomLabel: '담임반',
-        timetableTimeHeader: '시간',
-        timetablePrint: '시간표 인쇄',
-        timetablePrintOptionsTitle: '시간표 인쇄',
-        timetablePrintSectionPage1: '1쪽 — 주간 시간표 (가로)',
-        timetablePrintSectionPage1Hint: '여백 안에서 A4 가로 한 페이지를 채우도록 행 높이가 균등하게 맞춰집니다.',
-        timetablePrintSectionPage2: '2쪽 — 선택 항목 (세로)',
-        timetablePrintSectionPage2Hint: '아래에서 하나 이상 선택한 경우에만 인쇄됩니다.',
-        timetablePrintIncludeTeacher: '선생님 이름',
-        timetablePrintIncludeHomeroom: '담임반 요일 글자',
-        timetablePrintIncludeTerm: '캘린더 / 학기 표시',
-        timetablePrintIncludeConflicts: '시간표 충돌 안내',
-        timetablePrintIncludeSecondary: '보조 시간표 블록',
-        timetablePrintIncludeHomeroomSummary: '담임 반 요약',
-        timetablePrintIncludeCohortDirectory: '반 목록 (전체 반)',
-        timetablePrintCohortDirectoryHeading: '학생 반',
-        timetablePrintColCohort: '반',
-        timetablePrintColHomeroomTeacher: '담임 선생님',
-        timetablePrintColDaySuffix: '요일 글자',
-        timetablePrintColClassCount: '수업 수',
-        timetableConflicts: '시간표 충돌이 있습니다',
-        timetableNoConflicts: '충돌 없음',
-        timetableSuggestCohorts: '수업에서 반 자동 제안',
-        timetableCohortsHeading: '학생 반 (담임)',
-        timetableAddCohort: '반 추가',
-        timetableCohortName: '반 이름',
-        timetableHomeroomTeacher: '담임 선생님',
-        timetableHomeroomDaySuffix: '담임반 요일 글자',
-        timetableSaveCohort: '반 저장',
-        timetableDeleteCohort: '반 삭제',
-        timetableCohortSaved: '반을 저장했습니다.',
-        timetableCohortsSuggested: '제안된 반 {n}개. 담임 선생님을 확인하고 저장하세요.',
-        timetableMySchedule: '내 시간표',
-        timetableCohortsEmpty: '이 캘린더에 반이 없습니다. 설정 탭 → 반 관리에서 + 반 추가를 클릭하세요.',
-        timetableHomeroomCohortsHeading: '이 시간표의 담임 반',
-        timetableHomeroomCohortClasses: '수업 {n}개',
-        classTeacherCurriculum: '교재과정 (이 선생님)',
-        classApplyCurriculumToTeacher: '교재과정 적용',
-        showAllClassCurricula: '모든 선생님 교재과정 표시',
-        showAllClassCurriculaHint: '끄면 캘린더에 내게 배정된 교재과정 수업만 표시됩니다.',
-        syllabusViewingCurriculum: '내 교재과정 배정 기준 강의 계획표',
-        classTypeLabel: '수업 유형',
-        classTypeHint: '미리 정해진 수업 횟수·요일을 불러옵니다. 아래 항목은 언제든 바꿀 수 있습니다.',
-        classTypeCustom: '사용자 지정 (프리셋 없음)',
-        classTypeDebate: '토론 (주 1회)',
-        classTypeWrSp: 'WR+SP (주 2회, 주당 1단원)',
-        classTypeKoreanMulti: '한국어 / 주 2회 이상',
-        wrSpTypeHint: 'Write Right 18회 / Early Writers 21회 — 프리셋별 페이지·숙제 상세 다름. 해당 교재 프리셋 선택. (Write Now 별도.)',
-        sequentialScheduleHint: '학기 전체에 걸쳐 1, 2, 3… 순서로 배치합니다. 일자 합치기는 주 1회 토론 수업에만 해당합니다.',
-        unitLessonSpeaking: '단원 {u} [1/2] – 말하기',
-        unitLessonWriting: '단원 {u} [2/2] – 쓰기',
-        lessonNumberLabel: '{n}회차',
-        termLessonsIncompleteHint: '{name}: {scheduled}/{total}회 배치됨 (학기 중 수업일 부족)',
-        classTypeNewType: '새 수업 유형',
-        classTypeCreateTitle: '수업 유형 만들기',
-        classTypeName: '유형 이름',
-        classTypeNamePlaceholder: '예: 과학 동아리',
-        classTypeMeetingDaysHint: '이 유형이 보통 만나는 요일을 선택하세요. 나중에 수업마다 바꿀 수 있습니다.',
-        classTypeSave: '유형 저장',
-        classTypeDelete: '유형 삭제',
-        confirmDeleteClassType: '저장된 이 수업 유형을 삭제할까요? 이미 만든 수업은 그대로 둡니다.',
-        defaultClassEditorOpen: '기본값 편집',
-        defaultClassEditorTitle: '기본 수업 유형 편집',
-        defaultClassEditorHint: '기본 유형과 PDF 프리셋의 공장 기본값을 바꿉니다. 이미 만든 수업은 그대로이고, 새 수업에 적용됩니다.',
-        defaultClassEditorPickType: '편집할 유형',
-        defaultClassEditorDisplayName: '표시 이름',
-        defaultClassEditorImportMode: '과제 붙여넣기 모드',
-        defaultClassEditorLabelMode: '수업 라벨 방식',
-        defaultClassEditorUnitPair: '단원 쌍 라벨 (말하기/쓰기)',
-        defaultClassEditorSave: '기본값 저장',
-        defaultClassEditorResetType: '이 유형 초기화',
-        defaultClassEditorResetAll: '전체 공장값 복원',
-        defaultClassEditorResetTypeConfirm: '이 유형을 공장 기본값으로 되돌릴까요?',
-        defaultClassEditorResetAllConfirm: '모든 기본·PDF 프리셋을 공장 기본값으로 되돌릴까요?',
-        defaultClassEditorFactoryValues: '공장 기본: 수업 {lessons}회, 교재 “{book}”.',
-        defaultClassEditorDuplicate: '수업 유형 복제',
-        defaultClassEditorDuplicatePick: '먼저 복제할 유형을 선택하세요.',
-        defaultClassEditorCustomTypeNote: '사용자 복사본 — 아래를 수정한 뒤 사용자 유형 저장을 누르세요. 수업 추가 화면에서 유형 삭제로 제거할 수 있습니다.',
-        defaultClassEditorResetTypeDisabled: '공장 초기화는 기본·PDF 프리셋만 가능합니다.',
-        defaultClassEditorSaveCustom: '사용자 유형 저장',
-        meetingDays: '수업 요일',
-        meetingDaysHint: '캘린더에서 실제로 만나는 요일을 모두 선택하세요. 토론은 보통 주 1회, 한국어 수업은 주 2회 이상인 경우가 많습니다.',
-        meetingDaysRequired: '요일을 하나 이상 선택하거나, 사용자 지정 일정을 켜 주세요.',
-        meetingDaysQuick: '빠른 선택:',
-        meetingDaysPresetMwf: '월·수·금',
-        meetingDaysPresetMw: '월수',
-        meetingDaysPresetWf: '수금',
-        meetingDaysPresetMf: '월금',
-        meetingDaysPresetTt: '화·목',
-        meetingDaysPresetClear: '지우기',
-        fillSyllabusFromUnits: '단원에서 페이지 채우기',
-        applyPresetSyllabus: '프리셋 페이지 적용',
-        syllabusPresetTypeHint: '수업 요일과 학기 날짜를 직접 선택하세요. 캘린더가 그 요일에 수업을 배치합니다. 그다음 캘린더에서 새로고침 → 프리셋 페이지 적용을 사용하세요.',
-        scheduleMatrixSuggestHint: '시간표 참고: 이 과목은 보통 {period}교시, {days} ({pattern})입니다. 수업 요일은 언제든 바꿀 수 있습니다.',
-        homeworkImportTitle: '과제 붙여넣기 가져오기',
-        homeworkImportHint: 'Debate Day 블록 또는 Unit Part 블록을 붙여넣으세요. 먼저 캘린더에서 새로고침하세요.',
-        homeworkImportPlaceholder: '과제 텍스트를 여기에 붙여넣기…',
-        homeworkImportPreview: '매칭 미리보기',
-        homeworkImportApply: '표에 적용',
-        homeworkImportNoPaste: '붙여넣을 텍스트가 없습니다.',
-        homeworkImportNoRows: '먼저 캘린더에서 새로고침하세요.',
-        homeworkImportPreviewHeader: '매칭 {matched}건, 미매칭 {unmatched}건',
-        homeworkImportApplied: '{n}개 행에 과제를 적용했습니다.',
-        homeworkTabReferenceDate: '기준 날짜',
-        homeworkTabToday: '오늘',
-        homeworkTabMiniCalendarLabel: '기준 날짜 선택',
-        homeworkTabPrevMonth: '이전 달',
-        homeworkTabNextMonth: '다음 달',
-        homeworkTabRefreshSyllabi: '캘린더에서 강의 계획표 새로고침',
-        homeworkTabOnSelectedDay: '선택한 날짜 수업',
-        homeworkTabAllClasses: '모든 수업',
-        homeworkTabSelectedDateClasses: '선택한 날짜 수업',
-        homeworkTabOtherClasses: '기타 수업',
-        homeworkTabEditorEmpty: '수업을 선택하면 강의 계획표의 숙제 복사 블록이 표시됩니다.',
-        homeworkTabOpenClass: '수업 탭에서 강의 계획표 편집',
-        homeworkTabOpenSyllabus: '강의 계획표 편집',
-        openSyllabusTab: '강의 계획표 편집',
-        classTabOpenSyllabus: '강의 계획표 편집',
-        syllabusTabIntro: '수업별 강의 계획표(수업 표, 페이지, 비고)를 편집합니다. 목록에서 수업 또는 사용자 템플릿을 선택하세요. 캘린더·교재과정 새로고침은 편집기 상단 버튼을 사용하세요.',
-        syllabusTabEditorEmpty: '수업 또는 사용자 강의 계획표 템플릿을 선택하세요.',
-        syllabusSegmentClasses: '수업',
-        syllabusSegmentTemplates: '내 강의 계획표',
-        syllabusNewTemplate: '+ 사용자 강의 계획표',
-        syllabusTemplateSearchPlaceholder: '템플릿 검색…',
-        syllabusSaveClass: '강의 계획표 저장',
-        syllabusSaveTemplate: '템플릿 저장',
-        syllabusOpenClassSettings: '수업 일정 및 설정',
-        syllabusOpenHomework: '숙제 복사',
-        syllabusApplyTemplatePick: '사용자 강의 계획표 적용…',
-        syllabusSaveAsTemplate: '템플릿으로 저장',
-        syllabusDeleteTemplate: '템플릿 삭제',
-        syllabusModeTemplate: '템플릿 편집: {name} — 준비되면 수업에 적용하세요.',
-        syllabusScheduleChip: '일정 (저장됨): {days} · {start} – {end}',
-        syllabusScheduleUnsavedHint: '캘린더에서 새로고침하기 전에 수업 일정 및 설정(수업 탭)에서 수업 요일과 기간을 설정하세요.',
-        syllabusScheduleSetupHint: '학기 전에 생략·합치기를 여기서 설정하세요. 새로고침 후 숙제와 표에 반영됩니다.',
-        syllabusCompressionByPeriodReadonlyHint: '기간별 합치기는 수업에 저장된 교재 기간을 사용합니다. 교재 기간은 수업 일정 및 설정에서 편집하세요.',
-        syllabusClassSummary: '강의 계획표 {rows}행',
-        syllabusClassSummaryEmpty: '강의 계획표 행 없음',
-        syllabusStartBlank: '빈 강의 계획표로 시작',
-        addSyllabusLessonRow: '수업 행 추가',
-        syllabusConfirmBlank: '이 수업의 강의 계획표 단원과 행을 모두 지울까요?',
-        syllabusConfirmApplyTemplate: '이 수업의 단원을 바꾸고 템플릿의 페이지 내용을 병합할까요?',
-        syllabusConfirmDeleteTemplate: '이 사용자 강의 계획표 템플릿을 삭제할까요?',
-        syllabusTemplateNamePrompt: '템플릿 이름',
-        syllabusTemplateSaved: '템플릿을 저장했습니다.',
-        syllabusTemplateApplied: '사용자 강의 계획표를 적용했습니다.',
-        syllabusSaved: '강의 계획표를 저장했습니다.',
-        syllabusDuplicateFromClass: '수업에서 복제',
-        syllabusNoTemplates: '사용자 강의 계획표가 없습니다. + 사용자 강의 계획표를 누르세요.',
-        syllabusGeneralNotes: '일반 메모 및 안내',
-        syllabusGeneralNotesHint: '학부모, 대체 강사, 본인 참고용. 입력하면 교재과정 일반 메모를 덮어씁니다. 인쇄 진도표의 비고 칸에만 표시됩니다. 표의 행별 비고는 인쇄되지 않습니다.',
-        syllabusGeneralNotesPlaceholder: '예: 매 수업 교재 지참. 8회차에 3단원 시험…',
-        homeworkTabHint: '이 탭은 복사할 텍스트만 준비합니다. 별도의 Simson 채점 웹사이트와 숙제 배정 웹사이트에 붙여넣으세요 — 그 페이지는 이 앱에 없습니다. 텍스트는 각 수업 강의 계획표(페이지/세부)에서 가져옵니다. 캘린더 변경 후 강의 계획표를 새로고침하세요.',
-        homeworkTabExternalBanner: '여기서 복사한 뒤, 다른 웹사이트(Simson 채점·숙제 배정)에 붙여넣으세요.',
-        homeworkTabDueDate: '숙제 마감 (다음 수업)',
-        homeworkTabGradingTitle: '지난주 — Simson 채점 사이트용',
-        homeworkTabAssignTitle: '이번주 — 숙제 배정 사이트용',
-        homeworkTabGradingHint: '이 블록을 복사한 뒤, 다른 탭에서 Simson 채점 웹페이지를 열고 붙여넣으세요. 이번 수업에 제출할 숙제입니다(이전 회차의 페이지/세부).',
-        homeworkTabAssignHint: '이 블록을 복사한 뒤, 다른 탭에서 숙제 배정 웹페이지를 열고 붙여넣으세요. 다음 대면 수업일까지 (휴일·수업 없는 날 제외).',
-        homeworkTabCopy: '복사',
-        homeworkTabCopyDate: '날짜 복사',
-        homeworkTabCopyHomework: '숙제 복사',
-        homeworkTabCopyHomeworkTitle: '숙제 내용 — 숙제 배정 사이트의 설명란에 붙여넣으세요.',
-        homeworkTabCopyBoth: '두 블록 모두 복사',
-        homeworkTabSyllabiRefreshed: '캘린더에서 강의 계획표를 업데이트했습니다.',
-        homeworkTabCopied: '클립보드에 복사했습니다.',
-        homeworkTabCopyFailed: '복사할 수 없습니다. 텍스트를 선택해 직접 복사하세요.',
-        homeworkTabNoLessons: '강의 계획표에 예정된 수업이 없습니다. 수업 편집기에서 캘린더에서 새로고침을 누르세요.',
-        homeworkTabNoHomeworkText: '수업은 있지만 페이지/세부 내용이 비어 있습니다. 강의 계획표에 숙제를 추가하거나 붙여넣기 가져오기를 사용하세요.',
-        homeworkTabNoAssignText: '이번주 강의 계획표에 숙제 텍스트가 없습니다.',
-        homeworkTabNoGradingText: '지난주 숙제가 없습니다 (학기 첫 수업).',
-        homeworkTabNoDueDate: '학기 종료 전 다음 수업일을 찾을 수 없습니다. 수업 요일과 종료일을 확인하세요.',
-        homeworkTabTargetLesson: '{date} 수업에 배정 · {n}회차: {title}',
-        homeworkTabGradingFrom: '{n}회차 숙제 채점 ({date}): {title}',
-        homeworkTabModuleMissing: '숙제 탭 모듈을 불러오지 못했습니다. Ctrl+F5로 새로고침하세요.',
-        homeworkTabDueLabel: '마감',
-        homeworkTabSessionLabel: '회차',
-        homeworkTabEditableHint: '아래 텍스트를 수정하면 강의 계획표(페이지/세부)에 저장됩니다. 복사 시 수업 이름과 회차 헤더가 추가됩니다.',
-        homeworkTabSavesTo: '강의 계획표에 저장: {n}회차 · {title}',
-        homeworkTabSaved: '강의 계획표에 숙제를 저장했습니다.',
-        homeworkTabNoSyllabusRow: '연결된 강의 계획표 행이 없습니다. 먼저 캘린더에서 강의 계획표를 새로고침하세요.',
-        homeworkTabSkippedHeading: '마감 전에 건너뛴 정규 수업일:',
-        homeworkTabSkipHoliday: '{date} — {name} (수업 없음)',
-        homeworkTabSkipHolidayNoName: '{date} — 공휴일 (수업 없음)',
-        workspaceTitle: '커리큘럼 작업 공간',
-        workspaceBackCalendar: '← 캘린더로',
-        workspaceTabHomework: '숙제 복사',
-        workspaceTabBooks: '교재 편집',
-        workspaceOpen: '확장 작업 공간 열기',
-        workspaceOpenBooks: '작업 공간에서 열기',
-        workspaceHomeworkFlowHint:
-            '텍스트는 강의 계획표 Pages / detail에서 오며, 이는 교재에서 옵니다. 교재 편집 → 강의 계획표 새로고침 → 여기서 복사하세요.',
-        workspaceBooksIntro:
-            '교재별 공유 페이지 블록을 편집합니다. 저장 후 Homework copy 탭에서 강의 계획표를 새로고침하세요.',
-        workspaceBooksPick: '편집할 교재를 선택하세요.',
-        workspaceSourceBook: '원본 교재:',
-        workspaceEditBook: '교재 편집 →',
-        workspaceBooksFeedHint:
-            '여기의 Pages / detail은 캘린더에서 새로고침할 때 강의 계획표에 반영됩니다. 숙제 복사는 강의 계획표 행을 사용합니다.',
-        workspaceBooksSavedRefresh:
-            '교재가 저장되었습니다. Homework copy 탭에서 강의 계획표 새로고침을 실행하세요.',
-        workspaceRemoteNewer: '다른 곳에서 캘린더가 업데이트되었습니다.',
-        workspaceReload: '다시 불러오기',
-        workspaceLoadFailed: '캘린더 데이터를 불러오지 못했습니다. 메인 캘린더로 돌아가거나 다시 불러오기를 누르세요.',
-        notesPageTitle: '수업 일지',
-        notesBackCalendar: '← 캘린더',
-        notesLoadFailed: '일지를 불러오지 못했습니다. 캘린더로 돌아가거나 다시 불러오기를 누르세요.',
-        notesNoClasses: '이 캘린더에 수업이 없습니다.',
-        notesMyClassesOnly: '내 수업만',
-        notesNoMyClassesOnDay: '이 날짜에 배정된 수업이 없습니다. “내 수업만”을 끄면 모든 수업을 볼 수 있습니다.',
-        notesMyClassesSignIn: '내 수업만 보려면 로그인하거나 “내 수업만”을 끄세요.',
-        notesSelectClass: '수업을 눌러 메모를 추가하거나 보세요.',
-        notesEditorClose: '일지 편집 닫기',
-        notesNoSearchMatch: '검색어와 일치하는 수업이 없습니다.',
-        notesLessonLabel: '{n}차시',
-        notesOpenMobile: '모바일 일지',
-        notesOpenMobileTitle: '날짜·수업 목록 모바일 일지 화면 열기',
-        notesMobilePromoHint: '날짜를 고르고 수업을 눌러 그날 수업 내용을 적는 모바일 일지입니다.',
-        headerMoreMenu: '더보기',
-        calendarViewAgenda: '일정',
-        calendarViewMonth: '월',
-        calendarAgendaEmpty: '앞으로 2주간 수업이나 일정이 없습니다.',
-        mobileSetupLimitedHint: '설정 화면은 태블릿이나 컴퓨터에서 편집하기 좋습니다. 휴대폰에서는 보기만 가능합니다.',
-        workspaceTabCalendarHint: '캘린더로 돌아가기(8번 탭하면 숨은 기능)',
-        classNotesFilterMobileNone: '필터…',
-        
-        // Holiday Modal
-        addHolidayTitle: '휴일 추가',
-        editHoliday: '휴일 편집',
-        holidayName: '휴일/이벤트 이름',
-        holidayNamePlaceholder: '예: 추석',
-        dateRange: '기간 (여러 날)',
-        date: '날짜',
-        bgColor: '배경색',
-        textColor: '글자색',
-        appliesTo: '적용 대상',
-        allClasses: '모든 수업',
-        byGrade: '학년별:',
-        byClassName: '수업별:',
-        bySection: '심슨 레벨별:',
-        allElementaryLabel: '전체 초등 (초1–초6)',
-        allMiddleSchoolLabel: '전체 중등 (중1–중3)',
-        sectionsLabel: '레벨',
-        bySchoolBand: '학교급 (빠른 선택):',
-        holidayFilterRequired: '모든 수업을 켜거나, 반·학교급·학년·수업 중 하나 이상 선택하세요.',
-        eventApplicabilityFilterBtn: '적용 대상 선택…',
-        eventApplicabilityFilterTitle: '일정 적용 대상',
-        eventApplicabilityFilterStatus: '{total}개 중 {selected}개 필터 선택됨',
-        eventApplicabilityFilterBtnActive: '적용 대상 ({selected}/{total})',
-        eventApplicabilitySectionSchoolBand: '학교급 (빠른 선택)',
-        eventApplicabilitySectionLevel: '심슨 레벨별',
-        eventApplicabilityNoOptions: '수업이 없습니다. 수업 탭에서 수업을 추가하세요.',
-        eventApplicabilitySummaryEmpty: '선택된 필터가 없습니다. 필터를 열어 하나 이상 선택하세요.',
-        saveHoliday: '휴일 저장',
-        
-        // Popup
-        level: '반:',
-        lesson: '수업:',
-        
-        // Print Modal
-        printOptions: '인쇄 옵션',
-        printCalendar: '캘린더 인쇄',
-        printSummaryPage: '요약 페이지 인쇄',
-        includeClassList: '수업 목록 포함',
-        includeLessonSchedule: '수업 일정 포함',
-        includeCompressionNotes: '압축 노트 포함',
-        
-        // Print Summary
-        termSummary: '학기 요약',
-        classes: '수업',
-        holidays: '휴일',
-        lessonSchedule: '수업 일정',
-        compressionNotes: '압축 노트',
-        day: '요일',
-        mergedGroupsLabel: '합친 수업: {groups}',
-        scheduledGroupsLabel: '수업 그룹 {scheduled}/{total}개 일정',
-        compressionNoteAutoSuffix: '(가능한 날짜 {available}개)',
-        compressionNoteCustomSuffix: '(사용자 지정 일정)',
-        
-        // Term seasons (from class/calendar start month)
-        termSeasonSpring: '봄',
-        termSeasonSummer: '여름',
-        termSeasonFall: '가을',
-        termSeasonWinter: '겨울',
-
-        // Calendar
-        monthNames: ['1월', '2월', '3월', '4월', '5월', '6월',
-                     '7월', '8월', '9월', '10월', '11월', '12월'],
-        dayNamesShort: ['일', '월', '화', '수', '목', '금', '토'],
-        dayNamesFull: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
-        
-        // Autocomplete
-        selectToAutofill: '선택하여 자동 입력:',
-        
-        // Messages
-        allClassesLabel: '모든 수업',
-        gradesLabel: '학년',
-        classesLabel: '수업',
-        noClassesYet: '아직 수업이 없습니다',
-        noCompressedDays: '압축된 수업이 없습니다.',
-        confirmDeleteClass: '이 수업을 삭제하시겠습니까?',
-        confirmDeleteHoliday: '이 휴일을 삭제하시겠습니까?',
-        confirmClearAllData: '모든 데이터를 지우시겠습니까? 모든 수업, 휴일 및 캘린더 설정이 삭제됩니다. 이 작업은 취소할 수 없습니다.',
-        clearDataSuccess: '모든 데이터가 지워졌습니다.',
-        importSuccess: '데이터를 성공적으로 가져왔습니다!',
-        importDestinationTitle: '캘린더 데이터 가져오기',
-        importToCurrent: '현재 캘린더에 가져오기',
-        importToNew: '파일로 새 팀 캘린더 만들기',
-        importOverwriteWarning: '이 캘린더의 모든 데이터를 대체합니다. 확실하지 않으면 먼저보내기로 백업하세요.',
-        importOverwriteConfirm: '"{name}"의 모든 데이터를 가져온 파일로 바꿀까요? 되돌릴 수 없습니다.',
-        importReadOnlyHint: '다른 선생님이 이 캘린더를 편집 중입니다. 먼저 편집 요청을 하거나 “파일에서 새 팀 캘린더 만들기”를 선택하세요.',
-        importConfirm: '가져오기',
-        importImporting: '가져오는 중…',
-        importNoActiveCalendar: '선택된 팀 캘린더가 없습니다. 파일로 새 캘린더를 만드세요.',
-        importNewCreated: '새 캘린더 "{name}"에 가져옴.',
-        importToCurrentDone: '"{name}"에 가져옴.',
-        invalidFile: '잘못된 파일 형식입니다. 유효한 캘린더 내보내기 파일을 선택하세요.',
-        errorReadingFile: '파일을 읽는 중 오류가 발생했습니다. 유효한 JSON 파일을 선택하세요.',
-        migrationNotice: '데이터가 새 형식으로 마이그레이션되었습니다:\n- {classes}개의 수업 업데이트\n- {holidays}개의 휴일 업데이트\n\n마이그레이션된 수업의 반(A/B/C)을 확인하고 업데이트하세요.'
-    }
+const SYNC_ERROR_KEYS = {
+    'Not signed in': 'syncErrNotSignedIn',
+    'Request timed out': 'syncErrTimeout',
+    'Request failed': 'syncErrFailed',
+    'No active team calendar': 'syncErrNoCalendar',
+    'You do not have edit access to this calendar': 'syncErrNoEditAccess',
+    'Calendar is locked by another teacher': 'syncErrLocked',
+    'View As: change not saved': 'viewAsChangeNotSaved'
 };
+
+function translateSyncError(message) {
+    if (!message) {
+        return message;
+    }
+    const key = SYNC_ERROR_KEYS[message];
+    return key ? t(key) : message;
+}
+
+function showSyncErrorToast(err) {
+    const raw = err && err.message ? err.message : String(err || '');
+    showSyncToast(t('syncError') + ': ' + translateSyncError(raw), true);
+}
 
 function t(key) {
     return translations[currentLanguage][key] || translations['en'][key] || key;
@@ -4095,6 +1823,7 @@ function refreshCurriculumTabList() {
     const searchQuery = (document.getElementById('curriculumTabListSearch')?.value || '').trim();
     window.CCPBooksEditor.renderCurriculumList(listEl, curriculumTabSelectedId, { searchQuery });
     refreshCurriculumAdminToolbar();
+    scheduleTabWarningsRefresh();
 }
 
 function refreshCurriculumAdminToolbar() {
@@ -4600,6 +2329,7 @@ function updateCompressionUiForScheduleModel() {
     const effective = getClassDataForScheduleGapCheck(draft);
     renderScheduleAdjustmentSummaryBlock(effective || draft, 'classForm');
     renderScheduleGapWarning(draft, 'classForm');
+    initScheduleAdjustmentDetailsToggle('classForm');
 }
 
 function syncCompressionSectionsForMode(surface, classData) {
@@ -4612,7 +2342,7 @@ function syncCompressionSectionsForMode(surface, classData) {
     const byMonthSection = scheduleAdjEl(sid, 'compressionByMonthSection');
     const compressionGroup = sid === 'classForm'
         ? document.querySelector('#classCompressionDetails .compression-mode-group')
-        : scheduleAdjEl(sid, 'compressionGlobalSection')?.closest('.syllabus-schedule-adjustment-details')
+        : scheduleAdjEl(sid, 'compressionGlobalSection')?.closest('.schedule-adjustment-details')
             ?.querySelector('.compression-mode-group');
     if (compressionGroup) {
         compressionGroup.style.display = debate ? '' : 'none';
@@ -4885,6 +2615,7 @@ function formatScheduleAdjustmentSummary(classData) {
 const SCHEDULE_ADJ_SURFACE = {
     classForm: {
         gapWarning: 'classScheduleGapWarning',
+        barNotification: 'scheduleAdjustmentBarNotification',
         adjustmentSummary: 'scheduleAdjustmentSummary',
         adjustmentRows: 'scheduleAdjustmentRows',
         compressionCheckboxes: 'compressionCheckboxes',
@@ -4905,6 +2636,7 @@ const SCHEDULE_ADJ_SURFACE = {
     },
     syllabus: {
         gapWarning: 'syllabusScheduleGapWarning',
+        barNotification: 'syllabusScheduleAdjustmentBarNotification',
         adjustmentSummary: 'syllabusScheduleAdjustmentSummary',
         adjustmentRows: 'syllabusScheduleAdjustmentRows',
         compressionCheckboxes: 'syllabusCompressionCheckboxes',
@@ -4947,6 +2679,90 @@ function hasScheduleAdjustmentTableInDom(surface) {
     return Boolean(map && document.getElementById(map.adjustmentRows));
 }
 
+function getScheduleAdjustmentDetailsEl(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    if (!map) {
+        return null;
+    }
+    if (sid === 'syllabus') {
+        const section = document.getElementById(map.scheduleSection);
+        return section ? section.querySelector('.schedule-adjustment-details') : null;
+    }
+    return document.getElementById(map.compressionDetails || map.scheduleSection);
+}
+
+function updateScheduleAdjustmentBarNotification(classData, surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const map = SCHEDULE_ADJ_SURFACE[sid];
+    if (!map || !map.barNotification) {
+        return;
+    }
+    const el = document.getElementById(map.barNotification);
+    const details = getScheduleAdjustmentDetailsEl(sid);
+    if (!el || !details) {
+        return;
+    }
+    if (details.open) {
+        el.hidden = true;
+        el.textContent = '';
+        el.className = 'schedule-adjustment-bar-notification';
+        return;
+    }
+    const effective = getClassDataForScheduleGapCheck(classData);
+    if (!effective || !effective.id || effective.id === 'draft-syllabus'
+        || (effective.customSchedule && effective.customSchedule.enabled)) {
+        el.hidden = true;
+        el.textContent = '';
+        el.className = 'schedule-adjustment-bar-notification';
+        return;
+    }
+    const gap = getClassScheduleGapStatus(effective);
+    if (gap.incomplete) {
+        el.textContent = t('scheduleGapBarNotification')
+            .replace('{unplaced}', gap.unplacedLessonNumbers.length)
+            .replace('{total}', gap.totalLessons);
+        el.className = 'schedule-adjustment-bar-notification schedule-adjustment-bar-notification--warn';
+        el.hidden = false;
+        return;
+    }
+    const adj = formatScheduleAdjustmentSummary(effective);
+    if (adj.hasAdjustments) {
+        const parts = [];
+        if (adj.skippingLines.length) {
+            parts.push(`${t('scheduleAdjustmentSkipping')}: ${adj.skippingLines.join('; ')}`);
+        }
+        if (adj.combiningLines.length) {
+            parts.push(`${t('scheduleAdjustmentCombining')}: ${adj.combiningLines.join('; ')}`);
+        }
+        el.textContent = parts.join(' · ');
+        el.className = 'schedule-adjustment-bar-notification schedule-adjustment-bar-notification--info';
+        el.hidden = false;
+        return;
+    }
+    el.hidden = true;
+    el.textContent = '';
+    el.className = 'schedule-adjustment-bar-notification';
+}
+
+function initScheduleAdjustmentDetailsToggle(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const details = getScheduleAdjustmentDetailsEl(sid);
+    if (!details || details.dataset.barToggleBound === '1') {
+        return;
+    }
+    details.dataset.barToggleBound = '1';
+    details.addEventListener('toggle', () => {
+        let data = null;
+        if (sid === 'syllabus') {
+            data = getSelectedSyllabusClass();
+        } else {
+            data = buildClassSnapshotFromForm();
+        }
+        updateScheduleAdjustmentBarNotification(data, sid);
+    });
+}
+
 function scrollToScheduleAdjustment(surface) {
     const sid = surface || getScheduleAdjustmentSurface();
     const map = SCHEDULE_ADJ_SURFACE[sid];
@@ -4958,9 +2774,7 @@ function scrollToScheduleAdjustment(surface) {
         if (sid === 'syllabus') {
             section.hidden = false;
         }
-        const details = section.tagName === 'DETAILS'
-            ? section
-            : section.querySelector('details');
+        const details = getScheduleAdjustmentDetailsEl(sid);
         if (details) {
             details.open = true;
         }
@@ -5082,12 +2896,14 @@ function renderScheduleGapWarning(classData, surface) {
         || (effective.customSchedule && effective.customSchedule.enabled)) {
         el.hidden = true;
         el.innerHTML = '';
+        updateScheduleAdjustmentBarNotification(classData, surface);
         return;
     }
     const gap = getClassScheduleGapStatus(effective);
     if (!gap.incomplete) {
         el.hidden = true;
         el.innerHTML = '';
+        updateScheduleAdjustmentBarNotification(classData, surface);
         return;
     }
     const name = (effective.name || '').trim() || t('editClass');
@@ -5109,6 +2925,7 @@ function renderScheduleGapWarning(classData, surface) {
         }
     });
     el.appendChild(btn);
+    updateScheduleAdjustmentBarNotification(classData, surface);
 }
 
 function renderScheduleAdjustmentSummaryBlock(classData, surface) {
@@ -5119,12 +2936,14 @@ function renderScheduleAdjustmentSummaryBlock(classData, surface) {
     if (!classData) {
         el.hidden = true;
         el.innerHTML = '';
+        updateScheduleAdjustmentBarNotification(classData, surface);
         return;
     }
     const summary = formatScheduleAdjustmentSummary(classData);
     if (!summary.hasAdjustments) {
         el.hidden = true;
         el.innerHTML = '';
+        updateScheduleAdjustmentBarNotification(classData, surface);
         return;
     }
     el.hidden = false;
@@ -5136,6 +2955,7 @@ function renderScheduleAdjustmentSummaryBlock(classData, surface) {
         parts.push(`<div>${escapeHtml(t('scheduleAdjustmentCombining'))}: ${summary.combiningLines.map(l => escapeHtml(l)).join('; ')}</div>`);
     }
     el.innerHTML = parts.join('');
+    updateScheduleAdjustmentBarNotification(classData, surface);
 }
 
 function getUnscheduledLessonNumbers(classData, schedule) {
@@ -6323,7 +4143,36 @@ function ensureUiState() {
         appData.ui.cohortsTabSelectedId = '';
     }
     appData.ui.setupGuideBannerDismissed = !!appData.ui.setupGuideBannerDismissed;
+    appData.ui.setupChecklistDismissed = !!appData.ui.setupChecklistDismissed;
+    migrateLegacyDismissedToNavNotificationMeta(appData.ui);
+    if (!appData.ui.navNotificationMeta || typeof appData.ui.navNotificationMeta !== 'object') {
+        appData.ui.navNotificationMeta = {};
+    }
+    if (!Array.isArray(appData.ui.dismissedNavTabWarnings)) {
+        appData.ui.dismissedNavTabWarnings = [];
+    } else {
+        appData.ui.dismissedNavTabWarnings = [
+            ...new Set(
+                appData.ui.dismissedNavTabWarnings.map(normalizeDismissedNavTabWarningId).filter(Boolean)
+            )
+        ];
+    }
+    if (typeof appData.ui.activeZone !== 'string') {
+        appData.ui.activeZone = '';
+    }
+    if (typeof appData.ui.activeSegment !== 'string') {
+        appData.ui.activeSegment = '';
+    }
+    if (appData.ui.activeZone === APP_ZONE_MORE && appData.ui.activeSegment === 'events') {
+        appData.ui.activeZone = APP_ZONE_SCHEDULE;
+    }
+    if (appData.ui.activeZone === APP_ZONE_CONTENT && appData.ui.activeSegment === 'homework') {
+        appData.ui.activeZone = APP_ZONE_SCHEDULE;
+    }
     appData.ui.cohortsUsageTipsDismissed = !!appData.ui.cohortsUsageTipsDismissed;
+    if (appData.ui.cohortsExtraCollapsed === undefined) {
+        appData.ui.cohortsExtraCollapsed = false;
+    }
     if (typeof appData.ui.teachersTabCatalogCategoryFilter !== 'string') {
         appData.ui.teachersTabCatalogCategoryFilter = 'all';
     }
@@ -6503,6 +4352,10 @@ function applyMobileUiDefaults() {
             appData.ui.topBarCollapsed = true;
             applyTopBarCollapsedState();
         }
+        if (appData.ui.cohortsExtraCollapsed !== true) {
+            appData.ui.cohortsExtraCollapsed = true;
+            applyCohortsExtraCollapsedState();
+        }
         changed = true;
     }
     if (appData.ui.calendarViewMode !== 'agenda' && appData.ui.calendarViewMode !== 'month') {
@@ -6515,13 +4368,19 @@ function applyMobileUiDefaults() {
 }
 
 function syncMobileSetupLimitedBanner() {
-    const banner = document.getElementById('mobileSetupLimitedBanner');
-    if (!banner) {
-        return;
-    }
     const tab = typeof getActiveTab === 'function' ? getActiveTab() : '';
-    const show = isViewportPhone() && APP_SETUP_PHONE_TAB_IDS.includes(tab);
-    banner.hidden = !show;
+    const phone = isViewportPhone();
+    const setupTab = APP_SETUP_PHONE_TAB_IDS.includes(tab);
+    const mainBanner = document.getElementById('mobileSetupLimitedBanner');
+    if (mainBanner) {
+        mainBanner.hidden = !(phone && setupTab && tab !== 'cohorts');
+    }
+    const cohortsBanner = document.getElementById('mobileSetupLimitedBannerCohorts');
+    if (cohortsBanner) {
+        ensureUiState();
+        const collapsed = appData.ui.cohortsExtraCollapsed === true;
+        cohortsBanner.hidden = !(phone && tab === 'cohorts' && !collapsed);
+    }
 }
 
 /** On phone, Notes tab opens notes.html — relabel tab and hide in-app promo panel. */
@@ -6632,14 +4491,6 @@ function initCohortsBoardStickyOffsets() {
     }
     syncCohortsBoardStickyOffsets();
 
-    const tips = document.getElementById('cohortsUsageTips');
-    if (tips && !tips.dataset.cohortsStickyBound) {
-        tips.dataset.cohortsStickyBound = '1';
-        tips.addEventListener('toggle', () => {
-            requestAnimationFrame(() => syncCohortsBoardStickyOffsets());
-        });
-    }
-
     if (typeof ResizeObserver === 'undefined') {
         return;
     }
@@ -6651,12 +4502,9 @@ function initCohortsBoardStickyOffsets() {
     if (toolbar) {
         cohortsBoardStickyResizeObserver.observe(toolbar);
     }
-    if (tips && !tips.hidden) {
-        cohortsBoardStickyResizeObserver.observe(tips);
-    }
-    const summary = document.getElementById('cohortManagementSummary');
-    if (summary && !summary.hidden) {
-        cohortsBoardStickyResizeObserver.observe(summary);
+    const extraPanel = document.getElementById('cohortsExtraPanel');
+    if (extraPanel) {
+        cohortsBoardStickyResizeObserver.observe(extraPanel);
     }
 }
 
@@ -6673,7 +4521,7 @@ function initAppChromeStickyTop() {
         }
         appChromeStickyResizeObserver = new ResizeObserver(() => syncAppChromeStickyTop());
         appChromeStickyResizeObserver.observe(topBar);
-        ['teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack'].forEach((id) => {
+        ['teamLockBarRow', 'teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack'].forEach((id) => {
             const el = document.getElementById(id);
             if (el) {
                 appChromeStickyResizeObserver.observe(el);
@@ -6687,11 +4535,39 @@ function initAppChromeStickyTop() {
     window.addEventListener('resize', syncAppChromeStickyTop);
 }
 
+function getTermSettingsSummaryText() {
+    const name = getCollapsedHeaderCalendarName();
+    const term = (appData.termStart || elements.termStart?.value || '').trim();
+    const parts = [name, term].filter(Boolean);
+    return parts.join(' · ');
+}
+
+function updateTermSettingsToggleSummary() {
+    const toggle = document.getElementById('termSettingsToggle');
+    const summaryEl = document.getElementById('termSettingsSummary');
+    if (!toggle || !summaryEl) {
+        return;
+    }
+    ensureUiState();
+    const collapsed = appData.ui.topBarCollapsed === true;
+    const ariaKey = collapsed ? 'termSettingsShow' : 'termSettingsHide';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', t(ariaKey));
+    toggle.title = t(ariaKey);
+    const summary = getTermSettingsSummaryText();
+    if (collapsed && summary) {
+        summaryEl.textContent = summary;
+        summaryEl.hidden = false;
+    } else {
+        summaryEl.textContent = '';
+        summaryEl.hidden = true;
+    }
+}
+
 function applyTopBarCollapsedState() {
     const calendarOptions = document.getElementById('calendarOptions');
     const topBar = document.getElementById('appTopBar');
     const compactBar = document.querySelector('.app-top-bar-compact');
-    const toggle = document.getElementById('topBarToggle');
     if (!calendarOptions && !topBar) {
         return;
     }
@@ -6706,14 +4582,7 @@ function applyTopBarCollapsedState() {
     if (compactBar) {
         compactBar.classList.toggle('app-top-bar-compact--collapsed', collapsed);
     }
-    if (toggle) {
-        toggle.setAttribute('aria-expanded', String(!collapsed));
-        toggle.title = collapsed ? t('topBarExpand') : t('topBarCollapse');
-        const label = toggle.querySelector('.top-bar-toggle-label');
-        if (label) {
-            label.textContent = collapsed ? t('topBarExpand') : t('topBarCollapse');
-        }
-    }
+    updateTermSettingsToggleSummary();
     updateTopBarCalendarLabel();
     requestAnimationFrame(syncAppChromeStickyTop);
 }
@@ -6740,6 +4609,7 @@ function getCollapsedHeaderCalendarName() {
 function updateTopBarCalendarLabel() {
     const labelEl = document.getElementById('topBarCalendarLabel');
     if (!labelEl) {
+        updateTermSettingsToggleSummary();
         return;
     }
     const name = getCollapsedHeaderCalendarName();
@@ -6750,19 +4620,109 @@ function updateTopBarCalendarLabel() {
         labelEl.textContent = '';
         labelEl.hidden = true;
     }
+    updateTermSettingsToggleSummary();
     requestAnimationFrame(syncAppChromeStickyTop);
 }
 
+function initTermSettingsToggle() {
+    const toggle = document.getElementById('termSettingsToggle');
+    const header = document.querySelector('.term-settings-header');
+    if (!toggle || toggle.dataset.termSettingsBound === '1') {
+        return;
+    }
+    toggle.dataset.termSettingsBound = '1';
+    const onToggle = () => {
+        ensureUiState();
+        setTopBarCollapsed(!appData.ui.topBarCollapsed);
+    };
+    toggle.addEventListener('click', onToggle);
+    if (header && header.dataset.termSettingsHeaderBound !== '1') {
+        header.dataset.termSettingsHeaderBound = '1';
+        header.addEventListener('click', (e) => {
+            if (e.target === toggle || toggle.contains(e.target)) {
+                return;
+            }
+            onToggle();
+        });
+    }
+    applyTopBarCollapsedState();
+}
+
+/** @deprecated use initTermSettingsToggle */
 function initTopBarToggle() {
-    const toggle = document.getElementById('topBarToggle');
+    initTermSettingsToggle();
+}
+
+function updateCohortsExtraSummary() {
+    const toggle = document.getElementById('cohortsExtraToggle');
+    const labelEl = document.getElementById('cohortsExtraLabel');
+    const headerSummaryEl = document.getElementById('cohortsExtraSummary');
+    const managementSummaryEl = document.getElementById('cohortManagementSummary');
     if (!toggle) {
         return;
     }
-    toggle.addEventListener('click', () => {
+    ensureUiState();
+    const collapsed = appData.ui.cohortsExtraCollapsed === true;
+    const ariaKey = collapsed ? 'cohortsExtraShow' : 'cohortsExtraHide';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', t(ariaKey));
+    toggle.title = t(ariaKey);
+    if (labelEl) {
+        labelEl.hidden = false;
+        labelEl.textContent = t('cohortsExtraHeading');
+    }
+    if (headerSummaryEl) {
+        headerSummaryEl.textContent = '';
+        headerSummaryEl.hidden = true;
+    }
+    if (managementSummaryEl && managementSummaryEl.textContent.trim()) {
+        managementSummaryEl.hidden = collapsed;
+    }
+}
+
+function applyCohortsExtraCollapsedState() {
+    const panel = document.getElementById('cohortsExtraPanel');
+    if (!panel) {
+        return;
+    }
+    ensureUiState();
+    const collapsed = appData.ui.cohortsExtraCollapsed === true;
+    panel.classList.toggle('cohorts-extra-panel--collapsed', collapsed);
+    updateCohortsExtraSummary();
+    syncMobileSetupLimitedBanner();
+    requestAnimationFrame(() => syncCohortsBoardStickyOffsets());
+}
+
+function setCohortsExtraCollapsed(collapsed) {
+    ensureUiState();
+    appData.ui.cohortsExtraCollapsed = collapsed === true;
+    applyCohortsExtraCollapsedState();
+    saveUiStateToLocalStorage();
+}
+
+function initCohortsExtraToggle() {
+    const toggle = document.getElementById('cohortsExtraToggle');
+    const header = document.querySelector('.cohorts-extra-header');
+    if (!toggle || toggle.dataset.cohortsExtraBound === '1') {
+        applyCohortsExtraCollapsedState();
+        return;
+    }
+    toggle.dataset.cohortsExtraBound = '1';
+    const onToggle = () => {
         ensureUiState();
-        setTopBarCollapsed(!appData.ui.topBarCollapsed);
-    });
-    applyTopBarCollapsedState();
+        setCohortsExtraCollapsed(!appData.ui.cohortsExtraCollapsed);
+    };
+    toggle.addEventListener('click', onToggle);
+    if (header && header.dataset.cohortsExtraHeaderBound !== '1') {
+        header.dataset.cohortsExtraHeaderBound = '1';
+        header.addEventListener('click', (e) => {
+            if (e.target === toggle || toggle.contains(e.target)) {
+                return;
+            }
+            onToggle();
+        });
+    }
+    applyCohortsExtraCollapsedState();
 }
 
 function normalizeEventType(type) {
@@ -7293,8 +5253,9 @@ function positionFixedPopoverBelowTrigger(trigger, popover, options = {}) {
     const maxHeight = Math.max(minMaxHeight, viewportHeight - top - margin);
     popover.style.position = 'fixed';
     popover.style.top = `${top}px`;
-    popover.style.maxHeight = `${maxHeight}px`;
-    popover.style.overflowY = 'auto';
+    popover.style.maxHeight = '';
+    popover.style.overflow = 'visible';
+    popover.style.overflowY = 'visible';
     popover.style.left = '0';
     popover.style.right = 'auto';
     const panelRect = popover.getBoundingClientRect();
@@ -7314,7 +5275,7 @@ function positionLessonFilterPopover() {
     if (!popover || !btn) {
         return;
     }
-    positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 });
+    positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 280 });
 }
 
 function openLessonFilterPopover() {
@@ -8015,7 +5976,32 @@ function applyPrintUseCalendarFiltersState() {
     }
 }
 
+let cachedDayIndex = null;
+let cachedDayIndexKey = '';
+
+function getDayIndexCacheKey() {
+    const lf = appData.ui && appData.ui.lessonFilters;
+    return JSON.stringify({
+        termStart: appData.termStart,
+        monthCount: getTermMonthCount(),
+        classIds: (appData.classes || []).map((c) => c.id).join(','),
+        eventCount: (appData.events || []).length,
+        showAllCurricula: Boolean(appData.ui && appData.ui.showAllCurricula),
+        lessonFilters: lf ? JSON.stringify(lf) : ''
+    });
+}
+
 function buildDayIndex() {
+    const key = getDayIndexCacheKey();
+    if (cachedDayIndex && cachedDayIndexKey === key) {
+        return cachedDayIndex;
+    }
+    cachedDayIndex = buildDayIndexUncached();
+    cachedDayIndexKey = key;
+    return cachedDayIndex;
+}
+
+function buildDayIndexUncached() {
     ensureTermStartData();
     const monthCount = getTermMonthCount();
     const [year, month] = appData.termStart.split('-').map(Number);
@@ -9411,7 +7397,6 @@ const CLASS_NOTES_FILTER_ATTR = (typeof ClassNotesPanel !== 'undefined' && Class
     ? ClassNotesPanel.FILTER_ATTR
     : 'data-class-notes-filter';
 
-const HOMEWORK_FILTER_ATTR = 'data-homework-filter';
 
 function isClassNotesUiActive() {
     const tab = getActiveTab();
@@ -10867,6 +8852,8 @@ const scheduleCacheMap = new Map();
 function invalidateScheduleCache() {
     scheduleCacheKey = '';
     scheduleCacheMap.clear();
+    cachedDayIndex = null;
+    cachedDayIndexKey = '';
 }
 
 function getCurriculumSlicesApi() {
@@ -11503,6 +9490,231 @@ const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_ID
 const APP_SETUP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
 const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
 
+const APP_ZONE_SCHEDULE = 'schedule';
+const APP_ZONE_CLASSES = 'classes';
+const APP_ZONE_CONTENT = 'content';
+const APP_ZONE_JOURNAL = 'journal';
+const APP_ZONE_MORE = 'more';
+const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CONTENT, APP_ZONE_JOURNAL, APP_ZONE_MORE];
+
+const ZONE_SEGMENT_TO_TAB = {
+    schedule: { calendar: 'calendar', homework: 'homework', timetable: 'timetable', events: 'events' },
+    classes: { classes: 'classes', cohorts: 'cohorts' },
+    content: { curriculum: 'curriculum', syllabus: 'syllabus' },
+    journal: { notes: 'notes' },
+    more: { teachers: 'teachers', data: 'data' }
+};
+
+const TAB_TO_ZONE_SEGMENT = (() => {
+    const map = {};
+    Object.keys(ZONE_SEGMENT_TO_TAB).forEach((zone) => {
+        Object.entries(ZONE_SEGMENT_TO_TAB[zone]).forEach(([segment, tabId]) => {
+            map[tabId] = { zone, segment };
+        });
+    });
+    return map;
+})();
+
+const LEGACY_TAB_ZONE_REDIRECT = {
+    calendar: { zone: APP_ZONE_SCHEDULE, segment: 'calendar' },
+    timetable: { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
+    classes: { zone: APP_ZONE_CLASSES, segment: 'classes' },
+    cohorts: { zone: APP_ZONE_CLASSES, segment: 'cohorts' },
+    homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
+    notes: { zone: APP_ZONE_JOURNAL, segment: 'notes' },
+    curriculum: { zone: APP_ZONE_CONTENT, segment: 'curriculum' },
+    syllabus: { zone: APP_ZONE_CONTENT, segment: 'syllabus' },
+    events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
+    teachers: { zone: APP_ZONE_MORE, segment: 'teachers' },
+    data: { zone: APP_ZONE_MORE, segment: 'data' }
+};
+
+function getZoneInfoForTab(tabId) {
+    return TAB_TO_ZONE_SEGMENT[tabId] || LEGACY_TAB_ZONE_REDIRECT[tabId] || { zone: APP_ZONE_SCHEDULE, segment: 'calendar' };
+}
+
+function getDefaultSegmentForZone(zoneId) {
+    const segments = ZONE_SEGMENT_TO_TAB[zoneId];
+    if (!segments) {
+        return 'calendar';
+    }
+    return Object.keys(segments)[0];
+}
+
+function getTabIdForZoneSegment(zoneId, segmentId) {
+    const segments = ZONE_SEGMENT_TO_TAB[zoneId];
+    if (!segments) {
+        return 'calendar';
+    }
+    if (segmentId && segments[segmentId]) {
+        return segments[segmentId];
+    }
+    return segments[getDefaultSegmentForZone(zoneId)];
+}
+
+function canAccessZone(zoneId) {
+    if (zoneId === APP_ZONE_MORE) {
+        return canAccessSetupHost();
+    }
+    if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_CONTENT) {
+        return true;
+    }
+    if (zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_JOURNAL) {
+        return true;
+    }
+    return canAccessSetupHost();
+}
+
+function canAccessZoneSegment(zoneId, segmentId) {
+    if (isViewportPhone()) {
+        if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_CONTENT || zoneId === APP_ZONE_MORE) {
+            if (segmentId === 'cohorts' || segmentId === 'curriculum' || segmentId === 'syllabus' || segmentId === 'teachers' || segmentId === 'data') {
+                return false;
+            }
+        }
+        if (segmentId === 'timetable') {
+            return false;
+        }
+    }
+    if (segmentId === 'cohorts' || segmentId === 'teachers') {
+        return canAccessTeachersTab();
+    }
+    if (segmentId === 'events' || segmentId === 'data') {
+        return canAccessSetupHost();
+    }
+    return true;
+}
+
+function syncZoneNavFromTab(tabId) {
+    const { zone, segment } = getZoneInfoForTab(tabId);
+    document.body.dataset.activeZone = zone;
+    document.body.dataset.activeSegment = segment;
+
+    document.querySelectorAll('.app-zone-btn').forEach((btn) => {
+        const z = btn.dataset.zone;
+        const active = z === zone;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', String(active));
+    });
+
+    document.querySelectorAll('.app-zone-segment-panel').forEach((panel) => {
+        const panelZone = panel.dataset.zone;
+        const show = panelZone === zone;
+        panel.hidden = !show;
+        panel.classList.toggle('is-active', show);
+    });
+
+    const activePanel = document.querySelector(`.app-zone-segment-panel[data-zone="${zone}"]`);
+    if (activePanel) {
+        activePanel.querySelectorAll('.app-zone-segment-btn').forEach((btn) => {
+            const seg = btn.dataset.segment;
+            const active = seg === segment;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-selected', String(active));
+        });
+    }
+
+    const moreBtn = document.getElementById('appMoreMenuBtn');
+    if (moreBtn && zone === APP_ZONE_MORE) {
+        moreBtn.classList.add('is-active');
+    } else if (moreBtn) {
+        moreBtn.classList.remove('is-active');
+    }
+
+    updateContentPipelineStepper(tabId);
+    updateContentExpandChrome();
+    syncZoneNavPermissions();
+}
+
+function syncZoneNavPermissions() {
+    const cohortsSeg = document.querySelector('.app-zone-segment-btn[data-segment="cohorts"]');
+    if (cohortsSeg) {
+        cohortsSeg.hidden = !canAccessTeachersTab();
+    }
+    const morePanel = document.getElementById('zoneSegments-more');
+    if (morePanel) {
+        morePanel.querySelectorAll('.app-zone-segment-btn[data-segment="teachers"]').forEach((el) => {
+            el.hidden = !canAccessTeachersTab();
+        });
+        morePanel.querySelectorAll('.app-zone-segment-btn[data-segment="data"]').forEach((el) => {
+            el.hidden = !canAccessSetupHost();
+        });
+    }
+    const eventsSeg = document.querySelector('.app-zone-segment-btn[data-segment="events"]');
+    if (eventsSeg) {
+        eventsSeg.hidden = !canAccessSetupHost();
+    }
+    const adminAcct = document.getElementById('teamAdminLink');
+    const showAdmin = typeof TeamAuth !== 'undefined' && TeamAuth.canAccessAdmin && TeamAuth.canAccessAdmin();
+    if (adminAcct) {
+        adminAcct.hidden = !showAdmin;
+    }
+}
+
+function navigateToZone(zoneId, segmentId, options = {}) {
+    if (!APP_ZONE_IDS.includes(zoneId)) {
+        zoneId = APP_ZONE_SCHEDULE;
+    }
+    if (!canAccessZone(zoneId)) {
+        navigateToZone(APP_ZONE_SCHEDULE, 'calendar', options);
+        return;
+    }
+    let segment = segmentId || getDefaultSegmentForZone(zoneId);
+    if (!canAccessZoneSegment(zoneId, segment)) {
+        segment = getDefaultSegmentForZone(zoneId);
+    }
+    const tabId = getTabIdForZoneSegment(zoneId, segment);
+    ensureUiState();
+    appData.ui.activeZone = zoneId;
+    appData.ui.activeSegment = segment;
+    saveUiStateToLocalStorage();
+    navigateToTab(tabId, options);
+}
+
+function resolveZoneFromUrl() {
+    try {
+        const params = new URLSearchParams(location.search);
+        const zone = params.get('zone');
+        const segment = params.get('segment');
+        const legacyTab = params.get('tab');
+        if (params.get('contentExpanded') === '1') {
+            document.documentElement.setAttribute('data-content-expanded', '1');
+        }
+        if (zone && APP_ZONE_IDS.includes(zone)) {
+            const opts = {};
+            if (params.get('classId')) {
+                opts.classId = params.get('classId');
+            }
+            if (params.get('book')) {
+                opts.curriculumId = params.get('book');
+            }
+            let resolvedZone = zone;
+            let resolvedSegment = segment || getDefaultSegmentForZone(zone);
+            if (resolvedZone === APP_ZONE_MORE && resolvedSegment === 'events') {
+                resolvedZone = APP_ZONE_SCHEDULE;
+            }
+            if (resolvedZone === APP_ZONE_CONTENT && resolvedSegment === 'homework') {
+                resolvedZone = APP_ZONE_SCHEDULE;
+            }
+            return { zone: resolvedZone, segment: resolvedSegment, options: opts };
+        }
+        if (legacyTab && LEGACY_TAB_ZONE_REDIRECT[legacyTab]) {
+            const info = LEGACY_TAB_ZONE_REDIRECT[legacyTab];
+            const opts = {};
+            if (params.get('classId')) {
+                opts.classId = params.get('classId');
+            }
+            if (params.get('book')) {
+                opts.curriculumId = params.get('book');
+            }
+            return { ...info, options: opts };
+        }
+    } catch (_) {
+        /* ignore */
+    }
+    return null;
+}
+
 function getHostForTab(tabId) {
     if (APP_SETUP_ONLY_TAB_IDS.includes(tabId)) {
         return APP_HOST_SETUP;
@@ -11578,13 +9790,15 @@ let appTabNavShellWidthTimer = 0;
 
 /** Clear legacy inline tab-nav width (layout is CSS: context strip + scrollable sub-tabs + fixed hosts). */
 function syncAppTabNavShellWidth() {
-    const cluster = document.getElementById('appTabNavCluster');
-    const nav = document.getElementById('appTabNav');
-    if (!cluster || !nav || isNotesPage()) {
+    const cluster = document.getElementById('appZoneNavCluster') || document.getElementById('appTabNavCluster');
+    const nav = document.getElementById('appZoneSegmentNav') || document.getElementById('appTabNav');
+    if (!cluster || isNotesPage()) {
         return;
     }
     cluster.style.removeProperty('--app-tab-nav-min-width');
-    nav.style.removeProperty('--app-tab-nav-min-width');
+    if (nav) {
+        nav.style.removeProperty('--app-tab-nav-min-width');
+    }
 }
 
 function scheduleAppTabNavShellWidthSync() {
@@ -11595,61 +9809,8 @@ function scheduleAppTabNavShellWidthSync() {
 }
 
 function syncHostSubTabNav(hostId, subTabId) {
-    const teachingHost = document.getElementById('tabHostBtn-teaching');
-    const setupHost = document.getElementById('tabHostBtn-setup');
-    const teachingSub = document.getElementById('appTabSubnavTeaching');
-    const setupSub = document.getElementById('appTabSubnavSetup');
-    const isTeaching = hostId === APP_HOST_TEACHING;
-
-    if (teachingHost) {
-        teachingHost.classList.toggle('is-active', isTeaching);
-        teachingHost.setAttribute('aria-selected', String(isTeaching));
-    }
-    if (setupHost) {
-        setupHost.classList.toggle('is-active', !isTeaching);
-        setupHost.setAttribute('aria-selected', String(!isTeaching));
-    }
-    if (teachingSub) {
-        teachingSub.classList.toggle('is-active', isTeaching);
-        teachingSub.setAttribute('aria-hidden', String(!isTeaching));
-    }
-    if (setupSub) {
-        setupSub.classList.toggle('is-active', !isTeaching);
-        setupSub.setAttribute('aria-hidden', String(isTeaching));
-    }
-
     document.body.dataset.activeHostTab = hostId;
-
-    document.querySelectorAll('.app-tab-sub-btn').forEach((btn) => {
-        const tabId = btn.dataset.tab;
-        if (!tabId) {
-            return;
-        }
-        let btnHost = getHostForTab(tabId);
-        if (tabId === 'calendar') {
-            btnHost = btn.id === 'tabBtn-calendar-setup' ? APP_HOST_SETUP : APP_HOST_TEACHING;
-        } else if (tabId === 'classes') {
-            btnHost = btn.id === 'tabBtn-classes-setup' ? APP_HOST_SETUP : APP_HOST_TEACHING;
-        }
-        const active = btnHost === hostId && tabId === subTabId;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-selected', String(active));
-    });
-
-    const calPanel = document.getElementById('panel-calendar');
-    if (calPanel && subTabId === 'calendar') {
-        const calBtn = getSubTabButton('calendar', hostId);
-        if (calBtn) {
-            calPanel.setAttribute('aria-labelledby', calBtn.id);
-        }
-    }
-    const classesPanel = document.getElementById('panel-classes');
-    if (classesPanel && subTabId === 'classes') {
-        const classesBtn = getSubTabButton('classes', hostId);
-        if (classesBtn) {
-            classesPanel.setAttribute('aria-labelledby', classesBtn.id);
-        }
-    }
+    syncZoneNavFromTab(subTabId);
     scheduleAppTabNavShellWidthSync();
 }
 
@@ -11898,38 +10059,10 @@ function syncSyllabusEditorChrome() {
         if (hasTemplate) {
             bannerEl.hidden = false;
             bannerEl.textContent = t('syllabusModeTemplate', { name: template.name });
-        } else if (hasClass) {
-            const gap = getClassScheduleGapStatus(classData);
-            const adj = formatScheduleAdjustmentSummary(classData);
-            if (gap.incomplete) {
-                bannerEl.hidden = false;
-                const msg = t('scheduleGapWarning')
-                    .replace('{name}', classData.name || '')
-                    .replace('{unplaced}', gap.unplacedLessonNumbers.length)
-                    .replace('{total}', gap.totalLessons);
-                bannerEl.innerHTML = '';
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'schedule-gap-warning-btn';
-                btn.textContent = `${msg} — ${t('scheduleGapAdjustAction')}`;
-                btn.addEventListener('click', () => {
-                    renderSyllabusScheduleAdjustment(classData);
-                    scrollToScheduleAdjustment('syllabus');
-                });
-                bannerEl.appendChild(btn);
-            } else if (adj.hasAdjustments) {
-                bannerEl.hidden = false;
-                bannerEl.textContent = [
-                    adj.skippingLines.length ? `${t('scheduleAdjustmentSkipping')}: ${adj.skippingLines.join('; ')}` : '',
-                    adj.combiningLines.length ? `${t('scheduleAdjustmentCombining')}: ${adj.combiningLines.join('; ')}` : ''
-                ].filter(Boolean).join(' · ');
-            } else {
-                bannerEl.hidden = true;
-                bannerEl.textContent = '';
-            }
         } else {
             bannerEl.hidden = true;
             bannerEl.textContent = '';
+            bannerEl.innerHTML = '';
         }
     }
     if (chipEl) {
@@ -12955,6 +11088,209 @@ function navigateToTabBody(tabId, options = {}) {
         }
     });
     syncMobileSetupLimitedBanner();
+    scheduleTabWarningsRefresh();
+}
+
+function updateContentPipelineStepper(tabId) {
+    const stepper = document.getElementById('contentPipelineStepper');
+    if (!stepper) {
+        return;
+    }
+    const contentTabs = ['curriculum', 'syllabus'];
+    stepper.hidden = !contentTabs.includes(tabId);
+    if (stepper.hidden) {
+        return;
+    }
+    const hasBooks = (appData.curriculumBooks || []).some((b) => b && b.id);
+    const hasSyllabi = (appData.classes || []).some((c) => c && c.syllabus && c.syllabus.length);
+    const stepMap = {
+        curriculum: 'books',
+        syllabus: 'syllabi',
+        homework: 'homework'
+    };
+    const activeStep = stepMap[tabId] || 'books';
+    ['books', 'syllabi', 'homework'].forEach((step) => {
+        const el = stepper.querySelector(`[data-step="${step}"]`);
+        if (!el) {
+            return;
+        }
+        el.classList.remove('is-active', 'is-done');
+        if (step === activeStep) {
+            el.classList.add('is-active');
+        }
+        if (step === 'books' && hasBooks) {
+            el.classList.add('is-done');
+        }
+        if (step === 'syllabi' && hasSyllabi) {
+            el.classList.add('is-done');
+        }
+        if (step === 'homework' && tabId === 'homework') {
+            el.classList.add('is-done');
+        }
+    });
+    if (!stepper.dataset.pipelineBound) {
+        stepper.dataset.pipelineBound = '1';
+        document.getElementById('contentStepBooks')?.addEventListener('click', () => navigateToZone(APP_ZONE_CONTENT, 'curriculum'));
+        document.getElementById('contentStepSyllabi')?.addEventListener('click', () => navigateToZone(APP_ZONE_CONTENT, 'syllabus'));
+        document.getElementById('contentStepHomework')?.addEventListener('click', () => navigateToZone(APP_ZONE_SCHEDULE, 'homework'));
+    }
+}
+
+function updateContentExpandChrome() {
+    const btn = document.getElementById('contentExpandToggleBtn');
+    if (!btn) {
+        return;
+    }
+    const expanded = document.documentElement.getAttribute('data-content-expanded') === '1';
+    btn.textContent = expanded ? t('contentCollapse') : t('contentExpand');
+}
+
+function setupContentExpandToggle() {
+    const btn = document.getElementById('contentExpandToggleBtn');
+    if (!btn || btn.dataset.bound === '1') {
+        return;
+    }
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+        const expanded = document.documentElement.getAttribute('data-content-expanded') === '1';
+        if (expanded) {
+            document.documentElement.removeAttribute('data-content-expanded');
+        } else {
+            document.documentElement.setAttribute('data-content-expanded', '1');
+        }
+        updateContentExpandChrome();
+    });
+}
+
+function setupLockDrawerToggle() {
+    const toggle = document.getElementById('teamLockDrawerToggle');
+    const status = document.getElementById('teamLockStatus');
+    if (!toggle || !status || toggle.dataset.bound === '1') {
+        return;
+    }
+    toggle.dataset.bound = '1';
+    toggle.addEventListener('click', () => {
+        const open = status.classList.toggle('team-lock-status--drawer-open');
+        toggle.setAttribute('aria-expanded', String(open));
+    });
+}
+
+function getSetupChecklistItems() {
+    const classes = (appData.classes || []).filter((c) => c && c.id);
+    const cohorts = (appData.cohorts || []).filter((c) => c && c.id);
+    const books = (appData.curriculumBooks || []).filter((b) => b && b.id);
+    const hasSyllabi = classes.some((c) => Array.isArray(c.syllabus) && c.syllabus.length > 0);
+    const hasEvents = (appData.events || []).length > 0 || appData.termStart;
+    return [
+        { id: 'classes', labelKey: 'setupChecklistAddClasses', done: classes.length > 0, zone: APP_ZONE_CLASSES, segment: 'classes' },
+        { id: 'cohorts', labelKey: 'setupChecklistCohorts', done: cohorts.length > 0, zone: APP_ZONE_CLASSES, segment: 'cohorts', requiresAdmin: true },
+        { id: 'books', labelKey: 'setupChecklistBooks', done: books.length > 0, zone: APP_ZONE_CONTENT, segment: 'curriculum' },
+        { id: 'syllabi', labelKey: 'setupChecklistSyllabi', done: hasSyllabi, zone: APP_ZONE_CONTENT, segment: 'syllabus' },
+        { id: 'events', labelKey: 'setupChecklistEvents', done: hasEvents, zone: APP_ZONE_SCHEDULE, segment: 'events' }
+    ];
+}
+
+function getTabWarningsViewerContext() {
+    return {
+        isAdmin: canAccessTeachersTab(),
+        isSetupHost: canAccessSetupHost(),
+        isCurriculumManager: canManageCurriculumCatalogForUser(),
+        viewerClassIds: canAccessTeachersTab() ? null : getClassIdsAssignedToViewer(),
+        viewerSelector: getCalendarViewerTeacherSelector()
+    };
+}
+
+function scheduleTabWarningsRefresh() {
+    if (typeof CCPTabWarnings !== 'undefined' && CCPTabWarnings.scheduleRefresh) {
+        CCPTabWarnings.scheduleRefresh();
+    }
+}
+
+function initTabWarningsModule() {
+    if (typeof CCPTabWarnings === 'undefined') {
+        return;
+    }
+    CCPTabWarnings.init({
+        getAppData: () => appData,
+        t,
+        escapeHtml,
+        escapeAttr,
+        getViewerContext: getTabWarningsViewerContext,
+        canAccessZoneSegment,
+        getZoneInfoForTab,
+        getTabIdForZoneSegment,
+        getActiveTab,
+        navigateToZone,
+        navigateToTab,
+        openClassEditor,
+        focusScheduleAdjustmentForClass,
+        saveUiStateToLocalStorage,
+        saveNavNotificationMeta,
+        readNavNotificationMeta: readNavNotificationMetaFromStorage,
+        getNotificationTtlSettings,
+        ensureUiState,
+        getClassesInDisplayOrder,
+        getClassScheduleGapStatus,
+        getClassCurriculumWarningKindForClass,
+        listTimetableTeachers,
+        getTimetableApi,
+        countClassEmptySyllabusLessons,
+        classHasNoMeetingDaysWarning,
+        classNeedsDebateBookPeriodsWarning,
+        getSyncNavWarningsForBell,
+        reloadActiveCalendarFromServer,
+        showNavWarningToast: (msg) => showSyncToast(msg, false)
+    });
+}
+
+function updateSetupChecklistBanner() {
+    const banner = document.getElementById('setupChecklistBanner');
+    const list = document.getElementById('setupChecklistList');
+    const dismissBtn = document.getElementById('setupChecklistDismiss');
+    if (!banner || !list) {
+        return;
+    }
+    ensureUiState();
+    if (appData.ui.setupChecklistDismissed || appData.ui.setupGuideBannerDismissed) {
+        banner.hidden = true;
+        return;
+    }
+    if (!canAccessTeachersTab()) {
+        banner.hidden = true;
+        return;
+    }
+    const items = getSetupChecklistItems().filter((item) => !item.requiresAdmin || canAccessTeachersTab());
+    const allDone = items.every((item) => item.done);
+    if (allDone) {
+        banner.hidden = true;
+        return;
+    }
+    list.innerHTML = '';
+    items.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'setup-checklist-item' + (item.done ? ' is-done' : '');
+        const mark = item.done ? '✓ ' : '○ ';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = mark + t(item.labelKey);
+        if (!item.done) {
+            btn.addEventListener('click', () => navigateToZone(item.zone, item.segment));
+        }
+        li.appendChild(btn);
+        list.appendChild(li);
+    });
+    banner.hidden = false;
+    if (dismissBtn && !dismissBtn.dataset.bound) {
+        dismissBtn.dataset.bound = '1';
+        dismissBtn.addEventListener('click', () => {
+            ensureUiState();
+            appData.ui.setupChecklistDismissed = true;
+            appData.ui.setupGuideBannerDismissed = true;
+            saveUiStateToLocalStorage();
+            banner.hidden = true;
+        });
+    }
+    scheduleTabWarningsRefresh();
 }
 
 function initAppTabs() {
@@ -12963,24 +11299,28 @@ function initAppTabs() {
     }
     document.body.dataset.appTabsInit = '1';
 
-    document.querySelectorAll('.app-tab-host-btn').forEach((btn) => {
-        const hostId = btn.dataset.host;
+    document.querySelectorAll('.app-zone-btn').forEach((btn) => {
+        const zoneId = btn.dataset.zone;
+        if (!zoneId) {
+            return;
+        }
+        btn.addEventListener('click', () => navigateToZone(zoneId));
+    });
+
+    document.querySelectorAll('.app-zone-segment-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-            if (hostId) {
-                navigateToHost(hostId);
+            const panel = btn.closest('.app-zone-segment-panel');
+            const zoneId = panel && panel.dataset.zone;
+            const segment = btn.dataset.segment;
+            if (zoneId && segment) {
+                navigateToZone(zoneId, segment);
             }
         });
     });
 
-    document.querySelectorAll('.app-tab-sub-btn').forEach((btn) => {
-        const tabId = btn.dataset.tab || 'calendar';
-        const warmTab = () => prefetchTabScriptsIfNeeded(tabId);
-        btn.addEventListener('mouseenter', warmTab);
-        btn.addEventListener('focus', warmTab);
-        btn.addEventListener('click', () => {
-            navigateToTab(tabId);
-        });
-    });
+    setupContentExpandToggle();
+    setupLockDrawerToggle();
+    syncZoneNavPermissions();
     const classSearch = document.getElementById('classListSearch');
     if (classSearch) {
         classSearch.addEventListener('input', () => renderClassList());
@@ -13006,7 +11346,6 @@ function initAppTabs() {
     initTeacherManagementModule();
     scheduleAppTabNavShellWidthSync();
     window.addEventListener('resize', scheduleAppTabNavShellWidthSync);
-    initClassesPanelSegments();
     const openSyllabusTabBtn = document.getElementById('openSyllabusTabBtn');
     if (openSyllabusTabBtn) {
         openSyllabusTabBtn.addEventListener('click', () => {
@@ -13052,6 +11391,7 @@ function initAppTabs() {
             navigateToTab('events', id ? { eventId: id } : { newEvent: true });
         });
     }
+    initTabWarningsModule();
     navigateToTab(appData.ui.activeTab || 'calendar');
 }
 
@@ -13061,13 +11401,18 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
     btn.className = 'module-list-item' + (isSelected ? ' is-selected' : '');
     btn.setAttribute('role', 'option');
     btn.setAttribute('aria-selected', String(isSelected));
-    const gap = getClassScheduleGapStatus(classData);
-    const curWarn = getClassCurriculumWarningKindForClass(classData);
-    let badge = gap.incomplete
+    const flags = (typeof CCPTabWarnings !== 'undefined' && CCPTabWarnings.getClassWarningFlags)
+        ? CCPTabWarnings.getClassWarningFlags(classData)
+        : {
+            scheduleGap: getClassScheduleGapStatus(classData).incomplete,
+            curriculumWarn: getClassCurriculumWarningKindForClass(classData)
+        };
+    const gap = flags.scheduleGap ? getClassScheduleGapStatus(classData) : null;
+    let badge = flags.scheduleGap && gap
         ? `<span class="module-list-schedule-gap-badge" title="${escapeAttr(t('scheduleGapWarning').replace('{name}', classData.name || '').replace('{unplaced}', gap.unplacedLessonNumbers.length).replace('{total}', gap.totalLessons))}">!</span>`
         : '';
-    if (curWarn) {
-        const curTitle = curWarn === 'missing' ? t('classCurriculumWarningListMissing') : t('classCurriculumWarningList');
+    if (flags.curriculumWarn) {
+        const curTitle = flags.curriculumWarn === 'missing' ? t('classCurriculumWarningListMissing') : t('classCurriculumWarningList');
         badge += `<span class="module-list-curriculum-warning-badge" title="${escapeAttr(curTitle)}">⚠</span>`;
     }
     btn.innerHTML = `<span>${escapeHtml(classData.name)}${badge}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
@@ -13108,6 +11453,7 @@ function renderClassList() {
             }
         }));
     });
+    scheduleTabWarningsRefresh();
 }
 
 function renderEventList() {
@@ -13311,28 +11657,10 @@ function classOccursOnIsoDate(classData, isoDate) {
     return meetingDays.includes(d.getDay());
 }
 
-function getHomeworkPartialFilterSet(filterKey) {
-    const inputs = document.querySelectorAll(`input[${HOMEWORK_FILTER_ATTR}="${filterKey}"]`);
-    if (!inputs.length) {
-        return null;
-    }
-    const checked = [];
-    inputs.forEach((input) => {
-        if (input.checked) {
-            checked.push(input.value);
-        }
-    });
-    if (!checked.length || checked.length === inputs.length) {
-        return null;
-    }
-    return new Set(checked);
-}
-
 function getHomeworkFiltersFromDom() {
     return {
         myClassesOnly: document.getElementById('homeworkMyClassesOnly')?.checked === true,
-        todayOnly: document.getElementById('homeworkTodayOnly')?.checked === true,
-        subjectSet: getHomeworkPartialFilterSet('subjects')
+        todayOnly: document.getElementById('homeworkTodayOnly')?.checked === true
     };
 }
 
@@ -13341,8 +11669,7 @@ function saveHomeworkFiltersToUi() {
     const filters = getHomeworkFiltersFromDom();
     appData.ui.homeworkFilters = {
         myClassesOnly: filters.myClassesOnly,
-        todayOnly: filters.todayOnly,
-        subjects: filters.subjectSet ? Array.from(filters.subjectSet) : null
+        todayOnly: filters.todayOnly
     };
     saveUiStateToLocalStorage();
 }
@@ -13358,62 +11685,6 @@ function syncHomeworkFiltersToDom() {
     if (todayEl) {
         todayEl.checked = saved.todayOnly === true;
     }
-    if (Array.isArray(saved.subjects)) {
-        const set = new Set(saved.subjects);
-        document.querySelectorAll(`input[${HOMEWORK_FILTER_ATTR}="subjects"]`).forEach((input) => {
-            input.checked = set.has(input.value);
-        });
-    }
-}
-
-function renderHomeworkFilterSubjects() {
-    const groups = getClassNotesFilterOptionGroups();
-    const wrap = document.getElementById('homeworkFilterSubjectsWrap');
-    const mount = document.getElementById('homeworkFilterSubjects');
-    if (!mount || !wrap) {
-        return;
-    }
-    const saved = appData.ui.homeworkFilters?.subjects;
-    const savedSet = Array.isArray(saved) ? new Set(saved) : null;
-    if (groups.subjects.length) {
-        wrap.hidden = false;
-        mount.innerHTML = groups.subjects.map((opt) => {
-            const checked = !savedSet || savedSet.has(opt.value) ? 'checked' : '';
-            return `<label class="lesson-filter-chip selection-chip">
-                <input type="checkbox" ${HOMEWORK_FILTER_ATTR}="subjects" value="${escapeAttr(opt.value)}" ${checked}>
-                <span>${escapeHtml(opt.label)}</span>
-            </label>`;
-        }).join('');
-    } else {
-        wrap.hidden = true;
-        mount.innerHTML = '';
-    }
-}
-
-function applyHomeworkTodayClasses() {
-    const el = document.getElementById('homeworkTodayOnly');
-    if (el) {
-        el.checked = true;
-    }
-    saveHomeworkFiltersToUi();
-    setHomeworkReferenceDate(formatDateISO(new Date()), { syncView: true });
-}
-
-function applyHomeworkMyClassesToday() {
-    if (!getClassIdsAssignedToViewer()) {
-        setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
-        return;
-    }
-    const myEl = document.getElementById('homeworkMyClassesOnly');
-    const todayEl = document.getElementById('homeworkTodayOnly');
-    if (myEl) {
-        myEl.checked = true;
-    }
-    if (todayEl) {
-        todayEl.checked = true;
-    }
-    saveHomeworkFiltersToUi();
-    setHomeworkReferenceDate(formatDateISO(new Date()), { syncView: true });
 }
 
 function initHomeworkFilterControls() {
@@ -13422,7 +11693,6 @@ function initHomeworkFilterControls() {
         return;
     }
     panel.dataset.homeworkFilterInit = '1';
-    renderHomeworkFilterSubjects();
     syncHomeworkFiltersToDom();
 
     document.getElementById('homeworkMyClassesOnly')?.addEventListener('change', () => {
@@ -13439,14 +11709,6 @@ function initHomeworkFilterControls() {
         saveHomeworkFiltersToUi();
         renderHomeworkClassList();
     });
-    document.getElementById('homeworkFilterSubjects')?.addEventListener('change', (e) => {
-        if (e.target.matches(`input[${HOMEWORK_FILTER_ATTR}]`)) {
-            saveHomeworkFiltersToUi();
-            renderHomeworkClassList();
-        }
-    });
-    document.getElementById('homeworkTodayBtn')?.addEventListener('click', applyHomeworkTodayClasses);
-    document.getElementById('homeworkMyClassesTodayBtn')?.addEventListener('click', applyHomeworkMyClassesToday);
 }
 
 function initHomeworkTabControls() {
@@ -13554,7 +11816,6 @@ function renderHomeworkClassList() {
     let filteredIds = resolveClassListFilter({
         myClassesOnly: hwFilters.myClassesOnly,
         todayIso: hwFilters.todayOnly ? selectedIso : '',
-        subjectSet: hwFilters.subjectSet,
         baseClassIds: baseOrder.map((c) => c.id)
     });
     if (hwFilters.myClassesOnly && !getClassIdsAssignedToViewer()) {
@@ -14033,8 +12294,19 @@ function dismissAppStatus(el) {
 }
 
 function setAppStatusMessage(message, isError, durationMs) {
+    if (!message) {
+        return;
+    }
+    if (window.CCPNotice && window.CCPNotice.show) {
+        window.CCPNotice.show(message, {
+            type: isError ? 'error' : 'lock',
+            duration: typeof durationMs === 'number' ? durationMs : 5000,
+            force: true
+        });
+        return;
+    }
     const el = document.getElementById('appStatus');
-    if (!el || !message) {
+    if (!el) {
         return;
     }
     if (setAppStatusMessage._timer) {
@@ -15578,19 +13850,20 @@ function syncSetupTabsVisibility() {
         syncHeaderMyScheduleButton();
         return;
     }
-    const showSetup = canAccessSetupHost() && !isViewportPhone();
-    const setupHost = document.getElementById('tabHostBtn-setup');
-    if (setupHost) {
-        setupHost.hidden = false;
-        setupHost.classList.toggle('app-tab-host-btn--slot-hidden', !showSetup);
-        setupHost.setAttribute('aria-hidden', String(!showSetup));
-        setupHost.disabled = !showSetup;
-        setupHost.tabIndex = showSetup ? 0 : -1;
+    syncZoneNavPermissions();
+    const moreTabs = ['events', 'teachers', 'data', 'cohorts'];
+    if (!shouldDeferSetupTabRedirects() && !canAccessSetupHost()) {
+        const tab = getActiveTab();
+        if (moreTabs.includes(tab)) {
+            navigateToZone(APP_ZONE_SCHEDULE, 'calendar');
+        }
     }
-    if (!shouldDeferSetupTabRedirects() && !showSetup && getActiveHostTab() === APP_HOST_SETUP) {
-        navigateToTab('calendar', { host: APP_HOST_TEACHING });
+    if (!shouldDeferSetupTabRedirects() && isViewportPhone()) {
+        const tab = getActiveTab();
+        if (moreTabs.includes(tab) || tab === 'cohorts' || tab === 'curriculum' || tab === 'syllabus' || tab === 'timetable') {
+            navigateToZone(APP_ZONE_SCHEDULE, 'calendar');
+        }
     }
-    syncSetupSubTabVisibility();
     syncHeaderMyScheduleButton();
     scheduleAppTabNavShellWidthSync();
     if (typeof CCPTeacherManagement !== 'undefined' && CCPTeacherManagement.syncTabVisibility) {
@@ -15632,7 +13905,7 @@ function openMyScheduleView() {
                 row = { userId: me.id, displayName: me.displayName || me.email || me.id };
             }
             selectTimetableTeacher({ userId: row.userId, displayName: row.displayName });
-            navigateToTab('timetable');
+            navigateToZone(APP_ZONE_SCHEDULE, 'timetable');
         })
         .catch((err) => console.error(err));
 }
@@ -15664,6 +13937,7 @@ function updateCohortsTabCalendarName() {
         el.hidden = true;
         el.textContent = '';
     }
+    updateCohortsExtraSummary();
 }
 
 function getSetupBoardHooks() {
@@ -15759,7 +14033,7 @@ function updateSetupGuideBanner() {
         if (!banner.dataset.setupGuideBound) {
             banner.dataset.setupGuideBound = '1';
             actionBtn.addEventListener('click', () => {
-                navigateToTab('cohorts', { host: APP_HOST_SETUP });
+                navigateToZone(APP_ZONE_CLASSES, 'cohorts');
             });
             dismissBtn.addEventListener('click', () => {
                 try {
@@ -15775,6 +14049,7 @@ function updateSetupGuideBanner() {
     } catch (_err) {
         setSetupGuideBannerVisible(banner, false);
     }
+    updateSetupChecklistBanner();
 }
 
 function setupCohortsUsageTips() {
@@ -15805,6 +14080,7 @@ function setupCohortsUsageTips() {
                 /* still hide */
             }
             tips.hidden = true;
+            updateCohortsExtraSummary();
             requestAnimationFrame(() => syncCohortsBoardStickyOffsets());
         });
     }
@@ -15816,6 +14092,7 @@ async function initCohortsTabControls(options = {}) {
         await CCPTabScripts.ensureTabScripts('cohorts');
     }
     await ensureTeamTeacherAccountsLoaded();
+    initCohortsExtraToggle();
     setupCohortsUsageTips();
     initCohortManagementModule();
     if (typeof CCPCohortManagement !== 'undefined') {
@@ -15899,7 +14176,8 @@ function getCohortManagementHooks() {
         parseTeacherPickerValue,
         saveUiStateToLocalStorage,
         openModal,
-        closeModal
+        closeModal,
+        onSummaryRendered: updateCohortsExtraSummary
     };
 }
 
@@ -15954,12 +14232,24 @@ function initTeacherManagementModule() {
     });
 }
 
-async function initTeachersTabControls(options = {}) {
-    await ensureTeamTeacherAccountsLoaded();
-    initTeacherManagementModule();
-    if (typeof CCPTeacherManagement !== 'undefined') {
-        CCPTeacherManagement.onTabActivated();
+function initTeachersTabControls(options = {}) {
+    const panel = document.getElementById('panel-teachers');
+    if (!panel || panel.dataset.teachersPlaceholderInit === '1') {
+        return;
     }
+    panel.dataset.teachersPlaceholderInit = '1';
+
+    document.getElementById('teachersPlaceholderOpenTimetableBtn')?.addEventListener('click', () => {
+        navigateToZone(APP_ZONE_SCHEDULE, 'timetable');
+    });
+    document.getElementById('teachersPlaceholderOpenCohortsBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!canAccessTeachersTab()) {
+            setAppStatusMessage(t('lessonFilterJustMineUnavailable'), true);
+            return;
+        }
+        navigateToZone(APP_ZONE_CLASSES, 'cohorts');
+    });
 }
 
 function isWorkspacePage() {
@@ -16490,6 +14780,7 @@ function renderTimetableView(selector) {
         conflictBadge.textContent = grid.hasConflicts ? t('timetableConflicts') : t('timetableNoConflicts');
         conflictBadge.classList.toggle('timetable-conflict-badge--warn', grid.hasConflicts);
     }
+    scheduleTabWarningsRefresh();
 }
 
 const TIMETABLE_PRINT_LANDSCAPE = {
@@ -17666,7 +15957,7 @@ function openClassEditor(classData, context, options = {}) {
 }
 
 function openClassEditorAfterLoad(classData, context, options = {}) {
-    const ctx = context || (getActiveTab() === 'classes' ? 'tab' : 'calendar-popout');
+    const ctx = context || 'tab';
     populateClassForm(classData, options);
     if (ctx === 'tab') {
         navigateToTab('classes');
@@ -17684,7 +15975,7 @@ function openEventEditor(holidayData, context, options = {}) {
         showLockFlash(t('teamReadOnlySave'), false);
         return;
     }
-    const ctx = context || (getActiveTab() === 'events' ? 'tab' : 'calendar-popout');
+    const ctx = context || 'tab';
     populateHolidayForm(holidayData, options);
     if (ctx === 'tab') {
         navigateToTab('events');
@@ -18211,31 +16502,25 @@ async function openWorkspacePage(tab, bookId, options = {}) {
             await CalendarSync.flushPendingSave();
         } catch (err) {
             if (err.status !== 423) {
-                console.warn('Flush before workspace open failed:', err);
+                console.warn('Flush before content expand failed:', err);
             }
         }
     }
-    const params = new URLSearchParams();
-    params.set('tab', tab === 'books' ? 'books' : 'homework');
+    const isBooks = tab === 'books';
+    const zoneId = isBooks ? APP_ZONE_CONTENT : APP_ZONE_SCHEDULE;
+    const segment = isBooks ? 'curriculum' : 'homework';
+    document.documentElement.setAttribute('data-content-expanded', '1');
+    updateContentExpandChrome();
+    const navOpts = { ...options };
     if (bookId) {
-        params.set('book', String(bookId));
+        navOpts.curriculumId = bookId;
     }
     ensureUiState();
     const classId = options.classId || appData.ui.homeworkTabClassId;
-    if (classId && tab !== 'books') {
-        params.set('classId', String(classId));
+    if (classId && segment === 'homework') {
+        navOpts.classId = classId;
     }
-    if (typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
-        const calId = CalendarSync.getActiveCalendarId();
-        if (calId) {
-            try {
-                localStorage.setItem('teamCalendarActiveId', calId);
-            } catch (_) {
-                /* ignore */
-            }
-        }
-    }
-    window.open('/workspace.html?' + params.toString(), '_blank', 'noopener');
+    navigateToZone(zoneId, segment, navOpts);
 }
 
 async function reloadWorkspaceCalendar() {
@@ -18347,7 +16632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.body.dataset.activeTab = getActiveTab();
         initCalendarContextMenu();
         initDayNotesUi();
-        initTopBarToggle();
+        initTermSettingsToggle();
         initViewportTier();
         initCalendarViewToggle();
         initAppChromeStickyTop();
@@ -18440,7 +16725,7 @@ function repositionLessonFilterPopoverIfOpen(force) {
     if (!force && shouldSkipFixedAnchorReposition('lessonFilterPopover', rect)) {
         return;
     }
-    if (!positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 })) {
+    if (!positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 280 })) {
         closeLessonFilterPopover();
     }
 }
@@ -18462,7 +16747,7 @@ function repositionEventApplicabilityPopoverIfOpen(force) {
     if (!force && shouldSkipFixedAnchorReposition('eventApplicabilityPopover', rect)) {
         return;
     }
-    if (!positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 140 })) {
+    if (!positionFixedPopoverBelowTrigger(btn, popover, { align: 'left', minMaxHeight: 280 })) {
         closeEventApplicabilityPopover();
     }
 }
@@ -18649,13 +16934,6 @@ function setupEventListeners() {
     setupHeaderFixedPopover('teamAccountPopover', 'right');
     setupHeaderFixedPopover('teamCalendarPopover', 'left');
     setupHeaderDropdowns();
-    const openWsHomework = document.getElementById('openWorkspaceHomeworkBtn');
-    if (openWsHomework && openWsHomework.dataset.bound !== '1') {
-        openWsHomework.dataset.bound = '1';
-        openWsHomework.addEventListener('click', () => {
-            void openWorkspacePage('homework');
-        });
-    }
     const openWsBooks = document.getElementById('openWorkspaceBooksBtn');
     if (openWsBooks && openWsBooks.dataset.bound !== '1') {
         openWsBooks.dataset.bound = '1';
@@ -18676,6 +16954,7 @@ function setupEventListeners() {
     // Term Start Change
     elements.termStart.addEventListener('change', (e) => {
         appData.termStart = e.target.value;
+        updateTermSettingsToggleSummary();
         saveData();
         renderCalendar();
     });
@@ -18721,7 +17000,7 @@ function setupEventListeners() {
     }
     
     // Button Clicks
-    document.getElementById('addClassBtn').addEventListener('click', () => openClassEditor(null, 'calendar-popout'));
+    document.getElementById('addClassBtn')?.addEventListener('click', () => openClassEditor(null, 'tab'));
     document.getElementById('addHolidayBtn').addEventListener('click', () => openEventEditor(null, 'calendar-popout'));
     setupImportDestinationModal();
     setupChangePasswordModal();
@@ -20247,9 +18526,7 @@ function applyPresetSyllabusRowsToTable(options = {}) {
         : [];
     if (!templates.length) {
         if (!silent) {
-            alert(t('applyPresetSyllabus') + ': ' + (currentLanguage === 'ko'
-                ? '이 클래스 유형에 저장된 페이지 템플릿이 없습니다.'
-                : 'No page templates for this class type.'));
+            alert(t('applyPresetSyllabus') + ': ' + t('applyPresetSyllabusNoTemplates'));
         }
         return;
     }
@@ -20266,9 +18543,7 @@ function applyPresetSyllabusRowsToTable(options = {}) {
         : { rows, applied: 0 };
     renderSyllabusEditorTable(result.rows);
     if (!result.applied && !silent) {
-        alert(currentLanguage === 'ko'
-            ? '매칭된 수업 번호가 없습니다. 먼저 캘린더에서 새로고침하세요.'
-            : 'No matching session numbers. Refresh from calendar first.');
+        alert(t('syllabusNoMatchingSessions'));
     }
 }
 
@@ -20371,9 +18646,7 @@ function fillSyllabusPagesFromUnits() {
     }
     const units = collectSyllabusUnitsFromForm();
     if (!units.length) {
-        alert(currentLanguage === 'ko'
-            ? '먼저 단원(말하기/쓰기 페이지)을 추가하세요.'
-            : 'Add syllabus units with speaking/writing pages first.');
+        alert(t('syllabusAddUnitsFirst'));
         return;
     }
     const rows = collectSyllabusRowsFromForm();
@@ -20401,9 +18674,7 @@ function fillSyllabusPagesFromUnits() {
     });
     renderSyllabusEditorTable(rows);
     if (!applied) {
-        alert(currentLanguage === 'ko'
-            ? '채울 페이지가 없습니다. 홀수=말하기, 짝수=쓰기 단원 번호를 확인하세요.'
-            : 'No pages filled. Check odd=speaking / even=writing unit rows.');
+        alert(t('syllabusNoPagesFilled'));
     }
 }
 
@@ -22114,6 +20385,7 @@ function renderSyllabusScheduleAdjustment(classData) {
     refreshSyllabusScheduleAdjustmentUi(classData);
     if (!section.dataset.listenersInit) {
         section.dataset.listenersInit = '1';
+        initScheduleAdjustmentDetailsToggle('syllabus');
         const map = SCHEDULE_ADJ_SURFACE.syllabus;
         document.querySelectorAll(`input[name="${map.compressionModeName}"]`).forEach((radio) => {
             radio.addEventListener('change', () => {
@@ -22984,7 +21256,7 @@ function renderCalendarAgenda(dayIndex) {
     elements.calendarContainer.appendChild(list);
 }
 
-function renderCalendarNow() {
+function renderCalendarNow(options) {
     if (!elements.calendarContainer) {
         return;
     }
@@ -22997,8 +21269,20 @@ function renderCalendarNow() {
     }
     const dayIndex = buildDayIndex();
     const viewMode = getCalendarViewMode();
+    const forceFull = Boolean(options && options.forceFull);
+    const canIncrementalAgenda =
+        !forceFull &&
+        viewMode === 'agenda' &&
+        elements.calendarContainer.querySelector('.calendar-agenda-list');
 
-    elements.calendarContainer.innerHTML = '';
+    if (!canIncrementalAgenda) {
+        elements.calendarContainer.innerHTML = '';
+    } else {
+        const existingAgenda = elements.calendarContainer.querySelector('.calendar-agenda-list');
+        if (existingAgenda) {
+            existingAgenda.remove();
+        }
+    }
 
     if (viewMode === 'agenda') {
         renderCalendarAgenda(dayIndex);
@@ -25144,6 +23428,8 @@ let teamSyncCalendarHydrated = false;
 const TEAM_SYNC_TERMINAL_STATUSES = ['saved', 'connected', 'offline', 'error', 'saving', 'conflict'];
 /** Max wait for team sync during page boot before clearing stuck Connecting/Syncing. */
 const TEAM_SYNC_BOOT_WATCHDOG_MS = 55000;
+/** Auto-dismiss duration for lock-related banner notifications (app notice rail). */
+const TEAM_LOCK_FLASH_DURATION_MS = 3500;
 
 function formatLockParty(party) {
     if (!party) {
@@ -25165,7 +23451,7 @@ function formatLockParty(party) {
 }
 
 function showLockFlash(message, isError) {
-    setAppStatusMessage(message, isError, 7000);
+    setAppStatusMessage(message, isError, TEAM_LOCK_FLASH_DURATION_MS);
 }
 
 function setTeamLockBarVisible(visible) {
@@ -25173,6 +23459,7 @@ function setTeamLockBarVisible(visible) {
     if (el) {
         el.hidden = !visible;
     }
+    scheduleTabWarningsRefresh();
 }
 
 function getTeamLockUiMode() {
@@ -25211,7 +23498,7 @@ function refreshTeamLockDebugPanel(extra) {
         toggleBtn.setAttribute('aria-pressed', 'true');
     }
     if (hintEl) {
-        hintEl.textContent = 'Add ?lockDebug=1 to URL or CalendarSync.setLockDebugEnabled(true)';
+        hintEl.textContent = t('lockDebugHint');
     }
     const snap = CalendarSync.getLockDebugSnapshot(
         Object.assign(
@@ -25293,9 +23580,9 @@ function setupTeamLockDebugPanel() {
         const text = JSON.stringify(payload, null, 2);
         try {
             await navigator.clipboard.writeText(text);
-            showLockFlash('Lock debug copied to clipboard.', false);
+            showLockFlash(t('lockDebugCopied'), false);
         } catch (_) {
-            window.prompt('Copy lock debug:', text);
+            window.prompt(t('lockDebugCopyPrompt'), text);
         }
     });
 
@@ -25355,6 +23642,34 @@ let teamViewOnlyActive = false;
 
 function isTeamCalendarViewOnly() {
     return teamViewOnlyActive;
+}
+
+/** Team sync: editing requires holding the lock (even when no one else holds it). */
+function requiresExplicitLockForEdit() {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return false;
+    }
+    const calId = CalendarSync.getActiveCalendarId();
+    if (!calId) {
+        return false;
+    }
+    if (CalendarSync.state.canEdit === false || CalendarSync.state.permissionReadOnly) {
+        return false;
+    }
+    return !CalendarSync.state.holdsLock;
+}
+
+function getEffectiveTeamReadOnly(lockState) {
+    const permissionReadOnly = Boolean(
+        lockState && lockState.permissionReadOnly != null
+            ? lockState.permissionReadOnly
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.canEdit === false
+    );
+    const readOnly = Boolean(lockState && lockState.readOnly) || permissionReadOnly;
+    if (requiresExplicitLockForEdit()) {
+        return true;
+    }
+    return readOnly;
 }
 
 function canBypassDayNoteClassAssignment() {
@@ -25778,6 +24093,10 @@ function applyTeamLockButtonChrome(btn, lockState) {
         iconOpen.hidden = !showOpen;
         iconClosed.hidden = showOpen;
     }
+    const chipLabel = document.getElementById('teamLockChipLabel');
+    if (chipLabel) {
+        chipLabel.textContent = summaryText;
+    }
 }
 
 function updateTeamLockRoster(lockState) {
@@ -25913,7 +24232,7 @@ function applyTeamLockAccessState(lockState) {
         if (btn) {
             applyTeamLockButtonChrome(btn, lockState);
         }
-        applyTeamViewOnlyEditingState(readOnly);
+        applyTeamViewOnlyEditingState(getEffectiveTeamReadOnly(lockState));
         updateDataTabCalendarSection();
         updateTeamLockRoster(lockState);
         notifyLockStateChange(lockState);
@@ -25921,7 +24240,7 @@ function applyTeamLockAccessState(lockState) {
     }
 
     if (!btn) {
-        applyTeamViewOnlyEditingState(readOnly);
+        applyTeamViewOnlyEditingState(getEffectiveTeamReadOnly(lockState));
         updateDataTabCalendarSection();
         notifyLockStateChange(lockState);
         return;
@@ -25949,7 +24268,7 @@ function applyTeamLockAccessState(lockState) {
     }
 
     updateTeamLockRoster(lockState);
-    applyTeamViewOnlyEditingState(readOnly);
+    applyTeamViewOnlyEditingState(getEffectiveTeamReadOnly(lockState));
     updateDataTabCalendarSection();
     refreshNotesPageIfMounted();
     notifyLockStateChange(lockState);
@@ -26031,14 +24350,7 @@ function setupTeamLockButtons() {
                 showLockFlash(t('teamLockReleasedFlash'), false);
             } else if (mode === 'blocked') {
                 const holder = CalendarSync.state.lock;
-                let force = false;
-                const teamUser = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-                if (teamUser && teamUser.canForceUnlock && e.shiftKey) {
-                    force = window.confirm(
-                        t('teamLockForceConfirm').replace('{name}', formatLockParty(holder))
-                    );
-                }
-                const result = await CalendarSync.acquireLock(id, { force });
+                const result = await CalendarSync.acquireLock(id);
                 applyTeamLockAccessState({
                     readOnly: CalendarSync.state.readOnly,
                     lock: CalendarSync.state.lock,
@@ -26047,9 +24359,7 @@ function setupTeamLockButtons() {
                     viewers: CalendarSync.state.viewers,
                     lockExpiresAt: CalendarSync.state.lockExpiresAt
                 });
-                if (result && result.forced && CalendarSync.state.holdsLock) {
-                    showLockFlash(t('teamLockForceTakenFlash'), false);
-                } else if (result && result.editRequestRecorded) {
+                if (result && result.editRequestRecorded) {
                     showLockFlash(
                         t('teamLockRequestSentFlash').replace('{name}', formatLockParty(holder)),
                         false
@@ -26087,7 +24397,7 @@ function setupTeamLockButtons() {
                     ? t('teamLockReleaseFailed')
                     : mode === 'blocked'
                       ? err && err.message
-                          ? err.message
+                          ? translateSyncError(err.message)
                           : t('teamLockRequestFailed')
                       : t('teamLockRequestFailed');
             showLockFlash(msg, true);
@@ -26132,7 +24442,10 @@ function setupTeamLockPendingButtons() {
                     false
                 );
             } catch (err) {
-                showLockFlash(err.message || t('teamLockGrantFailed'), true);
+                showLockFlash(
+                    (err && err.message ? translateSyncError(err.message) : '') || t('teamLockGrantFailed'),
+                    true
+                );
             } finally {
                 allowBtn.disabled = false;
                 dismissBtn.disabled = false;
@@ -26163,7 +24476,10 @@ function setupTeamLockPendingButtons() {
                 });
                 showLockFlash(t('teamLockDismissedFlash'), false);
             } catch (err) {
-                showLockFlash(err.message || t('teamLockDismissFailed'), true);
+                showLockFlash(
+                    (err && err.message ? translateSyncError(err.message) : '') || t('teamLockDismissFailed'),
+                    true
+                );
             } finally {
                 allowBtn.disabled = false;
                 dismissBtn.disabled = false;
@@ -26432,9 +24748,7 @@ function setupTeamUserBar() {
             logoutAllBtn.dataset.bound = '1';
             logoutAllBtn.addEventListener('click', () => {
                 if (
-                    !confirm(
-                        'Sign out on every browser and device where you used this calendar? You will need to sign in again here too.'
-                    )
+                    !confirm(t('teamSignOutAllConfirm'))
                 ) {
                     return;
                 }
@@ -26494,9 +24808,420 @@ function updateTeamDeleteCalendarButton(list, activeId) {
 // ============================================
 // These UI preferences should never be written into the shared team calendar data.
 const UI_STORAGE_PREFIX = 'classCalendarUi:';
+const DISMISSED_NAV_WARNINGS_PREFIX = 'classCalendarDismissedNav:';
+const NAV_NOTIFICATION_META_PREFIX = 'classCalendarNavNotifyMeta:';
+const MS_PER_DAY = 86400000;
 const UI_STORAGE_LOCAL_ID = 'local';
 const DOMAIN_STORAGE_PREFIX = 'classCalendarData:';
 const DOMAIN_STORAGE_LEGACY_KEY = 'classCalendarData';
+
+function normalizeDismissedNavTabWarningId(id) {
+    if (typeof id !== 'string' || !id) {
+        return '';
+    }
+    if (id === 'calendar:term:not_set' || id === 'events:term:not_set') {
+        return 'term:not_set';
+    }
+    const legacyClass = id.match(/^(classes|syllabus):([^:]+):(.+)$/);
+    if (legacyClass) {
+        return `class:${legacyClass[2]}:${legacyClass[3]}`;
+    }
+    return id;
+}
+
+function collectUiStorageCalendarIds() {
+    const calIds = new Set([UI_STORAGE_LOCAL_ID]);
+    try {
+        if (typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
+            const active = CalendarSync.getActiveCalendarId();
+            if (active) {
+                calIds.add(String(active));
+            }
+        }
+        if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getActiveCalendarIdFromStorage) {
+            const stored = CCPSessionRestore.getActiveCalendarIdFromStorage();
+            if (stored) {
+                calIds.add(String(stored));
+            }
+        }
+    } catch (_) {
+        /* ignore */
+    }
+    return [...calIds];
+}
+
+function getUiStorageKeyForCalendarId(calendarId) {
+    let cal =
+        calendarId != null && String(calendarId).trim() ? String(calendarId).trim() : '';
+    if (!cal) {
+        try {
+            if (typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
+                const active = CalendarSync.getActiveCalendarId();
+                if (active) {
+                    cal = String(active);
+                }
+            }
+        } catch (_) {
+            /* ignore */
+        }
+    }
+    if (!cal) {
+        cal = UI_STORAGE_LOCAL_ID;
+    }
+    if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getUiStorageKey) {
+        return CCPSessionRestore.getUiStorageKey(cal);
+    }
+    return UI_STORAGE_PREFIX + cal;
+}
+
+function getDismissedNavTabWarningsStorageKey(calendarId) {
+    return getUiStorageKeyForCalendarId(calendarId).replace(
+        UI_STORAGE_PREFIX,
+        DISMISSED_NAV_WARNINGS_PREFIX
+    );
+}
+
+function getNavNotificationMetaStorageKey(calendarId) {
+    return getUiStorageKeyForCalendarId(calendarId).replace(
+        UI_STORAGE_PREFIX,
+        NAV_NOTIFICATION_META_PREFIX
+    );
+}
+
+function normalizeNavNotificationMetaEntry(entry, nowMs) {
+    const now = nowMs != null ? nowMs : Date.now();
+    if (!entry || typeof entry !== 'object') {
+        return { firstSeenAt: now, dismissedAt: null };
+    }
+    const firstSeenAt = Number(entry.firstSeenAt);
+    const dismissedAt = entry.dismissedAt == null ? null : Number(entry.dismissedAt);
+    return {
+        firstSeenAt: Number.isFinite(firstSeenAt) && firstSeenAt > 0 ? firstSeenAt : now,
+        dismissedAt: Number.isFinite(dismissedAt) && dismissedAt > 0 ? dismissedAt : null
+    };
+}
+
+function normalizeNavNotificationMetaObject(raw, nowMs) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') {
+        return out;
+    }
+    Object.keys(raw).forEach((key) => {
+        const id = normalizeDismissedNavTabWarningId(key);
+        if (!id) {
+            return;
+        }
+        out[id] = normalizeNavNotificationMetaEntry(raw[key], nowMs);
+    });
+    return out;
+}
+
+function mergeNavNotificationMeta(intoMeta, fromMeta) {
+    const base = normalizeNavNotificationMetaObject(intoMeta);
+    const add = normalizeNavNotificationMetaObject(fromMeta);
+    Object.keys(add).forEach((id) => {
+        if (!base[id]) {
+            base[id] = add[id];
+            return;
+        }
+        const a = base[id];
+        const b = add[id];
+        base[id] = {
+            firstSeenAt: Math.min(a.firstSeenAt, b.firstSeenAt),
+            dismissedAt: a.dismissedAt != null && b.dismissedAt != null
+                ? Math.max(a.dismissedAt, b.dismissedAt)
+                : (a.dismissedAt != null ? a.dismissedAt : b.dismissedAt)
+        };
+    });
+    return base;
+}
+
+function migrateLegacyDismissedToNavNotificationMeta(ui) {
+    if (!ui || typeof ui !== 'object') {
+        return;
+    }
+    const now = Date.now();
+    let meta = normalizeNavNotificationMetaObject(ui.navNotificationMeta, now);
+    const legacyIds = Array.isArray(ui.dismissedNavTabWarnings) ? ui.dismissedNavTabWarnings : [];
+    legacyIds.forEach((rawId) => {
+        const id = normalizeDismissedNavTabWarningId(rawId);
+        if (!id) {
+            return;
+        }
+        if (!meta[id]) {
+            meta[id] = { firstSeenAt: now, dismissedAt: now };
+        } else if (meta[id].dismissedAt == null) {
+            meta[id].dismissedAt = now;
+        }
+    });
+    ui.navNotificationMeta = meta;
+    ui.dismissedNavTabWarnings = Object.keys(meta).filter((id) => meta[id].dismissedAt != null);
+}
+
+function readNavNotificationMetaFromStorage() {
+    const merged = {};
+    collectUiStorageCalendarIds().forEach((calId) => {
+        try {
+            const raw = localStorage.getItem(getNavNotificationMetaStorageKey(calId));
+            if (raw) {
+                Object.assign(merged, normalizeNavNotificationMetaObject(JSON.parse(raw)));
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        try {
+            const uiRaw = localStorage.getItem(getUiStorageKeyForCalendarId(calId));
+            if (uiRaw) {
+                const uiParsed = JSON.parse(uiRaw);
+                if (uiParsed && uiParsed.navNotificationMeta) {
+                    Object.assign(merged, normalizeNavNotificationMetaObject(uiParsed.navNotificationMeta));
+                }
+            }
+        } catch (_) {
+            /* ignore */
+        }
+    });
+    return merged;
+}
+
+function writeNavNotificationMetaToDedicatedStorage(meta) {
+    const normalized = normalizeNavNotificationMetaObject(meta);
+    collectUiStorageCalendarIds().forEach((calId) => {
+        try {
+            localStorage.setItem(
+                getNavNotificationMetaStorageKey(calId),
+                JSON.stringify(normalized)
+            );
+        } catch (_) {
+            /* ignore */
+        }
+    });
+    return normalized;
+}
+
+function syncNavNotificationMetaIntoUi(ui) {
+    if (!ui || typeof ui !== 'object') {
+        return;
+    }
+    ui.navNotificationMeta = mergeNavNotificationMeta(ui.navNotificationMeta, readNavNotificationMetaFromStorage());
+    migrateLegacyDismissedToNavNotificationMeta(ui);
+}
+
+function saveNavNotificationMeta(meta) {
+    ensureUiState();
+    const normalized = writeNavNotificationMetaToDedicatedStorage(meta);
+    appData.ui.navNotificationMeta = normalized;
+    appData.ui.dismissedNavTabWarnings = Object.keys(normalized).filter(
+        (id) => normalized[id].dismissedAt != null
+    );
+    const key = getUiStorageKey();
+    let stored = {};
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            stored = JSON.parse(raw);
+        }
+    } catch (_) {
+        stored = {};
+    }
+    if (!stored || typeof stored !== 'object') {
+        stored = {};
+    }
+    try {
+        localStorage.setItem(
+            key,
+            JSON.stringify(
+                Object.assign({}, stored, appData.ui, {
+                    navNotificationMeta: normalized,
+                    dismissedNavTabWarnings: appData.ui.dismissedNavTabWarnings
+                })
+            )
+        );
+    } catch (_) {
+        /* ignore */
+    }
+    return normalized;
+}
+
+function getNotificationTtlSettings() {
+    const defaults = { activeDays: 14, dismissedDays: 3 };
+    if (typeof CalendarSync === 'undefined' || !CalendarSync.state) {
+        return defaults;
+    }
+    const activeDays = Number(CalendarSync.state.navNotificationActiveDays);
+    const dismissedDays = Number(CalendarSync.state.navNotificationDismissedDays);
+    return {
+        activeDays: Number.isFinite(activeDays) && activeDays > 0 ? activeDays : defaults.activeDays,
+        dismissedDays: Number.isFinite(dismissedDays) && dismissedDays > 0 ? dismissedDays : defaults.dismissedDays
+    };
+}
+
+function countClassEmptySyllabusLessons(classData) {
+    if (!classData || !classData.id) {
+        return 0;
+    }
+    if (classData.customSchedule && classData.customSchedule.enabled) {
+        return 0;
+    }
+    const schedule = calculateLessonDates(classData);
+    if (!schedule || !Array.isArray(schedule.lessons) || !schedule.lessons.length) {
+        return 0;
+    }
+    const saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
+    let rows;
+    if (saved.length > 0) {
+        const generated = buildGeneratedSyllabusRows(classData);
+        const mod = getSyllabusModule();
+        if (mod && mod.mergeSyllabusRows) {
+            rows = mod.mergeSyllabusRows(saved, generated);
+        } else {
+            rows = saved;
+        }
+    } else {
+        rows = buildGeneratedSyllabusRows(classData);
+    }
+    const mod = typeof CCPHomeworkTab !== 'undefined' ? CCPHomeworkTab : null;
+    const lessons = mod && mod.getLessonRowsFromSyllabus
+        ? mod.getLessonRowsFromSyllabus(rows)
+        : (rows || []).filter((r) => r && r.kind === 'lesson' && r.date);
+    return lessons.filter((row) => !String(row.planDetail || '').trim()).length;
+}
+
+function classHasNoMeetingDaysWarning(classData) {
+    if (!classData || (classData.customSchedule && classData.customSchedule.enabled)) {
+        return false;
+    }
+    return getMeetingDaysFromClass(classData).length === 0;
+}
+
+function classNeedsDebateBookPeriodsWarning(classData) {
+    if (!classData || !classUsesDebateCompression(classData)) {
+        return false;
+    }
+    if (classData.customSchedule && classData.customSchedule.enabled) {
+        return false;
+    }
+    const raw = Array.isArray(classData.debateBookPeriods) ? classData.debateBookPeriods : [];
+    if (raw.length > 0) {
+        return false;
+    }
+    const byMonth = classData.booksByMonth && typeof classData.booksByMonth === 'object'
+        ? Object.keys(classData.booksByMonth)
+        : [];
+    return byMonth.length === 0;
+}
+
+function getSyncNavWarningsForBell() {
+    const warnings = [];
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.state) {
+        return warnings;
+    }
+    if (CalendarSync.state.remoteNewer) {
+        warnings.push({
+            id: 'sync:remote_newer',
+            tabId: 'calendar',
+            severity: 'info',
+            messageKey: 'tabWarnRemoteNewer',
+            params: {},
+            navigate: { type: 'remote_reload' }
+        });
+    }
+    const pendingCount = Number(CalendarSync.state.pendingSuggestions) || 0;
+    if (
+        pendingCount > 0
+        && typeof TeamAuth !== 'undefined'
+        && TeamAuth.hasPermission
+        && TeamAuth.hasPermission('apply_suggestions')
+    ) {
+        warnings.push({
+            id: 'sync:pending_suggestions',
+            tabId: 'data',
+            severity: 'info',
+            messageKey: 'tabWarnPendingSuggestions',
+            params: { count: pendingCount },
+            navigate: { type: 'pending_suggestions' }
+        });
+    }
+    return warnings;
+}
+
+function addDismissedNavTabWarningIds(targetSet, list) {
+    if (!Array.isArray(list)) {
+        return;
+    }
+    list.forEach((id) => {
+        const normalized = normalizeDismissedNavTabWarningId(id);
+        if (normalized) {
+            targetSet.add(normalized);
+        }
+    });
+}
+
+function readDismissedNavTabWarningsFromStorage() {
+    const merged = new Set();
+    collectUiStorageCalendarIds().forEach((calId) => {
+        try {
+            const raw = localStorage.getItem(getDismissedNavTabWarningsStorageKey(calId));
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                addDismissedNavTabWarningIds(merged, Array.isArray(parsed) ? parsed : null);
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        try {
+            const uiRaw = localStorage.getItem(getUiStorageKeyForCalendarId(calId));
+            if (uiRaw) {
+                const uiParsed = JSON.parse(uiRaw);
+                addDismissedNavTabWarningIds(
+                    merged,
+                    uiParsed && uiParsed.dismissedNavTabWarnings ? uiParsed.dismissedNavTabWarnings : null
+                );
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.getLegacyUiStorageKey) {
+            try {
+                const legacyRaw = localStorage.getItem(CCPSessionRestore.getLegacyUiStorageKey(calId));
+                if (legacyRaw) {
+                    const legacyParsed = JSON.parse(legacyRaw);
+                    addDismissedNavTabWarningIds(
+                        merged,
+                        legacyParsed && legacyParsed.dismissedNavTabWarnings
+                            ? legacyParsed.dismissedNavTabWarnings
+                            : null
+                    );
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+    });
+    return [...merged];
+}
+
+function syncDismissedNavTabWarningsIntoUi(ui) {
+    if (!ui || typeof ui !== 'object') {
+        return;
+    }
+    mergeDismissedNavTabWarnings(ui, { dismissedNavTabWarnings: readDismissedNavTabWarningsFromStorage() });
+}
+
+function writeDismissedNavTabWarningsToDedicatedStorage(ids) {
+    const normalized = [...new Set((ids || []).map(normalizeDismissedNavTabWarningId).filter(Boolean))];
+    collectUiStorageCalendarIds().forEach((calId) => {
+        try {
+            localStorage.setItem(
+                getDismissedNavTabWarningsStorageKey(calId),
+                JSON.stringify(normalized)
+            );
+        } catch (_) {
+            /* ignore */
+        }
+    });
+    return normalized;
+}
 
 function getUiStorageCalendarId() {
     try {
@@ -26537,6 +25262,47 @@ function getDomainStorageKey() {
     return DOMAIN_STORAGE_LEGACY_KEY;
 }
 
+function mergeDismissedNavTabWarnings(intoUi, fromUi) {
+    if (!intoUi || typeof intoUi !== 'object') {
+        return;
+    }
+    const a = Array.isArray(intoUi.dismissedNavTabWarnings) ? intoUi.dismissedNavTabWarnings : [];
+    const b =
+        fromUi && Array.isArray(fromUi.dismissedNavTabWarnings) ? fromUi.dismissedNavTabWarnings : [];
+    intoUi.dismissedNavTabWarnings = [...new Set([...a, ...b].filter((id) => typeof id === 'string' && id))];
+}
+
+function saveDismissedNavTabWarnings(ids) {
+    ensureUiState();
+    const normalized = writeDismissedNavTabWarningsToDedicatedStorage(
+        Array.isArray(ids)
+            ? ids
+            : appData.ui.dismissedNavTabWarnings || []
+    );
+    appData.ui.dismissedNavTabWarnings = normalized;
+    const key = getUiStorageKey();
+    let stored = {};
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            stored = JSON.parse(raw);
+        }
+    } catch (_) {
+        stored = {};
+    }
+    if (!stored || typeof stored !== 'object') {
+        stored = {};
+    }
+    try {
+        localStorage.setItem(
+            key,
+            JSON.stringify(Object.assign({}, stored, appData.ui, { dismissedNavTabWarnings: normalized }))
+        );
+    } catch (_) {
+        /* ignore */
+    }
+}
+
 function loadUiStateFromLocalStorageIntoData(data) {
     if (!data || typeof data !== 'object') {
         return data;
@@ -26563,11 +25329,17 @@ function loadUiStateFromLocalStorageIntoData(data) {
         saved = null;
     }
 
+    const legacyUi = data.ui && typeof data.ui === 'object' ? data.ui : {};
     if (saved && typeof saved === 'object') {
-        const legacyUi = data.ui && typeof data.ui === 'object' ? data.ui : {};
         // Saved UI wins, but keep any legacy keys that are missing in saved UI.
         data.ui = Object.assign({}, legacyUi, saved);
+        mergeDismissedNavTabWarnings(data.ui, legacyUi);
+        mergeDismissedNavTabWarnings(data.ui, saved);
+    } else if (!data.ui || typeof data.ui !== 'object') {
+        data.ui = legacyUi;
     }
+    syncDismissedNavTabWarningsIntoUi(data.ui);
+    syncNavNotificationMetaIntoUi(data.ui);
     return data;
 }
 
@@ -26735,6 +25507,12 @@ function saveSyllabusListSegmentToUi(segment) {
 
 function restoreAppSessionState() {
     ensureUiState();
+    const urlZone = resolveZoneFromUrl();
+    if (urlZone) {
+        navigateToZone(urlZone.zone, urlZone.segment, urlZone.options || {});
+        applyPrintSummaryVisibilityFromUi();
+        return;
+    }
     if (isWorkspacePage()) {
         if (typeof initHomeworkTabControls === 'function') {
             initHomeworkTabControls();
@@ -26783,8 +25561,10 @@ function captureAppSessionExtras() {
 
 function saveUiStateToLocalStorage() {
     ensureUiState();
+    syncDismissedNavTabWarningsIntoUi(appData.ui);
     try {
         localStorage.setItem(getUiStorageKey(), JSON.stringify(appData.ui));
+        writeDismissedNavTabWarningsToDedicatedStorage(appData.ui.dismissedNavTabWarnings);
     } catch (_) {
         /* ignore */
     }
@@ -26810,6 +25590,10 @@ function saveDataToLocalCache() {
 
 function saveData() {
     saveDataToLocalCache();
+    if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && requiresExplicitLockForEdit()) {
+        showLockFlash(t('teamLockActionAcquire') + ' — ' + t('teamReadOnlySave'), false);
+        return;
+    }
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly()) {
         showLockFlash(t('teamReadOnlySave'), true);
         return;
@@ -26824,6 +25608,7 @@ function saveData() {
             return payload;
         });
     }
+    scheduleTabWarningsRefresh();
 }
 
 function applyLoadedAppData(data) {
@@ -26836,6 +25621,7 @@ function applyLoadedAppData(data) {
     appData = data;
     const migrated = migrateData(appData);
     ensureUiState();
+    syncDismissedNavTabWarningsIntoUi(appData.ui);
     refreshLocalizedEventDisplayNames();
     if (appShellBootComplete && !isNotesPage() && !isWorkspacePage()) {
         syncTeachersTabVisibility();
@@ -26854,6 +25640,7 @@ function applyLoadedAppData(data) {
     }
     if (appShellBootComplete) {
         updateSetupGuideBanner();
+        scheduleTabWarningsRefresh();
     }
 }
 
@@ -26928,6 +25715,7 @@ function applyServerDocument(doc, options) {
     if (!opts.skipSessionRestore && typeof restoreAppSessionState === 'function') {
         restoreAppSessionState();
     }
+    scheduleTabWarningsRefresh();
 }
 
 function updateActiveTeamCalendarOptionLabel() {
@@ -26943,14 +25731,10 @@ function updateActiveTeamCalendarOptionLabel() {
 }
 
 function setTeamCalendarRowVisible(visible) {
-    const row = document.getElementById('teamCalendarRow');
-    const details = document.getElementById('appTopBarTeamDetails');
+    const menuBtn = document.getElementById('teamCalendarMenuBtn');
     const picker = document.getElementById('teamCalendarPickerGroup');
-    if (row) {
-        row.hidden = false;
-    }
-    if (details) {
-        details.hidden = false;
+    if (menuBtn) {
+        menuBtn.hidden = !visible;
     }
     if (picker) {
         picker.hidden = !visible;
@@ -27085,7 +25869,7 @@ async function runTeamSyncBoot() {
     } catch (err) {
         console.error('initTeamSync failed:', err);
         updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
-        showSyncToast((t('syncError') || 'Sync error') + ': ' + (err.message || err), true);
+        showSyncErrorToast(err);
     } finally {
         teamSyncBootInProgress = false;
         clearTeamSyncBootWatchdog();
@@ -27108,7 +25892,8 @@ function updateTeamSyncStatus(status, detail) {
         error: 'syncError',
         conflict: 'syncConflictTitle'
     };
-    el.textContent = detail || t(map[status] || 'syncConnecting');
+    const resolvedDetail = detail ? translateSyncError(detail) : '';
+    el.textContent = resolvedDetail || t(map[status] || 'syncConnecting');
     el.className = 'team-sync-status status-' + (status || 'connecting');
 }
 
@@ -27196,6 +25981,16 @@ function dismissSyncToast(el, onDone) {
 }
 
 function showSyncToast(message, isError) {
+    if (!message) {
+        return;
+    }
+    if (window.CCPNotice && window.CCPNotice.show) {
+        window.CCPNotice.show(message, {
+            type: isError ? 'error' : 'success',
+            duration: 7000
+        });
+        return;
+    }
     const el = document.getElementById('syncToast');
     if (!el) {
         return;
@@ -27309,11 +26104,9 @@ async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
     }
     try {
         const doc = await CalendarSync.loadCalendar(id);
-        if (CalendarSync.state.readOnly) {
-            teamLockPreviousCalendarId = null;
-        } else {
-            await CalendarSync.acquireLock(id);
-            teamLockPreviousCalendarId = CalendarSync.state.holdsLock ? id : null;
+        teamLockPreviousCalendarId = null;
+        if (!CalendarSync.state.readOnly && CalendarSync.state.holdsLock) {
+            teamLockPreviousCalendarId = id;
         }
         applyTeamLockAccessState({
             readOnly: CalendarSync.state.readOnly,
@@ -27331,6 +26124,7 @@ async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
                 false
             );
         }
+        scheduleTabWarningsRefresh();
     } catch (err) {
         if (err.status === 404) {
             showSyncToast(t('teamCalendarAccessLost'), true);
@@ -27564,7 +26358,7 @@ async function ensureStarterTeamCalendar() {
         );
         return CalendarSync.listCalendars();
     } catch (err) {
-        showSyncToast(t('newCalendarFailed') + ': ' + (err.message || err), true);
+        showSyncToast(t('newCalendarFailed') + ': ' + translateSyncError(err && err.message ? err.message : String(err || '')), true);
         openNewCalendarModal().catch((modalErr) =>
             showSyncToast(t('newCalendarFailed') + ': ' + modalErr.message, true)
         );
@@ -27670,7 +26464,7 @@ async function openDeleteCalendarModal() {
         const activeId = CalendarSync.getActiveCalendarId();
         populateCalendarSelect(list, activeId);
     } catch (err) {
-        showSyncToast(t('syncError') + ': ' + err.message, true);
+        showSyncErrorToast(err);
         return;
     }
     if (list.length === 0) {
@@ -27714,7 +26508,7 @@ async function confirmDeleteTeamCalendar() {
         await refreshTeamCalendarsAfterDelete(id);
         showSyncToast(t('deleteCalendarDone').replace('{name}', label), false);
     } catch (err) {
-        showSyncToast(t('syncError') + ': ' + err.message, true);
+        showSyncErrorToast(err);
         try {
             await refreshTeamCalendarsAfterDelete(null);
         } catch (_) {
@@ -27750,14 +26544,19 @@ function setupTeamCalendarModals() {
         if (!requireTeamSync('new')) {
             return;
         }
-        openNewCalendarModal().catch((err) => showSyncToast(t('newCalendarFailed') + ': ' + err.message, true));
+        openNewCalendarModal().catch((err) =>
+            showSyncToast(
+                t('newCalendarFailed') + ': ' + translateSyncError(err && err.message ? err.message : String(err || '')),
+                true
+            )
+        );
     });
     document.getElementById('teamDeleteCalendarBtn')?.addEventListener('click', () => {
         if (!requireTeamSync('delete')) {
             return;
         }
         openDeleteCalendarModal().catch((err) =>
-            showSyncToast(t('syncError') + ': ' + err.message, true)
+            showSyncErrorToast(err)
         );
     });
 
@@ -27799,7 +26598,10 @@ function setupTeamCalendarModals() {
             await createTeamCalendarFromName(input.value);
             closeModal(newModal);
         } catch (err) {
-            showSyncToast(t('newCalendarFailed') + ': ' + err.message, true);
+            showSyncToast(
+                t('newCalendarFailed') + ': ' + translateSyncError(err && err.message ? err.message : String(err || '')),
+                true
+            );
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -27974,6 +26776,7 @@ async function initTeamSync() {
 
     CalendarSync.setHandlers({
         onStatusChange: updateTeamSyncStatus,
+        translateError: translateSyncError,
         onPrepareLogout() {
             saveDataToLocalCache();
             if (typeof captureAppSessionExtras === 'function') {
@@ -28004,6 +26807,7 @@ async function initTeamSync() {
         },
         onLockChange(lockState) {
             applyTeamLockAccessState(lockState);
+            scheduleTabWarningsRefresh();
         },
         onLockDebugChange() {
             refreshTeamLockDebugPanel();
@@ -28042,6 +26846,7 @@ async function initTeamSync() {
                       }
                     : null
             );
+            scheduleTabWarningsRefresh();
         },
         async onConflict(serverDocument, localData) {
             const choice = await showConflictModal(serverDocument, localData);
@@ -28133,7 +26938,7 @@ async function initTeamSync() {
         try {
             await switchToTeamCalendar(id);
         } catch (err) {
-            showSyncToast(t('syncError') + ': ' + err.message, true);
+            showSyncErrorToast(err);
         }
     });
 
@@ -28152,7 +26957,7 @@ async function initTeamSync() {
                 alert(t('syncBackupOk'));
             }
         } catch (err) {
-            alert(t('syncError') + ': ' + err.message);
+            alert(t('syncError') + ': ' + translateSyncError(err && err.message ? err.message : String(err || '')));
         }
     });
 
@@ -29146,7 +27951,7 @@ async function confirmImportDestination() {
         }
         closeImportDestinationModal();
     } catch (err) {
-        showSyncToast((err && err.message) || t('errorReadingFile'), true);
+        showSyncToast(translateSyncError(err && err.message ? err.message : '') || t('errorReadingFile'), true);
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -29187,7 +27992,7 @@ function importData(e) {
             }
             if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {
                 openImportDestinationModal(imported, file.name).catch((err) => {
-                    showSyncToast((err && err.message) || t('errorReadingFile'), true);
+                    showSyncToast(translateSyncError(err && err.message ? err.message : '') || t('errorReadingFile'), true);
                 });
                 return;
             }

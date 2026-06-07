@@ -559,23 +559,6 @@
         resetStreak();
     }
 
-    function onDocumentClick(e) {
-        if (gameOpen) {
-            return;
-        }
-        if (isCalendarClick(e.target)) {
-            calendarClickStreak += 1;
-            if (calendarClickStreak >= TRIGGER_CLICKS) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                calendarClickStreak = 0;
-                openGame();
-            }
-            return;
-        }
-        resetStreak();
-    }
-
     function onDocumentKeydown(e) {
         if (isTypingTarget(document.activeElement)) {
             return;
@@ -627,7 +610,6 @@
     }
 
     function init() {
-        document.addEventListener('click', onDocumentClick, true);
         document.addEventListener('keydown', onDocumentKeydown, true);
         document.addEventListener('keyup', onDocumentKeyup, true);
         document.addEventListener('visibilitychange', onVisibilityChange);
@@ -642,6 +624,7 @@
     global.CCPDinoGame = {
         open: openGame,
         close: closeGame,
-        getHighScore
+        getHighScore,
+        isOpen: () => gameOpen
     };
 })(typeof window !== 'undefined' ? window : globalThis);

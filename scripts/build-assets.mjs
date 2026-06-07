@@ -53,6 +53,9 @@ function shouldSkipFile(name) {
 }
 
 const MINIFY_JS = [
+    'js/i18n/calendar-en.js',
+    'js/i18n/calendar-ko.js',
+    'js/i18n/calendar-i18n.js',
     'app.js',
     'js/calendar-sync.js',
     'js/team-auth.js',
@@ -89,9 +92,18 @@ const MINIFY_JS = [
     'js/theme-init.js',
     'js/language-init.js',
     'js/theme-toggle.js',
+    'js/games-loader.js',
     'js/snake-game.js',
     'js/dino-game.js',
-    'js/admin-i18n.js'
+    'js/admin-i18n.js',
+    'js/session-restore.js',
+    'js/page-chrome.js',
+    'js/tab-warnings.js',
+    'js/view-as-i18n.js',
+    'js/cohort-management.js',
+    'js/meeting-days-control.js',
+    'js/setup-board.js',
+    'js/teacher-management.js'
 ];
 
 const MINIFY_CSS = ['styles.css', 'admin.css', 'help.css'];

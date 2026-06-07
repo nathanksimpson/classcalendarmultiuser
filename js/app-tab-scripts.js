@@ -6,7 +6,7 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260603-title-rename',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260603-title-rename',
+            'js/cohort-management.js?v=20260608-cohorts-summary-caret',
             'js/setup-board.js?v=20260603-title-rename'
         ],
         timetable: [
