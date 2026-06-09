@@ -1,6 +1,6 @@
 import * as Auth from './auth-permissions.js';
 
-function isUserAssignedToClassInData(classData, userId) {
+export function isUserAssignedToClassInData(classData, userId) {
     if (!classData || !userId) {
         return false;
     }
