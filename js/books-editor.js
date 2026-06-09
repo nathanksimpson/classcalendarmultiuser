@@ -2408,7 +2408,7 @@
                     ? book.baselineSessionCount
                     : getEffectiveSessionBaselineCount(book.id, appData, book.factorySessionCount);
                 const warnBadge = document.createElement('span');
-                warnBadge.className = 'workspace-book-list-warn-badge';
+                warnBadge.className = 'inline-warn-badge';
                 warnBadge.textContent = '!';
                 warnBadge.title = hooks.t('booksEditorSessionCountWarn')
                     .replace('{n}', String(rows.length))

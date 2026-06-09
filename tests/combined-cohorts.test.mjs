@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
+await import(pathToFileURL(path.join(root, 'js', 'schedule-matrix-data.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'syllabus-schedule-matrix.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'teacher-timetable.js')).href);
 
 const api = globalThis.CCPTeacherTimetable;
@@ -70,5 +72,88 @@ assert(!grid.hasConflicts, 'combined single class should not conflict');
 const entry = grid.blocks[0].rows.find((r) => r.cells.some((c) => c.entries.length)).cells
     .find((c) => c.entries.length)?.entries[0];
 assert(entry && entry.combinedCohorts, 'timetable entry shows combined cohort label');
+
+const nameOnlyData = {
+    cohorts: [
+        { id: 'cohort-a', name: '3M', classIds: [] },
+        { id: 'cohort-b', name: '3T', classIds: [] }
+    ],
+    classes: [
+        {
+            id: 'reading-a',
+            name: '3M · Reading',
+            cohortIds: ['cohort-a'],
+            cohortId: 'cohort-a',
+            classTeachers: [{ userId: 't1', name: 'Teacher One' }]
+        },
+        {
+            id: 'reading-b',
+            name: '3T · Reading',
+            cohortIds: ['cohort-b'],
+            cohortId: 'cohort-b',
+            classTeachers: [{ userId: 't1', name: 'Teacher One' }]
+        }
+    ]
+};
+assert(
+    api.findDuplicateClassPairsForCohorts(nameOnlyData, 'cohort-a', 'cohort-b').length === 0,
+    'similar subject names without combinable classTypeId do not match'
+);
+
+const differentTeacherData = {
+    cohorts: [
+        { id: 'cohort-a', name: '3M', classIds: [] },
+        { id: 'cohort-b', name: '3T', classIds: [] }
+    ],
+    classes: [
+        {
+            id: 'debate-a2',
+            name: '3M · Debate',
+            classTypeId: 'builtin-debate',
+            cohortIds: ['cohort-a'],
+            cohortId: 'cohort-a',
+            classTeachers: [{ userId: 't1', name: 'Teacher One', category: 'Debate' }]
+        },
+        {
+            id: 'debate-b2',
+            name: '3T · Debate',
+            classTypeId: 'builtin-debate',
+            cohortIds: ['cohort-b'],
+            cohortId: 'cohort-b',
+            classTeachers: [{ userId: 't2', name: 'Teacher Two', category: 'Debate' }]
+        }
+    ]
+};
+assert(
+    api.findDuplicateClassPairsForCohorts(differentTeacherData, 'cohort-a', 'cohort-b').length === 0,
+    'combinable classTypeId with different teachers does not match'
+);
+
+const noTeacherData = {
+    cohorts: [
+        { id: 'cohort-a', name: '3M', classIds: [] },
+        { id: 'cohort-b', name: '3T', classIds: [] }
+    ],
+    classes: [
+        {
+            id: 'debate-a3',
+            name: '3M · Debate',
+            classTypeId: 'builtin-debate',
+            cohortIds: ['cohort-a'],
+            cohortId: 'cohort-a'
+        },
+        {
+            id: 'debate-b3',
+            name: '3T · Debate',
+            classTypeId: 'builtin-debate',
+            cohortIds: ['cohort-b'],
+            cohortId: 'cohort-b'
+        }
+    ]
+};
+assert(
+    api.findDuplicateClassPairsForCohorts(noTeacherData, 'cohort-a', 'cohort-b').length === 0,
+    'combinable classTypeId without assigned teachers does not match'
+);
 
 console.log('combined-cohorts.test.mjs: all passed');

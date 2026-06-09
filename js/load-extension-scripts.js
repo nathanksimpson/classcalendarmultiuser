@@ -11,7 +11,7 @@
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js',
-        'js/books-editor.js?v=20260608-tab-warnings',
+        'js/books-editor.js?v=20260609-inline-warn-badge',
         'js/homework-import.js?v=20260606-clipboard-dash',
         'js/homework-tab.js?v=20260531-hw-seq',
         'js/syllabus-templates.js?v=20260603-curriculum-notes'

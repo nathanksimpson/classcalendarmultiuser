@@ -420,6 +420,14 @@ app.post('/api/auth/change-password', requireUser, rejectViewAsWrites, (req, res
     }
 });
 
+app.post('/api/auth/verify-password', requireUser, rejectViewAsWrites, (req, res) => {
+    const password = req.body && req.body.password;
+    if (!password || !users.verifyUserPassword(req.user.id, String(password))) {
+        return res.status(403).json({ error: 'Invalid password' });
+    }
+    res.json({ ok: true });
+});
+
 app.patch('/api/auth/profile', requireUser, rejectViewAsWrites, (req, res) => {
     try {
         const updated = users.updateOwnDisplayName(req.user.id, req.body && req.body.displayName);
@@ -1250,8 +1258,48 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    const { data, revision, force, name, dayNotesOnly, dayNotes } = req.body || {};
+    const {
+        data,
+        revision,
+        force,
+        name,
+        dayNotesOnly,
+        dayNotes,
+        classroomOnly,
+        cohorts,
+        attendanceSessions,
+        homeworkCompletions
+    } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
+    if (classroomOnly) {
+        const payload = {};
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'cohorts')) {
+            payload.cohorts = cohorts;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'attendanceSessions')) {
+            payload.attendanceSessions = attendanceSessions;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'homeworkCompletions')) {
+            payload.homeworkCompletions = homeworkCompletions;
+        }
+        const result = calendars.updateCalendarClassroom(
+            req.params.id,
+            payload,
+            revision,
+            label,
+            req.user
+        );
+        if (!result.ok) {
+            if (result.status === 409) {
+                res.status(409).json({ conflict: true, document: result.document });
+                return;
+            }
+            res.status(result.status || 500).json({ error: result.error || 'Update failed' });
+            return;
+        }
+        res.json(result.document);
+        return;
+    }
     if (dayNotesOnly) {
         if (!Array.isArray(dayNotes)) {
             res.status(400).json({ error: 'dayNotes array is required' });

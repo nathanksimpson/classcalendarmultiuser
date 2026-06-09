@@ -4,17 +4,17 @@
 (function (global) {
     const TAB_SCRIPTS = {
         cohorts: [
-            'js/teacher-timetable.js?v=20260603-title-rename',
+            'js/teacher-timetable.js?v=20260609-combine-match',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260608-cohorts-summary-caret',
+            'js/cohort-management.js?v=20260612-cohort-homeroom-crosssave',
             'js/setup-board.js?v=20260603-title-rename'
         ],
         timetable: [
-            'js/teacher-timetable.js?v=20260611-timetable-context',
+            'js/teacher-timetable.js?v=20260609-combine-match',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
-            'js/teacher-timetable.js?v=20260611-timetable-context',
+            'js/teacher-timetable.js?v=20260609-combine-match',
             'js/teacher-management.js?v=20260610-setup-board',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
@@ -22,8 +22,28 @@
         classes: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         syllabus: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         calendar: [
-            'js/teacher-timetable.js?v=20260611-timetable-context',
+            'js/teacher-timetable.js?v=20260609-combine-match',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
+        ],
+        students: [
+            'js/roster-import.js?v=20260612-roster-import',
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-mvp',
+            'js/classroom-roster.js?v=20260612-roster-import-fix'
+        ],
+        attendance: [
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-mvp',
+            'js/classroom-student-index.js?v=20260612-classroom-mvp',
+            'js/classroom-header.js?v=20260612-classroom-mvp',
+            'js/classroom-attendance.js?v=20260612-classroom-mvp'
+        ],
+        'homework-tracking': [
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-mvp',
+            'js/classroom-student-index.js?v=20260612-classroom-mvp',
+            'js/classroom-header.js?v=20260612-classroom-mvp',
+            'js/classroom-homework.js?v=20260612-classroom-mvp'
         ]
     };
 

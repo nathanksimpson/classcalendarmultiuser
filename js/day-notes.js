@@ -29,6 +29,10 @@
         if (authorUserId) {
             out.authorUserId = authorUserId;
         }
+        const homeroomNotifyUserId = String(raw.homeroomNotifyUserId || '').trim();
+        if (homeroomNotifyUserId) {
+            out.homeroomNotifyUserId = homeroomNotifyUserId;
+        }
         return out;
     }
 

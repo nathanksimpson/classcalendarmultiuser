@@ -550,6 +550,34 @@
         return deriveTeacherCategory(classData);
     }
 
+    function resolveHomeroomUserIdForClass(classData, appData) {
+        if (!classData) {
+            return '';
+        }
+        const classHrUid = normalizeStr(classData.homeroomTeacherUserId);
+        if (classHrUid) {
+            return classHrUid;
+        }
+        const cohorts = (appData && appData.cohorts) || [];
+        const cohortsById = {};
+        cohorts.forEach((c) => {
+            if (c && c.id) {
+                cohortsById[c.id] = c;
+            }
+        });
+        const cohortIds = getClassCohortIds(classData);
+        for (let i = 0; i < cohortIds.length; i += 1) {
+            const cohort = cohortsById[cohortIds[i]];
+            if (cohort) {
+                const hrUid = normalizeStr(cohort.homeroomTeacherUserId);
+                if (hrUid) {
+                    return hrUid;
+                }
+            }
+        }
+        return '';
+    }
+
     function resolveHomeroomLabel(classData, cohortsById) {
         if (!classData) {
             return '';
@@ -645,24 +673,59 @@
         }
     }
 
+    function teacherRefKeyFromRow(row) {
+        const uid = normalizeStr(row.userId);
+        const name = normalizeStr(row.name);
+        return uid || (name ? name.toLowerCase() : '');
+    }
+
+    function isCombinableAcrossCohortsClassType(classTypeId) {
+        const id = normalizeStr(classTypeId);
+        if (!id) {
+            return false;
+        }
+        const g = typeof global !== 'undefined' ? global : null;
+        const matrix = g && g.CCPScheduleMatrix ? g.CCPScheduleMatrix : null;
+        if (!matrix || !matrix.getMatrix) {
+            return false;
+        }
+        const tracks = matrix.getMatrix().builtinSubjectTracks || {};
+        return Object.keys(tracks).some((key) => {
+            const entry = tracks[key];
+            return entry && normalizeStr(entry.classTypeId) === id;
+        });
+    }
+
+    function classesShareAssignedTeacher(classA, classB) {
+        const keysA = new Set();
+        getClassTeachersList(classA).forEach((row) => {
+            const key = teacherRefKeyFromRow(row);
+            if (key) {
+                keysA.add(key);
+            }
+        });
+        if (!keysA.size) {
+            return false;
+        }
+        return getClassTeachersList(classB).some((row) => {
+            const key = teacherRefKeyFromRow(row);
+            return key && keysA.has(key);
+        });
+    }
+
     function classesMatchForCombine(classA, classB) {
         if (!classA || !classB || classA.id === classB.id) {
             return false;
         }
         const typeA = normalizeStr(classA.classTypeId);
         const typeB = normalizeStr(classB.classTypeId);
-        if (typeA && typeB && typeA === typeB) {
-            return true;
-        }
-        const nameA = normalizeStr(classA.name).toLowerCase();
-        const nameB = normalizeStr(classB.name).toLowerCase();
-        if (!nameA || !nameB) {
+        if (!typeA || typeA !== typeB) {
             return false;
         }
-        const strip = (n) => n.replace(/^[^·]+·\s*/i, '').trim();
-        const coreA = strip(nameA);
-        const coreB = strip(nameB);
-        return coreA && coreB && coreA === coreB;
+        if (!isCombinableAcrossCohortsClassType(typeA)) {
+            return false;
+        }
+        return classesShareAssignedTeacher(classA, classB);
     }
 
     function getClassesForCohort(appData, cohortId) {
@@ -693,7 +756,7 @@
             );
             if (match) {
                 usedB.add(match.id);
-                const matchKey = normalizeStr(classA.classTypeId) || normalizeStr(classA.name);
+                const matchKey = normalizeStr(classA.classTypeId);
                 pairs.push({ classA, classB: match, matchKey });
             }
         });
@@ -793,12 +856,6 @@
             }
         }
         return normalizeMeetingDaysArray(cohort.meetingDays).filter((d) => d >= 1 && d <= 5);
-    }
-
-    function teacherRefKeyFromRow(row) {
-        const uid = normalizeStr(row.userId);
-        const name = normalizeStr(row.name);
-        return uid || (name ? name.toLowerCase() : '');
     }
 
     function classLabelForWarning(classData) {
@@ -1580,6 +1637,7 @@
         deriveTeacherCategory,
         getClassTeachersList,
         resolveHomeroomLabel,
+        resolveHomeroomUserIdForClass,
         getTeacherCategoryForClass,
         listTeachersFromAppData,
         suggestCohortsFromClasses,

@@ -1,0 +1,1473 @@
+Bada T
+1. 잠동 
+Test Point
+촬영 알림
+김테가
+(Stuaez)
+SMS
+ 
+ 
+2. 경복 
+Test Point
+촬영 알림
+이테가
+(Stuafz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+
+
+
+Garam T
+1. 오륜 
+Test Point
+촬영 알림
+박테가
+(Stuboz)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+최테가
+(Stuagz)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+정테가
+(Studpz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 지각:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Yeoul T
+ 
+
+
+ 전체선택 
+1. 잠동 
+Test Point
+촬영 알림
+강테가
+(Studqz)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+조테가B
+(Stuctz)
+SMS
+ 
+ 
+3. 잠동 
+Test Point
+촬영 알림
+윤테가
+(Studrz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+장테가
+(Stubpz)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+임테가
+(Stubqz)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+김테나
+(Stuahz)
+SMS
+ 
+ 
+7. 강변 
+Test Point
+촬영 알림
+이테나
+(Stubrz)
+SMS
+ 
+ 
+8. 잠현 
+Test Point
+촬영 알림
+박테나
+(Stuaiz)
+SMS
+ 
+ 
+9. 잠실 
+Test Point
+촬영 알림
+최테나★
+수호X (Stuajz)
+SMS
+ 
+ 
+10. 잠동 
+Test Point
+촬영 알림
+정테나◆
+(Stuakz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+
+
+Saemmul T
+1. 잠동 
+Test Point
+촬영 알림
+조테가A
+(Stualz)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+강테나
+(Stuamz)
+SMS
+ 
+ 
+3. 잠동 
+Test Point
+촬영 알림
+조테나
+(Stuanz)
+SMS
+ 
+ 
+4. 잠동 
+Test Point
+촬영 알림
+윤테나
+(Stubsz)
+SMS
+ 
+ 
+5. 잠동 
+Test Point
+촬영 알림
+장테나
+(Stuaoz)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+임테나★
+수호O (Stuapz)
+SMS
+ 
+ 
+7. 오륜 
+Test Point
+촬영 알림
+김테다
+(Stuaqz)
+SMS
+ 
+ 
+8. 잠현 
+Test Point
+촬영 알림
+이테다★
+수호O (Stuarz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Purple T
+1. 잠실 
+Test Point
+촬영 알림
+박테다
+(Stubtz)
+SMS
+ 
+ 
+2. 잠현 
+Test Point
+촬영 알림
+최테다★
+수호O (Stuasz)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+정테다
+(Stubuz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+강테다★
+수호O (Stuatz)
+SMS
+ 
+ 
+5. 중대 
+Test Point
+촬영 알림
+조테다
+(Stuauz)
+SMS
+ 
+ 
+6. 잠실 
+Test Point
+촬영 알림
+윤테다
+(Stucuz)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+장테다
+(Studsz)
+SMS
+ 
+ 
+8. 잠동 
+Test Point
+촬영 알림
+임테다
+(Studtz)
+SMS
+ 
+ 
+9. 잠동 
+Test Point
+촬영 알림
+김테라★
+수호O (Stuavz)
+SMS
+ 
+ 
+10. 잠실 
+Test Point
+촬영 알림
+이테라
+(Stucvz)
+SMS
+ 
+ 
+11. 토성 
+Test Point
+촬영 알림
+박테라
+(Stucwz)
+SMS
+ 
+ 
+12. 잠실 
+Test Point
+촬영 알림
+최테라★
+수호O (Stuawz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Navy T
+1. 잠현 
+Test Point
+촬영 알림
+정테라
+(Studuz)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+강테라
+(Stucxz)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+조테라
+(Stubvz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+윤테라
+(Stubwz)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+장테라A
+(Stubxz)
+SMS
+ 
+ 
+6. 오륜 
+Test Point
+촬영 알림
+임테라
+(Stucyz)
+SMS
+ 
+ 
+7. 오륜 
+Test Point
+촬영 알림
+김테마★
+수호O (Stubyz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Blue T
+1. 서울 
+Test Point
+촬영 알림
+이테마
+(Stuczz)
+SMS
+ 
+ 
+2. 오륜 
+Test Point
+촬영 알림
+박테마
+(Studvz)
+SMS
+ 
+ 
+3. 오륜 
+Test Point
+촬영 알림
+최테마
+(Stubzz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+정테마★
+수호X (Stucaz)
+SMS
+ 
+ 
+5. 잠실 
+Test Point
+촬영 알림
+강테마
+(Studwz)
+SMS
+ 
+ 
+6. 오륜 
+Test Point
+촬영 알림
+조테마
+(Studaz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:2,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Orange M
+1. 송파 
+Test Point
+촬영 알림
+윤테마
+(Stuaxz)
+SMS
+ 
+ 
+2. 송파 
+Test Point
+촬영 알림
+장테마
+(Stucbz)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+임테마
+(Studbz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+김테바
+(Studcz)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+이테바
+(Stuccz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Green M
+1. 잠실 
+Test Point
+촬영 알림
+박테바
+(Studdz)
+SMS
+ 
+ 
+2. 잠현 
+Test Point
+촬영 알림
+최테바
+(Studpz)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+정테바
+(Studrz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+강테바
+(Stuayz)
+SMS
+ 
+ 
+5. 토성 
+Test Point
+촬영 알림
+조테바
+수호X ()
+SMS
+ 
+ 
+6. 잠실 
+Test Point
+촬영 알림
+윤테바
+(Stucdz)
+SMS
+ 
+ 
+7. 잠현 
+Test Point
+촬영 알림
+장테바★
+수호O (Stuazz)
+SMS
+ 
+ 
+8. 잠현 
+Test Point
+촬영 알림
+임테바★
+수호O (Stucez)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+2026-06-10 부터 수업시작
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Navy M
+1. 잠현 
+Test Point
+촬영 알림
+김테사
+(Stubaz)
+SMS
+ 
+ 
+2. 오륜 
+Test Point
+촬영 알림
+이테사
+(Stubbz)
+SMS
+ 
+ 
+3. 잠동 
+Test Point
+촬영 알림
+박테사
+(Studez)
+SMS
+ 
+ 
+4. 풍성 
+Test Point
+촬영 알림
+최테사★
+수호O (Stucfz)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+정테사
+(Stucgz)
+SMS
+ 
+ 
+6. 잠동 
+Test Point
+촬영 알림
+강테사★
+수호O (Stubcz)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+조테사
+(Stuchz)
+SMS
+ 
+ 
+8. 잠동 
+Test Point
+촬영 알림
+윤테사★
+수호O (Stubdz)
+SMS
+ 
+ 
+9. 잠현 
+Test Point
+촬영 알림
+장테사
+(Stuciz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:9
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Purple M
+1. 잠실 
+Test Point
+촬영 알림
+임테사
+(Stubez)
+SMS
+ 
+ 
+2. 위별 
+Test Point
+촬영 알림
+김테아
+(Studfz)
+SMS
+ 
+ 
+3. 잠현 
+Test Point
+촬영 알림
+이테아
+(Stubfz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+장테라B
+(Stucjz)
+SMS
+ 
+ 
+5. 성수 
+Test Point
+촬영 알림
+박테아
+(Stubgz)
+SMS
+ 
+ 
+6. 잠실 
+Test Point
+촬영 알림
+최테아
+(Stubhz)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+정테아
+(Studgz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Saemmul M
+1. 잠동 
+Test Point
+촬영 알림
+강테아
+(Stubiz)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+조테아
+(Stuckz)
+SMS
+ 
+ 
+3. 잠현 
+Test Point
+촬영 알림
+윤테아
+(Studhz)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+장테아★
+수호O (Studiz)
+SMS
+ 
+ 
+5. 잠동 
+Test Point
+촬영 알림
+임테아
+(Studjz)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+김테자
+(Stubjz)
+SMS
+ 
+ 
+7. 잠동 
+Test Point
+촬영 알림
+이테자★
+수호O ()
+SMS
+ 
+ 
+8. 성동 
+Test Point
+촬영 알림
+박테자
+(Stuclz)
+SMS
+ 
+ 
+9. 잠동 
+Test Point
+촬영 알림
+최테자
+(Studkz)
+SMS
+ 
+ 
+10. 잠현 
+Test Point
+촬영 알림
+정테자
+(Stucmz)
+SMS
+ 
+ 
+11. 잠실 
+Test Point
+촬영 알림
+강테자
+(Stubkz)
+SMS
+ 
+ 
+12. 잠실 
+Test Point
+촬영 알림
+조테자
+(Studxz)
+SMS
+ 
+ 
+13. 잠실 
+Test Point
+촬영 알림
+윤테자
+(Studlz)
+SMS
+ 
+ 
+14. 잠실 
+Test Point
+촬영 알림
+장테자
+(Stucnz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Yeoul M
+1. 잠동 
+Test Point
+촬영 알림
+임테자★
+수호O (Studmz)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+김테차
+(Stucoz)
+SMS
+ 
+ 
+3. 잠현 
+Test Point
+촬영 알림
+이테차
+(Stublz)
+SMS
+ 
+ 
+4. 잠동 
+Test Point
+촬영 알림
+박테차
+(Stucpz)
+SMS
+ 
+ 
+5. 잠실 
+Test Point
+촬영 알림
+최테차
+(Stubmz)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+정테차
+(Stubnz)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+강테차★
+수호O (Stuaoz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Garam M
+1. 위례 
+Test Point
+촬영 알림
+조테차★
+수호X (Stucqz)
+SMS
+ 
+ 
+2. 잠현 
+Test Point
+촬영 알림
+윤테차
+(Studnz)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+장테차
+(Stuciz)
+SMS
+ 
+ 
+4. 잠현 
+Test Point
+촬영 알림
+임테차
+(Stucrz)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:8
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+Byeolmaru M
+김테카
+Stucsz

@@ -1,10 +1,10 @@
-# Calendar export JSON schema (schemaVersion 2)
+# Calendar export JSON schema (schemaVersion 3)
 
 ## Top level
 
 | Field | Type | Notes |
 |-------|------|--------|
-| `schemaVersion` | number | Currently `2` |
+| `schemaVersion` | number | Currently `3` (classroom MVP adds attendance + homework tracking) |
 | `calendarName` | string | Display title |
 | `termStart` | string | `YYYY-MM` term start month |
 | `termMonthCount` | number | 3–6 months shown |
@@ -23,6 +23,13 @@
 | `timetableTimeSlots` | array | Clock times for weekly timetable rows — see below |
 | `periodSlotMap` | object | Maps class period `"1"`…`"7"` to `timetableTimeSlots[].id` |
 | `dayNotes` | array | Daily class log entries from the calendar (see below) |
+| `attendanceSessions` | array | Per-class daily attendance (see below) — schema v3 |
+| `homeworkCompletions` | array | Per-assignment homework grades (see below) — schema v3 |
+| `studentPoints` | array | Phase 2 stub — point ledger entries (empty on migrate) |
+| `studentTests` | array | Phase 2 stub — test scores |
+| `portfolioRecordings` | array | Phase 2 stub — lesson recordings |
+| `portfolioEntries` | array | Phase 2 stub — portfolio essays / news |
+| `smsLog` | array | Phase 2 stub — SMS send log |
 
 `holidays` may appear in old exports; on load they are merged into `events`. New saves omit `holidays` (derived in memory from `events`).
 
@@ -38,6 +45,7 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 | `text` | string | Note body |
 | `createdAt` | string | ISO-8601 datetime when saved |
 | `authorUserId` | string | Optional. Team user id of the teacher who created the note; stamped on save. Co-teachers may read all notes for a class/day but only edit or delete their own (admins with calendar-access management may bypass). Entries without this field are legacy (editable by admins only). |
+| `homeroomNotifyUserId` | string | Optional. When a co-teacher saves a new note, the app stamps the cohort/class 담임 user id so the homeroom teacher gets an in-app bell notification. Omitted when the author is the homeroom teacher or no 담임 is linked. |
 
 **Not the same as** `classes[].notes` (static class memo in the class editor).
 
@@ -59,6 +67,65 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 | `homeroomTeacherUserId` | string | 담임 — app user id |
 | `homeroomTeacherName` | string | Free-text fallback |
 | `homeroomDaySuffix` | string | Shown in timetable header (e.g. `M`, `T`) |
+| `isArchiveCohort` | boolean | Optional. `true` on the system **student archive** cohort (`id`: `cohort-student-archive`). Not linked to classes; holds inactive/archived students. Auto-created on migrate. |
+| `students[]` | array | Optional. Individual students in this cohort (schema v3) — see below |
+
+**Student archive cohort:** One per calendar (`cohort-student-archive`). Students on break, not yet started, or who left are moved here via Classroom → Students. They do not appear on attendance or homework until restored to an active cohort. Permanent delete requires admin password and purges that student's attendance/homework records.
+
+#### `cohorts[].students[]` (optional, schema v3)
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `name` | string | Korean display name |
+| `nameEn` | string | English name (optional) |
+| `locationTag` | string | Branch tag, e.g. 잠동 |
+| `sortOrder` | number | List order |
+| `active` | boolean | `false` = deactivated (hidden from attendance/homework) |
+| `tags[]` | string[] | `interested`, `new`, `ending_soon`, `starting_soon` |
+| `memo` | string | Persistent note (pickup address, etc.) |
+| `archivedAt` | string | ISO-8601 when moved to archive cohort (empty when active) |
+| `archiveReason` | string | `break`, `new`, `left`, `starting_soon` |
+| `expectedStartDate` | string | `YYYY-MM-DD` when `archiveReason` is `starting_soon` |
+
+### `attendanceSessions[]` (optional, schema v3)
+
+One record per class per calendar day. Saved via `classroomOnly` partial PUT (does not require full calendar edit lock).
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `classId` | string | Links to `classes[].id` |
+| `date` | string | `YYYY-MM-DD` |
+| `records[]` | array | `{ studentId, status, sessionNote }` — status: `present`, `late`, `absent`, `early_leave` |
+| `authorUserId` | string | Last editor (stamped on save) |
+| `updatedAt` | string | ISO-8601 |
+
+### `homeworkCompletions[]` (optional, schema v3)
+
+One record per class per syllabus lesson row (assignment). Keyed by `classId` + `syllabusRowId` (syllabus row `id` or fallback `date|sessionNumber|planTitle`).
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `classId` | string | Links to `classes[].id` |
+| `syllabusRowId` | string | Links to a lesson row in `classes[].syllabusRows` |
+| `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
+| `records[]` | array | `{ studentId, grade, selfCheck, parentCheck, note }` — grade: `A`–`F`, `N`, `X`; selfCheck: `none`, `not_checked`, `satisfied` |
+| `authorUserId` | string | Last editor |
+| `updatedAt` | string | ISO-8601 |
+
+### Phase 2 stubs (schema v3, not used in MVP UI)
+
+Initialized as empty arrays on migrate. Reserved for points, tests, portfolio, SMS.
+
+| Array | Intended use |
+|-------|----------------|
+| `studentPoints[]` | Point ledger (+/- per student) |
+| `studentTests[]` | Mock test / listening scores |
+| `portfolioRecordings[]` | Lesson recording metadata |
+| `portfolioEntries[]` | Portfolio essays, news clips |
+| `smsLog[]` | Outbound SMS audit trail |
 
 **Setup workflow:** Create cohorts on the **Cohorts** tab (Setup group), generate subject classes from the schedule matrix, then assign teachers on the **Teachers** tab. A class may be saved **without** a cohort (`cohortId` / `cohortIds` empty); link later via the Cohorts board drag-and-drop pool or the cohort class catalog (Apply). Warnings in the class editor are informational — only class name is required to save.
 
@@ -90,6 +157,7 @@ Stored in calendar JSON and mirrored to `localStorage` for quick restore. Not re
 | `timetableTabTeacherName` | string | Fallback display name when matching legacy assignments |
 | `teachersTabTeacherUserId` | string | Selected teacher on Teachers tab (head teacher / admin) |
 | `teachersTabTeacherName` | string | Fallback display name on Teachers tab |
+| `studentArchiveRetentionDays` | number | Days after `archivedAt` before UI warns (warn only; default 90). Admin-only setting on Classroom → Students. |
 | `lessonFilters` | object | See below |
 
 ### `ui.lessonFilters` (optional)

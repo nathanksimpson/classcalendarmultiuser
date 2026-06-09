@@ -81,4 +81,51 @@ const editLegacy = DayNotesAccess.prepareDayNotesForSave(user2, calendarData, [
 ]);
 assert(editLegacy.error && editLegacy.error.includes('author tracking'), 'u2 cannot edit legacy note');
 
+const addWithHr = DayNotesAccess.prepareDayNotesForSave(user2, calendarData, [
+    ...calendarData.dayNotes,
+    {
+        id: 'n3',
+        classId: 'c1',
+        date: '2026-06-02',
+        text: 'Notify HR',
+        createdAt: '2026-06-02T10:00:00.000Z',
+        homeroomNotifyUserId: 'hr1'
+    }
+]);
+assert(!addWithHr.error, 'u2 can add note with homeroom notify');
+assert(
+    addWithHr.dayNotes.find((n) => n.id === 'n3').homeroomNotifyUserId === 'hr1',
+    'homeroom notify stamped on new note'
+);
+
+const calendarWithHrNote = {
+    classes: calendarData.classes,
+    dayNotes: addWithHr.dayNotes
+};
+
+const nextNotesWithHrChange = calendarWithHrNote.dayNotes.map((note) => {
+    if (note.id !== 'n3') {
+        return note;
+    }
+    return Object.assign({}, note, {
+        text: 'Changed HR target',
+        homeroomNotifyUserId: 'hr2'
+    });
+});
+const editHr = DayNotesAccess.prepareDayNotesForSave(user2, calendarWithHrNote, nextNotesWithHrChange);
+assert(editHr.error && editHr.error.includes('homeroom'), 'cannot change homeroom notify on edit');
+
+const nextNotesPreserveHr = calendarWithHrNote.dayNotes.map((note) => {
+    if (note.id !== 'n3') {
+        return note;
+    }
+    return Object.assign({}, note, { text: 'Text only edit' });
+});
+const preserveHr = DayNotesAccess.prepareDayNotesForSave(user2, calendarWithHrNote, nextNotesPreserveHr);
+assert(!preserveHr.error, 'u2 can edit own note text');
+assert(
+    preserveHr.dayNotes.find((n) => n.id === 'n3').homeroomNotifyUserId === 'hr1',
+    'homeroom notify preserved on edit'
+);
+
 console.log('day-notes-access.test.mjs: all passed');
