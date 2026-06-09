@@ -337,7 +337,7 @@ function toggleTheme() {
 // ============================================
 // Data Storage
 // ============================================
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const EVENT_TYPES = {
     HOLIDAY: 'holiday',
@@ -451,6 +451,13 @@ function getDefaultAppData() {
         termMonthCount: 3,
         calendarName: '',
         dayNotes: [],
+        attendanceSessions: [],
+        homeworkCompletions: [],
+        studentPoints: [],
+        studentTests: [],
+        portfolioRecordings: [],
+        portfolioEntries: [],
+        smsLog: [],
         ui: {
             visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
             printVisibility: { ...DEFAULT_VISIBILITY_FILTERS },
@@ -2717,6 +2724,7 @@ function updateScheduleAdjustmentBarNotification(classData, surface) {
     if (details.open) {
         el.hidden = true;
         el.textContent = '';
+        el.innerHTML = '';
         el.className = 'schedule-adjustment-bar-notification';
         return;
     }
@@ -2725,14 +2733,16 @@ function updateScheduleAdjustmentBarNotification(classData, surface) {
         || (effective.customSchedule && effective.customSchedule.enabled)) {
         el.hidden = true;
         el.textContent = '';
+        el.innerHTML = '';
         el.className = 'schedule-adjustment-bar-notification';
         return;
     }
     const gap = getClassScheduleGapStatus(effective);
     if (gap.incomplete) {
-        el.textContent = t('scheduleGapBarNotification')
+        const msg = t('scheduleGapBarNotification')
             .replace('{unplaced}', gap.unplacedLessonNumbers.length)
             .replace('{total}', gap.totalLessons);
+        el.innerHTML = `<span class="inline-warn-badge" aria-hidden="true">!</span><span class="schedule-adjustment-bar-notification-text">${escapeHtml(msg)}</span>`;
         el.className = 'schedule-adjustment-bar-notification schedule-adjustment-bar-notification--warn';
         el.hidden = false;
         return;
@@ -2753,7 +2763,13 @@ function updateScheduleAdjustmentBarNotification(classData, surface) {
     }
     el.hidden = true;
     el.textContent = '';
+    el.innerHTML = '';
     el.className = 'schedule-adjustment-bar-notification';
+}
+
+function inlineWarnBadgeHtml(title) {
+    const safeTitle = title ? ` title="${escapeAttr(title)}"` : '';
+    return `<span class="inline-warn-badge"${safeTitle}>!</span>`;
 }
 
 function initScheduleAdjustmentDetailsToggle(surface) {
@@ -4126,6 +4142,24 @@ function ensureUiState() {
     if (typeof appData.ui.homeworkTabClassId !== 'string') {
         appData.ui.homeworkTabClassId = '';
     }
+    if (typeof appData.ui.classroomTabClassId !== 'string') {
+        appData.ui.classroomTabClassId = '';
+    }
+    if (typeof appData.ui.classroomTabDate !== 'string') {
+        appData.ui.classroomTabDate = '';
+    }
+    if (typeof appData.ui.classroomTabSyllabusRowId !== 'string') {
+        appData.ui.classroomTabSyllabusRowId = '';
+    }
+    if (typeof appData.ui.classroomTabCohortId !== 'string') {
+        appData.ui.classroomTabCohortId = '';
+    }
+    if (!Number.isFinite(appData.ui.studentArchiveRetentionDays)) {
+        appData.ui.studentArchiveRetentionDays =
+            typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.DEFAULT_ARCHIVE_RETENTION_DAYS
+                ? CCPClassroomDomain.DEFAULT_ARCHIVE_RETENTION_DAYS
+                : 90;
+    }
     if (typeof appData.ui.timetableTabTeacherUserId !== 'string') {
         appData.ui.timetableTabTeacherUserId = '';
     }
@@ -4174,12 +4208,9 @@ function ensureUiState() {
     if (typeof appData.ui.activeSegment !== 'string') {
         appData.ui.activeSegment = '';
     }
-    if (appData.ui.activeZone === APP_ZONE_MORE && appData.ui.activeSegment === 'events') {
-        appData.ui.activeZone = APP_ZONE_SCHEDULE;
-    }
-    if (appData.ui.activeZone === APP_ZONE_CONTENT && appData.ui.activeSegment === 'homework') {
-        appData.ui.activeZone = APP_ZONE_SCHEDULE;
-    }
+    const migratedZone = normalizeLegacyZoneAndSegment(appData.ui.activeZone, appData.ui.activeSegment);
+    appData.ui.activeZone = migratedZone.zone;
+    appData.ui.activeSegment = migratedZone.segment;
     appData.ui.cohortsUsageTipsDismissed = !!appData.ui.cohortsUsageTipsDismissed;
     if (appData.ui.cohortsExtraCollapsed === undefined) {
         appData.ui.cohortsExtraCollapsed = false;
@@ -6360,6 +6391,28 @@ function resolveDayNoteMeta(classId, displayNameOverride) {
     };
 }
 
+function resolveHomeroomUserIdForClass(classData) {
+    const api = getTimetableApi();
+    if (api && typeof api.resolveHomeroomUserIdForClass === 'function') {
+        return api.resolveHomeroomUserIdForClass(classData, appData) || '';
+    }
+    if (!classData) {
+        return '';
+    }
+    const classHr = String(classData.homeroomTeacherUserId || '').trim();
+    if (classHr) {
+        return classHr;
+    }
+    const cohortId = String(classData.cohortId || '').trim();
+    if (cohortId) {
+        const cohort = (appData.cohorts || []).find((c) => c && c.id === cohortId);
+        if (cohort) {
+            return String(cohort.homeroomTeacherUserId || '').trim();
+        }
+    }
+    return '';
+}
+
 function resolveDayNoteSearchHay(classId) {
     const meta = resolveDayNoteMeta(classId);
     return [meta.className, meta.subject].filter(Boolean).join(' ');
@@ -6775,14 +6828,24 @@ function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     }
     ensureDayNotesArray();
     const actorId = getDayNotesActorUserId();
-    const entry = api.normalizeDayNote({
+    const classData = appData.classes.find((c) => c && c.id === classId);
+    const hrUserId = resolveHomeroomUserIdForClass(classData);
+    const isAuthorHr = Boolean(actorId && hrUserId && actorId === hrUserId);
+    const noteRaw = {
         id: generateId(),
         classId,
         date: dateStr,
         text,
         createdAt: createdAt || new Date().toISOString(),
         authorUserId: actorId || undefined
-    });
+    };
+    let showNoHrWarning = false;
+    if (!isAuthorHr && hrUserId) {
+        noteRaw.homeroomNotifyUserId = hrUserId;
+    } else if (!isAuthorHr && actorId && !hrUserId) {
+        showNoHrWarning = true;
+    }
+    const entry = api.normalizeDayNote(noteRaw);
     if (!entry) {
         return false;
     }
@@ -6798,6 +6861,10 @@ function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     if (!isNotesPage()) {
         refreshNotesPageIfMounted();
     }
+    if (showNoHrWarning) {
+        showSyncToast(t('dayNoteNoHomeroomWarning'), false);
+    }
+    scheduleTabWarningsRefresh();
     return true;
 }
 
@@ -9495,7 +9562,7 @@ function collectCompressionMergesByPeriodFromForm(surface) {
 const APP_HOST_TEACHING = 'teaching';
 const APP_HOST_SETUP = 'setup';
 const APP_SHARED_TAB_IDS = ['calendar', 'classes'];
-const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'timetable'];
+const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'timetable', 'students', 'attendance', 'homework-tracking'];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts & teachers only). */
 const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
@@ -9505,18 +9572,47 @@ const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP
 
 const APP_ZONE_SCHEDULE = 'schedule';
 const APP_ZONE_CLASSES = 'classes';
-const APP_ZONE_CONTENT = 'content';
-const APP_ZONE_JOURNAL = 'journal';
+const APP_ZONE_CLASSROOM = 'classroom';
 const APP_ZONE_MORE = 'more';
-const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CONTENT, APP_ZONE_JOURNAL, APP_ZONE_MORE];
+const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CLASSROOM, APP_ZONE_MORE];
 
 const ZONE_SEGMENT_TO_TAB = {
-    schedule: { calendar: 'calendar', homework: 'homework', timetable: 'timetable', events: 'events' },
-    classes: { classes: 'classes', cohorts: 'cohorts' },
-    content: { curriculum: 'curriculum', syllabus: 'syllabus' },
-    journal: { notes: 'notes' },
-    more: { teachers: 'teachers', data: 'data' }
+    schedule: { calendar: 'calendar', homework: 'homework', timetable: 'timetable' },
+    classes: {
+        classes: 'classes',
+        cohorts: 'cohorts',
+        events: 'events',
+        teachers: 'teachers',
+        curriculum: 'curriculum',
+        syllabus: 'syllabus'
+    },
+    classroom: { students: 'students', attendance: 'attendance', homework: 'homework-tracking', notes: 'notes' },
+    more: { data: 'data' }
 };
+
+/** Map removed zones (content, journal) and relocated segments for bookmarks and saved UI state. */
+function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
+    let zone = typeof zoneId === 'string' ? zoneId : '';
+    let segment = typeof segmentId === 'string' ? segmentId : '';
+    if (zone === 'content') {
+        zone = APP_ZONE_CLASSES;
+        if (segment === 'homework') {
+            zone = APP_ZONE_SCHEDULE;
+        }
+    } else if (zone === 'journal') {
+        zone = APP_ZONE_CLASSROOM;
+        if (!segment) {
+            segment = 'notes';
+        }
+    }
+    if (segment === 'events' && (zone === APP_ZONE_SCHEDULE || zone === APP_ZONE_MORE)) {
+        zone = APP_ZONE_CLASSES;
+    }
+    if (segment === 'teachers' && zone === APP_ZONE_MORE) {
+        zone = APP_ZONE_CLASSES;
+    }
+    return { zone, segment };
+}
 
 const TAB_TO_ZONE_SEGMENT = (() => {
     const map = {};
@@ -9534,11 +9630,14 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     classes: { zone: APP_ZONE_CLASSES, segment: 'classes' },
     cohorts: { zone: APP_ZONE_CLASSES, segment: 'cohorts' },
     homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
-    notes: { zone: APP_ZONE_JOURNAL, segment: 'notes' },
-    curriculum: { zone: APP_ZONE_CONTENT, segment: 'curriculum' },
-    syllabus: { zone: APP_ZONE_CONTENT, segment: 'syllabus' },
-    events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
-    teachers: { zone: APP_ZONE_MORE, segment: 'teachers' },
+    notes: { zone: APP_ZONE_CLASSROOM, segment: 'notes' },
+    students: { zone: APP_ZONE_CLASSROOM, segment: 'students' },
+    attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
+    'homework-tracking': { zone: APP_ZONE_CLASSROOM, segment: 'homework' },
+    curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
+    syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
+    events: { zone: APP_ZONE_CLASSES, segment: 'events' },
+    teachers: { zone: APP_ZONE_CLASSES, segment: 'teachers' },
     data: { zone: APP_ZONE_MORE, segment: 'data' }
 };
 
@@ -9569,10 +9668,7 @@ function canAccessZone(zoneId) {
     if (zoneId === APP_ZONE_MORE) {
         return canAccessSetupHost();
     }
-    if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_CONTENT) {
-        return true;
-    }
-    if (zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_JOURNAL) {
+    if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_CLASSROOM) {
         return true;
     }
     return canAccessSetupHost();
@@ -9580,8 +9676,15 @@ function canAccessZone(zoneId) {
 
 function canAccessZoneSegment(zoneId, segmentId) {
     if (isViewportPhone()) {
-        if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_CONTENT || zoneId === APP_ZONE_MORE) {
-            if (segmentId === 'cohorts' || segmentId === 'curriculum' || segmentId === 'syllabus' || segmentId === 'teachers' || segmentId === 'data') {
+        if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_MORE) {
+            if (
+                segmentId === 'cohorts' ||
+                segmentId === 'curriculum' ||
+                segmentId === 'syllabus' ||
+                segmentId === 'teachers' ||
+                segmentId === 'events' ||
+                segmentId === 'data'
+            ) {
                 return false;
             }
         }
@@ -9644,18 +9747,20 @@ function syncZoneNavPermissions() {
     if (cohortsSeg) {
         cohortsSeg.hidden = !canAccessTeachersTab();
     }
-    const morePanel = document.getElementById('zoneSegments-more');
-    if (morePanel) {
-        morePanel.querySelectorAll('.app-zone-segment-btn[data-segment="teachers"]').forEach((el) => {
+    const classesPanel = document.getElementById('zoneSegments-classes');
+    if (classesPanel) {
+        classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="teachers"]').forEach((el) => {
             el.hidden = !canAccessTeachersTab();
         });
-        morePanel.querySelectorAll('.app-zone-segment-btn[data-segment="data"]').forEach((el) => {
+        classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="events"]').forEach((el) => {
             el.hidden = !canAccessSetupHost();
         });
     }
-    const eventsSeg = document.querySelector('.app-zone-segment-btn[data-segment="events"]');
-    if (eventsSeg) {
-        eventsSeg.hidden = !canAccessSetupHost();
+    const morePanel = document.getElementById('zoneSegments-more');
+    if (morePanel) {
+        morePanel.querySelectorAll('.app-zone-segment-btn[data-segment="data"]').forEach((el) => {
+            el.hidden = !canAccessSetupHost();
+        });
     }
     const adminAcct = document.getElementById('teamAdminLink');
     const showAdmin = typeof TeamAuth !== 'undefined' && TeamAuth.canAccessAdmin && TeamAuth.canAccessAdmin();
@@ -9665,6 +9770,9 @@ function syncZoneNavPermissions() {
 }
 
 function navigateToZone(zoneId, segmentId, options = {}) {
+    const normalized = normalizeLegacyZoneAndSegment(zoneId, segmentId);
+    zoneId = normalized.zone;
+    segmentId = normalized.segment;
     if (!APP_ZONE_IDS.includes(zoneId)) {
         zoneId = APP_ZONE_SCHEDULE;
     }
@@ -9693,7 +9801,7 @@ function resolveZoneFromUrl() {
         if (params.get('contentExpanded') === '1') {
             document.documentElement.setAttribute('data-content-expanded', '1');
         }
-        if (zone && APP_ZONE_IDS.includes(zone)) {
+        if (zone) {
             const opts = {};
             if (params.get('classId')) {
                 opts.classId = params.get('classId');
@@ -9701,13 +9809,12 @@ function resolveZoneFromUrl() {
             if (params.get('book')) {
                 opts.curriculumId = params.get('book');
             }
-            let resolvedZone = zone;
-            let resolvedSegment = segment || getDefaultSegmentForZone(zone);
-            if (resolvedZone === APP_ZONE_MORE && resolvedSegment === 'events') {
+            const migrated = normalizeLegacyZoneAndSegment(zone, segment || '');
+            let resolvedZone = migrated.zone;
+            let resolvedSegment = migrated.segment || getDefaultSegmentForZone(resolvedZone);
+            if (!APP_ZONE_IDS.includes(resolvedZone)) {
                 resolvedZone = APP_ZONE_SCHEDULE;
-            }
-            if (resolvedZone === APP_ZONE_CONTENT && resolvedSegment === 'homework') {
-                resolvedZone = APP_ZONE_SCHEDULE;
+                resolvedSegment = 'calendar';
             }
             return { zone: resolvedZone, segment: resolvedSegment, options: opts };
         }
@@ -11066,6 +11173,8 @@ function navigateToTabBody(tabId, options = {}) {
         initTimetableTabControls(options);
     } else if (tabId === 'cohorts') {
         void initCohortsTabControls(options);
+    } else if (tabId === 'students' || tabId === 'attendance' || tabId === 'homework-tracking') {
+        void initClassroomTabControls(tabId, options);
     } else if (tabId === 'teachers') {
         void initTeachersTabControls(options);
     } else if (tabId === 'curriculum') {
@@ -11143,8 +11252,8 @@ function updateContentPipelineStepper(tabId) {
     });
     if (!stepper.dataset.pipelineBound) {
         stepper.dataset.pipelineBound = '1';
-        document.getElementById('contentStepBooks')?.addEventListener('click', () => navigateToZone(APP_ZONE_CONTENT, 'curriculum'));
-        document.getElementById('contentStepSyllabi')?.addEventListener('click', () => navigateToZone(APP_ZONE_CONTENT, 'syllabus'));
+        document.getElementById('contentStepBooks')?.addEventListener('click', () => navigateToZone(APP_ZONE_CLASSES, 'curriculum'));
+        document.getElementById('contentStepSyllabi')?.addEventListener('click', () => navigateToZone(APP_ZONE_CLASSES, 'syllabus'));
         document.getElementById('contentStepHomework')?.addEventListener('click', () => navigateToZone(APP_ZONE_SCHEDULE, 'homework'));
     }
 }
@@ -11197,9 +11306,9 @@ function getSetupChecklistItems() {
     return [
         { id: 'classes', labelKey: 'setupChecklistAddClasses', done: classes.length > 0, zone: APP_ZONE_CLASSES, segment: 'classes' },
         { id: 'cohorts', labelKey: 'setupChecklistCohorts', done: cohorts.length > 0, zone: APP_ZONE_CLASSES, segment: 'cohorts', requiresAdmin: true },
-        { id: 'books', labelKey: 'setupChecklistBooks', done: books.length > 0, zone: APP_ZONE_CONTENT, segment: 'curriculum' },
-        { id: 'syllabi', labelKey: 'setupChecklistSyllabi', done: hasSyllabi, zone: APP_ZONE_CONTENT, segment: 'syllabus' },
-        { id: 'events', labelKey: 'setupChecklistEvents', done: hasEvents, zone: APP_ZONE_SCHEDULE, segment: 'events' }
+        { id: 'books', labelKey: 'setupChecklistBooks', done: books.length > 0, zone: APP_ZONE_CLASSES, segment: 'curriculum' },
+        { id: 'syllabi', labelKey: 'setupChecklistSyllabi', done: hasSyllabi, zone: APP_ZONE_CLASSES, segment: 'syllabus' },
+        { id: 'events', labelKey: 'setupChecklistEvents', done: hasEvents, zone: APP_ZONE_CLASSES, segment: 'events' }
     ];
 }
 
@@ -11251,6 +11360,7 @@ function initTabWarningsModule() {
         classHasNoMeetingDaysWarning,
         classNeedsDebateBookPeriodsWarning,
         getSyncNavWarningsForBell,
+        focusDayNoteInNotesTab,
         reloadActiveCalendarFromServer,
         showNavWarningToast: (msg) => showSyncToast(msg, false)
     });
@@ -11422,11 +11532,11 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
         };
     const gap = flags.scheduleGap ? getClassScheduleGapStatus(classData) : null;
     let badge = flags.scheduleGap && gap
-        ? `<span class="module-list-schedule-gap-badge" title="${escapeAttr(t('scheduleGapWarning').replace('{name}', classData.name || '').replace('{unplaced}', gap.unplacedLessonNumbers.length).replace('{total}', gap.totalLessons))}">!</span>`
+        ? inlineWarnBadgeHtml(t('scheduleGapWarning').replace('{name}', classData.name || '').replace('{unplaced}', gap.unplacedLessonNumbers.length).replace('{total}', gap.totalLessons))
         : '';
     if (flags.curriculumWarn) {
         const curTitle = flags.curriculumWarn === 'missing' ? t('classCurriculumWarningListMissing') : t('classCurriculumWarningList');
-        badge += `<span class="module-list-curriculum-warning-badge" title="${escapeAttr(curTitle)}">⚠</span>`;
+        badge += inlineWarnBadgeHtml(curTitle);
     }
     btn.innerHTML = `<span>${escapeHtml(classData.name)}${badge}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
     btn.addEventListener('click', onClick);
@@ -14127,6 +14237,119 @@ async function initCohortsTabControls(options = {}) {
     }
 }
 
+function mergeClassroomFieldsFromServer(serverData) {
+    if (!serverData || typeof serverData !== 'object') {
+        return;
+    }
+    if (Array.isArray(serverData.cohorts)) {
+        appData.cohorts = serverData.cohorts;
+    }
+    if (Array.isArray(serverData.attendanceSessions)) {
+        appData.attendanceSessions = serverData.attendanceSessions;
+    }
+    if (Array.isArray(serverData.homeworkCompletions)) {
+        appData.homeworkCompletions = serverData.homeworkCompletions;
+    }
+}
+
+async function saveClassroomPartial(fields) {
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'cohorts')) {
+        appData.cohorts = fields.cohorts;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'attendanceSessions')) {
+        appData.attendanceSessions = fields.attendanceSessions;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
+        appData.homeworkCompletions = fields.homeworkCompletions;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'ui')) {
+        Object.assign(appData.ui, fields.ui);
+        saveUiStateToLocalStorage();
+    }
+    saveDataToLocalCache();
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.saveClassroomData) {
+        return null;
+    }
+    const doc = await CalendarSync.saveClassroomData(fields);
+    if (doc && doc.data) {
+        mergeClassroomFieldsFromServer(doc.data);
+        saveDataToLocalCache();
+    }
+    return doc;
+}
+
+function getClassroomHooks() {
+    return {
+        getAppData: () => appData,
+        getLang: () => currentLanguage,
+        t,
+        escapeHtml,
+        escapeAttr,
+        generateId,
+        getCohorts: () => (Array.isArray(appData.cohorts) ? appData.cohorts : []),
+        getCalendarName: () => (appData.calendarName || '').trim(),
+        getCurrentUserId: () => {
+            if (typeof TeamAuth === 'undefined' || !TeamAuth.getUser) {
+                return '';
+            }
+            const user = TeamAuth.getUser();
+            return user && user.id != null ? String(user.id) : '';
+        },
+        isViewOnly: isTeamCalendarViewOnly,
+        openModal,
+        closeModal,
+        showToast: (msg, isError) => showSyncToast(msg, isError),
+        setUiPref(key, value) {
+            ensureUiState();
+            appData.ui[key] = value == null ? '' : String(value);
+            saveUiStateToLocalStorage();
+        },
+        async saveClassroom(fields) {
+            return saveClassroomPartial(fields);
+        },
+        getArchiveRetentionDays() {
+            ensureUiState();
+            return appData.ui.studentArchiveRetentionDays;
+        },
+        async setArchiveRetentionDays(days) {
+            ensureUiState();
+            appData.ui.studentArchiveRetentionDays = Math.max(0, Number(days) || 0);
+            saveUiStateToLocalStorage();
+        },
+        async verifyAdminPassword(password) {
+            if (typeof CalendarSync === 'undefined' || !CalendarSync.verifyPassword) {
+                throw new Error('Password verification unavailable');
+            }
+            return CalendarSync.verifyPassword(password);
+        },
+        canDeleteStudents: () =>
+            typeof CCPClassroomAccess !== 'undefined' && CCPClassroomAccess.canDeleteStudentPermanently()
+    };
+}
+
+async function initClassroomTabControls(tabId, options = {}) {
+    await ensureExtensionScriptsLoaded();
+    if (typeof CCPTabScripts !== 'undefined') {
+        await CCPTabScripts.ensureTabScripts(tabId);
+    }
+    await ensureTeamTeacherAccountsLoaded();
+    const hooks = getClassroomHooks();
+    try {
+        if (tabId === 'students' && typeof CCPClassroomRoster !== 'undefined') {
+            CCPClassroomRoster.initTab(hooks, options);
+        } else if (tabId === 'attendance' && typeof CCPClassroomAttendance !== 'undefined') {
+            CCPClassroomAttendance.initTab(hooks, options);
+        } else if (tabId === 'homework-tracking' && typeof CCPClassroomHomework !== 'undefined') {
+            CCPClassroomHomework.initTab(hooks, options);
+        } else {
+            setAppStatusMessage(t('classroomModuleMissing'), true);
+        }
+    } catch (err) {
+        console.error('Classroom tab init failed', err);
+        setAppStatusMessage(t('classroomModuleMissing'), true);
+    }
+}
+
 function getCohortManagementHooks() {
     return {
         getAppData: () => appData,
@@ -16519,7 +16742,7 @@ async function openWorkspacePage(tab, bookId, options = {}) {
         }
     }
     const isBooks = tab === 'books';
-    const zoneId = isBooks ? APP_ZONE_CONTENT : APP_ZONE_SCHEDULE;
+    const zoneId = isBooks ? APP_ZONE_CLASSES : APP_ZONE_SCHEDULE;
     const segment = isBooks ? 'curriculum' : 'homework';
     document.documentElement.setAttribute('data-content-expanded', '1');
     updateContentExpandChrome();
@@ -17381,6 +17604,7 @@ function openModal(modal, triggerEl) {
     if (trigger && trigger instanceof HTMLElement) {
         modal._ccpTrigger = trigger;
     }
+    modal.removeAttribute('hidden');
     modal.style.removeProperty('display');
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
@@ -17402,6 +17626,7 @@ function closeModal(modal) {
     modal.classList.remove('active');
     modal.style.removeProperty('display');
     modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('hidden', '');
     if (modal === elements.holidayModal) {
         closeEventApplicabilityPopover();
     }
@@ -25161,8 +25386,89 @@ function classNeedsDebateBookPeriodsWarning(classData) {
     return byMonth.length === 0;
 }
 
-function getSyncNavWarningsForBell() {
+function getDayNoteAuthorDisplayName(authorUserId) {
+    const uid = String(authorUserId || '').trim();
+    if (!uid) {
+        return '';
+    }
+    const teachers = listTimetableTeachers();
+    const row = teachers.find((teacher) => teacher && teacher.userId === uid);
+    return row ? (row.displayName || uid) : uid;
+}
+
+function getDayNoteHomeroomNavWarnings() {
     const warnings = [];
+    const me = getDayNotesActorUserId();
+    if (!me) {
+        return warnings;
+    }
+    ensureDayNotesArray();
+    (appData.dayNotes || []).forEach((note) => {
+        if (!note || !note.id) {
+            return;
+        }
+        const hrUid = String(note.homeroomNotifyUserId || '').trim();
+        const authorUid = String(note.authorUserId || '').trim();
+        if (!hrUid || hrUid !== me || authorUid === me) {
+            return;
+        }
+        const classMeta = resolveDayNoteMeta(note.classId);
+        const className = classMeta.subject
+            ? `${classMeta.className} — ${classMeta.subject}`
+            : classMeta.className || note.classId;
+        warnings.push({
+            id: 'daynote:homeroom:' + note.id,
+            tabId: 'notes',
+            severity: 'info',
+            messageKey: 'tabWarnHomeroomDayNote',
+            params: {
+                className,
+                date: formatDateDisplay(note.date),
+                authorName: getDayNoteAuthorDisplayName(authorUid)
+            },
+            navigate: {
+                type: 'day_note',
+                noteId: note.id,
+                classId: note.classId,
+                date: note.date
+            }
+        });
+    });
+    return warnings;
+}
+
+function focusDayNoteInNotesTab({ noteId, classId, date }) {
+    navigateToTab('notes');
+    if (classId) {
+        ensureClassNotesFilterIncludes(classId);
+    }
+    if (date) {
+        widenClassNotesDateRangeForNote(date);
+    }
+    renderClassNotesTab();
+    const targetId = String(noteId || '').trim();
+    if (!targetId) {
+        return;
+    }
+    const scrollToNote = () => {
+        const el = document.querySelector(`[data-note-id="${CSS.escape(targetId)}"]`);
+        if (!el) {
+            return;
+        }
+        el.classList.add('day-note-entry--highlight');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => {
+            el.classList.remove('day-note-entry--highlight');
+        }, 3000);
+    };
+    requestAnimationFrame(() => {
+        scrollToNote();
+        window.setTimeout(scrollToNote, 120);
+    });
+}
+
+function getSyncNavWarningsForBell() {
+    const warnings = getDayNoteHomeroomNavWarnings();
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.state) {
         return warnings;
     }
@@ -27118,6 +27424,26 @@ function migrateData(data) {
     if (!Array.isArray(data.cohorts)) {
         data.cohorts = [];
         migrated = true;
+    }
+    if (typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.migrateClassroomData) {
+        if (CCPClassroomDomain.migrateClassroomData(data)) {
+            migrated = true;
+        }
+    } else {
+        ['attendanceSessions', 'homeworkCompletions', 'studentPoints', 'studentTests', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+            if (!Array.isArray(data[key])) {
+                data[key] = [];
+                migrated = true;
+            }
+        });
+        if (Array.isArray(data.cohorts)) {
+            data.cohorts.forEach((cohort) => {
+                if (cohort && !Array.isArray(cohort.students)) {
+                    cohort.students = [];
+                    migrated = true;
+                }
+            });
+        }
     }
     if (!Array.isArray(data.timetableTimeSlots) || data.timetableTimeSlots.length === 0) {
         data.timetableTimeSlots = getDefaultTimetableTimeSlots();

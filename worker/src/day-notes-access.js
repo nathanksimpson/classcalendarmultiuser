@@ -25,6 +25,38 @@ function noteAuthorId(note) {
     return id != null && String(id).trim() ? String(id).trim() : '';
 }
 
+function noteHomeroomNotifyUserId(note) {
+    if (!note) {
+        return '';
+    }
+    const id = note.homeroomNotifyUserId;
+    return id != null && String(id).trim() ? String(id).trim() : '';
+}
+
+function buildSavedDayNote(now, was, uid, bypass) {
+    const authorUserId = was
+        ? noteAuthorId(was) || noteAuthorId(now) || uid
+        : bypass && noteAuthorId(now)
+            ? noteAuthorId(now)
+            : uid;
+    const saved = Object.assign({}, now, { authorUserId });
+    const wasHr = noteHomeroomNotifyUserId(was);
+    const nowHr = noteHomeroomNotifyUserId(now);
+    if (was) {
+        if (!bypass && wasHr !== nowHr) {
+            return { error: 'Cannot change homeroom notification', dayNotes: [] };
+        }
+        if (wasHr) {
+            saved.homeroomNotifyUserId = wasHr;
+        } else {
+            delete saved.homeroomNotifyUserId;
+        }
+    } else if (nowHr) {
+        saved.homeroomNotifyUserId = nowHr;
+    }
+    return { error: null, note: saved };
+}
+
 /**
  * @returns {{ error: string|null, dayNotes: object[] }}
  */
@@ -81,11 +113,11 @@ export function prepareDayNotesForSave(user, calendarData, nextDayNotes) {
             if (clientAuthor && clientAuthor !== uid && !bypass) {
                 return { error: 'Cannot set note author', dayNotes: [] };
             }
-            out.push(
-                Object.assign({}, now, {
-                    authorUserId: bypass && clientAuthor ? clientAuthor : uid
-                })
-            );
+            const built = buildSavedDayNote(now, null, uid, bypass);
+            if (built.error) {
+                return { error: built.error, dayNotes: [] };
+            }
+            out.push(built.note);
             continue;
         }
 
@@ -111,11 +143,11 @@ export function prepareDayNotesForSave(user, calendarData, nextDayNotes) {
             }
         }
 
-        out.push(
-            Object.assign({}, now, {
-                authorUserId: noteAuthorId(was) || noteAuthorId(now) || uid
-            })
-        );
+        const built = buildSavedDayNote(now, was, uid, bypass);
+        if (built.error) {
+            return { error: built.error, dayNotes: [] };
+        }
+        out.push(built.note);
     }
 
     return { error: null, dayNotes: out };

@@ -1,0 +1,1473 @@
+Bada T
+1. 잠동 
+Test Point
+촬영 알림
+박세찬
+(Sechan)
+SMS
+ 
+ 
+2. 경복 
+Test Point
+촬영 알림
+배준환
+(Junhwa)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+
+
+
+Garam T
+1. 오륜 
+Test Point
+촬영 알림
+신유진
+(Yujin)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+신현준
+(Hyeonj)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+조정우
+(Leo)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 지각:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Yeoul T
+ 
+
+
+ 전체선택 
+1. 잠동 
+Test Point
+촬영 알림
+권민준
+(Jun)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+김서진B
+(Tony)
+SMS
+ 
+ 
+3. 잠동 
+Test Point
+촬영 알림
+김시호
+(Kai)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+박세빈
+(Sally)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+박지우
+(Jenny)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+양원우
+(August)
+SMS
+ 
+ 
+7. 강변 
+Test Point
+촬영 알림
+윤서원
+(Lilly)
+SMS
+ 
+ 
+8. 잠현 
+Test Point
+촬영 알림
+이재용
+(Jayden)
+SMS
+ 
+ 
+9. 잠실 
+Test Point
+촬영 알림
+조용준★
+수호X (Yongju)
+SMS
+ 
+ 
+10. 잠동 
+Test Point
+촬영 알림
+최유진◆
+(Eugene)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+
+
+Saemmul T
+1. 잠동 
+Test Point
+촬영 알림
+김서진A
+(Ellena)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+김아정
+(Ajeong)
+SMS
+ 
+ 
+3. 잠동 
+Test Point
+촬영 알림
+김채아
+(Sabina)
+SMS
+ 
+ 
+4. 잠동 
+Test Point
+촬영 알림
+박세아
+(Seyah)
+SMS
+ 
+ 
+5. 잠동 
+Test Point
+촬영 알림
+송지윤
+(Jiyoon)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+이세연★
+수호O (Seiyeo)
+SMS
+ 
+ 
+7. 오륜 
+Test Point
+촬영 알림
+이준우
+(Joonwo)
+SMS
+ 
+ 
+8. 잠현 
+Test Point
+촬영 알림
+정유빈★
+수호O (Yoobee)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Purple T
+1. 잠실 
+Test Point
+촬영 알림
+김나은
+(Naeun)
+SMS
+ 
+ 
+2. 잠현 
+Test Point
+촬영 알림
+김아린★
+수호O (Ah-rin)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+김예성
+(Sunny)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+박시준★
+수호O (Si-joo)
+SMS
+ 
+ 
+5. 중대 
+Test Point
+촬영 알림
+손채이
+(Chaeyi)
+SMS
+ 
+ 
+6. 잠실 
+Test Point
+촬영 알림
+송제인
+(Jane)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+이온유
+(Loy)
+SMS
+ 
+ 
+8. 잠동 
+Test Point
+촬영 알림
+이하이
+(Hai)
+SMS
+ 
+ 
+9. 잠동 
+Test Point
+촬영 알림
+정현교★
+수호O (Hyeong)
+SMS
+ 
+ 
+10. 잠실 
+Test Point
+촬영 알림
+최예안
+(YeAn)
+SMS
+ 
+ 
+11. 토성 
+Test Point
+촬영 알림
+최준우
+(John)
+SMS
+ 
+ 
+12. 잠실 
+Test Point
+촬영 알림
+함우진★
+수호O (Woo-ji)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Navy T
+1. 잠현 
+Test Point
+촬영 알림
+김우현
+(Jay)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+박로하
+(Roha)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+유지민
+(Jimin)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+유지태
+(Jitae)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+윤서연A
+(Norah)
+SMS
+ 
+ 
+6. 오륜 
+Test Point
+촬영 알림
+이지호
+(Jiho)
+SMS
+ 
+ 
+7. 오륜 
+Test Point
+촬영 알림
+정문호★
+수호O (Munho)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Blue T
+1. 서울 
+Test Point
+촬영 알림
+신하준
+(June)
+SMS
+ 
+ 
+2. 오륜 
+Test Point
+촬영 알림
+안시우
+(Siu)
+SMS
+ 
+ 
+3. 오륜 
+Test Point
+촬영 알림
+이재상
+(Aiden)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+전서아★
+수호X (Seoah)
+SMS
+ 
+ 
+5. 잠실 
+Test Point
+촬영 알림
+조승아
+(Joy)
+SMS
+ 
+ 
+6. 오륜 
+Test Point
+촬영 알림
+허다연
+(Ella)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:2,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Orange M
+1. 송파 
+Test Point
+촬영 알림
+강시윤
+(Siyoon)
+SMS
+ 
+ 
+2. 송파 
+Test Point
+촬영 알림
+강재윤
+(J. J.)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+류수호
+(Suho)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+서유나
+(Yuna)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+최이준
+(Logan)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Green M
+1. 잠실 
+Test Point
+촬영 알림
+길나윤
+(Rumi)
+SMS
+ 
+ 
+2. 잠현 
+Test Point
+촬영 알림
+문우주
+(Leo)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+유제훈
+(Kai)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+이서우
+(Olivia)
+SMS
+ 
+ 
+5. 토성 
+Test Point
+촬영 알림
+이지행
+수호X ()
+SMS
+ 
+ 
+6. 잠실 
+Test Point
+촬영 알림
+채민호
+(Minho)
+SMS
+ 
+ 
+7. 잠현 
+Test Point
+촬영 알림
+최재완★
+수호O (Jackso)
+SMS
+ 
+ 
+8. 잠현 
+Test Point
+촬영 알림
+최재윤★
+수호O (Jason)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1,...
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+2026-06-10 부터 수업시작
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Navy M
+1. 잠현 
+Test Point
+촬영 알림
+강동하
+(Dongha)
+SMS
+ 
+ 
+2. 오륜 
+Test Point
+촬영 알림
+노정윤
+(Jungyo)
+SMS
+ 
+ 
+3. 잠동 
+Test Point
+촬영 알림
+두지원
+(Leah)
+SMS
+ 
+ 
+4. 풍성 
+Test Point
+촬영 알림
+배하은★
+수호O (Haeun)
+SMS
+ 
+ 
+5. 잠현 
+Test Point
+촬영 알림
+신수빈
+(Subin)
+SMS
+ 
+ 
+6. 잠동 
+Test Point
+촬영 알림
+안재은★
+수호O (Jaeeun)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+이예준
+(Jaden)
+SMS
+ 
+ 
+8. 잠동 
+Test Point
+촬영 알림
+정태희★
+수호O (Taeheu)
+SMS
+ 
+ 
+9. 잠현 
+Test Point
+촬영 알림
+조하연
+(Alice)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:9
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Purple M
+1. 잠실 
+Test Point
+촬영 알림
+고나영
+(Nayoun)
+SMS
+ 
+ 
+2. 위별 
+Test Point
+촬영 알림
+박미소
+(Luna)
+SMS
+ 
+ 
+3. 잠현 
+Test Point
+촬영 알림
+서예은
+(Ye-eun)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+윤서연B
+(Emily)
+SMS
+ 
+ 
+5. 성수 
+Test Point
+촬영 알림
+이도훈
+(Dohoon)
+SMS
+ 
+ 
+6. 잠실 
+Test Point
+촬영 알림
+이서윤
+(Seoyoo)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+정수아
+(Suah)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Saemmul M
+1. 잠동 
+Test Point
+촬영 알림
+김교윤
+(Kyoyoo)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+김나래
+(Narae)
+SMS
+ 
+ 
+3. 잠현 
+Test Point
+촬영 알림
+김예나
+(Yena)
+SMS
+ 
+ 
+4. 잠실 
+Test Point
+촬영 알림
+김지안★
+수호O (Jian)
+SMS
+ 
+ 
+5. 잠동 
+Test Point
+촬영 알림
+김하준
+(Joon)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+박선호
+(Seonho)
+SMS
+ 
+ 
+7. 잠동 
+Test Point
+촬영 알림
+박이솔★
+수호O ()
+SMS
+ 
+ 
+8. 성동 
+Test Point
+촬영 알림
+박지유
+(Julie)
+SMS
+ 
+ 
+9. 잠동 
+Test Point
+촬영 알림
+서아인
+(Ahin)
+SMS
+ 
+ 
+10. 잠현 
+Test Point
+촬영 알림
+심준수
+(Louis)
+SMS
+ 
+ 
+11. 잠실 
+Test Point
+촬영 알림
+윤서진
+(Seojin)
+SMS
+ 
+ 
+12. 잠실 
+Test Point
+촬영 알림
+정시아
+(Sia)
+SMS
+ 
+ 
+13. 잠실 
+Test Point
+촬영 알림
+최윤호
+(Hoya)
+SMS
+ 
+ 
+14. 잠실 
+Test Point
+촬영 알림
+허재민
+(James)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:2
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 지각:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+
+
+Yeoul M
+1. 잠동 
+Test Point
+촬영 알림
+김주하★
+수호O (Juha)
+SMS
+ 
+ 
+2. 잠동 
+Test Point
+촬영 알림
+문주원
+(Juwon)
+SMS
+ 
+ 
+3. 잠현 
+Test Point
+촬영 알림
+민규담
+(Gyudam)
+SMS
+ 
+ 
+4. 잠동 
+Test Point
+촬영 알림
+손준현
+(Dylan)
+SMS
+ 
+ 
+5. 잠실 
+Test Point
+촬영 알림
+이서연
+(Seoyeo)
+SMS
+ 
+ 
+6. 잠현 
+Test Point
+촬영 알림
+이서진
+(Sharon)
+SMS
+ 
+ 
+7. 잠실 
+Test Point
+촬영 알림
+함지윤★
+수호O (Jiyoon)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+
+Garam M
+1. 위례 
+Test Point
+촬영 알림
+김이현★
+수호X (Aaron)
+SMS
+ 
+ 
+2. 잠현 
+Test Point
+촬영 알림
+유현우
+(Aron)
+SMS
+ 
+ 
+3. 잠실 
+Test Point
+촬영 알림
+이시연
+(Alice)
+SMS
+ 
+ 
+4. 잠현 
+Test Point
+촬영 알림
+최지우
+(Belle)
+SMS
+ 
+ 
+
+
+ : 관심      : 신규      : 종료예정     
+
+
+
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:1
+
+ 
+ 
+
+출석 지각 결석 조퇴 (최근한달) 결석:8
+
+ 
+ 
+
+출석 지각 결석 조퇴
+
+ 
+ 
+
+
+Byeolmaru M
+이하안
+Ha-an

@@ -32,6 +32,7 @@
         classHasNoMeetingDaysWarning: () => false,
         classNeedsDebateBookPeriodsWarning: () => false,
         getSyncNavWarningsForBell: () => [],
+        focusDayNoteInNotesTab: () => {},
         reloadActiveCalendarFromServer: () => {},
         showNavWarningToast: () => {}
     };
@@ -610,7 +611,7 @@
         const nav = warning.navigate;
         closeNavWarningsPopover();
         if (nav.type === 'term') {
-            hooks.navigateToZone('schedule', 'events');
+            hooks.navigateToZone('classes', 'events');
             requestAnimationFrame(() => {
                 const termStart = document.getElementById('termStart');
                 if (termStart) {
@@ -651,6 +652,16 @@
         }
         if (nav.type === 'curriculum') {
             hooks.navigateToTab('curriculum', { curriculumId: nav.curriculumId });
+            return;
+        }
+        if (nav.type === 'day_note') {
+            if (typeof hooks.focusDayNoteInNotesTab === 'function') {
+                hooks.focusDayNoteInNotesTab({
+                    noteId: nav.noteId,
+                    classId: nav.classId,
+                    date: nav.date
+                });
+            }
             return;
         }
         if (nav.type === 'remote_reload') {

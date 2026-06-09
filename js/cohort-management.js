@@ -849,13 +849,8 @@
                 hooks.showMessage(hooks.t('teamReadOnlySave'), true);
                 return;
             }
-            collectHomeroomFromUi(cohort, homeroomSel, homeroomNameInput, suffixInput);
-            hooks.saveData();
-            if (hooks.invalidateScheduleCache) {
-                hooks.invalidateScheduleCache();
-            }
+            persistCohortEditorChanges(cohort);
             hooks.showMessage(t('cohortsHomeroomSaved'), false);
-            renderAll();
         });
         const clearBtn = document.createElement('button');
         clearBtn.type = 'button';
@@ -1043,6 +1038,56 @@
         return cohort;
     }
 
+    /** Read homeroom fields from the open editor DOM into appData. */
+    function flushHomeroomEditorFields() {
+        if (!hooks) {
+            return null;
+        }
+        const mount = document.getElementById('cohortsEditorMount');
+        if (!mount || mount.hidden) {
+            return null;
+        }
+        const cohortId = normalizeStr(mount.dataset.editorCohortId);
+        if (!cohortId) {
+            return null;
+        }
+        const appData = hooks.getAppData();
+        const cohort = (appData.cohorts || []).find((c) => c.id === cohortId);
+        if (!cohort) {
+            return null;
+        }
+        const homeroomSel = mount.querySelector('.cohort-field-homeroom-select');
+        const homeroomNameInput = mount.querySelector('.cohort-field-homeroom-name');
+        const suffixInput = mount.querySelector('.cohort-field-suffix');
+        if (homeroomSel && homeroomNameInput && suffixInput) {
+            collectHomeroomFromUi(cohort, homeroomSel, homeroomNameInput, suffixInput);
+        }
+        return cohort;
+    }
+
+    function persistCohortEditorChanges(cohort) {
+        if (!cohort || !hooks) {
+            return false;
+        }
+        flushCohortEditorFields();
+        flushHomeroomEditorFields();
+        cohort.meetingDays = getCohortMeetingDays(cohort);
+        hooks.syncClassCohortLinks(cohort);
+        hooks.saveData();
+        if (hooks.invalidateScheduleCache) {
+            hooks.invalidateScheduleCache();
+        }
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
+        persistSelectedCohortId();
+        updateCohortEditorModalTitle(cohort);
+        renderAll();
+        return true;
+    }
+
     function setCohortEditorToolbarVisible(visible) {
         const toolbar = document.getElementById('cohortEditorToolbar');
         if (!toolbar) {
@@ -1072,19 +1117,8 @@
                 hooks.showMessage(hooks.t('teamReadOnlySave'), true);
                 return;
             }
-            flushCohortEditorFields();
-            cohort.meetingDays = getCohortMeetingDays(cohort);
-            hooks.syncClassCohortLinks(cohort);
-            hooks.saveData();
-            if (hooks.refreshClassEditorCohortUiIfOpen) {
-            hooks.refreshClassEditorCohortUiIfOpen();
-        } else if (hooks.populateClassCohortSelect) {
-            hooks.populateClassCohortSelect();
-        }
-            persistSelectedCohortId();
+            persistCohortEditorChanges(cohort);
             hooks.showMessage(t('timetableCohortSaved'), false);
-            updateCohortEditorModalTitle(cohort);
-            renderAll();
         });
 
         const combineBtn = document.createElement('button');
@@ -1279,6 +1313,7 @@
 
     function closeCohortEditor() {
         flushCohortEditorFields();
+        flushHomeroomEditorFields();
         const modal = getCohortEditorModal();
         if (!modal) {
             return;

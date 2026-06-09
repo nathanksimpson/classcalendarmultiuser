@@ -699,6 +699,70 @@
             return doc;
         },
 
+        async saveClassroomData(fields, options) {
+            assertSignedIn();
+            if (isViewAsMode()) {
+                viewAsNotice('View As: change not saved');
+                setStatus('saved');
+                return { simulated: true, revision: state.revision };
+            }
+            if (state.canEdit === false && state.accessLevel !== 'suggester') {
+                const err = new Error('You do not have edit access to this calendar');
+                err.status = 403;
+                throw err;
+            }
+            const id = CalendarSync.getActiveCalendarId();
+            if (!id) {
+                throw new Error('No active team calendar');
+            }
+            const opts = options || {};
+            const body = {
+                classroomOnly: true,
+                revision: opts.force ? undefined : state.revision,
+                force: Boolean(opts.force)
+            };
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'cohorts')) {
+                body.cohorts = fields.cohorts;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'attendanceSessions')) {
+                body.attendanceSessions = fields.attendanceSessions;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
+                body.homeworkCompletions = fields.homeworkCompletions;
+            }
+            setStatus('saving');
+            state.saving = true;
+            try {
+                const doc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                    method: 'PUT',
+                    body
+                });
+                state.revision = doc.revision || state.revision;
+                setStatus('saved');
+                if (typeof handlers.onSaved === 'function') {
+                    handlers.onSaved(doc);
+                }
+                return doc;
+            } catch (err) {
+                if (err.status === 409 && err.body && err.body.document) {
+                    setStatus('conflict');
+                    throw err;
+                }
+                setStatus('error', err.message);
+                throw err;
+            } finally {
+                state.saving = false;
+            }
+        },
+
+        async verifyPassword(password) {
+            assertSignedIn();
+            return apiFetch('/auth/verify-password', {
+                method: 'POST',
+                body: { password: String(password || '') }
+            });
+        },
+
         async saveDayNotesOnly(dayNotes, options) {
             assertSignedIn();
             if (isViewAsMode()) {

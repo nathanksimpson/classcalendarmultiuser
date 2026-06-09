@@ -28,6 +28,9 @@
 
         const entry = document.createElement('div');
         entry.className = 'class-notes-preview-entry day-note-list-entry';
+        if (note.homeroomNotifyUserId) {
+            entry.classList.add('day-note-entry--for-homeroom');
+        }
         entry.dataset.noteId = note.id;
 
         const metaLine = document.createElement('div');
@@ -44,6 +47,12 @@
             }
         }
         metaLine.textContent = parts.filter(Boolean).join(' · ');
+        if (note.homeroomNotifyUserId) {
+            const hrBadge = document.createElement('span');
+            hrBadge.className = 'day-note-homeroom-badge';
+            hrBadge.textContent = t('dayNoteForHomeroomBadge');
+            metaLine.appendChild(hrBadge);
+        }
 
         const actions = document.createElement('div');
         actions.className = 'class-notes-preview-entry-actions';

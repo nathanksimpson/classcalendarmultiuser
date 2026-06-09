@@ -4,6 +4,7 @@ const CalAccess = require('./calendar-access');
 const Auth = require('./auth-permissions');
 const { recordActivityForUser } = require('./activity-log');
 const DayNotesAccess = require('./day-notes-access');
+const ClassroomAccess = require('./classroom-access');
 
 function listCalendars() {
     const db = getDb();
@@ -194,6 +195,43 @@ function updateCalendarDayNotes(id, dayNotes, revision, editorLabel, user) {
     return { ok: true, document: getCalendar(id) };
 }
 
+/** Merge classroom slices — does not require collaborative calendar edit lock. */
+function updateCalendarClassroom(id, payload, revision, editorLabel, user) {
+    if (!CalAccess.canEditCalendar(user, id) && !CalAccess.canSuggestChanges(user, id)) {
+        return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
+    }
+    const existingDoc = getCalendar(id);
+    if (!existingDoc) {
+        return { ok: false, status: 404, error: 'Calendar not found' };
+    }
+    const prepared = ClassroomAccess.prepareClassroomForSave(user, existingDoc.data, payload);
+    if (prepared.error) {
+        return { ok: false, status: 403, error: prepared.error };
+    }
+    if (revision != null && Number(revision) !== Number(existingDoc.revision)) {
+        return { ok: false, status: 409, document: existingDoc };
+    }
+    const mergedData = Object.assign({}, existingDoc.data, prepared.merged);
+    const db = getDb();
+    const nextRevision = Number(existingDoc.revision) + 1;
+    const now = nowIso();
+    const label = editorLabel || user.displayName || user.email || 'Teacher';
+    db.prepare(
+        `UPDATE calendars SET data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
+    ).run(JSON.stringify(mergedData), nextRevision, now, label, id);
+
+    const meta = getCalendarMeta(id);
+    recordActivityForUser(user, {
+        action: 'classroom_save',
+        calendarId: id,
+        calendarName: meta && meta.name,
+        summary: `Saved classroom data (revision ${nextRevision})`,
+        detail: { revision: nextRevision, fields: Object.keys(prepared.merged) }
+    });
+
+    return { ok: true, document: getCalendar(id) };
+}
+
 function deleteCalendar(id) {
     const db = getDb();
     const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
@@ -211,6 +249,7 @@ module.exports = {
     createCalendar,
     updateCalendar,
     updateCalendarDayNotes,
+    updateCalendarClassroom,
     deleteCalendar,
     newId
 };

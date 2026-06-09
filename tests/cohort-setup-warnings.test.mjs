@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
+await import(pathToFileURL(path.join(root, 'js', 'schedule-matrix-data.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'syllabus-schedule-matrix.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'teacher-timetable.js')).href);
 
 const api = globalThis.CCPTeacherTimetable;

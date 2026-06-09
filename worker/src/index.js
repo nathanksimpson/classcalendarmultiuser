@@ -11,6 +11,7 @@ import * as AdminUserPolicy from './admin-user-policy.js';
 import * as ViewAs from './view-as.js';
 import * as AppSettings from './app-settings.js';
 import { prepareDayNotesForSave } from './day-notes-access.js';
+import { prepareClassroomForSave } from './classroom-access.js';
 import {
     KAKAO_OAUTH_COOKIE,
     oauthStateSecret,
@@ -1250,6 +1251,20 @@ export default {
             );
         }
 
+        if (path === '/api/auth/verify-password' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            const body = await readJson(request);
+            const password = String((body && body.password) || '');
+            const row = await dbOne(env, 'SELECT * FROM users WHERE id = ? AND active = 1', user.id);
+            if (!row || !row.password_hash || !(await verifyPassword(password, row.password_hash))) {
+                return json({ error: 'Invalid password' }, 403);
+            }
+            return json({ ok: true });
+        }
+
         const MAX_DISPLAY_NAME_LENGTH = 120;
         if (path === '/api/auth/profile' && request.method === 'PATCH') {
             const blocked = rejectViewAsJson();
@@ -1615,6 +1630,75 @@ export default {
                     }
                     body = {};
                 }
+                if (body.classroomOnly) {
+                    const canEdit = await CalAccess.canEditCalendar(env, user, calId);
+                    const canSuggest = await CalAccess.canSuggestChanges(env, user, calId);
+                    if (!canEdit && !canSuggest) {
+                        return json({ error: 'You do not have edit access to this calendar' }, 403);
+                    }
+                    const existingRow = await dbOne(
+                        env,
+                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        calId
+                    );
+                    if (!existingRow) {
+                        return json({ error: 'Calendar not found' }, 404);
+                    }
+                    const existingData = JSON.parse(existingRow.data);
+                    const payload = {};
+                    if (Object.prototype.hasOwnProperty.call(body, 'cohorts')) {
+                        payload.cohorts = body.cohorts;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'attendanceSessions')) {
+                        payload.attendanceSessions = body.attendanceSessions;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'homeworkCompletions')) {
+                        payload.homeworkCompletions = body.homeworkCompletions;
+                    }
+                    const prepared = prepareClassroomForSave(user, existingData, payload);
+                    if (prepared.error) {
+                        return json({ error: prepared.error }, 403);
+                    }
+                    if (
+                        body.revision != null &&
+                        Number(body.revision) !== Number(existingRow.revision)
+                    ) {
+                        return json(
+                            {
+                                conflict: true,
+                                document: Object.assign({}, existingRow, { data: existingData })
+                            },
+                            409
+                        );
+                    }
+                    const mergedData = Object.assign({}, existingData, prepared.merged);
+                    const nextRev = Number(existingRow.revision) + 1;
+                    const label = user.displayName || user.email || 'Teacher';
+                    await dbRun(
+                        env,
+                        'UPDATE calendars SET data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                        JSON.stringify(mergedData),
+                        nextRev,
+                        nowIso(),
+                        label,
+                        calId
+                    );
+                    await ActivityLog.recordActivityForUser(env, user, {
+                        action: 'classroom_save',
+                        calendarId: calId,
+                        calendarName: existingRow.name,
+                        summary: `Saved classroom data (revision ${nextRev})`,
+                        detail: { revision: nextRev, fields: Object.keys(prepared.merged) }
+                    });
+                    const saved = await dbOne(
+                        env,
+                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        calId
+                    );
+                    const doc = Object.assign({}, saved, { data: JSON.parse(saved.data) });
+                    return json(await CalendarMeta.calendarMetaExtras(env, user, calId, doc));
+                }
+
                 if (body.dayNotesOnly) {
                     if (!Array.isArray(body.dayNotes)) {
                         return json({ error: 'dayNotes array is required' }, 400);
