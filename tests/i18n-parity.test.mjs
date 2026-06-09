@@ -41,13 +41,17 @@ function compareKeySets(label, enKeys, koKeys) {
     }
 }
 
-const calendarEn = fs.readFileSync(path.join(root, 'js', 'i18n', 'calendar-en.js'), 'utf8');
-const calendarKo = fs.readFileSync(path.join(root, 'js', 'i18n', 'calendar-ko.js'), 'utf8');
+function readUtf8Normalized(filePath) {
+    return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
+}
+
+const calendarEn = readUtf8Normalized(path.join(root, 'js', 'i18n', 'calendar-en.js'));
+const calendarKo = readUtf8Normalized(path.join(root, 'js', 'i18n', 'calendar-ko.js'));
 const appEn = extractObjectKeys(calendarEn, 'global.CCPCalendarI18n.en = {', '\n})(typeof window');
 const appKo = extractObjectKeys(calendarKo, 'global.CCPCalendarI18n.ko = {', '\n})(typeof window');
 compareKeySets('calendar i18n (en/ko)', appEn, appKo);
 
-const adminI18n = fs.readFileSync(path.join(root, 'js', 'admin-i18n.js'), 'utf8');
+const adminI18n = readUtf8Normalized(path.join(root, 'js', 'admin-i18n.js'));
 const adminEn = extractObjectKeys(adminI18n, 'en: {', 'ko: {');
 const adminKo = extractObjectKeys(adminI18n, 'ko: {', '}\n    };');
 compareKeySets('admin-i18n.js ADMIN_STRINGS', adminEn, adminKo);

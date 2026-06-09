@@ -194,7 +194,7 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | Field | Type | Notes |
 |-------|------|--------|
 | `id` | string | |
-| `type` | string | `holiday`, `evaluation_deadline`, `homework_deadline`, `evaluation_period`, `other` (`other` is calendar reference only — does not remove class days) |
+| `type` | string | `holiday`, `evaluation_period` (remove class days for applicable classes), `evaluation_deadline`, `homework_deadline`, `other` (calendar reference only — does not remove class days) |
 | `name` | string | |
 | `date` or `startDate`/`endDate` | string | Single or range |
 | `isRange` | boolean | |

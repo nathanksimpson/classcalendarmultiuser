@@ -35,6 +35,16 @@ function t(key) {
     return translations[currentLanguage][key] || translations['en'][key] || key;
 }
 
+function formatI18n(key, vars) {
+    let s = t(key);
+    if (vars && typeof vars === 'object') {
+        Object.entries(vars).forEach(([name, value]) => {
+            s = s.replace(new RegExp(`\\{${name}\\}`, 'g'), String(value ?? ''));
+        });
+    }
+    return s;
+}
+
 /** i18n for notes.html only — avoids calendar-only DOM updates that crash without index.html chrome. */
 function applyNotesPageLanguage() {
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -153,6 +163,7 @@ function applyLanguage() {
     updateEventApplicabilitySummaryText();
     syncClassOpenEditorButton();
     syncEventOpenEditorButton();
+    syncEventTypeHint();
     if (getActiveTab() === 'homework') {
         renderHomeworkReferenceMiniCalendar();
     }
@@ -2462,9 +2473,9 @@ function enrichSyllabusRowColors(rows, classData) {
         const kind = row.kind || 'lesson';
         if (kind === 'holiday' && row.date && classData) {
             const hol = isHolidayForClass(row.date, classData)
-                ? getHolidayForDate(row.date)
+                ? getBlockingEventForClass(row.date, classData)
                 : null;
-            const colors = getSyllabusEventColors(hol, 'holiday');
+            const colors = getSyllabusEventColors(hol, hol && hol.type ? hol.type : 'holiday');
             return { ...row, rowBg: colors.bg, rowColor: colors.text, eventType: colors.type };
         }
         if (kind === 'event' && row.date && classData) {
@@ -4730,9 +4741,11 @@ function normalizeEventType(type) {
     return valid.includes(type) ? type : EVENT_TYPES.HOLIDAY;
 }
 
-/** Only holiday-type events remove class / consume a meeting slot. */
+/** Holiday and evaluation-period events remove class / consume a meeting slot. */
 function eventTypeBlocksClass(type) {
-    return normalizeEventType(type) === EVENT_TYPES.HOLIDAY;
+    const normalized = normalizeEventType(type);
+    return normalized === EVENT_TYPES.HOLIDAY
+        || normalized === EVENT_TYPES.EVALUATION_PERIOD;
 }
 
 function normalizeEvent(raw) {
@@ -10058,7 +10071,7 @@ function syncSyllabusEditorChrome() {
     if (bannerEl) {
         if (hasTemplate) {
             bannerEl.hidden = false;
-            bannerEl.textContent = t('syllabusModeTemplate', { name: template.name });
+            bannerEl.textContent = formatI18n('syllabusModeTemplate', { name: template.name });
         } else {
             bannerEl.hidden = true;
             bannerEl.textContent = '';
@@ -10068,7 +10081,7 @@ function syncSyllabusEditorChrome() {
     if (chipEl) {
         if (hasClass) {
             chipEl.hidden = false;
-            chipEl.textContent = t('syllabusScheduleChip', {
+            chipEl.textContent = formatI18n('syllabusScheduleChip', {
                 days: formatMeetingDaysSummary(classData),
                 start: classData.startDate ? formatDateDisplay(classData.startDate) : '—',
                 end: classData.endDate ? formatDateDisplay(classData.endDate) : '—'
@@ -10237,7 +10250,7 @@ function updateClassSyllabusSummary(classData) {
     wrap.hidden = false;
     const count = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.length : 0;
     let summary = count > 0
-        ? t('syllabusClassSummary', { rows: count })
+        ? formatI18n('syllabusClassSummary', { rows: count })
         : t('syllabusClassSummaryEmpty');
     const gap = getClassScheduleGapStatus(classData);
     if (gap.incomplete) {
@@ -11511,11 +11524,10 @@ function getHomeworkTabHooks() {
         getMeetingDays: (classData) => getMeetingDaysFromClass(classData),
         isHolidayForClass: (dateStr, classData) => isHolidayForClass(dateStr, classData),
         getHolidayForClass: (dateStr, classData) => {
-            const holiday = getHolidayForDate(dateStr);
-            if (!holiday || !isHolidayForClass(dateStr, classData)) {
+            if (!isHolidayForClass(dateStr, classData)) {
                 return null;
             }
-            return getLocalizedHolidayRecord(holiday);
+            return getBlockingEventForClass(dateStr, classData);
         }
     };
 }
@@ -12128,14 +12140,14 @@ function renderHomeworkEditor() {
     if (metaEl) {
         const parts = [];
         if (packet.targetLessonDate) {
-            parts.push(t('homeworkTabTargetLesson', {
+            parts.push(formatI18n('homeworkTabTargetLesson', {
                 date: formatDateDisplay(packet.targetLessonDate),
                 n: packet.targetSessionNumber,
                 title: packet.targetLessonTitle || ''
             }));
         }
         if (packet.gradingSessionNumber > 0 && packet.gradingLessonDate) {
-            parts.push(t('homeworkTabGradingFrom', {
+            parts.push(formatI18n('homeworkTabGradingFrom', {
                 n: packet.gradingSessionNumber,
                 date: formatDateDisplay(packet.gradingLessonDate),
                 title: packet.gradingLessonTitle || ''
@@ -17539,7 +17551,7 @@ function syllabusScheduleHooks() {
         useFullMonthNames: true,
         isHolidayForClass,
         getHolidayForClass: (dateStr, classData) => (
-            isHolidayForClass(dateStr, classData) ? getHolidayForDate(dateStr) : null
+            isHolidayForClass(dateStr, classData) ? getBlockingEventForClass(dateStr, classData) : null
         ),
         getInlineEventForClass: (dateStr, classData) => getInlineScheduleEventForClassOnDate(dateStr, classData),
         slotHolidayDetail: t('syllabusSlotHolidayDetail'),
@@ -17749,11 +17761,11 @@ function buildGeneratedSyllabusRows(classData) {
     );
 }
 
-function localizeSyllabusRowsForCurrentLanguage(rows) {
+function localizeSyllabusRowsForCurrentLanguage(rows, classData) {
     const mod = getSyllabusModule();
     return (rows || []).map((row) => {
-        if (row.kind === 'holiday' && row.date) {
-            const hol = getHolidayForDate(row.date);
+        if (row.kind === 'holiday' && row.date && classData) {
+            const hol = getBlockingEventForClass(row.date, classData);
             if (!hol || !hol.name) {
                 return row;
             }
@@ -17789,7 +17801,7 @@ function getSyllabusRowsForClass(classData, options = {}) {
         rows = generated;
     }
     return enrichSyllabusRowColors(
-        localizeSyllabusRowsForCurrentLanguage(rows),
+        localizeSyllabusRowsForCurrentLanguage(rows, classData),
         classData
     );
 }
@@ -18991,6 +19003,24 @@ function printClassSyllabusFromModal() {
     );
 }
 
+const EVENT_TYPE_HINT_KEYS = {
+    holiday: 'eventTypeHolidayHint',
+    evaluation_period: 'eventTypeEvalPeriodHint',
+    evaluation_deadline: 'eventTypeEvalDeadlineHint',
+    homework_deadline: 'eventTypeHomeworkDeadlineHint',
+    other: 'eventTypeOtherHint'
+};
+
+function syncEventTypeHint() {
+    const hintEl = document.getElementById('eventTypeHint');
+    if (!hintEl || !elements.eventType) {
+        return;
+    }
+    const type = normalizeEventType(elements.eventType.value);
+    const key = EVENT_TYPE_HINT_KEYS[type] || EVENT_TYPE_HINT_KEYS.other;
+    hintEl.textContent = t(key);
+}
+
 function applyEventTypeDefaultColors() {
     if (!elements.eventType) return;
     const type = normalizeEventType(elements.eventType.value);
@@ -19003,6 +19033,7 @@ function applyEventTypeDefaultColors() {
         elements.holidayDateRange.style.display = 'grid';
         syncHolidayRangeEndFromStart();
     }
+    syncEventTypeHint();
 }
 
 function populateClassForm(classData = null, options = {}) {
@@ -19236,6 +19267,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
     }
     syncEventApplicabilityUiFromDraft();
     syncEventOpenEditorButton();
+    syncEventTypeHint();
     applyTeamViewOnlyEditingState(teamViewOnlyActive);
 }
 
@@ -21039,10 +21071,23 @@ function getSyllabusYearForClass(classData) {
     return String(new Date().getFullYear());
 }
 
-// Check if a date is a holiday for a specific class
+// Check if a date is a no-class day (holiday or evaluation period) for a specific class
 function isHolidayForClass(dateStr, classData) {
     return getEventsForClassOnDate(dateStr, classData)
         .some((ev) => eventTypeBlocksClass(ev.type));
+}
+
+/** First applicable blocking event (holiday or evaluation period) for a class on a date. */
+function getBlockingEventForClass(dateStr, classData) {
+    if (!dateStr || !classData) {
+        return null;
+    }
+    const onDay = getEventsForClassOnDate(dateStr, classData);
+    const blocking = onDay.find((ev) => eventTypeBlocksClass(ev.type));
+    if (!blocking) {
+        return null;
+    }
+    return { ...blocking, name: getEventDisplayName(blocking) };
 }
 
 // Get holiday that covers a specific date (handles both single dates and ranges)
@@ -21468,52 +21513,57 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         if (type === EVENT_TYPES.HOLIDAY) return isCalendarItemVisible('holiday');
         return isCalendarItemVisible(type);
     });
-    const blockingHoliday = visibleEvents.find(ev => normalizeEventType(ev.type) === EVENT_TYPES.HOLIDAY);
-    let holidayBg = '';
-    let holidayText = '';
-    if (blockingHoliday) {
-        holidayBg = blockingHoliday.bgColor || '#fef3c7';
-        holidayText = blockingHoliday.textColor || '#b45309';
-        dayDiv.classList.add('holiday', 'cal-item-holiday');
-        dayDiv.dataset.eventId = blockingHoliday.id;
-        dayDiv.style.backgroundColor = holidayBg;
+    const blockingEvent = visibleEvents.find(ev => eventTypeBlocksClass(ev.type));
+    let blockingBg = '';
+    let blockingText = '';
+    if (blockingEvent) {
+        const blockType = normalizeEventType(blockingEvent.type);
+        const defaults = EVENT_TYPE_DEFAULT_COLORS[blockType] || EVENT_TYPE_DEFAULT_COLORS.other;
+        blockingBg = blockingEvent.bgColor || defaults.bg;
+        blockingText = blockingEvent.textColor || defaults.text;
+        if (blockType === EVENT_TYPES.HOLIDAY) {
+            dayDiv.classList.add('holiday', 'cal-item-holiday');
+        }
+        if (blockType === EVENT_TYPES.EVALUATION_PERIOD) {
+            dayDiv.classList.add('has-eval-period', 'cal-item-evaluation_period');
+        }
+        dayDiv.dataset.eventId = blockingEvent.id;
+        dayDiv.style.backgroundColor = blockingBg;
         dayDiv.addEventListener('click', (e) => {
             if (e.target === dayDiv || e.target.classList.contains('day-number') || e.target.classList.contains('holiday-name') || e.target.classList.contains('calendar-event-chip')) {
-                openEventEditor(blockingHoliday, 'calendar-popout');
+                openEventEditor(blockingEvent, 'calendar-popout');
             }
         });
-    }
-    if (visibleEvents.some(ev => normalizeEventType(ev.type) === EVENT_TYPES.EVALUATION_PERIOD)) {
-        dayDiv.classList.add('has-eval-period');
     }
 
     // Day number
     const numberDiv = document.createElement('div');
     numberDiv.className = 'day-number';
     numberDiv.textContent = dayNumber;
-    if (blockingHoliday) {
-        numberDiv.style.color = getReadableTextOnBackground(holidayBg, holidayText);
+    if (blockingEvent) {
+        numberDiv.style.color = getReadableTextOnBackground(blockingBg, blockingText);
     }
     dayDiv.appendChild(numberDiv);
     
-    if (blockingHoliday) {
+    if (blockingEvent) {
+        const blockType = normalizeEventType(blockingEvent.type);
         const holidayDiv = document.createElement('div');
-        holidayDiv.className = 'holiday-name cal-item-holiday';
-        holidayDiv.dataset.eventId = blockingHoliday.id;
-        holidayDiv.style.color = getReadableTextOnBackground(holidayBg, holidayText);
+        holidayDiv.className = `holiday-name cal-item-${blockType}`;
+        holidayDiv.dataset.eventId = blockingEvent.id;
+        holidayDiv.style.color = getReadableTextOnBackground(blockingBg, blockingText);
         let appliesText = '';
-        if (eventHasAnyTargetFilter(blockingHoliday)) {
-            appliesText = ` (${getEventAppliesToDescriptionParts(blockingHoliday).join('; ')})`;
+        if (eventHasAnyTargetFilter(blockingEvent)) {
+            appliesText = ` (${getEventAppliesToDescriptionParts(blockingEvent).join('; ')})`;
         }
-        const holidayLabel = getEventDisplayName(blockingHoliday) + appliesText;
-        holidayDiv.textContent = holidayLabel;
-        holidayDiv.title = holidayLabel;
+        const blockingLabel = getEventDisplayName(blockingEvent) + appliesText;
+        holidayDiv.textContent = blockingLabel;
+        holidayDiv.title = blockingLabel;
         dayDiv.appendChild(holidayDiv);
     }
 
     const chipsWrap = document.createElement('div');
     chipsWrap.className = 'calendar-event-chips';
-    visibleEvents.filter(ev => normalizeEventType(ev.type) !== EVENT_TYPES.HOLIDAY).forEach(ev => {
+    visibleEvents.filter(ev => !eventTypeBlocksClass(ev.type)).forEach(ev => {
         const type = normalizeEventType(ev.type);
         const chip = document.createElement('div');
         chip.className = `calendar-event-chip cal-item-${type} event-type-${type}`;

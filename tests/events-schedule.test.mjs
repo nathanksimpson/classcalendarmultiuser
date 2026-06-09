@@ -16,7 +16,9 @@ function normalizeEventType(type) {
 }
 
 function eventTypeBlocksClass(type) {
-    return normalizeEventType(type) === EVENT_TYPES.HOLIDAY;
+    const normalized = normalizeEventType(type);
+    return normalized === EVENT_TYPES.HOLIDAY
+        || normalized === EVENT_TYPES.EVALUATION_PERIOD;
 }
 
 function eventAppliesToClass(event, classData) {
@@ -45,6 +47,19 @@ assert(!eventTypeBlocksClass('other'), 'other does not block class');
 assert(!eventTypeBlocksClass(EVENT_TYPES.OTHER), 'other enum does not block class');
 assert(eventTypeBlocksClass(''), 'unknown type defaults to holiday');
 assert(!eventTypeBlocksClass('evaluation_deadline'), 'eval deadline does not block via helper');
+assert(eventTypeBlocksClass('evaluation_period'), 'evaluation period blocks class');
+assert(!eventTypeBlocksClass('homework_deadline'), 'homework deadline does not block class');
+
+const evalPeriodDay = [
+    {
+        type: 'evaluation_period',
+        name: 'Midterm week',
+        startDate: '2026-03-02',
+        endDate: '2026-03-06',
+        classNames: []
+    }
+];
+assert(isHolidayForClassOnDay(evalPeriodDay), 'evaluation period blocks class on day');
 
 const classData = { name: 'Navy 7A' };
 const lessonDay = '2026-03-02';
