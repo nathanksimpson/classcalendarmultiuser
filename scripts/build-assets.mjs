@@ -65,6 +65,8 @@ const MINIFY_JS = [
     'js/workspace.js',
     'js/notes.js',
     'js/day-notes.js',
+    'js/day-note-categories.js',
+    'js/day-note-mentions.js',
     'js/class-notes-panel.js',
     'js/books-editor.js',
     'js/syllabus-table.js',

@@ -248,6 +248,70 @@
         return { error: null, cohorts: list };
     }
 
+    function moveStudentsBetweenCohorts(cohorts, fromCohortId, toCohortId, studentIds) {
+        const fromId = normalizeStr(fromCohortId);
+        const toId = normalizeStr(toCohortId);
+        const ids = (Array.isArray(studentIds) ? studentIds : []).map(normalizeStr).filter(Boolean);
+        const list = cloneCohorts(cohorts);
+        if (!fromId || !toId) {
+            return { error: 'missing_cohort', cohorts: list, duplicates: [] };
+        }
+        if (!ids.length) {
+            return { error: 'no_students', cohorts: list, duplicates: [] };
+        }
+        if (fromId === toId) {
+            return { error: 'same_cohort', cohorts: list, duplicates: [] };
+        }
+        const fromCohort = list.find((c) => c && c.id === fromId);
+        const toCohort = list.find((c) => c && c.id === toId);
+        if (!fromCohort || !toCohort) {
+            return { error: 'cohort_not_found', cohorts: list, duplicates: [] };
+        }
+        if (isArchiveCohort(fromCohort) || isArchiveCohort(toCohort)) {
+            return { error: 'archive_cohort', cohorts: list, duplicates: [] };
+        }
+        const fromStudents = normalizeCohortStudents(fromCohort);
+        const toStudents = normalizeCohortStudents(toCohort);
+        const toIdSet = new Set(toStudents.map((s) => s.id));
+        const duplicates = ids.filter((id) => toIdSet.has(id));
+        if (duplicates.length) {
+            return { error: 'duplicate_in_target', cohorts: list, duplicates };
+        }
+        const moveSet = new Set(ids);
+        const moving = [];
+        for (const sid of ids) {
+            const student = fromStudents.find((s) => s.id === sid);
+            if (!student) {
+                return { error: 'student_not_found', cohorts: list, duplicates: [] };
+            }
+            moving.push(Object.assign({}, student));
+        }
+        let next = list.map((c) => {
+            if (!c || c.id !== fromId) {
+                return c;
+            }
+            return Object.assign({}, c, {
+                students: fromStudents.filter((s) => !moveSet.has(s.id))
+            });
+        });
+        const targetStudents = normalizeCohortStudents(toCohort);
+        let sortOrder = targetStudents.length;
+        const appended = moving.map((s) =>
+            Object.assign({}, s, {
+                sortOrder: sortOrder++
+            })
+        );
+        next = next.map((c) => {
+            if (!c || c.id !== toId) {
+                return c;
+            }
+            return Object.assign({}, c, {
+                students: targetStudents.concat(appended)
+            });
+        });
+        return { error: null, cohorts: next, movedCount: moving.length, duplicates: [] };
+    }
+
     function purgeStudentRecords(data, studentId) {
         const sid = normalizeStr(studentId);
         if (!sid || !data) {
@@ -677,6 +741,7 @@
         findStudentCohort,
         archiveStudent,
         restoreStudentFromArchive,
+        moveStudentsBetweenCohorts,
         deleteStudentPermanently,
         purgeStudentRecords,
         isPastArchiveRetention,

@@ -998,6 +998,120 @@ body {
     margin-bottom: 2px;
 }
 
+.day-note-mention {
+    display: inline;
+    padding: 0 0.2em;
+    border-radius: 4px;
+    background: var(--accent-muted, #dbeafe);
+    color: var(--primary, #2563eb);
+    font-weight: 500;
+}
+
+.day-note-mention-hint {
+    margin-top: var(--space-1);
+    margin-bottom: 0;
+}
+
+.day-note-mention-wrap .day-note-mention-dropdown {
+    z-index: 1200;
+}
+
+.day-note-mention-dropdown .autocomplete-item {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    font: inherit;
+    color: inherit;
+}
+
+.day-note-mention-tier-label {
+    padding: var(--space-1) var(--space-2);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted, var(--text-secondary));
+    pointer-events: none;
+}
+
+.day-note-category-badge {
+    display: inline-block;
+    padding: 0.1em 0.45em;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--surface-muted, #f1f5f9);
+    color: var(--text-secondary);
+    vertical-align: baseline;
+}
+
+.day-note-category-field,
+.day-note-category-select {
+    display: block;
+    width: 100%;
+    margin-bottom: var(--space-3);
+}
+
+.day-note-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.day-note-category-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.day-note-category-add-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-top: var(--space-1);
+}
+
+.day-note-category-add-row .field-input {
+    flex: 1;
+}
+
+.day-note-summary-card-category {
+    margin-bottom: var(--space-1);
+}
+
+.student-profile-notes {
+    margin: var(--space-3) 0;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.student-profile-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.student-profile-note-item {
+    padding: var(--space-2);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--surface-muted, #f8fafc);
+}
+
+.student-profile-note-meta {
+    font-size: 0.8125rem;
+    color: var(--text-muted, var(--text-secondary));
+    margin-bottom: var(--space-1);
+}
+
+.student-profile-note-body {
+    margin: 0;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+}
+
 .day-note-textarea {
     width: 100%;
     min-height: 100px;
@@ -13145,6 +13259,244 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     margin-bottom: var(--space-3);
 }
 
+.classroom-sheet-panel {
+    min-width: 0;
+}
+
+.classroom-sheet-scroll {
+    overflow: auto;
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 170px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-card);
+}
+
+#panel-attendance:has(.classroom-header--collapsed) .classroom-sheet-scroll,
+#panel-homework-tracking:has(.classroom-header--collapsed) .classroom-sheet-scroll {
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 130px);
+}
+
+.classroom-sheet {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    min-width: 640px;
+}
+
+.classroom-sheet thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 6px 8px;
+    background: var(--bg-muted, #f1f5f9);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.classroom-sheet tbody td {
+    vertical-align: middle;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.classroom-sheet tbody tr:hover {
+    background: var(--accent-muted, rgba(37, 99, 235, 0.04));
+}
+
+.classroom-sheet tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.015);
+}
+
+.classroom-sheet tbody tr:nth-child(even):hover {
+    background: var(--accent-muted, rgba(37, 99, 235, 0.06));
+}
+
+.classroom-sheet--attendance .classroom-sheet-col-student {
+    width: 24%;
+}
+
+.classroom-sheet--attendance .classroom-sheet-col-attendance {
+    width: 36%;
+}
+
+.classroom-sheet--attendance .classroom-sheet-col-notes {
+    width: 40%;
+}
+
+.classroom-sheet-col-student {
+    width: 24%;
+}
+
+.classroom-sheet-col-attendance,
+.classroom-sheet-col-homework {
+    width: 32%;
+}
+
+.classroom-sheet-col-notes {
+    width: 40%;
+}
+
+.classroom-sheet-empty {
+    padding: var(--space-4) var(--space-3);
+}
+
+.classroom-sheet-name-line {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.classroom-sheet-school-inline {
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.classroom-sheet-school-sep {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.classroom-sheet-meta-line {
+    font-size: 0.7rem;
+    line-height: 1.25;
+    margin-top: 2px;
+}
+
+.classroom-sheet-school-line {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.25;
+}
+
+.classroom-sheet-school-label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.classroom-notes-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.classroom-notes-stack .field-input {
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 0.8125rem;
+}
+
+.classroom-student-memo--secondary {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.classroom-sheet .selection-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 3px 7px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.classroom-sheet .selection-chip input[type="radio"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
+
+.classroom-sheet .classroom-student-row-status,
+.classroom-sheet .classroom-student-row-grades {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 0;
+    overflow: visible;
+}
+
+.classroom-sheet--attendance .classroom-student-row-status {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.classroom-sheet--attendance .classroom-status-chip {
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+.classroom-sheet--homework .classroom-student-row-grades {
+    flex-wrap: wrap;
+}
+
+.classroom-sheet .classroom-hw-note {
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 0.8125rem;
+}
+
+.classroom-sheet .classroom-student-tag {
+    font-size: 0.625rem;
+    padding: 0 4px;
+}
+
+.classroom-sheet .classroom-recent-absence {
+    font-size: 0.7rem;
+    margin-left: 0;
+}
+
+.classroom-sheet--homework .classroom-sheet-col-student {
+    width: 24%;
+}
+
+.classroom-sheet--homework .classroom-sheet-col-homework {
+    width: 30%;
+}
+
+.classroom-sheet--homework .classroom-sheet-col-checks {
+    width: 20%;
+}
+
+.classroom-sheet--homework .classroom-sheet-col-notes {
+    width: 26%;
+}
+
+.classroom-homework-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+}
+
+.classroom-homework-self-check-label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.classroom-homework-checks .field-select {
+    min-height: 26px;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+}
+
+.classroom-homework-meta-label {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.classroom-homework-parent-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
 .classroom-header {
     margin-bottom: var(--space-4);
     padding: var(--space-3);
@@ -13385,6 +13737,86 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     margin-top: 0;
 }
 
+.roster-paste-modal-content {
+    max-width: 40rem;
+    max-height: min(92vh, calc(100dvh - 2rem));
+}
+
+.roster-paste-modal-content .modal-body-scroll {
+    padding: var(--space-4) var(--pad-overlay);
+}
+
+.roster-paste-target {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.roster-paste-text {
+    width: 100%;
+    margin-top: var(--space-2);
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 10rem;
+    box-sizing: border-box;
+}
+
+.roster-paste-preview {
+    margin-top: var(--space-3);
+    max-height: 14rem;
+    overflow: auto;
+}
+
+.roster-paste-preview-table {
+    margin-top: var(--space-2);
+}
+
+.classroom-roster-bulk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.classroom-roster-student-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.classroom-roster-student-row {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-2);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.classroom-roster-student-row.is-selected .classroom-roster-student-name {
+    background: var(--surface-selected, rgba(99, 102, 241, 0.12));
+}
+
+.classroom-roster-student-row.is-inactive .classroom-roster-student-name {
+    opacity: 0.65;
+}
+
+.classroom-roster-student-check {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+    flex-shrink: 0;
+}
+
+.classroom-roster-student-name {
+    flex: 1;
+    text-align: left;
+    border: none;
+    border-radius: 0;
+}
+
 .classroom-roster-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -13400,6 +13832,16 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     .classroom-index-panel {
         position: static;
         max-height: 220px;
+    }
+
+    .classroom-sheet-scroll {
+        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 150px);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #panel-attendance:has(.classroom-header--collapsed) .classroom-sheet-scroll,
+    #panel-homework-tracking:has(.classroom-header--collapsed) .classroom-sheet-scroll {
+        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 120px);
     }
 
     .classroom-roster-layout {

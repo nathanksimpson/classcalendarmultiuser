@@ -11,6 +11,22 @@
     const ATTENDANCE_RE = /^출석\s/;
     const LEGEND_RE = /^:\s*관심/;
     const START_DATE_RE = /^\d{4}-\d{2}-\d{2}\s+부터\s+수업시작/;
+    const ROSTER_TAIL_START_RES = [
+        /^전숙제/,
+        /^\[숙제확인\]/,
+        /^시험종류/,
+        /^숙제미확인/,
+        /^미참석/,
+        /^셀프체크/,
+        /^학부모확인/,
+        /^No Check$/i,
+        /^Wr&Spk$/i,
+        /^Covered in Class/,
+        /^Homework \(if not finished/,
+        /^Workbook[：:]/
+    ];
+    const SHOOTING_NAME_RE = /^촬영 알림(?:\t+|\s{2,})(.+)$/;
+    const EN_WITH_SMS_RE = /^(?:수호[OX]\s*)?\(([^)]*)\)(?:\t+|\s+)*SMS\s*$/i;
 
     function normalizePasteText(text) {
         return String(text ?? '')
@@ -41,6 +57,9 @@
         if (SKIP_LINES.has(t)) {
             return true;
         }
+        if (/^\d+$/.test(t)) {
+            return true;
+        }
         if (ATTENDANCE_RE.test(t)) {
             return true;
         }
@@ -51,6 +70,40 @@
             return true;
         }
         return false;
+    }
+
+    function trimRosterPasteTail(text) {
+        const lines = normalizePasteText(text).split('\n');
+        const cutAt = lines.findIndex((raw) => {
+            const t = raw.trim();
+            if (!t) {
+                return false;
+            }
+            return ROSTER_TAIL_START_RES.some((re) => re.test(t));
+        });
+        const kept = cutAt < 0 ? lines : lines.slice(0, cutAt);
+        return kept.join('\n').trim();
+    }
+
+    function expandPasteLines(lines) {
+        const out = [];
+        (Array.isArray(lines) ? lines : []).forEach((raw) => {
+            if (raw == null) {
+                return;
+            }
+            const text = String(raw);
+            if (!text.includes('\t')) {
+                out.push(text);
+                return;
+            }
+            text.split('\t').forEach((part) => {
+                const t = part.trim();
+                if (t) {
+                    out.push(t);
+                }
+            });
+        });
+        return out;
     }
 
     function parseStudentBlock(lines, cohortName, sortOrder) {
@@ -71,8 +124,24 @@
                 continue;
             }
 
+            const shootingName = line.match(SHOOTING_NAME_RE);
+            if (shootingName) {
+                name = shootingName[1].trim();
+                continue;
+            }
+
             if (START_DATE_RE.test(line)) {
                 memoParts.push(line);
+                continue;
+            }
+
+            const enSmsMatch = line.match(EN_WITH_SMS_RE);
+            if (enSmsMatch) {
+                const suhoPrefix = line.match(SUHO_PREFIX_RE);
+                if (suhoPrefix) {
+                    memoParts.push(`수호${suhoPrefix[1]}`);
+                }
+                nameEn = enSmsMatch[1].trim();
                 continue;
             }
 
@@ -150,6 +219,7 @@
     function splitCohortSections(text) {
         const lines = normalizePasteText(text).split('\n');
         const sections = [];
+        const preamble = [];
         let current = null;
 
         for (const raw of lines) {
@@ -163,12 +233,18 @@
             }
             if (current) {
                 current.lines.push(raw);
+            } else {
+                preamble.push(raw);
             }
         }
         if (current) {
             sections.push(current);
         }
-        return sections;
+        return { preamble, sections };
+    }
+
+    function preambleHasStudentRows(preamble) {
+        return (Array.isArray(preamble) ? preamble : []).some((raw) => STUDENT_NUM_RE.test(String(raw).trim()));
     }
 
     function splitStudentBlocks(cohortLines) {
@@ -208,7 +284,7 @@
 
     function parseCohortSection(section) {
         const cohortName = section.cohortName;
-        const studentBlocks = splitStudentBlocks(section.lines);
+        const studentBlocks = splitStudentBlocks(expandPasteLines(section.lines));
         const students = [];
 
         studentBlocks.forEach((block, i) => {
@@ -232,11 +308,39 @@
     }
 
     function parseRosterPaste(text) {
-        const sections = splitCohortSections(text);
+        const trimmed = trimRosterPasteTail(text);
+        const { sections } = splitCohortSections(trimmed);
         const cohorts = sections
             .map(parseCohortSection)
             .filter((c) => c.students.length > 0);
         return { cohorts };
+    }
+
+    function parseRosterPasteSingle(text, options) {
+        const opts = options || {};
+        const trimmed = trimRosterPasteTail(text);
+        if (!trimmed) {
+            return { error: 'emptyPaste', cohort: null };
+        }
+        const { preamble, sections } = splitCohortSections(trimmed);
+        const fallbackName = normalizeStr(opts.fallbackCohortName) || 'Import';
+        const hasPreambleStudents = preambleHasStudentRows(preamble);
+        let cohort = null;
+
+        if (sections.length > 1) {
+            return { error: 'multipleCohorts', cohort: null };
+        }
+        if (hasPreambleStudents) {
+            cohort = parseCohortSection({ cohortName: fallbackName, lines: preamble });
+        } else if (sections.length === 1) {
+            cohort = parseCohortSection(sections[0]);
+        } else {
+            cohort = parseCohortSection({ cohortName: fallbackName, lines: trimmed.split('\n') });
+        }
+        if (!cohort || !cohort.students.length) {
+            return { error: 'noStudents', cohort: null };
+        }
+        return { error: null, cohort };
     }
 
     const STUDENT_TAGS = ['interested', 'new', 'ending_soon'];
@@ -570,6 +674,9 @@
 
     global.CCPRosterImport = {
         parseRosterPaste,
+        parseRosterPasteSingle,
+        trimRosterPasteTail,
+        expandPasteLines,
         slugifyCohort,
         stableStudentId,
         normalizeCohortLabel,

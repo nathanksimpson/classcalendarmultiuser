@@ -26,24 +26,22 @@
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
         students: [
-            'js/roster-import.js?v=20260612-roster-import',
+            'js/roster-import.js?v=20260612-roster-paste-tab',
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-mvp',
-            'js/classroom-roster.js?v=20260612-roster-import-fix'
+            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-roster.js?v=20260612-note-categories'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-mvp',
-            'js/classroom-student-index.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-header.js?v=20260612-classroom-mvp',
-            'js/classroom-attendance.js?v=20260612-classroom-mvp'
+            'js/classroom-attendance.js?v=20260612-classroom-density'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-mvp',
-            'js/classroom-student-index.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-header.js?v=20260612-classroom-mvp',
-            'js/classroom-homework.js?v=20260612-classroom-mvp'
+            'js/classroom-homework.js?v=20260612-classroom-density'
         ]
     };
 

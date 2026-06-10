@@ -451,6 +451,7 @@ function getDefaultAppData() {
         termMonthCount: 3,
         calendarName: '',
         dayNotes: [],
+        dayNoteCategories: [],
         attendanceSessions: [],
         homeworkCompletions: [],
         studentPoints: [],
@@ -6343,6 +6344,280 @@ function getDayNotesApi() {
     return typeof window !== 'undefined' ? window.CCPDayNotes : null;
 }
 
+function getDayNoteMentionsApi() {
+    return typeof window !== 'undefined' ? window.CCPDayNoteMentions : null;
+}
+
+function getDayNoteCategoriesApi() {
+    return typeof window !== 'undefined' ? window.CCPDayNoteCategories : null;
+}
+
+function ensureDayNoteCategoriesArray() {
+    const api = getDayNoteCategoriesApi();
+    if (!Array.isArray(appData.dayNoteCategories)) {
+        appData.dayNoteCategories = [];
+    } else if (api && api.normalizeDayNoteCategories) {
+        appData.dayNoteCategories = api.normalizeDayNoteCategories(appData.dayNoteCategories);
+    }
+}
+
+function getDayNoteCategoryList() {
+    const api = getDayNoteCategoriesApi();
+    ensureDayNoteCategoriesArray();
+    if (!api || !api.getAllCategories) {
+        return [];
+    }
+    return api.getAllCategories(appData.dayNoteCategories, t);
+}
+
+function resolveDayNoteCategoryLabelForUi(categoryId) {
+    const api = getDayNotesApi();
+    ensureDayNoteCategoriesArray();
+    if (api && api.resolveDayNoteCategoryLabel) {
+        return api.resolveDayNoteCategoryLabel(categoryId, appData.dayNoteCategories, t);
+    }
+    return String(categoryId || 'class-notes');
+}
+
+function populateDayNoteCategorySelect(selectEl, selectedId) {
+    if (!selectEl) {
+        return;
+    }
+    const prev = selectedId || selectEl.value;
+    selectEl.replaceChildren();
+    getDayNoteCategoryList().forEach((cat) => {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        selectEl.appendChild(opt);
+    });
+    const dayNotesApi = getDayNotesApi();
+    const defaultId = dayNotesApi && dayNotesApi.DEFAULT_CATEGORY_ID
+        ? dayNotesApi.DEFAULT_CATEGORY_ID
+        : 'class-notes';
+    if (prev && [...selectEl.options].some((o) => o.value === prev)) {
+        selectEl.value = prev;
+    } else {
+        selectEl.value = defaultId;
+    }
+}
+
+function getSelectedDayNoteCategoryId(selectEl) {
+    const dayNotesApi = getDayNotesApi();
+    const fallback = dayNotesApi && dayNotesApi.DEFAULT_CATEGORY_ID
+        ? dayNotesApi.DEFAULT_CATEGORY_ID
+        : 'class-notes';
+    return selectEl ? (selectEl.value || '').trim() || fallback : fallback;
+}
+
+function buildDayNoteCategoryBadgeHtml(categoryId) {
+    const label = escapeHtml(resolveDayNoteCategoryLabelForUi(categoryId));
+    return `<span class="day-note-category-badge">${label}</span>`;
+}
+
+function getStudentTaggedNotes(studentId) {
+    const api = getDayNotesApi();
+    if (!api || !api.getNotesForStudent) {
+        return [];
+    }
+    ensureDayNotesArray();
+    return api.getNotesForStudent(appData.dayNotes, studentId);
+}
+
+function openDayNoteCategoryManagerModal() {
+    const modal = document.getElementById('dayNoteCategoryModal');
+    if (!modal) {
+        return;
+    }
+    renderDayNoteCategoryManagerList();
+    const nameIn = document.getElementById('newDayNoteCategoryName');
+    if (nameIn) {
+        nameIn.value = '';
+    }
+    openModal(modal);
+}
+
+function renderDayNoteCategoryManagerList() {
+    const listEl = document.getElementById('dayNoteCategoryList');
+    if (!listEl) {
+        return;
+    }
+    ensureDayNoteCategoriesArray();
+    ensureDayNotesArray();
+    const api = getDayNoteCategoriesApi();
+    listEl.replaceChildren();
+    const custom = api && api.normalizeDayNoteCategories
+        ? api.normalizeDayNoteCategories(appData.dayNoteCategories)
+        : [];
+    if (!custom.length) {
+        const empty = document.createElement('p');
+        empty.className = 'section-hint';
+        empty.textContent = t('dayNoteCategoryNoneCustom');
+        listEl.appendChild(empty);
+        return;
+    }
+    custom.forEach((cat) => {
+        const row = document.createElement('div');
+        row.className = 'day-note-category-row';
+        const label = document.createElement('span');
+        label.textContent = cat.name;
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'btn btn-outline btn-small';
+        delBtn.textContent = t('dayNoteCategoryDelete');
+        const check = api && api.canDeleteCategory
+            ? api.canDeleteCategory(cat.id, appData.dayNotes)
+            : { ok: true };
+        if (!check.ok) {
+            delBtn.disabled = true;
+            delBtn.title = check.reason === 'in_use'
+                ? t('dayNoteCategoryInUse')
+                : t('dayNoteCategoryDelete');
+        }
+        delBtn.addEventListener('click', () => {
+            if (!check.ok) {
+                showSyncToast(t('dayNoteCategoryInUse'), true);
+                return;
+            }
+            appData.dayNoteCategories = appData.dayNoteCategories.filter((c) => c && c.id !== cat.id);
+            saveData();
+            renderDayNoteCategoryManagerList();
+            populateDayNoteCategorySelect(document.getElementById('classNotesAddCategory'));
+            populateDayNoteCategorySelect(document.getElementById('classDayNoteCategory'));
+            renderClassNotesTab();
+        });
+        row.appendChild(label);
+        row.appendChild(delBtn);
+        listEl.appendChild(row);
+    });
+}
+
+function handleDayNoteCategoryFormSubmit(e) {
+    e.preventDefault();
+    const nameIn = document.getElementById('newDayNoteCategoryName');
+    const name = nameIn ? (nameIn.value || '').trim() : '';
+    if (!name) {
+        return;
+    }
+    const api = getDayNoteCategoriesApi();
+    if (!api || !api.createCategory) {
+        return;
+    }
+    ensureDayNoteCategoriesArray();
+    const cat = api.createCategory(name);
+    if (!cat) {
+        return;
+    }
+    appData.dayNoteCategories.push(cat);
+    saveData();
+    if (nameIn) {
+        nameIn.value = '';
+    }
+    renderDayNoteCategoryManagerList();
+    populateDayNoteCategorySelect(document.getElementById('classNotesAddCategory'), cat.id);
+    populateDayNoteCategorySelect(document.getElementById('classDayNoteCategory'), cat.id);
+    renderClassNotesTab();
+}
+
+function syncDayNoteTaggedStudentIds(text, classId) {
+    const mentionsApi = getDayNoteMentionsApi();
+    if (!mentionsApi) {
+        return [];
+    }
+    return mentionsApi.syncTaggedStudentIdsFromText(
+        text,
+        classId,
+        appData.cohorts || [],
+        appData.classes || []
+    );
+}
+
+function resolveDayNoteStudent(studentId) {
+    const mentionsApi = getDayNoteMentionsApi();
+    if (!mentionsApi) {
+        return null;
+    }
+    return mentionsApi.resolveStudentDisplay(studentId, appData.cohorts || []);
+}
+
+function renderDayNoteTextHtml(note) {
+    const mentionsApi = getDayNoteMentionsApi();
+    if (!mentionsApi || !note) {
+        return escapeHtml(note && note.text ? note.text : '');
+    }
+    return mentionsApi.renderMentionHtml(
+        note.text,
+        note.taggedStudentIds || [],
+        resolveDayNoteStudent
+    );
+}
+
+function resolveTaggedStudentSearchHay(note) {
+    if (!note || !Array.isArray(note.taggedStudentIds) || !note.taggedStudentIds.length) {
+        return '';
+    }
+    return note.taggedStudentIds.map((sid) => {
+        const st = resolveDayNoteStudent(sid);
+        if (!st) {
+            return '';
+        }
+        return [st.name, st.nameEn].filter(Boolean).join(' ');
+    }).filter(Boolean).join(' ');
+}
+
+function setupDayNoteMentionField(textarea, getClassId) {
+    const mentionsApi = getDayNoteMentionsApi();
+    if (!mentionsApi || !textarea) {
+        return;
+    }
+    mentionsApi.attachMentionAutocomplete(textarea, getClassId, {
+        getCohorts: () => appData.cohorts || [],
+        getClasses: () => appData.classes || [],
+        t
+    });
+}
+
+function syncClassNotesMentionHint(classId) {
+    const mentionsApi = getDayNoteMentionsApi();
+    let hasStudents = false;
+    if (mentionsApi) {
+        const allRows = mentionsApi.getAllActiveStudentRows
+            ? mentionsApi.getAllActiveStudentRows(appData.cohorts || [])
+            : [];
+        hasStudents = allRows.length > 0;
+    }
+    const msg = !hasStudents
+        ? t('dayNoteMentionNoStudents')
+        : t('dayNoteMentionHint');
+    ['classNotesAddMentionHint', 'classDayNoteMentionHint'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = msg;
+        }
+    });
+}
+
+function initDayNoteMentionFields() {
+    const addText = document.getElementById('classNotesAddText');
+    if (addText && addText.dataset.mentionInit !== '1') {
+        addText.dataset.mentionInit = '1';
+        setupDayNoteMentionField(addText, () => (
+            document.getElementById('classNotesAddClass')?.value || ''
+        ));
+    }
+    const modalText = document.getElementById('classDayNoteText');
+    if (modalText && modalText.dataset.mentionInit !== '1') {
+        modalText.dataset.mentionInit = '1';
+        setupDayNoteMentionField(modalText, () => (
+            classDayNoteModalState && classDayNoteModalState.classId
+                ? classDayNoteModalState.classId
+                : ''
+        ));
+    }
+    populateDayNoteCategorySelect(document.getElementById('classNotesAddCategory'));
+    populateDayNoteCategorySelect(document.getElementById('classDayNoteCategory'));
+}
+
 function ensureDayNotesArray() {
     if (!Array.isArray(appData.dayNotes)) {
         appData.dayNotes = [];
@@ -6604,12 +6879,19 @@ function renderClassDayNoteExistingList(classId, dateStr) {
     notes.forEach((note) => {
         const item = document.createElement('div');
         item.className = 'day-note-existing-item';
+        const meta = document.createElement('div');
+        meta.className = 'day-note-existing-item-meta';
         const timeEl = document.createElement('time');
         timeEl.dateTime = note.createdAt || '';
         timeEl.textContent = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
+        meta.appendChild(timeEl);
+        const catWrap = document.createElement('span');
+        catWrap.innerHTML = buildDayNoteCategoryBadgeHtml(note.categoryId);
+        meta.appendChild(catWrap);
         const body = document.createElement('p');
-        body.textContent = note.text;
-        item.appendChild(timeEl);
+        body.className = 'day-note-existing-item-body';
+        body.innerHTML = renderDayNoteTextHtml(note);
+        item.appendChild(meta);
         item.appendChild(body);
         mount.appendChild(item);
     });
@@ -6649,12 +6931,18 @@ function openClassDayNoteModal(classId, dateStr, displayNameOverride) {
             readOnlyEl.textContent = getDayNoteWriteBlockedMessage(classId);
         }
     }
+    const categoryEl = document.getElementById('classDayNoteCategory');
     if (textEl) {
         textEl.disabled = readOnly;
     }
     if (saveBtn) {
         saveBtn.disabled = readOnly;
     }
+    if (categoryEl) {
+        categoryEl.disabled = readOnly;
+    }
+    initDayNoteMentionFields();
+    syncClassNotesMentionHint(classId);
     openModal(modal);
     if (textEl && !readOnly) {
         textEl.focus();
@@ -6817,7 +7105,7 @@ async function flushTeamSaveAfterDayNotesChange() {
     }
 }
 
-function appendClassDayNote({ classId, dateStr, text, createdAt }) {
+function appendClassDayNote({ classId, dateStr, text, createdAt, taggedStudentIds, categoryId }) {
     if (isDayNoteWriteBlocked(classId)) {
         showLockFlash(getDayNoteWriteBlockedMessage(classId), false);
         return false;
@@ -6845,6 +7133,15 @@ function appendClassDayNote({ classId, dateStr, text, createdAt }) {
     } else if (!isAuthorHr && actorId && !hrUserId) {
         showNoHrWarning = true;
     }
+    const syncedTagged = Array.isArray(taggedStudentIds) && taggedStudentIds.length
+        ? taggedStudentIds
+        : syncDayNoteTaggedStudentIds(text, classId);
+    if (syncedTagged.length) {
+        noteRaw.taggedStudentIds = syncedTagged;
+    }
+    const dayNotesApi = getDayNotesApi();
+    noteRaw.categoryId = categoryId
+        || (dayNotesApi && dayNotesApi.DEFAULT_CATEGORY_ID) || 'class-notes';
     const entry = api.normalizeDayNote(noteRaw);
     if (!entry) {
         return false;
@@ -6879,7 +7176,9 @@ function saveClassDayNoteFromModal() {
         classId: state.classId,
         dateStr: state.dateStr,
         text,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        taggedStudentIds: syncDayNoteTaggedStudentIds(text, state.classId),
+        categoryId: getSelectedDayNoteCategoryId(document.getElementById('classDayNoteCategory'))
     });
     if (!ok) {
         return;
@@ -6992,11 +7291,13 @@ function syncClassNotesAddFormChrome() {
             readOnlyEl.textContent = getDayNoteWriteBlockedMessage(classId);
         }
     }
-    [textEl, saveBtn, classSelect, datetimeEl, nowBtn].forEach((el) => {
+    const categoryEl = document.getElementById('classNotesAddCategory');
+    [textEl, saveBtn, classSelect, datetimeEl, nowBtn, categoryEl].forEach((el) => {
         if (el) {
             el.disabled = readOnly;
         }
     });
+    syncClassNotesMentionHint(classId);
 }
 
 function resetClassNotesAddForm() {
@@ -7031,7 +7332,9 @@ function saveClassNoteFromNotesTab() {
         classId,
         dateStr: parsed.dateStr,
         text,
-        createdAt: parsed.createdAt
+        createdAt: parsed.createdAt,
+        taggedStudentIds: syncDayNoteTaggedStudentIds(text, classId),
+        categoryId: getSelectedDayNoteCategoryId(document.getElementById('classNotesAddCategory'))
     });
     if (!ok) {
         return;
@@ -7078,12 +7381,17 @@ function renderDayNotesSummaryList(dateStr) {
         const metaLine = document.createElement('div');
         metaLine.className = 'day-note-summary-card-meta';
         const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
-        metaLine.textContent = [time, meta.subject].filter(Boolean).join(' · ');
+        const metaParts = [time, meta.subject].filter(Boolean);
+        metaLine.textContent = metaParts.join(' · ');
+        const catBadge = document.createElement('span');
+        catBadge.className = 'day-note-summary-card-category';
+        catBadge.innerHTML = buildDayNoteCategoryBadgeHtml(note.categoryId);
         const body = document.createElement('p');
         body.className = 'day-note-summary-card-body';
-        body.textContent = note.text;
+        body.innerHTML = renderDayNoteTextHtml(note);
         card.appendChild(header);
         card.appendChild(metaLine);
+        card.appendChild(catBadge);
         card.appendChild(body);
         listEl.appendChild(card);
     });
@@ -7413,6 +7721,17 @@ function initDayNotesUi() {
 
     document.getElementById('classDayNoteModalClose')?.addEventListener('click', closeClassDayNoteModal);
     document.getElementById('classDayNoteSaveBtn')?.addEventListener('click', saveClassDayNoteFromModal);
+    document.getElementById('dayNoteCategoryModalClose')?.addEventListener('click', () => {
+        const modal = document.getElementById('dayNoteCategoryModal');
+        if (modal) {
+            closeModal(modal);
+        }
+    });
+    document.getElementById('dayNoteCategoryForm')?.addEventListener('submit', handleDayNoteCategoryFormSubmit);
+    const dayNoteCategoryModal = document.getElementById('dayNoteCategoryModal');
+    if (dayNoteCategoryModal) {
+        bindModalBackdropClose(dayNoteCategoryModal);
+    }
     document.getElementById('dayNotesSummaryModalClose')?.addEventListener('click', closeDayNotesSummaryModal);
     function bindOpenNotesAppControl(el) {
         if (!el || el.dataset.openNotesAppBound === '1') {
@@ -8268,6 +8587,7 @@ function getFilteredClassNotesForExport() {
         classIds: filters.classIds,
         textQuery: filters.textQuery || undefined,
         resolveClassHay: resolveDayNoteSearchHay,
+        resolveTaggedStudentHay: resolveTaggedStudentSearchHay,
         matchesMeta: (classId) => {
             const classData = appData.classes.find((c) => c.id === classId);
             return !!(classData && classMatchesClassNotesSidebarFilters(classData, filters));
@@ -8331,12 +8651,29 @@ function buildClassNotesPreviewEntry(note, api, options = {}) {
                 showClassNotesExportStatus(true, t('classNotesDeleted'));
             }
         },
-        onSaveEdit: (id, text) => {
-            if (updateClassDayNote(id, { text })) {
+        onSaveEdit: (id, text, classId, categoryId) => {
+            const note = appData.dayNotes.find((n) => n && n.id === id);
+            const cid = classId || (note && note.classId) || '';
+            const taggedStudentIds = syncDayNoteTaggedStudentIds(text, cid);
+            const patch = {
+                text,
+                categoryId: categoryId || (note && note.categoryId) || 'class-notes'
+            };
+            if (taggedStudentIds.length) {
+                patch.taggedStudentIds = taggedStudentIds;
+            } else {
+                patch.taggedStudentIds = [];
+            }
+            if (updateClassDayNote(id, patch)) {
                 classNotesEditingId = null;
                 showClassNotesExportStatus(true, t('classNotesUpdated'));
             }
         },
+        renderNoteHtml: renderDayNoteTextHtml,
+        buildCategoryBadgeHtml: buildDayNoteCategoryBadgeHtml,
+        populateCategorySelect: populateDayNoteCategorySelect,
+        getCategorySelectValue: getSelectedDayNoteCategoryId,
+        setupMentionField: setupDayNoteMentionField,
         onCancelEdit: () => {
             classNotesEditingId = null;
             renderClassNotesTab();
@@ -8582,6 +8919,10 @@ function initClassNotesPanelListeners() {
     shell.querySelector('#classNotesAddNowBtn')?.addEventListener('click', () => {
         resetClassNotesAddDatetime();
     });
+    shell.querySelector('#classNotesManageCategoriesBtn')?.addEventListener('click', openDayNoteCategoryManagerModal);
+    shell.querySelector('#classNotesAddClass')?.addEventListener('change', () => {
+        syncClassNotesAddFormChrome();
+    });
     shell.querySelector('#classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
     shell.querySelector('#classNotesTextSearch')?.addEventListener('input', () => {
         renderClassNotesTab();
@@ -8659,6 +9000,7 @@ function initClassNotesPanelListeners() {
 function initClassNotesTab() {
     ensureClassNotesShell();
     initClassNotesPanelListeners();
+    initDayNoteMentionFields();
     syncClassNotesAddFormChrome();
     syncClassNotesSortSelect();
     if (!classNotesFiltersBuilt) {
@@ -14323,7 +14665,13 @@ function getClassroomHooks() {
             return CalendarSync.verifyPassword(password);
         },
         canDeleteStudents: () =>
-            typeof CCPClassroomAccess !== 'undefined' && CCPClassroomAccess.canDeleteStudentPermanently()
+            typeof CCPClassroomAccess !== 'undefined' && CCPClassroomAccess.canDeleteStudentPermanently(),
+        getStudentTaggedNotes,
+        resolveDayNoteMeta,
+        renderDayNoteTextHtml,
+        resolveDayNoteCategoryLabel: resolveDayNoteCategoryLabelForUi,
+        buildDayNoteCategoryBadgeHtml,
+        formatDateDisplay
     };
 }
 
@@ -27396,6 +27744,20 @@ function migrateData(data) {
     }
     if (migrateUiHostTabsForSyllabusSetup(data.ui) && data === appData) {
         saveUiStateToLocalStorage();
+    }
+
+    if (!Array.isArray(data.dayNoteCategories)) {
+        data.dayNoteCategories = [];
+        migrated = true;
+    } else {
+        const catApi = getDayNoteCategoriesApi();
+        if (catApi && catApi.normalizeDayNoteCategories) {
+            const normalizedCats = catApi.normalizeDayNoteCategories(data.dayNoteCategories);
+            if (JSON.stringify(normalizedCats) !== JSON.stringify(data.dayNoteCategories)) {
+                data.dayNoteCategories = normalizedCats;
+                migrated = true;
+            }
+        }
     }
 
     if (!Array.isArray(data.customClassTypes)) {

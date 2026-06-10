@@ -46,6 +46,21 @@ const U = loadUtils();
     );
     assert(U.normalizeClipboardText('') === '', 'empty string');
     assert(U.normalizeClipboardText(null) === '', 'null → empty');
+    assert(
+        U.normalizeClipboardText('2026-01-01 \u2013 2026-06-30 \u2014 Title')
+            === '2026-01-01 - 2026-06-30 - Title',
+        'range export dashes'
+    );
+    assert(
+        U.normalizeClipboardText('\u2500\u2500\u2550\u2550') === '--==',
+        'box drawing → ASCII'
+    );
+    assert(U.normalizeClipboardText('wait\u2026') === 'wait...', 'ellipsis');
+    assert(U.normalizeClipboardText('\uAE40\uBBFC\uC9C0 \u00B7 Purple') === '\uAE40\uBBFC\uC9C0  -  Purple', 'middle dot');
+    assert(
+        U.sanitizeExportText('<Speaking \u2014 Write>') === '<Speaking - Write>',
+        'sanitizeExportText alias'
+    );
 }
 
 const HI = loadHomeworkImport();

@@ -1,5 +1,5 @@
 /**
- * Homework completion segment — grades A–F+X per student.
+ * Homework completion segment — full-width 3-column table layout.
  */
 (function (global) {
     let hooks = null;
@@ -164,14 +164,15 @@
         const editable = access() && access().canEditClass(getClassData());
         const students = getStudents();
         const d = domain();
+        const rowApi = global.CCPClassroomStudentRow;
 
         if (!syllabusRowId) {
-            rowsMount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomNoAssignment'))}</p>`;
+            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoAssignment'))}</p></td></tr>`;
             return;
         }
 
         if (!students.length) {
-            rowsMount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p>`;
+            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
             return;
         }
 
@@ -182,25 +183,30 @@
                 const selfCheck = rec ? rec.selfCheck : 'none';
                 const parentCheck = rec ? rec.parentCheck : false;
                 const note = rec ? rec.note || '' : '';
-                const label =
-                    global.CCPClassroomStudentRow
-                        ? global.CCPClassroomStudentRow.formatStudentLabel(entry, t)
-                        : escapeHtml(entry.student.name);
+                const identity = rowApi
+                    ? rowApi.formatStudentIdentityColumn(entry, t)
+                    : escapeHtml(entry.student.name);
                 const selfOptions = d.HOMEWORK_SELF_CHECKS.map((sc) => {
                     const sel = selfCheck === sc ? ' selected' : '';
                     return `<option value="${sc}"${sel}>${escapeHtml(t('classroomSelfCheck_' + sc))}</option>`;
                 }).join('');
-                return `<article class="classroom-student-row" data-student-id="${escapeHtml(sid)}">
-                <header class="classroom-student-row-head">${label}</header>
-                <div class="classroom-student-row-grades">${buildGradeChips(sid, editable)}</div>
-                <div class="form-row">
-                <div class="form-group"><label>${escapeHtml(t('classroomSelfCheck'))}</label>
-                <select class="field-select classroom-self-check" data-student-id="${escapeHtml(sid)}" ${editable ? '' : 'disabled'}>${selfOptions}</select></div>
-                <div class="form-group"><label class="checkbox-label"><input type="checkbox" class="classroom-parent-check" data-student-id="${escapeHtml(sid)}" ${parentCheck ? 'checked' : ''} ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomParentCheck'))}</label></div>
-                </div>
-                <div class="form-group"><label>${escapeHtml(t('classroomHomeworkNote'))}</label>
-                <input type="text" class="field-input classroom-hw-note" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(note)}" ${editable ? '' : 'disabled'} /></div>
-            </article>`;
+                const disabled = editable ? '' : ' disabled';
+                return `<tr class="classroom-sheet-row" data-student-id="${escapeHtml(sid)}">
+                <td class="classroom-sheet-col-student">${identity}</td>
+                <td class="classroom-sheet-col-homework">
+                    <div class="classroom-student-row-grades">${buildGradeChips(sid, editable)}</div>
+                </td>
+                <td class="classroom-sheet-col-checks">
+                    <div class="classroom-homework-checks">
+                        <label class="classroom-homework-self-check-label"><span class="classroom-homework-meta-label">${escapeHtml(t('classroomSelfCheck'))}</span>
+                        <select class="field-select field-control--compact classroom-self-check" data-student-id="${escapeHtml(sid)}"${disabled}>${selfOptions}</select></label>
+                        <label class="checkbox-label classroom-homework-parent-label"><input type="checkbox" class="classroom-parent-check" data-student-id="${escapeHtml(sid)}" ${parentCheck ? 'checked' : ''}${disabled} /> ${escapeHtml(t('classroomParentCheck'))}</label>
+                    </div>
+                </td>
+                <td class="classroom-sheet-col-notes">
+                    <input type="text" class="field-input field-control--compact classroom-hw-note" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(note)}" placeholder="${escapeHtml(t('classroomHomeworkNote'))}" aria-label="${escapeHtml(t('classroomHomeworkNote'))}"${disabled} />
+                </td>
+            </tr>`;
             })
             .join('');
 
@@ -223,19 +229,6 @@
             input.addEventListener('input', () => {
                 setRecord(input.getAttribute('data-student-id'), { note: input.value });
             });
-        });
-    }
-
-    function renderIndex(panel) {
-        const indexMount = panel.querySelector('#classroomHomeworkIndex');
-        if (!indexMount || !global.CCPClassroomStudentIndex) {
-            return;
-        }
-        global.CCPClassroomStudentIndex.render(indexMount, getStudents(), {
-            onSelect: (id) => {
-                const row = panel.querySelector(`.classroom-student-row[data-student-id="${id}"]`);
-                row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
         });
     }
 
@@ -264,7 +257,6 @@
             return;
         }
         renderHeader(panel);
-        renderIndex(panel);
         renderRows(panel);
         panel.querySelector('#classroomHomeworkSaveBtn')?.addEventListener('click', () => saveAll(panel), {
             once: true

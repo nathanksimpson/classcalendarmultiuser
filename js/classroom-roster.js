@@ -10,6 +10,9 @@
     let importPlan = [];
     let importWizardStep = 1;
     let importFileLabel = '';
+    let pastePlanRow = null;
+    let pastePreviewTimer = null;
+    const selectedStudentIds = new Set();
 
     function domain() {
         return global.CCPClassroomDomain;
@@ -472,6 +475,420 @@
         downloadJson(`roster-export-${cal}-${suffix}-${date}.json`, pack);
     }
 
+    function setPasteError(msg) {
+        const el = document.getElementById('rosterPasteError');
+        if (!el) {
+            return;
+        }
+        if (msg) {
+            el.textContent = msg;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function getPasteMergeMode() {
+        const checked = document.querySelector('input[name="rosterPasteMergeMode"]:checked');
+        return checked && checked.value === 'merge' ? 'merge' : 'replace';
+    }
+
+    function setPasteConfirmEnabled(enabled, studentCount) {
+        const btn = document.getElementById('rosterPasteConfirmBtn');
+        if (!btn) {
+            return;
+        }
+        btn.disabled = !enabled;
+        if (enabled && studentCount != null) {
+            btn.textContent = t('rosterPasteConfirm').replace('{count}', String(studentCount));
+        } else {
+            btn.textContent = t('rosterPasteConfirm').replace('{count}', '0');
+        }
+    }
+
+    function showPastePreviewIdle() {
+        pastePlanRow = null;
+        const preview = document.getElementById('rosterPastePreview');
+        if (preview) {
+            preview.innerHTML = `<p class="section-hint">${escapeHtml(t('rosterPastePreviewIdle'))}</p>`;
+            preview.hidden = false;
+        }
+        setPasteConfirmEnabled(false);
+    }
+
+    function clearPastePreview() {
+        showPastePreviewIdle();
+    }
+
+    function schedulePastePreview(immediate) {
+        if (pastePreviewTimer) {
+            clearTimeout(pastePreviewTimer);
+            pastePreviewTimer = null;
+        }
+        const textarea = document.getElementById('rosterPasteText');
+        if (!textarea) {
+            return;
+        }
+        if (!String(textarea.value || '').trim()) {
+            setPasteError('');
+            showPastePreviewIdle();
+            return;
+        }
+        if (immediate) {
+            previewRosterPaste();
+            return;
+        }
+        pastePreviewTimer = setTimeout(() => {
+            pastePreviewTimer = null;
+            previewRosterPaste();
+        }, 400);
+    }
+
+    function closePasteModal() {
+        if (pastePreviewTimer) {
+            clearTimeout(pastePreviewTimer);
+            pastePreviewTimer = null;
+        }
+        pastePlanRow = null;
+        setPasteError('');
+        clearPastePreview();
+        const textarea = document.getElementById('rosterPasteText');
+        if (textarea) {
+            textarea.value = '';
+        }
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(document.getElementById('rosterPasteModal'));
+        }
+    }
+
+    function pasteErrorMessage(code) {
+        const map = {
+            emptyPaste: t('rosterPasteEmpty'),
+            noStudents: t('rosterPasteNoStudents'),
+            multipleCohorts: t('rosterPasteMultipleCohorts')
+        };
+        return map[code] || code;
+    }
+
+    function buildPastePlanRow(cohort) {
+        const ri = rosterImport();
+        if (!ri || !cohort) {
+            return null;
+        }
+        return {
+            importKey: ri.importCohortKey({ cohortName: cohort.cohortName }),
+            importCohortName: cohort.cohortName,
+            importCohortId: null,
+            studentCount: cohort.students.length,
+            students: cohort.students.slice(),
+            matchStatus: 'exact',
+            suggestedTargetId: selectedCohortId,
+            candidateTargetIds: [selectedCohortId],
+            userAction: 'map',
+            userTargetId: selectedCohortId,
+            mergeMode: getPasteMergeMode()
+        };
+    }
+
+    function renderPastePreview(cohort, preview) {
+        const mount = document.getElementById('rosterPastePreview');
+        if (!mount) {
+            return;
+        }
+        const sourceName = cohort.cohortName || '';
+        const summary = t('rosterPasteFound')
+            .replace('{count}', String(cohort.students.length))
+            .replace('{name}', sourceName);
+        const stats = formatPreviewLine(preview || { added: 0, updated: 0, kept: 0, removed: 0 });
+        const rows = cohort.students
+            .map((s, i) => {
+                const en = s.nameEn ? ` (${s.nameEn})` : '';
+                const loc = s.locationTag ? ` — ${s.locationTag}` : '';
+                return `<tr><td>${i + 1}</td><td>${escapeHtml(s.name)}${escapeHtml(en)}${escapeHtml(loc)}</td></tr>`;
+            })
+            .join('');
+        mount.innerHTML = `
+            <p class="section-hint">${escapeHtml(summary)}</p>
+            <p class="section-hint">${escapeHtml(stats)}</p>
+            <div class="roster-import-table-wrap">
+            <table class="roster-import-table roster-paste-preview-table">
+            <thead><tr><th>#</th><th>${escapeHtml(t('classroomStudentName'))}</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`;
+        mount.hidden = false;
+    }
+
+    function previewRosterPaste() {
+        const ri = rosterImport();
+        const textarea = document.getElementById('rosterPasteText');
+        if (!ri || !textarea) {
+            return;
+        }
+        setPasteError('');
+        pastePlanRow = null;
+        setPasteConfirmEnabled(false);
+        if (!String(textarea.value || '').trim()) {
+            showPastePreviewIdle();
+            return;
+        }
+        const cohort = getSelectedCohort();
+        if (!cohort) {
+            setPasteError(t('rosterPasteNoCohort'));
+            showPastePreviewIdle();
+            return;
+        }
+        const parsed = ri.parseRosterPasteSingle(textarea.value, {
+            fallbackCohortName: cohort.name || cohort.id
+        });
+        if (parsed.error) {
+            setPasteError(pasteErrorMessage(parsed.error));
+            showPastePreviewIdle();
+            return;
+        }
+        const row = buildPastePlanRow(parsed.cohort);
+        if (!row) {
+            return;
+        }
+        const previewPlan = ri.computeImportPreview([row], getCohorts());
+        pastePlanRow = previewPlan[0];
+        renderPastePreview(parsed.cohort, pastePlanRow.preview);
+        setPasteConfirmEnabled(true, parsed.cohort.students.length);
+    }
+
+    async function confirmRosterPaste() {
+        const ri = rosterImport();
+        if (!ri || !pastePlanRow) {
+            previewRosterPaste();
+            if (!pastePlanRow) {
+                return;
+            }
+        }
+        setPasteError('');
+        const cohort = getSelectedCohort();
+        if (!cohort || !canEditRoster()) {
+            setPasteError(t('rosterImportNoPermission'));
+            return;
+        }
+        if (isArchiveCohort(cohort)) {
+            setPasteError(t('rosterPasteNoCohort'));
+            return;
+        }
+        pastePlanRow.mergeMode = getPasteMergeMode();
+        pastePlanRow.userAction = 'map';
+        pastePlanRow.userTargetId = selectedCohortId;
+        const newId = () => (domain() ? domain().newId('cohort') : `cohort_${Date.now()}`);
+        const result = ri.applyRosterImport(getCohorts(), [pastePlanRow], {
+            newId,
+            homeroomTeacherUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : ''
+        });
+        if (result.error) {
+            setPasteError(importErrorMessage(result.error));
+            return;
+        }
+        try {
+            await saveCohorts(result.cohorts);
+            hooks.showToast(t('rosterPasteSuccess'));
+            closePasteModal();
+            render(document.getElementById('panel-students'));
+        } catch (err) {
+            hooks.showToast(err.message || String(err), true);
+        }
+    }
+
+    function openPasteModal() {
+        if (!hooks) {
+            return;
+        }
+        if (hooks.isViewOnly && hooks.isViewOnly()) {
+            hooks.showToast(t('rosterImportReadOnly'), true);
+            return;
+        }
+        const cohort = getSelectedCohort();
+        if (!cohort) {
+            hooks.showToast(t('rosterPasteNoCohort'), true);
+            return;
+        }
+        if (isArchiveCohort(cohort)) {
+            hooks.showToast(t('rosterPasteNoCohort'), true);
+            return;
+        }
+        if (!canEditRoster()) {
+            hooks.showToast(t('classroomRosterReadOnly'), true);
+            return;
+        }
+        const ri = rosterImport();
+        if (!ri) {
+            hooks.showToast(t('classroomModuleMissing'), true);
+            return;
+        }
+        const targetLabel = document.getElementById('rosterPasteTargetLabel');
+        if (targetLabel) {
+            targetLabel.textContent = t('rosterPasteTarget').replace('{name}', cohort.name || cohort.id);
+        }
+        const textarea = document.getElementById('rosterPasteText');
+        if (textarea) {
+            textarea.value = '';
+        }
+        setPasteError('');
+        showPastePreviewIdle();
+        document.querySelectorAll('input[name="rosterPasteMergeMode"]').forEach((radio) => {
+            if (radio.value === 'replace') {
+                radio.checked = true;
+            }
+        });
+        if (hooks.openModal) {
+            hooks.openModal(document.getElementById('rosterPasteModal'));
+        }
+        textarea?.focus();
+    }
+
+    function updateBulkActionsUi() {
+        const wrap = document.getElementById('classroomRosterBulkActions');
+        const moveBtn = document.getElementById('classroomRosterMoveBtn');
+        const cohort = getSelectedCohort();
+        const editable = cohort && canEditRoster() && !isArchiveCohort(cohort);
+        if (wrap) {
+            wrap.hidden = !editable;
+        }
+        if (moveBtn) {
+            moveBtn.disabled = selectedStudentIds.size === 0;
+        }
+    }
+
+    function clearStudentBulkSelection() {
+        selectedStudentIds.clear();
+        updateBulkActionsUi();
+    }
+
+    function selectAllStudentsInCohort() {
+        const cohort = getSelectedCohort();
+        const d = domain();
+        if (!cohort || !d) {
+            return;
+        }
+        d.normalizeCohortStudents(cohort).forEach((student) => {
+            if (student && student.id) {
+                selectedStudentIds.add(student.id);
+            }
+        });
+        updateBulkActionsUi();
+    }
+
+    function setMoveError(msg) {
+        const el = document.getElementById('studentMoveError');
+        if (!el) {
+            return;
+        }
+        if (msg) {
+            el.textContent = msg;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function openMoveModal() {
+        if (hooks && hooks.isViewOnly && hooks.isViewOnly()) {
+            hooks.showToast(t('rosterImportReadOnly'), true);
+            return;
+        }
+        const cohort = getSelectedCohort();
+        if (!cohort || !canEditRoster() || isArchiveCohort(cohort)) {
+            hooks.showToast(t('studentMoveNoPermission'), true);
+            return;
+        }
+        if (!selectedStudentIds.size) {
+            hooks.showToast(t('studentMoveNoSelection'), true);
+            return;
+        }
+        const hint = document.getElementById('studentMoveHint');
+        if (hint) {
+            hint.textContent = t('studentMoveHint')
+                .replace('{count}', String(selectedStudentIds.size))
+                .replace('{source}', cohort.name || cohort.id);
+        }
+        const sel = document.getElementById('studentMoveCohortSelect');
+        if (sel) {
+            sel.innerHTML = '';
+            const d = domain();
+            sortCohortsForList(getCohorts())
+                .filter((c) => c && c.id !== cohort.id && !d.isArchiveCohort(c))
+                .forEach((c) => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    const editable = canEditCohort(c);
+                    opt.textContent = `${c.name || c.id}${editable ? '' : ` (${t('classroomRosterReadOnly')})`}`;
+                    opt.disabled = !editable;
+                    sel.appendChild(opt);
+                });
+        }
+        setMoveError('');
+        if (hooks && hooks.openModal) {
+            hooks.openModal(document.getElementById('studentMoveModal'));
+        }
+    }
+
+    function closeMoveModal() {
+        setMoveError('');
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(document.getElementById('studentMoveModal'));
+        }
+    }
+
+    async function confirmMoveStudents() {
+        const d = domain();
+        const fromCohort = getSelectedCohort();
+        const toId = document.getElementById('studentMoveCohortSelect')?.value;
+        if (!d || !fromCohort || !toId || !selectedStudentIds.size) {
+            hooks.showToast(t('studentMoveNoSelection'), true);
+            return;
+        }
+        if (toId === fromCohort.id) {
+            setMoveError(t('studentMoveSameCohort'));
+            return;
+        }
+        const target = getCohorts().find((c) => c && c.id === toId);
+        if (!canEditCohort(fromCohort) || !canEditCohort(target)) {
+            setMoveError(t('studentMoveNoPermission'));
+            return;
+        }
+        const result = d.moveStudentsBetweenCohorts(
+            getCohorts(),
+            fromCohort.id,
+            toId,
+            Array.from(selectedStudentIds)
+        );
+        if (result.error === 'duplicate_in_target') {
+            setMoveError(t('studentMoveDuplicate'));
+            return;
+        }
+        if (result.error === 'same_cohort') {
+            setMoveError(t('studentMoveSameCohort'));
+            return;
+        }
+        if (result.error) {
+            setMoveError(t('studentMoveNoPermission'));
+            return;
+        }
+        try {
+            await saveCohorts(result.cohorts);
+            const targetName = target?.name || toId;
+            hooks.showToast(
+                t('studentMoveSuccess')
+                    .replace('{count}', String(result.movedCount || selectedStudentIds.size))
+                    .replace('{target}', targetName)
+            );
+            clearStudentBulkSelection();
+            selectedCohortId = toId;
+            selectedStudentId = null;
+            closeMoveModal();
+            render(document.getElementById('panel-students'));
+        } catch (err) {
+            hooks.showToast(err.message || String(err), true);
+        }
+    }
+
     function setupRosterImportExport(panel) {
         if (!panel || panel.dataset.rosterIoBound === '1') {
             return;
@@ -488,6 +905,26 @@
         });
         panel.querySelector('#classroomRosterExportAllBtn')?.addEventListener('click', () => exportRoster('all'));
         panel.querySelector('#classroomRosterExportSelectedBtn')?.addEventListener('click', () => exportRoster('selected'));
+        panel.querySelector('#classroomRosterPasteBtn')?.addEventListener('click', () => openPasteModal());
+
+        document.getElementById('closeRosterPasteModal')?.addEventListener('click', closePasteModal);
+        document.getElementById('cancelRosterPasteBtn')?.addEventListener('click', closePasteModal);
+        document.getElementById('rosterPastePreviewBtn')?.addEventListener('click', () => previewRosterPaste());
+        document.getElementById('rosterPasteConfirmBtn')?.addEventListener('click', () => {
+            void confirmRosterPaste();
+        });
+        document.getElementById('rosterPasteText')?.addEventListener('input', () => {
+            setPasteError('');
+            schedulePastePreview(false);
+        });
+        document.getElementById('rosterPasteText')?.addEventListener('paste', () => {
+            setTimeout(() => schedulePastePreview(true), 0);
+        });
+        document.querySelectorAll('input[name="rosterPasteMergeMode"]').forEach((radio) => {
+            radio.addEventListener('change', () => {
+                schedulePastePreview(Boolean(pastePlanRow) || Boolean(document.getElementById('rosterPasteText')?.value.trim()));
+            });
+        });
 
         document.getElementById('closeRosterImportModal')?.addEventListener('click', closeImportModal);
         document.getElementById('cancelRosterImportBtn')?.addEventListener('click', closeImportModal);
@@ -580,6 +1017,7 @@
                 btn.addEventListener('click', () => {
                     selectedCohortId = cohort.id;
                     selectedStudentId = null;
+                    clearStudentBulkSelection();
                     render(mountEl.closest('#panel-students') || mountEl.parentElement);
                 });
                 listEl.appendChild(btn);
@@ -604,16 +1042,43 @@
         const d = domain();
         const students = d ? d.normalizeCohortStudents(cohort) : [];
         const retentionDays = getArchiveRetentionDays();
+        const bulkEditable = canEditRoster() && !isArchiveCohort(cohort);
         students.forEach((student) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'module-list-item' + (student.id === selectedStudentId ? ' is-selected' : '');
+            const row = document.createElement('div');
+            let rowCls = 'classroom-roster-student-row';
+            if (student.id === selectedStudentId) {
+                rowCls += ' is-selected';
+            }
             if (!student.active) {
-                btn.classList.add('is-inactive');
+                rowCls += ' is-inactive';
             }
             if (isArchiveCohort(cohort) && d && d.isPastArchiveRetention(student, retentionDays)) {
-                btn.classList.add('is-past-retention');
+                rowCls += ' is-past-retention';
             }
+            row.className = rowCls;
+
+            if (bulkEditable) {
+                const chkLabel = document.createElement('label');
+                chkLabel.className = 'classroom-roster-student-check';
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.checked = selectedStudentIds.has(student.id);
+                chk.addEventListener('change', () => {
+                    if (chk.checked) {
+                        selectedStudentIds.add(student.id);
+                    } else {
+                        selectedStudentIds.delete(student.id);
+                    }
+                    updateBulkActionsUi();
+                });
+                chk.addEventListener('click', (e) => e.stopPropagation());
+                chkLabel.appendChild(chk);
+                row.appendChild(chkLabel);
+            }
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'module-list-item classroom-roster-student-name';
             const en = student.nameEn ? ` (${student.nameEn})` : '';
             let label = `${student.name}${en}`;
             if (student.expectedStartDate && student.archiveReason === 'starting_soon') {
@@ -625,8 +1090,10 @@
                 renderStudentEditor(mountEl);
                 renderStudentList(mountEl);
             });
-            listEl.appendChild(btn);
+            row.appendChild(btn);
+            listEl.appendChild(row);
         });
+        updateBulkActionsUi();
     }
 
     function getStudentFromForm() {
@@ -673,6 +1140,43 @@
         setChk('classroomStudentTagInterested', tags.includes('interested'));
     }
 
+    function buildStudentTaggedNotesHtml(student) {
+        if (!student || !hooks || typeof hooks.getStudentTaggedNotes !== 'function') {
+            return '';
+        }
+        const notes = hooks.getStudentTaggedNotes(student.id) || [];
+        const title = escapeHtml(t('studentProfileNotesTitle'));
+        if (!notes.length) {
+            return `<section class="student-profile-notes" aria-labelledby="studentProfileNotesHeading">
+                <h4 id="studentProfileNotesHeading" class="form-section-subtitle">${title}</h4>
+                <p class="section-hint">${escapeHtml(t('studentProfileNotesEmpty'))}</p>
+            </section>`;
+        }
+        const items = notes.map((note) => {
+            const meta = hooks.resolveDayNoteMeta
+                ? hooks.resolveDayNoteMeta(note.classId)
+                : { className: '' };
+            const dateLabel = hooks.formatDateDisplay
+                ? hooks.formatDateDisplay(note.date)
+                : String(note.date || '');
+            const catBadge = hooks.buildDayNoteCategoryBadgeHtml
+                ? hooks.buildDayNoteCategoryBadgeHtml(note.categoryId)
+                : '';
+            const bodyHtml = hooks.renderDayNoteTextHtml
+                ? hooks.renderDayNoteTextHtml(note)
+                : escapeHtml(note.text || '');
+            const metaLine = [dateLabel, meta.className].filter(Boolean).join(' · ');
+            return `<article class="student-profile-note-item">
+                <div class="student-profile-note-meta">${escapeHtml(metaLine)} ${catBadge}</div>
+                <p class="student-profile-note-body">${bodyHtml}</p>
+            </article>`;
+        }).join('');
+        return `<section class="student-profile-notes" aria-labelledby="studentProfileNotesHeading">
+            <h4 id="studentProfileNotesHeading" class="form-section-subtitle">${title}</h4>
+            <div class="student-profile-notes-list">${items}</div>
+        </section>`;
+    }
+
     function renderStudentEditor(mountEl) {
         const editor = mountEl.querySelector('#classroomRosterEditor');
         if (!editor) {
@@ -708,6 +1212,7 @@
             <input type="text" id="classroomStudentLocation" class="field-input" ${editable ? '' : 'disabled'} /></div>
             <div class="form-group"><label for="classroomStudentMemo">${escapeHtml(t('classroomStudentMemo'))}</label>
             <textarea id="classroomStudentMemo" class="field-input" rows="2" ${editable ? '' : 'disabled'}></textarea></div>
+            ${student ? buildStudentTaggedNotesHtml(student) : ''}
             <div class="form-group"><label class="checkbox-label"><input type="checkbox" id="classroomStudentActive" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomStudentActive'))}</label></div>
             <fieldset class="form-group"><legend>${escapeHtml(t('classroomStudentTags'))}</legend>
             <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagNew" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagNew'))}</label>
@@ -993,6 +1498,27 @@
         }
     }
 
+    function setupStudentMoveModal() {
+        if (document.body.dataset.studentMoveModalBound === '1') {
+            return;
+        }
+        document.body.dataset.studentMoveModalBound = '1';
+        document.getElementById('classroomRosterSelectAllBtn')?.addEventListener('click', () => {
+            selectAllStudentsInCohort();
+            render(document.getElementById('panel-students'));
+        });
+        document.getElementById('classroomRosterClearSelectionBtn')?.addEventListener('click', () => {
+            clearStudentBulkSelection();
+            render(document.getElementById('panel-students'));
+        });
+        document.getElementById('classroomRosterMoveBtn')?.addEventListener('click', () => openMoveModal());
+        document.getElementById('closeStudentMoveModal')?.addEventListener('click', closeMoveModal);
+        document.getElementById('cancelStudentMoveBtn')?.addEventListener('click', closeMoveModal);
+        document.getElementById('confirmStudentMoveBtn')?.addEventListener('click', () => {
+            void confirmMoveStudents();
+        });
+    }
+
     function setupArchiveModals() {
         if (document.body.dataset.studentArchiveModalsBound === '1') {
             return;
@@ -1034,6 +1560,7 @@
         }, { once: true });
 
         setupRosterImportExport(panel);
+        setupStudentMoveModal();
         setupArchiveModals();
         syncRetentionSettingsUi(panel);
     }
@@ -1045,6 +1572,7 @@
             selectedCohortId = options.cohortId;
         }
         setupRosterImportExport(panel);
+        setupStudentMoveModal();
         setupArchiveModals();
         syncRetentionSettingsUi(panel);
         render(panel);

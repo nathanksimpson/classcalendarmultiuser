@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-roster-import-scroll">
+    <link rel="stylesheet" href="styles.css?v=20260612-classroom-density">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -324,6 +324,7 @@
                 <div class="module-toolbar classroom-roster-toolbar">
                     <button type="button" id="classroomRosterAddBtn" class="btn btn-primary btn-compact" data-i18n="classroomAddStudent">+ Add student</button>
                     <button type="button" id="classroomRosterImportBtn" class="btn btn-outline btn-compact" data-i18n="rosterImportBtn">Import roster&hellip;</button>
+                    <button type="button" id="classroomRosterPasteBtn" class="btn btn-outline btn-compact" data-i18n="rosterPasteBtn">Paste from SMS&hellip;</button>
                     <button type="button" id="classroomRosterExportAllBtn" class="btn btn-outline btn-compact" data-i18n="rosterExportAllBtn">Export all</button>
                     <button type="button" id="classroomRosterExportSelectedBtn" class="btn btn-outline btn-compact" data-i18n="rosterExportSelectedBtn">Export cohort</button>
                     <label class="classroom-archive-retention-field" id="classroomArchiveRetentionWrap" hidden>
@@ -339,7 +340,12 @@
                         <div id="classroomRosterCohortList" class="module-list" role="listbox"></div>
                     </aside>
                     <div class="module-list-panel classroom-roster-student-list-panel">
-                        <div id="classroomRosterStudentList" class="module-list" role="listbox" aria-label="Students"></div>
+                        <div id="classroomRosterBulkActions" class="classroom-roster-bulk-actions" hidden>
+                            <button type="button" id="classroomRosterSelectAllBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveSelectAll">Select all</button>
+                            <button type="button" id="classroomRosterClearSelectionBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveClearSelection">Clear</button>
+                            <button type="button" id="classroomRosterMoveBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveBtn" disabled>Move to cohort&hellip;</button>
+                        </div>
+                        <div id="classroomRosterStudentList" class="module-list classroom-roster-student-list" role="listbox" aria-label="Students"></div>
                     </div>
                     <div class="module-editor-panel classroom-roster-editor-panel">
                         <div id="classroomRosterEditor"></div>
@@ -349,27 +355,44 @@
 
             <section id="panel-attendance" class="app-tab-panel" data-tab="attendance" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomAttendanceHeader"></div>
-                <div class="classroom-dual-layout">
-                    <aside id="classroomAttendanceIndex" class="classroom-index-panel" aria-label="Students"></aside>
-                    <div class="classroom-main-panel">
-                        <div class="module-toolbar classroom-tab-toolbar">
-                            <button type="button" id="classroomAttendanceAllPresentBtn" class="btn btn-outline btn-compact" data-i18n="classroomMarkAllPresent">Mark all present</button>
-                            <button type="button" id="classroomAttendanceSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
-                        </div>
-                        <div id="classroomAttendanceRows" class="classroom-rows-stack"></div>
+                <div class="classroom-sheet-panel">
+                    <div class="module-toolbar classroom-tab-toolbar">
+                        <button type="button" id="classroomAttendanceAllPresentBtn" class="btn btn-outline btn-compact" data-i18n="classroomMarkAllPresent">Mark all present</button>
+                        <button type="button" id="classroomAttendanceSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                    </div>
+                    <div class="classroom-sheet-scroll" tabindex="0">
+                        <table class="classroom-sheet classroom-sheet--attendance">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
+                                    <th scope="col" class="classroom-sheet-col-attendance" data-i18n="classroomColAttendance">Attendance</th>
+                                    <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classroomAttendanceRows"></tbody>
+                        </table>
                     </div>
                 </div>
             </section>
 
             <section id="panel-homework-tracking" class="app-tab-panel" data-tab="homework-tracking" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomHomeworkHeader"></div>
-                <div class="classroom-dual-layout">
-                    <aside id="classroomHomeworkIndex" class="classroom-index-panel" aria-label="Students"></aside>
-                    <div class="classroom-main-panel">
-                        <div class="module-toolbar classroom-tab-toolbar">
-                            <button type="button" id="classroomHomeworkSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
-                        </div>
-                        <div id="classroomHomeworkRows" class="classroom-rows-stack"></div>
+                <div class="classroom-sheet-panel">
+                    <div class="module-toolbar classroom-tab-toolbar">
+                        <button type="button" id="classroomHomeworkSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                    </div>
+                    <div class="classroom-sheet-scroll" tabindex="0">
+                        <table class="classroom-sheet classroom-sheet--homework">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
+                                    <th scope="col" class="classroom-sheet-col-homework" data-i18n="classroomColHomework">Homework</th>
+                                    <th scope="col" class="classroom-sheet-col-checks" data-i18n="classroomColChecks">Checks</th>
+                                    <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classroomHomeworkRows"></tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -449,10 +472,15 @@
                                                 <button type="button" id="classNotesAddNowBtn" class="btn btn-outline btn-small" data-i18n="classNotesAddNow">Now</button>
                                             </div>
                                         </label>
+                                        <label class="class-notes-filter-field" for="classNotesAddCategory">
+                                            <span data-i18n="dayNoteCategoryLabel">Category</span>
+                                            <select id="classNotesAddCategory" class="class-notes-add-select"></select>
+                                        </label>
                                     </div>
                                     <label class="class-notes-filter-field" for="classNotesAddText">
                                         <span data-i18n="dayNoteTextLabel">What happened in this class?</span>
                                         <textarea id="classNotesAddText" class="day-note-textarea class-notes-add-textarea" rows="2" spellcheck="true" required></textarea>
+                                        <p id="classNotesAddMentionHint" class="section-hint day-note-mention-hint"></p>
                                     </label>
                                     <p id="classNotesAddReadOnly" class="section-hint day-note-readonly-hint" hidden data-i18n="dayNoteReadOnlyHint"></p>
                                     <div class="class-notes-add-actions">
@@ -479,6 +507,7 @@
                                             </select>
                                         </label>
                                         <div class="class-notes-export-actions">
+                                            <button type="button" id="classNotesManageCategoriesBtn" class="btn btn-outline btn-small" data-i18n="dayNoteCategoryManage">Manage categories</button>
                                             <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
                                             <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
                                         </div>
@@ -1099,6 +1128,41 @@
         </div>
     </div>
 
+    <div id="rosterPasteModal" class="modal" role="dialog" aria-labelledby="rosterPasteModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-wide modal-content--scrollable roster-paste-modal-content">
+            <div class="modal-header">
+                <h2 id="rosterPasteModalTitle" data-i18n="rosterPasteTitle">Paste student roster from SMS</h2>
+                <button type="button" class="modal-close" id="closeRosterPasteModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll roster-paste-modal-body">
+                <p class="section-hint" data-i18n="rosterPasteHint">Select a cohort on the left, then copy one class from the SMS roster page and paste below.</p>
+                <p id="rosterPasteTargetLabel" class="roster-paste-target section-hint"></p>
+                <div class="form-group">
+                    <label for="rosterPasteText" class="visually-hidden" data-i18n="rosterPastePlaceholder">Paste roster text here&hellip;</label>
+                    <textarea id="rosterPasteText" class="roster-paste-text" rows="10" data-i18n-placeholder="rosterPastePlaceholder" placeholder="Paste roster text here&hellip;" spellcheck="false"></textarea>
+                </div>
+                <fieldset class="roster-import-merge-global">
+                    <legend data-i18n="rosterImportMergeLegend">How to apply students</legend>
+                    <label class="checkbox-label selection-chip">
+                        <input type="radio" name="rosterPasteMergeMode" value="replace" checked>
+                        <span data-i18n="rosterImportMergeReplace">Replace roster (remove students not in file)</span>
+                    </label>
+                    <label class="checkbox-label selection-chip">
+                        <input type="radio" name="rosterPasteMergeMode" value="merge">
+                        <span data-i18n="rosterImportMergeMerge">Merge by student id (keep existing not in file)</span>
+                    </label>
+                </fieldset>
+                <div id="rosterPastePreview" class="roster-paste-preview"></div>
+                <p id="rosterPasteError" class="section-hint roster-import-error" hidden role="alert"></p>
+            </div>
+            <div class="form-actions roster-import-actions">
+                <button type="button" id="cancelRosterPasteBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="rosterPastePreviewBtn" class="btn btn-outline" data-i18n="rosterPastePreviewBtn">Preview</button>
+                <button type="button" id="rosterPasteConfirmBtn" class="btn btn-primary" disabled data-i18n="rosterPasteConfirm">Import students</button>
+            </div>
+        </div>
+    </div>
+
     <div id="studentArchiveModal" class="modal" role="dialog" aria-labelledby="studentArchiveModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -1139,6 +1203,25 @@
             <div class="form-actions">
                 <button type="button" id="cancelStudentRestoreBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                 <button type="button" id="confirmStudentRestoreBtn" class="btn btn-primary" data-i18n="studentRestoreConfirm">Restore</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="studentMoveModal" class="modal" role="dialog" aria-labelledby="studentMoveModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="studentMoveModalTitle" data-i18n="studentMoveTitle">Move students</h2>
+                <button type="button" class="modal-close" id="closeStudentMoveModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <p id="studentMoveHint" class="section-hint"></p>
+            <div class="form-group">
+                <label for="studentMoveCohortSelect" data-i18n="studentRestoreCohortLabel">Cohort</label>
+                <select id="studentMoveCohortSelect" class="field-select"></select>
+            </div>
+            <p id="studentMoveError" class="section-hint roster-import-error" hidden role="alert"></p>
+            <div class="form-actions">
+                <button type="button" id="cancelStudentMoveBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="confirmStudentMoveBtn" class="btn btn-primary" data-i18n="studentMoveConfirm">Move</button>
             </div>
         </div>
     </div>
@@ -1253,12 +1336,38 @@
             <div class="modal-body day-note-modal-body">
                 <p id="classDayNoteMeta" class="day-note-meta"></p>
                 <div id="classDayNoteExisting" class="day-note-existing-list" hidden></div>
+                <label class="day-note-category-field" for="classDayNoteCategory">
+                    <span data-i18n="dayNoteCategoryLabel">Category</span>
+                    <select id="classDayNoteCategory" class="day-note-category-select"></select>
+                </label>
                 <label for="classDayNoteText" data-i18n="dayNoteTextLabel">What happened in this class?</label>
                 <textarea id="classDayNoteText" class="day-note-textarea" rows="5" spellcheck="true"></textarea>
+                <p id="classDayNoteMentionHint" class="section-hint day-note-mention-hint"></p>
                 <p id="classDayNoteReadOnly" class="section-hint day-note-readonly-hint" hidden data-i18n="dayNoteReadOnlyHint"></p>
                 <div class="form-actions">
                     <button type="button" id="classDayNoteSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day note category manager -->
+    <div id="dayNoteCategoryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="dayNoteCategoryModalTitle" aria-hidden="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="dayNoteCategoryModalTitle" data-i18n="dayNoteCategoryManage">Manage categories</h2>
+                <button type="button" class="modal-close" id="dayNoteCategoryModalClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="section-hint" data-i18n="dayNoteCategoryManageHint">Built-in categories cannot be deleted. Add custom categories for your team.</p>
+                <div id="dayNoteCategoryList" class="day-note-category-list"></div>
+                <form id="dayNoteCategoryForm" class="day-note-category-form">
+                    <label for="newDayNoteCategoryName" data-i18n="dayNoteCategoryAdd">Add category</label>
+                    <div class="day-note-category-add-row">
+                        <input type="text" id="newDayNoteCategoryName" class="field-input" maxlength="80" required>
+                        <button type="submit" class="btn btn-primary btn-small" data-i18n="add">Add</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -1328,13 +1437,13 @@
     </div>
 
     <script defer src="js/schedule-core.js"></script>
-    <script defer src="js/utils.js?v=20260606-clipboard-dash"></script>
+    <script defer src="js/utils.js?v=20260612-export-ascii"></script>
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260605-boot-nav"></script>
     <script defer src="js/template-loader.js?v=20260603-class-form-order"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260612-lesson-filter"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260612-classroom-density"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-custom-adopted-quiet"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -1344,8 +1453,10 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
     <script defer src="js/classroom-domain.js?v=20260612-classroom-mvp"></script>
-    <script defer src="js/day-notes.js?v=20260612-hr-notify"></script>
-    <script defer src="js/class-notes-panel.js?v=20260612-hr-notify"></script>
+    <script defer src="js/day-note-categories.js?v=20260612-note-categories"></script>
+    <script defer src="js/day-note-mentions.js?v=20260612-note-categories"></script>
+    <script defer src="js/day-notes.js?v=20260612-export-ascii"></script>
+    <script defer src="js/class-notes-panel.js?v=20260612-note-categories"></script>
     <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
         <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">Dark</button>
@@ -1393,10 +1504,10 @@
     </div>
     <script defer src="js/page-chrome.js?v=20260607-ui-unify"></script>
     <script defer src="js/tab-warnings.js?v=20260612-hr-notify"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260612-hr-notify"></script>
-    <script defer src="js/i18n/calendar-ko.js?v=20260612-hr-notify"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260612-homework-checks-col"></script>
+    <script defer src="js/i18n/calendar-ko.js?v=20260612-homework-checks-col"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260612-roster-import-fix"></script>
+    <script defer src="app.js?v=20260612-note-categories"></script>
 </body>
 </html>
 
