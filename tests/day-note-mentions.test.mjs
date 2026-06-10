@@ -65,32 +65,40 @@ const sorted = mentions.sortMentionCandidates([
 ]);
 assert(sorted[0].tier === 0 && sorted[0].insertLabel === 'Amy', 'sortMentionCandidates tier 0 first');
 
-const textOther = '@Minji B participated.';
+const stu1Entry = studentsSingle.find((s) => s.studentId === 'stu-1');
+assert(stu1Entry && stu1Entry.insertLabel === 'Purple T 김민지', 'insertLabel is cohort-first');
+
+const textOther = '@Green M 김민지 participated.';
 const idsOther = mentions.syncTaggedStudentIdsFromText(textOther, 'class-dup', cohorts, classes);
-assert(idsOther.length === 1 && idsOther[0] === 'stu-3', 'sync non-class student from full roster');
+assert(idsOther.length === 1 && idsOther[0] === 'stu-3', 'sync non-class student with cohort-first tag');
+
 const minjiEntries = studentsDup.filter((s) => s.name === '김민지');
 assert(minjiEntries.length === 2, 'duplicate names appear twice');
 assert(
-    minjiEntries.some((s) => s.insertLabel === `김민지${mentions.DISAMBIG_SEP}Purple T`),
-    'first duplicate disambiguated with cohort'
+    minjiEntries.some((s) => s.insertLabel === 'Purple T 김민지'),
+    'first duplicate uses cohort-first label'
 );
 assert(
-    minjiEntries.some((s) => s.insertLabel === `김민지${mentions.DISAMBIG_SEP}Green M`),
-    'second duplicate disambiguated with cohort'
+    minjiEntries.some((s) => s.insertLabel === 'Green M 김민지'),
+    'second duplicate uses cohort-first label'
 );
 
-const textKo = '@김민지 participated well today.';
+const textKo = '@Purple T 김민지 participated well today.';
 const idsKo = mentions.syncTaggedStudentIdsFromText(textKo, 'class-1', cohorts, classes);
-assert(idsKo.length === 1 && idsKo[0] === 'stu-1', 'sync Korean name');
+assert(idsKo.length === 1 && idsKo[0] === 'stu-1', 'sync cohort-first Korean tag');
+
+const textLegacy = '@김민지 participated well today.';
+const idsLegacy = mentions.syncTaggedStudentIdsFromText(textLegacy, 'class-1', cohorts, classes);
+assert(idsLegacy.length === 1 && idsLegacy[0] === 'stu-1', 'sync legacy name-only tag');
 
 const textEn = '@Minji Kim was late.';
 const idsEn = mentions.syncTaggedStudentIdsFromText(textEn, 'class-1', cohorts, classes);
 assert(idsEn.length === 1 && idsEn[0] === 'stu-1', 'sync English name');
 
-const disambigLabel = minjiEntries.find((s) => s.cohortName === 'Green M').insertLabel;
+const disambigLabel = `김민지${mentions.DISAMBIG_SEP}Green M`;
 const textDisambig = `@${disambigLabel} needs follow-up.`;
 const idsDisambig = mentions.syncTaggedStudentIdsFromText(textDisambig, 'class-dup', cohorts, classes);
-assert(idsDisambig.length === 1 && idsDisambig[0] === 'stu-3', 'sync disambiguated duplicate name');
+assert(idsDisambig.length === 1 && idsDisambig[0] === 'stu-3', 'sync legacy disambiguated duplicate name');
 
 const removed = mentions.syncTaggedStudentIdsFromText('No tags here.', 'class-1', cohorts, classes);
 assert(removed.length === 0, 'removing @mention clears ids on re-sync');
@@ -108,12 +116,13 @@ assert(
     'normalizeDayNote dedupes taggedStudentIds'
 );
 
-const html = mentions.renderMentionHtml(
-    'Hello @김민지 & <script>',
-    ['stu-1'],
-    (sid) => (sid === 'stu-1' ? { name: '김민지', nameEn: 'Minji Kim' } : null)
-);
-assert(html.includes('<span class="day-note-mention">@김민지</span>'), 'render highlights mention');
+const resolveStu1 = (sid) =>
+    sid === 'stu-1'
+        ? { name: '김민지', nameEn: 'Minji Kim', cohortName: 'Purple T' }
+        : null;
+
+const html = mentions.renderMentionHtml('Hello @Purple T 김민지 & <script>', ['stu-1'], resolveStu1);
+assert(html.includes('<span class="day-note-mention">@Purple T 김민지</span>'), 'render highlights full cohort-first mention');
 assert(html.includes('&lt;script&gt;'), 'render escapes non-mention HTML');
 
 const hayMatch = dayNotes.noteMatchesTextQuery(
@@ -123,5 +132,90 @@ const hayMatch = dayNotes.noteMatchesTextQuery(
     (note) => '이서준 Seojun Lee'
 );
 assert(hayMatch === true, 'text search matches tagged student hay');
+
+function makeMockTextarea(value, pos) {
+    return {
+        value,
+        selectionStart: pos != null ? pos : value.length,
+        selectionEnd: pos != null ? pos : value.length,
+        dispatchEvent() {},
+        focus() {}
+    };
+}
+
+const partialTa = makeMockTextarea('@Purple', 7);
+mentions.insertMentionAtCursor(partialTa, 'Purple T 김민지', { atIndex: 0, end: 7 });
+assert(
+    partialTa.value === '@Purple T 김민지 ',
+    'insertMentionAtCursor replaces partial @query with full multi-word label'
+);
+
+const afterMentionTa = makeMockTextarea('@Purple T 김민지 ', 17);
+const mentionOpts = { classId: 'class-1', cohorts, classes };
+const afterCtx = mentions.getMentionQueryAtCursor(afterMentionTa, mentionOpts);
+assert(afterCtx === null, 'getMentionQueryAtCursor returns null after completed mention');
+
+const activeTa = makeMockTextarea('@Purple T', 9);
+const activeCtx = mentions.getMentionQueryAtCursor(activeTa, mentionOpts);
+assert(activeCtx && activeCtx.query === 'Purple T', 'getMentionQueryAtCursor allows spaces in active query');
+
+const ambiguousCohorts = [
+    {
+        id: 'cohort-purple',
+        name: 'Purple',
+        students: [
+            { id: 'stu-t', name: 'T', nameEn: 'Tee', sortOrder: 0, active: true }
+        ]
+    },
+    {
+        id: 'cohort-purple-t',
+        name: 'Purple T',
+        students: [
+            { id: 'stu-1', name: '김민지', nameEn: 'Minji Kim', sortOrder: 0, active: true }
+        ]
+    }
+];
+const ambiguousClasses = [{ id: 'class-amb', cohortIds: ['cohort-purple', 'cohort-purple-t'] }];
+const ambiguousOpts = { classId: 'class-amb', cohorts: ambiguousCohorts, classes: ambiguousClasses };
+
+const ambiguousTa = makeMockTextarea('@Purple T', 9);
+const ambiguousCtx = mentions.getMentionQueryAtCursor(ambiguousTa, ambiguousOpts);
+assert(
+    ambiguousCtx && ambiguousCtx.query === 'Purple T',
+    'ambiguous Purple T prefix stays active (not falsely completed)'
+);
+
+const pickTa = makeMockTextarea('@Purple T', 9);
+mentions.insertMentionAtCursor(pickTa, 'Purple T 김민지', { atIndex: 0, end: 9 });
+assert(
+    pickTa.value === '@Purple T 김민지 ',
+    'insertMentionAtCursor with explicit range inserts full cohort label after ambiguous prefix'
+);
+
+const savedAmbiguous = '@Purple T 김민지 did great.';
+const foundAmbiguous = mentions.findMentionsInText(savedAmbiguous, 'class-amb', ambiguousCohorts, ambiguousClasses);
+assert(
+    foundAmbiguous.length === 1
+        && foundAmbiguous[0].label === 'Purple T 김민지'
+        && foundAmbiguous[0].studentId === 'stu-1',
+    'findMentionsInText picks longest insertLabel when shorter prefix also exists'
+);
+
+const resolveAmbiguous = (sid) =>
+    sid === 'stu-1'
+        ? { name: '김민지', nameEn: 'Minji Kim', cohortName: 'Purple T' }
+        : null;
+const htmlAmbiguous = mentions.renderMentionHtml(savedAmbiguous, ['stu-1'], resolveAmbiguous);
+assert(
+    htmlAmbiguous.includes('<span class="day-note-mention">@Purple T 김민지</span>'),
+    'renderMentionHtml highlights full ambiguous cohort mention span'
+);
+
+const insertRangeTa = makeMockTextarea('@Purple T', 9);
+const insertRange = mentions.resolveMentionInsertRange(insertRangeTa, ambiguousOpts);
+assert(
+    insertRange && insertRange.atIndex === 0 && insertRange.end === 9,
+    'resolveMentionInsertRange captures @ through caret for pick insert'
+);
 
 console.log('day-note-mentions.test.mjs: all passed');

@@ -13396,6 +13396,7 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
 
 .classroom-sheet .selection-chip {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     gap: 4px;
     font-size: 0.7rem;
@@ -13403,36 +13404,37 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     padding: 3px 7px;
     margin: 0;
     white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.classroom-sheet .checkbox-label.selection-chip {
+    align-items: center;
 }
 
 .classroom-sheet .selection-chip input[type="radio"] {
     width: 14px;
     height: 14px;
     margin: 0;
+    flex-shrink: 0;
 }
 
 .classroom-sheet .classroom-student-row-status,
 .classroom-sheet .classroom-student-row-grades {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 4px;
     margin-bottom: 0;
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
-.classroom-sheet--attendance .classroom-student-row-status {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
-}
-
-.classroom-sheet--attendance .classroom-status-chip {
-    justify-content: flex-start;
-    min-width: 0;
-}
-
-.classroom-sheet--homework .classroom-student-row-grades {
-    flex-wrap: wrap;
+.classroom-sheet--homework .classroom-student-row-grades .selection-chip {
+    padding: 2px 5px;
+    min-width: 1.5em;
+    justify-content: center;
 }
 
 .classroom-sheet .classroom-hw-note {

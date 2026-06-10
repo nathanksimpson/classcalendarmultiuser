@@ -58,13 +58,11 @@
         const nameEn = String(student.nameEn || '').trim();
         const baseName = name || nameEn;
         const cohortName = String(row.cohortName || '').trim();
-        const needsDisambig = tier === 1
-            || (name && (nameCounts.get(name) || 0) > 1)
-            || (nameEn && (nameCounts.get(nameEn) || 0) > 1);
-        const insertLabel = needsDisambig && cohortName
-            ? `${baseName}${DISAMBIG_SEP}${cohortName}`
-            : baseName;
+        const insertLabel = cohortName ? `${cohortName} ${baseName}` : baseName;
         const searchParts = [name, nameEn, insertLabel, cohortName].filter(Boolean);
+        if (cohortName && baseName) {
+            searchParts.push(`${baseName}${DISAMBIG_SEP}${cohortName}`);
+        }
         return {
             studentId: student.id,
             name,
@@ -130,13 +128,60 @@
     function mentionMatchLabels(studentEntry) {
         const seen = new Set();
         const out = [];
-        [studentEntry.insertLabel, studentEntry.name, studentEntry.nameEn].forEach((label) => {
+        const cohortName = String(studentEntry.cohortName || '').trim();
+        const baseName = String(studentEntry.name || studentEntry.nameEn || '').trim();
+        const labels = [
+            studentEntry.insertLabel,
+            studentEntry.name,
+            studentEntry.nameEn
+        ];
+        if (cohortName && baseName) {
+            labels.push(`${baseName}${DISAMBIG_SEP}${cohortName}`);
+            labels.push(`${cohortName} ${baseName}`);
+        }
+        labels.forEach((label) => {
             const key = String(label || '').trim();
             if (!key || seen.has(key)) {
                 return;
             }
             seen.add(key);
             out.push(key);
+        });
+        return out;
+    }
+
+    function isMentionLabelBoundary(next) {
+        return next === undefined || next === ' ' || next === '\n' || next === '\r' || next === '\t';
+    }
+
+    function findLongestMentionLabelAt(rest, labels) {
+        let best = null;
+        (labels || []).forEach((entry) => {
+            const label = String(entry.label || '').trim();
+            if (!label || !rest.startsWith(label)) {
+                return;
+            }
+            const next = rest[label.length];
+            if (!isMentionLabelBoundary(next)) {
+                return;
+            }
+            if (!best || label.length > best.label.length) {
+                best = { studentId: entry.studentId, label };
+            }
+        });
+        return best;
+    }
+
+    function collectInsertLabelsForClass(classId, cohorts, classes) {
+        const seen = new Set();
+        const out = [];
+        getStudentsForMentions(classId, cohorts, classes).forEach((s) => {
+            const label = String(s.insertLabel || '').trim();
+            if (!label || seen.has(label)) {
+                return;
+            }
+            seen.add(label);
+            out.push({ studentId: s.studentId, label });
         });
         return out;
     }
@@ -149,7 +194,6 @@
                 labels.push({ studentId: s.studentId, label });
             });
         });
-        labels.sort((a, b) => b.label.length - a.label.length);
         const str = String(text || '');
         const found = [];
         let i = 0;
@@ -159,26 +203,16 @@
                 break;
             }
             const rest = str.slice(at + 1);
-            let matched = null;
-            for (const entry of labels) {
-                if (!rest.startsWith(entry.label)) {
-                    continue;
-                }
-                const next = rest[entry.label.length];
-                if (next !== undefined && next !== ' ' && next !== '\n' && next !== '\r' && next !== '\t') {
-                    continue;
-                }
-                matched = {
-                    start: at,
-                    end: at + 1 + entry.label.length,
-                    studentId: entry.studentId,
-                    label: entry.label
-                };
-                break;
-            }
+            const matched = findLongestMentionLabelAt(rest, labels);
             if (matched) {
-                found.push(matched);
-                i = matched.end;
+                const end = at + 1 + matched.label.length;
+                found.push({
+                    start: at,
+                    end,
+                    studentId: matched.studentId,
+                    label: matched.label
+                });
+                i = end;
             } else {
                 i = at + 1;
             }
@@ -199,17 +233,30 @@
         return out;
     }
 
-    function insertMentionAtCursor(textarea, label) {
+    function insertMentionAtCursor(textarea, label, range) {
         if (!textarea || !label) {
             return;
         }
         const token = `@${label} `;
-        const start = textarea.selectionStart != null ? textarea.selectionStart : textarea.value.length;
-        const end = textarea.selectionEnd != null ? textarea.selectionEnd : start;
-        const before = textarea.value.slice(0, start);
-        const after = textarea.value.slice(end);
-        const atIdx = before.lastIndexOf('@');
-        const prefix = atIdx >= 0 ? before.slice(0, atIdx) : before;
+        const value = textarea.value || '';
+        let atIdx;
+        let end;
+        if (range && range.atIndex != null) {
+            atIdx = range.atIndex;
+            end = range.end != null ? range.end : value.length;
+        } else {
+            const endPos = textarea.selectionEnd != null
+                ? textarea.selectionEnd
+                : (textarea.selectionStart != null ? textarea.selectionStart : value.length);
+            const before = value.slice(0, endPos);
+            atIdx = before.lastIndexOf('@');
+            if (atIdx < 0) {
+                atIdx = endPos;
+            }
+            end = endPos;
+        }
+        const prefix = value.slice(0, atIdx);
+        const after = value.slice(end);
         textarea.value = `${prefix}${token}${after}`;
         const pos = prefix.length + token.length;
         textarea.selectionStart = pos;
@@ -228,11 +275,57 @@
             return null;
         }
         const student = found.student;
+        const cohort = found.cohort;
         return {
             id: student.id,
             name: String(student.name || '').trim(),
-            nameEn: String(student.nameEn || '').trim()
+            nameEn: String(student.nameEn || '').trim(),
+            cohortName: cohort && cohort.name ? String(cohort.name).trim() : ''
         };
+    }
+
+    function collectRenderMentionLabels(taggedStudentIds, resolveStudent) {
+        const labels = [];
+        const idSet = Array.isArray(taggedStudentIds) ? taggedStudentIds : [];
+        idSet.forEach((sid) => {
+            const st = typeof resolveStudent === 'function' ? resolveStudent(sid) : null;
+            if (!st) {
+                return;
+            }
+            const cohortName = String(st.cohortName || '').trim();
+            const baseName = st.name || st.nameEn || '';
+            const primary = cohortName && baseName ? `${cohortName} ${baseName}` : baseName;
+            [primary, st.name, st.nameEn]
+                .concat(cohortName && baseName ? [`${baseName}${DISAMBIG_SEP}${cohortName}`] : [])
+                .filter(Boolean)
+                .forEach((label) => {
+                    labels.push({ studentId: sid, label: String(label).trim() });
+                });
+        });
+        labels.sort((a, b) => b.label.length - a.label.length);
+        return labels;
+    }
+
+    function scanMentionSpans(text, labels) {
+        const str = String(text || '');
+        const found = [];
+        let i = 0;
+        while (i < str.length) {
+            const at = str.indexOf('@', i);
+            if (at < 0) {
+                break;
+            }
+            const rest = str.slice(at + 1);
+            const matched = findLongestMentionLabelAt(rest, labels);
+            if (matched) {
+                const end = at + 1 + matched.label.length;
+                found.push({ start: at, end, studentId: matched.studentId });
+                i = end;
+            } else {
+                i = at + 1;
+            }
+        }
+        return found;
     }
 
     /**
@@ -243,25 +336,15 @@
         if (!str) {
             return '';
         }
-        const classMentions = [];
-        let i = 0;
-        while (i < str.length) {
-            const at = str.indexOf('@', i);
-            if (at < 0) {
-                break;
-            }
-            let end = at + 1;
-            while (end < str.length && str[end] !== ' ' && str[end] !== '\n' && str[end] !== '\r' && str[end] !== '\t') {
-                end += 1;
-            }
-            if (end > at + 1) {
-                classMentions.push({ start: at, end });
-            }
-            i = at + 1;
+        const labels = collectRenderMentionLabels(taggedStudentIds, resolveStudent);
+        if (!labels.length) {
+            return escapeHtml(str);
         }
+        const classMentions = scanMentionSpans(str, labels);
         if (!classMentions.length) {
             return escapeHtml(str);
         }
+        const knownIds = new Set(Array.isArray(taggedStudentIds) ? taggedStudentIds : []);
         const parts = [];
         let cursor = 0;
         classMentions.forEach((m) => {
@@ -269,19 +352,7 @@
                 parts.push(escapeHtml(str.slice(cursor, m.start)));
             }
             const segment = str.slice(m.start, m.end);
-            const isKnown = Array.isArray(taggedStudentIds) && taggedStudentIds.length
-                ? (() => {
-                    const label = segment.slice(1);
-                    return taggedStudentIds.some((sid) => {
-                        const st = typeof resolveStudent === 'function' ? resolveStudent(sid) : null;
-                        if (!st) {
-                            return false;
-                        }
-                        const names = [st.name, st.nameEn].filter(Boolean);
-                        return names.some((n) => label === n || label.startsWith(`${n}${DISAMBIG_SEP}`));
-                    });
-                })()
-                : true;
+            const isKnown = !knownIds.size || (m.studentId && knownIds.has(m.studentId));
             if (isKnown) {
                 parts.push(`<span class="day-note-mention">${escapeHtml(segment)}</span>`);
             } else {
@@ -295,7 +366,48 @@
         return parts.join('');
     }
 
-    function getMentionQueryAtCursor(textarea) {
+    function isCaretAfterCompletedMention(value, at, pos, classId, cohorts, classes) {
+        const between = value.slice(at + 1, pos).replace(/\s+$/, '');
+        if (!between) {
+            return false;
+        }
+        const insertLabels = collectInsertLabelsForClass(classId, cohorts, classes);
+        const exact = insertLabels.find((entry) => entry.label === between);
+        if (!exact) {
+            return false;
+        }
+        const hasLongerPrefix = insertLabels.some(
+            (entry) => entry.label !== between && entry.label.startsWith(`${between} `)
+        );
+        if (hasLongerPrefix) {
+            return false;
+        }
+        const mentionEnd = at + 1 + exact.label.length;
+        const gap = value.slice(mentionEnd, pos);
+        return /^\s*$/.test(gap);
+    }
+
+    function resolveMentionInsertRange(textarea, opts) {
+        if (!textarea) {
+            return null;
+        }
+        const value = textarea.value || '';
+        const end = textarea.selectionEnd != null
+            ? textarea.selectionEnd
+            : (textarea.selectionStart != null ? textarea.selectionStart : value.length);
+        const before = value.slice(0, end);
+        const at = before.lastIndexOf('@');
+        if (at < 0) {
+            return null;
+        }
+        const between = before.slice(at + 1);
+        if (/[\n\r]/.test(between)) {
+            return null;
+        }
+        return { atIndex: at, end };
+    }
+
+    function getMentionQueryAtCursor(textarea, opts) {
         const value = textarea.value || '';
         const pos = textarea.selectionStart != null ? textarea.selectionStart : value.length;
         const before = value.slice(0, pos);
@@ -304,10 +416,18 @@
             return null;
         }
         const between = before.slice(at + 1);
-        if (/\s/.test(between)) {
+        if (/[\n\r]/.test(between)) {
             return null;
         }
-        return { atIndex: at, query: between };
+        if (opts && opts.classId != null && !opts.forInsert) {
+            const classId = opts.classId;
+            const cohorts = opts.cohorts || [];
+            const classes = opts.classes || [];
+            if (isCaretAfterCompletedMention(value, at, pos, classId, cohorts, classes)) {
+                return null;
+            }
+        }
+        return { atIndex: at, query: between, end: pos };
     }
 
     /**
@@ -322,10 +442,21 @@
         if (!textarea || textarea.dataset.mentionBound === '1') {
             return;
         }
+        if (!textarea.parentNode) {
+            return;
+        }
         textarea.dataset.mentionBound = '1';
         const getCohorts = deps && typeof deps.getCohorts === 'function' ? deps.getCohorts : () => [];
         const getClasses = deps && typeof deps.getClasses === 'function' ? deps.getClasses : () => [];
         const t = deps && typeof deps.t === 'function' ? deps.t : (k) => k;
+
+        function mentionQueryOpts() {
+            return {
+                classId: typeof getClassId === 'function' ? getClassId() : '',
+                cohorts: getCohorts(),
+                classes: getClasses()
+            };
+        }
 
         let wrap = textarea.closest('.day-note-mention-wrap');
         if (!wrap) {
@@ -345,6 +476,8 @@
 
         let activeIndex = -1;
         let visibleCandidates = [];
+        let mentionCaret = null;
+        let suppressMentionRefresh = false;
 
         function hideDropdown() {
             dropdown.classList.remove('active');
@@ -388,8 +521,16 @@
                 btn.className = 'autocomplete-item';
                 btn.setAttribute('role', 'option');
                 btn.dataset.index = String(idx);
-                const primary = c.name || c.nameEn || c.insertLabel;
-                const secondary = c.name && c.nameEn && c.name !== c.nameEn ? c.nameEn : '';
+                btn.dataset.insertLabel = c.insertLabel || '';
+                const primary = c.insertLabel || c.name || c.nameEn;
+                const secondaryParts = [];
+                if (c.name && c.name !== primary) {
+                    secondaryParts.push(c.name);
+                }
+                if (c.nameEn && c.nameEn !== primary && c.nameEn !== c.name) {
+                    secondaryParts.push(c.nameEn);
+                }
+                const secondary = secondaryParts.join(' · ');
                 btn.innerHTML = secondary
                     ? `<span class="item-name">${escapeHtml(primary)}</span><span class="item-details">${escapeHtml(secondary)}</span>`
                     : `<span class="item-name">${escapeHtml(primary)}</span>`;
@@ -398,8 +539,9 @@
                 }
                 btn.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
-                    insertMentionAtCursor(textarea, c.insertLabel);
-                    hideDropdown();
+                    const label = ev.currentTarget.dataset.insertLabel || c.insertLabel;
+                    const range = resolveMentionInsertRange(textarea, mentionQueryOpts());
+                    insertSelectedLabel(label, range);
                 });
                 dropdown.appendChild(btn);
             });
@@ -412,14 +554,31 @@
             });
         }
 
+        function insertSelectedLabel(label, rangeOverride) {
+            const range = rangeOverride
+                || (mentionCaret
+                    ? { atIndex: mentionCaret.atIndex, end: mentionCaret.end }
+                    : resolveMentionInsertRange(textarea, mentionQueryOpts()));
+            suppressMentionRefresh = true;
+            insertMentionAtCursor(textarea, label, range);
+            mentionCaret = null;
+            hideDropdown();
+            setTimeout(() => {
+                suppressMentionRefresh = false;
+            }, 0);
+        }
+
         function refreshDropdown() {
-            const classId = typeof getClassId === 'function' ? getClassId() : '';
-            const students = getStudentsForMentions(classId, getCohorts(), getClasses());
-            const ctx = getMentionQueryAtCursor(textarea);
+            const opts = mentionQueryOpts();
+            const classId = opts.classId;
+            const students = getStudentsForMentions(classId, opts.cohorts, opts.classes);
+            const ctx = getMentionQueryAtCursor(textarea, opts);
             if (!ctx) {
+                mentionCaret = null;
                 hideDropdown();
                 return;
             }
+            mentionCaret = { atIndex: ctx.atIndex, end: ctx.end };
             if (!students.length) {
                 hideDropdown();
                 return;
@@ -429,6 +588,9 @@
         }
 
         textarea.addEventListener('input', () => {
+            if (suppressMentionRefresh) {
+                return;
+            }
             refreshDropdown();
         });
 
@@ -452,8 +614,9 @@
                 syncActiveItem();
             } else if (ev.key === 'Enter' && activeIndex >= 0) {
                 ev.preventDefault();
-                insertMentionAtCursor(textarea, visibleCandidates[activeIndex].insertLabel);
-                hideDropdown();
+                const picked = visibleCandidates[activeIndex];
+                const range = resolveMentionInsertRange(textarea, mentionQueryOpts());
+                insertSelectedLabel(picked.insertLabel, range);
             } else if (ev.key === 'Escape') {
                 ev.preventDefault();
                 hideDropdown();
@@ -483,6 +646,7 @@
         resolveStudentDisplay,
         renderMentionHtml,
         getMentionQueryAtCursor,
+        resolveMentionInsertRange,
         attachMentionAutocomplete
     };
 })(typeof window !== 'undefined' ? window : global);
