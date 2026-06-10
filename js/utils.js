@@ -37,12 +37,20 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    /** Em/en dash and minus sign → ASCII hyphen for external paste targets (e.g. Simson). */
+    /** Punctuation → ASCII for external paste targets (messengers, legacy editors). */
     function normalizeClipboardText(text) {
         return String(text ?? '')
             .replace(/\u2014/g, '-')
             .replace(/\u2013/g, '-')
-            .replace(/\u2212/g, '-');
+            .replace(/\u2212/g, '-')
+            .replace(/\u2026/g, '...')
+            .replace(/\u00B7/g, ' - ')
+            .replace(/[\u2500-\u2503\u2508-\u250B\u2550-\u2551]/g, (ch) => (ch === '\u2550' || ch === '\u2551' ? '=' : '-'));
+    }
+
+    /** Alias for note export builders (same rules as clipboard). */
+    function sanitizeExportText(text) {
+        return normalizeClipboardText(text);
     }
 
     global.CCPUtils = {
@@ -51,6 +59,7 @@
         escapeRegExp,
         parseISODateLocal,
         formatDateISO,
-        normalizeClipboardText
+        normalizeClipboardText,
+        sanitizeExportText
     };
 })(typeof window !== 'undefined' ? window : globalThis);

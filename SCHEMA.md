@@ -23,6 +23,7 @@
 | `timetableTimeSlots` | array | Clock times for weekly timetable rows — see below |
 | `periodSlotMap` | object | Maps class period `"1"`…`"7"` to `timetableTimeSlots[].id` |
 | `dayNotes` | array | Daily class log entries from the calendar (see below) |
+| `dayNoteCategories` | array | Custom day note category labels (see below) |
 | `attendanceSessions` | array | Per-class daily attendance (see below) — schema v3 |
 | `homeworkCompletions` | array | Per-assignment homework grades (see below) — schema v3 |
 | `studentPoints` | array | Phase 2 stub — point ledger entries (empty on migrate) |
@@ -46,8 +47,19 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 | `createdAt` | string | ISO-8601 datetime when saved |
 | `authorUserId` | string | Optional. Team user id of the teacher who created the note; stamped on save. Co-teachers may read all notes for a class/day but only edit or delete their own (admins with calendar-access management may bypass). Entries without this field are legacy (editable by admins only). |
 | `homeroomNotifyUserId` | string | Optional. When a co-teacher saves a new note, the app stamps the cohort/class 담임 user id so the homeroom teacher gets an in-app bell notification. Omitted when the author is the homeroom teacher or no 담임 is linked. |
+| `taggedStudentIds` | string[] | Optional. Stable student ids mentioned in the note via `@` tags (e.g. `@홍길동`). Derived from note text on save; used for search, highlighted display, and student profile timeline. |
+| `categoryId` | string | Note category. Default `class-notes`. Built-in: `class-notes`, `parent-consult`. Custom ids from `dayNoteCategories[]`. |
 
 **Not the same as** `classes[].notes` (static class memo in the class editor).
+
+### `dayNoteCategories[]` (optional)
+
+User-defined day note categories for this calendar. Built-in categories (`class-notes`, `parent-consult`) are always available and are not stored here.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id, e.g. `dnc_…` |
+| `name` | string | Display label |
 
 ### `cohorts[]` (optional)
 

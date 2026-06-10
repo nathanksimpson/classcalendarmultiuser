@@ -3,6 +3,37 @@
  */
 (function (global) {
     const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const DEFAULT_CATEGORY_ID = 'class-notes';
+
+    function getCategoriesApi() {
+        return typeof global.CCPDayNoteCategories !== 'undefined' ? global.CCPDayNoteCategories : null;
+    }
+
+    function normalizeCategoryId(raw) {
+        const api = getCategoriesApi();
+        if (api && api.normalizeCategoryId) {
+            return api.normalizeCategoryId(raw);
+        }
+        const id = String(raw || '').trim();
+        return id || DEFAULT_CATEGORY_ID;
+    }
+
+    function normalizeTaggedStudentIds(raw) {
+        if (!Array.isArray(raw)) {
+            return [];
+        }
+        const seen = new Set();
+        const out = [];
+        raw.forEach((id) => {
+            const sid = String(id || '').trim();
+            if (!sid || seen.has(sid)) {
+                return;
+            }
+            seen.add(sid);
+            out.push(sid);
+        });
+        return out;
+    }
 
     function normalizeDayNote(raw) {
         if (!raw || typeof raw !== 'object') {
@@ -33,6 +64,11 @@
         if (homeroomNotifyUserId) {
             out.homeroomNotifyUserId = homeroomNotifyUserId;
         }
+        const taggedStudentIds = normalizeTaggedStudentIds(raw.taggedStudentIds);
+        if (taggedStudentIds.length) {
+            out.taggedStudentIds = taggedStudentIds;
+        }
+        out.categoryId = normalizeCategoryId(raw.categoryId);
         return out;
     }
 
@@ -194,14 +230,18 @@
      * @param {object} note
      * @param {string} query lowercased trimmed query
      * @param {function} [resolveClassHay] (classId) => string
+     * @param {function} [resolveTaggedStudentHay] (note) => string
      */
-    function noteMatchesTextQuery(note, query, resolveClassHay) {
+    function noteMatchesTextQuery(note, query, resolveClassHay, resolveTaggedStudentHay) {
         if (!query) {
             return true;
         }
         const parts = [String(note.text || '')];
         if (typeof resolveClassHay === 'function') {
             parts.push(String(resolveClassHay(note.classId) || ''));
+        }
+        if (typeof resolveTaggedStudentHay === 'function') {
+            parts.push(String(resolveTaggedStudentHay(note) || ''));
         }
         const hay = parts.join(' ').toLowerCase();
         return hay.includes(query);
@@ -216,6 +256,7 @@
      * @param {function} [filters.matchesMeta] (classId) => boolean for subject/grade/etc.
      * @param {string} [filters.textQuery] case-insensitive substring on note text + class hay
      * @param {function} [filters.resolveClassHay] (classId) => string for text search
+     * @param {function} [filters.resolveTaggedStudentHay] (note) => string for tagged student names
      * @param {function} [filters.matchesNote] (note) => boolean for per-note rules (e.g. schedule)
      */
     function filterNotes(dayNotes, filters) {
@@ -240,7 +281,12 @@
             if (typeof f.matchesMeta === 'function' && !f.matchesMeta(note.classId)) {
                 return false;
             }
-            if (textQuery && !noteMatchesTextQuery(note, textQuery, f.resolveClassHay)) {
+            if (textQuery && !noteMatchesTextQuery(
+                note,
+                textQuery,
+                f.resolveClassHay,
+                f.resolveTaggedStudentHay
+            )) {
                 return false;
             }
             if (typeof f.matchesNote === 'function' && !f.matchesNote(note)) {
@@ -280,6 +326,48 @@
         return sortNewestFirst((dayNotes || []).filter((n) => n && n.date === date));
     }
 
+    /**
+     * Notes where studentId appears in taggedStudentIds.
+     * @param {object} [opts]
+     * @param {string} [opts.categoryId]
+     * @param {string} [opts.dateFrom] YYYY-MM-DD inclusive
+     * @param {string} [opts.dateTo] YYYY-MM-DD inclusive
+     */
+    function getNotesForStudent(dayNotes, studentId, opts) {
+        const sid = String(studentId || '').trim();
+        if (!sid) {
+            return [];
+        }
+        const f = opts || {};
+        const categoryId = f.categoryId ? normalizeCategoryId(f.categoryId) : '';
+        return sortByDateDesc((dayNotes || []).filter((note) => {
+            if (!note || !Array.isArray(note.taggedStudentIds)) {
+                return false;
+            }
+            if (!note.taggedStudentIds.includes(sid)) {
+                return false;
+            }
+            if (categoryId && normalizeCategoryId(note.categoryId) !== categoryId) {
+                return false;
+            }
+            if (f.dateFrom && compareDateStr(note.date, f.dateFrom) < 0) {
+                return false;
+            }
+            if (f.dateTo && compareDateStr(note.date, f.dateTo) > 0) {
+                return false;
+            }
+            return true;
+        }));
+    }
+
+    function resolveDayNoteCategoryLabel(categoryId, customCategories, translate) {
+        const api = getCategoriesApi();
+        if (api && api.resolveCategoryLabel) {
+            return api.resolveCategoryLabel(categoryId, customCategories, translate);
+        }
+        return normalizeCategoryId(categoryId);
+    }
+
     function getNotesForClassOnDate(dayNotes, classId, dateStr) {
         const cid = String(classId || '').trim();
         const date = String(dateStr || '').trim();
@@ -304,6 +392,23 @@
         return d.toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' });
     }
 
+    function sanitizeExportText(text) {
+        const utils = typeof global.CCPUtils !== 'undefined' ? global.CCPUtils : null;
+        if (utils && utils.sanitizeExportText) {
+            return utils.sanitizeExportText(text);
+        }
+        if (utils && utils.normalizeClipboardText) {
+            return utils.normalizeClipboardText(text);
+        }
+        return String(text ?? '')
+            .replace(/\u2014/g, '-')
+            .replace(/\u2013/g, '-')
+            .replace(/\u2212/g, '-')
+            .replace(/\u2026/g, '...')
+            .replace(/\u00B7/g, ' - ')
+            .replace(/[\u2500-\u2503\u2508-\u250B\u2550-\u2551]/g, (ch) => (ch === '\u2550' || ch === '\u2551' ? '=' : '-'));
+    }
+
     /**
      * @param {object} opts
      * @param {string} opts.dateStr
@@ -322,8 +427,8 @@
         } = opts || {};
         const lines = [];
         const title = headerTitle || 'Daily class notes';
-        lines.push(`${dateStr} — ${title}`);
-        lines.push('────────────────────────────────');
+        lines.push(`${dateStr} - ${title}`);
+        lines.push('--------------------------------');
         const sorted = sortNewestFirst(notes);
         if (!sorted.length) {
             lines.push('');
@@ -335,13 +440,13 @@
             const subject = meta && meta.subject ? meta.subject : '';
             const time = formatTimeLabel(note.createdAt, locale);
             const head = subject
-                ? `[${time}] ${className} — ${subject}`
+                ? `[${time}] ${className} - ${subject}`
                 : `[${time}] ${className}`;
             lines.push(head);
-            lines.push(String(note.text || '').trim());
+            lines.push(sanitizeExportText(String(note.text || '').trim()));
             lines.push('');
         });
-        return lines.join('\n').trimEnd();
+        return sanitizeExportText(lines.join('\n').trimEnd());
     }
 
     /**
@@ -370,14 +475,14 @@
         const lines = [];
         const title = headerTitle || 'Class notes export';
         if (rangeLabel) {
-            lines.push(`${rangeLabel} — ${title}`);
+            lines.push(`${rangeLabel} - ${title}`);
         } else {
             lines.push(title);
         }
-        lines.push('════════════════════════════════');
+        lines.push('========================================');
         const groups = groupNotesByClass(notes, classOrderIds);
         if (!groups.length) {
-            return lines.join('\n').trimEnd();
+            return sanitizeExportText(lines.join('\n').trimEnd());
         }
         const fmtDate = typeof formatDate === 'function'
             ? formatDate
@@ -388,11 +493,11 @@
                 : null;
             const className = meta && meta.className ? meta.className : group.classId;
             const subject = meta && meta.subject ? meta.subject : '';
-            const heading = subject ? `${className} — ${subject}` : className;
+            const heading = subject ? `${className} - ${subject}` : className;
             if (gi > 0) {
                 lines.push('');
             }
-            lines.push(`── ${heading} ──`);
+            lines.push(`-- ${heading} --`);
             let lastDate = '';
             group.notes.forEach((note) => {
                 if (note.date !== lastDate) {
@@ -404,14 +509,17 @@
                 if (time) {
                     lines.push(`[${time}]`);
                 }
-                lines.push(String(note.text || '').trim());
+                lines.push(sanitizeExportText(String(note.text || '').trim()));
             });
         });
-        return lines.join('\n').trimEnd();
+        return sanitizeExportText(lines.join('\n').trimEnd());
     }
 
     global.CCPDayNotes = {
+        DEFAULT_CATEGORY_ID,
         normalizeDayNote,
+        normalizeCategoryId,
+        normalizeTaggedStudentIds,
         normalizeDayNotesList,
         mergeDayNotesById,
         sortNewestFirst,
@@ -422,6 +530,8 @@
         normalizeClassNotesSortMode,
         CLASS_NOTES_SORT_MODES,
         getNotesForDate,
+        getNotesForStudent,
+        resolveDayNoteCategoryLabel,
         getNotesForClassOnDate,
         hasNotesForClassOnDate,
         noteMatchesTextQuery,
@@ -431,6 +541,7 @@
         updateDayNote,
         removeDayNote,
         formatTimeLabel,
+        sanitizeExportText,
         formatExportText,
         formatRangeExportByClass
     };

@@ -112,6 +112,53 @@ function findStudent(result, cohortName, studentName) {
     assert(RI.normalizeCohortLabel('Yeoul T') === RI.normalizeCohortLabel('YeoulT'), 'yeoul t normalized');
 }
 
+// parseRosterPasteSingle — one cohort at a time
+{
+    const badaBlock = FIXTURE.split('Garam T')[0].trim();
+    const single = RI.parseRosterPasteSingle(badaBlock);
+    assert(!single.error, single.error || 'single bada parse');
+    assert(single.cohort.cohortName === 'Bada T', 'bada cohort name');
+    assert(single.cohort.students.length === 2, 'bada student count');
+
+    const multi = RI.parseRosterPasteSingle(FIXTURE);
+    assert(multi.error === 'multipleCohorts', 'full fixture rejects multiple cohorts');
+
+    const headerless = RI.parseRosterPasteSingle(badaBlock.replace(/^Bada T\r?\n/, ''), {
+        fallbackCohortName: 'PurpleT'
+    });
+    assert(!headerless.error, headerless.error || 'headerless parse');
+    assert(headerless.cohort.students.length === 2, 'headerless student count');
+    assert(headerless.cohort.students[0].id === 'stu-purplet-01', 'headerless uses fallback name for ids');
+
+    const empty = RI.parseRosterPasteSingle('   \n\n  ');
+    assert(empty.error === 'emptyPaste', 'empty paste');
+
+    const noiseOnly = RI.parseRosterPasteSingle('Test Point\n촬영 알림\nSMS');
+    assert(noiseOnly.error === 'noStudents', 'noise only');
+}
+
+// tab-separated web copy with homework tail (Green M)
+{
+    const tabPaste = readFileSync(path.join(__dirname, 'fixtures', 'roster-paste-green-m-tab.txt'), 'utf8');
+    const parsed = RI.parseRosterPasteSingle(tabPaste, { fallbackCohortName: 'GreenM' });
+    assert(!parsed.error, parsed.error || 'tab paste parse');
+    assert(parsed.cohort.students.length === 8, `expected 8 students, got ${parsed.cohort.students.length}`);
+
+    const yoon = parsed.cohort.students.find((s) => s.name.includes('길나윤'));
+    assert(yoon && yoon.nameEn === 'Rumi' && yoon.locationTag === '잠실', 'rumi parsed');
+
+    const jihang = parsed.cohort.students.find((s) => s.name === '이지행');
+    assert(jihang && jihang.memo.includes('수호X'), 'ijihang suho');
+
+    const jaewan = parsed.cohort.students.find((s) => s.name.includes('최재완'));
+    assert(jaewan && jaewan.nameEn === 'Jackso' && jaewan.memo.includes('수호O'), 'jaewan suho en');
+
+    const withHomeworkTail = tabPaste + '\nGreen M\nSession 2\n';
+    const tailParsed = RI.parseRosterPasteSingle(withHomeworkTail, { fallbackCohortName: 'GreenM' });
+    assert(!tailParsed.error, tailParsed.error || 'tail trim parse');
+    assert(tailParsed.cohort.students.length === 8, 'homework tail trimmed');
+}
+
 // parseRosterPack (amalgamated JSON export)
 {
     const json = JSON.parse(readFileSync(path.join(root, 'data', 'roster-import-jun2026.json'), 'utf8'));

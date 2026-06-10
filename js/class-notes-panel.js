@@ -23,7 +23,12 @@
             onEdit,
             onDelete,
             onSaveEdit,
-            onCancelEdit
+            onCancelEdit,
+            renderNoteHtml,
+            buildCategoryBadgeHtml,
+            populateCategorySelect,
+            getCategorySelectValue,
+            setupMentionField
         } = deps;
 
         const entry = document.createElement('div');
@@ -53,6 +58,11 @@
             hrBadge.textContent = t('dayNoteForHomeroomBadge');
             metaLine.appendChild(hrBadge);
         }
+        if (typeof buildCategoryBadgeHtml === 'function') {
+            const catBadge = document.createElement('span');
+            catBadge.innerHTML = buildCategoryBadgeHtml(note.categoryId);
+            metaLine.appendChild(catBadge);
+        }
 
         const actions = document.createElement('div');
         actions.className = 'class-notes-preview-entry-actions';
@@ -80,18 +90,38 @@
 
             const body = document.createElement('p');
             body.className = 'class-notes-preview-entry-body day-note-list-entry-body';
-            body.textContent = note.text;
+            if (typeof renderNoteHtml === 'function') {
+                body.innerHTML = renderNoteHtml(note);
+            } else {
+                body.textContent = note.text;
+            }
             entry.appendChild(body);
             return entry;
         }
 
         const editWrap = document.createElement('div');
         editWrap.className = 'class-notes-preview-entry-edit';
+        let categorySelect = null;
+        if (typeof populateCategorySelect === 'function') {
+            const catLabel = document.createElement('label');
+            catLabel.className = 'class-notes-filter-field';
+            const catSpan = document.createElement('span');
+            catSpan.textContent = t('dayNoteCategoryLabel');
+            categorySelect = document.createElement('select');
+            categorySelect.className = 'class-notes-add-select day-note-category-select';
+            populateCategorySelect(categorySelect, note.categoryId);
+            catLabel.appendChild(catSpan);
+            catLabel.appendChild(categorySelect);
+            editWrap.appendChild(catLabel);
+        }
         const textarea = document.createElement('textarea');
         textarea.className = 'day-note-textarea class-notes-preview-edit-textarea';
         textarea.rows = 3;
         textarea.value = note.text;
         textarea.spellcheck = true;
+        if (typeof setupMentionField === 'function') {
+            setupMentionField(textarea, () => note.classId || '');
+        }
         const editActions = document.createElement('div');
         editActions.className = 'class-notes-preview-entry-edit-actions';
 
@@ -102,7 +132,10 @@
         saveBtn.addEventListener('click', () => {
             const text = (textarea.value || '').trim();
             if (text) {
-                onSaveEdit(note.id, text);
+                const categoryId = categorySelect && typeof getCategorySelectValue === 'function'
+                    ? getCategorySelectValue(categorySelect)
+                    : note.categoryId;
+                onSaveEdit(note.id, text, note.classId, categoryId);
             }
         });
 

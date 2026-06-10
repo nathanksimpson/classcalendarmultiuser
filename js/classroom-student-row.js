@@ -61,10 +61,30 @@
         return `${loc}<span class="classroom-student-name">${name}</span>${en}${tags ? ` ${tags}` : ''}`;
     }
 
+    function formatStudentIdentityColumn(entry, t, options) {
+        const opts = options || {};
+        const student = entry.student;
+        const name = escapeHtml(student.name || student.id);
+        const en = student.nameEn ? ` <span class="classroom-student-en">(${escapeHtml(student.nameEn)})</span>` : '';
+        const tags = buildTagBadges(student, t);
+        const extra = opts.extraHtml || '';
+        const schoolPart = student.locationTag
+            ? `<span class="classroom-sheet-school-inline">${escapeHtml(student.locationTag)}</span>`
+            : '';
+        const schoolSep = schoolPart ? '<span class="classroom-sheet-school-sep" aria-hidden="true"> · </span>' : '';
+        const nameLine = `<div class="classroom-sheet-name-line"><span class="classroom-student-name">${name}</span>${en}${schoolSep}${schoolPart}</div>`;
+        const metaLine =
+            tags || extra
+                ? `<div class="classroom-sheet-meta-line">${tags ? `${tags} ` : ''}${extra}</div>`
+                : '';
+        return `${nameLine}${metaLine}`;
+    }
+
     global.CCPClassroomStudentRow = {
         escapeHtml,
         buildTagBadges,
         buildPlaceholderActions,
-        formatStudentLabel
+        formatStudentLabel,
+        formatStudentIdentityColumn
     };
 })(typeof window !== 'undefined' ? window : globalThis);

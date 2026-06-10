@@ -1,5 +1,5 @@
 /**
- * Attendance segment — dual layout with student rows.
+ * Attendance segment — full-width 3-column table layout.
  */
 (function (global) {
     let hooks = null;
@@ -149,9 +149,10 @@
         const students = getStudents();
         const d = domain();
         const data = getAppData();
+        const rowApi = global.CCPClassroomStudentRow;
 
         if (!students.length) {
-            rowsMount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p>`;
+            rowsMount.innerHTML = `<tr><td colspan="3" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
             return;
         }
 
@@ -165,18 +166,20 @@
                     : '';
             const sessionNote = rec ? rec.sessionNote || '' : '';
             const memo = draftMemos[sid] != null ? draftMemos[sid] : entry.student.memo || '';
-            const label =
-                global.CCPClassroomStudentRow
-                    ? global.CCPClassroomStudentRow.formatStudentLabel(entry, t)
-                    : escapeHtml(entry.student.name);
-            return `<article class="classroom-student-row" data-student-id="${escapeHtml(sid)}">
-                <header class="classroom-student-row-head">${label} ${recentHint}</header>
-                <div class="classroom-student-row-status">${buildStatusChips(sid, editable)}</div>
-                <div class="form-group"><label>${escapeHtml(t('classroomSessionNote'))}</label>
-                <input type="text" class="field-input classroom-session-note" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(sessionNote)}" ${editable ? '' : 'disabled'} /></div>
-                <div class="form-group"><label>${escapeHtml(t('classroomStudentMemo'))}</label>
-                <input type="text" class="field-input classroom-student-memo" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(memo)}" ${editable ? '' : 'disabled'} /></div>
-            </article>`;
+            const identity = rowApi
+                ? rowApi.formatStudentIdentityColumn(entry, t, { extraHtml: recentHint })
+                : escapeHtml(entry.student.name);
+            const disabled = editable ? '' : ' disabled';
+            return `<tr class="classroom-sheet-row" data-student-id="${escapeHtml(sid)}">
+                <td class="classroom-sheet-col-student">${identity}</td>
+                <td class="classroom-sheet-col-attendance"><div class="classroom-student-row-status">${buildStatusChips(sid, editable)}</div></td>
+                <td class="classroom-sheet-col-notes">
+                    <div class="classroom-notes-stack">
+                        <input type="text" class="field-input field-control--compact classroom-session-note" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(sessionNote)}" placeholder="${escapeHtml(t('classroomSessionNotePlaceholder'))}" aria-label="${escapeHtml(t('classroomSessionNote'))}"${disabled} />
+                        <input type="text" class="field-input field-control--compact classroom-student-memo classroom-student-memo--secondary" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(memo)}" placeholder="${escapeHtml(t('classroomStudentMemoPlaceholder'))}" aria-label="${escapeHtml(t('classroomStudentMemo'))}"${disabled} />
+                    </div>
+                </td>
+            </tr>`;
         });
         rowsMount.innerHTML = html.join('');
 
@@ -195,19 +198,6 @@
             input.addEventListener('input', () => {
                 draftMemos[input.getAttribute('data-student-id')] = input.value;
             });
-        });
-    }
-
-    function renderIndex(panel) {
-        const indexMount = panel.querySelector('#classroomAttendanceIndex');
-        if (!indexMount || !global.CCPClassroomStudentIndex) {
-            return;
-        }
-        global.CCPClassroomStudentIndex.render(indexMount, getStudents(), {
-            onSelect: (id) => {
-                const row = panel.querySelector(`.classroom-student-row[data-student-id="${id}"]`);
-                row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
         });
     }
 
@@ -261,7 +251,6 @@
             return;
         }
         renderHeader(panel);
-        renderIndex(panel);
         renderRows(panel);
 
         panel.querySelector('#classroomAttendanceSaveBtn')?.addEventListener('click', () => saveAll(panel), {
