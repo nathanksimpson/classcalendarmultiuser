@@ -194,7 +194,7 @@
                 return `<tr class="classroom-sheet-row" data-student-id="${escapeHtml(sid)}">
                 <td class="classroom-sheet-col-student">${identity}</td>
                 <td class="classroom-sheet-col-homework">
-                    <div class="classroom-student-row-grades">${buildGradeChips(sid, editable)}</div>
+                    <div class="classroom-student-row-grades" role="radiogroup" aria-label="${escapeHtml(t('classroomColHomework'))}">${buildGradeChips(sid, editable)}</div>
                 </td>
                 <td class="classroom-sheet-col-checks">
                     <div class="classroom-homework-checks">

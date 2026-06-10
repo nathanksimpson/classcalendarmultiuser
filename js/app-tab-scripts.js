@@ -35,13 +35,13 @@
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-header.js?v=20260612-classroom-mvp',
-            'js/classroom-attendance.js?v=20260612-classroom-density'
+            'js/classroom-attendance.js?v=20260610-boot-mentions'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-header.js?v=20260612-classroom-mvp',
-            'js/classroom-homework.js?v=20260612-classroom-density'
+            'js/classroom-homework.js?v=20260610-boot-mentions'
         ]
     };
 

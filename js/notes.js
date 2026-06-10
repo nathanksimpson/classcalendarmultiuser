@@ -36,6 +36,18 @@
         });
     }
 
+    function bindNotesAddMentionField() {
+        const textEl = document.getElementById('notesAddText');
+        if (!textEl || textEl.dataset.mentionInit === '1') {
+            return;
+        }
+        if (typeof setupDayNoteMentionField !== 'function') {
+            return;
+        }
+        textEl.dataset.mentionInit = '1';
+        setupDayNoteMentionField(textEl, () => normalizeNotesClassId(notesSelectedClassId) || '');
+    }
+
     function getParams() {
         return new URLSearchParams(location.search);
     }
@@ -636,8 +648,23 @@
                     reopenNotesEditorAfterDayNotesChange();
                 }
             },
-            onSaveEdit: (id, text) => {
-                if (typeof updateClassDayNote === 'function' && updateClassDayNote(id, { text })) {
+            onSaveEdit: (id, text, classId, categoryId) => {
+                const note = appData.dayNotes.find((n) => n && n.id === id);
+                const cid = classId || (note && note.classId) || '';
+                const taggedStudentIds =
+                    typeof syncDayNoteTaggedStudentIds === 'function'
+                        ? syncDayNoteTaggedStudentIds(text, cid)
+                        : [];
+                const patch = {
+                    text,
+                    categoryId: categoryId || (note && note.categoryId) || 'class-notes'
+                };
+                if (taggedStudentIds.length) {
+                    patch.taggedStudentIds = taggedStudentIds;
+                } else {
+                    patch.taggedStudentIds = [];
+                }
+                if (typeof updateClassDayNote === 'function' && updateClassDayNote(id, patch)) {
                     notesEditingId = null;
                     showNotesStatus(true, t('classNotesUpdated'));
                     reopenNotesEditorAfterDayNotesChange();
@@ -646,7 +673,23 @@
             onCancelEdit: () => {
                 notesEditingId = null;
                 reopenNotesEditorAfterDayNotesChange({ skipListRender: true });
-            }
+            },
+            renderNoteHtml:
+                typeof renderDayNoteTextHtml === 'function' ? renderDayNoteTextHtml : undefined,
+            buildCategoryBadgeHtml:
+                typeof buildDayNoteCategoryBadgeHtml === 'function'
+                    ? buildDayNoteCategoryBadgeHtml
+                    : undefined,
+            populateCategorySelect:
+                typeof populateDayNoteCategorySelect === 'function'
+                    ? populateDayNoteCategorySelect
+                    : undefined,
+            getCategorySelectValue:
+                typeof getSelectedDayNoteCategoryId === 'function'
+                    ? getSelectedDayNoteCategoryId
+                    : undefined,
+            setupMentionField:
+                typeof setupDayNoteMentionField === 'function' ? setupDayNoteMentionField : undefined
         });
     }
 
@@ -697,6 +740,7 @@
             }
         }
         bindNotesAddTextInput();
+        bindNotesAddMentionField();
         syncNotesReadOnlyBanner();
     }
 
@@ -1122,7 +1166,11 @@
                     classId,
                     dateStr: resolveSelectedDate(),
                     text,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    taggedStudentIds:
+                        typeof syncDayNoteTaggedStudentIds === 'function'
+                            ? syncDayNoteTaggedStudentIds(text, classId)
+                            : []
                 });
                 if (!ok) {
                     return;
@@ -1290,6 +1338,7 @@
 
         bindNotesControls();
         bindNotesAddTextInput();
+        bindNotesAddMentionField();
         bindNotesBeforeUnload();
         const urlDate = (getParams().get('date') || '').trim();
         if (urlDate) {
@@ -1314,16 +1363,11 @@
             if (typeof initTeamSync === 'function') {
                 await initTeamSync();
             }
-            if (
-                typeof appData !== 'undefined'
-                && Array.isArray(appData.classes)
-                && appData.classes.length === 0
-                && typeof CalendarSync !== 'undefined'
-                && CalendarSync.getActiveCalendarId
-                && CalendarSync.getActiveCalendarId()
-                && typeof reloadActiveCalendarFromServer === 'function'
-            ) {
-                await reloadActiveCalendarFromServer();
+            if (typeof ensureActiveCalendarLoaded === 'function') {
+                await ensureActiveCalendarLoaded({
+                    forceIfStale:
+                        !Array.isArray(appData.classes) || appData.classes.length === 0
+                });
             }
         } catch (err) {
             console.error('Notes team sync failed:', err);

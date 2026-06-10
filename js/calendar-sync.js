@@ -462,7 +462,7 @@
 
         async checkHealth() {
             try {
-                const res = await apiFetch('/health');
+                const res = await apiFetch('/health', { timeoutMs: 8000 });
                 return Boolean(res && res.ok);
             } catch (_) {
                 return false;

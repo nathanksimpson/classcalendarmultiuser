@@ -17220,18 +17220,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         initCalendarViewToggle();
         initAppChromeStickyTop();
         applyLanguage();
-        renderCalendar();
-        requestAnimationFrame(syncAppChromeStickyTop);
+
+        appShellBootComplete = true;
+
+        if (useTeamSync) {
+            showCalendarBootLoading(true);
+            await runTeamSyncBoot();
+        } else {
+            teamSyncCalendarHydrated = true;
+            renderCalendar();
+            requestAnimationFrame(syncAppChromeStickyTop);
+        }
 
         const savedTab = getActiveTab();
         showSavedTabPanelsOnly(savedTab);
 
-        appShellBootComplete = true;
         try {
             restoreAppSessionState();
         } catch (restoreErr) {
             console.error('restoreAppSessionState failed:', restoreErr);
         }
+        refreshActiveTabAfterHydration();
         updateSetupGuideBanner();
         syncSetupTabsVisibility();
         if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
@@ -17239,12 +17248,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         scheduleIdleTabPrefetch();
-
-        if (useTeamSync) {
-            void runTeamSyncBoot();
-        } else {
-            teamSyncCalendarHydrated = true;
-        }
     } finally {
         if (useTeamSync) {
             teamSyncInitialBootDone = true;
@@ -21878,7 +21881,14 @@ function renderCalendarNow(options) {
     if (!elements.calendarContainer) {
         return;
     }
-    if (!appData.termStart) return;
+    ensureTermStartData();
+    if (!appData.termStart) {
+        return;
+    }
+    const loadingEl = elements.calendarContainer.querySelector('.calendar-boot-loading');
+    if (loadingEl) {
+        loadingEl.remove();
+    }
 
     syncHolidaysFromEvents();
     syncShowAllCurriculaControl();
@@ -26533,9 +26543,194 @@ function scheduleTeamSyncBootWatchdog() {
     }, TEAM_SYNC_BOOT_WATCHDOG_MS);
 }
 
+function isTransientSyncError(err) {
+    if (!err) {
+        return false;
+    }
+    const status = err.status;
+    if (status === 401 || status === 403 || status === 404) {
+        return false;
+    }
+    if (status === 408) {
+        return true;
+    }
+    if (err.name === 'AbortError' || err.name === 'TypeError') {
+        return true;
+    }
+    const msg = String(err.message || '').toLowerCase();
+    return msg.includes('timed out') || msg.includes('network') || msg.includes('failed to fetch');
+}
+
+async function withBootRetry(fn) {
+    try {
+        return await fn();
+    } catch (err) {
+        if (!isTransientSyncError(err)) {
+            throw err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return await fn();
+    }
+}
+
+function isAppDataCalendarEmpty() {
+    if (!appData) {
+        return true;
+    }
+    const hasClasses = Array.isArray(appData.classes) && appData.classes.length > 0;
+    const hasEvents = Array.isArray(appData.events) && appData.events.length > 0;
+    return !hasClasses && !hasEvents && !appData.termStart;
+}
+
+function isCalendarContainerEmpty() {
+    if (!elements.calendarContainer) {
+        return true;
+    }
+    return !elements.calendarContainer.querySelector('.month-calendar, .calendar-agenda-list');
+}
+
+function showCalendarBootLoading(show) {
+    if (!elements.calendarContainer) {
+        return;
+    }
+    if (!show) {
+        return;
+    }
+    elements.calendarContainer.innerHTML =
+        `<p class="calendar-boot-loading section-hint">${escapeHtml(t('syncSyncing'))}</p>`;
+}
+
+function refreshActiveTabAfterHydration() {
+    if (isNotesPage() || isWorkspacePage()) {
+        return;
+    }
+    const tab = getActiveTab();
+    if (tab === 'cohorts') {
+        void initCohortsTabControls();
+    } else if (tab === 'students' || tab === 'attendance' || tab === 'homework-tracking') {
+        void initClassroomTabControls(tab);
+    } else if (tab === 'timetable') {
+        initTimetableTabControls();
+    } else if (tab === 'calendar') {
+        ensureTermStartData();
+        initializeTermStart();
+        renderCalendarNow({ forceFull: true });
+        requestAnimationFrame(syncAppChromeStickyTop);
+    } else if (tab === 'classes') {
+        renderClassList();
+    } else if (tab === 'events') {
+        renderEventList();
+    } else if (tab === 'homework') {
+        renderHomeworkClassList();
+        renderHomeworkEditor();
+    } else if (tab === 'syllabus') {
+        initSyllabusTabControls();
+    } else if (tab === 'notes' || isClassNotesUiActive()) {
+        ensureClassNotesShell();
+        renderClassNotesTab();
+    }
+}
+
+async function ensureActiveCalendarLoaded(options) {
+    const opts = options || {};
+    if (typeof CalendarSync === 'undefined' || location.protocol === 'file:') {
+        teamSyncCalendarHydrated = true;
+        return { ok: false, offline: true, calendarId: null };
+    }
+    if (
+        teamSyncCalendarHydrated &&
+        !opts.forceIfStale &&
+        !isAppDataCalendarEmpty()
+    ) {
+        return {
+            ok: true,
+            offline: !teamSyncEnabled,
+            calendarId: CalendarSync.getActiveCalendarId()
+        };
+    }
+
+    const connected = await withBootRetry(() => CalendarSync.checkHealth());
+    if (!connected) {
+        teamSyncEnabled = false;
+        setTeamCalendarRowVisible(false);
+        setTeamLockBarVisible(false);
+        updateTeamSyncStatus('offline');
+        if (!isAppDataCalendarEmpty()) {
+            teamSyncCalendarHydrated = true;
+        }
+        updateSetupGuideBanner();
+        return { ok: false, offline: true, calendarId: CalendarSync.getActiveCalendarId() };
+    }
+
+    teamSyncEnabled = true;
+    setTeamCalendarRowVisible(true);
+
+    const canCreateCalendars =
+        typeof TeamAuth !== 'undefined' && TeamAuth.hasPermission('create_calendars');
+    let calendars = await withBootRetry(() => CalendarSync.listCalendars());
+    let activeId = CalendarSync.getActiveCalendarId();
+
+    if (calendars.length === 0 && !canCreateCalendars) {
+        location.replace('/pending-access.html');
+        return { ok: false, offline: false, calendarId: null };
+    }
+
+    if (calendars.length === 0 && canCreateCalendars) {
+        calendars = await ensureStarterTeamCalendar();
+        activeId = CalendarSync.getActiveCalendarId();
+    }
+
+    if (
+        (isNotesPage() || isWorkspacePage()) &&
+        calendars.length > 0 &&
+        (!activeId || !calendars.some((c) => c.id === activeId))
+    ) {
+        activeId = calendars[0].id;
+    }
+
+    populateCalendarSelect(calendars, activeId);
+
+    if (calendars.length > 0) {
+        if (!activeId || !calendars.some((c) => c.id === activeId)) {
+            activeId = calendars[0].id;
+        }
+        if (opts.forceIfStale || isAppDataCalendarEmpty() || !teamSyncCalendarHydrated) {
+            await withBootRetry(() =>
+                switchToTeamCalendar(activeId, calendars, { skipSessionRestore: true })
+            );
+        }
+    } else {
+        teamSyncCalendarHydrated = true;
+        updateSetupGuideBanner();
+    }
+
+    const id = CalendarSync.getActiveCalendarId();
+    if (id && isAppDataCalendarEmpty()) {
+        try {
+            await reloadActiveCalendarFromServer();
+        } catch (err) {
+            console.warn('ensureActiveCalendarLoaded reload failed:', err);
+        }
+    }
+
+    if (isNotesPage()) {
+        refreshNotesPageIfMounted();
+    }
+
+    return {
+        ok: teamSyncCalendarHydrated,
+        offline: false,
+        calendarId: id
+    };
+}
+
 /** Clear boot-time Connecting/Syncing if init exited without reaching a terminal status. */
 function finishTeamSyncBoot() {
-    if (!teamSyncCalendarHydrated) {
+    if (!teamSyncCalendarHydrated && !teamSyncBootAttempted) {
+        teamSyncCalendarHydrated = true;
+    } else if (!teamSyncCalendarHydrated && teamSyncEnabled && !isAppDataCalendarEmpty()) {
+        teamSyncCalendarHydrated = true;
+    } else if (!teamSyncCalendarHydrated && !teamSyncEnabled && !isAppDataCalendarEmpty()) {
         teamSyncCalendarHydrated = true;
     }
     updateSetupGuideBanner();
@@ -26566,10 +26761,22 @@ async function runTeamSyncBoot() {
     scheduleTeamSyncBootWatchdog();
     try {
         await initTeamSync();
+        ensureTermStartData();
+        initializeTermStart();
+        renderCalendarNow({ forceFull: true });
+        if (teamSyncEnabled && isCalendarContainerEmpty()) {
+            try {
+                await reloadActiveCalendarFromServer();
+                initializeTermStart();
+                renderCalendarNow({ forceFull: true });
+            } catch (reloadErr) {
+                console.warn('Post-boot calendar reload failed:', reloadErr);
+            }
+        }
         if (!teamSyncEnabled) {
             renderCalendar();
-            requestAnimationFrame(syncAppChromeStickyTop);
         }
+        requestAnimationFrame(syncAppChromeStickyTop);
     } catch (err) {
         console.error('initTeamSync failed:', err);
         updateTeamSyncStatus('error', (err && err.message) || t('syncError'));
@@ -26662,6 +26869,7 @@ if (typeof window !== 'undefined' && !window.__ccpPageshowSyncInit) {
 if (typeof window !== 'undefined') {
     window.finishTeamSyncBoot = finishTeamSyncBoot;
     window.ensureTeamSyncReady = ensureTeamSyncReady;
+    window.ensureActiveCalendarLoaded = ensureActiveCalendarLoaded;
     window.isTeamSyncBootIncomplete = isTeamSyncBootIncomplete;
 }
 
@@ -27440,41 +27648,18 @@ async function initTeamSync() {
     setupTeamUserBar();
 
     if (teamSyncUiBound) {
-        const connected = await CalendarSync.checkHealth();
-        if (!connected) {
-            teamSyncEnabled = false;
-            teamSyncCalendarHydrated = true;
-            setTeamCalendarRowVisible(false);
-            setTeamLockBarVisible(false);
-            updateTeamSyncStatus('offline');
-            updateSetupGuideBanner();
-            return;
-        }
-        teamSyncEnabled = true;
-        setTeamCalendarRowVisible(true);
-        const calendars = await CalendarSync.listCalendars();
-        let activeId = CalendarSync.getActiveCalendarId();
-        if (
-            (isNotesPage() || isWorkspacePage())
-            && calendars.length > 0
-            && (!activeId || !calendars.some((c) => c.id === activeId))
-        ) {
-            activeId = calendars[0].id;
-        }
-        populateCalendarSelect(calendars, activeId);
-        if (
-            (isNotesPage() || isWorkspacePage())
-            && activeId
-            && (!Array.isArray(appData.classes) || appData.classes.length === 0)
-        ) {
-            await switchToTeamCalendar(activeId, calendars, { skipSessionRestore: true });
-        }
+        await ensureActiveCalendarLoaded({
+            forceIfStale:
+                (isNotesPage() || isWorkspacePage()) &&
+                (!Array.isArray(appData.classes) || appData.classes.length === 0)
+        });
         updateTeamSyncStatus(
-            activeId ? 'saved' : calendars.length ? 'connected' : 'connected'
+            CalendarSync.getActiveCalendarId()
+                ? 'saved'
+                : teamSyncEnabled
+                  ? 'connected'
+                  : 'offline'
         );
-        if (isNotesPage()) {
-            refreshNotesPageIfMounted();
-        }
         return;
     }
 
@@ -27587,7 +27772,9 @@ async function initTeamSync() {
 
     if (!connected) {
         teamSyncEnabled = false;
-        teamSyncCalendarHydrated = true;
+        if (!isAppDataCalendarEmpty()) {
+            teamSyncCalendarHydrated = true;
+        }
         setTeamCalendarRowVisible(false);
         setTeamLockBarVisible(false);
         updateTeamSyncStatus('offline');
@@ -27605,32 +27792,7 @@ async function initTeamSync() {
 
     await setupHostEnginePanel();
 
-    const teamUser = typeof TeamAuth !== 'undefined' ? TeamAuth.getUser() : null;
-    const canCreateCalendars =
-        typeof TeamAuth !== 'undefined' && TeamAuth.hasPermission('create_calendars');
-
-    let calendars = await CalendarSync.listCalendars();
-    let activeId = CalendarSync.getActiveCalendarId();
-
-    if (calendars.length === 0 && !canCreateCalendars) {
-        location.replace('/pending-access.html');
-        return;
-    }
-
-    if (calendars.length === 0 && canCreateCalendars) {
-        calendars = await ensureStarterTeamCalendar();
-        activeId = CalendarSync.getActiveCalendarId();
-    }
-
-    if (calendars.length > 0) {
-        if (!activeId || !calendars.some((c) => c.id === activeId)) {
-            activeId = calendars[0].id;
-        }
-        await switchToTeamCalendar(activeId, calendars, { skipSessionRestore: true });
-    } else {
-        teamSyncCalendarHydrated = true;
-        updateSetupGuideBanner();
-    }
+    await ensureActiveCalendarLoaded();
 
     document.body.dataset.teamSyncInit = '1';
 

@@ -256,16 +256,11 @@
             if (typeof initTeamSync === 'function') {
                 await initTeamSync();
             }
-            if (
-                typeof appData !== 'undefined'
-                && Array.isArray(appData.classes)
-                && appData.classes.length === 0
-                && typeof CalendarSync !== 'undefined'
-                && CalendarSync.getActiveCalendarId
-                && CalendarSync.getActiveCalendarId()
-                && typeof reloadActiveCalendarFromServer === 'function'
-            ) {
-                await reloadActiveCalendarFromServer();
+            if (typeof ensureActiveCalendarLoaded === 'function') {
+                await ensureActiveCalendarLoaded({
+                    forceIfStale:
+                        !Array.isArray(appData.classes) || appData.classes.length === 0
+                });
             }
         } catch (err) {
             console.error('Workspace team sync failed:', err);

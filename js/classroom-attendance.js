@@ -172,7 +172,7 @@
             const disabled = editable ? '' : ' disabled';
             return `<tr class="classroom-sheet-row" data-student-id="${escapeHtml(sid)}">
                 <td class="classroom-sheet-col-student">${identity}</td>
-                <td class="classroom-sheet-col-attendance"><div class="classroom-student-row-status">${buildStatusChips(sid, editable)}</div></td>
+                <td class="classroom-sheet-col-attendance"><div class="classroom-student-row-status" role="radiogroup" aria-label="${escapeHtml(t('classroomColAttendance'))}">${buildStatusChips(sid, editable)}</div></td>
                 <td class="classroom-sheet-col-notes">
                     <div class="classroom-notes-stack">
                         <input type="text" class="field-input field-control--compact classroom-session-note" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(sessionNote)}" placeholder="${escapeHtml(t('classroomSessionNotePlaceholder'))}" aria-label="${escapeHtml(t('classroomSessionNote'))}"${disabled} />

@@ -119,6 +119,7 @@
         textarea.rows = 3;
         textarea.value = note.text;
         textarea.spellcheck = true;
+        editWrap.appendChild(textarea);
         if (typeof setupMentionField === 'function') {
             setupMentionField(textarea, () => note.classId || '');
         }
@@ -147,7 +148,6 @@
 
         editActions.appendChild(saveBtn);
         editActions.appendChild(cancelBtn);
-        editWrap.appendChild(textarea);
         editWrap.appendChild(editActions);
         entry.appendChild(editWrap);
         return entry;
