@@ -2,7 +2,7 @@
  * Application-level blob encryption (AES-256-GCM envelope).
  * Canonical copy for Worker bundle; server/tests re-export via crypto/blob-at-rest.js.
  */
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 const ENC_PREFIX = 'enc1';
 const WRAP_PREFIX = 'w1';
