@@ -888,14 +888,26 @@
     }
 
     function buildClassAssignmentSection(cohort) {
-        const section = document.createElement('section');
-        section.className = 'cohort-class-assignment-section';
-        section.innerHTML = `<h3 class="form-section-title">${escapeHtml(t('cohortsSectionClassAssignment'))}</h3>
-            <p class="section-hint">${escapeHtml(t('cohortsClassAssignmentHint'))}</p>
+        const appData = hooks.getAppData();
+        const linkApi = getTimetableApi();
+        const classCount = linkApi
+            ? linkApi.getCohortClassIds(appData, cohort).length
+            : (cohort.classIds || []).length;
+
+        const details = document.createElement('details');
+        details.className = 'cohort-class-assignment-details';
+
+        const summary = document.createElement('summary');
+        summary.className = 'cohort-class-assignment-summary';
+        summary.textContent = t('cohortsClassAssignmentSummary').replace('{n}', String(classCount));
+
+        const inner = document.createElement('div');
+        inner.className = 'cohort-class-assignment-inner';
+        inner.innerHTML = `<p class="section-hint">${escapeHtml(t('cohortsClassAssignmentHint'))}</p>
             <p class="section-hint cohort-combined-callout">${escapeHtml(t('cohortsCombinedCallout'))}</p>`;
 
         const actions = document.createElement('div');
-        actions.className = 'lesson-filter-actions cohort-class-catalog-actions';
+        actions.className = 'lesson-filter-actions cohort-class-catalog-actions cohort-class-catalog-compact-row';
         actions.innerHTML = `
             <button type="button" class="btn btn-outline btn-small" data-cohort-catalog="selectAll">${escapeHtml(t('filterSelectAll'))}</button>
             <button type="button" class="btn btn-outline btn-small" data-cohort-catalog="clearAll">${escapeHtml(t('filterClearAll'))}</button>
@@ -927,7 +939,6 @@
             opt.textContent = t(key);
             sortSel.appendChild(opt);
         });
-        const appData = hooks.getAppData();
         sortSel.value = (appData.ui && appData.ui.cohortsClassCatalogSort) || 'display';
         sortSel.addEventListener('change', () => {
             persistClassCatalogSort();
@@ -969,9 +980,10 @@
         const search = document.createElement('input');
         search.type = 'search';
         search.id = 'cohortsClassCatalogSearch';
-        search.className = 'module-list-search';
+        search.className = 'module-list-search cohort-class-catalog-search field-control--compact';
         search.placeholder = t('classListSearchPlaceholder') || 'Search classes…';
         search.addEventListener('input', () => renderClassCatalog(cohort));
+        toolbar.appendChild(search);
 
         const body = document.createElement('div');
         body.id = 'cohortsClassCatalogBody';
@@ -987,12 +999,13 @@
         applyBtn.addEventListener('click', () => applyClassAssignments(cohort));
         applyRow.appendChild(applyBtn);
 
-        section.appendChild(actions);
-        section.appendChild(toolbar);
-        section.appendChild(search);
-        section.appendChild(body);
-        section.appendChild(applyRow);
-        return section;
+        inner.appendChild(actions);
+        inner.appendChild(toolbar);
+        inner.appendChild(body);
+        inner.appendChild(applyRow);
+        details.appendChild(summary);
+        details.appendChild(inner);
+        return details;
     }
 
     function cohortDisplayName(cohort) {
@@ -1217,13 +1230,25 @@
         ttBtn.textContent = t('cohortsOpenTimetable');
         ttBtn.addEventListener('click', () => hooks.navigateToTab('timetable'));
 
+        const moreMenu = document.createElement('details');
+        moreMenu.className = 'header-dropdown cohort-editor-more-menu';
+        const moreSummary = document.createElement('summary');
+        moreSummary.className = 'btn btn-outline btn-small header-dropdown-trigger';
+        moreSummary.textContent = t('cohortsEditorMore');
+        const morePanel = document.createElement('div');
+        morePanel.className = 'header-dropdown-panel cohort-editor-more-panel';
+        [dupBtn, teachersBtn, ttBtn].forEach((btn) => {
+            btn.classList.add('header-dropdown-item');
+            morePanel.appendChild(btn);
+        });
+        moreMenu.appendChild(moreSummary);
+        moreMenu.appendChild(morePanel);
+
         toolbar.appendChild(saveBtn);
         toolbar.appendChild(combineBtn);
         toolbar.appendChild(genBtn);
-        toolbar.appendChild(dupBtn);
         toolbar.appendChild(deleteBtn);
-        toolbar.appendChild(teachersBtn);
-        toolbar.appendChild(ttBtn);
+        toolbar.appendChild(moreMenu);
     }
 
     function confirmDeleteCohort(cohort) {
@@ -1377,6 +1402,11 @@
                     }
                 });
             }
+        }
+
+        const contextualRow = document.getElementById('cohortsContextualActions');
+        if (contextualRow) {
+            contextualRow.hidden = !cohort;
         }
 
         const deleteBtn = document.getElementById('cohortsDeleteBtn');

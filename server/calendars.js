@@ -5,6 +5,7 @@ const Auth = require('./auth-permissions');
 const { recordActivityForUser } = require('./activity-log');
 const DayNotesAccess = require('./day-notes-access');
 const ClassroomAccess = require('./classroom-access');
+const CalStorage = require('./calendar-storage');
 
 function listCalendars() {
     const db = getDb();
@@ -18,21 +19,9 @@ function listCalendars() {
 function getCalendar(id) {
     const db = getDb();
     const row = db
-        .prepare(
-            'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?'
-        )
+        .prepare(`SELECT ${CalStorage.CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`)
         .get(id);
-    if (!row) {
-        return null;
-    }
-    return {
-        id: row.id,
-        name: row.name,
-        revision: row.revision,
-        updatedAt: row.updatedAt,
-        updatedBy: row.updatedBy,
-        data: JSON.parse(row.data)
-    };
+    return CalStorage.parseCalendarRow(row);
 }
 
 function getCalendarMeta(id) {
@@ -82,11 +71,20 @@ function createCalendar(id, name, data, editorLabel, createdByUserId) {
     const db = getDb();
     const trimmed = normalizeCalendarName(name);
     const now = nowIso();
-    const dataJson = JSON.stringify(data);
+    const stored = CalStorage.serializeCalendarData(id, data);
     db.prepare(
-        `INSERT INTO calendars (id, name, data, revision, updated_at, updated_by, created_by_user_id)
-         VALUES (?, ?, ?, 1, ?, ?, ?)`
-    ).run(id, trimmed, dataJson, now, editorLabel || '', createdByUserId || null);
+        `INSERT INTO calendars (id, name, data, data_enc_version, data_key_wrapped, revision, updated_at, updated_by, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`
+    ).run(
+        id,
+        trimmed,
+        stored.data,
+        stored.dataEncVersion,
+        stored.dataKeyWrapped,
+        now,
+        editorLabel || '',
+        createdByUserId || null
+    );
     return getCalendar(id);
 }
 
@@ -136,9 +134,19 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     const nextRevision = Number(existing.revision) + 1;
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
+    const stored = CalStorage.serializeCalendarData(id, data);
     db.prepare(
-        `UPDATE calendars SET name = ?, data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(displayName, JSON.stringify(data), nextRevision, now, label, id);
+        `UPDATE calendars SET name = ?, data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
+    ).run(
+        displayName,
+        stored.data,
+        stored.dataEncVersion,
+        stored.dataKeyWrapped,
+        nextRevision,
+        now,
+        label,
+        id
+    );
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {
@@ -179,9 +187,18 @@ function updateCalendarDayNotes(id, dayNotes, revision, editorLabel, user) {
     const nextRevision = Number(existingDoc.revision) + 1;
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
+    const stored = CalStorage.serializeCalendarData(id, mergedData);
     db.prepare(
-        `UPDATE calendars SET data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(JSON.stringify(mergedData), nextRevision, now, label, id);
+        `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
+    ).run(
+        stored.data,
+        stored.dataEncVersion,
+        stored.dataKeyWrapped,
+        nextRevision,
+        now,
+        label,
+        id
+    );
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {
@@ -216,9 +233,18 @@ function updateCalendarClassroom(id, payload, revision, editorLabel, user) {
     const nextRevision = Number(existingDoc.revision) + 1;
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
+    const stored = CalStorage.serializeCalendarData(id, mergedData);
     db.prepare(
-        `UPDATE calendars SET data = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(JSON.stringify(mergedData), nextRevision, now, label, id);
+        `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
+    ).run(
+        stored.data,
+        stored.dataEncVersion,
+        stored.dataKeyWrapped,
+        nextRevision,
+        now,
+        label,
+        id
+    );
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {

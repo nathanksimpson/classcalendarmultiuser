@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260610-boot-mentions">
+    <link rel="stylesheet" href="styles.css?v=20260612-cohort-ui-tight">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -323,8 +323,13 @@
             <section id="panel-students" class="app-tab-panel" data-tab="students" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div class="module-toolbar classroom-roster-toolbar">
                     <button type="button" id="classroomRosterAddBtn" class="btn btn-primary btn-compact" data-i18n="classroomAddStudent">+ Add student</button>
-                    <button type="button" id="classroomRosterImportBtn" class="btn btn-outline btn-compact" data-i18n="rosterImportBtn">Import roster&hellip;</button>
-                    <button type="button" id="classroomRosterPasteBtn" class="btn btn-outline btn-compact" data-i18n="rosterPasteBtn">Paste from SMS&hellip;</button>
+                    <details class="header-dropdown classroom-roster-import-menu">
+                        <summary class="btn btn-outline btn-compact header-dropdown-trigger" data-i18n="rosterImportMenu">Import&hellip;</summary>
+                        <div class="header-dropdown-panel classroom-roster-import-menu-panel">
+                            <button type="button" id="classroomRosterImportBtn" class="header-dropdown-item" data-i18n="rosterImportBtn">Import roster&hellip;</button>
+                            <button type="button" id="classroomRosterPasteBtn" class="header-dropdown-item" data-i18n="rosterPasteBtn">Paste from SMS&hellip;</button>
+                        </div>
+                    </details>
                     <button type="button" id="classroomRosterExportAllBtn" class="btn btn-outline btn-compact" data-i18n="rosterExportAllBtn">Export all</button>
                     <button type="button" id="classroomRosterExportSelectedBtn" class="btn btn-outline btn-compact" data-i18n="rosterExportSelectedBtn">Export cohort</button>
                     <label class="classroom-archive-retention-field" id="classroomArchiveRetentionWrap" hidden>
@@ -736,7 +741,7 @@
             <section id="panel-cohorts" class="app-tab-panel" data-tab="cohorts" role="tabpanel" aria-labelledby="zoneBtn-classes" hidden>
                 <div id="cohortsExtraPanel" class="cohorts-extra-panel">
                     <div class="cohorts-extra-header term-settings-header">
-                        <button type="button" id="cohortsExtraToggle" class="term-settings-caret" aria-expanded="true" aria-controls="cohortsExtraDetails" data-i18n-aria-label="cohortsExtraHide" aria-label="Hide cohort info">
+                        <button type="button" id="cohortsExtraToggle" class="term-settings-caret" aria-expanded="false" aria-controls="cohortsExtraDetails" data-i18n-aria-label="cohortsExtraShow" aria-label="Show cohort info">
                             <span class="term-settings-caret-icon" aria-hidden="true"></span>
                         </button>
                         <span id="cohortsExtraLabel" class="cohorts-extra-label" data-i18n="cohortsExtraHeading">Cohort info</span>
@@ -744,6 +749,9 @@
                     </div>
                     <div id="cohortsExtraDetails" class="cohorts-extra-details" aria-labelledby="cohortsExtraLabel">
                         <p id="cohortsCalendarExclusivityHint" class="timetable-cohorts-scope-hint section-hint" data-i18n="timetableCohortsScopeHint">Cohorts belong to this calendar only (not shared across team calendars). Homeroom is a cohort role here; teaching slots come from Class teachers on the Classes tab.</p>
+                        <div class="cohorts-extra-actions">
+                            <button type="button" id="cohortsImportBtn" class="btn btn-outline btn-small" data-i18n="cohortsImportFromClasses">Import from existing classes</button>
+                        </div>
                         <div id="mobileSetupLimitedBannerCohorts" class="mobile-setup-limited-banner" hidden role="status">
                             <p class="mobile-setup-limited-banner-text" data-i18n="mobileSetupLimitedHint">This setup screen works best on a tablet or computer. You can view here, but editing is limited on a phone.</p>
                         </div>
@@ -764,20 +772,19 @@
                         <div id="cohortManagementSummary" class="cohort-management-summary" role="status" hidden></div>
                     </div>
                 </div>
-                <p id="cohortsTabCalendarName" class="section-hint cohort-management-calendar-name cohorts-tab-calendar-name" hidden></p>
                 <div class="cohorts-floating-toolbar" role="toolbar" aria-label="Cohort actions">
-                    <div class="cohorts-floating-toolbar-primary module-toolbar">
+                    <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--primary">
                         <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
-                        <button type="button" id="cohortsImportBtn" class="btn btn-outline btn-compact" data-i18n="cohortsImportFromClasses">Import from existing classes</button>
+                        <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
+                        <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
+                            <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
+                            <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnTth" data-board-view="tth" data-i18n="setupBoardViewTth">Tue/Thu cohorts</button>
+                            <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnAll" data-board-view="all" data-i18n="setupBoardViewAll">View all</button>
+                        </div>
+                    </div>
+                    <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--contextual" id="cohortsContextualActions" hidden>
                         <button type="button" id="cohortsEditBtn" class="btn btn-outline btn-compact" hidden data-i18n="cohortsEditBtn">Edit cohort</button>
                         <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
-                    </div>
-                    <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
-                    <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
-                        <span class="setup-board-view-label section-hint" data-i18n="setupBoardViewLabel">Board view</span>
-                        <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
-                        <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnTth" data-board-view="tth" data-i18n="setupBoardViewTth">Tue/Thu cohorts</button>
-                        <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnAll" data-board-view="all" data-i18n="setupBoardViewAll">View all</button>
                     </div>
                 </div>
                 <div class="setup-board-layout">
@@ -1130,35 +1137,38 @@
 
     <div id="rosterPasteModal" class="modal" role="dialog" aria-labelledby="rosterPasteModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-wide modal-content--scrollable roster-paste-modal-content">
-            <div class="modal-header">
-                <h2 id="rosterPasteModalTitle" data-i18n="rosterPasteTitle">Paste student roster from SMS</h2>
+            <div class="modal-header roster-paste-modal-header">
+                <div class="roster-paste-modal-header-text">
+                    <h2 id="rosterPasteModalTitle" data-i18n="rosterPasteTitle">Paste student roster from SMS</h2>
+                    <p id="rosterPasteTargetLabel" class="roster-paste-target section-hint"></p>
+                </div>
                 <button type="button" class="modal-close" id="closeRosterPasteModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body-scroll roster-paste-modal-body">
-                <p class="section-hint" data-i18n="rosterPasteHint">Select a cohort on the left, then copy one class from the SMS roster page and paste below.</p>
-                <p id="rosterPasteTargetLabel" class="roster-paste-target section-hint"></p>
-                <div class="form-group">
-                    <label for="rosterPasteText" class="visually-hidden" data-i18n="rosterPastePlaceholder">Paste roster text here&hellip;</label>
-                    <textarea id="rosterPasteText" class="roster-paste-text" rows="10" data-i18n-placeholder="rosterPastePlaceholder" placeholder="Paste roster text here&hellip;" spellcheck="false"></textarea>
+                <div class="roster-paste-split">
+                    <div class="roster-paste-input-pane">
+                        <label for="rosterPasteText" class="visually-hidden" data-i18n="rosterPastePlaceholder">Paste roster text here&hellip;</label>
+                        <textarea id="rosterPasteText" class="roster-paste-text" rows="5" data-i18n-placeholder="rosterPastePlaceholder" placeholder="Paste roster text here&hellip;" spellcheck="false"></textarea>
+                    </div>
+                    <div id="rosterPastePreview" class="roster-paste-preview" aria-live="polite"></div>
                 </div>
-                <fieldset class="roster-import-merge-global">
-                    <legend data-i18n="rosterImportMergeLegend">How to apply students</legend>
-                    <label class="checkbox-label selection-chip">
-                        <input type="radio" name="rosterPasteMergeMode" value="replace" checked>
-                        <span data-i18n="rosterImportMergeReplace">Replace roster (remove students not in file)</span>
-                    </label>
-                    <label class="checkbox-label selection-chip">
-                        <input type="radio" name="rosterPasteMergeMode" value="merge">
-                        <span data-i18n="rosterImportMergeMerge">Merge by student id (keep existing not in file)</span>
-                    </label>
-                </fieldset>
-                <div id="rosterPastePreview" class="roster-paste-preview"></div>
                 <p id="rosterPasteError" class="section-hint roster-import-error" hidden role="alert"></p>
             </div>
-            <div class="form-actions roster-import-actions">
-                <button type="button" id="cancelRosterPasteBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
-                <button type="button" id="rosterPastePreviewBtn" class="btn btn-outline" data-i18n="rosterPastePreviewBtn">Preview</button>
-                <button type="button" id="rosterPasteConfirmBtn" class="btn btn-primary" disabled data-i18n="rosterPasteConfirm">Import students</button>
+            <div class="form-actions roster-import-actions roster-paste-footer">
+                <div class="roster-paste-merge-switch" role="radiogroup" aria-label="How to apply students">
+                    <label class="roster-paste-merge-option">
+                        <input type="radio" name="rosterPasteMergeMode" value="replace" checked>
+                        <span class="syllabus-segment-btn roster-paste-merge-btn" data-i18n="rosterImportMergeReplaceShort" data-i18n-title="rosterImportMergeReplace" title="Replace roster (remove students not in file)">Replace</span>
+                    </label>
+                    <label class="roster-paste-merge-option">
+                        <input type="radio" name="rosterPasteMergeMode" value="merge">
+                        <span class="syllabus-segment-btn roster-paste-merge-btn" data-i18n="rosterImportMergeMergeShort" data-i18n-title="rosterImportMergeMerge" title="Merge by student id (keep existing not in file)">Merge</span>
+                    </label>
+                </div>
+                <div class="roster-paste-footer-actions">
+                    <button type="button" id="cancelRosterPasteBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="rosterPasteConfirmBtn" class="btn btn-primary" disabled data-i18n="rosterPasteConfirm">Import students</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1443,7 +1453,7 @@
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260605-boot-nav"></script>
     <script defer src="js/template-loader.js?v=20260603-class-form-order"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260610-boot-mentions"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260612-cohort-ui-tight"></script>
     <script defer src="js/load-extension-scripts.js?v=20260531-custom-adopted-quiet"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -1504,10 +1514,10 @@
     </div>
     <script defer src="js/page-chrome.js?v=20260607-ui-unify"></script>
     <script defer src="js/tab-warnings.js?v=20260612-hr-notify"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260612-homework-checks-col"></script>
-    <script defer src="js/i18n/calendar-ko.js?v=20260612-homework-checks-col"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260612-cohort-ui-tight"></script>
+    <script defer src="js/i18n/calendar-ko.js?v=20260612-cohort-ui-tight"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260610-boot-mentions"></script>
+    <script defer src="app.js?v=20260612-cohort-ui-tight"></script>
 </body>
 </html>
 

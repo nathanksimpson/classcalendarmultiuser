@@ -13,6 +13,12 @@ import * as AppSettings from './app-settings.js';
 import { prepareDayNotesForSave } from './day-notes-access.js';
 import { prepareClassroomForSave } from './classroom-access.js';
 import {
+    CALENDAR_DOC_SELECT,
+    calendarDocForClient,
+    parseDataObjectFromRow,
+    serializeCalendarData
+} from './calendar-storage.js';
+import {
     KAKAO_OAUTH_COOKIE,
     oauthStateSecret,
     createKakaoOAuthState,
@@ -1415,11 +1421,14 @@ export default {
                 const meta = await dbOne(env, 'SELECT revision, name FROM calendars WHERE id = ?', calId);
                 const label = user.displayName || user.email || 'Teacher';
                 const nextRev = Number(meta.revision) + 1;
+                const stored = serializeCalendarData(calId, suggestion.data, env);
                 await dbRun(
                     env,
-                    'UPDATE calendars SET name=?, data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                    'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
                     meta.name,
-                    JSON.stringify(suggestion.data),
+                    stored.data,
+                    stored.dataEncVersion,
+                    stored.dataKeyWrapped,
                     nextRev,
                     nowIso(),
                     label,
@@ -1435,10 +1444,10 @@ export default {
                 });
                 const doc = await dbOne(
                     env,
-                    'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                     calId
                 );
-                return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }));
+                return json(calendarDocForClient(doc, env));
             }
             if (suggestionId && suggestionAction === '/dismiss' && request.method === 'POST') {
                 const blocked = rejectViewAsJson();
@@ -1606,13 +1615,13 @@ export default {
             if (!sub && request.method === 'GET') {
                 const row = await dbOne(
                     env,
-                    'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                     calId
                 );
                 if (!row) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
-                const doc = Object.assign({}, row, { data: JSON.parse(row.data) });
+                const doc = calendarDocForClient(row, env);
                 return json(await CalendarMeta.calendarMetaExtras(env, user, calId, doc));
             }
 
@@ -1638,13 +1647,13 @@ export default {
                     }
                     const existingRow = await dbOne(
                         env,
-                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                         calId
                     );
                     if (!existingRow) {
                         return json({ error: 'Calendar not found' }, 404);
                     }
-                    const existingData = JSON.parse(existingRow.data);
+                    const existingData = parseDataObjectFromRow(existingRow, calId, env);
                     const payload = {};
                     if (Object.prototype.hasOwnProperty.call(body, 'cohorts')) {
                         payload.cohorts = body.cohorts;
@@ -1663,21 +1672,18 @@ export default {
                         body.revision != null &&
                         Number(body.revision) !== Number(existingRow.revision)
                     ) {
-                        return json(
-                            {
-                                conflict: true,
-                                document: Object.assign({}, existingRow, { data: existingData })
-                            },
-                            409
-                        );
+                        return json({ conflict: true, document: calendarDocForClient(existingRow, env) }, 409);
                     }
                     const mergedData = Object.assign({}, existingData, prepared.merged);
                     const nextRev = Number(existingRow.revision) + 1;
                     const label = user.displayName || user.email || 'Teacher';
+                    const stored = serializeCalendarData(calId, mergedData, env);
                     await dbRun(
                         env,
-                        'UPDATE calendars SET data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
-                        JSON.stringify(mergedData),
+                        'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                        stored.data,
+                        stored.dataEncVersion,
+                        stored.dataKeyWrapped,
                         nextRev,
                         nowIso(),
                         label,
@@ -1692,10 +1698,10 @@ export default {
                     });
                     const saved = await dbOne(
                         env,
-                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                         calId
                     );
-                    const doc = Object.assign({}, saved, { data: JSON.parse(saved.data) });
+                    const doc = calendarDocForClient(saved, env);
                     return json(await CalendarMeta.calendarMetaExtras(env, user, calId, doc));
                 }
 
@@ -1710,13 +1716,13 @@ export default {
                     }
                     const existingRow = await dbOne(
                         env,
-                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                         calId
                     );
                     if (!existingRow) {
                         return json({ error: 'Calendar not found' }, 404);
                     }
-                    const existingData = JSON.parse(existingRow.data);
+                    const existingData = parseDataObjectFromRow(existingRow, calId, env);
                     const prepared = prepareDayNotesForSave(user, existingData, body.dayNotes);
                     if (prepared.error) {
                         return json({ error: prepared.error }, 403);
@@ -1725,23 +1731,20 @@ export default {
                         body.revision != null &&
                         Number(body.revision) !== Number(existingRow.revision)
                     ) {
-                        return json(
-                            {
-                                conflict: true,
-                                document: Object.assign({}, existingRow, { data: existingData })
-                            },
-                            409
-                        );
+                        return json({ conflict: true, document: calendarDocForClient(existingRow, env) }, 409);
                     }
                     const mergedData = Object.assign({}, existingData, {
                         dayNotes: prepared.dayNotes
                     });
                     const nextRev = Number(existingRow.revision) + 1;
                     const label = user.displayName || user.email || 'Teacher';
+                    const stored = serializeCalendarData(calId, mergedData, env);
                     await dbRun(
                         env,
-                        'UPDATE calendars SET data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
-                        JSON.stringify(mergedData),
+                        'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                        stored.data,
+                        stored.dataEncVersion,
+                        stored.dataKeyWrapped,
                         nextRev,
                         nowIso(),
                         label,
@@ -1756,10 +1759,10 @@ export default {
                     });
                     const saved = await dbOne(
                         env,
-                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                         calId
                     );
-                    const doc = Object.assign({}, saved, { data: JSON.parse(saved.data) });
+                    const doc = calendarDocForClient(saved, env);
                     return json(await CalendarMeta.calendarMetaExtras(env, user, calId, doc));
                 }
 
@@ -1804,10 +1807,10 @@ export default {
                 if (!forceAllowed && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
                     const doc = await dbOne(
                         env,
-                        'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                         calId
                     );
-                    return json({ conflict: true, document: Object.assign({}, doc, { data: JSON.parse(doc.data) }) }, 409);
+                    return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
                 }
                 const nextRev = Number(existing.revision) + 1;
                 const label = user.displayName || user.email || 'Teacher';
@@ -1818,11 +1821,14 @@ export default {
                         return json({ error: renameClash.error, code: renameClash.code }, renameClash.status);
                     }
                 }
+                const stored = serializeCalendarData(calId, body.data, env);
                 await dbRun(
                     env,
-                    'UPDATE calendars SET name=?, data=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                    'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
                     displayName,
-                    JSON.stringify(body.data),
+                    stored.data,
+                    stored.dataEncVersion,
+                    stored.dataKeyWrapped,
                     nextRev,
                     nowIso(),
                     label,
@@ -1837,10 +1843,10 @@ export default {
                 });
                 const doc = await dbOne(
                     env,
-                    'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                    `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                     calId
                 );
-                return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }));
+                return json(calendarDocForClient(doc, env));
             }
 
             if (!sub && request.method === 'DELETE') {
@@ -1885,12 +1891,15 @@ export default {
             }
             const id = uuid();
             const label = user.displayName || user.email || 'Teacher';
+            const stored = serializeCalendarData(id, body.data, env);
             await dbRun(
                 env,
-                'INSERT INTO calendars (id, name, data, revision, updated_at, updated_by, created_by_user_id) VALUES (?, ?, ?, 1, ?, ?, ?)',
+                'INSERT INTO calendars (id, name, data, data_enc_version, data_key_wrapped, revision, updated_at, updated_by, created_by_user_id) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)',
                 id,
                 trimmedName,
-                JSON.stringify(body.data),
+                stored.data,
+                stored.dataEncVersion,
+                stored.dataKeyWrapped,
                 nowIso(),
                 label,
                 user.id
@@ -1910,10 +1919,10 @@ export default {
             });
             const doc = await dbOne(
                 env,
-                'SELECT id, name, data, revision, updated_at AS updatedAt, updated_by AS updatedBy FROM calendars WHERE id = ?',
+                `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                 id
             );
-            return json(Object.assign({}, doc, { data: JSON.parse(doc.data) }), 201);
+            return json(calendarDocForClient(doc, env), 201);
         }
 
         if (path === '/api/admin/activity' && request.method === 'GET') {

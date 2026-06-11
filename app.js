@@ -4214,7 +4214,7 @@ function ensureUiState() {
     appData.ui.activeSegment = migratedZone.segment;
     appData.ui.cohortsUsageTipsDismissed = !!appData.ui.cohortsUsageTipsDismissed;
     if (appData.ui.cohortsExtraCollapsed === undefined) {
-        appData.ui.cohortsExtraCollapsed = false;
+        appData.ui.cohortsExtraCollapsed = true;
     }
     if (typeof appData.ui.teachersTabCatalogCategoryFilter !== 'string') {
         appData.ui.teachersTabCatalogCategoryFilter = 'all';
@@ -4714,11 +4714,17 @@ function updateCohortsExtraSummary() {
         labelEl.hidden = false;
         labelEl.textContent = t('cohortsExtraHeading');
     }
+    const summaryText = managementSummaryEl ? managementSummaryEl.textContent.trim() : '';
     if (headerSummaryEl) {
-        headerSummaryEl.textContent = '';
-        headerSummaryEl.hidden = true;
+        if (collapsed && summaryText) {
+            headerSummaryEl.textContent = summaryText;
+            headerSummaryEl.hidden = false;
+        } else {
+            headerSummaryEl.textContent = '';
+            headerSummaryEl.hidden = true;
+        }
     }
-    if (managementSummaryEl && managementSummaryEl.textContent.trim()) {
+    if (managementSummaryEl && summaryText) {
         managementSummaryEl.hidden = collapsed;
     }
 }
@@ -14390,14 +14396,7 @@ function findCurriculumPresetForLevel(levelPresetId, levelDisplayName) {
 
 function updateCohortsTabCalendarName() {
     const el = document.getElementById('cohortsTabCalendarName');
-    if (!el) {
-        return;
-    }
-    const name = (appData.calendarName || '').trim();
-    if (name) {
-        el.hidden = false;
-        el.textContent = `${t('dataCalendarNameLabel')}: ${name}`;
-    } else {
+    if (el) {
         el.hidden = true;
         el.textContent = '';
     }
