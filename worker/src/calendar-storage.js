@@ -1,9 +1,4 @@
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-
-const require = createRequire(import.meta.url);
-const blobAtRest = require(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../crypto/blob-at-rest.js'));
+import blobAtRest from './blob-at-rest.cjs';
 
 export function getMasterKeyFromEnv(env) {
     return (env && env.DATA_ENCRYPTION_MASTER_KEY) || '';
