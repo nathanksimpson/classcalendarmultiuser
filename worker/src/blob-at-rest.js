@@ -1,8 +1,7 @@
 /**
- * Application-level blob encryption (AES-256-GCM envelope).
- * Canonical copy for Worker bundle; server/tests re-export via crypto/blob-at-rest.js.
+ * Worker ESM bundle for blob encryption. Keep logic in sync with crypto/blob-at-rest.js.
  */
-const crypto = require('node:crypto');
+import crypto from 'node:crypto';
 
 const ENC_PREFIX = 'enc1';
 const WRAP_PREFIX = 'w1';
@@ -25,7 +24,7 @@ function parseMasterKey(masterKeyB64) {
     return buf;
 }
 
-function isEncryptedRow(row) {
+export function isEncryptedRow(row) {
     if (!row) {
         return false;
     }
@@ -81,7 +80,7 @@ function unwrapDek(wrapped, kek, entityId) {
     return dek;
 }
 
-function encryptBlob(plainJsonString, entityId, masterKeyB64) {
+export function encryptBlob(plainJsonString, entityId, masterKeyB64) {
     const kek = parseMasterKey(masterKeyB64);
     if (!kek) {
         return null;
@@ -95,7 +94,7 @@ function encryptBlob(plainJsonString, entityId, masterKeyB64) {
     return { data, dataKeyWrapped, dataEncVersion: 1 };
 }
 
-function decryptBlob(row, masterKeyB64, entityId) {
+export function decryptBlob(row, masterKeyB64, entityId) {
     if (!row || row.data == null) {
         return '';
     }
@@ -121,22 +120,12 @@ function decryptBlob(row, masterKeyB64, entityId) {
     return aesGcmDecrypt(dek, iv, ciphertext, tag, aad, true);
 }
 
-function encryptionRequiredFromEnv(envOrProcessEnv) {
+export function encryptionRequiredFromEnv(envOrProcessEnv) {
     const val =
         envOrProcessEnv && envOrProcessEnv.DATA_ENCRYPTION_REQUIRED != null
             ? envOrProcessEnv.DATA_ENCRYPTION_REQUIRED
-            : typeof process !== 'undefined' && process.env
-              ? process.env.DATA_ENCRYPTION_REQUIRED
-              : '';
+            : '';
     return String(val || '') === '1';
 }
 
-module.exports = {
-    encryptBlob,
-    decryptBlob,
-    isEncryptedRow,
-    parseMasterKey,
-    encryptionRequiredFromEnv,
-    ENC_PREFIX,
-    WRAP_PREFIX
-};
+export { ENC_PREFIX, WRAP_PREFIX };
