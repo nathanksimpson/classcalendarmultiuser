@@ -80,6 +80,26 @@ function migrate(db) {
     migrateCalendarsCreatedBy(db);
     migrateSessionViewAs(db);
     migrateHeadTeacherPresetRefresh(db);
+    migrateCalendarBlobEncryption(db);
+}
+
+function migrateCalendarBlobEncryption(db) {
+    const calCols = db.prepare('PRAGMA table_info(calendars)').all();
+    const calNames = new Set(calCols.map((c) => c.name));
+    if (!calNames.has('data_enc_version')) {
+        db.exec('ALTER TABLE calendars ADD COLUMN data_enc_version INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!calNames.has('data_key_wrapped')) {
+        db.exec('ALTER TABLE calendars ADD COLUMN data_key_wrapped TEXT');
+    }
+    const sugCols = db.prepare('PRAGMA table_info(calendar_suggestions)').all();
+    const sugNames = new Set(sugCols.map((c) => c.name));
+    if (!sugNames.has('data_enc_version')) {
+        db.exec('ALTER TABLE calendar_suggestions ADD COLUMN data_enc_version INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!sugNames.has('data_key_wrapped')) {
+        db.exec('ALTER TABLE calendar_suggestions ADD COLUMN data_key_wrapped TEXT');
+    }
 }
 
 function migrateHeadTeacherPresetRefresh(db) {

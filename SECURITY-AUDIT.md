@@ -1,6 +1,6 @@
 # Security audit — Class Calendar Multi User
 
-**Date:** 2026-05-25 (updated 2026-05-31)  
+**Date:** 2026-05-25 (updated 2026-06-10)  
 **Scope:** Team auth (Kakao OAuth), calendar API, locks, admin, deployment surface.  
 **Extended review:** See also the Cursor plan *security_audit_extension* for DDoS/cost abuse, XSS, and social-engineering notes.
 
@@ -10,7 +10,9 @@
 
 Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + pending-access until calendars are granted), password fallback, D1/SQLite, edit locks, and revision-based saves. Phase 0 fixes in code: **OAuth CSRF state cookie**, **no blind email→Kakao auto-link**, **`force` save restricted to lock holder or admin**, **5 MB API body cap**, **auth rate limits**, **XSS escapes** on key calendar DOM paths, **health endpoint** no longer leaks Kakao client ID fragments, **session rotation on login**, **logout-all**, **configurable session max days**.
 
-**Remaining ops:** Run D1 migration `0006`, configure [Cloudflare rate limits](docs/CLOUDFLARE-RATE-LIMITS.md), rotate secrets, enable usage alerts.
+**Data at rest (2026-06-10):** Cloudflare D1 encrypts storage at the platform layer (AES-256-GCM). Application-level **blob encryption v1** encrypts `calendars.data` and `calendar_suggestions.data` when `DATA_ENCRYPTION_MASTER_KEY` is set (`crypto/blob-at-rest.js`, migration `0015`). Dual-read supports legacy plaintext rows until `scripts/encrypt-calendars-blob.mjs` is run. Passwords remain PBKDF2-hashed; session tokens and user emails are still plaintext in SQL (deferred).
+
+**Remaining ops:** Run D1 migration `0015` when deploying blob encryption; set `DATA_ENCRYPTION_MASTER_KEY` via `wrangler secret put`; run encrypt migration script; configure [Cloudflare rate limits](docs/CLOUDFLARE-RATE-LIMITS.md); rotate secrets; enable usage alerts.
 
 ---
 

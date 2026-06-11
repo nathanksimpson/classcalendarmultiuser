@@ -494,6 +494,17 @@
         return checked && checked.value === 'merge' ? 'merge' : 'replace';
     }
 
+    function syncPasteMergeSwitchUi() {
+        document.querySelectorAll('.roster-paste-merge-option').forEach((label) => {
+            const input = label.querySelector('input[name="rosterPasteMergeMode"]');
+            const btn = label.querySelector('.roster-paste-merge-btn');
+            if (!input || !btn) {
+                return;
+            }
+            btn.classList.toggle('is-active', input.checked);
+        });
+    }
+
     function setPasteConfirmEnabled(enabled, studentCount) {
         const btn = document.getElementById('rosterPasteConfirmBtn');
         if (!btn) {
@@ -723,7 +734,8 @@
         }
         const targetLabel = document.getElementById('rosterPasteTargetLabel');
         if (targetLabel) {
-            targetLabel.textContent = t('rosterPasteTarget').replace('{name}', cohort.name || cohort.id);
+            const cohortName = cohort.name || cohort.id;
+            targetLabel.textContent = `${t('rosterPasteHint')} ${t('rosterPasteTarget').replace('{name}', cohortName)}`;
         }
         const textarea = document.getElementById('rosterPasteText');
         if (textarea) {
@@ -732,10 +744,9 @@
         setPasteError('');
         showPastePreviewIdle();
         document.querySelectorAll('input[name="rosterPasteMergeMode"]').forEach((radio) => {
-            if (radio.value === 'replace') {
-                radio.checked = true;
-            }
+            radio.checked = radio.value === 'replace';
         });
+        syncPasteMergeSwitchUi();
         if (hooks.openModal) {
             hooks.openModal(document.getElementById('rosterPasteModal'));
         }
@@ -895,8 +906,15 @@
         }
         panel.dataset.rosterIoBound = '1';
 
+        const importMenu = panel.querySelector('.classroom-roster-import-menu');
+        const closeImportMenu = () => {
+            if (importMenu) {
+                importMenu.open = false;
+            }
+        };
         panel.querySelector('#classroomRosterImportBtn')?.addEventListener('click', () => {
             document.getElementById('classroomRosterImportFile')?.click();
+            closeImportMenu();
         });
         panel.querySelector('#classroomRosterImportFile')?.addEventListener('change', (e) => {
             const file = e.target.files && e.target.files[0];
@@ -905,11 +923,13 @@
         });
         panel.querySelector('#classroomRosterExportAllBtn')?.addEventListener('click', () => exportRoster('all'));
         panel.querySelector('#classroomRosterExportSelectedBtn')?.addEventListener('click', () => exportRoster('selected'));
-        panel.querySelector('#classroomRosterPasteBtn')?.addEventListener('click', () => openPasteModal());
+        panel.querySelector('#classroomRosterPasteBtn')?.addEventListener('click', () => {
+            closeImportMenu();
+            openPasteModal();
+        });
 
         document.getElementById('closeRosterPasteModal')?.addEventListener('click', closePasteModal);
         document.getElementById('cancelRosterPasteBtn')?.addEventListener('click', closePasteModal);
-        document.getElementById('rosterPastePreviewBtn')?.addEventListener('click', () => previewRosterPaste());
         document.getElementById('rosterPasteConfirmBtn')?.addEventListener('click', () => {
             void confirmRosterPaste();
         });
@@ -922,6 +942,7 @@
         });
         document.querySelectorAll('input[name="rosterPasteMergeMode"]').forEach((radio) => {
             radio.addEventListener('change', () => {
+                syncPasteMergeSwitchUi();
                 schedulePastePreview(Boolean(pastePlanRow) || Boolean(document.getElementById('rosterPasteText')?.value.trim()));
             });
         });

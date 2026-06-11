@@ -1,18 +1,22 @@
 const { getDb, newId, nowIso } = require('./schema');
+const CalStorage = require('./calendar-storage');
 
 function createSuggestion(calendarId, user, baseRevision, data, summary) {
     const db = getDb();
     const id = newId();
     const at = nowIso();
     const name = user.displayName || user.email || 'Teacher';
+    const stored = CalStorage.serializeSuggestionData(id, data);
     db.prepare(
-        `INSERT INTO calendar_suggestions (id, calendar_id, base_revision, data, summary, created_by_user_id, created_by_name, created_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
+        `INSERT INTO calendar_suggestions (id, calendar_id, base_revision, data, data_enc_version, data_key_wrapped, summary, created_by_user_id, created_by_name, created_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
     ).run(
         id,
         calendarId,
         Number(baseRevision),
-        JSON.stringify(data),
+        stored.data,
+        stored.dataEncVersion,
+        stored.dataKeyWrapped,
         summary ? String(summary).trim() : null,
         user.id,
         name,
@@ -24,17 +28,9 @@ function createSuggestion(calendarId, user, baseRevision, data, summary) {
 function getSuggestion(id) {
     const db = getDb();
     const row = db
-        .prepare(
-            `SELECT id, calendar_id AS calendarId, base_revision AS baseRevision, data, summary,
-                    created_by_user_id AS createdByUserId, created_by_name AS createdByName,
-                    created_at AS createdAt, status
-             FROM calendar_suggestions WHERE id = ?`
-        )
+        .prepare(`SELECT ${CalStorage.SUGGESTION_DOC_SELECT} FROM calendar_suggestions WHERE id = ?`)
         .get(id);
-    if (!row) {
-        return null;
-    }
-    return Object.assign({}, row, { data: JSON.parse(row.data) });
+    return CalStorage.parseSuggestionRow(row);
 }
 
 function listPendingSuggestions(calendarId) {

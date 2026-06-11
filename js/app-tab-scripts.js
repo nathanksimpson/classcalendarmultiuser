@@ -6,7 +6,7 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260609-combine-match',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260612-cohort-homeroom-crosssave',
+            'js/cohort-management.js?v=20260612-cohort-ui-tight',
             'js/setup-board.js?v=20260603-title-rename'
         ],
         timetable: [
@@ -29,7 +29,7 @@
             'js/roster-import.js?v=20260612-roster-paste-tab',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-roster.js?v=20260612-note-categories'
+            'js/classroom-roster.js?v=20260612-cohort-ui-tight'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

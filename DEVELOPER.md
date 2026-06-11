@@ -183,7 +183,15 @@ Production: https://classcalendarmultiuser.nathanksimpson.workers.dev (see `PUBL
   | `0003_lock_pending.sql` | Lock pending requester |
   | `0004_calendar_access.sql` | Groups and calendar access |
   | `0005_app_settings.sql` | App settings (e.g. lock stale minutes) |
+  | `0015_calendar_blob_encryption.sql` | `data_enc_version`, `data_key_wrapped` on calendars + suggestions |
 
+- [ ] **Blob encryption** (if enabling application-level calendar encryption):
+  1. Generate key: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+  2. Local: add `DATA_ENCRYPTION_MASTER_KEY` to `.env` (back up offline)
+  3. Production: `npx wrangler secret put DATA_ENCRYPTION_MASTER_KEY`
+  4. Deploy dual-read code, then `npm run db:migrate:remote`
+  5. Encrypt existing rows: `node scripts/encrypt-calendars-blob.mjs --remote` (and `--local` for dev DB)
+  6. Smoke test: load/save calendar, classroom partial save, suggestion create/apply
 - [ ] **Production smoke test** — Open live URL; sign in with Kakao if auth changed; verify admin/calendar flows.
 - [ ] **Secrets** — New env vars for production need `npx wrangler secret put NAME` (never commit).
 
@@ -228,6 +236,8 @@ Older builds referenced Node’s **`global`** in the browser bundle, which threw
 ## Security
 
 See **[SECURITY-AUDIT.md](SECURITY-AUDIT.md)** for a pinned security review (Kakao OAuth, locks, bootstrap, rate limiting) and phased remediation plan. Auth/TOTP/Kakao removal are **not** implemented until explicitly scheduled.
+
+**Calendar blob encryption (v1):** `crypto/blob-at-rest.js` encrypts `calendars.data` and `calendar_suggestions.data` with AES-256-GCM envelope encryption when `DATA_ENCRYPTION_MASTER_KEY` is set. Legacy plaintext rows (`data_enc_version = 0`) still load. New saves encrypt when the key is present. Optional `DATA_ENCRYPTION_REQUIRED=1` fails writes without a key. Implementation: `server/calendar-storage.js`, `worker/src/calendar-storage.js`.
 
 ## Agent handoff
 

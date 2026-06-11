@@ -1,16 +1,25 @@
+import {
+    SUGGESTION_DOC_SELECT,
+    serializeSuggestionData,
+    suggestionDocForClient
+} from './calendar-storage.js';
+
 export async function createSuggestion(env, calendarId, user, baseRevision, data, summary) {
     const id = crypto.randomUUID();
     const at = new Date().toISOString();
     const name = user.displayName || user.email || 'Teacher';
+    const stored = serializeSuggestionData(id, data, env);
     await env.DB.prepare(
-        `INSERT INTO calendar_suggestions (id, calendar_id, base_revision, data, summary, created_by_user_id, created_by_name, created_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
+        `INSERT INTO calendar_suggestions (id, calendar_id, base_revision, data, data_enc_version, data_key_wrapped, summary, created_by_user_id, created_by_name, created_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
     )
         .bind(
             id,
             calendarId,
             Number(baseRevision),
-            JSON.stringify(data),
+            stored.data,
+            stored.dataEncVersion,
+            stored.dataKeyWrapped,
             summary ? String(summary).trim() : null,
             user.id,
             name,
@@ -21,18 +30,10 @@ export async function createSuggestion(env, calendarId, user, baseRevision, data
 }
 
 export async function getSuggestion(env, id) {
-    const row = await env.DB.prepare(
-        `SELECT id, calendar_id AS calendarId, base_revision AS baseRevision, data, summary,
-                created_by_user_id AS createdByUserId, created_by_name AS createdByName,
-                created_at AS createdAt, status
-         FROM calendar_suggestions WHERE id = ?`
-    )
+    const row = await env.DB.prepare(`SELECT ${SUGGESTION_DOC_SELECT} FROM calendar_suggestions WHERE id = ?`)
         .bind(id)
         .first();
-    if (!row) {
-        return null;
-    }
-    return Object.assign({}, row, { data: JSON.parse(row.data) });
+    return suggestionDocForClient(row, env);
 }
 
 export async function listPendingSuggestions(env, calendarId) {
