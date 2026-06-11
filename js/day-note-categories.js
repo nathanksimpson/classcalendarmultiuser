@@ -3,11 +3,12 @@
  */
 (function (global) {
     const DEFAULT_CATEGORY_ID = 'class-notes';
-    const BUILTIN_CATEGORY_IDS = new Set(['class-notes', 'parent-consult']);
+    const BUILTIN_CATEGORY_IDS = new Set(['class-notes', 'parent-consult', 'next-class-notes']);
 
     const BUILTIN_I18N_KEYS = {
         'class-notes': 'dayNoteCategoryClassNotes',
-        'parent-consult': 'dayNoteCategoryParentConsult'
+        'parent-consult': 'dayNoteCategoryParentConsult',
+        'next-class-notes': 'dayNoteCategoryNextClass'
     };
 
     function normalizeCategoryId(raw) {
@@ -54,7 +55,7 @@
      */
     function getAllCategories(customCategories, translate) {
         const t = typeof translate === 'function' ? translate : (k) => k;
-        const builtins = ['class-notes', 'parent-consult'].map((id) => ({
+        const builtins = ['class-notes', 'parent-consult', 'next-class-notes'].map((id) => ({
             id,
             name: t(BUILTIN_I18N_KEYS[id] || id),
             builtin: true,

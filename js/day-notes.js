@@ -4,6 +4,11 @@
 (function (global) {
     const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     const DEFAULT_CATEGORY_ID = 'class-notes';
+    const NEXT_CLASS_NOTES_CATEGORY_ID = 'next-class-notes';
+
+    function getHomeworkTabApi() {
+        return typeof global.CCPHomeworkTab !== 'undefined' ? global.CCPHomeworkTab : null;
+    }
 
     function getCategoriesApi() {
         return typeof global.CCPDayNoteCategories !== 'undefined' ? global.CCPDayNoteCategories : null;
@@ -383,6 +388,29 @@
         return getNotesForClassOnDate(dayNotes, classId, dateStr).length > 0;
     }
 
+    /**
+     * Prep notes left at the previous class meeting (category next-class-notes).
+     * @param {Array} dayNotes
+     * @param {string} classId
+     * @param {string} beforeDateStr anchor ISO date (exclusive when finding prior meeting)
+     * @param {object} classData class record for schedule hooks
+     * @param {object} hooks passed to getPreviousClassMeetingBefore
+     * @returns {{ previousMeetingDate: string, notes: Array }}
+     */
+    function getNextClassPrepNotes(dayNotes, classId, beforeDateStr, classData, hooks) {
+        const hw = getHomeworkTabApi();
+        const previousMeetingDate = hw && typeof hw.getPreviousClassMeetingBefore === 'function'
+            ? hw.getPreviousClassMeetingBefore(classData, beforeDateStr, hooks)
+            : '';
+        if (!previousMeetingDate) {
+            return { previousMeetingDate: '', notes: [] };
+        }
+        const notes = getNotesForClassOnDate(dayNotes, classId, previousMeetingDate).filter(
+            (note) => normalizeCategoryId(note.categoryId) === NEXT_CLASS_NOTES_CATEGORY_ID
+        );
+        return { previousMeetingDate, notes };
+    }
+
     function formatTimeLabel(iso, locale) {
         const d = new Date(iso);
         if (Number.isNaN(d.getTime())) {
@@ -517,6 +545,7 @@
 
     global.CCPDayNotes = {
         DEFAULT_CATEGORY_ID,
+        NEXT_CLASS_NOTES_CATEGORY_ID,
         normalizeDayNote,
         normalizeCategoryId,
         normalizeTaggedStudentIds,
@@ -534,6 +563,7 @@
         resolveDayNoteCategoryLabel,
         getNotesForClassOnDate,
         hasNotesForClassOnDate,
+        getNextClassPrepNotes,
         noteMatchesTextQuery,
         filterNotes,
         groupNotesByClass,

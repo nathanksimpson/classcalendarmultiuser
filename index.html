@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-cohort-ui-tight">
+    <link rel="stylesheet" href="styles.css?v=20260612-hw-last-notes">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -657,6 +657,15 @@
                                 <p id="homeworkClassMeta" class="homework-class-meta"></p>
                                 <button type="button" id="homeworkOpenClassBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabOpenSyllabus">Edit syllabus</button>
                             </header>
+                            <section id="homeworkLastClassNotes" class="homework-last-class-notes homework-panel-card" hidden>
+                                <div class="homework-last-class-notes-header">
+                                    <h3 class="homework-last-class-notes-title" data-i18n="homeworkLastClassNotesTitle">From last class</h3>
+                                    <p id="homeworkLastClassNotesMeta" class="section-hint homework-last-class-notes-meta"></p>
+                                </div>
+                                <div id="homeworkLastClassNotesBody" class="homework-last-class-notes-body class-notes-preview"></div>
+                                <p id="homeworkLastClassNotesEmpty" class="section-hint homework-last-class-notes-empty" hidden></p>
+                                <p id="homeworkLastClassNotesNoPrior" class="section-hint homework-last-class-notes-no-prior" hidden data-i18n="homeworkLastClassNotesNoPrior">No earlier class meeting found for this term.</p>
+                            </section>
                             <p class="homework-external-banner" data-i18n="homeworkTabExternalBanner">Copy from here, then paste on your other websites (Simson grading and homework assignment).</p>
                             <p id="homeworkTabHint" class="section-hint" data-i18n="homeworkTabHint"></p>
                             <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
@@ -775,7 +784,7 @@
                 <div class="cohorts-floating-toolbar" role="toolbar" aria-label="Cohort actions">
                     <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--primary">
                         <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
-                        <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
+                        <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search field-control--compact" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
                         <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
                             <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
                             <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnTth" data-board-view="tth" data-i18n="setupBoardViewTth">Tue/Thu cohorts</button>
@@ -1463,10 +1472,10 @@
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
     <script defer src="js/classroom-domain.js?v=20260612-classroom-mvp"></script>
-    <script defer src="js/day-note-categories.js?v=20260612-note-categories"></script>
+    <script defer src="js/day-note-categories.js?v=20260612-next-class-cat"></script>
     <script defer src="js/day-note-mentions.js?v=20260610-cohort-mention-insert"></script>
-    <script defer src="js/day-notes.js?v=20260612-export-ascii"></script>
-    <script defer src="js/class-notes-panel.js?v=20260610-notes-edit-mentions"></script>
+    <script defer src="js/day-notes.js?v=20260612-prep-notes"></script>
+    <script defer src="js/class-notes-panel.js?v=20260612-note-copy"></script>
     <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
         <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">Dark</button>
@@ -1517,7 +1526,7 @@
     <script defer src="js/i18n/calendar-en.js?v=20260612-cohort-ui-tight"></script>
     <script defer src="js/i18n/calendar-ko.js?v=20260612-cohort-ui-tight"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260612-cohort-ui-tight"></script>
+    <script defer src="app.js?v=20260612-hw-last-notes"></script>
 </body>
 </html>
 

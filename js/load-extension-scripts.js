@@ -13,7 +13,7 @@
         'js/default-class-editor.js',
         'js/books-editor.js?v=20260609-inline-warn-badge',
         'js/homework-import.js?v=20260606-clipboard-dash',
-        'js/homework-tab.js?v=20260531-hw-seq',
+        'js/homework-tab.js?v=20260612-prep-notes',
         'js/syllabus-templates.js?v=20260603-curriculum-notes'
     ];
 

@@ -6412,7 +6412,9 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 6px;
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-color);
 }
 
 .class-notes-delete-btn:not(:disabled):hover {
@@ -7975,6 +7977,37 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 .homework-class-meta {
     font-size: 0.9rem;
     color: var(--text-secondary);
+}
+
+.homework-last-class-notes {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--banner-info-bg, var(--accent-muted));
+    border: 1px solid var(--border-color);
+}
+
+.homework-last-class-notes-title {
+    margin: 0;
+    font-size: var(--text-body-lg, 1rem);
+    font-weight: 600;
+}
+
+.homework-last-class-notes-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-2);
+}
+
+.homework-last-class-notes-body.class-notes-preview {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+.homework-last-class-notes-body .class-notes-preview-entry:last-child {
+    border-bottom: none;
 }
 
 .homework-external-banner {
@@ -10599,6 +10632,12 @@ body.dino-game-open {
     min-width: 8rem;
     max-width: 18rem;
     margin: 0;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 10px;
+    font-size: var(--text-body-md, 0.875rem);
+    line-height: 1.25;
+    box-sizing: border-box;
 }
 
 .cohorts-floating-toolbar .setup-board-view-switch {
@@ -11143,17 +11182,42 @@ body.dino-game-open {
         overflow-y: auto;
     }
 
-    .cohorts-floating-toolbar-row--primary {
-        flex-direction: column;
-        align-items: stretch;
+    .cohorts-extra-panel--collapsed .cohorts-extra-label {
+        display: none;
     }
 
-    .cohorts-floating-toolbar .setup-board-view-switch {
-        margin-left: 0;
+    .cohorts-extra-panel--collapsed .term-settings-summary:not([hidden]) {
+        font-size: 0.8125rem;
+    }
+
+    .cohorts-floating-toolbar-row--primary {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .cohorts-floating-toolbar-row--primary #cohortsAddBtn {
+        flex: 0 0 auto;
     }
 
     .cohorts-toolbar-search {
+        flex: 1 1 auto;
+        min-width: 0;
         max-width: none;
+        height: 36px;
+        min-height: 36px;
+        max-height: 36px;
+    }
+
+    .cohorts-floating-toolbar-row--primary .setup-board-view-switch {
+        flex: 1 1 100%;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .cohorts-floating-toolbar .setup-board-view-switch .syllabus-segment-btn {
+        padding: 5px 6px;
+        font-size: 0.75rem;
     }
 
     .teachers-tab-layout--preview {
