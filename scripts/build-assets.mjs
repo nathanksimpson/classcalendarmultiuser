@@ -17,6 +17,7 @@ const SKIP_DIRS = new Set([
     '.wrangler',
     'dist',
     'data',
+    'crypto',
     'Reference',
     'scripts',
     'tests',

@@ -1,4 +1,4 @@
-import blobAtRest from './blob-at-rest.cjs';
+import * as blobAtRest from './blob-at-rest.js';
 
 export function getMasterKeyFromEnv(env) {
     return (env && env.DATA_ENCRYPTION_MASTER_KEY) || '';
