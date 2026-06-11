@@ -124,6 +124,62 @@
         return '';
     }
 
+    function classOccursOnIsoDateWithHooks(classData, isoDate, hooks) {
+        if (!classData || !isoDate || !hooks) {
+            return false;
+        }
+        if (typeof hooks.classOccursOnIsoDate === 'function') {
+            return hooks.classOccursOnIsoDate(classData, isoDate);
+        }
+        const meetingDays = hooks.getMeetingDays(classData);
+        if (!meetingDays || meetingDays.length === 0) {
+            return false;
+        }
+        const daySet = new Set(meetingDays);
+        const d = parseLocal(isoDate);
+        if (Number.isNaN(d.getTime())) {
+            return false;
+        }
+        const start = classData.startDate || '';
+        const end = classData.endDate || '';
+        if (start && isoDate < start) {
+            return false;
+        }
+        if (end && isoDate > end) {
+            return false;
+        }
+        return daySet.has(d.getDay()) && !hooks.isHolidayForClass(isoDate, classData);
+    }
+
+    /**
+     * Last class meeting strictly before beforeDateStr back through class start.
+     * @param {object} classData
+     * @param {string} beforeDateStr ISO date
+     * @param {object} hooks { getMeetingDays, isHolidayForClass, classOccursOnIsoDate? }
+     */
+    function getPreviousClassMeetingBefore(classData, beforeDateStr, hooks) {
+        if (!classData || !beforeDateStr || !hooks) {
+            return '';
+        }
+        const startBound = parseLocal(classData.startDate);
+        const before = parseLocal(beforeDateStr);
+        if (Number.isNaN(startBound.getTime()) || Number.isNaN(before.getTime())) {
+            return '';
+        }
+        const cur = new Date(before);
+        cur.setDate(cur.getDate() - 1);
+        cur.setHours(0, 0, 0, 0);
+        startBound.setHours(0, 0, 0, 0);
+        while (cur >= startBound) {
+            const ds = formatISO(cur);
+            if (classOccursOnIsoDateWithHooks(classData, ds, hooks)) {
+                return ds;
+            }
+            cur.setDate(cur.getDate() - 1);
+        }
+        return '';
+    }
+
     /**
      * @param {object} opts
      * @param {object} opts.classData
@@ -262,6 +318,8 @@
         getLessonRowsFromSyllabus,
         findTargetLessonIndex,
         getNextClassMeetingAfter,
+        getPreviousClassMeetingBefore,
+        classOccursOnIsoDateWithHooks,
         collectSkippedRegularClassMeetings,
         computeHomeworkForClass,
         formatDueDateLabel,

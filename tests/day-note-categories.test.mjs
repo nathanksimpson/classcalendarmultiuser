@@ -22,11 +22,14 @@ function assert(cond, msg) {
 
 const t = (key) => ({
     dayNoteCategoryClassNotes: 'Class notes',
-    dayNoteCategoryParentConsult: 'Parent consult'
+    dayNoteCategoryParentConsult: 'Parent consult',
+    dayNoteCategoryNextClass: 'Notes for next class'
 }[key] || key);
 
 assert(categories.normalizeCategoryId('') === 'class-notes', 'empty category defaults to class-notes');
 assert(categories.normalizeCategoryId('parent-consult') === 'parent-consult', 'builtin id preserved');
+assert(categories.normalizeCategoryId('next-class-notes') === 'next-class-notes', 'next-class-notes id preserved');
+assert(categories.isBuiltinCategoryId('next-class-notes'), 'next-class-notes is builtin');
 
 const normalized = dayNotes.normalizeDayNote({
     id: 'n1',
@@ -102,7 +105,11 @@ assert(
 );
 
 const all = categories.getAllCategories([custom], t);
-assert(all.length === 3, 'getAllCategories merges builtins + custom');
+assert(all.length === 4, 'getAllCategories merges builtins + custom');
+assert(
+    dayNotes.resolveDayNoteCategoryLabel('next-class-notes', [], t) === 'Notes for next class',
+    'resolveDayNoteCategoryLabel for next-class-notes'
+);
 assert(
     dayNotes.resolveDayNoteCategoryLabel('class-notes', [], t) === 'Class notes',
     'resolveDayNoteCategoryLabel uses i18n for builtin'

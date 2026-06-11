@@ -15,11 +15,13 @@
         const {
             showClassInMeta = false,
             readOnly = false,
+            showEditDelete = true,
             isEditing = false,
             t,
             formatDateDisplay,
             resolveDayNoteMeta,
             currentLanguage,
+            onCopy,
             onEdit,
             onDelete,
             onSaveEdit,
@@ -64,30 +66,9 @@
             metaLine.appendChild(catBadge);
         }
 
-        const actions = document.createElement('div');
-        actions.className = 'class-notes-preview-entry-actions';
-
         entry.appendChild(metaLine);
-        entry.appendChild(actions);
 
         if (!isEditing) {
-            const editBtn = document.createElement('button');
-            editBtn.type = 'button';
-            editBtn.className = 'btn btn-outline btn-small';
-            editBtn.textContent = t('classNotesEdit');
-            editBtn.disabled = readOnly;
-            editBtn.addEventListener('click', () => onEdit(note.id));
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.type = 'button';
-            deleteBtn.className = 'btn btn-outline btn-small class-notes-delete-btn';
-            deleteBtn.textContent = t('classNotesDelete');
-            deleteBtn.disabled = readOnly;
-            deleteBtn.addEventListener('click', () => onDelete(note.id));
-
-            actions.appendChild(editBtn);
-            actions.appendChild(deleteBtn);
-
             const body = document.createElement('p');
             body.className = 'class-notes-preview-entry-body day-note-list-entry-body';
             if (typeof renderNoteHtml === 'function') {
@@ -96,6 +77,41 @@
                 body.textContent = note.text;
             }
             entry.appendChild(body);
+
+            const actions = document.createElement('div');
+            actions.className = 'class-notes-preview-entry-actions';
+
+            if (typeof onCopy === 'function') {
+                const copyBtn = document.createElement('button');
+                copyBtn.type = 'button';
+                copyBtn.className = 'btn btn-outline btn-small';
+                copyBtn.textContent = t('classNotesCopy');
+                copyBtn.addEventListener('click', () => onCopy(note));
+                actions.appendChild(copyBtn);
+            }
+
+            if (showEditDelete) {
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'btn btn-outline btn-small';
+                editBtn.textContent = t('classNotesEdit');
+                editBtn.disabled = readOnly;
+                editBtn.addEventListener('click', () => onEdit(note.id));
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'btn btn-outline btn-small class-notes-delete-btn';
+                deleteBtn.textContent = t('classNotesDelete');
+                deleteBtn.disabled = readOnly;
+                deleteBtn.addEventListener('click', () => onDelete(note.id));
+
+                actions.appendChild(editBtn);
+                actions.appendChild(deleteBtn);
+            }
+
+            if (actions.childElementCount) {
+                entry.appendChild(actions);
+            }
             return entry;
         }
 

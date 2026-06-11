@@ -8631,20 +8631,38 @@ function buildClassNotesRangeExportText() {
     });
 }
 
+async function copyClassDayNoteToClipboard(note) {
+    const api = getDayNotesApi();
+    const raw = String(note && note.text ? note.text : '').trim();
+    const text = api && api.sanitizeExportText
+        ? api.sanitizeExportText(raw)
+        : normalizeTextForClipboard(raw);
+    const ok = await copyTextToClipboard(text);
+    if (getActiveTab() === 'homework') {
+        showHomeworkCopyStatus(ok);
+    } else {
+        showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+    }
+}
+
 function buildClassNotesPreviewEntry(note, api, options = {}) {
     const panel = typeof ClassNotesPanel !== 'undefined' ? ClassNotesPanel : null;
     if (!panel || !panel.buildPreviewEntry) {
         return document.createElement('div');
     }
-    const { showClassInMeta = false } = options;
+    const { showClassInMeta = false, showEditDelete = true } = options;
     return panel.buildPreviewEntry(note, api, {
         showClassInMeta,
+        showEditDelete,
         readOnly: !canUserEditDayNoteEntry(note),
         isEditing: classNotesEditingId === note.id,
         t,
         formatDateDisplay,
         resolveDayNoteMeta,
         currentLanguage,
+        onCopy: (n) => {
+            copyClassDayNoteToClipboard(n);
+        },
         onEdit: (id) => {
             classNotesEditingId = id;
             renderClassNotesTab();
@@ -11986,7 +12004,8 @@ function getHomeworkTabHooks() {
                 return null;
             }
             return getBlockingEventForClass(dateStr, classData);
-        }
+        },
+        classOccursOnIsoDate: (classData, isoDate) => classOccursOnIsoDate(classData, isoDate)
     };
 }
 
@@ -12498,6 +12517,93 @@ function formatHomeworkPasteBlock(text, classData, packet, kind) {
     return mod.formatHomeworkBlock(text, opts);
 }
 
+function renderHomeworkLastClassNotes(classData, packet) {
+    const section = document.getElementById('homeworkLastClassNotes');
+    const metaEl = document.getElementById('homeworkLastClassNotesMeta');
+    const bodyEl = document.getElementById('homeworkLastClassNotesBody');
+    const emptyEl = document.getElementById('homeworkLastClassNotesEmpty');
+    const noPriorEl = document.getElementById('homeworkLastClassNotesNoPrior');
+    if (!section || !bodyEl) {
+        return;
+    }
+    const hideAll = () => {
+        section.hidden = true;
+        bodyEl.replaceChildren();
+        if (metaEl) {
+            metaEl.textContent = '';
+        }
+        if (emptyEl) {
+            emptyEl.hidden = true;
+            emptyEl.textContent = '';
+        }
+        if (noPriorEl) {
+            noPriorEl.hidden = true;
+        }
+    };
+    if (!classData) {
+        hideAll();
+        return;
+    }
+    const api = getDayNotesApi();
+    if (!api || typeof api.getNextClassPrepNotes !== 'function') {
+        hideAll();
+        return;
+    }
+    ensureDayNotesArray();
+    const anchorDate = (packet && packet.targetLessonDate)
+        || getHomeworkReferenceDateFromUi();
+    const prep = api.getNextClassPrepNotes(
+        appData.dayNotes,
+        classData.id,
+        anchorDate,
+        classData,
+        getHomeworkTabHooks()
+    );
+    section.hidden = false;
+    bodyEl.replaceChildren();
+    if (!prep.previousMeetingDate) {
+        if (metaEl) {
+            metaEl.textContent = '';
+        }
+        if (emptyEl) {
+            emptyEl.hidden = true;
+        }
+        if (noPriorEl) {
+            noPriorEl.hidden = false;
+        }
+        return;
+    }
+    if (noPriorEl) {
+        noPriorEl.hidden = true;
+    }
+    const dateLabel = formatDateDisplay(prep.previousMeetingDate);
+    if (prep.notes.length) {
+        if (metaEl) {
+            metaEl.textContent = formatI18n('homeworkLastClassNotesMeta', {
+                date: dateLabel,
+                count: String(prep.notes.length)
+            });
+        }
+        if (emptyEl) {
+            emptyEl.hidden = true;
+        }
+        prep.notes.forEach((note) => {
+            const entry = buildClassNotesPreviewEntry(note, api, {
+                showEditDelete: false
+            });
+            bodyEl.appendChild(entry);
+        });
+    } else {
+        if (metaEl) {
+            metaEl.textContent = '';
+        }
+        if (emptyEl) {
+            emptyEl.hidden = false;
+            emptyEl.textContent = t('homeworkLastClassNotesEmpty').replace('{date}', dateLabel);
+        }
+    }
+}
+
 function renderHomeworkDueDateSkips(packet) {
     const container = document.getElementById('homeworkDueDateSkips');
     if (!container) {
@@ -12549,6 +12655,7 @@ function renderHomeworkEditor() {
     if (!classData) {
         empty.hidden = false;
         content.hidden = true;
+        renderHomeworkLastClassNotes(null, null);
         return;
     }
     const effective = getEffectiveClassForViewer(classData);
@@ -12595,6 +12702,7 @@ function renderHomeworkEditor() {
         dueCopyBtn.disabled = !packet.dueDate;
     }
     renderHomeworkDueDateSkips(packet);
+    renderHomeworkLastClassNotes(classData, packet);
     if (metaEl) {
         const parts = [];
         if (packet.targetLessonDate) {
