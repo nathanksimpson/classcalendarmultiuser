@@ -6,6 +6,7 @@ import * as Auth from './auth-permissions.js';
 import * as ActivityLog from './activity-log.js';
 import * as Presence from './presence.js';
 import * as Suggestions from './suggestions.js';
+import * as NotificationMeta from './notification-meta.js';
 import * as AccessRequests from './access-requests.js';
 import * as AdminUserPolicy from './admin-user-policy.js';
 import * as ViewAs from './view-as.js';
@@ -1352,6 +1353,49 @@ export default {
             const body = await readJson(request);
             await Presence.upsertPresence(env, user, body);
             return json({ ok: true });
+        }
+
+        const notifyMetaDismissMatch = path.match(
+            /^\/api\/calendars\/([^/]+)\/notification-meta\/([^/]+)\/dismiss$/
+        );
+        if (notifyMetaDismissMatch && request.method === 'PATCH') {
+            const calId = notifyMetaDismissMatch[1];
+            if (!(await CalAccess.canAccessCalendar(env, user, calId))) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            const notificationId = decodeURIComponent(notifyMetaDismissMatch[2] || '');
+            const body = await readJson(request);
+            const dismissedAt =
+                body && body.dismissedAt != null ? body.dismissedAt : undefined;
+            return json(
+                await NotificationMeta.dismissOne(env, user.id, calId, notificationId, dismissedAt)
+            );
+        }
+
+        const notifyMetaMatch = path.match(/^\/api\/calendars\/([^/]+)\/notification-meta$/);
+        if (notifyMetaMatch) {
+            const calId = notifyMetaMatch[1];
+            if (!(await CalAccess.canAccessCalendar(env, user, calId))) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
+            if (request.method === 'GET') {
+                return json(await NotificationMeta.listMeta(env, user.id, calId));
+            }
+            if (request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
+                const body = await readJson(request);
+                const entries = body && body.meta && typeof body.meta === 'object' ? body.meta : body;
+                return json(
+                    await NotificationMeta.upsertEntries(env, user.id, calId, entries || {})
+                );
+            }
         }
 
         const suggestionMatch = path.match(

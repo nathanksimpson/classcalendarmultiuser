@@ -6671,14 +6671,77 @@ function getClassCatalogCategory(classData) {
     return '';
 }
 
+const HOMEROOM_NONE_KEY = '__no_homeroom__';
+
+function buildCohortsByIdMap() {
+    const cohortsById = {};
+    (appData.cohorts || []).forEach((c) => {
+        if (c && c.id) {
+            cohortsById[c.id] = c;
+        }
+    });
+    return cohortsById;
+}
+
+function resolveHomeroomMetaForClass(classData, cohortsById) {
+    if (!classData) {
+        return { key: HOMEROOM_NONE_KEY, label: t('cohortsNoHomeroom') };
+    }
+    const map = cohortsById || buildCohortsByIdMap();
+    const api = getTimetableApi();
+    let label = '';
+    if (api && typeof api.resolveHomeroomLabel === 'function') {
+        label = api.resolveHomeroomLabel(classData, map) || '';
+    }
+    const hrUid = resolveHomeroomUserIdForClass(classData);
+    const key = hrUid || HOMEROOM_NONE_KEY;
+    if (!label && key !== HOMEROOM_NONE_KEY) {
+        const row = listTimetableTeachers().find((r) => r.userId === key);
+        label = row ? (row.displayName || key) : key;
+    }
+    if (!label) {
+        label = t('cohortsNoHomeroom');
+    }
+    return { key, label };
+}
+
+function getHomeroomOrderKeys(classIds) {
+    const cohortsById = buildCohortsByIdMap();
+    const seen = new Map();
+    (classIds || []).forEach((classId) => {
+        const classData = appData.classes.find((c) => c.id === classId);
+        const meta = resolveHomeroomMetaForClass(classData, cohortsById);
+        if (!seen.has(meta.key)) {
+            seen.set(meta.key, meta.label);
+        }
+    });
+    return [...seen.keys()].sort((a, b) => {
+        if (a === HOMEROOM_NONE_KEY) {
+            return 1;
+        }
+        if (b === HOMEROOM_NONE_KEY) {
+            return -1;
+        }
+        return (seen.get(a) || '').localeCompare(seen.get(b) || '', undefined, { sensitivity: 'base' });
+    });
+}
+
 function resolveDayNoteMeta(classId, displayNameOverride) {
     const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
     if (!classData) {
-        return { className: displayNameOverride || classId || '', subject: '' };
+        return {
+            className: displayNameOverride || classId || '',
+            subject: '',
+            homeroomKey: HOMEROOM_NONE_KEY,
+            homeroomLabel: t('cohortsNoHomeroom')
+        };
     }
+    const homeroom = resolveHomeroomMetaForClass(classData);
     return {
         className: displayNameOverride || classData.name || '',
-        subject: getClassSubjectForDayNotes(classData)
+        subject: getClassSubjectForDayNotes(classData),
+        homeroomKey: homeroom.key,
+        homeroomLabel: homeroom.label
     };
 }
 
@@ -6706,7 +6769,7 @@ function resolveHomeroomUserIdForClass(classData) {
 
 function resolveDayNoteSearchHay(classId) {
     const meta = resolveDayNoteMeta(classId);
-    return [meta.className, meta.subject].filter(Boolean).join(' ');
+    return [meta.className, meta.subject, meta.homeroomLabel].filter(Boolean).join(' ');
 }
 
 function classHasDayNoteOnDate(classId, dateStr) {
@@ -6892,14 +6955,16 @@ function renderClassDayNoteExistingList(classId, dateStr) {
     const heading = document.createElement('h3');
     heading.textContent = t('dayNoteExistingHeading');
     mount.appendChild(heading);
+    const classMeta = resolveDayNoteMeta(classId);
     notes.forEach((note) => {
         const item = document.createElement('div');
         item.className = 'day-note-existing-item';
         const meta = document.createElement('div');
         meta.className = 'day-note-existing-item-meta';
+        const timeLabel = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
         const timeEl = document.createElement('time');
         timeEl.dateTime = note.createdAt || '';
-        timeEl.textContent = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
+        timeEl.textContent = [classMeta.homeroomLabel, timeLabel].filter(Boolean).join(' · ');
         meta.appendChild(timeEl);
         const catWrap = document.createElement('span');
         catWrap.innerHTML = buildDayNoteCategoryBadgeHtml(note.categoryId);
@@ -6930,6 +6995,9 @@ function openClassDayNoteModal(classId, dateStr, displayNameOverride) {
         const parts = [formatDateDisplay(dateStr), meta.className];
         if (meta.subject) {
             parts.push(meta.subject);
+        }
+        if (meta.homeroomLabel) {
+            parts.push(meta.homeroomLabel);
         }
         metaEl.textContent = parts.join(' · ');
     }
@@ -7216,6 +7284,12 @@ function classMatchesClassNotesSidebarFilters(classData, filters) {
     }
     if (filters.gradeSet && !filters.gradeSet.has(grade)) {
         return false;
+    }
+    if (filters.homeroomSet) {
+        const homeroomKey = resolveHomeroomMetaForClass(classData).key;
+        if (!filters.homeroomSet.has(homeroomKey)) {
+            return false;
+        }
     }
     return true;
 }
@@ -8090,6 +8164,8 @@ function syncClassesPanelSegmentUi() {
 function getClassNotesFilterOptionGroups() {
     const subjects = new Map();
     const grades = new Map();
+    const homerooms = new Map();
+    const cohortsById = buildCohortsByIdMap();
     const classById = new Map();
     getClassesInDisplayOrder().forEach((classData) => {
         const subject = getClassSubjectForDayNotes(classData) || '';
@@ -8099,10 +8175,12 @@ function getClassNotesFilterOptionGroups() {
         grades.set(gradeKey, gradeKey === LESSON_FILTER_NO_GRADE
             ? (currentLanguage === 'ko' ? '(학년 없음)' : '(No grade)')
             : classData.grade);
+        const homeroom = resolveHomeroomMetaForClass(classData, cohortsById);
+        homerooms.set(homeroom.key, homeroom.label);
         classById.set(classData.id, {
             value: classData.id,
             label: classData.name || classData.id,
-            searchHay: [classData.name, classData.grade, subject].join(' ').toLowerCase()
+            searchHay: [classData.name, classData.grade, subject, homeroom.label].join(' ').toLowerCase()
         });
     });
     ensureDayNotesArray();
@@ -8124,10 +8202,21 @@ function getClassNotesFilterOptionGroups() {
         });
     });
     const classes = [...classById.values()];
+    const homeroomEntries = [...homerooms.entries()].map(([value, label]) => ({ value, label }));
+    homeroomEntries.sort((a, b) => {
+        if (a.value === HOMEROOM_NONE_KEY) {
+            return 1;
+        }
+        if (b.value === HOMEROOM_NONE_KEY) {
+            return -1;
+        }
+        return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+    });
     return {
         classes,
         subjects: [...subjects.entries()].map(([value, label]) => ({ value, label })),
-        grades: [...grades.entries()].map(([value, label]) => ({ value, label }))
+        grades: [...grades.entries()].map(([value, label]) => ({ value, label })),
+        homerooms: homeroomEntries
     };
 }
 
@@ -8247,6 +8336,8 @@ function renderClassNotesFilterSubjectsAndGrades() {
     const subMount = document.getElementById('classNotesFilterSubjects');
     const gradeWrap = document.getElementById('classNotesFilterGradesWrap');
     const gradeMount = document.getElementById('classNotesFilterGrades');
+    const hrWrap = document.getElementById('classNotesFilterHomeroomWrap');
+    const hrMount = document.getElementById('classNotesFilterHomeroom');
     if (subMount && subWrap) {
         if (groups.subjects.length) {
             subWrap.hidden = false;
@@ -8263,6 +8354,15 @@ function renderClassNotesFilterSubjectsAndGrades() {
         } else {
             gradeWrap.hidden = true;
             gradeMount.innerHTML = '';
+        }
+    }
+    if (hrMount && hrWrap) {
+        if (groups.homerooms.length) {
+            hrWrap.hidden = false;
+            hrMount.innerHTML = buildClassNotesFilterChipHtml('homerooms', groups.homerooms);
+        } else {
+            hrWrap.hidden = true;
+            hrMount.innerHTML = '';
         }
     }
 }
@@ -8336,11 +8436,25 @@ function getClassIdsForSubjectFilter(subjectSet) {
         .map((c) => c.id);
 }
 
+function getClassIdsForHomeroomFilter(homeroomSet) {
+    if (!homeroomSet || !(homeroomSet instanceof Set) || !homeroomSet.size) {
+        return null;
+    }
+    const cohortsById = buildCohortsByIdMap();
+    return getClassesInDisplayOrder()
+        .filter((classData) => {
+            const homeroomKey = resolveHomeroomMetaForClass(classData, cohortsById).key;
+            return homeroomSet.has(homeroomKey);
+        })
+        .map((c) => c.id);
+}
+
 function resolveClassListFilter(options = {}) {
     const {
         myClassesOnly = false,
         todayIso = '',
         subjectSet = null,
+        homeroomSet = null,
         baseClassIds = null
     } = options;
     const layers = [];
@@ -8363,6 +8477,10 @@ function resolveClassListFilter(options = {}) {
     const subjectIds = getClassIdsForSubjectFilter(subjectSet);
     if (subjectIds) {
         layers.push(subjectIds);
+    }
+    const homeroomIds = getClassIdsForHomeroomFilter(homeroomSet);
+    if (homeroomIds) {
+        layers.push(homeroomIds);
     }
     return intersectClassIdSets(...layers);
 }
@@ -8440,6 +8558,20 @@ function getClassNotesActiveFilterLabels(filters) {
         const labels = [];
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="subjects"]`).forEach((input) => {
             if (input.checked && filters.subjectSet.has(input.value)) {
+                const label = input.closest('label')?.querySelector('span')?.textContent?.trim();
+                if (label) {
+                    labels.push(label);
+                }
+            }
+        });
+        if (labels.length) {
+            parts.push(labels.join(', '));
+        }
+    }
+    if (filters && filters.homeroomSet && filters.homeroomSet.size) {
+        const labels = [];
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="homerooms"]`).forEach((input) => {
+            if (input.checked && filters.homeroomSet.has(input.value)) {
                 const label = input.closest('label')?.querySelector('span')?.textContent?.trim();
                 if (label) {
                     labels.push(label);
@@ -8537,7 +8669,27 @@ function applyClassNotesSubjectChipNarrowing() {
     const narrowed = resolveClassListFilter({
         baseClassIds: base,
         myClassesOnly: getClassNotesMyClassesOnlyFromDom(),
-        subjectSet
+        subjectSet,
+        homeroomSet: getClassNotesPartialFilterSet('homerooms')
+    });
+    if (getClassNotesMyClassesOnlyFromDom() && !getClassIdsAssignedToViewer()) {
+        return;
+    }
+    setClassNotesClassCheckboxes(narrowed);
+}
+
+function applyClassNotesHomeroomChipNarrowing() {
+    const homeroomSet = getClassNotesPartialFilterSet('homerooms');
+    if (!homeroomSet) {
+        return;
+    }
+    const current = getClassNotesCheckedClassIds();
+    const base = current.length ? current : getClassesInDisplayOrder().map((c) => c.id);
+    const narrowed = resolveClassListFilter({
+        baseClassIds: base,
+        myClassesOnly: getClassNotesMyClassesOnlyFromDom(),
+        subjectSet: getClassNotesPartialFilterSet('subjects'),
+        homeroomSet
     });
     if (getClassNotesMyClassesOnlyFromDom() && !getClassIdsAssignedToViewer()) {
         return;
@@ -8574,6 +8726,7 @@ function collectClassNotesFilterState() {
     });
     const subjectSet = getClassNotesPartialFilterSet('subjects');
     const gradeSet = getClassNotesPartialFilterSet('grades');
+    const homeroomSet = getClassNotesPartialFilterSet('homerooms');
     const textSearchEl = document.getElementById('classNotesTextSearch');
     const meetingEl = document.getElementById('classNotesMeetingDaysOnly');
     return {
@@ -8582,6 +8735,7 @@ function collectClassNotesFilterState() {
         classIds,
         subjectSet,
         gradeSet,
+        homeroomSet,
         textQuery: textSearchEl ? (textSearchEl.value || '').trim() : '',
         meetingDaysOnly: meetingEl ? meetingEl.checked === true : false
     };
@@ -8630,10 +8784,15 @@ function buildClassNotesRangeExportText() {
     const from = filters.dateFrom || '…';
     const to = filters.dateTo || '…';
     const rangeLabel = `${from} – ${to}`;
-    return api.formatRangeExportByClass({
+    return api.formatRangeExportByHomeroom({
         notes,
         classOrderIds,
+        homeroomOrderKeys: getHomeroomOrderKeys(classOrderIds),
         resolveMeta: (classId) => resolveDayNoteMeta(classId),
+        resolveHomeroomMeta: (classId) => {
+            const classData = appData.classes.find((c) => c.id === classId);
+            return resolveHomeroomMetaForClass(classData);
+        },
         formatDate: (iso) => formatDateDisplay(iso),
         locale: currentLanguage,
         headerTitle: t('classNotesExportHeader'),
@@ -8660,9 +8819,14 @@ function buildClassNotesPreviewEntry(note, api, options = {}) {
     if (!panel || !panel.buildPreviewEntry) {
         return document.createElement('div');
     }
-    const { showClassInMeta = false, showEditDelete = true } = options;
+    const {
+        showClassInMeta = false,
+        showHomeroomInMeta = true,
+        showEditDelete = true
+    } = options;
     return panel.buildPreviewEntry(note, api, {
         showClassInMeta,
+        showHomeroomInMeta,
         showEditDelete,
         readOnly: !canUserEditDayNoteEntry(note),
         isEditing: classNotesEditingId === note.id,
@@ -8746,12 +8910,21 @@ function renderClassNotesTab() {
         return;
     }
     const sortMode = getClassNotesSortMode();
+    const sortOpts = {
+        resolveHomeroomMeta: (classId) => {
+            const classData = appData.classes.find((c) => c.id === classId);
+            return resolveHomeroomMetaForClass(classData);
+        },
+        homeroomOrderKeys: getHomeroomOrderKeys(classOrderIds)
+    };
     const sorted = api
-        ? api.sortNotesForDisplay(notes, sortMode, classOrderIds)
+        ? api.sortNotesForDisplay(notes, sortMode, classOrderIds, sortOpts)
         : { mode: 'classGroup', groups: [] };
-    const groupCount = sorted.mode === 'classGroup'
-        ? (sorted.groups || []).length
-        : new Set(notes.map((n) => n.classId)).size;
+    const groupCount = sorted.mode === 'homeroomGroup'
+        ? (sorted.homeroomGroups || []).length
+        : sorted.mode === 'classGroup'
+            ? (sorted.groups || []).length
+            : new Set(notes.map((n) => n.classId)).size;
     const textQuery = filters.textQuery || '';
     const layerLabels = getClassNotesActiveFilterLabels(filters);
     const layersText = layerLabels.join(' · ');
@@ -8794,6 +8967,34 @@ function renderClassNotesTab() {
         emptyEl.hidden = true;
     }
     setPreviewVisible(true);
+    if (sorted.mode === 'homeroomGroup' && sorted.homeroomGroups) {
+        sorted.homeroomGroups.forEach((hrGroup) => {
+            const hrSection = document.createElement('section');
+            hrSection.className = 'class-notes-preview-group class-notes-preview-group--homeroom';
+            hrSection.setAttribute('role', 'listitem');
+            const hrTitle = document.createElement('h2');
+            hrTitle.className = 'class-notes-preview-homeroom-title';
+            hrTitle.textContent = hrGroup.homeroomLabel || hrGroup.homeroomKey;
+            hrSection.appendChild(hrTitle);
+            (hrGroup.groups || []).forEach((group) => {
+                const meta = resolveDayNoteMeta(group.classId);
+                const classSection = document.createElement('div');
+                classSection.className = 'class-notes-preview-class-group';
+                const title = document.createElement('h3');
+                title.className = 'class-notes-preview-group-title';
+                title.textContent = meta.subject ? `${meta.className} — ${meta.subject}` : meta.className;
+                classSection.appendChild(title);
+                group.notes.forEach((note) => {
+                    classSection.appendChild(buildClassNotesPreviewEntry(note, api, {
+                        showHomeroomInMeta: false
+                    }));
+                });
+                hrSection.appendChild(classSection);
+            });
+            previewEl.appendChild(hrSection);
+        });
+        return;
+    }
     if (sorted.mode === 'classGroup' && sorted.groups) {
         sorted.groups.forEach((group) => {
             const meta = resolveDayNoteMeta(group.classId);
@@ -8802,7 +9003,8 @@ function renderClassNotesTab() {
             section.setAttribute('role', 'listitem');
             const title = document.createElement('h3');
             title.className = 'class-notes-preview-group-title';
-            title.textContent = meta.subject ? `${meta.className} — ${meta.subject}` : meta.className;
+            const classPart = meta.subject ? `${meta.className} — ${meta.subject}` : meta.className;
+            title.textContent = [classPart, meta.homeroomLabel].filter(Boolean).join(' · ');
             section.appendChild(title);
             group.notes.forEach((note) => {
                 section.appendChild(buildClassNotesPreviewEntry(note, api));
@@ -8916,6 +9118,11 @@ function refreshClassNotesPanelIfMounted() {
                 input.checked = prev.gradeSet.has(input.value);
             });
         }
+        if (prev.homeroomSet) {
+            shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="homerooms"]`).forEach((input) => {
+                input.checked = prev.homeroomSet.has(input.value);
+            });
+        }
     }
 
     ensureClassNotesDateRangeCoversExistingNotes();
@@ -8979,6 +9186,14 @@ function initClassNotesPanelListeners() {
     });
     shell.querySelector('#classNotesFilterGrades')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            renderClassNotesTab();
+            saveClassNotesFiltersToUi();
+        }
+    });
+    shell.querySelector('#classNotesFilterHomeroom')?.addEventListener('change', (e) => {
+        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
+            applyClassNotesHomeroomChipNarrowing();
+            populateClassNotesAddClassSelect();
             renderClassNotesTab();
             saveClassNotesFiltersToUi();
         }
@@ -11726,6 +11941,8 @@ function initTabWarningsModule() {
         saveNavNotificationMeta,
         readNavNotificationMeta: readNavNotificationMetaFromStorage,
         getNotificationTtlSettings,
+        canPruneNotificationMeta,
+        persistNotificationDismissals: persistNotificationDismissalsToServer,
         ensureUiState,
         getClassesInDisplayOrder,
         getClassScheduleGapStatus,
@@ -11786,6 +12003,8 @@ function updateSetupChecklistBanner() {
             appData.ui.setupChecklistDismissed = true;
             appData.ui.setupGuideBannerDismissed = true;
             saveUiStateToLocalStorage();
+            void dismissUiNotificationOnServer(UI_NOTIFICATION_IDS.setupChecklist);
+            void dismissUiNotificationOnServer(UI_NOTIFICATION_IDS.setupGuideBanner);
             banner.hidden = true;
         });
     }
@@ -14947,6 +15166,7 @@ function updateSetupGuideBanner() {
                     ensureUiState();
                     appData.ui.setupGuideBannerDismissed = true;
                     saveUiStateToLocalStorage();
+                    void dismissUiNotificationOnServer(UI_NOTIFICATION_IDS.setupGuideBanner);
                 } catch (_saveErr) {
                     /* still hide banner */
                 }
@@ -14983,6 +15203,7 @@ function setupCohortsUsageTips() {
                 ensureUiState();
                 appData.ui.cohortsUsageTipsDismissed = true;
                 saveUiStateToLocalStorage();
+                void dismissUiNotificationOnServer(UI_NOTIFICATION_IDS.cohortsUsageTips);
             } catch (_saveErr) {
                 /* still hide */
             }
@@ -25889,6 +26110,11 @@ function updateTeamDeleteCalendarButton(list, activeId) {
 const UI_STORAGE_PREFIX = 'classCalendarUi:';
 const DISMISSED_NAV_WARNINGS_PREFIX = 'classCalendarDismissedNav:';
 const NAV_NOTIFICATION_META_PREFIX = 'classCalendarNavNotifyMeta:';
+const UI_NOTIFICATION_IDS = {
+    setupChecklist: 'ui:setup_checklist',
+    setupGuideBanner: 'ui:setup_guide_banner',
+    cohortsUsageTips: 'ui:cohorts_usage_tips'
+};
 const MS_PER_DAY = 86400000;
 const UI_STORAGE_LOCAL_ID = 'local';
 const DOMAIN_STORAGE_PREFIX = 'classCalendarData:';
@@ -26120,6 +26346,75 @@ function saveNavNotificationMeta(meta) {
         /* ignore */
     }
     return normalized;
+}
+
+function applyUiSyntheticNotificationFlags(meta) {
+    if (!meta || typeof meta !== 'object') {
+        return;
+    }
+    ensureUiState();
+    if (
+        meta[UI_NOTIFICATION_IDS.setupChecklist]
+        && meta[UI_NOTIFICATION_IDS.setupChecklist].dismissedAt != null
+    ) {
+        appData.ui.setupChecklistDismissed = true;
+    }
+    if (
+        meta[UI_NOTIFICATION_IDS.setupGuideBanner]
+        && meta[UI_NOTIFICATION_IDS.setupGuideBanner].dismissedAt != null
+    ) {
+        appData.ui.setupGuideBannerDismissed = true;
+    }
+    if (
+        meta[UI_NOTIFICATION_IDS.cohortsUsageTips]
+        && meta[UI_NOTIFICATION_IDS.cohortsUsageTips].dismissedAt != null
+    ) {
+        appData.ui.cohortsUsageTipsDismissed = true;
+    }
+}
+
+function applyServerNotificationMeta(serverMeta) {
+    if (!serverMeta || typeof serverMeta !== 'object') {
+        return;
+    }
+    ensureUiState();
+    appData.ui.navNotificationMeta = mergeNavNotificationMeta(
+        appData.ui.navNotificationMeta,
+        serverMeta
+    );
+    applyUiSyntheticNotificationFlags(serverMeta);
+    migrateLegacyDismissedToNavNotificationMeta(appData.ui);
+    saveNavNotificationMeta(appData.ui.navNotificationMeta);
+    updateSetupGuideBanner();
+}
+
+function canPruneNotificationMeta() {
+    if (!hasTeamSyncStatusEl()) {
+        return appShellBootComplete;
+    }
+    return teamSyncCalendarHydrated;
+}
+
+function persistNotificationDismissalsToServer(notificationIds, dismissedAt) {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return Promise.resolve();
+    }
+    const ids = (Array.isArray(notificationIds) ? notificationIds : [])
+        .map(normalizeDismissedNavTabWarningId)
+        .filter(Boolean);
+    if (!ids.length) {
+        return Promise.resolve();
+    }
+    const at = dismissedAt != null ? dismissedAt : Date.now();
+    return CalendarSync.dismissNotifications(null, ids, at).catch(() => {});
+}
+
+function dismissUiNotificationOnServer(syntheticId) {
+    const id = String(syntheticId || '').trim();
+    if (!id) {
+        return Promise.resolve();
+    }
+    return persistNotificationDismissalsToServer([id], Date.now());
 }
 
 function getNotificationTtlSettings() {
@@ -26567,6 +26862,7 @@ function saveClassNotesFiltersToUi() {
         classIds: filters.classIds.slice(),
         subjects: filters.subjectSet ? Array.from(filters.subjectSet) : null,
         grades: filters.gradeSet ? Array.from(filters.gradeSet) : null,
+        homerooms: filters.homeroomSet ? Array.from(filters.homeroomSet) : null,
         textQuery: filters.textQuery || '',
         meetingDaysOnly: filters.meetingDaysOnly === true,
         myClassesOnly: getClassNotesMyClassesOnlyFromDom()
@@ -26625,6 +26921,12 @@ function applyClassNotesFiltersFromUi() {
     if (Array.isArray(saved.grades)) {
         const set = new Set(saved.grades);
         document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="grades"]`).forEach((input) => {
+            input.checked = set.has(input.value);
+        });
+    }
+    if (Array.isArray(saved.homerooms)) {
+        const set = new Set(saved.homerooms);
+        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="homerooms"]`).forEach((input) => {
             input.checked = set.has(input.value);
         });
     }
@@ -26722,6 +27024,9 @@ function captureAppSessionExtras() {
 function saveUiStateToLocalStorage() {
     ensureUiState();
     syncDismissedNavTabWarningsIntoUi(appData.ui);
+    if (appData.ui.navNotificationMeta && typeof appData.ui.navNotificationMeta === 'object') {
+        writeNavNotificationMetaToDedicatedStorage(appData.ui.navNotificationMeta);
+    }
     try {
         localStorage.setItem(getUiStorageKey(), JSON.stringify(appData.ui));
         writeDismissedNavTabWarningsToDedicatedStorage(appData.ui.dismissedNavTabWarnings);
@@ -26782,6 +27087,7 @@ function applyLoadedAppData(data) {
     const migrated = migrateData(appData);
     ensureUiState();
     syncDismissedNavTabWarningsIntoUi(appData.ui);
+    syncNavNotificationMetaIntoUi(appData.ui);
     refreshLocalizedEventDisplayNames();
     if (appShellBootComplete && !isNotesPage() && !isWorkspacePage()) {
         syncTeachersTabVisibility();
@@ -26801,6 +27107,17 @@ function applyLoadedAppData(data) {
     if (appShellBootComplete) {
         updateSetupGuideBanner();
         scheduleTabWarningsRefresh();
+    }
+    if (
+        appShellBootComplete
+        && teamSyncEnabled
+        && typeof CalendarSync !== 'undefined'
+        && CalendarSync.getActiveCalendarId
+    ) {
+        const calId = CalendarSync.getActiveCalendarId();
+        if (calId) {
+            void CalendarSync.loadNotificationMeta(calId).catch(() => {});
+        }
     }
 }
 
@@ -27088,10 +27405,18 @@ async function ensureActiveCalendarLoaded(options) {
         !opts.forceIfStale &&
         !isAppDataCalendarEmpty()
     ) {
+        const hydratedId = CalendarSync.getActiveCalendarId();
+        if (hydratedId && teamSyncEnabled) {
+            try {
+                await CalendarSync.loadNotificationMeta(hydratedId);
+            } catch (_) {
+                /* offline or API unavailable */
+            }
+        }
         return {
             ok: true,
             offline: !teamSyncEnabled,
-            calendarId: CalendarSync.getActiveCalendarId()
+            calendarId: hydratedId
         };
     }
 
@@ -27180,6 +27505,7 @@ function finishTeamSyncBoot() {
         teamSyncCalendarHydrated = true;
     }
     updateSetupGuideBanner();
+    scheduleTabWarningsRefresh();
     const el = document.getElementById('teamSyncStatus');
     if (!el || !isTeamSyncBootIncomplete(el)) {
         return;
@@ -28139,6 +28465,10 @@ async function initTeamSync() {
             updateActiveTeamCalendarOptionLabel();
             updateCalendarTitle();
             updateTopBarCalendarLabel();
+        },
+        onNotificationMetaLoaded(meta) {
+            applyServerNotificationMeta(meta);
+            scheduleTabWarningsRefresh();
         },
         onLockChange(lockState) {
             applyTeamLockAccessState(lockState);

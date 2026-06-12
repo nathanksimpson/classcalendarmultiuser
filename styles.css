@@ -4726,6 +4726,15 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     padding: 0;
 }
 
+#teamCalendarPopover.header-fixed-popover,
+#teamCalendarPopover.header-dropdown-panel,
+.team-calendar-menu-panel.header-dropdown-panel {
+    box-sizing: border-box;
+    width: min(22.5rem, calc(100vw - 2 * var(--app-gutter, var(--space-4))));
+    min-width: min(17.5rem, calc(100vw - 2 * var(--app-gutter, var(--space-4))));
+    max-width: min(22.5rem, calc(100vw - 2 * var(--app-gutter, var(--space-4))));
+}
+
 .header-dropdown-divider {
     margin: var(--space-1) 0;
     border: none;
@@ -13184,12 +13193,31 @@ html[data-viewport="phone"] .app-tab-warn-badge {
 
 .team-calendar-popover-body {
     padding: var(--pad-popover-body);
-    min-width: 280px;
-    max-width: 360px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
+
+.team-calendar-popover-body .team-calendar-field {
+    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-bottom: var(--space-2);
+    gap: var(--space-1);
+}
+
 .team-calendar-popover-body .team-calendar-select {
     width: 100%;
-    margin-bottom: var(--space-2);
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+#teamCalendarSelect {
+    text-overflow: ellipsis;
 }
 .team-calendar-popover-actions {
     display: flex;

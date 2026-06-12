@@ -22,6 +22,8 @@
         saveNavNotificationMeta: () => {},
         readNavNotificationMeta: () => ({}),
         getNotificationTtlSettings: () => ({ activeDays: 14, dismissedDays: 3 }),
+        canPruneNotificationMeta: () => true,
+        persistNotificationDismissals: () => {},
         ensureUiState: () => {},
         getClassesInDisplayOrder: () => [],
         getClassScheduleGapStatus: () => ({ incomplete: false }),
@@ -124,12 +126,23 @@
                 dirty = true;
             }
         });
-        Object.keys(meta).forEach((id) => {
-            if (!activeIds.has(id)) {
+        const canPrune =
+            typeof hooks.canPruneNotificationMeta === 'function'
+                ? hooks.canPruneNotificationMeta()
+                : true;
+        if (canPrune) {
+            Object.keys(meta).forEach((id) => {
+                if (activeIds.has(id)) {
+                    return;
+                }
+                const entry = meta[id];
+                if (entry && entry.dismissedAt != null) {
+                    return;
+                }
                 delete meta[id];
                 dirty = true;
-            }
-        });
+            });
+        }
         if (appData && appData.ui) {
             appData.ui.navNotificationMeta = meta;
             appData.ui.dismissedNavTabWarnings = Object.keys(meta).filter((id) => meta[id].dismissedAt != null);
@@ -696,6 +709,9 @@
             meta[normalizedId].dismissedAt = now;
         }
         persistNotificationMeta(appData, meta);
+        if (typeof hooks.persistNotificationDismissals === 'function') {
+            hooks.persistNotificationDismissals([normalizedId], now);
+        }
         invalidateNotificationSnapshot();
         recomputeNotificationSnapshot();
         clearNavTabBadges();
@@ -727,7 +743,13 @@
                 meta[id].dismissedAt = now;
             }
         });
+        const dismissedIds = warnings
+            .map((w) => normalizeDismissedId(w.id))
+            .filter(Boolean);
         persistNotificationMeta(appData, meta);
+        if (typeof hooks.persistNotificationDismissals === 'function' && dismissedIds.length) {
+            hooks.persistNotificationDismissals(dismissedIds, now);
+        }
         invalidateNotificationSnapshot();
         recomputeNotificationSnapshot();
         clearNavTabBadges();
@@ -937,7 +959,17 @@
     }
 
     function scheduleDeferredRefresh() {
-        const run = () => refreshAll();
+        const run = () => {
+            const canPrune =
+                typeof hooks.canPruneNotificationMeta === 'function'
+                    ? hooks.canPruneNotificationMeta()
+                    : true;
+            if (!canPrune) {
+                global.setTimeout(scheduleDeferredRefresh, 200);
+                return;
+            }
+            refreshAll();
+        };
         if (typeof global.requestIdleCallback === 'function') {
             global.requestIdleCallback(run, { timeout: 500 });
         } else {

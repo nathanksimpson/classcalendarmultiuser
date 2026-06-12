@@ -596,12 +596,19 @@
             }
             return classHrUid;
         }
-        const cohortId = normalizeStr(classData.cohortId);
-        if (cohortId && cohortsById && cohortsById[cohortId]) {
-            const cohort = cohortsById[cohortId];
-            return normalizeStr(cohort.homeroomTeacherName)
-                || normalizeStr(cohort.homeroomTeacherUserId)
-                || '';
+        const cohortIds = getClassCohortIds(classData);
+        for (let i = 0; i < cohortIds.length; i += 1) {
+            const cohort = cohortsById && cohortsById[cohortIds[i]];
+            if (cohort) {
+                const name = normalizeStr(cohort.homeroomTeacherName);
+                if (name) {
+                    return name;
+                }
+                const uid = normalizeStr(cohort.homeroomTeacherUserId);
+                if (uid) {
+                    return uid;
+                }
+            }
         }
         return '';
     }

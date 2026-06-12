@@ -159,8 +159,11 @@
         return [...(notes || [])].sort(compareDateDescThenCreatedDesc);
     }
 
+    const NO_HOMEROOM_KEY = '__no_homeroom__';
+
     const CLASS_NOTES_SORT_MODES = new Set([
         'classGroup',
+        'homeroomGroup',
         'newest',
         'oldest',
         'dateAsc',
@@ -172,13 +175,27 @@
         return CLASS_NOTES_SORT_MODES.has(m) ? m : 'classGroup';
     }
 
-    function sortNotesForDisplay(notes, sortMode, classOrderIds) {
+    function sortNotesForDisplay(notes, sortMode, classOrderIds, opts) {
         const mode = normalizeClassNotesSortMode(sortMode);
         const list = notes || [];
         if (mode === 'classGroup') {
             return {
                 mode,
                 groups: groupNotesByClass(list, classOrderIds)
+            };
+        }
+        if (mode === 'homeroomGroup') {
+            const resolveHomeroomMeta = opts && typeof opts.resolveHomeroomMeta === 'function'
+                ? opts.resolveHomeroomMeta
+                : null;
+            return {
+                mode,
+                homeroomGroups: groupNotesByHomeroom(
+                    list,
+                    opts && opts.homeroomOrderKeys,
+                    resolveHomeroomMeta,
+                    classOrderIds
+                )
             };
         }
         if (mode === 'newest') {
@@ -321,6 +338,71 @@
             classId,
             notes: sortChronological(map.get(classId))
         }));
+    }
+
+    function compareHomeroomKeys(a, b, labelForKey) {
+        if (a === NO_HOMEROOM_KEY) {
+            return 1;
+        }
+        if (b === NO_HOMEROOM_KEY) {
+            return -1;
+        }
+        const la = typeof labelForKey === 'function' ? labelForKey(a) : a;
+        const lb = typeof labelForKey === 'function' ? labelForKey(b) : b;
+        return String(la || '').localeCompare(String(lb || ''), undefined, { sensitivity: 'base' });
+    }
+
+    /**
+     * @param {Array} notes filtered notes
+     * @param {string[]} [homeroomOrderKeys] display order for homeroom groups
+     * @param {function} [resolveHomeroomMeta] (classId) => { key, label }
+     * @param {string[]} [classOrderIds] display order for class groups within each homeroom
+     */
+    function groupNotesByHomeroom(notes, homeroomOrderKeys, resolveHomeroomMeta, classOrderIds) {
+        const hrMap = new Map();
+        (notes || []).forEach((note) => {
+            const meta = typeof resolveHomeroomMeta === 'function'
+                ? resolveHomeroomMeta(note.classId)
+                : { key: NO_HOMEROOM_KEY, label: '' };
+            const hrKey = meta && meta.key ? meta.key : NO_HOMEROOM_KEY;
+            if (!hrMap.has(hrKey)) {
+                hrMap.set(hrKey, {
+                    homeroomKey: hrKey,
+                    homeroomLabel: meta && meta.label ? meta.label : '',
+                    classMap: new Map()
+                });
+            }
+            const bucket = hrMap.get(hrKey);
+            if (!bucket.classMap.has(note.classId)) {
+                bucket.classMap.set(note.classId, []);
+            }
+            bucket.classMap.get(note.classId).push(note);
+        });
+        const labelForKey = (key) => {
+            const bucket = hrMap.get(key);
+            return bucket ? bucket.homeroomLabel : key;
+        };
+        const order = Array.isArray(homeroomOrderKeys) && homeroomOrderKeys.length
+            ? homeroomOrderKeys.filter((k) => hrMap.has(k))
+            : [...hrMap.keys()].sort((a, b) => compareHomeroomKeys(a, b, labelForKey));
+        const extra = [...hrMap.keys()].filter((k) => !order.includes(k));
+        const classOrder = Array.isArray(classOrderIds) && classOrderIds.length
+            ? classOrderIds
+            : [];
+        return [...order, ...extra].map((hrKey) => {
+            const bucket = hrMap.get(hrKey);
+            const classMap = bucket.classMap;
+            const classKeys = classOrder.filter((id) => classMap.has(id));
+            const extraClasses = [...classMap.keys()].filter((id) => !classKeys.includes(id)).sort();
+            return {
+                homeroomKey: hrKey,
+                homeroomLabel: bucket.homeroomLabel,
+                groups: [...classKeys, ...extraClasses].map((classId) => ({
+                    classId,
+                    notes: sortChronological(classMap.get(classId))
+                }))
+            };
+        });
     }
 
     function getNotesForDate(dayNotes, dateStr) {
@@ -543,6 +625,87 @@
         return sanitizeExportText(lines.join('\n').trimEnd());
     }
 
+    /**
+     * Export notes grouped by homeroom teacher, then class; within each class, chronological.
+     * @param {object} opts
+     * @param {string} opts.dateFrom
+     * @param {string} opts.dateTo
+     * @param {Array} opts.notes filtered normalized notes
+     * @param {string[]} opts.classOrderIds
+     * @param {string[]} [opts.homeroomOrderKeys]
+     * @param {function} opts.resolveMeta (classId) => { className, subject }
+     * @param {function} opts.resolveHomeroomMeta (classId) => { key, label }
+     * @param {function} [opts.formatDate] (isoDate) => string
+     * @param {string} opts.locale
+     * @param {string} opts.headerTitle
+     * @param {string} [opts.rangeLabel]
+     */
+    function formatRangeExportByHomeroom(opts) {
+        const {
+            notes,
+            classOrderIds,
+            homeroomOrderKeys,
+            resolveMeta,
+            resolveHomeroomMeta,
+            formatDate,
+            locale,
+            headerTitle,
+            rangeLabel
+        } = opts || {};
+        const lines = [];
+        const title = headerTitle || 'Class notes export';
+        if (rangeLabel) {
+            lines.push(`${rangeLabel} - ${title}`);
+        } else {
+            lines.push(title);
+        }
+        lines.push('========================================');
+        const hrGroups = groupNotesByHomeroom(
+            notes,
+            homeroomOrderKeys,
+            resolveHomeroomMeta,
+            classOrderIds
+        );
+        if (!hrGroups.length) {
+            return sanitizeExportText(lines.join('\n').trimEnd());
+        }
+        const fmtDate = typeof formatDate === 'function'
+            ? formatDate
+            : (d) => d;
+        hrGroups.forEach((hrGroup, hi) => {
+            if (hi > 0) {
+                lines.push('');
+            }
+            lines.push(`== ${sanitizeExportText(hrGroup.homeroomLabel || hrGroup.homeroomKey)} ==`);
+            (hrGroup.groups || []).forEach((group, gi) => {
+                const meta = typeof resolveMeta === 'function'
+                    ? resolveMeta(group.classId)
+                    : null;
+                const className = meta && meta.className ? meta.className : group.classId;
+                const subject = meta && meta.subject ? meta.subject : '';
+                const heading = subject ? `${className} - ${subject}` : className;
+                if (gi > 0) {
+                    lines.push('');
+                }
+                lines.push(`-- ${heading} --`);
+                let lastDate = '';
+                group.notes.forEach((note) => {
+                    if (note.date !== lastDate) {
+                        lastDate = note.date;
+                        lines.push('');
+                        lines.push(fmtDate(note.date));
+                    }
+                    const time = formatTimeLabel(note.createdAt, locale);
+                    if (time) {
+                        lines.push(`[${time}]`);
+                    }
+                    lines.push(sanitizeExportText(String(note.text || '').trim()));
+                });
+            });
+        });
+        return sanitizeExportText(lines.join('\n').trimEnd());
+    }
+
     global.CCPDayNotes = {
         DEFAULT_CATEGORY_ID,
         NEXT_CLASS_NOTES_CATEGORY_ID,
@@ -567,12 +730,15 @@
         noteMatchesTextQuery,
         filterNotes,
         groupNotesByClass,
+        groupNotesByHomeroom,
+        NO_HOMEROOM_KEY,
         findNoteById,
         updateDayNote,
         removeDayNote,
         formatTimeLabel,
         sanitizeExportText,
         formatExportText,
-        formatRangeExportByClass
+        formatRangeExportByClass,
+        formatRangeExportByHomeroom
     };
 })(typeof window !== 'undefined' ? window : globalThis);

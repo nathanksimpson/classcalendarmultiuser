@@ -14,6 +14,7 @@ const Auth = require('./auth-permissions');
 const ActivityLog = require('./activity-log');
 const Presence = require('./presence');
 const Suggestions = require('./suggestions');
+const NotificationMeta = require('./notification-meta');
 const CalendarMeta = require('./calendar-meta');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
@@ -998,6 +999,38 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
         return;
     }
     res.json(CalendarMeta.calendarMetaExtras(req.user, req.params.id, meta));
+});
+
+app.get('/api/calendars/:id/notification-meta', requireUser, (req, res) => {
+    const calId = req.params.id;
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    res.json(NotificationMeta.listMeta(req.user.id, calId));
+});
+
+app.put('/api/calendars/:id/notification-meta', requireUser, rejectViewAsWrites, (req, res) => {
+    const calId = req.params.id;
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const entries = body.meta && typeof body.meta === 'object' ? body.meta : body;
+    res.json(NotificationMeta.upsertEntries(req.user.id, calId, entries));
+});
+
+app.patch('/api/calendars/:id/notification-meta/:notificationId/dismiss', requireUser, rejectViewAsWrites, (req, res) => {
+    const calId = req.params.id;
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    const notificationId = decodeURIComponent(req.params.notificationId || '');
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const dismissedAt = body.dismissedAt != null ? body.dismissedAt : undefined;
+    res.json(NotificationMeta.dismissOne(req.user.id, calId, notificationId, dismissedAt));
 });
 
 app.get('/api/calendars/:id', requireUser, (req, res) => {

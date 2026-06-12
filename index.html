@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-ui-padding-classroom">
+    <link rel="stylesheet" href="styles.css?v=20260612-team-calendar-popover">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -459,6 +459,10 @@
                                     <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterGrade">Grade</h3>
                                     <div id="classNotesFilterGrades" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
                                 </section>
+                                <section id="classNotesFilterHomeroomWrap" class="class-notes-filter-section-wrap lesson-filter-section" hidden>
+                                    <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterHomeroom">Homeroom teacher</h3>
+                                    <div id="classNotesFilterHomeroom" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
+                                </section>
                             </div>
                         </aside>
                         <div class="module-editor-panel class-notes-main-panel">
@@ -505,6 +509,7 @@
                                             <span data-i18n="classNotesSortLabel">Sort</span>
                                             <select id="classNotesSortSelect" class="class-notes-sort-select" aria-label="Sort notes">
                                                 <option value="classGroup" data-i18n="classNotesSortClassGroup">By class</option>
+                                                <option value="homeroomGroup" data-i18n="classNotesSortHomeroomGroup">By homeroom teacher</option>
                                                 <option value="newest" data-i18n="classNotesSortNewest">Newest (time)</option>
                                                 <option value="oldest" data-i18n="classNotesSortOldest">Oldest (time)</option>
                                                 <option value="dateAsc" data-i18n="classNotesSortDateAsc">By day (oldest)</option>
@@ -1516,15 +1521,15 @@
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
     <script defer src="js/team-auth.js?v=20260608-i18n-audit"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
-    <script defer src="js/calendar-sync.js?v=20260610-boot-mentions"></script>
+    <script defer src="js/calendar-sync.js?v=20260612-notify-dismiss"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
     <script defer src="js/classroom-domain.js?v=20260612-classroom-mvp"></script>
     <script defer src="js/day-note-categories.js?v=20260612-next-class-cat"></script>
     <script defer src="js/day-note-mentions.js?v=20260612-chrome-notes-input"></script>
-    <script defer src="js/day-notes.js?v=20260612-prep-notes"></script>
+    <script defer src="js/day-notes.js?v=20260612-homeroom-notes"></script>
     <script defer src="js/daily-summary-print.js?v=20260612-daily-summary-fix"></script>
-    <script defer src="js/class-notes-panel.js?v=20260612-chrome-notes-input"></script>
+    <script defer src="js/class-notes-panel.js?v=20260612-homeroom-note-heading"></script>
     <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
         <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">Dark</button>
@@ -1556,8 +1561,10 @@
     </div>
     <div id="teamCalendarPopover" class="header-fixed-popover header-dropdown-panel team-calendar-menu-panel" role="menu" hidden>
         <div class="team-calendar-popover-body">
-            <label for="teamCalendarSelect" data-i18n="teamCalendar">Team calendar:</label>
-            <select id="teamCalendarSelect" class="team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
+            <label class="classroom-header-field team-calendar-field" for="teamCalendarSelect">
+                <span data-i18n="teamCalendar">Team calendar:</span>
+                <select id="teamCalendarSelect" class="field-select field-control--compact team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
+            </label>
             <div class="team-calendar-popover-actions">
                 <button type="button" id="addClassBtn" class="btn btn-primary btn-small" data-i18n="addClass">+ Add Class</button>
                 <button type="button" id="addHolidayBtn" class="btn btn-secondary btn-small" data-i18n="addEvent">+ Add Event</button>
@@ -1571,11 +1578,11 @@
         </div>
     </div>
     <script defer src="js/page-chrome.js?v=20260607-ui-unify"></script>
-    <script defer src="js/tab-warnings.js?v=20260612-hr-notify"></script>
+    <script defer src="js/tab-warnings.js?v=20260612-notify-dismiss"></script>
     <script defer src="js/i18n/calendar-en.js?v=20260612-ui-padding-classroom"></script>
     <script defer src="js/i18n/calendar-ko.js?v=20260612-ui-padding-classroom"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260612-ui-padding-classroom"></script>
+    <script defer src="app.js?v=20260612-notify-dismiss"></script>
 </body>
 </html>
 

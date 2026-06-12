@@ -705,7 +705,9 @@
             return;
         }
         const dateStr = resolveSelectedDate();
-        const meta = typeof resolveDayNoteMeta === 'function' ? resolveDayNoteMeta(classId) : { className: '', subject: '' };
+        const meta = typeof resolveDayNoteMeta === 'function'
+            ? resolveDayNoteMeta(classId)
+            : { className: '', subject: '', homeroomLabel: '' };
         if (titleEl) {
             titleEl.textContent = meta.className || classId;
         }
@@ -713,6 +715,9 @@
             const parts = [typeof formatDateDisplay === 'function' ? formatDateDisplay(dateStr) : dateStr];
             if (meta.subject) {
                 parts.push(meta.subject);
+            }
+            if (meta.homeroomLabel) {
+                parts.push(meta.homeroomLabel);
             }
             metaEl.textContent = parts.join(' · ');
         }
