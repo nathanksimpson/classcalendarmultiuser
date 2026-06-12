@@ -6,44 +6,52 @@ Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps
 
 | | |
 |--|--|
-| **Folder** | `G:\Other computers\내 컴퓨터\Class Calendar Multi-User` |
+| **Folder** | `D:\Simson USB\Class Calendar Multi User` (USB — drive letter may be `D:`, `E:`, etc.) |
 | **NOT** | `f:\Calendar App` (single-user, no team sync) |
 | **GitHub** | https://github.com/nathanksimpson/classcalendarmultiuser |
 | **Live** | https://classcalendarmultiuser.nathanksimpson.workers.dev |
 | **Branch** | `main` |
-| **Local copy** | Google Drive folder (`G:\Other computers\내 컴퓨터\…`) — syncs files between home and work PCs |
-| **Code source of truth** | GitHub `main` — use `git pull` / `git push`, not Drive alone |
-| **Live features** | Production URL after `npm run deploy` — may differ from an unsynced Drive copy |
+| **Portable copy** | USB stick — carry repo between home and work PCs (includes `.git`) |
+| **Code source of truth** | GitHub `main` — use `git pull` / `git push`, not USB file copy alone |
+| **Live features** | Production URL after `npm run deploy` — may differ from an unsynced local copy |
 
-After starting a session: `git pull origin main` in the project folder (on **whichever PC** you are using). Do not assume the Drive folder matches production until you pull and/or compare with the live site.
+After starting a session: `git pull origin main` in the project folder (on **whichever PC** you are using). Do not assume the USB folder matches production until you pull and/or compare with the live site.
 
-## Google Drive sync (home ↔ work)
+## USB portable workflow (home ↔ work)
 
-The repo lives in a **Google Drive for Desktop** folder so the same project files appear on home and work computers. Drive copies **files**; it does **not** deploy the app and is **not** a substitute for Git.
+The repo lives on a **USB drive** (`Simson USB\Class Calendar Multi User`) so you carry the same project between home and work. The USB holds source files and `.git`; it does **not** deploy the app and is **not** a substitute for Git.
 
-| What Drive does | What it does *not* do |
-|-----------------|------------------------|
-| Copy edited source files between PCs | Update https://classcalendarmultiuser.nathanksimpson.workers.dev |
-| Help you open the same folder in Cursor on either machine | Replace `git pull` / `git push` |
-| | Keep `node_modules` reliable (re-run `npm install` after switching PCs if needed) |
+| What USB does | What it does *not* do |
+|---------------|------------------------|
+| Carry the repo (and `.git`) between PCs | Update https://classcalendarmultiuser.nathanksimpson.workers.dev |
+| Let you open the same folder in Cursor on either machine | Replace `git pull` / `git push` |
+| | Keep `node_modules` reliable (re-run `npm install` per PC when needed) |
 
-**Deployed features can differ from your folder:** production only changes when someone runs `npm run deploy` (or CI deploys). One PC may have newer **live** features while the Drive copy is older, or vice versa, if deploy/push/pull were done on only one machine. Treat **GitHub `main` + last deploy** as the checklist for “what should be live,” not “whatever Drive last synced.”
+**Deployed features can differ from your folder:** production only changes when someone runs `npm run deploy`. Treat **GitHub `main` + last deploy** as the checklist for “what should be live,” not “whatever is on the USB stick right now.”
 
 **Recommended session start (each PC):**
 
-1. Wait for Google Drive to finish syncing (check the Drive icon — no “syncing” spinner).
-2. `cd` to the project folder (path above).
-3. `git pull origin main` — get the latest committed code (overrides stale Drive-only state).
-4. If `package.json` changed: `npm install`.
+1. Plug in USB; open `\<drive letter>:\Simson USB\Class Calendar Multi User` in Cursor (drive letter may differ per PC).
+2. `git pull origin main` — get changes pushed from the other PC.
+3. If `package.json` changed or `npm start` fails with `NODE_MODULE_VERSION`: delete `node_modules`, run `npm install`.
+4. Ensure `.env` exists (copy from `.env.example` once per PC if needed; `ALLOW_OPEN_ACCESS=1` for local dev).
 5. `npm start` → test at http://localhost:8080 before deploying.
 
-**End of session:** `git commit` + `git push origin main` when changes are ready; run `npm run deploy` from **one** machine when you want production updated. Pushing to GitHub backs up code; deploy updates the live site.
+**End of session:**
 
-**Drive pitfalls:**
+1. `git commit` + `git push origin main` when changes are ready (backs up to GitHub).
+2. `npm run deploy` from **one** machine when production should update.
+3. Close Cursor/terminals; safely eject USB.
 
-- **Two PCs editing at once** — can create conflict copies (`app (1).js`). Close the project on one PC while editing on the other when possible.
-- **Do not rely on Drive for `.env`, `data/`, `node_modules/`, `.wrangler/`** — keep `.env` per machine (or secure copy manually); DB and installs are local. These should stay gitignored.
-- **Old path** `f:\Calendar App Multi User` — retired for new work; use the Drive path as canonical. Some PCs may still have an `f:\` copy from before the move—always `git pull` and compare with GitHub/production, do not assume it matches Drive or deploy.
+**USB pitfalls:**
+
+- **One PC at a time** — USB cannot be on two machines simultaneously (simpler than Drive conflict copies).
+- **Do not keep editing** the old Google Drive copy (`G:\Other computers\내 컴퓨터\Class Calendar Multi-User`) — USB is the only working folder. Optionally rename the Drive folder to `Class Calendar Multi-User (archived)`.
+- **Do not rely on USB for `node_modules` or `.wrangler`** — reinstall per PC when needed; exclude them from manual copies (use `git` + `npm install`).
+- **`.env` and `data/`** stay gitignored — copy `.env` once per PC if you need Kakao auth locally; DB is created on first `npm start` if missing.
+- **Drive letter changes** — always navigate via `\Simson USB\Class Calendar Multi User\` in File Explorer, or use [`START TEAM CALENDAR.bat`](START%20TEAM%20CALENDAR.bat) (`%~dp0` works on any drive letter).
+- **UNC / network paths** — `npm run deploy` may fail from a network workspace; run deploy from the USB local path (e.g. `D:\Simson USB\...`) or use `subst` to map a drive letter.
+- **Old paths retired:** `f:\Calendar App Multi User`, network `\\simson-jsl\...` Cursor workspace — always `git pull` and compare with GitHub/production.
 
 ## Local preview (required for real data)
 
@@ -117,7 +125,7 @@ Stopping local dev does **not** affect the production Cloudflare worker.
 
 ## Suggested first steps
 
-1. Confirm Drive finished syncing; `git pull origin main`
+1. Plug in USB; `git pull origin main`
 2. Compare behavior with **production** if the user reports “deployed features changed” — folder may lag until pull/deploy
 3. Read lock routes in `worker/src/index.js` and polling in `js/calendar-sync.js`
 4. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
