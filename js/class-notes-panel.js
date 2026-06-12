@@ -6,6 +6,44 @@
     const FILTER_ATTR = 'data-class-notes-filter';
 
     /**
+     * @param {object|null} meta from resolveDayNoteMeta
+     * @param {string} dateLabel formatted date
+     * @param {string} timeLabel formatted time
+     * @param {object} [opts]
+     * @param {boolean} [opts.showClassInMeta]
+     * @param {boolean} [opts.showHomeroomInMeta]
+     * @param {boolean} [opts.showDate]
+     * @param {boolean} [opts.showTime]
+     * @returns {string[]}
+     */
+    function buildNoteMetaParts(meta, dateLabel, timeLabel, opts) {
+        const options = opts || {};
+        const showClassInMeta = options.showClassInMeta === true;
+        const showHomeroomInMeta = options.showHomeroomInMeta !== false;
+        const showDate = options.showDate !== false;
+        const showTime = options.showTime !== false;
+        const parts = [];
+        if (showClassInMeta && meta) {
+            const classLabel = meta.subject
+                ? `${meta.className} — ${meta.subject}`
+                : meta.className;
+            if (classLabel) {
+                parts.push(classLabel);
+            }
+        }
+        if (showHomeroomInMeta && meta && meta.homeroomLabel) {
+            parts.push(meta.homeroomLabel);
+        }
+        if (showDate && dateLabel) {
+            parts.push(dateLabel);
+        }
+        if (showTime && timeLabel) {
+            parts.push(timeLabel);
+        }
+        return parts;
+    }
+
+    /**
      * @param {object} note normalized day note
      * @param {object|null} api DayNotes API
      * @param {object} deps app-provided callbacks and formatters
@@ -14,6 +52,7 @@
     function buildPreviewEntry(note, api, deps) {
         const {
             showClassInMeta = false,
+            showHomeroomInMeta = true,
             readOnly = false,
             showEditDelete = true,
             isEditing = false,
@@ -43,17 +82,16 @@
         const metaLine = document.createElement('div');
         metaLine.className = 'class-notes-preview-entry-meta day-note-list-entry-meta';
         const time = api ? api.formatTimeLabel(note.createdAt, currentLanguage) : '';
-        const parts = [formatDateDisplay(note.date), time];
-        if (showClassInMeta && resolveDayNoteMeta) {
-            const classMeta = resolveDayNoteMeta(note.classId);
-            const classLabel = classMeta.subject
-                ? `${classMeta.className} — ${classMeta.subject}`
-                : classMeta.className;
-            if (classLabel) {
-                parts.unshift(classLabel);
-            }
-        }
-        metaLine.textContent = parts.filter(Boolean).join(' · ');
+        const classMeta = typeof resolveDayNoteMeta === 'function'
+            ? resolveDayNoteMeta(note.classId)
+            : null;
+        const parts = buildNoteMetaParts(
+            classMeta,
+            formatDateDisplay(note.date),
+            time,
+            { showClassInMeta, showHomeroomInMeta }
+        );
+        metaLine.textContent = parts.join(' · ');
         if (note.homeroomNotifyUserId) {
             const hrBadge = document.createElement('span');
             hrBadge.className = 'day-note-homeroom-badge';

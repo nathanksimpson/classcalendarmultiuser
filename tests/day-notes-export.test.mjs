@@ -84,4 +84,114 @@ const resolveMeta = (classId) => ({
     assert(out.indexOf('Purple T') < out.indexOf('Green M'), 'class group order preserved');
 }
 
+{
+    const resolveHomeroomMeta = (classId) => {
+        if (classId === 'c1' || classId === 'c2') {
+            return { key: 'hr1', label: 'Kim Teacher' };
+        }
+        if (classId === 'c3') {
+            return { key: 'hr2', label: 'Lee Teacher' };
+        }
+        return { key: api.NO_HOMEROOM_KEY, label: '(No homeroom teacher)' };
+    };
+    const multiNotes = [
+        {
+            id: 'n1',
+            classId: 'c1',
+            date: '2026-06-10',
+            text: 'Note A',
+            createdAt: '2026-06-10T10:00:00.000Z'
+        },
+        {
+            id: 'n2',
+            classId: 'c2',
+            date: '2026-06-11',
+            text: 'Note B',
+            createdAt: '2026-06-11T10:00:00.000Z'
+        },
+        {
+            id: 'n3',
+            classId: 'c3',
+            date: '2026-06-10',
+            text: 'Note C',
+            createdAt: '2026-06-10T12:00:00.000Z'
+        },
+        {
+            id: 'n4',
+            classId: 'c4',
+            date: '2026-06-12',
+            text: 'Orphan note',
+            createdAt: '2026-06-12T09:00:00.000Z'
+        }
+    ];
+    const hrGroups = api.groupNotesByHomeroom(
+        multiNotes,
+        ['hr1', 'hr2', api.NO_HOMEROOM_KEY],
+        resolveHomeroomMeta,
+        ['c1', 'c2', 'c3', 'c4']
+    );
+    assert(hrGroups.length === 3, 'three homeroom groups');
+    assert(hrGroups[0].homeroomKey === 'hr1', 'first homeroom key');
+    assert(hrGroups[0].groups.length === 2, 'Kim has two classes');
+    assert(hrGroups[0].groups[0].classId === 'c1', 'class order within homeroom');
+    assert(hrGroups[2].homeroomKey === api.NO_HOMEROOM_KEY, 'no homeroom last');
+    assert(hrGroups[2].groups[0].classId === 'c4', 'orphan class in no-homeroom bucket');
+}
+
+{
+    const resolveHomeroomMeta = (classId) => {
+        if (classId === 'c1' || classId === 'c2') {
+            return { key: 'hr1', label: 'Kim Teacher' };
+        }
+        if (classId === 'c3') {
+            return { key: 'hr2', label: 'Lee Teacher' };
+        }
+        return { key: api.NO_HOMEROOM_KEY, label: '(No homeroom teacher)' };
+    };
+    const resolveMeta = (classId) => ({
+        className: classId === 'c1' ? 'Purple T' : classId === 'c2' ? 'Blue T' : classId === 'c3' ? 'Green M' : 'Orphan',
+        subject: 'Speaking'
+    });
+    const multiNotes = [
+        {
+            id: 'n1',
+            classId: 'c1',
+            date: '2026-06-10',
+            text: 'Note A',
+            createdAt: '2026-06-10T10:30:00.000Z'
+        },
+        {
+            id: 'n2',
+            classId: 'c3',
+            date: '2026-06-10',
+            text: 'Note C',
+            createdAt: '2026-06-10T14:00:00.000Z'
+        },
+        {
+            id: 'n3',
+            classId: 'c4',
+            date: '2026-06-12',
+            text: 'Orphan note',
+            createdAt: '2026-06-12T09:00:00.000Z'
+        }
+    ];
+    const out = api.formatRangeExportByHomeroom({
+        notes: multiNotes,
+        classOrderIds: ['c1', 'c3', 'c4'],
+        homeroomOrderKeys: ['hr1', 'hr2', api.NO_HOMEROOM_KEY],
+        resolveMeta,
+        resolveHomeroomMeta,
+        formatDate: (d) => d,
+        locale: 'en',
+        headerTitle: 'Class notes export',
+        rangeLabel: '2026-01-01 - 2026-06-30'
+    });
+    assert(!BAD_CHARS.test(out), 'homeroom range export has no em/box chars');
+    assert(out.includes('== Kim Teacher =='), 'homeroom section heading');
+    assert(out.includes('-- Purple T - Speaking --'), 'class heading nested under homeroom');
+    assert(out.indexOf('Kim Teacher') < out.indexOf('Lee Teacher'), 'homeroom section order');
+    assert(out.indexOf('Lee Teacher') < out.indexOf('(No homeroom teacher)'), 'no homeroom section last');
+    assert(out.includes('Orphan note'), 'orphan note in export');
+}
+
 console.log('day-notes-export.test.mjs: all passed');

@@ -32,7 +32,8 @@
         viewers: [],
         pendingSuggestions: 0,
         navNotificationActiveDays: 14,
-        navNotificationDismissedDays: 3
+        navNotificationDismissedDays: 3,
+        notificationMeta: {}
     };
 
     let handlers = {
@@ -44,7 +45,8 @@
         onLockDebugChange: null,
         onDuplicateName: null,
         onSaved: null,
-        onPrepareLogout: null
+        onPrepareLogout: null,
+        onNotificationMetaLoaded: null
     };
 
     const lockDebug = {
@@ -670,6 +672,64 @@
             debugLog('api', 'DELETE /lock result', result);
             await CalendarSync.refreshLockMeta(calId);
             return result;
+        },
+
+        async loadNotificationMeta(calendarId) {
+            const calId = calendarId || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                state.notificationMeta = {};
+                return { meta: {} };
+            }
+            debugLog('api', 'GET /notification-meta', { calendarId: calId });
+            const result = await apiFetch(
+                '/calendars/' + encodeURIComponent(calId) + '/notification-meta'
+            );
+            state.notificationMeta =
+                result && result.meta && typeof result.meta === 'object' ? result.meta : {};
+            if (typeof handlers.onNotificationMetaLoaded === 'function') {
+                handlers.onNotificationMetaLoaded(state.notificationMeta);
+            }
+            return result || { meta: {} };
+        },
+
+        async dismissNotification(calendarId, notificationId, dismissedAt) {
+            const calId = calendarId || CalendarSync.getActiveCalendarId();
+            const nid = String(notificationId || '').trim();
+            if (!calId || !nid) {
+                return { meta: state.notificationMeta || {} };
+            }
+            const body = dismissedAt != null ? { dismissedAt } : {};
+            debugLog('api', 'PATCH /notification-meta/dismiss', { calendarId: calId, notificationId: nid });
+            const result = await apiFetch(
+                '/calendars/'
+                    + encodeURIComponent(calId)
+                    + '/notification-meta/'
+                    + encodeURIComponent(nid)
+                    + '/dismiss',
+                { method: 'PATCH', body }
+            );
+            if (result && result.meta && typeof result.meta === 'object') {
+                state.notificationMeta = result.meta;
+            } else if (!state.notificationMeta || typeof state.notificationMeta !== 'object') {
+                state.notificationMeta = {};
+            }
+            const at = dismissedAt != null ? Number(dismissedAt) : Date.now();
+            const prev = state.notificationMeta[nid];
+            state.notificationMeta[nid] = {
+                firstSeenAt: prev && prev.firstSeenAt ? prev.firstSeenAt : at,
+                dismissedAt: at
+            };
+            return result || { meta: state.notificationMeta };
+        },
+
+        async dismissNotifications(calendarId, notificationIds, dismissedAt) {
+            const ids = Array.isArray(notificationIds) ? notificationIds : [];
+            const at = dismissedAt != null ? dismissedAt : Date.now();
+            const results = await Promise.all(
+                ids.map((id) => CalendarSync.dismissNotification(calendarId, id, at).catch(() => null))
+            );
+            const last = results.filter(Boolean).pop();
+            return last || { meta: state.notificationMeta || {} };
         },
 
         async loadCalendar(id) {
