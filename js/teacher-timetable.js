@@ -578,7 +578,43 @@
         return '';
     }
 
-    function resolveHomeroomLabel(classData, cohortsById) {
+    function findHomeroomTeacherDisplayName(userId, classData, cohortsById) {
+        const uid = normalizeStr(userId);
+        if (!uid) {
+            return '';
+        }
+        if (classData) {
+            if (normalizeStr(classData.homeroomTeacherUserId) === uid) {
+                const classHrName = normalizeStr(classData.homeroomTeacherName);
+                if (classHrName) {
+                    return classHrName;
+                }
+            }
+            const classTeachers = getClassTeachersList(classData);
+            for (let i = 0; i < classTeachers.length; i += 1) {
+                const row = classTeachers[i];
+                if (normalizeStr(row.userId) === uid && normalizeStr(row.name)) {
+                    return normalizeStr(row.name);
+                }
+            }
+        }
+        if (cohortsById) {
+            const cohortValues = Object.values(cohortsById);
+            for (let i = 0; i < cohortValues.length; i += 1) {
+                const cohort = cohortValues[i];
+                if (!cohort || normalizeStr(cohort.homeroomTeacherUserId) !== uid) {
+                    continue;
+                }
+                const cohortName = normalizeStr(cohort.homeroomTeacherName);
+                if (cohortName) {
+                    return cohortName;
+                }
+            }
+        }
+        return '';
+    }
+
+    function resolveHomeroomLabel(classData, cohortsById, appData) {
         if (!classData) {
             return '';
         }
@@ -587,26 +623,48 @@
         if (classHrName) {
             return classHrName;
         }
-        if (classHrUid && cohortsById) {
-            const cohort = Object.values(cohortsById).find((c) =>
-                normalizeStr(c.homeroomTeacherUserId) === classHrUid
-            );
-            if (cohort && cohort.homeroomTeacherName) {
-                return cohort.homeroomTeacherName;
+        if (classHrUid) {
+            const fromLinked = findHomeroomTeacherDisplayName(classHrUid, classData, cohortsById);
+            if (fromLinked) {
+                return fromLinked;
             }
-            return classHrUid;
+            if (appData) {
+                const teachers = listTeachersFromAppData(appData);
+                const hit = teachers.find((row) => normalizeStr(row.userId) === classHrUid);
+                if (hit) {
+                    const name = normalizeStr(hit.displayName);
+                    if (name && name !== classHrUid) {
+                        return name;
+                    }
+                }
+            }
         }
         const cohortIds = getClassCohortIds(classData);
         for (let i = 0; i < cohortIds.length; i += 1) {
             const cohort = cohortsById && cohortsById[cohortIds[i]];
-            if (cohort) {
-                const name = normalizeStr(cohort.homeroomTeacherName);
-                if (name) {
-                    return name;
-                }
-                const uid = normalizeStr(cohort.homeroomTeacherUserId);
-                if (uid) {
-                    return uid;
+            if (!cohort) {
+                continue;
+            }
+            const name = normalizeStr(cohort.homeroomTeacherName);
+            if (name) {
+                return name;
+            }
+            const uid = normalizeStr(cohort.homeroomTeacherUserId);
+            if (!uid) {
+                continue;
+            }
+            const fromLinked = findHomeroomTeacherDisplayName(uid, classData, cohortsById);
+            if (fromLinked) {
+                return fromLinked;
+            }
+            if (appData) {
+                const teachers = listTeachersFromAppData(appData);
+                const hit = teachers.find((row) => normalizeStr(row.userId) === uid);
+                if (hit) {
+                    const resolved = normalizeStr(hit.displayName);
+                    if (resolved && resolved !== uid) {
+                        return resolved;
+                    }
                 }
             }
         }
@@ -1414,7 +1472,7 @@
                     : (classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary'));
             const block = blocks[blockKey];
             const category = rowNorm.category || getTeacherCategoryForClass(classData, selector);
-            const homeroomLabel = resolveHomeroomLabel(classData, cohortsById);
+            const homeroomLabel = resolveHomeroomLabel(classData, cohortsById, appData);
             const placements = getTeacherTimetablePlacements(classData, rowNorm, appData);
             const color = normalizeStr(classData.color) || '#6366f1';
             const textColor = normalizeStr(classData.textColor) || '';

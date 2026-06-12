@@ -6303,6 +6303,7 @@ let lessonContextMenuState = null;
 let timetableContextMenuState = null;
 let lastDayNotesSummaryDate = null;
 let classDayNoteModalState = null;
+let dayNoteSaveInFlight = false;
 
 function getCurrentClassContext(options = {}) {
     const api = getTimetableApi();
@@ -6683,6 +6684,56 @@ function buildCohortsByIdMap() {
     return cohortsById;
 }
 
+function resolveHomeroomTeacherDisplayName(hrUid) {
+    const uid = String(hrUid || '').trim();
+    if (!uid) {
+        return '';
+    }
+    const row = listTimetableTeachers().find((r) => r.userId === uid);
+    if (row) {
+        const name = String(row.displayName || row.name || '').trim();
+        if (name && name !== uid) {
+            return name;
+        }
+    }
+    const api = getTimetableApi();
+    if (api && typeof api.listTeachersFromAppData === 'function') {
+        const fromData = api.listTeachersFromAppData(appData);
+        const hit = fromData.find((r) => String(r.userId || '').trim() === uid);
+        if (hit) {
+            const name = String(hit.displayName || hit.name || '').trim();
+            if (name && name !== uid) {
+                return name;
+            }
+        }
+    }
+    for (const classData of appData.classes || []) {
+        if (String(classData.homeroomTeacherUserId || '').trim() === uid) {
+            const classHrName = String(classData.homeroomTeacherName || '').trim();
+            if (classHrName) {
+                return classHrName;
+            }
+        }
+        for (const teacherRow of getClassTeachersListForLessonFilter(classData)) {
+            if (String(teacherRow.userId || '').trim() === uid) {
+                const teacherName = String(teacherRow.name || '').trim();
+                if (teacherName) {
+                    return teacherName;
+                }
+            }
+        }
+    }
+    for (const cohort of appData.cohorts || []) {
+        if (cohort && String(cohort.homeroomTeacherUserId || '').trim() === uid) {
+            const cohortName = String(cohort.homeroomTeacherName || '').trim();
+            if (cohortName) {
+                return cohortName;
+            }
+        }
+    }
+    return '';
+}
+
 function resolveHomeroomMetaForClass(classData, cohortsById) {
     if (!classData) {
         return { key: HOMEROOM_NONE_KEY, label: t('cohortsNoHomeroom') };
@@ -6691,13 +6742,15 @@ function resolveHomeroomMetaForClass(classData, cohortsById) {
     const api = getTimetableApi();
     let label = '';
     if (api && typeof api.resolveHomeroomLabel === 'function') {
-        label = api.resolveHomeroomLabel(classData, map) || '';
+        label = api.resolveHomeroomLabel(classData, map, appData) || '';
     }
     const hrUid = resolveHomeroomUserIdForClass(classData);
     const key = hrUid || HOMEROOM_NONE_KEY;
-    if (!label && key !== HOMEROOM_NONE_KEY) {
-        const row = listTimetableTeachers().find((r) => r.userId === key);
-        label = row ? (row.displayName || key) : key;
+    if (key !== HOMEROOM_NONE_KEY && (!label || label === key)) {
+        const resolved = resolveHomeroomTeacherDisplayName(key);
+        if (resolved) {
+            label = resolved;
+        }
     }
     if (!label) {
         label = t('cohortsNoHomeroom');
@@ -7189,7 +7242,18 @@ async function flushTeamSaveAfterDayNotesChange() {
     }
 }
 
-function appendClassDayNote({ classId, dateStr, text, createdAt, taggedStudentIds, categoryId }) {
+function appendClassDayNote({
+    classId,
+    dateStr,
+    text,
+    createdAt,
+    taggedStudentIds,
+    categoryId,
+    skipClassNotesTabRender = false
+}) {
+    if (dayNoteSaveInFlight) {
+        return false;
+    }
     if (isDayNoteWriteBlocked(classId)) {
         showLockFlash(getDayNoteWriteBlockedMessage(classId), false);
         return false;
@@ -7198,6 +7262,8 @@ function appendClassDayNote({ classId, dateStr, text, createdAt, taggedStudentId
     if (!api) {
         return false;
     }
+    dayNoteSaveInFlight = true;
+    try {
     ensureDayNotesArray();
     const actorId = getDayNotesActorUserId();
     const classData = appData.classes.find((c) => c && c.id === classId);
@@ -7237,7 +7303,9 @@ function appendClassDayNote({ classId, dateStr, text, createdAt, taggedStudentId
     if (document.getElementById('classNotesShell')) {
         ensureClassNotesFilterIncludes(classId);
         widenClassNotesDateRangeForNote(dateStr);
-        renderClassNotesTab();
+        if (!skipClassNotesTabRender) {
+            renderClassNotesTab();
+        }
     }
     if (!isNotesPage()) {
         refreshNotesPageIfMounted();
@@ -7247,6 +7315,9 @@ function appendClassDayNote({ classId, dateStr, text, createdAt, taggedStudentId
     }
     scheduleTabWarningsRefresh();
     return true;
+    } finally {
+        dayNoteSaveInFlight = false;
+    }
 }
 
 function saveClassDayNoteFromModal() {
@@ -7401,9 +7472,13 @@ function resetClassNotesAddForm() {
 }
 
 function saveClassNoteFromNotesTab() {
+    if (dayNoteSaveInFlight) {
+        return;
+    }
     const classSelect = document.getElementById('classNotesAddClass');
     const datetimeEl = document.getElementById('classNotesAddDatetime');
     const textEl = document.getElementById('classNotesAddText');
+    const saveBtn = document.getElementById('classNotesAddSaveBtn');
     const classId = classSelect ? (classSelect.value || '').trim() : '';
     const text = textEl ? (textEl.value || '').trim() : '';
     if (!classId) {
@@ -7418,15 +7493,20 @@ function saveClassNoteFromNotesTab() {
         showClassNotesExportStatus(false, t('classNotesInvalidDatetime'));
         return;
     }
+    if (saveBtn) {
+        saveBtn.disabled = true;
+    }
     const ok = appendClassDayNote({
         classId,
         dateStr: parsed.dateStr,
         text,
         createdAt: parsed.createdAt,
         taggedStudentIds: syncDayNoteTaggedStudentIds(text, classId),
-        categoryId: getSelectedDayNoteCategoryId(document.getElementById('classNotesAddCategory'))
+        categoryId: getSelectedDayNoteCategoryId(document.getElementById('classNotesAddCategory')),
+        skipClassNotesTabRender: true
     });
     if (!ok) {
+        syncClassNotesAddFormChrome();
         return;
     }
     if (textEl) {
@@ -7437,7 +7517,10 @@ function saveClassNoteFromNotesTab() {
         true,
         isViewAsSession() ? t('classNotesSavedViewAs') : t('classNotesSaved')
     );
-    renderClassNotesTab();
+    requestAnimationFrame(() => {
+        renderClassNotesTab();
+        syncClassNotesAddFormChrome();
+    });
 }
 
 function renderDayNotesSummaryList(dateStr) {
