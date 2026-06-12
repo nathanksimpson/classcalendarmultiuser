@@ -184,12 +184,23 @@
         saveBtn.className = 'btn btn-primary btn-small';
         saveBtn.textContent = t('classNotesSaveEdit');
         saveBtn.addEventListener('click', () => {
+            if (saveBtn.disabled) {
+                return;
+            }
             const text = (textarea.value || '').trim();
-            if (text) {
-                const categoryId = categorySelect && typeof getCategorySelectValue === 'function'
-                    ? getCategorySelectValue(categorySelect)
-                    : note.categoryId;
+            if (!text) {
+                return;
+            }
+            const categoryId = categorySelect && typeof getCategorySelectValue === 'function'
+                ? getCategorySelectValue(categorySelect)
+                : note.categoryId;
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            try {
                 onSaveEdit(note.id, text, note.classId, categoryId);
+            } finally {
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
             }
         });
 

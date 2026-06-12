@@ -223,4 +223,24 @@ assert(
     'resolveMentionInsertRange captures @ through caret for pick insert'
 );
 
+const prevCandidates = [
+    { studentId: 'stu-1', insertLabel: 'Purple T 김민지' },
+    { studentId: 'stu-2', insertLabel: 'Purple T 이서준' }
+];
+const nextCandidates = [
+    { studentId: 'stu-2', insertLabel: 'Purple T 이서준' }
+];
+assert(
+    mentions.preserveMentionActiveIndex(1, prevCandidates, nextCandidates) === 0,
+    'preserveMentionActiveIndex follows highlighted student across filter'
+);
+assert(
+    mentions.preserveMentionActiveIndex(0, prevCandidates, nextCandidates) === -1,
+    'preserveMentionActiveIndex clears highlight when student drops from list'
+);
+assert(
+    mentions.preserveMentionActiveIndex(-1, prevCandidates, nextCandidates) === -1,
+    'preserveMentionActiveIndex stays -1 when nothing was highlighted'
+);
+
 console.log('day-note-mentions.test.mjs: all passed');

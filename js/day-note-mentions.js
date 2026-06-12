@@ -10,13 +10,32 @@
     }
 
     function tuneDayNoteTextareaForTouchInput(textarea) {
-        if (!textarea || !isCoarsePointerDevice()) {
+        if (!textarea) {
+            return;
+        }
+        textarea.setAttribute('autocomplete', 'off');
+        if (!isCoarsePointerDevice()) {
             return;
         }
         textarea.spellcheck = false;
         textarea.setAttribute('autocorrect', 'off');
-        textarea.setAttribute('autocomplete', 'off');
         textarea.setAttribute('autocapitalize', 'sentences');
+    }
+
+    /**
+     * Keep keyboard highlight when the filtered candidate list changes.
+     * @returns {number} index in nextCandidates, or -1
+     */
+    function preserveMentionActiveIndex(prevIndex, prevCandidates, nextCandidates) {
+        if (prevIndex < 0 || !Array.isArray(prevCandidates) || !Array.isArray(nextCandidates)) {
+            return -1;
+        }
+        const picked = prevCandidates[prevIndex];
+        if (!picked || !picked.studentId) {
+            return -1;
+        }
+        const nextIdx = nextCandidates.findIndex((c) => c && c.studentId === picked.studentId);
+        return nextIdx >= 0 ? nextIdx : -1;
     }
 
     function escapeHtml(s) {
@@ -575,13 +594,29 @@
             dropdown.appendChild(div);
         }
 
+        function restoreTextareaFocusIfNeeded(hadFocus, selStart, selEnd) {
+            if (!hadFocus) {
+                return;
+            }
+            textarea.focus();
+            if (selStart != null) {
+                textarea.selectionStart = selStart;
+                textarea.selectionEnd = selEnd != null ? selEnd : selStart;
+            }
+        }
+
         function renderDropdown(candidates, query) {
             ensureFullMentionUi();
             if (!dropdown) {
                 return;
             }
+            const hadFocus = document.activeElement === textarea;
+            const selStart = textarea.selectionStart;
+            const selEnd = textarea.selectionEnd;
+            const prevCandidates = visibleCandidates;
+            const prevIndex = activeIndex;
             visibleCandidates = candidates;
-            activeIndex = candidates.length ? 0 : -1;
+            activeIndex = preserveMentionActiveIndex(prevIndex, prevCandidates, candidates);
             dropdown.replaceChildren();
             if (!candidates.length) {
                 const empty = document.createElement('div');
@@ -589,6 +624,7 @@
                 empty.textContent = t('dayNoteMentionNoMatch');
                 dropdown.appendChild(empty);
                 dropdown.classList.add('active');
+                restoreTextareaFocusIfNeeded(hadFocus, selStart, selEnd);
                 return;
             }
             const showDividers = !String(query || '').trim();
@@ -602,12 +638,11 @@
                     }
                     lastTier = c.tier;
                 }
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'autocomplete-item';
-                btn.setAttribute('role', 'option');
-                btn.dataset.index = String(idx);
-                btn.dataset.insertLabel = c.insertLabel || '';
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.setAttribute('role', 'option');
+                item.dataset.index = String(idx);
+                item.dataset.insertLabel = c.insertLabel || '';
                 const primary = c.insertLabel || c.name || c.nameEn;
                 const secondaryParts = [];
                 if (c.name && c.name !== primary) {
@@ -617,21 +652,22 @@
                     secondaryParts.push(c.nameEn);
                 }
                 const secondary = secondaryParts.join(' · ');
-                btn.innerHTML = secondary
+                item.innerHTML = secondary
                     ? `<span class="item-name">${escapeHtml(primary)}</span><span class="item-details">${escapeHtml(secondary)}</span>`
                     : `<span class="item-name">${escapeHtml(primary)}</span>`;
                 if (idx === activeIndex) {
-                    btn.classList.add('selected');
+                    item.classList.add('selected');
                 }
-                btn.addEventListener('mousedown', (ev) => {
+                item.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     const label = ev.currentTarget.dataset.insertLabel || c.insertLabel;
                     const range = resolveMentionInsertRange(textarea, mentionQueryOpts());
                     insertSelectedLabel(label, range);
                 });
-                dropdown.appendChild(btn);
+                dropdown.appendChild(item);
             });
             dropdown.classList.add('active');
+            restoreTextareaFocusIfNeeded(hadFocus, selStart, selEnd);
         }
 
         function syncActiveItem() {
@@ -718,7 +754,7 @@
                 syncActiveItem();
             } else if (ev.key === 'ArrowUp') {
                 ev.preventDefault();
-                activeIndex = Math.max(activeIndex - 1, 0);
+                activeIndex = Math.max(activeIndex - 1, -1);
                 syncActiveItem();
             } else if (ev.key === 'Enter' && activeIndex >= 0) {
                 ev.preventDefault();
@@ -737,6 +773,7 @@
 
         textarea.addEventListener('input', onMentionInput);
         textarea.addEventListener('compositionend', onMentionCompositionEnd);
+        ensureFullMentionUi();
     }
 
     function syncTaggedStudentIdsForNote(text, classId, cohorts, classes) {
@@ -759,6 +796,7 @@
         getMentionQueryAtCursor,
         resolveMentionInsertRange,
         attachMentionAutocomplete,
+        preserveMentionActiveIndex,
         isCoarsePointerDevice,
         tuneDayNoteTextareaForTouchInput
     };
