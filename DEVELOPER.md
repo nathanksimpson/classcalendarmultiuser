@@ -2,7 +2,7 @@
 
 Quick reference for editing this repo and pushing updates. Teachers use [FOR TEACHERS.md](FOR%20TEACHERS.md) and [FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md); in-app Help is at `help.html` (`js/help-guide.js`, `js/help-page.js`). Production setup uses [CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md).
 
-**Project location:** `G:\Other computers\내 컴퓨터\Class Calendar Multi-User` — a **Google Drive** folder used to sync the repo between home and work. **GitHub** holds committed code; **production** holds what users see after `npm run deploy`. Those three can disagree briefly (e.g. deployed on work PC but not yet pushed, or Drive synced but `git pull` not run). See [AGENTS.md](AGENTS.md) → *Google Drive sync*.
+**Project location:** `D:\Simson USB\Class Calendar Multi User` on the **Simson USB** stick (drive letter may be `D:`, `E:`, etc.). **GitHub** holds committed code; **production** holds what users see after `npm run deploy`. Those three can disagree briefly (e.g. deployed on work PC but not yet pushed). See [AGENTS.md](AGENTS.md) → *USB portable workflow*.
 
 ## Local setup
 
@@ -171,7 +171,7 @@ Production: https://classcalendarmultiuser.nathanksimpson.workers.dev (see `PUBL
 - [ ] **D1 migrations** (only if you added a new file under `worker/migrations/`):
 
   ```powershell
-  cd "G:\Other computers\내 컴퓨터\Class Calendar Multi-User"
+  cd "D:\Simson USB\Class Calendar Multi User"
   npm run db:migrate:remote
   ```
 
@@ -208,8 +208,8 @@ Production: https://classcalendarmultiuser.nathanksimpson.workers.dev (see `PUBL
 
 ## Common pitfalls
 
-1. **Wrong repo** — This is `G:\Other computers\내 컴퓨터\Class Calendar Multi-User`, not `f:\Calendar App` (single-user, no team sync).
-2. **Drive ≠ deploy** — Google Drive syncs files between PCs; only `npm run deploy` updates production. After switching computers: wait for Drive, then `git pull origin main`. If live site behavior differs from your folder, pull from GitHub and check who last deployed.
+1. **Wrong repo** — This is `Simson USB\Class Calendar Multi User`, not `f:\Calendar App` (single-user, no team sync).
+2. **USB ≠ deploy** — Carrying the USB between PCs does not update production; only `npm run deploy` does. After switching computers: plug in USB, `git pull origin main`, `npm install` if needed. If live site behavior differs from your folder, pull from GitHub and check who last deployed.
 3. Fixing only `server/` leaves production broken until `worker/src/index.js` matches.
 4. Local migrations live in `server/schema.js`; production needs `worker/migrations/*.sql`.
 5. After `sync-from-main`, re-check `index.html` script tags.

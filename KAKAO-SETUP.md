@@ -36,10 +36,10 @@ After deploy, register the redirect URI in Kakao Developers (see `/api/health` �
 
 ## 3. Cloudflare Worker secrets
 
-In the project folder (`G:\Other computers\내 컴퓨터\Class Calendar Multi-User`), in PowerShell:
+In the project folder (`D:\Simson USB\Class Calendar Multi User` — adjust drive letter if needed), in PowerShell:
 
 ```powershell
-cd "G:\Other computers\내 컴퓨터\Class Calendar Multi-User"
+cd "D:\Simson USB\Class Calendar Multi User"
 npx wrangler secret put KAKAO_CLIENT_ID
 ```
 
