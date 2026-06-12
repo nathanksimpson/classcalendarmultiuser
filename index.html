@@ -621,6 +621,7 @@
             <section id="panel-homework" class="app-tab-panel" data-tab="homework" role="tabpanel" aria-labelledby="zoneBtn-schedule" hidden>
                 <div class="module-toolbar homework-tab-toolbar">
                     <button type="button" id="contentExpandToggleBtn" class="btn btn-outline btn-small" data-i18n="contentExpand">Expand view</button>
+                    <button type="button" id="homeworkDailySummaryPrintBtn" class="btn btn-outline btn-small" data-i18n="dailySummaryPrintBtn">Print daily summary</button>
                     <div class="homework-ref-date-controls">
                         <label class="homework-ref-date-label" for="homeworkReferenceDate">
                             <span data-i18n="homeworkTabReferenceDate">Reference date</span>
@@ -1276,6 +1277,49 @@
         </div>
     </div>
 
+    <div id="dailySummaryPrintModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="dailySummaryPrintModalTitle">
+        <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
+            <div class="modal-header">
+                <h2 id="dailySummaryPrintModalTitle" data-i18n="dailySummaryPrintTitle">Print daily summary</h2>
+                <button type="button" class="modal-close" id="closeDailySummaryPrintModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll">
+                <form id="dailySummaryPrintForm" class="print-options-form">
+                    <div class="form-actions print-form-header-actions">
+                        <button type="submit" class="btn btn-primary" data-i18n="printBtn">Print</button>
+                    </div>
+                    <p id="dailySummaryPrintDateLine" class="section-hint"></p>
+                    <p id="dailySummaryPrintClassCount" class="section-hint"></p>
+                    <section class="print-form-section" aria-labelledby="dailySummaryPrintSectionWhatTitle">
+                        <h3 id="dailySummaryPrintSectionWhatTitle" class="print-form-section-title" data-i18n="dailySummaryPrintSectionWhat">What to print</h3>
+                        <div class="form-group print-cal-vis">
+                            <label class="checkbox-label"><input type="checkbox" id="dailySummaryPrintIncludeTeacher" checked><span data-i18n="dailySummaryPrintIncludeTeacher">Teacher daily summary</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="dailySummaryPrintIncludeStudent" checked><span data-i18n="dailySummaryPrintIncludeStudent">Today&apos;s Homework (student printout)</span></label>
+                        </div>
+                        <p class="section-hint" data-i18n="dailySummaryPrintTeacherHint">Teacher summary prints all classes together on one page when possible, or two pages at most.</p>
+                    </section>
+                    <section id="dailySummaryPrintStudentOptions" class="print-form-section" aria-labelledby="dailySummaryPrintSectionStudentTitle">
+                        <h3 id="dailySummaryPrintSectionStudentTitle" class="print-form-section-title" data-i18n="dailySummaryPrintSectionStudent">Student handout options</h3>
+                        <p class="section-hint" data-i18n="dailySummaryPrintStudentHint">Student handouts open in a separate tab — one sheet per class with a cut-friendly homework grid.</p>
+                        <div class="form-group">
+                            <label for="dailySummaryPrintCopiesPerPage" data-i18n="dailySummaryPrintCopiesPerPage">Copies per page</label>
+                            <select id="dailySummaryPrintCopiesPerPage" class="form-control">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="4" selected>4</option>
+                                <option value="6">6</option>
+                                <option value="9">9</option>
+                            </select>
+                        </div>
+                        <div class="form-group print-cal-vis">
+                            <label class="checkbox-label"><input type="checkbox" id="dailySummaryPrintSinglePageOnly" checked><span data-i18n="dailySummaryPrintSinglePageOnly">Single page only (scale to fit)</span></label>
+                        </div>
+                    </section>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="timetablePrintOptionsModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="timetablePrintOptionsModalTitle">
         <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
             <div class="modal-header">
@@ -1475,6 +1519,7 @@
     <script defer src="js/day-note-categories.js?v=20260612-next-class-cat"></script>
     <script defer src="js/day-note-mentions.js?v=20260612-chrome-notes-input"></script>
     <script defer src="js/day-notes.js?v=20260612-prep-notes"></script>
+    <script defer src="js/daily-summary-print.js?v=20260612-daily-summary-fix"></script>
     <script defer src="js/class-notes-panel.js?v=20260612-chrome-notes-input"></script>
     <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
         <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
@@ -1523,10 +1568,10 @@
     </div>
     <script defer src="js/page-chrome.js?v=20260607-ui-unify"></script>
     <script defer src="js/tab-warnings.js?v=20260612-hr-notify"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260612-cohort-ui-tight"></script>
-    <script defer src="js/i18n/calendar-ko.js?v=20260612-cohort-ui-tight"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260612-daily-summary-fix"></script>
+    <script defer src="js/i18n/calendar-ko.js?v=20260612-daily-summary-fix"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260612-chrome-notes-input"></script>
+    <script defer src="app.js?v=20260612-daily-summary-fix"></script>
 </body>
 </html>
 
