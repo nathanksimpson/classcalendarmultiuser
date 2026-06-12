@@ -74,10 +74,24 @@
         };
     }
 
-    /**
-     * @returns {Array<{ studentId, name, nameEn, insertLabel, searchHay, cohortName, tier }>}
-     */
-    function getStudentsForMentions(classId, cohorts, classes) {
+    const studentsForMentionsCache = new Map();
+
+    function rosterFingerprint(classId, cohorts, classes) {
+        const cid = String(classId || '').trim();
+        let fp = `${cid}|`;
+        (cohorts || []).forEach((cohort) => {
+            if (!cohort) {
+                return;
+            }
+            const activeCount = (cohort.students || []).filter((s) => s && s.active !== false).length;
+            fp += `${cohort.id}:${activeCount};`;
+        });
+        const classData = findClassById(cid, classes);
+        fp += `|${(classData && classData.cohortIds) || []}`;
+        return fp;
+    }
+
+    function computeStudentsForMentions(classId, cohorts, classes) {
         const domain = getDomain();
         if (!domain) {
             return [];
@@ -101,6 +115,20 @@
             .filter((row) => row.student && !classIdSet.has(row.student.id))
             .map((row) => buildMentionEntry(row, nameCounts, 1));
         return tier0.concat(tier1);
+    }
+
+    /**
+     * @returns {Array<{ studentId, name, nameEn, insertLabel, searchHay, cohortName, tier }>}
+     */
+    function getStudentsForMentions(classId, cohorts, classes) {
+        const fp = rosterFingerprint(classId, cohorts, classes);
+        const cached = studentsForMentionsCache.get(fp);
+        if (cached) {
+            return cached;
+        }
+        const result = computeStudentsForMentions(classId, cohorts, classes);
+        studentsForMentionsCache.set(fp, result);
+        return result;
     }
 
     function sortMentionCandidates(list) {
@@ -367,17 +395,39 @@
     }
 
     function isCaretAfterCompletedMention(value, at, pos, classId, cohorts, classes) {
-        const between = value.slice(at + 1, pos).replace(/\s+$/, '');
+        const between = value.slice(at + 1, pos);
         if (!between) {
             return false;
         }
+        const trimmed = between.replace(/\s+$/, '');
         const insertLabels = collectInsertLabelsForClass(classId, cohorts, classes);
-        const exact = insertLabels.find((entry) => entry.label === between);
+        const sorted = [...insertLabels].sort((a, b) => b.label.length - a.label.length);
+        for (const entry of sorted) {
+            const label = entry.label;
+            if (!between.startsWith(label)) {
+                continue;
+            }
+            const rest = between.slice(label.length);
+            if (rest === '' || /^\s+$/.test(rest)) {
+                const hasLongerPrefix = insertLabels.some(
+                    (e) => e.label !== label && e.label.startsWith(`${trimmed} `)
+                );
+                if (hasLongerPrefix) {
+                    return false;
+                }
+                return true;
+            }
+            if (/^\s+\S/.test(rest)) {
+                return true;
+            }
+            return false;
+        }
+        const exact = insertLabels.find((entry) => entry.label === trimmed);
         if (!exact) {
             return false;
         }
         const hasLongerPrefix = insertLabels.some(
-            (entry) => entry.label !== between && entry.label.startsWith(`${between} `)
+            (entry) => entry.label !== trimmed && entry.label.startsWith(`${trimmed} `)
         );
         if (hasLongerPrefix) {
             return false;
@@ -570,8 +620,6 @@
 
         function refreshDropdown() {
             const opts = mentionQueryOpts();
-            const classId = opts.classId;
-            const students = getStudentsForMentions(classId, opts.cohorts, opts.classes);
             const ctx = getMentionQueryAtCursor(textarea, opts);
             if (!ctx) {
                 mentionCaret = null;
@@ -579,6 +627,7 @@
                 return;
             }
             mentionCaret = { atIndex: ctx.atIndex, end: ctx.end };
+            const students = getStudentsForMentions(opts.classId, opts.cohorts, opts.classes);
             if (!students.length) {
                 hideDropdown();
                 return;
@@ -587,11 +636,33 @@
             renderDropdown(candidates.slice(0, 20), ctx.query);
         }
 
-        textarea.addEventListener('input', () => {
-            if (suppressMentionRefresh) {
+        function caretHasMentionTrigger() {
+            const value = textarea.value || '';
+            const pos = textarea.selectionStart != null ? textarea.selectionStart : value.length;
+            return value.slice(0, pos).includes('@');
+        }
+
+        textarea.addEventListener('input', (ev) => {
+            if (suppressMentionRefresh || ev.isComposing) {
+                return;
+            }
+            if (!caretHasMentionTrigger()) {
+                if (dropdown.classList.contains('active')) {
+                    mentionCaret = null;
+                    hideDropdown();
+                }
                 return;
             }
             refreshDropdown();
+        });
+
+        textarea.addEventListener('compositionend', () => {
+            if (suppressMentionRefresh) {
+                return;
+            }
+            if (caretHasMentionTrigger()) {
+                refreshDropdown();
+            }
         });
 
         textarea.addEventListener('keydown', (ev) => {

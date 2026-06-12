@@ -155,6 +155,11 @@ const mentionOpts = { classId: 'class-1', cohorts, classes };
 const afterCtx = mentions.getMentionQueryAtCursor(afterMentionTa, mentionOpts);
 assert(afterCtx === null, 'getMentionQueryAtCursor returns null after completed mention');
 
+const afterMentionMoreText = '@Purple T 김민지 participated well today.';
+const afterMoreTa = makeMockTextarea(afterMentionMoreText, afterMentionMoreText.length);
+const afterMoreCtx = mentions.getMentionQueryAtCursor(afterMoreTa, mentionOpts);
+assert(afterMoreCtx === null, 'getMentionQueryAtCursor returns null after completed mention + more text');
+
 const activeTa = makeMockTextarea('@Purple T', 9);
 const activeCtx = mentions.getMentionQueryAtCursor(activeTa, mentionOpts);
 assert(activeCtx && activeCtx.query === 'Purple T', 'getMentionQueryAtCursor allows spaces in active query');
