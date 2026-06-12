@@ -4,6 +4,21 @@
 (function (global) {
     const DISAMBIG_SEP = ' · ';
 
+    function isCoarsePointerDevice() {
+        return typeof global.matchMedia === 'function'
+            && global.matchMedia('(pointer: coarse)').matches;
+    }
+
+    function tuneDayNoteTextareaForTouchInput(textarea) {
+        if (!textarea || !isCoarsePointerDevice()) {
+            return;
+        }
+        textarea.spellcheck = false;
+        textarea.setAttribute('autocorrect', 'off');
+        textarea.setAttribute('autocomplete', 'off');
+        textarea.setAttribute('autocapitalize', 'sentences');
+    }
+
     function escapeHtml(s) {
         return String(s || '')
             .replace(/&/g, '&amp;')
@@ -496,6 +511,7 @@
             return;
         }
         textarea.dataset.mentionBound = '1';
+        tuneDayNoteTextareaForTouchInput(textarea);
         const getCohorts = deps && typeof deps.getCohorts === 'function' ? deps.getCohorts : () => [];
         const getClasses = deps && typeof deps.getClasses === 'function' ? deps.getClasses : () => [];
         const t = deps && typeof deps.t === 'function' ? deps.t : (k) => k;
@@ -508,28 +524,44 @@
             };
         }
 
-        let wrap = textarea.closest('.day-note-mention-wrap');
-        if (!wrap) {
-            wrap = document.createElement('div');
-            wrap.className = 'autocomplete-wrapper day-note-mention-wrap';
-            textarea.parentNode.insertBefore(wrap, textarea);
-            wrap.appendChild(textarea);
-        }
-
-        let dropdown = wrap.querySelector('.day-note-mention-dropdown');
-        if (!dropdown) {
-            dropdown = document.createElement('div');
-            dropdown.className = 'autocomplete-dropdown day-note-mention-dropdown';
-            dropdown.setAttribute('role', 'listbox');
-            wrap.appendChild(dropdown);
-        }
-
+        let wrap = null;
+        let dropdown = null;
+        let fullUiReady = false;
         let activeIndex = -1;
         let visibleCandidates = [];
         let mentionCaret = null;
         let suppressMentionRefresh = false;
 
+        function ensureFullMentionUi() {
+            if (fullUiReady || !textarea.parentNode) {
+                return;
+            }
+            fullUiReady = true;
+            wrap = textarea.closest('.day-note-mention-wrap');
+            if (!wrap) {
+                wrap = document.createElement('div');
+                wrap.className = 'autocomplete-wrapper day-note-mention-wrap';
+                textarea.parentNode.insertBefore(wrap, textarea);
+                wrap.appendChild(textarea);
+            }
+            dropdown = wrap.querySelector('.day-note-mention-dropdown');
+            if (!dropdown) {
+                dropdown = document.createElement('div');
+                dropdown.className = 'autocomplete-dropdown day-note-mention-dropdown';
+                dropdown.setAttribute('role', 'listbox');
+                wrap.appendChild(dropdown);
+            }
+            textarea.addEventListener('keydown', onMentionKeydown);
+            textarea.addEventListener('blur', onMentionBlur);
+        }
+
         function hideDropdown() {
+            if (!dropdown || !dropdown.classList.contains('active')) {
+                mentionCaret = null;
+                activeIndex = -1;
+                visibleCandidates = [];
+                return;
+            }
             dropdown.classList.remove('active');
             dropdown.replaceChildren();
             activeIndex = -1;
@@ -544,6 +576,10 @@
         }
 
         function renderDropdown(candidates, query) {
+            ensureFullMentionUi();
+            if (!dropdown) {
+                return;
+            }
             visibleCandidates = candidates;
             activeIndex = candidates.length ? 0 : -1;
             dropdown.replaceChildren();
@@ -599,6 +635,9 @@
         }
 
         function syncActiveItem() {
+            if (!dropdown) {
+                return;
+            }
             dropdown.querySelectorAll('.autocomplete-item').forEach((el, idx) => {
                 el.classList.toggle('selected', idx === activeIndex);
             });
@@ -619,6 +658,7 @@
         }
 
         function refreshDropdown() {
+            ensureFullMentionUi();
             const opts = mentionQueryOpts();
             const ctx = getMentionQueryAtCursor(textarea, opts);
             if (!ctx) {
@@ -639,37 +679,34 @@
         function caretHasMentionTrigger() {
             const value = textarea.value || '';
             const pos = textarea.selectionStart != null ? textarea.selectionStart : value.length;
-            return value.slice(0, pos).includes('@');
+            return value.slice(0, pos).lastIndexOf('@') >= 0;
         }
 
-        textarea.addEventListener('input', (ev) => {
-            if (suppressMentionRefresh || ev.isComposing) {
+        function onMentionInput(ev) {
+            if (suppressMentionRefresh || (ev && ev.isComposing)) {
                 return;
             }
             if (!caretHasMentionTrigger()) {
-                if (dropdown.classList.contains('active')) {
+                if (dropdown && dropdown.classList.contains('active')) {
                     mentionCaret = null;
                     hideDropdown();
                 }
                 return;
             }
             refreshDropdown();
-        });
+        }
 
-        textarea.addEventListener('compositionend', () => {
+        function onMentionCompositionEnd() {
             if (suppressMentionRefresh) {
                 return;
             }
             if (caretHasMentionTrigger()) {
                 refreshDropdown();
             }
-        });
+        }
 
-        textarea.addEventListener('keydown', (ev) => {
-            if (ev.key === '@' && !ev.isComposing) {
-                setTimeout(refreshDropdown, 0);
-            }
-            if (!dropdown.classList.contains('active') || !visibleCandidates.length) {
+        function onMentionKeydown(ev) {
+            if (!dropdown || !dropdown.classList.contains('active') || !visibleCandidates.length) {
                 if (ev.key === 'Escape') {
                     hideDropdown();
                 }
@@ -692,11 +729,14 @@
                 ev.preventDefault();
                 hideDropdown();
             }
-        });
+        }
 
-        textarea.addEventListener('blur', () => {
+        function onMentionBlur() {
             setTimeout(hideDropdown, 150);
-        });
+        }
+
+        textarea.addEventListener('input', onMentionInput);
+        textarea.addEventListener('compositionend', onMentionCompositionEnd);
     }
 
     function syncTaggedStudentIdsForNote(text, classId, cohorts, classes) {
@@ -718,6 +758,8 @@
         renderMentionHtml,
         getMentionQueryAtCursor,
         resolveMentionInsertRange,
-        attachMentionAutocomplete
+        attachMentionAutocomplete,
+        isCoarsePointerDevice,
+        tuneDayNoteTextareaForTouchInput
     };
 })(typeof window !== 'undefined' ? window : global);
