@@ -53,6 +53,12 @@
     --pad-popover: var(--space-2);
     --pad-popover-body: var(--space-3);
 
+    --z-context-menu: 500;
+    --z-popover: 650;
+    --z-tab-warnings: 950;
+    --z-modal: 1000;
+    --z-header-popover: 1100;
+
     --text-h1: 3rem;
     --text-h2: 2.5rem;
     --text-h3: 2rem;
@@ -171,7 +177,8 @@
     --banner-error-color: #7f1d1d;
     --banner-info-bg: #eff6ff;
     --banner-info-border: #93c5fd;
-    
+    --banner-info-color: #1e40af;
+
     --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
 
@@ -864,9 +871,9 @@ body {
 
 .calendar-context-menu {
     position: fixed;
-    z-index: 500;
+    z-index: var(--z-context-menu);
     min-width: 200px;
-    padding: 6px;
+    padding: var(--pad-popover);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
@@ -876,7 +883,7 @@ body {
 .calendar-context-menu-item {
     display: block;
     width: 100%;
-    padding: 10px 12px;
+    padding: var(--pad-popover-body) var(--space-3);
     font-family: var(--font-main);
     font-size: 0.875rem;
     font-weight: 500;
@@ -2315,7 +2322,7 @@ body:has(#panel-calendar:not([hidden])) {
     height: 100%;
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(4px);
-    z-index: 1000;
+    z-index: var(--z-modal);
     align-items: center;
     justify-content: center;
 }
@@ -2382,6 +2389,21 @@ body:has(#panel-calendar:not([hidden])) {
 
 .modal-body {
     padding: var(--pad-overlay);
+}
+
+/* Pad modal content when .modal-body wrapper is omitted */
+.modal-content > .modal-header ~ :not(form):not(.modal-body):not(.modal-body-scroll) {
+    padding-inline: var(--pad-overlay);
+}
+.modal-content > .modal-header ~ :not(form):not(.modal-body):not(.modal-body-scroll):first-child {
+    padding-top: var(--pad-overlay);
+}
+.modal-content > .modal-header ~ :not(form):not(.modal-body):not(.modal-body-scroll):last-child {
+    padding-bottom: var(--pad-overlay);
+}
+
+.modal-body > form {
+    padding: 0;
 }
 
 .modal-header h2 {
@@ -2833,7 +2855,7 @@ form.modal-body,
     background: var(--bg-card);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow-lg);
-    padding: 12px 16px;
+    padding: var(--pad-popover-body) var(--pad-surface);
     min-width: 200px;
     border: 1px solid var(--border-color);
 }
@@ -5674,7 +5696,14 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     grid-template-columns: minmax(var(--split-sidebar-min), var(--split-sidebar-max)) minmax(0, 1fr);
     gap: var(--space-4);
     align-items: start;
-    min-height: 400px;
+    min-height: 280px;
+}
+
+/* Homework: toolbar date picker is enough on desktop; keep mini calendar on phone/tablet */
+@media (min-width: 901px) {
+    .homework-ref-mini-calendar {
+        display: none;
+    }
 }
 
 /* Left sidebars: pin under sticky header; scroll class/list inside the panel */
@@ -6935,22 +6964,6 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     margin-top: 2px;
 }
 
-#booksEditorModal {
-    z-index: 1100;
-}
-
-#booksEditorModal .modal-content {
-    max-width: min(960px, 96vw);
-    max-height: min(90vh, 100dvh - 2rem);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-#booksEditorModal .modal-header {
-    flex-shrink: 0;
-}
-
 .books-editor-body {
     display: flex;
     flex-direction: column;
@@ -7124,7 +7137,7 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 #panel-curriculum .curriculum-tab-layout.workspace-books-layout {
     display: flex;
     align-items: stretch;
-    min-height: min(65vh, 640px);
+    min-height: min(50vh, 480px);
 }
 
 #panel-curriculum .curriculum-tab-editor-mount,
@@ -7240,7 +7253,7 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 #panel-syllabus .syllabus-tab-layout.workspace-books-layout {
     display: flex;
     align-items: stretch;
-    min-height: min(65vh, 640px);
+    min-height: min(50vh, 480px);
 }
 
 #panel-syllabus .syllabus-tab-editor-mount,
@@ -8076,12 +8089,12 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 
 .homework-external-banner {
     margin: 0;
-    padding: 10px 12px;
+    padding: var(--pad-popover-body) var(--space-3);
     border-radius: var(--border-radius);
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    color: #1e40af;
-    font-size: 0.9rem;
+    background: var(--banner-info-bg);
+    border: 1px solid var(--banner-info-border);
+    color: var(--banner-info-color, var(--text-primary));
+    font-size: var(--text-body-sm);
 }
 
 .homework-due-block {
@@ -8465,12 +8478,6 @@ html.role-super-admin[data-theme="dark"] {
 
 [data-theme="dark"] .modal {
     background: rgba(2, 6, 23, 0.72);
-}
-
-[data-theme="dark"] .homework-external-banner {
-    background: #1e3a5f;
-    border-color: #2563eb;
-    color: #bfdbfe;
 }
 
 [data-theme="dark"] .homework-copy-textarea:disabled {
@@ -13414,6 +13421,29 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
 
 .classroom-roster-layout {
     grid-template-columns: minmax(140px, 200px) minmax(160px, 240px) minmax(0, 1fr);
+}
+
+@media (max-width: 1200px) {
+    .classroom-roster-layout {
+        grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+        grid-template-rows: auto auto;
+    }
+
+    .classroom-roster-layout > .module-list-panel:first-of-type {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .classroom-roster-student-list-panel {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .classroom-roster-editor-panel {
+        grid-column: 2;
+        grid-row: 1 / -1;
+        align-self: stretch;
+    }
 }
 
 .classroom-dual-layout {
