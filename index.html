@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-notes-filters">
+    <link rel="stylesheet" href="styles.css?v=20260612-ui-review">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -154,7 +154,7 @@
                             <button type="button" class="app-zone-segment-btn is-active" data-segment="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="cohorts" data-i18n="tabCohorts">Cohorts</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="events" data-i18n="tabEvents">Events</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-i18n="tabTeachers">Teachers</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-i18n="tabCurriculum">Books</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-i18n="tabSyllabus">Syllabi</button>
                         </div>
@@ -163,8 +163,8 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="classroomTabHomework">Homework</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
-                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio">Portfolio</button>
-                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="points" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPoints">Points</button>
+                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
+                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="points" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPoints" hidden>Points</button>
                         </div>
                         <div id="zoneSegments-more" class="app-zone-segment-panel" data-zone="more" hidden>
                             <button type="button" class="app-zone-segment-btn is-active" data-segment="data" data-i18n="tabData">Data</button>
@@ -174,7 +174,6 @@
                 </div>
                 <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
                     <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
-                    <div id="teamLockStatusToolbar" class="team-lock-status-toolbar" hidden></div>
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
                     <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn calendar-display-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarDisplayBtn">Calendar display&hellip;</button>
                     <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
@@ -831,7 +830,7 @@
                     <p id="curriculumUpdatedBannerText" class="curriculum-updated-banner-text"></p>
                     <div class="curriculum-updated-banner-actions">
                         <button type="button" id="curriculumUpdatedBannerBtn" class="btn btn-primary btn-small" data-i18n="curriculumUpdatedBannerAction">Update their syllabi</button>
-                        <button type="button" id="curriculumUpdatedBannerDismiss" class="btn btn-outline btn-small" aria-label="Dismiss">&times;</button>
+                        <button type="button" id="curriculumUpdatedBannerDismiss" class="btn btn-outline btn-small" data-i18n-aria-label="setupBannerDismiss" aria-label="Dismiss">&times;</button>
                     </div>
                 </div>
                 <div class="curriculum-tab-layout workspace-books-layout">
@@ -864,7 +863,7 @@
                             <button type="button" id="dataImportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataImportCalendar">Import calendar</button>
                         </div>
                     </div>
-                    <div class="print-data-section print-data-section--curriculum-link">
+                    <div class="print-data-section print-data-section--curriculum-link" hidden>
                         <h2 class="module-section-title" data-i18n="tabCurriculum">Curriculum</h2>
                         <p class="section-hint" data-i18n="dataCurriculumLinkHint">Edit books, session pages, and program defaults using the Curriculum tab in the bar above.</p>
                     </div>
@@ -1338,6 +1337,7 @@
                 <button type="button" class="modal-close" id="closeTimetablePrintOptionsModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body-scroll">
+                <div class="print-form-mount">
                 <form id="timetablePrintForm" class="print-options-form">
                     <div class="form-actions print-form-header-actions">
                         <button type="submit" class="btn btn-primary" data-i18n="printBtn">Print</button>
@@ -1366,6 +1366,7 @@
                         </div>
                     </section>
                 </form>
+                </div>
             </div>
         </div>
     </div>
@@ -1580,11 +1581,11 @@
         </div>
     </div>
     <script defer src="js/page-chrome.js?v=20260607-ui-unify"></script>
-    <script defer src="js/tab-warnings.js?v=20260612-notify-dismiss"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260612-ui-padding-classroom"></script>
-    <script defer src="js/i18n/calendar-ko.js?v=20260612-ui-padding-classroom"></script>
+    <script defer src="js/tab-warnings.js?v=20260612-ui-review"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260612-ui-review"></script>
+    <script defer src="js/i18n/calendar-ko.js?v=20260612-ui-review"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260612-notes-filters"></script>
+    <script defer src="app.js?v=20260612-ui-review"></script>
 </body>
 </html>
 

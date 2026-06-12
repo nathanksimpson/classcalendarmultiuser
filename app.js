@@ -124,8 +124,15 @@ function applyLanguage() {
     if (langBtn) {
         langBtn.textContent = t('langToggle');
     }
+    const workspaceLangBtn = document.getElementById('workspaceLangToggle');
+    if (workspaceLangBtn) {
+        workspaceLangBtn.textContent = t('langToggle');
+    }
 
     updateThemeToggleButtons();
+    updateContentExpandChrome();
+    updateTermSettingsToggleSummary();
+    updateSetupChecklistBanner();
 
     document.documentElement.lang = currentLanguage === 'ko' ? 'ko' : 'en';
     const titleBase = (appData.calendarName && appData.calendarName.trim())
@@ -4221,7 +4228,7 @@ function ensureUiState() {
     appData.ui.activeSegment = migratedZone.segment;
     appData.ui.cohortsUsageTipsDismissed = !!appData.ui.cohortsUsageTipsDismissed;
     if (appData.ui.cohortsExtraCollapsed === undefined) {
-        appData.ui.cohortsExtraCollapsed = true;
+        appData.ui.cohortsExtraCollapsed = false;
     }
     if (typeof appData.ui.teachersTabCatalogCategoryFilter !== 'string') {
         appData.ui.teachersTabCatalogCategoryFilter = 'all';
@@ -4616,22 +4623,12 @@ function updateTermSettingsToggleSummary() {
 
 function applyTopBarCollapsedState() {
     const calendarOptions = document.getElementById('calendarOptions');
-    const topBar = document.getElementById('appTopBar');
-    const compactBar = document.querySelector('.app-top-bar-compact');
-    if (!calendarOptions && !topBar) {
+    if (!calendarOptions) {
         return;
     }
     ensureUiState();
     const collapsed = appData.ui.topBarCollapsed === true;
-    if (calendarOptions) {
-        calendarOptions.classList.toggle('calendar-options--collapsed', collapsed);
-    }
-    if (topBar) {
-        topBar.classList.toggle('app-top-bar--collapsed', collapsed);
-    }
-    if (compactBar) {
-        compactBar.classList.toggle('app-top-bar-compact--collapsed', collapsed);
-    }
+    calendarOptions.classList.toggle('calendar-options--collapsed', collapsed);
     updateTermSettingsToggleSummary();
     updateTopBarCalendarLabel();
     requestAnimationFrame(syncAppChromeStickyTop);
@@ -6969,15 +6966,12 @@ function showTimetableContextMenu(clientX, clientY, state) {
     }
 }
 
-function showCalendarContextMenu(clientX, clientY, dateStr) {
-    hideTimetableContextMenu();
-    hideLessonContextMenu();
+function updateCalendarContextMenuLabels(dateStr) {
     const menu = document.getElementById('calendarContextMenu');
     if (!menu) {
         return;
     }
-    calendarContextMenuDate = dateStr;
-    const dateLabel = formatDateDisplay(dateStr);
+    const dateLabel = dateStr ? formatDateDisplay(dateStr) : '';
     menu.querySelectorAll('[data-action]').forEach((btn) => {
         const action = btn.dataset.action;
         if (action === 'add-event') {
@@ -6986,8 +6980,21 @@ function showCalendarContextMenu(clientX, clientY, dateStr) {
             btn.textContent = t('contextViewDayNotes').replace('{date}', dateLabel);
         } else if (action === 'copy-day-notes') {
             btn.textContent = t('contextCopyDayNotes').replace('{date}', dateLabel);
+        } else if (action === 'download-day-notes') {
+            btn.textContent = t('contextDownloadDayNotes');
         }
     });
+}
+
+function showCalendarContextMenu(clientX, clientY, dateStr) {
+    hideTimetableContextMenu();
+    hideLessonContextMenu();
+    const menu = document.getElementById('calendarContextMenu');
+    if (!menu) {
+        return;
+    }
+    calendarContextMenuDate = dateStr;
+    updateCalendarContextMenuLabels(dateStr);
     positionFixedContextMenu(menu, clientX, clientY);
 }
 
@@ -7854,14 +7861,12 @@ function initCalendarContextMenu() {
         btn.type = 'button';
         btn.className = 'calendar-context-menu-item';
         btn.dataset.action = action;
-        if (action === 'download-day-notes') {
-            btn.textContent = t('contextDownloadDayNotes');
-        }
         btn.addEventListener('click', handler);
         menu.appendChild(btn);
     });
 
     document.body.appendChild(menu);
+    updateCalendarContextMenuLabels('');
 
     document.addEventListener('click', (e) => {
         const dayMenu = document.getElementById('calendarContextMenu');
@@ -10533,6 +10538,7 @@ function syncZoneNavFromTab(tabId) {
 
     updateContentPipelineStepper(tabId);
     updateContentExpandChrome();
+    syncContentExpandToggleVisibility(tabId);
     syncZoneNavPermissions();
 }
 
@@ -10544,7 +10550,7 @@ function syncZoneNavPermissions() {
     const classesPanel = document.getElementById('zoneSegments-classes');
     if (classesPanel) {
         classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="teachers"]').forEach((el) => {
-            el.hidden = !canAccessTeachersTab();
+            el.hidden = true;
         });
         classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="events"]').forEach((el) => {
             el.hidden = !canAccessSetupHost();
@@ -12013,12 +12019,13 @@ function updateContentPipelineStepper(tabId) {
         return;
     }
     const contentTabs = ['curriculum', 'syllabus'];
-    stepper.hidden = !contentTabs.includes(tabId);
+    const hasBooks = (appData.curriculumBooks || []).some((b) => b && b.id);
+    const hasSyllabi = (appData.classes || []).some((c) => c && c.syllabus && c.syllabus.length);
+    const setupIncomplete = !hasBooks || !hasSyllabi;
+    stepper.hidden = !contentTabs.includes(tabId) || !setupIncomplete;
     if (stepper.hidden) {
         return;
     }
-    const hasBooks = (appData.curriculumBooks || []).some((b) => b && b.id);
-    const hasSyllabi = (appData.classes || []).some((c) => c && c.syllabus && c.syllabus.length);
     const stepMap = {
         curriculum: 'books',
         syllabus: 'syllabi',
@@ -12059,6 +12066,16 @@ function updateContentExpandChrome() {
     }
     const expanded = document.documentElement.getAttribute('data-content-expanded') === '1';
     btn.textContent = expanded ? t('contentCollapse') : t('contentExpand');
+}
+
+function syncContentExpandToggleVisibility(tabId) {
+    const btn = document.getElementById('contentExpandToggleBtn');
+    if (!btn) {
+        return;
+    }
+    const tab = tabId || getActiveTab();
+    const showOn = ['homework', 'curriculum', 'syllabus'];
+    btn.hidden = !showOn.includes(tab);
 }
 
 function setupContentExpandToggle() {
@@ -12240,6 +12257,7 @@ function initAppTabs() {
     });
 
     setupContentExpandToggle();
+    syncContentExpandToggleVisibility();
     setupLockDrawerToggle();
     syncZoneNavPermissions();
     const classSearch = document.getElementById('classListSearch');
@@ -18693,7 +18711,6 @@ function setupEventListeners() {
 // Modal Functions
 // ============================================
 const EXCLUSIVE_MODAL_IDS = [
-    'booksEditorModal',
     'defaultClassEditorModal',
     'changePasswordModal',
     'editDisplayNameModal',

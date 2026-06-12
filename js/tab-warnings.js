@@ -860,7 +860,7 @@
         popover.style.maxHeight = `${Math.round(maxHeight)}px`;
         popover.style.left = `${Math.round(Math.max(margin, Math.min(rect.left, viewportW - margin - popover.offsetWidth)))}px`;
         popover.style.right = 'auto';
-        popover.style.zIndex = '10050';
+        popover.style.zIndex = getComputedStyle(document.documentElement).getPropertyValue('--z-tab-warnings').trim() || '950';
 
         popover.hidden = false;
         const popoverHeight = popover.offsetHeight;

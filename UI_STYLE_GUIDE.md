@@ -46,7 +46,9 @@ Semantic status/banner tokens: `--status-success-*`, `--status-error-*`, `--bann
 | `--space-6` | 32px |
 | `--space-7` | 48px |
 
-Padding aliases: `--pad-control-y`, `--pad-control-x`, `--pad-surface`, `--pad-overlay`, `--pad-popover`.
+Padding aliases: `--pad-control-y`, `--pad-control-x`, `--pad-surface`, `--pad-overlay`, `--pad-popover`, `--pad-popover-body`.
+
+Z-index aliases: `--z-context-menu`, `--z-popover`, `--z-tab-warnings`, `--z-modal`, `--z-header-popover`.
 
 Layout: `--app-gutter`, `--split-sidebar-min` / `--split-sidebar-max`, `--editor-prose-max`.
 
@@ -145,7 +147,13 @@ Structure: `.modal` → `.modal-content` → `.modal-header` + `.modal-body`.
 
 Variants: `.modal-small`, `.modal-wide`, `.modal-content--scrollable`.
 
+Direct children after `.modal-header` (when `.modal-body` is omitted) receive horizontal padding via shared rules in `styles.css`. Prefer wrapping content in `.modal-body` for new modals. Nested `form` inside `.modal-body` should not add extra padding (`.modal-body > form { padding: 0 }`).
+
+Print modals: wrap forms in `.print-form-mount` inside `.modal-body-scroll`.
+
 Register open/close/focus via `CCPModalRegistry` in `app.js`. Admin modals: `bindAdminModalA11y` in `js/admin.js`.
+
+Z-index: `--z-modal` (1000). Tab warnings popover uses `--z-tab-warnings` (950) so it stays below modals.
 
 ### Notices and status
 
@@ -155,9 +163,9 @@ Use existing banner/status token classes rather than inventing new alert colors.
 
 ### Toolbars and cards
 
-Calendar term/visibility blocks: `.calendar-toolbar-section` with `__heading` child.
+Calendar term settings: `#calendarOptions` with `.term-settings-header` and `.calendar-options-details` (collapse is calendar-only; does not hide lock UI).
 
-Top app chrome: `.app-top-bar`, `.app-header`, `.app-tab-host-btn`.
+Top app chrome: zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`) in `.app-header-unified`, plus `.app-top-bar` lock/banner stack.
 
 ### Accessibility
 
@@ -185,7 +193,7 @@ One movable form per entity (`#classForm`, `#holidayForm`): cloned once, mounted
 | Calendar popout | `data-editor-mode="popout"` | Shared fields only; Save in header |
 | Classes / Events tab | `data-editor-mode="full"` | Full field order + `.form-group--full-only` sections |
 | Syllabus tab | — | Table first; header Save + Refresh + ⋮ More |
-| Workspace | `workspace.html` | Homework + books editor subset |
+| Workspace | `workspace.html` | Redirect stub → `/?zone=…&contentExpanded=1` (homework or curriculum in main app) |
 | Day notes app | `notes.html` | Mobile journal |
 
 **Class field order** (same DOM in popout and full; popout hides full-only groups):
