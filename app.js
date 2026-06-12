@@ -12735,6 +12735,332 @@ function renderHomeworkEditor() {
     }
 }
 
+// ============================================
+// Daily summary print (Homework tab)
+// ============================================
+function getDailySummaryPrintModule() {
+    return typeof CCPDailySummaryPrint !== 'undefined' ? CCPDailySummaryPrint : null;
+}
+
+function getClassesForDailySummaryPrint() {
+    const mod = getDailySummaryPrintModule();
+    if (!mod) {
+        return [];
+    }
+    const referenceDate = getHomeworkReferenceDateFromUi();
+    const hwFilters = getHomeworkFiltersFromDom();
+    const assigned = getClassIdsAssignedToViewer();
+    const assignedSet = assigned ? new Set(assigned) : null;
+    return mod.resolveClassesForDailyPrint(getClassesInDisplayOrder(), {
+        referenceDate,
+        myClassesOnly: hwFilters.myClassesOnly,
+        assignedClassIds: assignedSet,
+        classOccursOnIsoDate: (c, date) => classOccursOnIsoDate(c, date)
+    });
+}
+
+function getDailySummaryPrintLabels() {
+    return {
+        teacherDocTitle: t('dailySummaryTeacherDocTitle'),
+        studentDocTitle: t('dailySummaryStudentDocTitle'),
+        fromLastClass: t('dailySummaryFromLastClass'),
+        gradingHomework: t('dailySummaryGradingHomework'),
+        todaySection: t('dailySummaryTodaySection'),
+        studentSheetTitle: t('dailySummaryStudentSheetTitle'),
+        dateLabel: t('dailySummaryDateLabel'),
+        dueLabel: t('dailySummaryDueLabel'),
+        sessionLabel: t('dailySummarySessionLabel'),
+        noPriorClass: t('dailySummaryNoPriorClass'),
+        noPrepNotes: t('dailySummaryNoPrepNotes'),
+        noGradingHomework: t('dailySummaryNoGradingHomework'),
+        noTodayContent: t('dailySummaryNoTodayContent'),
+        noHomework: t('dailySummaryNoHomework')
+    };
+}
+
+function buildDailySummaryPayloadsForPrint(classes, referenceDate) {
+    const mod = getDailySummaryPrintModule();
+    const dayNotesApi = getDayNotesApi();
+    const syllabusMod = getSyllabusModule();
+    const splitFn = syllabusMod && typeof syllabusMod.splitPlanDetailSections === 'function'
+        ? (text) => syllabusMod.splitPlanDetailSections(text)
+        : null;
+    const calendarName = getAppPrintCalendarName();
+    ensureDayNotesArray();
+    return (classes || []).map((classData) => {
+        const effective = getEffectiveClassForViewer(classData);
+        const packet = computeHomeworkPacketForClass(effective);
+        const anchorDate = packet.targetLessonDate || referenceDate;
+        const prep = dayNotesApi && typeof dayNotesApi.getNextClassPrepNotes === 'function'
+            ? dayNotesApi.getNextClassPrepNotes(
+                appData.dayNotes,
+                classData.id,
+                anchorDate,
+                effective,
+                getHomeworkTabHooks()
+            )
+            : { previousMeetingDate: '', notes: [] };
+        const classMeta = [formatClassLabelWithPeriod(classData), classData.grade, effective.book || classData.book]
+            .filter(Boolean)
+            .join(' · ');
+        return mod.buildDailySummaryPayload({
+            classData,
+            packet,
+            prep,
+            classMeta,
+            calendarName,
+            referenceDate,
+            referenceDateLabel: formatDateDisplay(referenceDate),
+            previousMeetingDateLabel: prep.previousMeetingDate
+                ? formatDateDisplay(prep.previousMeetingDate)
+                : '',
+            dueDateLabel: packet.dueDate ? formatDateDisplay(packet.dueDate) : '',
+            splitPlanDetailSections: splitFn
+        });
+    });
+}
+
+function syncDailySummaryPrintModalUi() {
+    const referenceDate = getHomeworkReferenceDateFromUi();
+    const classes = getClassesForDailySummaryPrint();
+    const dateLine = document.getElementById('dailySummaryPrintDateLine');
+    const countLine = document.getElementById('dailySummaryPrintClassCount');
+    if (dateLine) {
+        dateLine.textContent = formatI18n('dailySummaryPrintDateLine', {
+            date: formatDateDisplay(referenceDate)
+        });
+    }
+    if (countLine) {
+        countLine.textContent = formatI18n('dailySummaryPrintClassCount', {
+            count: String(classes.length)
+        });
+    }
+    const includeStudent = document.getElementById('dailySummaryPrintIncludeStudent');
+    const studentSection = document.getElementById('dailySummaryPrintStudentOptions');
+    if (studentSection) {
+        studentSection.hidden = includeStudent ? !includeStudent.checked : true;
+    }
+}
+
+function openDailySummaryPrintModal() {
+    const mod = getDailySummaryPrintModule();
+    if (!mod) {
+        alert(t('dailySummaryPrintModuleMissing'));
+        return;
+    }
+    const classes = getClassesForDailySummaryPrint();
+    if (!classes.length) {
+        alert(t('dailySummaryPrintNoClasses'));
+        return;
+    }
+    syncDailySummaryPrintModalUi();
+    const modal = document.getElementById('dailySummaryPrintModal');
+    if (modal) {
+        openModal(modal);
+    }
+}
+
+function closeDailySummaryPrintModal() {
+    const modal = document.getElementById('dailySummaryPrintModal');
+    if (modal) {
+        closeModal(modal);
+    }
+}
+
+function getDailySummaryPrintOptionsFromForm() {
+    const copiesRaw = document.getElementById('dailySummaryPrintCopiesPerPage')?.value || '4';
+    return {
+        includeTeacher: document.getElementById('dailySummaryPrintIncludeTeacher')?.checked !== false,
+        includeStudent: document.getElementById('dailySummaryPrintIncludeStudent')?.checked === true,
+        copiesPerPage: Math.max(1, parseInt(copiesRaw, 10) || 4),
+        singlePageOnly: document.getElementById('dailySummaryPrintSinglePageOnly')?.checked !== false
+    };
+}
+
+function runDailySummaryPrintJobs(jobs) {
+    if (!jobs.length) {
+        return;
+    }
+
+    beginPrintColorMode();
+
+    const prepared = jobs.map((job) => {
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            return { ok: false };
+        }
+        printWin.document.open();
+        printWin.document.write(job.html);
+        printWin.document.close();
+        printWin.document.title = job.title;
+        printWin.document.documentElement.classList.add('print-color-mode-light');
+        return { ok: true, printWin, job };
+    });
+
+    if (prepared.some((entry) => !entry.ok)) {
+        alert(t('printSyllabusBlocked'));
+        prepared.forEach((entry) => {
+            if (entry.ok) {
+                try {
+                    entry.printWin.close();
+                } catch (e) { /* ignore */ }
+            }
+        });
+        endPrintColorMode();
+        return;
+    }
+
+    const mod = getDailySummaryPrintModule();
+    let jobIndex = 0;
+
+    function printOneJob() {
+        if (jobIndex >= prepared.length) {
+            endPrintColorMode();
+            return;
+        }
+        const { printWin, job } = prepared[jobIndex];
+        jobIndex += 1;
+        printWin.focus();
+
+        whenPrintWindowReady(printWin, () => {
+            if (mod) {
+                if (job.kind === 'teacher' && typeof mod.fitTeacherSummaryToPages === 'function') {
+                    mod.fitTeacherSummaryToPages(printWin.document, { maxPages: 2 });
+                } else if (job.kind === 'student' && job.singlePageOnly
+                    && typeof mod.fitStudentHandoutToSinglePage === 'function') {
+                    mod.fitStudentHandoutToSinglePage(printWin.document);
+                }
+            }
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    let finished = false;
+                    let closedPoll = null;
+                    const finish = () => {
+                        if (finished) {
+                            return;
+                        }
+                        finished = true;
+                        if (closedPoll !== null) {
+                            clearInterval(closedPoll);
+                            closedPoll = null;
+                        }
+                        try {
+                            printWin.close();
+                        } catch (e) { /* ignore */ }
+                        printOneJob();
+                    };
+                    printWin.addEventListener('afterprint', finish, { once: true });
+                    printWin.addEventListener('pagehide', finish, { once: true });
+                    closedPoll = setInterval(() => {
+                        if (finished) {
+                            return;
+                        }
+                        let closed = false;
+                        try {
+                            closed = printWin.closed;
+                        } catch (e) {
+                            closed = true;
+                        }
+                        if (closed) {
+                            finish();
+                        }
+                    }, 250);
+                    try {
+                        printWin.print();
+                    } catch (e) { /* user may print manually */ }
+                    setTimeout(finish, 120000);
+                });
+            });
+        });
+    }
+
+    printOneJob();
+}
+
+function runDailySummaryPrint(opts) {
+    const mod = getDailySummaryPrintModule();
+    if (!mod) {
+        alert(t('dailySummaryPrintModuleMissing'));
+        return;
+    }
+    const options = opts || getDailySummaryPrintOptionsFromForm();
+    if (!options.includeTeacher && !options.includeStudent) {
+        alert(t('dailySummaryPrintPickOne'));
+        return;
+    }
+    const referenceDate = getHomeworkReferenceDateFromUi();
+    const classes = getClassesForDailySummaryPrint();
+    if (!classes.length) {
+        alert(t('dailySummaryPrintNoClasses'));
+        return;
+    }
+    const payloads = buildDailySummaryPayloadsForPrint(classes, referenceDate);
+    const labels = getDailySummaryPrintLabels();
+    const dateLabel = formatDateDisplay(referenceDate);
+    const jobs = [];
+
+    if (options.includeTeacher) {
+        const html = mod.renderTeacherSummaryCombinedDocumentHtml(payloads, labels, {
+            title: `${labels.teacherDocTitle} — ${dateLabel}`,
+            classCountLabel: formatI18n('dailySummaryPrintClassCount', {
+                count: String(payloads.length)
+            })
+        });
+        jobs.push({
+            kind: 'teacher',
+            html,
+            title: `${labels.teacherDocTitle} — ${dateLabel}`
+        });
+    }
+    if (options.includeStudent) {
+        const html = mod.renderStudentHandoutDocumentHtml(payloads, labels, {
+            title: `${labels.studentDocTitle} — ${dateLabel}`,
+            copiesPerPage: options.copiesPerPage
+        });
+        jobs.push({
+            kind: 'student',
+            html,
+            title: `${labels.studentDocTitle} — ${dateLabel}`,
+            singlePageOnly: options.singlePageOnly
+        });
+    }
+
+    runDailySummaryPrintJobs(jobs);
+}
+
+function handleDailySummaryPrintSubmit(e) {
+    e.preventDefault();
+    const opts = getDailySummaryPrintOptionsFromForm();
+    const modal = document.getElementById('dailySummaryPrintModal');
+    if (modal && modal.classList.contains('active')) {
+        closeDailySummaryPrintModal();
+    }
+    runDailySummaryPrint(opts);
+}
+
+function initDailySummaryPrintControls() {
+    const form = document.getElementById('dailySummaryPrintForm');
+    if (form && !form.dataset.dailySummaryPrintInit) {
+        form.dataset.dailySummaryPrintInit = '1';
+        form.addEventListener('submit', handleDailySummaryPrintSubmit);
+    }
+    const closeBtn = document.getElementById('closeDailySummaryPrintModal');
+    if (closeBtn && !closeBtn.dataset.dailySummaryPrintInit) {
+        closeBtn.dataset.dailySummaryPrintInit = '1';
+        closeBtn.addEventListener('click', closeDailySummaryPrintModal);
+    }
+    const printBtn = document.getElementById('homeworkDailySummaryPrintBtn');
+    if (printBtn && !printBtn.dataset.dailySummaryPrintInit) {
+        printBtn.dataset.dailySummaryPrintInit = '1';
+        printBtn.addEventListener('click', () => openDailySummaryPrintModal());
+    }
+    const includeStudent = document.getElementById('dailySummaryPrintIncludeStudent');
+    if (includeStudent && !includeStudent.dataset.dailySummaryPrintInit) {
+        includeStudent.dataset.dailySummaryPrintInit = '1';
+        includeStudent.addEventListener('change', () => syncDailySummaryPrintModalUi());
+    }
+}
+
 function normalizeTextForClipboard(text) {
     if (typeof CCPUtils !== 'undefined' && CCPUtils.normalizeClipboardText) {
         return CCPUtils.normalizeClipboardText(text);
@@ -16523,6 +16849,7 @@ function initTimetableTabListeners() {
 }
 
 function initHomeworkTabListeners() {
+    initDailySummaryPrintControls();
     if (!debouncedSaveHomeworkGrading && typeof debounce === 'function') {
         debouncedSaveHomeworkGrading = debounce(() => persistHomeworkTextareaToSyllabus('grading'), 600);
         debouncedSaveHomeworkAssign = debounce(() => persistHomeworkTextareaToSyllabus('assign'), 600);
@@ -17943,6 +18270,7 @@ const EXCLUSIVE_MODAL_IDS = [
     'holidayModal',
     'printOptionsModal',
     'timetablePrintOptionsModal',
+    'dailySummaryPrintModal',
     'conflictModal',
     'newCalendarModal',
     'classTypeModal',
@@ -17987,6 +18315,7 @@ const CCPModalRegistry = {
         this.register('holidayModal', { onClose: () => closeModal(elements.holidayModal) });
         this.register('printOptionsModal', { onClose: () => closePrintOptionsModal() });
         this.register('timetablePrintOptionsModal', { onClose: () => closeTimetablePrintOptionsModal() });
+        this.register('dailySummaryPrintModal', { onClose: () => closeDailySummaryPrintModal() });
         this.register('conflictModal', {
             onClose: () => closeModal(document.getElementById('conflictModal'))
         });
