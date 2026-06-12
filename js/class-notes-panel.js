@@ -134,7 +134,6 @@
         textarea.className = 'day-note-textarea class-notes-preview-edit-textarea';
         textarea.rows = 3;
         textarea.value = note.text;
-        textarea.spellcheck = true;
         editWrap.appendChild(textarea);
         if (typeof setupMentionField === 'function') {
             setupMentionField(textarea, () => note.classId || '');

@@ -1125,6 +1125,7 @@ body {
     color: var(--text-primary);
     resize: vertical;
     box-sizing: border-box;
+    touch-action: manipulation;
 }
 
 .day-notes-summary-controls {
@@ -11483,6 +11484,7 @@ body.notes-page .notes-date-bar {
 
 body.notes-editor-open.notes-page {
     overflow: hidden;
+    overscroll-behavior: none;
 }
 
 .notes-editor-sheet {
@@ -11500,6 +11502,7 @@ body.notes-editor-open.notes-page {
     background: var(--bg-card, #fff);
     box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.18);
     box-sizing: border-box;
+    transform: translateZ(0);
 }
 
 .notes-editor-sheet[hidden] {
@@ -11551,6 +11554,7 @@ body.notes-editor-open.notes-page {
     min-height: 0;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
     padding: 0 1rem calc(1rem + env(safe-area-inset-bottom, 0));
 }
 
@@ -11594,6 +11598,7 @@ body.notes-editor-open.notes-page {
     font-size: 1rem;
     line-height: 1.45;
     resize: vertical;
+    touch-action: manipulation;
 }
 
 .notes-editor-actions {

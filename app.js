@@ -6576,6 +6576,9 @@ function setupDayNoteMentionField(textarea, getClassId) {
     if (!mentionsApi || !textarea) {
         return;
     }
+    if (mentionsApi.tuneDayNoteTextareaForTouchInput) {
+        mentionsApi.tuneDayNoteTextareaForTouchInput(textarea);
+    }
     mentionsApi.attachMentionAutocomplete(textarea, getClassId, {
         getCohorts: () => appData.cohorts || [],
         getClasses: () => appData.classes || [],
