@@ -1605,7 +1605,7 @@ body {
 }
 
 #defaultClassEditorModal .default-class-editor-body {
-    padding: 16px 24px 24px;
+    padding: var(--pad-surface) var(--pad-overlay) var(--pad-overlay);
     overflow-x: hidden;
     overflow-y: auto;
     flex: 1;
@@ -2345,6 +2345,10 @@ body:has(#panel-calendar:not([hidden])) {
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+}
+
+.modal-body-scroll--padded {
+    padding: 0 var(--pad-overlay) var(--pad-overlay);
 }
 
 .modal-content--scrollable > .modal-header {
@@ -4083,7 +4087,7 @@ body.hide-summary-print .print-summary {
     top: 0;
     z-index: 3;
     margin: 0;
-    padding: var(--space-3) var(--space-4);
+    padding: var(--pad-control-y-lg) var(--pad-surface);
     gap: var(--space-3);
     flex-wrap: wrap;
     background: var(--bg-card);
@@ -4126,7 +4130,7 @@ body.hide-summary-print .print-summary {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: var(--space-4);
+    padding: var(--pad-surface);
     -webkit-overflow-scrolling: touch;
 }
 
@@ -6897,11 +6901,11 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 .books-editor-body {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    padding: 0 24px 24px;
+    padding: 0 var(--pad-overlay) var(--pad-overlay);
 }
 
 .books-editor-table-wrap {
@@ -7617,12 +7621,12 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 .cohort-editor-modal .modal-body-scroll {
     flex: 1;
     min-height: 0;
-    padding: 0 1.25rem 1.25rem;
+    padding: 0 var(--pad-overlay) var(--pad-overlay);
 }
 
 .cohort-editor-modal .modal-header {
     flex-shrink: 0;
-    padding: 1rem 1.25rem;
+    padding: var(--pad-overlay);
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -7683,12 +7687,15 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: var(--pad-overlay);
+    padding: var(--pad-surface);
 }
 
 .event-form-mount--popout #holidayForm .event-editor-header {
     flex-shrink: 0;
+    padding: var(--pad-control-y-lg) var(--pad-surface);
     background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
 .print-options-modal-content.modal-content--scrollable .print-form-mount {
@@ -7721,7 +7728,10 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 #classModal.calendar-popout--centered {
     align-items: center;
     justify-content: center;
-    padding: max(12px, 2vh) max(12px, 2vw);
+    padding: max(var(--pad-surface), env(safe-area-inset-top, 0px))
+        max(var(--pad-surface), env(safe-area-inset-right, 0px))
+        max(var(--pad-surface), env(safe-area-inset-bottom, 0px))
+        max(var(--pad-surface), env(safe-area-inset-left, 0px));
     pointer-events: auto;
     background: rgba(15, 23, 42, 0.45);
     backdrop-filter: blur(3px);
@@ -8604,7 +8614,7 @@ html.role-super-admin[data-theme="dark"] {
     align-items: flex-start;
     gap: 0.5rem;
     margin: 0 0 0.65rem;
-    padding: 0.35rem 0.65rem;
+    padding: var(--pad-control-y) var(--pad-control-x);
     border-radius: 8px;
     font-size: 0.875rem;
     line-height: 1.3;
@@ -9440,6 +9450,17 @@ body.workspace-page #appStatus {
 [data-editor-mode="popout"] .event-modal-body {
     display: flex;
     flex-direction: column;
+    padding: var(--pad-surface);
+}
+
+.modal.calendar-popout #classForm .class-modal-header,
+.modal.calendar-popout .event-form-mount--popout .event-editor-header {
+    padding: var(--pad-control-y-lg) var(--pad-surface);
+}
+
+.modal.calendar-popout #classForm .class-modal-body,
+.modal.calendar-popout .event-form-mount--popout .event-modal-body {
+    padding: var(--pad-surface);
 }
 
 [data-editor-mode="popout"] .form-group--full-only,
@@ -12892,7 +12913,7 @@ html[data-viewport="phone"] .app-tab-warn-badge {
     width: min(22rem, calc(100vw - var(--space-4)));
     max-height: min(24rem, calc(100vh - var(--space-8)));
     overflow: hidden;
-    padding: var(--space-3);
+    padding: var(--pad-popover-body);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -13156,7 +13177,7 @@ html[data-viewport="phone"] .app-tab-warn-badge {
     flex-direction: column;
     gap: var(--space-1);
     width: 100%;
-    padding: var(--space-2) 0 0;
+    padding: var(--pad-surface) 0 0;
     border-top: 1px solid var(--border-color);
     margin-top: var(--space-2);
 }
@@ -13430,7 +13451,8 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
 
 .classroom-sheet-scroll {
     overflow: auto;
-    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 170px);
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--classroom-sheet-chrome-offset, 170px));
+    min-height: min(240px, 40vh);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     background: var(--bg-card);
@@ -13438,7 +13460,7 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
 
 #panel-attendance:has(.classroom-header--collapsed) .classroom-sheet-scroll,
 #panel-homework-tracking:has(.classroom-header--collapsed) .classroom-sheet-scroll {
-    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 130px);
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--classroom-sheet-chrome-offset-collapsed, 130px));
 }
 
 .classroom-sheet {
@@ -13696,6 +13718,20 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     flex-direction: column;
     gap: 4px;
     font-size: 0.8125rem;
+    min-width: 0;
+    flex: 1 1 12rem;
+    max-width: 100%;
+}
+
+.classroom-header-field .field-select,
+.classroom-header-field .field-input {
+    max-width: 100%;
+    min-width: 0;
+}
+
+#classroomHeaderClassSelect,
+#classroomHeaderAssignment {
+    text-overflow: ellipsis;
 }
 
 .classroom-header-stats {
@@ -14112,6 +14148,48 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     align-items: center;
 }
 
+@media (max-width: 1024px) {
+    :root {
+        --classroom-sheet-chrome-offset: 200px;
+        --classroom-sheet-chrome-offset-collapsed: 150px;
+    }
+
+    .classroom-roster-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .classroom-sheet {
+        min-width: min(640px, 100%);
+    }
+
+    .classroom-sheet thead th,
+    .classroom-sheet tbody td {
+        padding: var(--pad-control-y) var(--pad-control-x);
+    }
+
+    .classroom-sheet .classroom-student-row-status,
+    .classroom-sheet .classroom-student-row-grades {
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+
+    .classroom-sheet .selection-chip {
+        min-height: 36px;
+        padding: var(--pad-control-y) var(--pad-control-x);
+    }
+}
+
+@media (max-width: 900px) {
+    .classroom-sheet .selection-chip {
+        min-height: var(--touch-min, 44px);
+        font-size: var(--text-body-sm, 0.8125rem);
+    }
+
+    #zoneSegments-classroom .app-zone-segment-btn {
+        min-height: var(--touch-min, 44px);
+    }
+}
+
 @media (max-width: 768px) {
     .classroom-dual-layout {
         grid-template-columns: 1fr;
@@ -14123,16 +14201,11 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     }
 
     .classroom-sheet-scroll {
-        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 150px);
         -webkit-overflow-scrolling: touch;
     }
 
-    #panel-attendance:has(.classroom-header--collapsed) .classroom-sheet-scroll,
-    #panel-homework-tracking:has(.classroom-header--collapsed) .classroom-sheet-scroll {
-        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 120px);
-    }
-
-    .classroom-roster-layout {
-        grid-template-columns: 1fr;
+    :root {
+        --classroom-sheet-chrome-offset: 180px;
+        --classroom-sheet-chrome-offset-collapsed: 140px;
     }
 }

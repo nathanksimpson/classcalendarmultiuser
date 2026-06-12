@@ -6,7 +6,7 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260609-combine-match',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260612-cohort-ui-tight',
+            'js/cohort-management.js?v=20260612-ui-padding-classroom',
             'js/setup-board.js?v=20260603-title-rename'
         ],
         timetable: [
@@ -34,13 +34,13 @@
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260612-classroom-mvp',
+            'js/classroom-header.js?v=20260612-ui-padding-classroom',
             'js/classroom-attendance.js?v=20260610-boot-mentions'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260612-classroom-mvp',
+            'js/classroom-header.js?v=20260612-ui-padding-classroom',
             'js/classroom-homework.js?v=20260610-boot-mentions'
         ]
     };

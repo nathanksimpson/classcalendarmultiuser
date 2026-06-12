@@ -4,7 +4,32 @@
 (function (global) {
     let hooks = null;
     let collapsed = false;
+    let collapseOverridden = false;
+    let resizeBound = false;
     let mode = 'attendance';
+
+    const NARROW_HEADER_MQ = '(max-width: 1024px)';
+
+    function syncCollapsedForViewport() {
+        if (collapseOverridden || typeof window === 'undefined' || !window.matchMedia) {
+            return;
+        }
+        collapsed = window.matchMedia(NARROW_HEADER_MQ).matches;
+    }
+
+    function bindViewportCollapseListener() {
+        if (resizeBound || typeof window === 'undefined' || !window.matchMedia) {
+            return;
+        }
+        resizeBound = true;
+        const mq = window.matchMedia(NARROW_HEADER_MQ);
+        const onChange = () => syncCollapsedForViewport();
+        if (typeof mq.addEventListener === 'function') {
+            mq.addEventListener('change', onChange);
+        } else if (typeof mq.addListener === 'function') {
+            mq.addListener(onChange);
+        }
+    }
 
     function domain() {
         return global.CCPClassroomDomain;
@@ -58,6 +83,7 @@
         if (!mountEl) {
             return;
         }
+        syncCollapsedForViewport();
         const opts = options || {};
         const s = state || {};
         mode = opts.mode || mode;
@@ -121,6 +147,7 @@
         mountEl.innerHTML = body;
 
         mountEl.querySelector('#classroomHeaderToggle')?.addEventListener('click', () => {
+            collapseOverridden = true;
             collapsed = !collapsed;
             render(mountEl, state, options);
         });
@@ -158,6 +185,8 @@
 
     function initTab(h) {
         hooks = h;
+        bindViewportCollapseListener();
+        syncCollapsedForViewport();
     }
 
     global.CCPClassroomHeader = {
@@ -165,6 +194,7 @@
         render,
         setMode,
         setCollapsed(value) {
+            collapseOverridden = true;
             collapsed = Boolean(value);
         }
     };

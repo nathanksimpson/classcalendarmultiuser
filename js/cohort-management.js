@@ -953,7 +953,7 @@
         catSel.id = 'cohortsClassCatalogCategoryFilter';
         catSel.className = 'teachers-tab-catalog-select field-select field-control--compact';
         const catOpts = [
-            ['all', 'filterAll'],
+            ['all', 'cohortsFilterAll'],
             ['__none__', 'teachersTabCategoryNone']
         ];
         (hooks.getTeacherCategoryPresets ? hooks.getTeacherCategoryPresets() : []).forEach((cat) => {
