@@ -3640,6 +3640,7 @@ function ensureClassFormExtendedMarkup() {
         refreshClassModalDomRefs();
         return;
     }
+    let injectedMarkup = false;
     const form = document.getElementById('classForm');
     const daySelect = document.getElementById('classDayOfWeek');
     if (!form) {
@@ -3654,16 +3655,17 @@ function ensureClassFormExtendedMarkup() {
                     <div class="form-group class-type-select-wrap">
                         <label for="classTypeSelect" data-i18n="classTypeLabel">Class type</label>
                         <select id="classTypeSelect" aria-describedby="classTypeHint"></select>
-                        <p id="classTypeHint" class="section-hint" data-i18n="classTypeHint"></p>
+                        <p id="classTypeHint" class="section-hint" data-i18n="classTypeHint">Pick a type to fill schedule defaults.</p>
                     </div>
                     <div class="form-group class-type-inline-actions">
                         <span class="form-spacer-label" aria-hidden="true">&nbsp;</span>
                         <div class="class-type-action-buttons">
-                            <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType"></button>
-                            <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete"></button>
+                            <button type="button" id="openClassTypeModalBtn" class="btn btn-outline btn-small" data-i18n="classTypeNewType">New class type</button>
+                            <button type="button" id="deleteCustomClassTypeBtn" class="btn btn-outline btn-small" style="display: none;" data-i18n="classTypeDelete">Delete type</button>
                         </div>
                     </div>`;
         nameWrap.insertAdjacentElement('afterend', typeRow);
+        injectedMarkup = true;
     }
 
     if (daySelect) {
@@ -3674,14 +3676,15 @@ function ensureClassFormExtendedMarkup() {
             const meetingCol = document.createElement('div');
             meetingCol.className = 'form-group form-group-meeting-days';
             meetingCol.innerHTML = `
-                        <label data-i18n="meetingDays"></label>
-                        <p class="section-hint" data-i18n="meetingDaysHint"></p>
+                        <label data-i18n="meetingDays">Meeting days</label>
+                        <p class="section-hint" data-i18n="meetingDaysHint">Check each weekday this class meets on the calendar.</p>
                         <div class="meeting-days-block">
                             <div class="meeting-days-presets"></div>
                             <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
                         </div>`;
             dowRow.insertBefore(meetingCol, dowRow.firstChild);
             dowRow.classList.add('form-row-meeting-days');
+            injectedMarkup = true;
         }
     }
 
@@ -3691,36 +3694,40 @@ function ensureClassFormExtendedMarkup() {
     <div id="classTypeModal" class="modal">
         <div class="modal-content modal-small">
             <div class="modal-header">
-                <h2 data-i18n="classTypeCreateTitle"></h2>
+                <h2 data-i18n="classTypeCreateTitle">Create a class type</h2>
                 <button type="button" class="modal-close" id="closeClassTypeModal">&times;</button>
             </div>
             <form id="classTypeForm">
                 <div class="form-group">
-                    <label for="newClassTypeName" data-i18n="classTypeName"></label>
+                    <label for="newClassTypeName" data-i18n="classTypeName">Type name</label>
                     <input type="text" id="newClassTypeName" required maxlength="80" data-i18n-placeholder="classTypeNamePlaceholder" placeholder="">
                 </div>
                 <div class="form-group">
-                    <label for="newClassTypeTotalLessons" data-i18n="totalLessons"></label>
+                    <label for="newClassTypeTotalLessons" data-i18n="totalLessons">Total lessons</label>
                     <input type="number" id="newClassTypeTotalLessons" min="1" value="8" required>
                 </div>
                 <div class="form-group">
-                    <label data-i18n="meetingDays"></label>
-                    <p class="section-hint" data-i18n="classTypeMeetingDaysHint"></p>
+                    <label data-i18n="meetingDays">Meeting days</label>
+                    <p class="section-hint" data-i18n="classTypeMeetingDaysHint">Default meeting days for new classes of this type.</p>
                     <div class="meeting-days-block">
                         <div class="meeting-days-presets"></div>
                         <div id="newClassTypeMeetingDaysRow" class="meeting-days-row" role="group"></div>
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary" data-i18n="classTypeSave"></button>
+                    <button type="submit" class="btn btn-primary" data-i18n="classTypeSave">Save type</button>
                 </div>
             </form>
         </div>
     </div>`;
         document.body.appendChild(wrap.firstElementChild);
+        injectedMarkup = true;
     }
 
     refreshClassModalDomRefs();
+    if (injectedMarkup && typeof applyLanguage === 'function') {
+        applyLanguage();
+    }
 }
 
 function setupClassMeetingDaysUI() {
