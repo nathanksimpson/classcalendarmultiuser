@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-team-calendar-popover">
+    <link rel="stylesheet" href="styles.css?v=20260612-notes-filters">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -425,29 +425,27 @@
                                     <input type="date" id="classNotesFilterTo" class="class-notes-date-input">
                                 </label>
                             </div>
-                            <label class="checkbox-label class-notes-meeting-days-label">
-                                <input type="checkbox" id="classNotesMeetingDaysOnly">
-                                <span data-i18n="classNotesMeetingDaysOnly">Only on class meeting days</span>
-                            </label>
-                            <label class="checkbox-label class-notes-my-classes-label">
-                                <input type="checkbox" id="classNotesMyClassesOnly">
-                                <span data-i18n="notesMyClassesOnly">My classes only</span>
-                            </label>
-                            <div class="class-notes-filter-actions">
-                                <button type="button" id="classNotesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesTodayClasses">Today's classes</button>
-                                <button type="button" id="classNotesMyClassesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesMyClassesToday">My classes &middot; Today</button>
-                                <button type="button" id="classNotesFilterSelectAllBtn" class="btn btn-outline btn-small" data-i18n="filterSelectAll">Select all</button>
-                                <button type="button" id="classNotesFilterClearClassesBtn" class="btn btn-outline btn-small" data-i18n="filterClearAll">Clear all</button>
-                                <button type="button" id="classNotesResetFiltersBtn" class="btn btn-outline btn-small" data-i18n="classNotesResetFilters">Reset filters</button>
+                            <div class="class-notes-filter-presets" role="group" aria-label="Filter presets">
+                                <label class="checkbox-label selection-chip">
+                                    <input type="checkbox" id="classNotesMeetingDaysOnly">
+                                    <span data-i18n="classNotesMeetingDaysOnly">Only on class meeting days</span>
+                                </label>
+                                <label class="checkbox-label selection-chip">
+                                    <input type="checkbox" id="classNotesMyClassesOnly">
+                                    <span data-i18n="notesMyClassesOnly">My classes only</span>
+                                </label>
+                                <label class="checkbox-label selection-chip">
+                                    <input type="checkbox" id="classNotesTodayOnly">
+                                    <span data-i18n="classNotesTodayOnly">Today</span>
+                                </label>
                             </div>
-                            <select id="classNotesFilterMobileSelect" class="class-notes-filter-select-mobile" aria-label="Quick filter">
-                                <option value="" data-i18n="classNotesFilterMobileNone">Filter actions&hellip;</option>
-                                <option value="today" data-i18n="classNotesTodayClasses">Today's classes</option>
-                                <option value="myClassesToday" data-i18n="classNotesMyClassesToday">My classes &middot; Today</option>
-                                <option value="selectAll" data-i18n="filterSelectAll">Select all</option>
-                                <option value="clearAll" data-i18n="filterClearAll">Clear all</option>
-                                <option value="reset" data-i18n="classNotesResetFilters">Reset filters</option>
-                            </select>
+                            <div class="class-notes-filter-actions-row">
+                                <div class="class-notes-filter-actions">
+                                    <button type="button" id="classNotesFilterSelectAllBtn" class="btn btn-outline btn-small" data-i18n="filterSelectAll">Select all</button>
+                                    <button type="button" id="classNotesFilterClearClassesBtn" class="btn btn-outline btn-small" data-i18n="filterClearAll">Clear all</button>
+                                </div>
+                                <button type="button" id="classNotesResetFiltersLink" class="class-notes-filter-reset-link" data-i18n="classNotesResetDefaults">Reset to defaults</button>
+                            </div>
                             <input type="search" id="classNotesClassSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes&hellip;">
                             <div class="class-notes-filter-scroll">
                                 <div id="classNotesFilterClasses" class="class-notes-filter-body lesson-filter-body"></div>
@@ -462,6 +460,10 @@
                                 <section id="classNotesFilterHomeroomWrap" class="class-notes-filter-section-wrap lesson-filter-section" hidden>
                                     <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterHomeroom">Homeroom teacher</h3>
                                     <div id="classNotesFilterHomeroom" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
+                                </section>
+                                <section id="classNotesFilterCategoriesWrap" class="class-notes-filter-section-wrap lesson-filter-section" hidden>
+                                    <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterCategory">Category</h3>
+                                    <div id="classNotesFilterCategories" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
                                 </section>
                             </div>
                         </aside>
@@ -1527,7 +1529,7 @@
     <script defer src="js/classroom-domain.js?v=20260612-classroom-mvp"></script>
     <script defer src="js/day-note-categories.js?v=20260612-next-class-cat"></script>
     <script defer src="js/day-note-mentions.js?v=20260612-mention-focus"></script>
-    <script defer src="js/day-notes.js?v=20260612-homeroom-notes"></script>
+    <script defer src="js/day-notes.js?v=20260612-notes-filters"></script>
     <script defer src="js/daily-summary-print.js?v=20260612-daily-summary-fix"></script>
     <script defer src="js/class-notes-panel.js?v=20260612-mention-focus"></script>
     <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
@@ -1582,7 +1584,7 @@
     <script defer src="js/i18n/calendar-en.js?v=20260612-ui-padding-classroom"></script>
     <script defer src="js/i18n/calendar-ko.js?v=20260612-ui-padding-classroom"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
-    <script defer src="app.js?v=20260612-homeroom-label"></script>
+    <script defer src="app.js?v=20260612-notes-filters"></script>
 </body>
 </html>
 

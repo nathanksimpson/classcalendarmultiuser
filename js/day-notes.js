@@ -280,11 +280,15 @@
      * @param {function} [filters.resolveClassHay] (classId) => string for text search
      * @param {function} [filters.resolveTaggedStudentHay] (note) => string for tagged student names
      * @param {function} [filters.matchesNote] (note) => boolean for per-note rules (e.g. schedule)
+     * @param {Set<string>} [filters.categorySet] when set, note categoryId must be in set
      */
     function filterNotes(dayNotes, filters) {
         const f = filters || {};
         const classSet = Array.isArray(f.classIds) && f.classIds.length
             ? new Set(f.classIds.map((id) => String(id)))
+            : null;
+        const categorySet = f.categorySet && typeof f.categorySet.has === 'function' && f.categorySet.size
+            ? f.categorySet
             : null;
         const textQuery = String(f.textQuery || '').trim().toLowerCase();
         return (dayNotes || []).filter((note) => {
@@ -301,6 +305,9 @@
                 return false;
             }
             if (typeof f.matchesMeta === 'function' && !f.matchesMeta(note.classId)) {
+                return false;
+            }
+            if (categorySet && !categorySet.has(normalizeCategoryId(note.categoryId))) {
                 return false;
             }
             if (textQuery && !noteMatchesTextQuery(
@@ -639,6 +646,7 @@
      * @param {string} opts.locale
      * @param {string} opts.headerTitle
      * @param {string} [opts.rangeLabel]
+     * @param {function} [opts.resolveCategoryLabel] (categoryId) => string
      */
     function formatRangeExportByHomeroom(opts) {
         const {
@@ -647,11 +655,18 @@
             homeroomOrderKeys,
             resolveMeta,
             resolveHomeroomMeta,
+            resolveCategoryLabel,
             formatDate,
             locale,
             headerTitle,
             rangeLabel
         } = opts || {};
+        const exportCategoryIds = new Set();
+        (notes || []).forEach((note) => {
+            exportCategoryIds.add(normalizeCategoryId(note && note.categoryId));
+        });
+        const showCategoryInExport = exportCategoryIds.size > 1
+            && typeof resolveCategoryLabel === 'function';
         const lines = [];
         const title = headerTitle || 'Class notes export';
         if (rangeLabel) {
@@ -697,7 +712,14 @@
                     }
                     const time = formatTimeLabel(note.createdAt, locale);
                     if (time) {
-                        lines.push(`[${time}]`);
+                        if (showCategoryInExport) {
+                            const catLabel = sanitizeExportText(
+                                resolveCategoryLabel(note.categoryId) || ''
+                            );
+                            lines.push(catLabel ? `[${catLabel}] [${time}]` : `[${time}]`);
+                        } else {
+                            lines.push(`[${time}]`);
+                        }
                     }
                     lines.push(sanitizeExportText(String(note.text || '').trim()));
                 });

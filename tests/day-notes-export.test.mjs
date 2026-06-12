@@ -194,4 +194,73 @@ const resolveMeta = (classId) => ({
     assert(out.includes('Orphan note'), 'orphan note in export');
 }
 
+{
+    const notes = [
+        {
+            id: 'n1',
+            classId: 'c1',
+            date: '2026-06-10',
+            categoryId: 'class-notes',
+            text: 'Class note',
+            createdAt: '2026-06-10T10:00:00.000Z'
+        },
+        {
+            id: 'n2',
+            classId: 'c1',
+            date: '2026-06-10',
+            categoryId: 'parent-consult',
+            text: 'Parent call',
+            createdAt: '2026-06-10T11:00:00.000Z'
+        },
+        {
+            id: 'n3',
+            classId: 'c2',
+            date: '2026-06-11',
+            categoryId: 'class-notes',
+            text: 'Other class',
+            createdAt: '2026-06-11T09:00:00.000Z'
+        }
+    ];
+    const parentOnly = api.filterNotes(notes, {
+        classIds: ['c1', 'c2'],
+        categorySet: new Set(['parent-consult'])
+    });
+    assert(parentOnly.length === 1, 'categorySet filters to one note');
+    assert(parentOnly[0].text === 'Parent call', 'correct note kept');
+}
+
+{
+    const multiCatNotes = [
+        {
+            id: 'n1',
+            classId: 'c1',
+            date: '2026-06-10',
+            categoryId: 'class-notes',
+            text: 'Note A',
+            createdAt: '2026-06-10T10:30:00.000Z'
+        },
+        {
+            id: 'n2',
+            classId: 'c1',
+            date: '2026-06-10',
+            categoryId: 'parent-consult',
+            text: 'Note B',
+            createdAt: '2026-06-10T14:00:00.000Z'
+        }
+    ];
+    const out = api.formatRangeExportByHomeroom({
+        notes: multiCatNotes,
+        classOrderIds: ['c1'],
+        homeroomOrderKeys: [api.NO_HOMEROOM_KEY],
+        resolveMeta: () => ({ className: 'Purple T', subject: 'Speaking' }),
+        resolveHomeroomMeta: () => ({ key: api.NO_HOMEROOM_KEY, label: '(No homeroom)' }),
+        resolveCategoryLabel: (id) => (id === 'parent-consult' ? 'Parent consult' : 'Class notes'),
+        formatDate: (d) => d,
+        locale: 'en',
+        headerTitle: 'Export',
+        rangeLabel: '2026-06-10'
+    });
+    assert(out.includes('[Parent consult]'), 'mixed export prefixes category');
+}
+
 console.log('day-notes-export.test.mjs: all passed');

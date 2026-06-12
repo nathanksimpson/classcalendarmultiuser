@@ -87,6 +87,8 @@
 
     --split-sidebar-min: 220px;
     --split-sidebar-max: 300px;
+    --class-notes-sidebar-min: 280px;
+    --class-notes-sidebar-max: 380px;
     --editor-prose-max: 48rem;
 
     --shadow-sm: 0 1px 4px rgba(12, 12, 13, 0.1), 0 1px 4px rgba(12, 12, 13, 0.05);
@@ -6040,9 +6042,13 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     box-shadow: var(--shadow-sm);
 }
 
+.class-notes-layout.module-split-layout {
+    grid-template-columns: minmax(var(--class-notes-sidebar-min), var(--class-notes-sidebar-max)) minmax(0, 1fr);
+}
+
 .class-notes-filters-panel {
     gap: var(--space-2);
-    max-width: var(--split-sidebar-max);
+    max-width: none;
 }
 
 .class-notes-filters-panel.class-notes-panel-card {
@@ -6051,14 +6057,62 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 
 .class-notes-filters-panel .class-notes-filters-title,
 .class-notes-filters-panel .class-notes-date-range,
+.class-notes-filters-panel .class-notes-filter-presets,
+.class-notes-filters-panel .class-notes-filter-actions-row,
 .class-notes-filters-panel .class-notes-filter-actions,
 .class-notes-filters-panel .module-list-search {
     flex-shrink: 0;
 }
 
+.class-notes-filter-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.class-notes-filter-presets .selection-chip {
+    font-size: var(--text-body-xs, 0.75rem);
+    padding: 4px 8px;
+}
+
+.class-notes-filter-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.class-notes-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.class-notes-filter-actions .btn-small {
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: var(--text-body-xs, 0.75rem);
+}
+
+.class-notes-filter-reset-link {
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: var(--text-body-xs, 0.75rem);
+    color: var(--primary);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.class-notes-filter-reset-link:hover {
+    color: var(--primary-dark);
+}
+
 .class-notes-filters-panel .class-notes-filter-scroll {
     flex: 1 1 auto;
-    min-height: 120px;
+    min-height: 0;
     overflow-y: auto;
     padding: 8px 10px;
     border: 1px solid var(--border-color);
@@ -6110,16 +6164,6 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     border-radius: var(--border-radius);
     background: var(--input-bg);
     color: var(--text-primary);
-}
-
-.class-notes-my-classes-label {
-    margin-top: 4px;
-}
-
-.class-notes-filter-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
 }
 
 .class-notes-filters-panel .class-notes-filter-section-wrap.lesson-filter-section {
@@ -11922,6 +11966,10 @@ body.notes-editor-open.notes-page {
         max-height: min(42vh, 380px);
     }
 
+    .module-split-layout > .class-notes-filters-panel {
+        max-height: min(70vh, 640px);
+    }
+
     /* Simple list sidebars: search | list */
     .module-split-layout > .module-list-panel:not(.homework-sidebar-panel):not(.timetable-sidebar):not(.class-notes-filters-panel) {
         display: grid;
@@ -11993,19 +12041,17 @@ body.notes-editor-open.notes-page {
         max-width: none;
     }
 
-    /* Class notes filters: controls | class chips */
+    /* Class notes filters: single column (dates, chips, scroll) — not side-by-side grid */
     .class-notes-layout.module-split-layout .class-notes-filters-panel {
-        display: grid;
-        grid-template-columns: minmax(var(--split-sidebar-min), 1fr) minmax(var(--split-sidebar-min), 1fr);
-        column-gap: var(--space-3);
-        align-items: stretch;
+        display: flex;
+        flex-direction: column;
         max-width: none;
     }
 
     .class-notes-layout.module-split-layout .class-notes-filters-panel .class-notes-filter-scroll {
-        grid-column: 2;
-        grid-row: 1 / -1;
+        flex: 1 1 auto;
         min-height: 0;
+        width: 100%;
     }
 
     /* Curriculum / syllabus / workspace books: toolbar row, then search | list */
@@ -12142,21 +12188,10 @@ body.notes-editor-open.notes-page {
         min-height: var(--touch-min);
     }
 
-    .class-notes-filter-actions {
-        display: none;
-    }
-
-    .class-notes-filter-select-mobile {
-        display: block;
-        width: 100%;
+    .class-notes-filter-presets .selection-chip {
         min-height: var(--touch-min);
-        font-size: 16px;
-        margin-bottom: var(--space-2);
+        align-items: center;
     }
-}
-
-.class-notes-filter-select-mobile {
-    display: none;
 }
 
 .calendar-view-toolbar {
