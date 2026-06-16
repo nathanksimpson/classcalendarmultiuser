@@ -173,8 +173,18 @@ async function minifyFiles() {
 }
 
 function rmDist() {
-    if (fs.existsSync(dist)) {
+    if (!fs.existsSync(dist)) {
+        return;
+    }
+    try {
         fs.rmSync(dist, { recursive: true, force: true });
+    } catch (err) {
+        if (err.code !== 'EPERM' && err.code !== 'ENOTEMPTY') {
+            throw err;
+        }
+        for (const entry of fs.readdirSync(dist)) {
+            fs.rmSync(path.join(dist, entry), { recursive: true, force: true });
+        }
     }
 }
 
