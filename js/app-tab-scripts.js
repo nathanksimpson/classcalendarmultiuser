@@ -4,17 +4,17 @@
 (function (global) {
     const TAB_SCRIPTS = {
         cohorts: [
-            'js/teacher-timetable.js?v=20260612-homeroom-label',
+            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/cohort-management.js?v=20260612-ui-padding-classroom',
             'js/setup-board.js?v=20260603-title-rename'
         ],
         timetable: [
-            'js/teacher-timetable.js?v=20260612-homeroom-label',
+            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
-            'js/teacher-timetable.js?v=20260612-homeroom-label',
+            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/teacher-management.js?v=20260610-setup-board',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
@@ -22,7 +22,7 @@
         classes: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         syllabus: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         calendar: [
-            'js/teacher-timetable.js?v=20260612-homeroom-label',
+            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
         students: [
@@ -42,6 +42,18 @@
             'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-header.js?v=20260612-ui-padding-classroom',
             'js/classroom-homework.js?v=20260610-boot-mentions'
+        ],
+        points: [
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-header.js?v=20260612-ui-padding-classroom',
+            'js/classroom-points.js?v=20260612-phase2'
+        ],
+        tests: [
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-header.js?v=20260612-ui-padding-classroom',
+            'js/classroom-tests.js?v=20260612-phase2'
         ]
     };
 

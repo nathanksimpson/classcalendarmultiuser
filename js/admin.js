@@ -796,6 +796,10 @@ function getModalFocusables(modal) {
 }
 
 function bindAdminModalA11y(modal, onClose) {
+    if (typeof CCPModal !== 'undefined' && CCPModal.bindA11y) {
+        CCPModal.bindA11y(modal, onClose);
+        return;
+    }
     if (!modal || modal.dataset.a11yBound === '1') {
         return;
     }

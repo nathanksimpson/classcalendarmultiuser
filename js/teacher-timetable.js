@@ -132,6 +132,28 @@
         return map[String(period)] || null;
     }
 
+    function getPeriodNumberForTimeSlot(timeSlotId, appData) {
+        if (!timeSlotId) {
+            return null;
+        }
+        const map = (appData && appData.periodSlotMap) || DEFAULT_PERIOD_SLOT_MAP;
+        for (const period of Object.keys(map)) {
+            if (map[period] === timeSlotId) {
+                const p = parseInt(period, 10);
+                return !Number.isNaN(p) ? p : null;
+            }
+        }
+        return null;
+    }
+
+    function getDayLabelForDow(dow, lang) {
+        const col = WEEKDAY_COLUMNS.find((c) => c.dow === dow);
+        if (!col) {
+            return String(dow);
+        }
+        return lang === 'ko' ? col.ko : col.en;
+    }
+
     function resolveTimeSlotIdForClass(classData, weekday, appData) {
         if (classData && classData.timeSlotId) {
             return classData.timeSlotId;
@@ -486,8 +508,8 @@
         const refUid = normalizeStr(ref.userId || ref.assignedTeacherUserId || ref.homeroomTeacherUserId);
         const refName = ref.displayName || ref.name || ref.assignedTeacherName || ref.homeroomTeacherName || '';
         const selName = selector.displayName || '';
-        if (uid && refUid && uid === refUid) {
-            return true;
+        if (uid && refUid) {
+            return uid === refUid;
         }
         if (options.accountOnly === true) {
             return false;
@@ -1428,7 +1450,8 @@
             cells: WEEKDAY_COLUMNS.map((col) => ({
                 dow: col.dow,
                 entries: [],
-                conflict: false
+                conflict: false,
+                cohortCollision: false
             }))
         }));
         return {
@@ -1558,9 +1581,25 @@
             resultBlocks.push(blocks.secondary);
         }
 
-        const hasConflicts = resultBlocks.some((b) =>
-            b.rows.some((r) => r.cells.some((c) => c.conflict))
-        );
+        const gridForConflicts = {
+            teacherName: displayName,
+            blocks: resultBlocks
+        };
+        let conflicts;
+        let hasConflicts;
+        if (options.skipConflicts) {
+            hasConflicts = resultBlocks.some((b) =>
+                b.rows.some((r) => r.cells.some((c) => c.conflict))
+            );
+            conflicts = null;
+        } else {
+            conflicts = collectTeacherTimetableConflicts(appData, selector, {
+                lang,
+                grid: gridForConflicts
+            });
+            markCohortCollisionsOnGrid(gridForConflicts, conflicts.cohortPeriodCollisions);
+            hasConflicts = conflicts.hasConflicts;
+        }
 
         return {
             teacherName: displayName,
@@ -1575,7 +1614,155 @@
             })),
             blocks: resultBlocks,
             hasConflicts,
+            conflicts,
             assignedClassCount: scheduleItems.length
+        };
+    }
+
+    function extractTeacherDoubleBookFromGrid(grid, appData, teacherName, lang) {
+        const slotById = {};
+        getSortedTimeSlots(appData).forEach((s) => {
+            slotById[s.id] = s;
+        });
+        const out = [];
+        (grid.blocks || []).forEach((block) => {
+            block.rows.forEach((row) => {
+                row.cells.forEach((cell) => {
+                    if (!cell.conflict) {
+                        return;
+                    }
+                    const period = getPeriodNumberForTimeSlot(row.timeSlotId, appData);
+                    out.push({
+                        code: 'teacher_double_book',
+                        blockId: block.id,
+                        dow: cell.dow,
+                        dayLabel: getDayLabelForDow(cell.dow, lang),
+                        period,
+                        timeSlotId: row.timeSlotId,
+                        timeLabel: row.timeLabel || formatTimeSlotLabel(slotById[row.timeSlotId], lang),
+                        teacherName,
+                        classNames: cell.entries.map((e) => e.className || ''),
+                        classIds: cell.entries.map((e) => e.classId || '')
+                    });
+                });
+            });
+        });
+        return out;
+    }
+
+    function collectCohortPeriodCollisionsForTeacher(appData, selector, lang) {
+        const scheduleItems = getClassesForTeacherSchedule(appData, selector);
+        const teacherClassIds = new Set(scheduleItems.map((item) => item.classData.id));
+        const teacherCohortIds = new Set();
+        scheduleItems.forEach(({ classData }) => {
+            getClassCohortIds(classData).forEach((cid) => teacherCohortIds.add(cid));
+        });
+
+        const cohortsById = {};
+        (appData.cohorts || []).forEach((c) => {
+            cohortsById[c.id] = c;
+        });
+        const classesById = {};
+        (appData.classes || []).forEach((c) => {
+            classesById[c.id] = c;
+        });
+        const slotById = {};
+        getSortedTimeSlots(appData).forEach((s) => {
+            slotById[s.id] = s;
+        });
+
+        const out = [];
+        teacherCohortIds.forEach((cohortId) => {
+            const cohort = cohortsById[cohortId];
+            if (!cohort) {
+                return;
+            }
+            const classIds = getCohortClassIds(appData, cohort);
+            const classes = classIds.map((id) => classesById[id]).filter(Boolean);
+            const slotClassMap = new Map();
+            classes.forEach((cls) => {
+                const className = classLabelForWarning(cls);
+                getClassTimetableSlotKeys(cls, appData).forEach((k) => {
+                    const parts = k.split('|');
+                    const dow = parseInt(parts[0], 10);
+                    const timeSlotId = parts[1] || '';
+                    if (!slotClassMap.has(k)) {
+                        slotClassMap.set(k, { dow, timeSlotId, classes: [] });
+                    }
+                    const entry = slotClassMap.get(k);
+                    if (!entry.classes.some((c) => c.id === cls.id)) {
+                        entry.classes.push({ id: cls.id, name: className });
+                    }
+                });
+            });
+            slotClassMap.forEach((entry) => {
+                if (entry.classes.length <= 1) {
+                    return;
+                }
+                const involvedTeacherClasses = entry.classes.filter((c) => teacherClassIds.has(c.id));
+                if (!involvedTeacherClasses.length) {
+                    return;
+                }
+                const period = getPeriodNumberForTimeSlot(entry.timeSlotId, appData);
+                const slot = slotById[entry.timeSlotId];
+                out.push({
+                    code: 'period_collision',
+                    cohortId,
+                    cohortName: normalizeStr(cohort.name) || cohortId,
+                    dow: entry.dow,
+                    dayLabel: getDayLabelForDow(entry.dow, lang),
+                    period,
+                    timeSlotId: entry.timeSlotId,
+                    timeLabel: formatTimeSlotLabel(slot, lang),
+                    classNames: entry.classes.map((c) => c.name),
+                    classIds: entry.classes.map((c) => c.id),
+                    teacherClassIds: involvedTeacherClasses.map((c) => c.id)
+                });
+            });
+        });
+        return out;
+    }
+
+    function markCohortCollisionsOnGrid(grid, cohortPeriodCollisions) {
+        const collisionKeys = new Set();
+        (cohortPeriodCollisions || []).forEach((c) => {
+            collisionKeys.add(`${c.dow}|${c.timeSlotId}`);
+        });
+        (grid.blocks || []).forEach((block) => {
+            block.rows.forEach((row) => {
+                row.cells.forEach((cell) => {
+                    cell.cohortCollision = !cell.conflict
+                        && collisionKeys.has(`${cell.dow}|${row.timeSlotId}`);
+                });
+            });
+        });
+    }
+
+    /**
+     * Structured schedule conflicts for a teacher timetable view.
+     * @param {object} appData
+     * @param {{ userId?: string, displayName?: string }} selector
+     * @param {{ lang?: string, grid?: object }} [options]
+     */
+    function collectTeacherTimetableConflicts(appData, selector, options) {
+        options = options || {};
+        const lang = options.lang === 'ko' ? 'ko' : 'en';
+        const grid = options.grid || buildTeacherWeeklyGrid(appData, selector, { lang, skipConflicts: true });
+        const teacherName = grid.teacherName
+            || normalizeStr(selector.displayName)
+            || normalizeStr(selector.userId)
+            || '';
+
+        const teacherDoubleBook = extractTeacherDoubleBookFromGrid(grid, appData, teacherName, lang);
+        const cohortPeriodCollisions = collectCohortPeriodCollisionsForTeacher(appData, selector, lang);
+        const conflictCount = teacherDoubleBook.length + cohortPeriodCollisions.length;
+
+        return {
+            teacherName,
+            teacherDoubleBook,
+            cohortPeriodCollisions,
+            hasConflicts: conflictCount > 0,
+            conflictCount
         };
     }
 
@@ -1714,6 +1901,8 @@
         inferBlankCohortSchedules,
         patternBucketForFilter,
         buildTeacherWeeklyGrid,
+        collectTeacherTimetableConflicts,
+        getPeriodNumberForTimeSlot,
         teacherKeyFromSelector,
         teacherMatchesTeacherRef,
         teacherMatchesClass,

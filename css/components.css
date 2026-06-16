@@ -1,0 +1,112 @@
+/* Buttons */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: var(--pad-control-y-lg) var(--pad-control-x-lg);
+    font-family: var(--font-main);
+    font-size: var(--text-body-md);
+    font-weight: 600;
+    line-height: var(--leading-body);
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-lg {
+    min-height: 48px;
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--text-body-lg);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+    background: var(--secondary);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #475569;
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-outline:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+}
+
+.btn-header-print {
+    background: var(--btn-print-bg);
+    color: var(--btn-print-color);
+    border: 1px solid var(--btn-print-border);
+    font-weight: 600;
+}
+
+.btn-header-print:hover {
+    background: var(--btn-print-hover-bg);
+    border-color: var(--primary);
+    color: var(--btn-print-color);
+}
+
+.btn-header-lang {
+    background: var(--btn-lang-bg);
+    color: var(--btn-lang-color);
+    border: 1px solid var(--btn-lang-border);
+    font-weight: 600;
+}
+
+.btn-header-lang:hover {
+    background: var(--btn-lang-hover-bg);
+    border-color: #8b5cf6;
+    color: var(--btn-lang-color);
+}
+
+.btn-header-theme {
+    background: var(--btn-theme-bg);
+    color: var(--btn-theme-color);
+    border: 1px solid var(--btn-theme-border);
+    font-weight: 600;
+    min-width: 88px;
+}
+
+.btn-header-theme:hover {
+    background: var(--btn-theme-hover-bg);
+    border-color: var(--text-muted);
+}
+
+.btn-lang {
+    font-weight: 600;
+    min-width: 100px;
+}
+
+.btn-help {
+    font-weight: 500;
+}
+

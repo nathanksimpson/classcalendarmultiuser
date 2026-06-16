@@ -35,6 +35,13 @@ function t(key) {
     return translations[currentLanguage][key] || translations['en'][key] || key;
 }
 
+/**
+ * Interpolate `{name}` placeholders from translation strings.
+ * Return value must only be assigned to `.textContent` or passed through `escapeHtml()` before HTML.
+ * @param {string} key
+ * @param {Record<string, unknown>} [vars]
+ * @returns {string}
+ */
 function formatI18n(key, vars) {
     let s = t(key);
     if (vars && typeof vars === 'object') {
@@ -344,7 +351,10 @@ function toggleTheme() {
 // ============================================
 // Data Storage
 // ============================================
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION =
+    typeof CCPCoreAppState !== 'undefined' && CCPCoreAppState.SCHEMA_VERSION
+        ? CCPCoreAppState.SCHEMA_VERSION
+        : 3;
 
 const EVENT_TYPES = {
     HOLIDAY: 'holiday',
@@ -364,11 +374,13 @@ const DEFAULT_VISIBILITY_FILTERS = {
 };
 
 /** Sentinel values for empty optional class fields in lesson filters. */
-const LESSON_FILTER_NO_GRADE = '__no_grade__';
+const _APP_ENUMS = typeof CCPAppEnums !== 'undefined' ? CCPAppEnums : {};
+const _SENTINEL = _APP_ENUMS.SENTINEL || {};
+const LESSON_FILTER_NO_GRADE = _SENTINEL.NO_GRADE || '__no_grade__';
 const LESSON_FILTER_NO_LEVEL = '__no_level__';
-const LESSON_FILTER_NO_TYPE = '__no_type__';
-const LESSON_FILTER_NO_BOOK = '__no_book__';
-const LESSON_FILTER_NO_TEACHER = '__no_teacher__';
+const LESSON_FILTER_NO_TYPE = _SENTINEL.NO_TYPE || '__no_type__';
+const LESSON_FILTER_NO_BOOK = _SENTINEL.NO_BOOK || '__no_book__';
+const LESSON_FILTER_NO_TEACHER = _SENTINEL.NO_TEACHER || '__no_teacher__';
 
 const LESSON_FILTER_DIMENSIONS = [
     'classIds',
@@ -440,6 +452,12 @@ function getDefaultPeriodSlotMap() {
 }
 
 function getDefaultAppData() {
+    if (typeof CCPCoreAppState !== 'undefined' && CCPCoreAppState.getDefaultAppData) {
+        return CCPCoreAppState.getDefaultAppData({
+            getDefaultTimetableTimeSlots,
+            getDefaultPeriodSlotMap
+        });
+    }
     return {
         schemaVersion: SCHEMA_VERSION,
         classes: [],
@@ -475,6 +493,259 @@ function getDefaultAppData() {
 }
 
 let appData = getDefaultAppData();
+
+/** Lightweight pub-sub store (js/core/app-store.js). */
+let appStore = null;
+
+function initAppStoreAndRenderOrchestrator() {
+    if (typeof CCPAppStore === 'undefined') {
+        return;
+    }
+    if (!appStore) {
+        appStore = CCPAppStore.createAppStore(appData);
+    } else {
+        appStore.setStateRef(appData);
+    }
+    if (typeof CCPRenderOrchestrator === 'undefined') {
+        return;
+    }
+    CCPRenderOrchestrator.register('calendar', () => {
+        if (typeof renderCalendarNow === 'function') {
+            renderCalendarNow();
+        }
+    });
+    CCPRenderOrchestrator.register('classList', () => {
+        if (typeof renderClassList === 'function') {
+            renderClassList();
+        }
+    });
+    CCPRenderOrchestrator.register('eventList', () => {
+        if (typeof renderEventList === 'function') {
+            renderEventList();
+        }
+    });
+    CCPRenderOrchestrator.register('classNotes', () => {
+        if (document.getElementById('classNotesShell') && typeof renderClassNotesTab === 'function') {
+            renderClassNotesTab();
+        }
+        if (!isNotesPage() && typeof refreshNotesPageIfMounted === 'function') {
+            refreshNotesPageIfMounted();
+        }
+    });
+    CCPRenderOrchestrator.register('syllabus', () => {
+        if (typeof renderSyllabusClassList === 'function') {
+            renderSyllabusClassList();
+        }
+        if (typeof renderAllSyllabusTables === 'function') {
+            renderAllSyllabusTables();
+        }
+    });
+    CCPRenderOrchestrator.register('timetable', () => {
+        if (typeof renderTimetableView === 'function') {
+            renderTimetableView();
+        }
+    });
+    CCPRenderOrchestrator.register('cohorts', () => {
+        if (typeof refreshCohortsSetupBoard === 'function') {
+            refreshCohortsSetupBoard();
+        }
+    });
+    CCPRenderOrchestrator.register('homework', () => {
+        if (typeof renderHomeworkClassList === 'function') {
+            renderHomeworkClassList();
+        }
+        if (typeof renderHomeworkEditor === 'function') {
+            renderHomeworkEditor();
+        }
+    });
+    CCPRenderOrchestrator.register('setupBoard', () => {
+        if (typeof refreshCohortsSetupBoard === 'function') {
+            refreshCohortsSetupBoard();
+        }
+    });
+    if (!initAppStoreAndRenderOrchestrator._subscribed) {
+        initAppStoreAndRenderOrchestrator._subscribed = true;
+        CCPRenderOrchestrator.subscribeToStore(appStore);
+        appStore.use((action) => {
+            const scheduleTypes = new Set([
+                'classes/upsert',
+                'classes/remove',
+                'events/upsert',
+                'events/remove',
+                'calendar/replace',
+                'sync/remote'
+            ]);
+            if (scheduleTypes.has(action.type) && typeof invalidateScheduleCache === 'function') {
+                invalidateScheduleCache();
+            }
+        });
+    }
+}
+
+function dispatchUiSet(key, value, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'ui/set', key, value, meta: meta || {} });
+    }
+    ensureUiState();
+    appData.ui[key] = value;
+    return null;
+}
+
+function dispatchUiMerge(partial, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'ui/merge', partial, meta: meta || {} });
+    }
+    ensureUiState();
+    Object.assign(appData.ui, partial);
+    return null;
+}
+
+function requestUiCalendarRender() {
+    if (typeof CCPRenderOrchestrator !== 'undefined') {
+        CCPRenderOrchestrator.requestRender('calendar');
+    } else {
+        renderCalendar();
+    }
+}
+
+function dispatchCalendarReplace(data, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'calendar/replace', data, meta: meta || {} });
+    }
+    Object.keys(appData).forEach((k) => {
+        delete appData[k];
+    });
+    Object.assign(appData, data);
+    return null;
+}
+
+function dispatchSyncRemote(data, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'sync/remote', data, meta: meta || {} });
+    }
+    Object.keys(data || {}).forEach((k) => {
+        if (k !== 'ui') {
+            appData[k] = data[k];
+        }
+    });
+    return null;
+}
+
+function dispatchClassesUpsert(classData, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'classes/upsert', classData, meta: meta || {} });
+    }
+    if (!Array.isArray(appData.classes)) {
+        appData.classes = [];
+    }
+    const idx = appData.classes.findIndex((c) => c && c.id === classData.id);
+    if (idx >= 0) {
+        appData.classes[idx] = classData;
+    } else {
+        appData.classes.push(classData);
+    }
+    return null;
+}
+
+function dispatchClassesRemove(id, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'classes/remove', id, meta: meta || {} });
+    }
+    appData.classes = (appData.classes || []).filter((c) => c && c.id !== id);
+    return null;
+}
+
+function dispatchEventsUpsert(event, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'events/upsert', event, meta: meta || {} });
+    }
+    if (!Array.isArray(appData.events)) {
+        appData.events = [];
+    }
+    const idx = appData.events.findIndex((e) => e && e.id === event.id);
+    if (idx >= 0) {
+        appData.events[idx] = event;
+    } else {
+        appData.events.push(event);
+    }
+    return null;
+}
+
+function dispatchEventsRemove(id, meta) {
+    if (appStore) {
+        return appStore.dispatch({ type: 'events/remove', id, meta: meta || {} });
+    }
+    appData.events = (appData.events || []).filter((e) => e && e.id !== id);
+    return null;
+}
+
+function initListViewModules() {
+    if (typeof CCPClassListView !== 'undefined') {
+        CCPClassListView.init({
+            getClasses: () => getClassesInDisplayOrder(),
+            getSelectedId: () => (elements.classId && elements.classId.value) || '',
+            getSearchQuery: () => (document.getElementById('classListSearch')?.value) || '',
+            onSelectClass: (classData) => {
+                openClassEditor(classData, 'tab');
+                renderClassList();
+            },
+            t,
+            escapeHtml,
+            formatClassLabelWithPeriod,
+            getClassScheduleGapStatus,
+            getClassCurriculumWarningKindForClass,
+            inlineWarnBadgeHtml,
+            scheduleTabWarningsRefresh
+        });
+    }
+    if (typeof CCPEventListView !== 'undefined') {
+        CCPEventListView.init({
+            getEvents: () => appData.events || [],
+            getSelectedId: () => (elements.holidayId && elements.holidayId.value) || '',
+            getSearchQuery: () => (document.getElementById('eventListSearch')?.value) || '',
+            onSelectEvent: (ev) => {
+                openEventEditor(ev, 'tab');
+                renderEventList();
+            },
+            getEventDisplayName,
+            t,
+            escapeHtml
+        });
+    }
+    if (typeof CCPCalendarView !== 'undefined') {
+        CCPCalendarView.init({ onCalendarAction: () => {} });
+    }
+}
+
+function rebindAppStoreStateRef() {
+    if (appStore) {
+        appStore.setStateRef(appData);
+    }
+}
+
+/**
+ * Run mutate + async save; restore slice snapshot on hard failure (not 409 merge).
+ * @param {string} slice
+ * @param {() => void} mutateFn
+ * @param {() => Promise<void>} saveFn
+ */
+async function dispatchAsyncSaveWithRollback(slice, mutateFn, saveFn) {
+    if (!appStore || typeof CCPAppStore === 'undefined') {
+        mutateFn();
+        await saveFn();
+        return;
+    }
+    const snapshot = CCPAppStore.snapshotSlice(appStore, slice);
+    mutateFn();
+    try {
+        await saveFn();
+    } catch (err) {
+        if (err && err.status !== 409 && err.status !== 423) {
+            CCPAppStore.restoreSlice(appStore, slice, snapshot);
+        }
+        throw err;
+    }
+}
 
 // Color palette for auto-assigning
 const colorPalette = [
@@ -1186,19 +1457,25 @@ function applyPeriodFieldsToClassForm(classData) {
 }
 
 /** Built-in class type ids (stable for saves and imports). */
-const CLASS_TYPE_DEBATE_ID = 'builtin-debate';
-const CLASS_TYPE_KOREAN_MULTI_ID = 'builtin-korean-multiweekly';
+const CLASS_TYPE_DEBATE_ID = _APP_ENUMS.CLASS_TYPE_DEBATE_ID || 'builtin-debate';
+const CLASS_TYPE_KOREAN_MULTI_ID = _APP_ENUMS.CLASS_TYPE_KOREAN_MULTI_ID || 'builtin-korean-multiweekly';
 /** @deprecated Saved calendars may still reference this id; resolved to WR+SP. */
-const CLASS_TYPE_EARLY_WRITER_ID = 'builtin-early-writer-weekly';
-const CLASS_TYPE_WR_SP_ID = 'builtin-wr-sp';
+const CLASS_TYPE_EARLY_WRITER_ID = _APP_ENUMS.CLASS_TYPE_EARLY_WRITER_ID || 'builtin-early-writer-weekly';
+const CLASS_TYPE_WR_SP_ID = _APP_ENUMS.CLASS_TYPE_WR_SP_ID || 'builtin-wr-sp';
 
 /** Default class type when adding a new class. */
 const DEFAULT_CLASS_TYPE_ID = CLASS_TYPE_WR_SP_ID;
 
 /** Weekly debate: lesson "days" repeat each month with optional Day 2+3 merges. */
-const SCHEDULE_MODEL_DEBATE_MONTHLY = 'debateMonthly';
+const SCHEDULE_MODEL_DEBATE_MONTHLY = _APP_ENUMS.SCHEDULE_MODEL_DEBATE_MONTHLY || 'debateMonthly';
 /** Multi-day / WR+SP: lessons 1…N in order across the full term (no day-pair compression). */
-const SCHEDULE_MODEL_SEQUENTIAL_TERM = 'sequentialTerm';
+const SCHEDULE_MODEL_SEQUENTIAL_TERM = _APP_ENUMS.SCHEDULE_MODEL_SEQUENTIAL_TERM || 'sequentialTerm';
+
+const LESSON_LABEL = _APP_ENUMS.LESSON_LABEL_MODE || {};
+const COMPRESSION = _APP_ENUMS.COMPRESSION_MODE || {};
+const EDITOR_MODE_ENUM = _APP_ENUMS.EDITOR_MODE || {};
+const SYLLABUS_SOURCE = _APP_ENUMS.SYLLABUS_ROW_SOURCE || {};
+const HOMEWORK_IMPORT = _APP_ENUMS.HOMEWORK_IMPORT_MODE || {};
 
 function initDefaultClassEditorModule() {
     if (!window.CCPDefaultClassEditor) {
@@ -2115,11 +2392,11 @@ function classUsesGrWeeklyUnitLabels(classData) {
     if (!classData) {
         return false;
     }
-    if (classData.lessonLabelMode === 'grWeeklyUnit') {
+    if (classData.lessonLabelMode === LESSON_LABEL.GR_WEEKLY_UNIT || classData.lessonLabelMode === 'grWeeklyUnit') {
         return true;
     }
     const def = getClassTypeDefinitionById(classData.classTypeId);
-    return !!(def && def.lessonLabelMode === 'grWeeklyUnit');
+    return !!(def && (def.lessonLabelMode === LESSON_LABEL.GR_WEEKLY_UNIT || def.lessonLabelMode === 'grWeeklyUnit'));
 }
 
 function classUsesRcNavyUnitLabels(classData) {
@@ -4477,10 +4754,9 @@ function getCalendarViewMode() {
 
 function setCalendarViewMode(mode) {
     ensureUiState();
-    appData.ui.calendarViewMode = mode === 'agenda' ? 'agenda' : 'month';
+    dispatchUiSet('calendarViewMode', mode === 'agenda' ? 'agenda' : 'month');
     saveUiStateToLocalStorage();
     syncCalendarViewModeDom();
-    renderCalendar();
 }
 
 function syncCalendarViewModeDom() {
@@ -4636,7 +4912,7 @@ function applyTopBarCollapsedState() {
 
 function setTopBarCollapsed(collapsed) {
     ensureUiState();
-    appData.ui.topBarCollapsed = collapsed === true;
+    dispatchUiSet('topBarCollapsed', collapsed === true);
     applyTopBarCollapsedState();
     // UI-only: do not touch the shared calendar save / lock behavior.
     saveUiStateToLocalStorage();
@@ -5401,13 +5677,14 @@ function commitLessonFiltersFromPopover() {
     } else {
         filters.hideAllLessons = false;
     }
-    appData.ui.lessonFilters = filters;
+    dispatchUiSet('lessonFilters', filters);
     updateLessonFilterStatusText();
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
     // UI-only: viewer preference.
     saveUiStateToLocalStorage();
-    renderCalendar();
+    invalidateScheduleCache();
+    requestUiCalendarRender();
 }
 
 function applyLessonFilterForTeacher(selector) {
@@ -5415,17 +5692,19 @@ function applyLessonFilterForTeacher(selector) {
     if (!selector || !selector.userId) {
         return;
     }
-    appData.ui.showAllClassCurricula = true;
-    appData.ui.lessonFilters = normalizeLessonFilters({
-        ...appData.ui.lessonFilters,
-        teacherUserIds: [selector.userId],
-        hideAllLessons: false
+    dispatchUiMerge({
+        showAllClassCurricula: true,
+        lessonFilters: normalizeLessonFilters({
+            ...appData.ui.lessonFilters,
+            teacherUserIds: [selector.userId],
+            hideAllLessons: false
+        })
     });
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
     saveUiStateToLocalStorage();
     invalidateScheduleCache();
-    renderCalendar();
+    requestUiCalendarRender();
 }
 
 function applyLessonFilterJustMine() {
@@ -5453,7 +5732,7 @@ function applyLessonFilterJustMine() {
 
 function resetLessonFilters() {
     ensureUiState();
-    appData.ui.lessonFilters = { ...DEFAULT_LESSON_FILTERS };
+    dispatchUiSet('lessonFilters', { ...DEFAULT_LESSON_FILTERS });
     if (isLessonFilterPopoverOpen()) {
         applyLessonFiltersToPopoverDom();
         updateLessonFilterStatusText();
@@ -5462,15 +5741,18 @@ function resetLessonFilters() {
     updatePrintLessonFilterHint();
     // UI-only: viewer preference.
     saveUiStateToLocalStorage();
-    renderCalendar();
+    invalidateScheduleCache();
+    requestUiCalendarRender();
 }
 
 /** After import: expanded calendar toolbar, show all classes, lessons visible on calendar. */
 function resetCalendarClassVisibilityAfterImport() {
     ensureUiState();
-    appData.ui.topBarCollapsed = false;
-    appData.ui.lessonFilters = { ...DEFAULT_LESSON_FILTERS };
-    appData.ui.visibilityFilters = { ...DEFAULT_VISIBILITY_FILTERS };
+    dispatchUiMerge({
+        topBarCollapsed: false,
+        lessonFilters: { ...DEFAULT_LESSON_FILTERS },
+        visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS }
+    });
     applyTopBarCollapsedState();
     applyVisibilityFiltersToDom();
     if (isLessonFilterPopoverOpen()) {
@@ -5479,6 +5761,8 @@ function resetCalendarClassVisibilityAfterImport() {
     }
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
+    invalidateScheduleCache();
+    requestUiCalendarRender();
 }
 
 function setAllLessonFilterCheckboxesInPopover(checked) {
@@ -6008,8 +6292,10 @@ function setupLessonFilterUi() {
 function syncPrintVisibilityFromUi() {
     ensureUiState();
     const filters = readVisibilityFiltersFromDom();
-    appData.ui.visibilityFilters = { ...filters };
-    appData.ui.printVisibility = { ...filters };
+    dispatchUiMerge({
+        visibilityFilters: { ...filters },
+        printVisibility: { ...filters }
+    });
     VISIBILITY_FILTER_FIELDS.forEach(({ key, uiId, printId }) => {
         const uiEl = document.getElementById(uiId);
         const printEl = document.getElementById(printId);
@@ -6301,6 +6587,76 @@ let timetableContextMenuState = null;
 let lastDayNotesSummaryDate = null;
 let classDayNoteModalState = null;
 let dayNoteSaveInFlight = false;
+/** @type {ReturnType<typeof CCPDayNotesSave.createDayNotesSave>|null} */
+let dayNotesSaver = null;
+
+function ensureDayNotesSaver() {
+    if (dayNotesSaver || typeof CCPDayNotesSave === 'undefined') {
+        return dayNotesSaver;
+    }
+    dayNotesSaver = CCPDayNotesSave.createDayNotesSave({
+        getDayNotes: () => appData.dayNotes,
+        setDayNotes: (notes) => {
+            if (appStore) {
+                appStore.dispatch({ type: 'dayNotes/mutate', dayNotes: notes });
+            } else {
+                appData.dayNotes = notes;
+            }
+        },
+        saveToLocalCache: () => {
+            saveDataToLocalCache();
+        },
+        hasTeamSync: () => Boolean(teamSyncEnabled && typeof CalendarSync !== 'undefined'),
+        hasDayNotesAccess: () => hasDayNotesCalendarAccess(),
+        getCalendarSync: () => (typeof CalendarSync !== 'undefined' ? CalendarSync : undefined),
+        onRollback: (snapshot) => {
+            if (appStore) {
+                appStore.dispatch({
+                    type: 'dayNotes/mutate',
+                    dayNotes: snapshot,
+                    meta: { silent: true }
+                });
+            } else {
+                appData.dayNotes = snapshot;
+            }
+        },
+        onConflict: (err) => {
+            if (err && err.status === 409) {
+                console.warn('Day note save conflict:', err);
+            }
+        }
+    });
+    return dayNotesSaver;
+}
+
+async function persistDayNotesAfterChange(rollbackSnapshot) {
+    const saver = ensureDayNotesSaver();
+    if (!saver) {
+        saveDataToLocalCache();
+        return { ok: true };
+    }
+    dayNoteSaveInFlight = true;
+    try {
+        return await saver.saveAfterMutate(appData.dayNotes, rollbackSnapshot);
+    } finally {
+        dayNoteSaveInFlight = false;
+    }
+}
+
+function refreshDayNotesUiAfterChange(skipClassNotesTabRender) {
+    if (typeof CCPRenderOrchestrator !== 'undefined') {
+        CCPRenderOrchestrator.requestRender('calendar');
+        CCPRenderOrchestrator.requestRender('classNotes');
+    } else {
+        renderCalendar();
+        if (document.getElementById('classNotesShell') && !skipClassNotesTabRender) {
+            renderClassNotesTab();
+        }
+        if (!isNotesPage()) {
+            refreshNotesPageIfMounted();
+        }
+    }
+}
 
 function getCurrentClassContext(options = {}) {
     const api = getTimetableApi();
@@ -7227,26 +7583,7 @@ function mergeDayNotesForServerApply(serverData) {
 }
 
 async function flushTeamSaveAfterDayNotesChange() {
-    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
-        return;
-    }
-    if (!hasDayNotesCalendarAccess()) {
-        return;
-    }
-    try {
-        if (CalendarSync.saveDayNotesOnly) {
-            ensureDayNotesArray();
-            await CalendarSync.saveDayNotesOnly(appData.dayNotes);
-            return;
-        }
-        if (CalendarSync.flushPendingSave) {
-            await CalendarSync.flushPendingSave();
-        }
-    } catch (err) {
-        if (err && err.status !== 423 && err.status !== 409) {
-            console.warn('Flush after day note change failed:', err);
-        }
-    }
+    await persistDayNotesAfterChange(null);
 }
 
 function appendClassDayNote({
@@ -7258,7 +7595,7 @@ function appendClassDayNote({
     categoryId,
     skipClassNotesTabRender = false
 }) {
-    if (dayNoteSaveInFlight) {
+    if (dayNoteSaveInFlight || (ensureDayNotesSaver() && ensureDayNotesSaver().isSaveInFlight())) {
         return false;
     }
     if (isDayNoteWriteBlocked(classId)) {
@@ -7269,8 +7606,6 @@ function appendClassDayNote({
     if (!api) {
         return false;
     }
-    dayNoteSaveInFlight = true;
-    try {
     ensureDayNotesArray();
     const actorId = getDayNotesActorUserId();
     const classData = appData.classes.find((c) => c && c.id === classId);
@@ -7303,10 +7638,14 @@ function appendClassDayNote({
     if (!entry) {
         return false;
     }
+    const rollbackSnapshot = JSON.parse(JSON.stringify(appData.dayNotes || []));
     appData.dayNotes.push(entry);
-    saveData();
-    void flushTeamSaveAfterDayNotesChange();
-    renderCalendar();
+    if (appStore) {
+        appStore.dispatch({ type: 'dayNotes/mutate', dayNotes: appData.dayNotes, meta: { silent: true } });
+    }
+    void persistDayNotesAfterChange(rollbackSnapshot).then(() => {
+        refreshDayNotesUiAfterChange(skipClassNotesTabRender);
+    });
     if (document.getElementById('classNotesShell')) {
         ensureClassNotesFilterIncludes(classId);
         widenClassNotesDateRangeForNote(dateStr);
@@ -7322,9 +7661,6 @@ function appendClassDayNote({
     }
     scheduleTabWarningsRefresh();
     return true;
-    } finally {
-        dayNoteSaveInFlight = false;
-    }
 }
 
 function saveClassDayNoteFromModal() {
@@ -8045,6 +8381,9 @@ function updateClassDayNote(id, patch) {
     if (!api || !api.updateDayNote) {
         return false;
     }
+    if (dayNoteSaveInFlight || (ensureDayNotesSaver() && ensureDayNotesSaver().isSaveInFlight())) {
+        return false;
+    }
     ensureDayNotesArray();
     const existing = appData.dayNotes.find((n) => n && n.id === id);
     if (!canUserEditDayNoteEntry(existing)) {
@@ -8055,16 +8394,14 @@ function updateClassDayNote(id, patch) {
     if (next === appData.dayNotes) {
         return false;
     }
+    const rollbackSnapshot = JSON.parse(JSON.stringify(appData.dayNotes));
     appData.dayNotes = next;
-    saveData();
-    void flushTeamSaveAfterDayNotesChange();
-    renderCalendar();
-    if (document.getElementById('classNotesShell')) {
-        renderClassNotesTab();
+    if (appStore) {
+        appStore.dispatch({ type: 'dayNotes/mutate', dayNotes: next, meta: { silent: true } });
     }
-    if (!isNotesPage()) {
-        refreshNotesPageIfMounted();
-    }
+    void persistDayNotesAfterChange(rollbackSnapshot).then(() => {
+        refreshDayNotesUiAfterChange(false);
+    });
     return true;
 }
 
@@ -8073,25 +8410,26 @@ function deleteClassDayNote(id) {
     if (!api || !api.removeDayNote) {
         return false;
     }
+    if (dayNoteSaveInFlight || (ensureDayNotesSaver() && ensureDayNotesSaver().isSaveInFlight())) {
+        return false;
+    }
     ensureDayNotesArray();
     const existing = appData.dayNotes.find((n) => n && n.id === id);
     if (!canUserEditDayNoteEntry(existing)) {
         showClassNotesExportStatus(false, getDayNoteEntryBlockedMessage(existing));
         return false;
     }
+    const rollbackSnapshot = JSON.parse(JSON.stringify(appData.dayNotes));
     appData.dayNotes = api.removeDayNote(appData.dayNotes, id);
     if (classNotesEditingId === id) {
         classNotesEditingId = null;
     }
-    saveData();
-    void flushTeamSaveAfterDayNotesChange();
-    renderCalendar();
-    if (document.getElementById('classNotesShell')) {
-        renderClassNotesTab();
+    if (appStore) {
+        appStore.dispatch({ type: 'dayNotes/mutate', dayNotes: appData.dayNotes, meta: { silent: true } });
     }
-    if (!isNotesPage()) {
-        refreshNotesPageIfMounted();
-    }
+    void persistDayNotesAfterChange(rollbackSnapshot).then(() => {
+        refreshDayNotesUiAfterChange(false);
+    });
     return true;
 }
 
@@ -8308,24 +8646,29 @@ function getClassNotesFilterOptionGroups() {
     };
 }
 
-function getClassNotesCategoriesInDateRange(dateFrom, dateTo) {
-    ensureDayNotesArray();
+function getClassNotesCategoryCheckboxState() {
+    const state = new Map();
+    const mount = document.getElementById('classNotesFilterCategories');
+    const inputs = mount
+        ? mount.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="categories"]`)
+        : [];
+    inputs.forEach((input) => {
+        state.set(input.value, input.checked);
+    });
+    return state;
+}
+
+function getClassNotesCategoriesForBaseFilters(filters) {
+    if (!filters || !filters.classIds.length) {
+        return [];
+    }
     const api = getDayNotesApi();
     const normalize = api && api.normalizeCategoryId
         ? (id) => api.normalizeCategoryId(id)
         : (id) => String(id || 'class-notes');
+    const notes = filterClassNotesWithSidebarFilters(filters, { omitCategoryFilter: true });
     const catIds = new Set();
-    (appData.dayNotes || []).forEach((note) => {
-        if (!note || !note.date) {
-            return;
-        }
-        const d = String(note.date).trim();
-        if (dateFrom && d < dateFrom) {
-            return;
-        }
-        if (dateTo && d > dateTo) {
-            return;
-        }
+    notes.forEach((note) => {
         catIds.add(normalize(note.categoryId));
     });
     return getDayNoteCategoryList()
@@ -8445,15 +8788,21 @@ function ensureClassNotesFiltersCoverExistingNotes() {
     classIds.forEach((cid) => ensureClassNotesFilterIncludes(cid));
 }
 
-function buildClassNotesFilterChipHtml(filterKey, options) {
+function buildClassNotesFilterChipHtml(filterKey, options, checkedState) {
     if (!options.length) {
         return '';
     }
-    return options.map((opt) => `
+    return options.map((opt) => {
+        const checked = checkedState && checkedState.has(opt.value)
+            ? checkedState.get(opt.value)
+            : true;
+        const checkedAttr = checked ? ' checked' : '';
+        return `
         <label class="checkbox-label lesson-filter-chip">
-            <input type="checkbox" ${CLASS_NOTES_FILTER_ATTR}="${filterKey}" value="${escapeAttr(opt.value)}" checked>
+            <input type="checkbox" ${CLASS_NOTES_FILTER_ATTR}="${filterKey}" value="${escapeAttr(opt.value)}"${checkedAttr}>
             <span>${escapeHtml(opt.label)}</span>
-        </label>`).join('');
+        </label>`;
+    }).join('');
 }
 
 function renderClassNotesFilterClasses() {
@@ -8508,22 +8857,44 @@ function renderClassNotesFilterSubjectsAndGrades() {
             hrMount.innerHTML = '';
         }
     }
+    renderClassNotesCategoryFilterChips();
+}
+
+function renderClassNotesCategoryFilterChips() {
     const catWrap = document.getElementById('classNotesFilterCategoriesWrap');
     const catMount = document.getElementById('classNotesFilterCategories');
-    const fromEl = document.getElementById('classNotesFilterFrom');
-    const toEl = document.getElementById('classNotesFilterTo');
-    const dateFrom = fromEl ? (fromEl.value || '').trim() : '';
-    const dateTo = toEl ? (toEl.value || '').trim() : '';
-    const categories = getClassNotesCategoriesInDateRange(dateFrom, dateTo);
+    const exportWrap = document.getElementById('classNotesExportCategoriesWrap');
+    const exportMount = document.getElementById('classNotesExportCategories');
+    const filters = collectClassNotesFilterState();
+    const checkedState = getClassNotesCategoryCheckboxState();
+    const categories = getClassNotesCategoriesForBaseFilters(filters);
+    const chipHtml = categories.length
+        ? buildClassNotesFilterChipHtml('categories', categories, checkedState)
+        : '';
+    const show = categories.length >= 1;
     if (catMount && catWrap) {
-        if (categories.length > 1) {
-            catWrap.hidden = false;
-            catMount.innerHTML = buildClassNotesFilterChipHtml('categories', categories);
-        } else {
-            catWrap.hidden = true;
-            catMount.innerHTML = '';
-        }
+        catWrap.hidden = !show;
+        catMount.innerHTML = chipHtml;
     }
+    if (exportMount && exportWrap) {
+        exportWrap.hidden = !show;
+        exportMount.innerHTML = chipHtml;
+    }
+}
+
+function syncClassNotesCategoryChipsFromInput(changedInput) {
+    if (!changedInput || changedInput.getAttribute(CLASS_NOTES_FILTER_ATTR) !== 'categories') {
+        return;
+    }
+    const value = changedInput.value;
+    const checked = changedInput.checked;
+    document.querySelectorAll(
+        `input[${CLASS_NOTES_FILTER_ATTR}="categories"][value="${CSS.escape(value)}"]`
+    ).forEach((input) => {
+        if (input !== changedInput) {
+            input.checked = checked;
+        }
+    });
 }
 
 function applyDefaultClassNotesDateRange() {
@@ -8818,9 +9189,15 @@ function getClassNotesActiveFilterLabels(filters) {
             parts.push(labels.join(', '));
         }
     }
-    if (filters && filters.categorySet && filters.categorySet.size) {
+    if (filters && filters.categorySet && filters.categorySet.size === 0) {
+        parts.push(t('classNotesNoCategorySelected'));
+    } else if (filters && filters.categorySet && filters.categorySet.size) {
         const labels = [];
-        document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="categories"]`).forEach((input) => {
+        const catMount = document.getElementById('classNotesFilterCategories');
+        const catInputs = catMount
+            ? catMount.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="categories"]`)
+            : [];
+        catInputs.forEach((input) => {
             if (input.checked && filters.categorySet.has(input.value)) {
                 const label = input.closest('label')?.querySelector('span')?.textContent?.trim();
                 if (label) {
@@ -8833,6 +9210,18 @@ function getClassNotesActiveFilterLabels(filters) {
         }
     }
     return parts;
+}
+
+function showClassNotesExportEmptyReason(filters) {
+    if (!filters || !filters.classIds.length) {
+        showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
+    } else if (filters.categorySet && filters.categorySet.size === 0) {
+        showClassNotesExportStatus(false, t('classNotesNoCategorySelected'));
+    } else if (filters.textQuery) {
+        showClassNotesExportStatus(false, t('classNotesEmptySearch'));
+    } else {
+        showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
+    }
 }
 
 function applyClassNotesTodayClasses() {
@@ -8925,7 +9314,15 @@ function applyClassNotesHomeroomChipNarrowing() {
 }
 
 function getClassNotesPartialFilterSet(filterKey) {
-    const inputs = document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="${filterKey}"]`);
+    let inputs;
+    if (filterKey === 'categories') {
+        const mount = document.getElementById('classNotesFilterCategories');
+        inputs = mount
+            ? mount.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="${filterKey}"]`)
+            : [];
+    } else {
+        inputs = document.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="${filterKey}"]`);
+    }
     if (!inputs.length) {
         return null;
     }
@@ -8935,6 +9332,15 @@ function getClassNotesPartialFilterSet(filterKey) {
             checked.push(input.value);
         }
     });
+    if (filterKey === 'categories') {
+        if (checked.length === 0) {
+            return new Set();
+        }
+        if (checked.length === inputs.length) {
+            return null;
+        }
+        return new Set(checked);
+    }
     if (checked.length === 0 || checked.length === inputs.length) {
         return null;
     }
@@ -8970,17 +9376,16 @@ function collectClassNotesFilterState() {
     };
 }
 
-function getFilteredClassNotesForExport() {
+function filterClassNotesWithSidebarFilters(filters, options = {}) {
     const api = getDayNotesApi();
-    if (!api) {
-        return { notes: [], classOrderIds: [], filters: null };
+    if (!api || !filters || !filters.classIds.length) {
+        return [];
     }
     ensureDayNotesArray();
-    const filters = collectClassNotesFilterState();
-    if (!filters.classIds.length) {
-        return { notes: [], classOrderIds: [], filters };
-    }
-    const notes = api.filterNotes(appData.dayNotes, {
+    const categorySet = options.omitCategoryFilter
+        ? undefined
+        : (filters.categorySet || undefined);
+    return api.filterNotes(appData.dayNotes, {
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
         classIds: filters.classIds,
@@ -8991,7 +9396,7 @@ function getFilteredClassNotesForExport() {
             const classData = appData.classes.find((c) => c.id === classId);
             return !!(classData && classMatchesClassNotesSidebarFilters(classData, filters));
         },
-        categorySet: filters.categorySet || undefined,
+        categorySet,
         matchesNote: filters.meetingDaysOnly
             ? (note) => {
                 const classData = appData.classes.find((c) => c.id === note.classId);
@@ -8999,6 +9404,25 @@ function getFilteredClassNotesForExport() {
             }
             : undefined
     });
+}
+
+function getFilteredClassNotesForExport() {
+    const api = getDayNotesApi();
+    if (!api) {
+        return { notes: [], classOrderIds: [], filters: null };
+    }
+    ensureDayNotesArray();
+    const filters = collectClassNotesFilterState();
+    if (!filters.classIds.length) {
+        return { notes: [], classOrderIds: [], filters };
+    }
+    if (filters.categorySet && filters.categorySet.size === 0) {
+        const classOrderIds = getClassesInDisplayOrder()
+            .map((c) => c.id)
+            .filter((id) => filters.classIds.includes(id));
+        return { notes: [], classOrderIds, filters };
+    }
+    const notes = filterClassNotesWithSidebarFilters(filters);
     const classOrderIds = getClassesInDisplayOrder()
         .map((c) => c.id)
         .filter((id) => filters.classIds.includes(id));
@@ -9117,6 +9541,7 @@ function renderClassNotesTab() {
     if (!previewEl) {
         return;
     }
+    renderClassNotesCategoryFilterChips();
     syncClassNotesSortSelect();
     const api = getDayNotesApi();
     const { notes, classOrderIds, filters } = getFilteredClassNotesForExport();
@@ -9273,13 +9698,7 @@ async function copyClassNotesExport() {
     const text = buildClassNotesRangeExportText();
     if (!text.trim()) {
         const { filters } = getFilteredClassNotesForExport();
-        if (!filters || !filters.classIds.length) {
-            showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
-        } else if (filters.textQuery) {
-            showClassNotesExportStatus(false, t('classNotesEmptySearch'));
-        } else {
-            showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
-        }
+        showClassNotesExportEmptyReason(filters);
         return;
     }
     const ok = await copyTextToClipboard(text);
@@ -9290,13 +9709,7 @@ function downloadClassNotesExport() {
     const text = normalizeTextForClipboard(buildClassNotesRangeExportText());
     if (!text.trim()) {
         const { filters } = getFilteredClassNotesForExport();
-        if (!filters || !filters.classIds.length) {
-            showClassNotesExportStatus(false, t('classNotesNoClassSelected'));
-        } else if (filters.textQuery) {
-            showClassNotesExportStatus(false, t('classNotesEmptySearch'));
-        } else {
-            showClassNotesExportStatus(false, t('classNotesEmptyFiltered'));
-        }
+        showClassNotesExportEmptyReason(filters);
         return;
     }
     const filters = collectClassNotesFilterState();
@@ -9427,12 +9840,16 @@ function initClassNotesPanelListeners() {
             saveClassNotesFiltersToUi();
         }
     });
-    shell.querySelector('#classNotesFilterCategories')?.addEventListener('change', (e) => {
-        if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
-            renderClassNotesTab();
-            saveClassNotesFiltersToUi();
+    function handleClassNotesCategoryFilterChange(e) {
+        if (!e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}="categories"]`)) {
+            return;
         }
-    });
+        syncClassNotesCategoryChipsFromInput(e.target);
+        renderClassNotesTab();
+        saveClassNotesFiltersToUi();
+    }
+    shell.querySelector('#classNotesFilterCategories')?.addEventListener('change', handleClassNotesCategoryFilterChange);
+    shell.querySelector('#classNotesExportCategories')?.addEventListener('change', handleClassNotesCategoryFilterChange);
     shell.querySelector('#classNotesFilterSelectAllBtn')?.addEventListener('click', () => {
         shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
             input.checked = true;
@@ -9734,6 +10151,9 @@ function invalidateScheduleCache() {
     cachedDayIndex = null;
     cachedDayIndexKey = '';
 }
+if (typeof window !== 'undefined') {
+    window.invalidateScheduleCache = invalidateScheduleCache;
+}
 
 function getCurriculumSlicesApi() {
     return typeof CCPClassCurriculumSlices !== 'undefined' ? CCPClassCurriculumSlices : null;
@@ -9827,11 +10247,10 @@ function syncShowAllCurriculaControl() {
         cb.dataset.bound = '1';
         cb.addEventListener('change', () => {
             ensureUiState();
-            appData.ui.showAllClassCurricula = cb.checked;
+            dispatchUiSet('showAllClassCurricula', cb.checked);
             saveUiStateToLocalStorage();
             invalidateScheduleCache();
             updateLessonFilterButtonLabel();
-            renderCalendar();
         });
     }
 }
@@ -10361,7 +10780,16 @@ function collectCompressionMergesByPeriodFromForm(surface) {
 const APP_HOST_TEACHING = 'teaching';
 const APP_HOST_SETUP = 'setup';
 const APP_SHARED_TAB_IDS = ['calendar', 'classes'];
-const APP_TEACHING_ONLY_TAB_IDS = ['homework', 'notes', 'timetable', 'students', 'attendance', 'homework-tracking'];
+const APP_TEACHING_ONLY_TAB_IDS = [
+    'homework',
+    'notes',
+    'timetable',
+    'students',
+    'attendance',
+    'homework-tracking',
+    'points',
+    'tests'
+];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts & teachers only). */
 const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
@@ -10385,7 +10813,14 @@ const ZONE_SEGMENT_TO_TAB = {
         curriculum: 'curriculum',
         syllabus: 'syllabus'
     },
-    classroom: { students: 'students', attendance: 'attendance', homework: 'homework-tracking', notes: 'notes' },
+    classroom: {
+        students: 'students',
+        attendance: 'attendance',
+        homework: 'homework-tracking',
+        points: 'points',
+        tests: 'tests',
+        notes: 'notes'
+    },
     more: { data: 'data' }
 };
 
@@ -10433,6 +10868,8 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     students: { zone: APP_ZONE_CLASSROOM, segment: 'students' },
     attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
     'homework-tracking': { zone: APP_ZONE_CLASSROOM, segment: 'homework' },
+    points: { zone: APP_ZONE_CLASSROOM, segment: 'points' },
+    tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_CLASSES, segment: 'events' },
@@ -11191,7 +11628,7 @@ function renderSyllabusClassList() {
     if (classes.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         empty.textContent = q ? t('lessonFilterSearchEmpty') : t('classEditorEmpty');
         list.appendChild(empty);
@@ -11228,7 +11665,7 @@ function renderSyllabusTemplateList() {
     if (templates.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         empty.textContent = q ? t('lessonFilterSearchEmpty') : t('syllabusNoTemplates');
         list.appendChild(empty);
@@ -12360,6 +12797,10 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
 }
 
 function renderClassList() {
+    if (typeof CCPClassListView !== 'undefined' && CCPClassListView.render) {
+        CCPClassListView.render();
+        return;
+    }
     const list = document.getElementById('classList');
     if (!list) {
         return;
@@ -12377,7 +12818,7 @@ function renderClassList() {
     if (classes.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         empty.textContent = q ? t('lessonFilterSearchEmpty') : t('classEditorEmpty');
         list.appendChild(empty);
@@ -12396,6 +12837,10 @@ function renderClassList() {
 }
 
 function renderEventList() {
+    if (typeof CCPEventListView !== 'undefined' && CCPEventListView.render) {
+        CCPEventListView.render();
+        return;
+    }
     const list = document.getElementById('eventList');
     if (!list) {
         return;
@@ -12417,7 +12862,7 @@ function renderEventList() {
     if (events.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         empty.textContent = q ? t('lessonFilterSearchEmpty') : t('eventEditorEmpty');
         list.appendChild(empty);
@@ -12778,7 +13223,7 @@ function renderHomeworkClassList() {
     if (classes.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         if (q) {
             empty.textContent = t('lessonFilterSearchEmpty');
@@ -14997,8 +15442,194 @@ function preferTimetableListView() {
     return isViewportPhone();
 }
 
+function formatTimetableConflictClassList(classNames) {
+    const names = (classNames || []).filter(Boolean);
+    if (!names.length) {
+        return '';
+    }
+    if (names.length === 1) {
+        return names[0];
+    }
+    const joiner = currentLanguage === 'ko' ? ' 및 ' : ' and ';
+    if (names.length === 2) {
+        return names.join(joiner);
+    }
+    const last = names[names.length - 1];
+    return `${names.slice(0, -1).join(', ')}${joiner}${last}`;
+}
+
+function formatTimetableTeacherDoubleBookText(item) {
+    let text = formatI18n('timetableConflictTeacherDoubleBook', {
+        day: item.dayLabel || '',
+        period: item.period != null ? String(item.period) : '—',
+        time: item.timeLabel || '',
+        teacher: item.teacherName || '',
+        classes: formatTimetableConflictClassList(item.classNames)
+    });
+    if (item.blockId === 'secondary') {
+        text += ` (${t('timetableConflictSecondaryBlock')})`;
+    }
+    return text;
+}
+
+function formatTimetableCohortPeriodCollisionText(item) {
+    return formatI18n('timetableConflictPeriodCollision', {
+        day: item.dayLabel || '',
+        period: item.period != null ? String(item.period) : '—',
+        time: item.timeLabel || '',
+        cohort: item.cohortName || '',
+        classes: formatTimetableConflictClassList(item.classNames)
+    });
+}
+
+function getTimetableCellConflictDescription(cell, row, block, conflicts) {
+    if (!conflicts || !cell) {
+        return '';
+    }
+    if (cell.conflict) {
+        const match = (conflicts.teacherDoubleBook || []).find((c) =>
+            c.dow === cell.dow
+            && c.timeSlotId === row.timeSlotId
+            && c.blockId === block.id
+        );
+        if (match) {
+            return formatTimetableTeacherDoubleBookText(match);
+        }
+    }
+    if (cell.cohortCollision) {
+        const match = (conflicts.cohortPeriodCollisions || []).find((c) =>
+            c.dow === cell.dow && c.timeSlotId === row.timeSlotId
+        );
+        if (match) {
+            return formatTimetableCohortPeriodCollisionText(match);
+        }
+    }
+    return '';
+}
+
+function appendTimetableCellConflictLabel(container, cell) {
+    if (!cell || (!cell.conflict && !cell.cohortCollision)) {
+        return;
+    }
+    const label = document.createElement('div');
+    label.className = 'timetable-cell-conflict-label'
+        + (cell.conflict ? ' timetable-cell-conflict-label--error' : ' timetable-cell-conflict-label--warn');
+    label.textContent = cell.conflict ? t('timetableConflictCellLabel') : t('timetableConflictCohortOverlap');
+    container.insertBefore(label, container.firstChild);
+}
+
+function applyTimetableCellConflictState(el, cell, row, block, conflicts) {
+    if (!el || !cell) {
+        return;
+    }
+    if (cell.conflict) {
+        el.classList.add('timetable-cell--conflict');
+    }
+    if (cell.cohortCollision) {
+        el.classList.add('timetable-cell--cohort-collision');
+    }
+    const description = getTimetableCellConflictDescription(cell, row, block, conflicts);
+    if (description) {
+        el.setAttribute('title', description);
+        el.setAttribute('aria-label', description);
+    }
+}
+
+function buildTimetableConflictListHtml(conflicts) {
+    if (!conflicts || !conflicts.hasConflicts) {
+        return '';
+    }
+    const sections = [];
+    if (conflicts.teacherDoubleBook && conflicts.teacherDoubleBook.length) {
+        const items = conflicts.teacherDoubleBook.map((item) =>
+            `<li>${escapeHtml(formatTimetableTeacherDoubleBookText(item))}</li>`
+        ).join('');
+        sections.push(`<section class="timetable-conflict-section timetable-conflict-section--error">
+<h3 class="timetable-conflict-section-title">${escapeHtml(t('timetableConflictTeacherSection'))}</h3>
+<ul class="timetable-conflict-list">${items}</ul>
+</section>`);
+    }
+    if (conflicts.cohortPeriodCollisions && conflicts.cohortPeriodCollisions.length) {
+        const items = conflicts.cohortPeriodCollisions.map((item) =>
+            `<li>${escapeHtml(formatTimetableCohortPeriodCollisionText(item))}</li>`
+        ).join('');
+        sections.push(`<section class="timetable-conflict-section timetable-conflict-section--warn">
+<h3 class="timetable-conflict-section-title">${escapeHtml(t('timetableConflictCohortSection'))}</h3>
+<ul class="timetable-conflict-list">${items}</ul>
+</section>`);
+    }
+    if (!sections.length) {
+        return '';
+    }
+    return `<div class="timetable-conflict-panel-inner">
+<h2 class="timetable-conflict-panel-title">${escapeHtml(t('timetableConflictPanelHeading'))}</h2>
+${sections.join('')}
+</div>`;
+}
+
+function bindTimetableConflictListItem(li, item) {
+    if (!li || !item || !item.classIds || !item.classIds.length) {
+        return;
+    }
+    li.classList.add('timetable-conflict-list-item--clickable');
+    li.setAttribute('role', 'button');
+    li.tabIndex = 0;
+    li.addEventListener('click', () => openTimetableClassEditor(item.classIds[0]));
+    li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openTimetableClassEditor(item.classIds[0]);
+        }
+    });
+}
+
+function renderTimetableConflictPanel(conflicts) {
+    const panel = document.getElementById('timetableConflictPanel');
+    if (!panel) {
+        return;
+    }
+    if (!conflicts || !conflicts.hasConflicts) {
+        panel.hidden = true;
+        panel.innerHTML = '';
+        return;
+    }
+    panel.hidden = false;
+    panel.innerHTML = buildTimetableConflictListHtml(conflicts);
+    const teacherList = panel.querySelector('.timetable-conflict-section--error .timetable-conflict-list');
+    if (teacherList) {
+        (conflicts.teacherDoubleBook || []).forEach((item, idx) => {
+            bindTimetableConflictListItem(teacherList.children[idx], item);
+        });
+    }
+    const cohortList = panel.querySelector('.timetable-conflict-section--warn .timetable-conflict-list');
+    if (cohortList) {
+        (conflicts.cohortPeriodCollisions || []).forEach((item, idx) => {
+            bindTimetableConflictListItem(cohortList.children[idx], item);
+        });
+    }
+}
+
+function buildTimetableTeacherConflictCountMap() {
+    const api = getTimetableApi();
+    const map = new Map();
+    if (!api || !api.collectTeacherTimetableConflicts) {
+        return map;
+    }
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    listTimetableTeachers().forEach((row) => {
+        const selector = { userId: row.userId, displayName: row.displayName };
+        const conflicts = api.collectTeacherTimetableConflicts(appData, selector, { lang });
+        if (conflicts.hasConflicts) {
+            const key = api.teacherKeyFromSelector(selector);
+            map.set(key, conflicts.conflictCount);
+        }
+    });
+    return map;
+}
+
 function renderTimetableListInto(mountEl, grid, lang, options) {
     options = options || {};
+    const conflicts = grid.conflicts || null;
     const wrap = document.createElement('div');
     wrap.className = 'timetable-list-view';
     grid.blocks.forEach((block) => {
@@ -15013,6 +15644,9 @@ function renderTimetableListInto(mountEl, grid, lang, options) {
                 const cell = row.cells[colIdx];
                 const slot = document.createElement('div');
                 slot.className = 'timetable-list-slot';
+                if (cell) {
+                    applyTimetableCellConflictState(slot, cell, row, block, conflicts);
+                }
                 const time = document.createElement('div');
                 time.className = 'timetable-list-time';
                 time.textContent = row.timeLabel || '';
@@ -15025,6 +15659,9 @@ function renderTimetableListInto(mountEl, grid, lang, options) {
                     empty.textContent = '—';
                     entries.appendChild(empty);
                 } else {
+                    if (cell.conflict || cell.cohortCollision) {
+                        appendTimetableCellConflictLabel(entries, cell);
+                    }
                     cell.entries.forEach((entry) => {
                         const el = document.createElement('div');
                         el.className = 'timetable-list-entry timetable-list-entry--colored';
@@ -15477,6 +16114,12 @@ function mergeClassroomFieldsFromServer(serverData) {
     if (Array.isArray(serverData.homeworkCompletions)) {
         appData.homeworkCompletions = serverData.homeworkCompletions;
     }
+    if (Array.isArray(serverData.studentPoints)) {
+        appData.studentPoints = serverData.studentPoints;
+    }
+    if (Array.isArray(serverData.studentTests)) {
+        appData.studentTests = serverData.studentTests;
+    }
 }
 
 async function saveClassroomPartial(fields) {
@@ -15488,6 +16131,12 @@ async function saveClassroomPartial(fields) {
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
         appData.homeworkCompletions = fields.homeworkCompletions;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentPoints')) {
+        appData.studentPoints = fields.studentPoints;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentTests')) {
+        appData.studentTests = fields.studentTests;
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'ui')) {
         Object.assign(appData.ui, fields.ui);
@@ -15574,6 +16223,10 @@ async function initClassroomTabControls(tabId, options = {}) {
             CCPClassroomAttendance.initTab(hooks, options);
         } else if (tabId === 'homework-tracking' && typeof CCPClassroomHomework !== 'undefined') {
             CCPClassroomHomework.initTab(hooks, options);
+        } else if (tabId === 'points' && typeof CCPClassroomPoints !== 'undefined') {
+            CCPClassroomPoints.initTab(hooks, options);
+        } else if (tabId === 'tests' && typeof CCPClassroomTests !== 'undefined') {
+            CCPClassroomTests.initTab(hooks, options);
         } else {
             setAppStatusMessage(t('classroomModuleMissing'), true);
         }
@@ -15800,12 +16453,13 @@ function renderTimetableTeacherList() {
     if (!teachers.length) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         empty.textContent = q ? t('lessonFilterSearchEmpty') : t('timetableTeachersListEmpty');
         list.appendChild(empty);
         return;
     }
+    const teacherConflictCounts = buildTimetableTeacherConflictCountMap();
     teachers.forEach((row) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -15814,7 +16468,13 @@ function renderTimetableTeacherList() {
         btn.setAttribute('role', 'option');
         btn.setAttribute('aria-selected', String(isSelected));
         const label = formatTeacherAccountOptionLabel(row);
-        btn.innerHTML = `<span>${escapeHtml(label)}</span>`;
+        const api = getTimetableApi();
+        const teacherKey = api ? api.teacherKeyFromSelector(row) : '';
+        const conflictCount = teacherConflictCounts.get(teacherKey) || 0;
+        const badgeHtml = conflictCount
+            ? `<span class="timetable-teacher-conflict-dot" title="${escapeAttr(formatI18n('timetableConflictCount', { count: conflictCount }))}" aria-label="${escapeAttr(formatI18n('timetableConflictCount', { count: conflictCount }))}"></span>`
+            : '';
+        btn.innerHTML = `<span>${escapeHtml(label)}</span>${badgeHtml}`;
         btn.addEventListener('click', () => {
             selectTimetableTeacher({ userId: row.userId, displayName: row.displayName });
         });
@@ -15872,7 +16532,7 @@ function renderTimetableClassList(selector) {
     if (!items.length) {
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
-        empty.style.padding = '12px';
+        empty.style.padding = 'var(--space-3)';
         empty.style.color = 'var(--text-secondary)';
         if (q) {
             empty.textContent = t('lessonFilterSearchEmpty');
@@ -16048,6 +16708,7 @@ function renderTimetableGridTable(block, lang, options) {
     const printMode = !!options.printMode;
     const highlightCurrent = !printMode && options.highlightCurrentClass === true;
     const currentCtx = highlightCurrent ? getCurrentClassContext() : null;
+    const conflicts = options.conflicts || null;
     const table = document.createElement('table');
     table.className = 'timetable-grid' + (block.id === 'secondary' ? ' timetable-grid--secondary' : '');
     const thead = document.createElement('thead');
@@ -16078,8 +16739,9 @@ function renderTimetableGridTable(block, lang, options) {
         row.cells.forEach((cell) => {
             const td = document.createElement('td');
             td.className = 'timetable-cell';
-            if (cell.conflict) {
-                td.classList.add('timetable-cell--conflict');
+            applyTimetableCellConflictState(td, cell, row, block, conflicts);
+            if (cell.conflict || cell.cohortCollision) {
+                appendTimetableCellConflictLabel(td, cell);
             }
             if (cell.entries.length === 1) {
                 const entry = cell.entries[0];
@@ -16171,6 +16833,11 @@ function renderTimetableView(selector) {
         if (conflictBadge) {
             conflictBadge.hidden = true;
         }
+        const conflictPanel = document.getElementById('timetableConflictPanel');
+        if (conflictPanel) {
+            conflictPanel.hidden = true;
+            conflictPanel.innerHTML = '';
+        }
         setTimetableClassesSidebarVisible(false);
         return;
     }
@@ -16234,18 +16901,29 @@ function renderTimetableView(selector) {
         }
     }
     gridsMount.innerHTML = '';
+    renderTimetableConflictPanel(grid.conflicts);
     const highlightCurrent = isViewingOwnTimetableSchedule(selector);
+    const gridRenderOptions = {
+        highlightCurrentClass: highlightCurrent,
+        conflicts: grid.conflicts
+    };
     if (preferTimetableListView()) {
-        renderTimetableListInto(gridsMount, grid, lang, { highlightCurrentClass: highlightCurrent });
+        renderTimetableListInto(gridsMount, grid, lang, gridRenderOptions);
     } else {
         grid.blocks.forEach((block) => {
-            gridsMount.appendChild(renderTimetableGridTable(block, lang, { highlightCurrentClass: highlightCurrent }));
+            gridsMount.appendChild(renderTimetableGridTable(block, lang, gridRenderOptions));
         });
         layoutTimetableGridsForScreen(gridsMount);
     }
     if (conflictBadge) {
         conflictBadge.hidden = false;
-        conflictBadge.textContent = grid.hasConflicts ? t('timetableConflicts') : t('timetableNoConflicts');
+        if (grid.hasConflicts && grid.conflicts) {
+            conflictBadge.textContent = formatI18n('timetableConflictCount', {
+                count: grid.conflicts.conflictCount
+            });
+        } else {
+            conflictBadge.textContent = t('timetableNoConflicts');
+        }
         conflictBadge.classList.toggle('timetable-conflict-badge--warn', grid.hasConflicts);
     }
     scheduleTabWarningsRefresh();
@@ -16722,7 +17400,10 @@ function buildTimetableGridsPrintHtml(grid, opts, lang) {
     }
     return grid.blocks
         .filter((block) => opts.includeSecondary || block.id !== 'secondary')
-        .map((block) => renderTimetableGridTable(block, lang, { printMode: true }).outerHTML)
+        .map((block) => renderTimetableGridTable(block, lang, {
+            printMode: true,
+            conflicts: grid.conflicts
+        }).outerHTML)
         .join('');
 }
 
@@ -16753,8 +17434,13 @@ function buildTimetablePrintHeaderHtml(opts, grid) {
             parts.push(`<p class="timetable-print-term">${escapeHtml(text)}</p>`);
         }
     }
-    if (opts.includeConflicts && grid && grid.hasConflicts) {
-        parts.push(`<p class="timetable-print-conflict">${escapeHtml(t('timetableConflicts'))}</p>`);
+    if (opts.includeConflicts && grid && grid.hasConflicts && grid.conflicts) {
+        const conflictHtml = buildTimetableConflictListHtml(grid.conflicts);
+        if (conflictHtml) {
+            parts.push(`<div class="timetable-print-conflict">${conflictHtml}</div>`);
+        } else {
+            parts.push(`<p class="timetable-print-conflict">${escapeHtml(t('timetableConflicts'))}</p>`);
+        }
     }
     if (!parts.length) {
         return '';
@@ -18080,6 +18766,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupSimsonLevelControls();
         setupClassMeetingDaysUI();
         bindClassScheduleInputsForSyllabusDistribute();
+        initAppStoreAndRenderOrchestrator();
+        initListViewModules();
         loadData();
         if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
             try {
@@ -18406,13 +19094,6 @@ function setupEventListeners() {
     setupHeaderFixedPopover('teamAccountPopover', 'right');
     setupHeaderFixedPopover('teamCalendarPopover', 'left');
     setupHeaderDropdowns();
-    const openWsBooks = document.getElementById('openWorkspaceBooksBtn');
-    if (openWsBooks && openWsBooks.dataset.bound !== '1') {
-        openWsBooks.dataset.bound = '1';
-        openWsBooks.addEventListener('click', () => {
-            void openWorkspacePage('books');
-        });
-    }
 
     // Calendar Name Change
     elements.calendarName.addEventListener('input', (e) => {
@@ -18447,17 +19128,47 @@ function setupEventListeners() {
 
     VISIBILITY_FILTER_FIELDS.forEach(({ uiId }) => {
         const el = document.getElementById(uiId);
-        if (el) {
-            el.addEventListener('change', () => {
-                ensureUiState();
-                appData.ui.visibilityFilters = readVisibilityFiltersFromDom();
-                // UI-only: viewer preference. Never triggers read-only lock flash.
-                saveUiStateToLocalStorage();
-                updateLessonFilterButtonLabel();
-                renderCalendar();
-            });
+        if (el && !el.dataset.delegatedVisibility) {
+            el.dataset.delegatedVisibility = '1';
         }
     });
+
+    function handleVisibilityFilterChange() {
+        ensureUiState();
+        dispatchUiMerge({ visibilityFilters: readVisibilityFiltersFromDom() });
+        saveUiStateToLocalStorage();
+        updateLessonFilterButtonLabel();
+        invalidateScheduleCache();
+        requestUiCalendarRender();
+    }
+
+    if (typeof CCPAppDelegation !== 'undefined') {
+        CCPAppDelegation.initAppDelegation({
+            setPrintCalendarVisibilityCheckboxes,
+            setPrintSummaryOptionCheckboxes,
+            openWorkspaceBooks: () => {
+                void openWorkspacePage('books');
+            },
+            applyPrintUseCalendarFiltersState,
+            visibilityFilterIds: VISIBILITY_FILTER_FIELDS.map(({ uiId }) => uiId),
+            onVisibilityFilterChange: handleVisibilityFilterChange,
+            printSummaryOptionIds: PRINT_SUMMARY_OPTION_IDS,
+            savePrintSummaryVisibilityToUi
+        });
+        CCPAppDelegation.initDynamicPanelDelegation({
+            commitLessonFiltersFromPopover,
+            commitEventApplicabilityFromPopover
+        });
+    } else {
+        VISIBILITY_FILTER_FIELDS.forEach(({ uiId }) => {
+            const el = document.getElementById(uiId);
+            if (!el || el.dataset.visibilityBound === '1') {
+                return;
+            }
+            el.dataset.visibilityBound = '1';
+            el.addEventListener('change', handleVisibilityFilterChange);
+        });
+    }
 
     const fetchKrBtn = document.getElementById('fetchKrHolidaysBtn');
     if (fetchKrBtn) {
@@ -18478,33 +19189,6 @@ function setupEventListeners() {
     setupChangePasswordModal();
     setupEditDisplayNameModal();
     document.getElementById('importFile').addEventListener('change', importData);
-    const printCalVisSelectAll = document.getElementById('printCalVisSelectAllBtn');
-    const printCalVisClearAll = document.getElementById('printCalVisClearAllBtn');
-    if (printCalVisSelectAll && !printCalVisSelectAll.dataset.bound) {
-        printCalVisSelectAll.dataset.bound = '1';
-        printCalVisSelectAll.addEventListener('click', () => setPrintCalendarVisibilityCheckboxes(true));
-    }
-    if (printCalVisClearAll && !printCalVisClearAll.dataset.bound) {
-        printCalVisClearAll.dataset.bound = '1';
-        printCalVisClearAll.addEventListener('click', () => setPrintCalendarVisibilityCheckboxes(false));
-    }
-    const printSummarySelectAll = document.getElementById('printSummarySelectAllBtn');
-    const printSummaryClearAll = document.getElementById('printSummaryClearAllBtn');
-    if (printSummarySelectAll && !printSummarySelectAll.dataset.bound) {
-        printSummarySelectAll.dataset.bound = '1';
-        printSummarySelectAll.addEventListener('click', () => setPrintSummaryOptionCheckboxes(true));
-    }
-    if (printSummaryClearAll && !printSummaryClearAll.dataset.bound) {
-        printSummaryClearAll.dataset.bound = '1';
-        printSummaryClearAll.addEventListener('click', () => setPrintSummaryOptionCheckboxes(false));
-    }
-    PRINT_SUMMARY_OPTION_IDS.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el && !el.dataset.summaryVisBound) {
-            el.dataset.summaryVisBound = '1';
-            el.addEventListener('change', savePrintSummaryVisibilityToUi);
-        }
-    });
     setupLessonFilterUi();
     setupEventApplicabilityFilterUi();
     document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
@@ -18536,9 +19220,8 @@ function setupEventListeners() {
     }
 
     const printUseCalendarFilters = document.getElementById('printUseCalendarFilters');
-    if (printUseCalendarFilters && !printUseCalendarFilters.dataset.bound) {
-        printUseCalendarFilters.dataset.bound = '1';
-        printUseCalendarFilters.addEventListener('change', applyPrintUseCalendarFiltersState);
+    if (printUseCalendarFilters) {
+        printUseCalendarFilters.dataset.delegatedPrint = '1';
     }
 
     const syllabusRefreshHeaderBtn = document.getElementById('syllabusRefreshHeaderBtn');
@@ -18728,6 +19411,11 @@ const EXCLUSIVE_MODAL_IDS = [
 const CCPModalRegistry = {
     _entries: new Map(),
     register(id, options = {}) {
+        if (typeof CCPModal !== 'undefined') {
+            CCPModal.register(id, options);
+            this._entries.set(id, { el: document.getElementById(id), onClose: options.onClose || null });
+            return;
+        }
         const el = document.getElementById(id);
         if (!el) {
             return;
@@ -18789,6 +19477,9 @@ function closeExclusiveModalsExcept(keepModal) {
 }
 
 function getModalFocusables(modal) {
+    if (typeof CCPModal !== 'undefined') {
+        return CCPModal.getModalFocusables(modal);
+    }
     if (!modal) {
         return [];
     }
@@ -18800,6 +19491,10 @@ function getModalFocusables(modal) {
 }
 
 function bindModalA11y(modal, onClose) {
+    if (typeof CCPModal !== 'undefined') {
+        CCPModal.bindA11y(modal, onClose);
+        return;
+    }
     if (!modal || modal.dataset.a11yBound === '1') {
         return;
     }
@@ -18883,6 +19578,10 @@ function closeModal(modal) {
  * Otherwise, dragging to select text can end on the dimmed area and incorrectly fire click there.
  */
 function bindModalBackdropClose(modal) {
+    if (typeof CCPModal !== 'undefined') {
+        CCPModal.bindBackdropClose(modal, () => closeModal(modal));
+        return;
+    }
     let pressStartedOnBackdrop = false;
     modal.addEventListener('pointerdown', (e) => {
         pressStartedOnBackdrop = e.target === modal;
@@ -21185,17 +21884,6 @@ function handleClassSubmit(e) {
     
     applyClassCohortLinksFromForm(classData, existingClass);
 
-    if (elements.classId.value) {
-        // Update existing
-        const index = appData.classes.findIndex(c => c.id === classData.id);
-        if (index !== -1) {
-            appData.classes[index] = classData;
-        }
-    } else {
-        // Add new
-        appData.classes.push(classData);
-    }
-
     if (curriculumLinkChanged) {
         const editor = window.CCPBooksEditor;
         const skipPush = editor && editor.isNoCurriculum(classData.curriculumId);
@@ -21216,12 +21904,11 @@ function handleClassSubmit(e) {
             }
         }
     }
+
+    dispatchClassesUpsert(classData);
     
     const isUpdate = Boolean(existingId);
-    invalidateScheduleCache();
     saveData();
-    renderCalendar();
-    renderClassList();
     updateClassSyllabusSummary(classData);
     refreshTimetablePanels();
     const savedTotal = sanitizeTotalLessons(classData.totalLessons || 4);
@@ -21260,10 +21947,8 @@ function handleClassSubmit(e) {
 function deleteClass() {
     const id = elements.classId.value;
     if (id && confirm(t('confirmDeleteClass'))) {
-        appData.classes = appData.classes.filter(c => c.id !== id);
+        dispatchClassesRemove(id);
         saveData();
-        renderCalendar();
-        renderClassList();
         if (classEditorMount === 'tab') {
             elements.classForm.reset();
             elements.classId.value = '';
@@ -21343,23 +22028,10 @@ function handleHolidaySubmit(e) {
     }
     const eventData = normalizeEvent(savePayload);
 
-    if (!Array.isArray(appData.events)) {
-        appData.events = [];
-    }
-
-    if (elements.holidayId.value) {
-        const index = appData.events.findIndex(ev => ev.id === eventData.id);
-        if (index !== -1) {
-            appData.events[index] = eventData;
-        }
-    } else {
-        appData.events.push(eventData);
-    }
+    dispatchEventsUpsert(eventData);
 
     syncHolidaysFromEvents();
     saveData();
-    renderCalendar();
-    renderEventList();
     if (eventEditorMount === 'tab') {
         updateEventEditorEmptyState();
     } else {
@@ -21370,11 +22042,9 @@ function handleHolidaySubmit(e) {
 function deleteHoliday() {
     const id = elements.holidayId.value;
     if (id && confirm(t('confirmDeleteEvent') || t('confirmDeleteHoliday'))) {
-        appData.events = (appData.events || []).filter(ev => ev.id !== id);
+        dispatchEventsRemove(id);
         syncHolidaysFromEvents();
         saveData();
-        renderCalendar();
-        renderEventList();
         if (eventEditorMount === 'tab') {
             elements.holidayForm.reset();
             elements.holidayId.value = '';
@@ -27312,6 +27982,7 @@ function applyLoadedAppData(data) {
         loadUiStateFromLocalStorageIntoData(data);
     }
     appData = data;
+    rebindAppStoreStateRef();
     const migrated = migrateData(appData);
     ensureUiState();
     syncDismissedNavTabWarningsIntoUi(appData.ui);
@@ -27459,11 +28130,21 @@ function showConflictModal(serverDoc, localData) {
             resolve('mine');
             return;
         }
+        const summaryMount = document.getElementById('conflictMergeSummary');
+        if (summaryMount && typeof CCPConflictMerge !== 'undefined') {
+            const lines = CCPConflictMerge.summarizeConflict(localData, serverDoc && serverDoc.data);
+            summaryMount.innerHTML = CCPConflictMerge.renderSummaryHtml(lines, t, escapeHtml);
+        } else if (summaryMount) {
+            summaryMount.innerHTML = '';
+        }
         conflictResolver = resolve;
         modal.style.display = 'flex';
 
         const close = () => {
             modal.style.display = 'none';
+            if (summaryMount) {
+                summaryMount.innerHTML = '';
+            }
             conflictResolver = null;
         };
 
@@ -28746,14 +29427,14 @@ async function initTeamSync() {
             if (choice === 'theirs') {
                 applyServerDocument(serverDocument);
                 initializeTermStart();
-                renderCalendar();
+                requestUiCalendarRender();
                 return;
             }
             if (choice === 'merge') {
                 const merged = CalendarSync.smartMergeData(localData, serverDocument.data);
                 applyLoadedAppData(merged);
                 initializeTermStart();
-                renderCalendar();
+                requestUiCalendarRender();
                 refreshCalendarScopedUi();
                 const payload = JSON.parse(JSON.stringify(merged));
                 if (payload && payload.ui) {
@@ -29592,7 +30273,113 @@ function updateDataTabCalendarSection() {
     }
 }
 
+function setupDataTabClassroomReports() {
+    const attendanceBtn = document.getElementById('dataExportAttendanceBtn');
+    const homeworkBtn = document.getElementById('dataExportHomeworkBtn');
+    if (attendanceBtn && !attendanceBtn.dataset.bound) {
+        attendanceBtn.dataset.bound = '1';
+        attendanceBtn.addEventListener('click', () => {
+            if (typeof CCPClassroomReports === 'undefined') {
+                showSyncToast(t('classroomModuleMissing'), true);
+                return;
+            }
+            CCPClassroomReports.exportAttendanceCsv(appData, {});
+            showSyncToast(t('dataExportAttendanceDone'));
+        });
+    }
+    if (homeworkBtn && !homeworkBtn.dataset.bound) {
+        homeworkBtn.dataset.bound = '1';
+        homeworkBtn.addEventListener('click', () => {
+            if (typeof CCPClassroomReports === 'undefined') {
+                showSyncToast(t('classroomModuleMissing'), true);
+                return;
+            }
+            CCPClassroomReports.exportHomeworkCsv(appData, {});
+            showSyncToast(t('dataExportHomeworkDone'));
+        });
+    }
+}
+
+async function openTermCloneModal() {
+    const modal = document.getElementById('termCloneModal');
+    const nameInput = document.getElementById('termCloneNameInput');
+    const shiftInput = document.getElementById('termCloneMonthShift');
+    const clearCb = document.getElementById('termCloneClearClassroom');
+    if (!modal || !nameInput || typeof CCPTermCloneWizard === 'undefined') {
+        showSyncToast(t('classroomModuleMissing'), true);
+        return;
+    }
+    const baseName = (appData.calendarName || '').trim();
+    nameInput.value = baseName ? `${baseName} (next term)` : t('dataTermCloneDefaultName');
+    if (shiftInput) {
+        shiftInput.value = String(appData.termMonthCount || 3);
+    }
+    if (clearCb) {
+        clearCb.checked = true;
+    }
+    modal.style.display = 'flex';
+    nameInput.focus();
+
+    const close = () => {
+        modal.style.display = 'none';
+    };
+
+    const onCancel = () => close();
+    const onSubmit = async () => {
+        const trimmed = nameInput.value.trim();
+        if (!trimmed) {
+            showSyncToast(t('dataTermCloneNameRequired'), true);
+            return;
+        }
+        const monthShift = shiftInput ? Number(shiftInput.value) || 0 : 0;
+        const clearClassroom = clearCb ? clearCb.checked : true;
+        const cloned = CCPTermCloneWizard.buildClonedCalendarData(appData, {
+            newName: trimmed,
+            monthShift,
+            clearClassroom
+        });
+        try {
+            if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.createCalendar) {
+                const payload = JSON.parse(JSON.stringify(cloned));
+                if (payload.ui) {
+                    delete payload.ui;
+                }
+                await CalendarSync.createCalendar(payload, trimmed);
+                showSyncToast(t('dataTermCloneDone').replace('{name}', trimmed));
+            } else {
+                applyLoadedAppData(cloned);
+                initializeTermStart();
+                renderCalendar();
+                refreshCalendarScopedUi();
+                showSyncToast(t('dataTermCloneLocalDone'));
+            }
+            close();
+        } catch (err) {
+            showSyncToast(
+                t('dataTermCloneFailed') + ': ' + translateSyncError(err && err.message ? err.message : String(err)),
+                true
+            );
+        }
+    };
+
+    document.getElementById('termCloneModalClose')?.addEventListener('click', onCancel, { once: true });
+    document.getElementById('termCloneCancelBtn')?.addEventListener('click', onCancel, { once: true });
+    document.getElementById('termCloneSubmitBtn')?.addEventListener('click', onSubmit, { once: true });
+}
+
+function setupDataTabTermClone() {
+    const btn = document.getElementById('dataTermCloneBtn');
+    if (btn && !btn.dataset.bound) {
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+            void openTermCloneModal();
+        });
+    }
+}
+
 function setupDataTabCalendarBackup() {
+    setupDataTabClassroomReports();
+    setupDataTabTermClone();
     const exportBtn = document.getElementById('dataExportCalendarBtn');
     const importBtn = document.getElementById('dataImportCalendarBtn');
     if (exportBtn && !exportBtn.dataset.bound) {

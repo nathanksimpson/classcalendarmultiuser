@@ -1708,6 +1708,12 @@ export default {
                     if (Object.prototype.hasOwnProperty.call(body, 'homeworkCompletions')) {
                         payload.homeworkCompletions = body.homeworkCompletions;
                     }
+                    if (Object.prototype.hasOwnProperty.call(body, 'studentPoints')) {
+                        payload.studentPoints = body.studentPoints;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'studentTests')) {
+                        payload.studentTests = body.studentTests;
+                    }
                     const prepared = prepareClassroomForSave(user, existingData, payload);
                     if (prepared.error) {
                         return json({ error: prepared.error }, 403);

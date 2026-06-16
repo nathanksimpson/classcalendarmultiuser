@@ -1488,7 +1488,9 @@
             await hooks.saveClassroom({
                 cohorts: del.cohorts,
                 attendanceSessions: purged.attendanceSessions,
-                homeworkCompletions: purged.homeworkCompletions
+                homeworkCompletions: purged.homeworkCompletions,
+                studentPoints: purged.studentPoints,
+                studentTests: purged.studentTests
             });
             selectedStudentId = null;
             closeDeleteModal();

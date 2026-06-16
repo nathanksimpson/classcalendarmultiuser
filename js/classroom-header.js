@@ -141,6 +141,32 @@
             body += `<select id="classroomHeaderAssignment" class="field-select field-control--compact">${rowOpts}</select></label>`;
             body += `<p class="section-hint classroom-grade-legend">${escapeHtml(t('classroomGradeLegend'))}</p>`;
             body += '</div>';
+        } else if (mode === 'points') {
+            body += '<div class="classroom-header-controls">';
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomDateLabel'))}</span>`;
+            body += `<input type="date" id="classroomHeaderDate" class="field-input field-control--compact" value="${escapeHtml(s.date || '')}" /></label>`;
+            body += `<button type="button" class="btn btn-outline btn-compact" id="classroomHeaderToday">${escapeHtml(t('classroomToday'))}</button>`;
+            body += '</div>';
+        } else if (mode === 'tests') {
+            const tests = Array.isArray(s.studentTests) ? s.studentTests : [];
+            const testOpts = tests
+                .map((test) => {
+                    const sel =
+                        test.testName === s.testName && test.testDate === s.testDate ? ' selected' : '';
+                    const label = `${test.testDate || ''} — ${test.testName || ''}`.trim();
+                    return `<option value="${escapeHtml(test.testName)}" data-date="${escapeHtml(test.testDate || '')}"${sel}>${escapeHtml(label)}</option>`;
+                })
+                .join('');
+            body += '<div class="classroom-header-controls">';
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomTestNameLabel'))}</span>`;
+            body += `<input type="text" id="classroomHeaderTestName" class="field-input field-control--compact" value="${escapeHtml(s.testName || '')}" /></label>`;
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomDateLabel'))}</span>`;
+            body += `<input type="date" id="classroomHeaderTestDate" class="field-input field-control--compact" value="${escapeHtml(s.testDate || '')}" /></label>`;
+            if (testOpts) {
+                body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomTestPickLabel'))}</span>`;
+                body += `<select id="classroomHeaderTestPick" class="field-select field-control--compact"><option value="">${escapeHtml(t('classroomTestPickNew'))}</option>${testOpts}</select></label>`;
+            }
+            body += '</div>';
         }
         body += '</div></div>';
 
@@ -175,6 +201,28 @@
             const opt = e.target.selectedOptions[0];
             if (typeof opts.onAssignmentChange === 'function') {
                 opts.onAssignmentChange(e.target.value, opt ? opt.getAttribute('data-date') : '');
+            }
+        });
+
+        mountEl.querySelector('#classroomHeaderTestName')?.addEventListener('change', (e) => {
+            if (typeof opts.onTestNameChange === 'function') {
+                opts.onTestNameChange(e.target.value);
+            }
+        });
+
+        mountEl.querySelector('#classroomHeaderTestDate')?.addEventListener('change', (e) => {
+            if (typeof opts.onTestDateChange === 'function') {
+                opts.onTestDateChange(e.target.value);
+            }
+        });
+
+        mountEl.querySelector('#classroomHeaderTestPick')?.addEventListener('change', (e) => {
+            const opt = e.target.selectedOptions[0];
+            if (!opt || !opt.value) {
+                return;
+            }
+            if (typeof opts.onTestPick === 'function') {
+                opts.onTestPick(opt.value, opt.getAttribute('data-date') || '');
             }
         });
     }

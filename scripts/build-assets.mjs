@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as esbuild from 'esbuild';
+import { concatCssForDist } from './split-styles.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -101,6 +102,11 @@ const MINIFY_JS = [
     'js/admin-i18n.js',
     'js/session-restore.js',
     'js/page-chrome.js',
+    'js/dom.js',
+    'js/ui/modal.js',
+    'js/views/class-list-view.js',
+    'js/views/event-list-view.js',
+    'js/views/calendar-view.js',
     'js/tab-warnings.js',
     'js/view-as-i18n.js',
     'js/cohort-management.js',
@@ -176,6 +182,15 @@ async function main() {
     rmDist();
     fs.mkdirSync(dist, { recursive: true });
     copyRecursive(root, dist);
+    const bundledCssPath = path.join(root, 'css', 'index.css');
+    if (fs.existsSync(bundledCssPath)) {
+        try {
+            const bundled = concatCssForDist('css/index.css');
+            fs.writeFileSync(path.join(dist, 'styles.css'), bundled, 'utf8');
+        } catch (err) {
+            console.warn('CSS bundle from css/index.css failed, using styles.css copy:', err.message);
+        }
+    }
     await minifyFiles();
     let bytes = 0;
     for (const rel of [...MINIFY_JS, ...MINIFY_CSS]) {
