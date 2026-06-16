@@ -1,0 +1,384 @@
+/* App Layout */
+
+:root {
+    --app-gutter: clamp(var(--space-4), 2vw, var(--space-6));
+}
+
+.app-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: var(--app-gutter);
+    box-sizing: border-box;
+}
+
+/* Sticky floating toolbar: compact essentials + collapsible details */
+.app-top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    margin: calc(-1 * var(--app-gutter, var(--space-5))) calc(-1 * var(--app-gutter, var(--space-5))) var(--space-4);
+    padding: var(--space-2) var(--space-5);
+    background: var(--top-bar-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--top-bar-shadow);
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: clip;
+}
+
+.app-top-bar-compact {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+}
+
+/* Single combined header card: tabs + tools + team calendar row */
+.app-header-unified {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.app-header-unified:has(.team-account-menu[open]) {
+    overflow: visible;
+}
+
+.app-header-unified__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    gap: 0;
+}
+
+.app-header-unified__nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: var(--space-2);
+}
+
+.app-header-unified__nav .app-tab-nav-cluster {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
+.app-header-unified__tools {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-left: 0;
+    padding: var(--space-2) var(--space-3);
+    gap: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    border-left: 1px solid var(--border-color);
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+}
+
+.app-header-unified__tools-collapsible {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0 var(--space-1);
+    overflow: hidden;
+    transition: max-width 0.28s ease, opacity 0.2s ease, padding 0.28s ease;
+}
+
+.app-header-unified__tools-pinned {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 0;
+    padding-left: 2px;
+    border-left: 1px solid var(--border-color);
+}
+
+.app-top-bar-compact--collapsed .app-header-unified__tools-collapsible {
+    display: none;
+}
+
+.app-header-unified__details {
+    border-top: 1px solid var(--border-color);
+}
+
+.app-header-unified__details .team-calendar-row--header {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: var(--surface-muted);
+}
+
+.app-top-bar-primary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.app-top-bar-team-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    overflow: hidden;
+    max-height: 280px;
+    opacity: 1;
+    transition: max-height 0.28s ease, opacity 0.2s ease, margin 0.28s ease;
+}
+
+.app-top-bar-team-details[hidden] {
+    display: none !important;
+}
+
+.app-top-bar-compact--collapsed .app-top-bar-team-details:not([hidden]) {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    pointer-events: none;
+}
+
+.app-top-bar-compact--collapsed .app-top-bar-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.app-term-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+@media (min-width: 1100px) {
+    .app-header-unified__row,
+    .app-top-bar-primary {
+        flex-wrap: nowrap;
+    }
+
+    .app-top-bar--global .app-header-unified__row,
+    .app-top-bar--global .app-top-bar-primary {
+        align-items: stretch;
+    }
+
+    .app-top-bar-title-block {
+        flex: 0 1 auto;
+    }
+
+    .app-header-unified__nav .app-tab-nav-cluster,
+    .app-tab-nav-cluster,
+    .app-header-unified__nav .app-zone-nav-cluster,
+    .app-zone-nav-cluster {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: none;
+        overflow: hidden;
+    }
+
+    .app-header-unified__tools,
+    .app-top-bar-actions {
+        flex-shrink: 0;
+        width: auto;
+        max-width: none;
+    }
+}
+
+.app-top-bar-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 160px;
+}
+
+.app-top-bar-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.app-top-bar-title-row h1 {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.app-top-bar-title-block h1 {
+    font-size: var(--text-h5);
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.025em;
+    line-height: var(--leading-heading);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.top-bar-calendar-label {
+    font-size: var(--text-body-md);
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-top-bar-essential {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.btn-compact {
+    min-height: 36px;
+    padding: var(--pad-control-y) var(--pad-control-x-lg);
+    font-size: var(--text-body-md);
+}
+
+.btn-small,
+.btn-sm {
+    min-height: 36px;
+    padding: var(--pad-control-y) var(--pad-control-x);
+    font-size: var(--text-body-md);
+}
+
+.app-top-bar-toggle {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-top-bar-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+.app-top-bar-toggle-icon {
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+.app-top-bar-details {
+    overflow: hidden;
+    max-height: 520px;
+    opacity: 1;
+    transition: max-height 0.28s ease, opacity 0.2s ease, margin 0.28s ease;
+    margin-top: 12px;
+}
+
+.app-top-bar--collapsed .app-top-bar-details {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    pointer-events: none;
+}
+
+.app-top-bar--collapsed #teamLockDetails,
+.app-top-bar--collapsed .team-lock-debug-toggle {
+    display: none;
+}
+
+.app-top-bar--collapsed .team-lock-status {
+    align-items: center;
+    margin-bottom: 0.35rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.app-top-bar--collapsed .app-top-bar-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.app-top-bar-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.app-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.025em;
+}
+
+.header-controls {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+

@@ -1,6 +1,6 @@
 name = "classcalendarmultiuser"
 main = "worker/src/index.js"
-compatibility_date = "2024-09-01"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 # Run before deploy (local `npm run deploy` and Cloudflare Workers Builds on git push).

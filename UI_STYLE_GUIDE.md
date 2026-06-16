@@ -262,11 +262,39 @@ Before implementing a UI change:
 
 ---
 
+## React-style architecture (vanilla JS)
+
+State and UI updates follow a single pipeline — no React framework:
+
+| Piece | Module | Role |
+|-------|--------|------|
+| Store | `js/core/app-store.js` | `dispatch({ type, ... })` mutates `appData` |
+| Render scheduler | `js/core/render-orchestrator.js` | Maps actions → `requestRender('calendar' \| 'classList' \| …)` |
+| View modules | `js/views/*.js` | `init(hooks)` + `render()`; read fresh state from hooks |
+| DOM helpers | `js/dom.js` | `CCPDom.html` (auto-escape), `CCPDom.el` |
+| Modals | `js/ui/modal.js` | `CCPModal` — focus trap, backdrop, registry |
+| Delegation | `js/core/app-delegation.js` | One listener per stable list parent |
+
+**Rules for new UI:**
+
+1. Mutate through `dispatchClassesUpsert`, `dispatchUiSet`, etc. in `app.js` — not ad-hoc `appData` writes.
+2. Do not call `renderX()` after dispatch unless the surface is not registered on the orchestrator.
+3. Prefer `data-action` + delegation over per-row `addEventListener` on lists.
+4. Use `CCPDom.html` for interpolated markup; `CCPUtils.escapeHtml` for manual strings.
+5. Register new modals with `CCPModal.register`.
+
+Full audit: [docs/UI_AUDIT.md](docs/UI_AUDIT.md).
+
+---
+
 ## Key files
 
 | Area | Paths |
 |------|--------|
-| Global styles + tokens | `styles.css` |
+| Global styles + tokens | `styles.css` (dev), `css/*.css` partials + `npm run css:split` |
+| State / render core | `js/core/app-store.js`, `js/core/render-orchestrator.js` |
+| View modules | `js/views/class-list-view.js`, `event-list-view.js`, `calendar-view.js` |
+| UI primitives | `js/dom.js`, `js/ui/modal.js` |
 | Main app shell | `index.html`, `app.js` |
 | Form templates | `templates/class-form.html`, `templates/syllabus-editor.html` |
 | Shared JS modules | `js/utils.js`, `js/page-chrome.js`, `js/theme-toggle.js` |

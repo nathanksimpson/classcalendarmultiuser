@@ -338,6 +338,21 @@
                 });
             });
         }
+        if (Array.isArray(next.studentPoints)) {
+            next.studentPoints = next.studentPoints.filter(
+                (p) => !p || normalizeStr(p.studentId) !== sid
+            );
+        }
+        if (Array.isArray(next.studentTests)) {
+            next.studentTests = next.studentTests.map((test) => {
+                if (!test || !Array.isArray(test.records)) {
+                    return test;
+                }
+                return Object.assign({}, test, {
+                    records: test.records.filter((r) => normalizeStr(r.studentId) !== sid)
+                });
+            });
+        }
         return next;
     }
 
@@ -661,6 +676,142 @@
         return rows[rows.length - 1];
     }
 
+    function normalizePointEntry(raw) {
+        if (!raw || !raw.id || !raw.classId || !raw.studentId) {
+            return null;
+        }
+        const delta = Number(raw.delta);
+        if (!Number.isFinite(delta) || delta === 0) {
+            return null;
+        }
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            studentId: normalizeStr(raw.studentId),
+            date: normalizeStr(raw.date) || todayISO(),
+            delta: Math.round(delta),
+            reason: normalizeStr(raw.reason),
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function listPointsForClass(points, classId) {
+        const cid = normalizeStr(classId);
+        return (Array.isArray(points) ? points : [])
+            .map(normalizePointEntry)
+            .filter(Boolean)
+            .filter((p) => p.classId === cid)
+            .sort((a, b) => compareDateStr(b.date, a.date) || b.updatedAt.localeCompare(a.updatedAt));
+    }
+
+    function sumPointsForStudent(points, classId, studentId) {
+        const sid = normalizeStr(studentId);
+        const cid = normalizeStr(classId);
+        let total = 0;
+        (Array.isArray(points) ? points : []).forEach((raw) => {
+            const p = normalizePointEntry(raw);
+            if (p && p.classId === cid && p.studentId === sid) {
+                total += p.delta;
+            }
+        });
+        return total;
+    }
+
+    function appendPointEntry(points, entry) {
+        const normalized = normalizePointEntry(entry);
+        if (!normalized) {
+            return Array.isArray(points) ? points.slice() : [];
+        }
+        const list = Array.isArray(points) ? points.filter(Boolean).slice() : [];
+        list.push(normalized);
+        return list;
+    }
+
+    function studentTestKey(classId, testName, testDate) {
+        return `${normalizeStr(classId)}|${normalizeStr(testName)}|${normalizeStr(testDate)}`;
+    }
+
+    function normalizeTestRecord(raw) {
+        if (!raw || !raw.studentId) {
+            return null;
+        }
+        const score = raw.score == null || raw.score === '' ? null : Number(raw.score);
+        const maxScore = raw.maxScore == null || raw.maxScore === '' ? null : Number(raw.maxScore);
+        return {
+            studentId: normalizeStr(raw.studentId),
+            score: Number.isFinite(score) ? score : null,
+            maxScore: Number.isFinite(maxScore) ? maxScore : null,
+            note: normalizeStr(raw.note)
+        };
+    }
+
+    function normalizeStudentTest(raw) {
+        if (!raw || !raw.id || !raw.classId) {
+            return null;
+        }
+        const testName = normalizeStr(raw.testName);
+        const testDate = normalizeStr(raw.testDate);
+        if (!testName || !testDate) {
+            return null;
+        }
+        const records = Array.isArray(raw.records)
+            ? raw.records.map(normalizeTestRecord).filter(Boolean)
+            : [];
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            testName,
+            testDate,
+            records,
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function findStudentTest(tests, classId, testName, testDate) {
+        const list = Array.isArray(tests) ? tests : [];
+        const key = studentTestKey(classId, testName, testDate);
+        return (
+            list.find((t) => t && studentTestKey(t.classId, t.testName, t.testDate) === key) || null
+        );
+    }
+
+    function upsertStudentTest(tests, entry) {
+        const normalized = normalizeStudentTest(entry);
+        if (!normalized) {
+            return Array.isArray(tests) ? tests.slice() : [];
+        }
+        const list = Array.isArray(tests) ? tests.filter(Boolean).slice() : [];
+        const key = studentTestKey(normalized.classId, normalized.testName, normalized.testDate);
+        const idx = list.findIndex(
+            (t) => t && studentTestKey(t.classId, t.testName, t.testDate) === key
+        );
+        if (idx >= 0) {
+            list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
+        } else {
+            list.push(normalized);
+        }
+        return list;
+    }
+
+    function getTestRecordForStudent(test, studentId) {
+        if (!test || !Array.isArray(test.records)) {
+            return null;
+        }
+        const sid = normalizeStr(studentId);
+        return test.records.find((r) => r.studentId === sid) || null;
+    }
+
+    function listTestsForClass(tests, classId) {
+        const cid = normalizeStr(classId);
+        return (Array.isArray(tests) ? tests : [])
+            .map(normalizeStudentTest)
+            .filter(Boolean)
+            .filter((t) => t.classId === cid)
+            .sort((a, b) => compareDateStr(b.testDate, a.testDate) || a.testName.localeCompare(b.testName));
+    }
+
     function migrateClassroomData(data) {
         if (!data || typeof data !== 'object') {
             return false;
@@ -769,6 +920,16 @@
         getLessonRowsFromSyllabus,
         getSyllabusRowKey,
         pickDefaultSyllabusRow,
+        normalizePointEntry,
+        listPointsForClass,
+        sumPointsForStudent,
+        appendPointEntry,
+        normalizeStudentTest,
+        findStudentTest,
+        upsertStudentTest,
+        getTestRecordForStudent,
+        listTestsForClass,
+        studentTestKey,
         migrateClassroomData,
         newId
     };

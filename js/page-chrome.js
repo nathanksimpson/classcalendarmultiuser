@@ -150,6 +150,9 @@
     }
 
     function getModalFocusables(modal) {
+        if (global.CCPModal && global.CCPModal.getModalFocusables) {
+            return global.CCPModal.getModalFocusables(modal);
+        }
         if (!modal) {
             return [];
         }
@@ -160,7 +163,8 @@
     }
 
     function openModal(modal, triggerEl) {
-        if (!modal) {
+        if (global.CCPModal && global.CCPModal.open) {
+            global.CCPModal.open(modal, triggerEl);
             return;
         }
         const trigger = triggerEl || document.activeElement;
@@ -181,6 +185,10 @@
     }
 
     function closeModal(modal) {
+        if (global.CCPModal && global.CCPModal.close) {
+            global.CCPModal.close(modal);
+            return;
+        }
         if (!modal) {
             return;
         }

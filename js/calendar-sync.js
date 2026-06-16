@@ -5,7 +5,11 @@
     const API = '/api';
     const STORAGE_ACTIVE = 'teamCalendarActiveId';
     const SAVE_DEBOUNCE_MS = 1500;
-    const POLL_INTERVAL_MS = 3000;
+    const POLL_INTERVAL_ACTIVE_MS = 3000;
+    const POLL_INTERVAL_IDLE_MS = 15000;
+    const POLL_INTERVAL_HIDDEN_MS = 60000;
+    const POLL_INTERVAL_MAX_MS = 60000;
+    const POLL_BACKOFF_FACTOR = 1.5;
     const LOCK_DEBUG_STORAGE = 'teamLockDebug';
     const LOCK_DEBUG_LOG_MAX = 100;
     const API_FETCH_TIMEOUT_MS = 30000;
@@ -16,6 +20,8 @@
         activeCalendarId: null,
         saveTimer: null,
         pollTimer: null,
+        pollBackoffFactor: 1,
+        pollVisibilityBound: false,
         saving: false,
         pendingGetData: null,
         readOnly: false,
@@ -411,6 +417,10 @@
         } else if (Array.isArray(local.dayNotes) && local.dayNotes.length) {
             merged.dayNotes = local.dayNotes;
         }
+        merged.attendanceSessions = mergeArrayById(local.attendanceSessions, server.attendanceSessions);
+        merged.homeworkCompletions = mergeArrayById(local.homeworkCompletions, server.homeworkCompletions);
+        merged.studentPoints = mergeArrayById(local.studentPoints, server.studentPoints, 'id');
+        merged.studentTests = mergeArrayById(local.studentTests, server.studentTests);
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -790,6 +800,12 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
                 body.homeworkCompletions = fields.homeworkCompletions;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentPoints')) {
+                body.studentPoints = fields.studentPoints;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentTests')) {
+                body.studentTests = fields.studentTests;
+            }
             setStatus('saving');
             state.saving = true;
             try {
@@ -1008,21 +1024,51 @@
 
         smartMergeData,
 
-        startPolling() {
-            if (state.pollTimer) {
-                clearInterval(state.pollTimer);
+        getPollDelayMs() {
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                return POLL_INTERVAL_HIDDEN_MS;
             }
-            state.pollTimer = setInterval(async () => {
+            let base = POLL_INTERVAL_IDLE_MS;
+            if (
+                state.holdsLock ||
+                state.pendingEditRequest ||
+                state.remoteNewer ||
+                !state.readOnly
+            ) {
+                base = POLL_INTERVAL_ACTIVE_MS;
+            }
+            const factor = state.pollBackoffFactor || 1;
+            return Math.min(POLL_INTERVAL_MAX_MS, Math.round(base * factor));
+        },
+
+        startPolling() {
+            CalendarSync.stopPolling();
+            if (
+                typeof document !== 'undefined' &&
+                !state.pollVisibilityBound &&
+                typeof document.addEventListener === 'function'
+            ) {
+                state.pollVisibilityBound = true;
+                document.addEventListener('visibilitychange', () => {
+                    if (state.pollTimer && document.visibilityState === 'visible') {
+                        CalendarSync.stopPolling();
+                        CalendarSync.startPolling();
+                    }
+                });
+            }
+            const runPollTick = async () => {
                 if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
                     CalendarSync.stopPolling();
                     return;
                 }
                 const id = CalendarSync.getActiveCalendarId();
                 if (!id) {
+                    state.pollTimer = setTimeout(runPollTick, CalendarSync.getPollDelayMs());
                     return;
                 }
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
+                    state.pollBackoffFactor = 1;
                     if (!isViewAsMode()) {
                         const hbHeaders = { 'Content-Type': 'application/json' };
                         if (typeof TeamAuth !== 'undefined' && TeamAuth.authHeaders) {
@@ -1048,6 +1094,7 @@
                         saving: state.saving,
                         readOnly: state.readOnly,
                         holdsLock: state.holdsLock,
+                        pollDelayMs: CalendarSync.getPollDelayMs(),
                         holderUserId: meta.lock && meta.lock.holderUserId
                     });
                     const pendingSave = CalendarSync.hasPendingSave();
@@ -1069,14 +1116,27 @@
                         });
                     }
                 } catch (pollErr) {
-                    debugLog('error', 'Poll failed', { message: pollErr && pollErr.message });
+                    const status = pollErr && pollErr.status;
+                    if (status === 429 || (status >= 500 && status < 600)) {
+                        state.pollBackoffFactor = Math.min(
+                            4,
+                            (state.pollBackoffFactor || 1) * POLL_BACKOFF_FACTOR
+                        );
+                    }
+                    debugLog('error', 'Poll failed', {
+                        message: pollErr && pollErr.message,
+                        status,
+                        pollBackoffFactor: state.pollBackoffFactor
+                    });
                 }
-            }, POLL_INTERVAL_MS);
+                state.pollTimer = setTimeout(runPollTick, CalendarSync.getPollDelayMs());
+            };
+            state.pollTimer = setTimeout(runPollTick, CalendarSync.getPollDelayMs());
         },
 
         stopPolling() {
             if (state.pollTimer) {
-                clearInterval(state.pollTimer);
+                clearTimeout(state.pollTimer);
                 state.pollTimer = null;
             }
         },

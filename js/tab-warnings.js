@@ -421,12 +421,16 @@
                 const grid = ttApi.buildTeacherWeeklyGrid(appData, teacher, { lang: 'en' });
                 if (grid && grid.hasConflicts) {
                     const uid = teacher.userId || teacher.displayName || 'unknown';
+                    const count = grid.conflicts ? grid.conflicts.conflictCount : 1;
                     warnings.push({
                         id: `timetable:${uid}:conflicts`,
                         tabId: 'timetable',
                         severity: 'warn',
                         messageKey: 'tabWarnTimetableConflicts',
-                        params: { teacher: grid.teacherName || teacher.displayName || uid },
+                        params: {
+                            teacher: grid.teacherName || teacher.displayName || uid,
+                            count
+                        },
                         navigate: { type: 'timetable', userId: teacher.userId || '', displayName: teacher.displayName || '' }
                     });
                 }
