@@ -1,7 +1,4 @@
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const Auth = require('../../shared/auth-permissions.cjs');
+import * as Auth from '../../shared/auth-permissions.cjs';
 
 export const PERMS = Auth.PERMS;
 export const ALL_PERMS = Auth.ALL_PERMS;

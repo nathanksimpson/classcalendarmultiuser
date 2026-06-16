@@ -1,7 +1,4 @@
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const core = require('../../shared/classroom-access-core.cjs');
+import * as core from '../../shared/classroom-access-core.cjs';
 
 export const prepareClassroomForSave = core.prepareClassroomForSave;
 export const userCanBypass = core.userCanBypass;
