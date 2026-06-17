@@ -4554,6 +4554,9 @@ function ensureUiState() {
     } else {
         appData.ui.classNotesSort = 'classGroup';
     }
+    if (typeof appData.ui.classNotesTranslateOnCopy !== 'boolean') {
+        appData.ui.classNotesTranslateOnCopy = false;
+    }
     if (!appData.ui.printSummaryVisibility || typeof appData.ui.printSummaryVisibility !== 'object') {
         appData.ui.printSummaryVisibility = null;
     }
@@ -6699,6 +6702,346 @@ function getCurrentClassContext(options = {}) {
         at: options.at,
         classOccursOnIsoDate
     });
+}
+
+// ============================================
+// In-class "Now" popup (calendar tab)
+// ============================================
+const NOW_CLASS_POPUP_DISMISS_UNTIL_KEY = 'ccpNowClassPopupDismissUntil:v1';
+const NOW_CLASS_POPUP_ENABLED_PREFIX = 'ccpNowClassPopupEnabled:v1';
+let nowClassPopupTimer = 0;
+let nowClassPopupLastSig = '';
+
+function getNowClassPopupEnabledStorageKey() {
+    try {
+        const user = typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
+        const userId = user && user.id ? String(user.id).trim() : '';
+        return userId ? `${NOW_CLASS_POPUP_ENABLED_PREFIX}:${userId}` : NOW_CLASS_POPUP_ENABLED_PREFIX;
+    } catch (_) {
+        return NOW_CLASS_POPUP_ENABLED_PREFIX;
+    }
+}
+
+function getNowClassPopupEnabled() {
+    try {
+        const raw = localStorage.getItem(getNowClassPopupEnabledStorageKey());
+        if (raw === null || raw === undefined || raw === '') {
+            return true;
+        }
+        return raw === '1' || raw === 'true';
+    } catch (_) {
+        return true;
+    }
+}
+
+function setNowClassPopupEnabled(enabled) {
+    try {
+        localStorage.setItem(getNowClassPopupEnabledStorageKey(), enabled ? '1' : '0');
+    } catch (_) {
+        /* ignore */
+    }
+    syncNowClassPopupToggleUi();
+    renderNowClassPopup();
+}
+
+function syncNowClassPopupToggleUi() {
+    const btn = document.getElementById('nowClassPopupToggleBtn');
+    if (!btn) {
+        return;
+    }
+    const enabled = getNowClassPopupEnabled();
+    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    btn.textContent = enabled ? 'During-class popup: On' : 'During-class popup: Off';
+}
+
+function readNowClassPopupDismissUntilMs() {
+    try {
+        const raw = localStorage.getItem(NOW_CLASS_POPUP_DISMISS_UNTIL_KEY);
+        const n = raw ? parseInt(raw, 10) : 0;
+        return Number.isFinite(n) ? n : 0;
+    } catch (_) {
+        return 0;
+    }
+}
+
+function dismissNowClassPopupForMinutes(minutes) {
+    const m = Math.max(1, Math.min(240, parseInt(minutes, 10) || 30));
+    const until = Date.now() + m * 60 * 1000;
+    try {
+        localStorage.setItem(NOW_CLASS_POPUP_DISMISS_UNTIL_KEY, String(until));
+    } catch (_) {
+        /* ignore */
+    }
+    renderNowClassPopup();
+}
+
+function setSelectValueIfPresent(selectEl, value) {
+    if (!selectEl) {
+        return;
+    }
+    const v = String(value || '');
+    const ok = [...selectEl.options].some((o) => o.value === v);
+    if (ok) {
+        selectEl.value = v;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function clampTextSnippet(text, maxLen) {
+    const s = String(text || '').replace(/\s+$/g, '');
+    const limit = Math.max(50, Math.min(600, parseInt(maxLen, 10) || 240));
+    if (s.length <= limit) {
+        return s;
+    }
+    return s.slice(0, limit).replace(/\s+\S*$/g, '').trimEnd() + '…';
+}
+
+function findMostRecentDayNoteForCategory(classId, dateStr, categoryId) {
+    const api = getDayNotesApi();
+    if (!api || typeof api.getNotesForClassOnDate !== 'function') {
+        return null;
+    }
+    ensureDayNotesArray();
+    const list = api.getNotesForClassOnDate(appData.dayNotes, classId, dateStr) || [];
+    const filtered = list.filter((n) => String(n && n.categoryId) === String(categoryId));
+    if (!filtered.length) {
+        return null;
+    }
+    filtered.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    return filtered[0] || null;
+}
+
+function resolveNextMeetingDateStr(classData, fromDate) {
+    const start = fromDate instanceof Date ? fromDate : new Date();
+    if (Number.isNaN(start.getTime())) {
+        return null;
+    }
+    for (let i = 1; i <= 60; i += 1) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        const iso = formatDateISO(d);
+        if (classOccursOnIsoDate(classData, iso)) {
+            return iso;
+        }
+    }
+    return null;
+}
+
+function resolveActiveClassContextFallback(at) {
+    const when = at instanceof Date ? at : new Date();
+    if (Number.isNaN(when.getTime())) {
+        return null;
+    }
+    const dow = when.getDay();
+    const slots = Array.isArray(appData.timetableTimeSlots) ? appData.timetableTimeSlots : [];
+    if (!slots.length) {
+        return null;
+    }
+    const nowMin = when.getHours() * 60 + when.getMinutes();
+    const parseMin = (hhmm) => {
+        const m = String(hhmm || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) return null;
+        const h = parseInt(m[1], 10);
+        const mm = parseInt(m[2], 10);
+        if (Number.isNaN(h) || Number.isNaN(mm) || h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+        return h * 60 + mm;
+    };
+    const activeSlot = slots.find((s) => {
+        const a = parseMin(s && s.start);
+        const b = parseMin(s && s.end);
+        if (a == null || b == null) return false;
+        return nowMin >= a && nowMin < b;
+    });
+    if (!activeSlot) {
+        return null;
+    }
+    const todayStr = formatDateISO(when);
+    const classes = Array.isArray(appData.classes) ? appData.classes : [];
+    for (let i = 0; i < classes.length; i += 1) {
+        const c = classes[i];
+        if (!c || !c.id) continue;
+        const days = Array.isArray(c.meetingDays) ? c.meetingDays : [];
+        if (!days.includes(dow)) continue;
+        if (c.timeSlotId && String(c.timeSlotId) === String(activeSlot.id) && classOccursOnIsoDate(c, todayStr)) {
+            return {
+                dateStr: todayStr,
+                dow,
+                timeSlotId: activeSlot.id,
+                timeSlot: activeSlot,
+                classId: c.id,
+                className: c.name || '',
+                classData: c,
+                teacherRow: null,
+                inSession: true
+            };
+        }
+    }
+    return null;
+}
+
+function resolveActiveClassContextForPopup() {
+    const at = new Date();
+    const ctx = getCurrentClassContext({ at });
+    return ctx || resolveActiveClassContextFallback(at);
+}
+
+function ensureNowClassPopupRoot() {
+    return document.getElementById('nowClassPopupRoot');
+}
+
+function shouldShowNowClassPopup() {
+    if (isNotesPage()) {
+        return false;
+    }
+    if (document.body && document.body.classList.contains('workspace-page')) {
+        return false;
+    }
+    if (getActiveTab() !== 'calendar') {
+        return false;
+    }
+    if (!getNowClassPopupEnabled()) {
+        return false;
+    }
+    const until = readNowClassPopupDismissUntilMs();
+    if (until && until > Date.now()) {
+        return false;
+    }
+    return true;
+}
+
+function renderNowClassPopup() {
+    const root = ensureNowClassPopupRoot();
+    if (!root) {
+        return;
+    }
+    syncNowClassPopupToggleUi();
+    if (!shouldShowNowClassPopup()) {
+        root.replaceChildren();
+        nowClassPopupLastSig = '';
+        return;
+    }
+    const ctx = resolveActiveClassContextForPopup();
+    if (!ctx || !ctx.classId || !ctx.classData || !ctx.dateStr || !ctx.timeSlot) {
+        root.replaceChildren();
+        nowClassPopupLastSig = '';
+        return;
+    }
+
+    const todayNote = findMostRecentDayNoteForCategory(ctx.classId, ctx.dateStr, 'class-notes');
+    const todayText = todayNote && todayNote.text ? String(todayNote.text) : '';
+
+    const nextDateStr = resolveNextMeetingDateStr(ctx.classData, new Date());
+    const nextNote = nextDateStr
+        ? findMostRecentDayNoteForCategory(ctx.classId, nextDateStr, 'next-class-notes')
+        : null;
+    const nextText = nextNote && nextNote.text ? String(nextNote.text) : '';
+
+    const titleTime = ctx.timeSlot && ctx.timeSlot.start && ctx.timeSlot.end
+        ? `${ctx.timeSlot.start}–${ctx.timeSlot.end}`
+        : '';
+    const sig = [
+        ctx.classId,
+        ctx.dateStr,
+        String(ctx.timeSlotId || ''),
+        String(readNowClassPopupDismissUntilMs() || 0),
+        clampTextSnippet(todayText, 120),
+        String(nextDateStr || ''),
+        clampTextSnippet(nextText, 120)
+    ].join('|');
+    if (sig === nowClassPopupLastSig && root.firstChild) {
+        return;
+    }
+    nowClassPopupLastSig = sig;
+
+    const card = document.createElement('div');
+    card.className = 'now-class-popup';
+    const header = document.createElement('div');
+    header.className = 'now-class-popup-title';
+    const title = document.createElement('div');
+    title.textContent = `Now: ${ctx.className || ''}`.trim();
+    const sub = document.createElement('div');
+    sub.className = 'now-class-popup-subtitle';
+    sub.textContent = titleTime ? titleTime : ctx.dateStr;
+    header.appendChild(title);
+    header.appendChild(sub);
+    card.appendChild(header);
+
+    const todaySec = document.createElement('div');
+    todaySec.className = 'now-class-popup-section';
+    const todayLabel = document.createElement('div');
+    todayLabel.className = 'now-class-popup-section-label';
+    todayLabel.textContent = 'Today (in class)';
+    const todayBody = document.createElement('div');
+    todayBody.className = 'now-class-popup-body';
+    todayBody.textContent = todayText ? clampTextSnippet(todayText, 280) : 'No class note yet. Click “Add Today Note”.';
+    todaySec.appendChild(todayLabel);
+    todaySec.appendChild(todayBody);
+    card.appendChild(todaySec);
+
+    const nextSec = document.createElement('div');
+    nextSec.className = 'now-class-popup-section';
+    const nextLabel = document.createElement('div');
+    nextLabel.className = 'now-class-popup-section-label';
+    nextLabel.textContent = nextDateStr ? `Next (${nextDateStr})` : 'Next class';
+    const nextBody = document.createElement('div');
+    nextBody.className = 'now-class-popup-body';
+    nextBody.textContent = nextText ? clampTextSnippet(nextText, 280) : 'No “next class notes” yet. Click “Add Next Note”.';
+    nextSec.appendChild(nextLabel);
+    nextSec.appendChild(nextBody);
+    card.appendChild(nextSec);
+
+    const actions = document.createElement('div');
+    actions.className = 'now-class-popup-actions';
+    const dismissBtn = document.createElement('button');
+    dismissBtn.type = 'button';
+    dismissBtn.className = 'btn btn-outline btn-small';
+    dismissBtn.textContent = 'Dismiss (30m)';
+    dismissBtn.addEventListener('click', () => dismissNowClassPopupForMinutes(30));
+
+    const addTodayBtn = document.createElement('button');
+    addTodayBtn.type = 'button';
+    addTodayBtn.className = 'btn btn-secondary btn-small';
+    addTodayBtn.textContent = 'Add Today Note';
+    addTodayBtn.addEventListener('click', () => {
+        openClassDayNoteModal(ctx.classId, ctx.dateStr);
+        const sel = document.getElementById('classDayNoteCategory');
+        setSelectValueIfPresent(sel, 'class-notes');
+    });
+
+    const addNextBtn = document.createElement('button');
+    addNextBtn.type = 'button';
+    addNextBtn.className = 'btn btn-primary btn-small';
+    addNextBtn.textContent = 'Add Next Note';
+    addNextBtn.addEventListener('click', () => {
+        const dateStr = nextDateStr || ctx.dateStr;
+        openClassDayNoteModal(ctx.classId, dateStr);
+        const sel = document.getElementById('classDayNoteCategory');
+        setSelectValueIfPresent(sel, 'next-class-notes');
+    });
+
+    actions.appendChild(addTodayBtn);
+    actions.appendChild(addNextBtn);
+    actions.appendChild(dismissBtn);
+    card.appendChild(actions);
+
+    root.replaceChildren(card);
+}
+
+function scheduleNowClassPopupRenderSoon() {
+    clearTimeout(scheduleNowClassPopupRenderSoon._t);
+    scheduleNowClassPopupRenderSoon._t = setTimeout(() => {
+        renderNowClassPopup();
+    }, 50);
+}
+
+function initNowClassPopup() {
+    if (nowClassPopupTimer) {
+        return;
+    }
+    syncNowClassPopupToggleUi();
+    renderNowClassPopup();
+    nowClassPopupTimer = setInterval(() => {
+        renderNowClassPopup();
+    }, 60 * 1000);
 }
 
 function resolveIsoDateForWeekdayInCurrentWeek(dow) {
@@ -9492,11 +9835,23 @@ async function copyClassDayNoteToClipboard(note) {
     const text = api && api.sanitizeExportText
         ? api.sanitizeExportText(raw)
         : normalizeTextForClipboard(raw);
-    const ok = await copyTextToClipboard(text);
+    let translated = text;
+    try {
+        translated = await translateTextForClassNotesClipboard(text);
+    } catch (_) {
+        translated = text;
+    }
+    const ok = await copyTextToClipboard(translated);
     if (getActiveTab() === 'homework') {
         showHomeworkCopyStatus(ok);
     } else {
-        showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+        if (ok && translated !== text && isClassNotesTranslateOnCopyEnabled()) {
+            showClassNotesExportStatus(ok, t('dayNotesCopyOk'));
+        } else if (ok && translated === text && isClassNotesTranslateOnCopyEnabled()) {
+            showClassNotesExportStatus(ok, t('classNotesTranslateFailed'));
+        } else {
+            showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+        }
     }
 }
 
@@ -9732,7 +10087,17 @@ async function copyClassNotesExport() {
         showClassNotesExportEmptyReason(filters);
         return;
     }
-    const ok = await copyTextToClipboard(text);
+    let translated = text;
+    try {
+        translated = await translateTextForClassNotesClipboard(text);
+    } catch (_) {
+        translated = text;
+    }
+    const ok = await copyTextToClipboard(translated);
+    if (ok && translated === text && isClassNotesTranslateOnCopyEnabled()) {
+        showClassNotesExportStatus(ok, t('classNotesTranslateFailed'));
+        return;
+    }
     showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
 }
 
@@ -9824,6 +10189,11 @@ function initClassNotesPanelListeners() {
         renderClassNotesTab();
         saveClassNotesFiltersToUi();
     });
+    shell.querySelector('#classNotesTranslateOnCopy')?.addEventListener('change', () => {
+        ensureUiState();
+        appData.ui.classNotesTranslateOnCopy = readClassNotesTranslateToggleFromUi();
+        saveUiStateToLocalStorage();
+    });
     shell.querySelector('#classNotesMyClassesOnly')?.addEventListener('change', handleClassNotesMyClassesOnlyChange);
     shell.querySelector('#classNotesTodayOnly')?.addEventListener('change', handleClassNotesTodayOnlyChange);
     shell.querySelector('#classNotesAddForm')?.addEventListener('submit', (e) => {
@@ -9907,6 +10277,7 @@ function initClassNotesTab() {
     initDayNoteMentionFields();
     syncClassNotesAddFormChrome();
     syncClassNotesSortSelect();
+    syncClassNotesTranslateOnCopyToggleFromUi();
     if (!classNotesFiltersBuilt) {
         classNotesFiltersBuilt = true;
         const saved = appData.ui && appData.ui.classNotesFilters;
@@ -12359,6 +12730,7 @@ function navigateToTabBody(tabId, options = {}) {
         appData.ui.lastTeachingTab = tabId;
     }
     saveUiStateToLocalStorage();
+    scheduleNowClassPopupRenderSoon();
 
     syncHostSubTabNav(hostId, tabId);
 
@@ -13992,6 +14364,86 @@ function normalizeTextForClipboard(text) {
         .replace(/\u2014/g, '-')
         .replace(/\u2013/g, '-')
         .replace(/\u2212/g, '-');
+}
+
+const CLASS_NOTES_TRANSLATE_CACHE_MAX = 50;
+const classNotesTranslateCache = new Map();
+const classNotesTranslateInflight = new Map();
+
+function isClassNotesTranslateOnCopyEnabled() {
+    ensureUiState();
+    return appData.ui.classNotesTranslateOnCopy === true;
+}
+
+function syncClassNotesTranslateOnCopyToggleFromUi() {
+    const el = document.getElementById('classNotesTranslateOnCopy');
+    if (!el) {
+        return;
+    }
+    ensureUiState();
+    el.checked = appData.ui.classNotesTranslateOnCopy === true;
+}
+
+function readClassNotesTranslateToggleFromUi() {
+    const el = document.getElementById('classNotesTranslateOnCopy');
+    if (!el) {
+        return false;
+    }
+    return el.checked === true;
+}
+
+function cachePutClassNotesTranslation(key, value) {
+    if (!key) {
+        return;
+    }
+    if (classNotesTranslateCache.has(key)) {
+        classNotesTranslateCache.delete(key);
+    }
+    classNotesTranslateCache.set(key, value);
+    while (classNotesTranslateCache.size > CLASS_NOTES_TRANSLATE_CACHE_MAX) {
+        const first = classNotesTranslateCache.keys().next().value;
+        classNotesTranslateCache.delete(first);
+    }
+}
+
+async function translateTextForClassNotesClipboard(text) {
+    const raw = String(text ?? '').trim();
+    if (!raw) {
+        return raw;
+    }
+    if (!isClassNotesTranslateOnCopyEnabled()) {
+        return raw;
+    }
+    const cached = classNotesTranslateCache.get(raw);
+    if (typeof cached === 'string' && cached.trim()) {
+        return cached;
+    }
+    const inflight = classNotesTranslateInflight.get(raw);
+    if (inflight) {
+        return inflight;
+    }
+    const p = (async () => {
+        try {
+            if (typeof CCPApi === 'undefined' || !CCPApi.apiFetch) {
+                throw new Error('API not available');
+            }
+            const res = await CCPApi.apiFetch('/translate', {
+                method: 'POST',
+                timeoutMs: 15000,
+                body: { text: raw, sourceLang: 'en', targetLang: 'ko' }
+            });
+            const translated = String(res && res.translatedText ? res.translatedText : '').trim();
+            if (translated) {
+                cachePutClassNotesTranslation(raw, translated);
+                return translated;
+            }
+            throw new Error('empty');
+        } finally {
+            classNotesTranslateInflight.delete(raw);
+        }
+    })();
+    classNotesTranslateInflight.set(raw, p);
+    return p;
 }
 
 function clipboardNormalizeSkipTarget(node) {
@@ -18132,6 +18584,7 @@ function initHomeworkTabListeners() {
 function openClassEditor(classData, context, options = {}) {
     if (isTeamCalendarViewOnly() && !classData) {
         showLockFlash(t('teamReadOnlySave'), false);
+        warnEditRequiresLockOnce();
         return;
     }
     void ensureExtensionScriptsLoaded()
@@ -18159,6 +18612,7 @@ function openClassEditorAfterLoad(classData, context, options = {}) {
 function openEventEditor(holidayData, context, options = {}) {
     if (isTeamCalendarViewOnly() && !holidayData) {
         showLockFlash(t('teamReadOnlySave'), false);
+        warnEditRequiresLockOnce();
         return;
     }
     const ctx = context || 'tab';
@@ -18820,6 +19274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.body.dataset.activeTab = getActiveTab();
         initCalendarContextMenu();
         initDayNotesUi();
+        initNowClassPopup();
         initTermSettingsToggle();
         initViewportTier();
         initCalendarViewToggle();
@@ -19211,6 +19666,12 @@ function setupEventListeners() {
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (themeToggleBtn) {
         themeToggleBtn.addEventListener('click', toggleTheme);
+    }
+    const nowPopupToggleBtn = document.getElementById('nowClassPopupToggleBtn');
+    if (nowPopupToggleBtn) {
+        nowPopupToggleBtn.addEventListener('click', () => {
+            setNowClassPopupEnabled(!getNowClassPopupEnabled());
+        });
     }
     
     // Button Clicks
@@ -25645,6 +26106,11 @@ let lastLockNotifySignature = '';
 let teamSyncBootWatchdogTimer = null;
 /** Team calendars: false until active calendar document applied from server (or boot gave up). */
 let teamSyncCalendarHydrated = false;
+/** True after one auto-lock attempt this page load (login boot). */
+let teamAutoLockOnLoginAttempted = false;
+let lastEditRequiresLockWarnAt = 0;
+/** Min gap between blocking lock warnings while the user keeps editing without the lock. */
+const EDIT_REQUIRES_LOCK_WARN_COOLDOWN_MS = 12000;
 
 const TEAM_SYNC_TERMINAL_STATUSES = ['saved', 'connected', 'offline', 'error', 'saving', 'conflict'];
 /** Max wait for team sync during page boot before clearing stuck Connecting/Syncing. */
@@ -25878,6 +26344,97 @@ function requiresExplicitLockForEdit() {
         return false;
     }
     return !CalendarSync.state.holdsLock;
+}
+
+/**
+ * Blocking popup when the user tries to edit without holding the collaborative lock.
+ * Rate-limited so rapid field changes do not spam alerts.
+ * @returns {boolean} true when edit should be blocked
+ */
+function warnEditRequiresLockOnce() {
+    if (!requiresExplicitLockForEdit()) {
+        return false;
+    }
+    const now = Date.now();
+    if (now - lastEditRequiresLockWarnAt < EDIT_REQUIRES_LOCK_WARN_COOLDOWN_MS) {
+        return true;
+    }
+    lastEditRequiresLockWarnAt = now;
+    const lock = CalendarSync.state && CalendarSync.state.lock;
+    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser();
+    const heldByOther =
+        lock &&
+        lock.holderUserId &&
+        (!me || String(lock.holderUserId) !== String(me.id));
+    const msg = heldByOther
+        ? t('teamLockedByFlash').replace('{name}', formatLockParty(lock))
+        : t('teamLockActionAcquire') + ': ' + t('teamReadOnlySave');
+    window.alert(msg);
+    return true;
+}
+
+/**
+ * After login boot, acquire the edit lock when no other user currently holds it.
+ * Runs once per page load; does not send edit requests when the lock is taken.
+ */
+async function maybeAutoAcquireFreeLockOnLogin() {
+    if (teamAutoLockOnLoginAttempted) {
+        return;
+    }
+    teamAutoLockOnLoginAttempted = true;
+
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return;
+    }
+    const id = CalendarSync.getActiveCalendarId();
+    if (!id) {
+        return;
+    }
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode()) {
+        return;
+    }
+    if (CalendarSync.state.canEdit === false || CalendarSync.state.permissionReadOnly) {
+        return;
+    }
+    if (CalendarSync.state.holdsLock) {
+        return;
+    }
+
+    try {
+        await CalendarSync.refreshLockMeta(id);
+    } catch (_) {
+        return;
+    }
+
+    if (CalendarSync.state.holdsLock) {
+        return;
+    }
+
+    const lock = CalendarSync.state.lock;
+    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser();
+    if (lock && lock.holderUserId && (!me || String(lock.holderUserId) !== String(me.id))) {
+        return;
+    }
+
+    try {
+        const result = await CalendarSync.acquireLock(id);
+        if (result && result.acquired && CalendarSync.state.holdsLock) {
+            teamLockPreviousCalendarId = id;
+            applyTeamLockAccessState({
+                readOnly: CalendarSync.state.readOnly,
+                lock: CalendarSync.state.lock,
+                holdsLock: CalendarSync.state.holdsLock,
+                pendingEditRequest: CalendarSync.state.pendingEditRequest,
+                lockExpiresAt: CalendarSync.state.lockExpiresAt
+            });
+        }
+    } catch (err) {
+        if (CalendarSync.logLockDebug) {
+            CalendarSync.logLockDebug('error', 'Auto-acquire lock on login failed', {
+                message: err && err.message
+            });
+        }
+    }
 }
 
 function getEffectiveTeamReadOnly(lockState) {
@@ -26967,6 +27524,8 @@ function setupTeamUserBar() {
     if (deleteCalBtn) {
         deleteCalBtn.hidden = true;
     }
+        syncNowClassPopupToggleUi();
+        renderNowClassPopup();
         return;
     }
 
@@ -27056,6 +27615,8 @@ function setupTeamUserBar() {
         deleteCalBtn.hidden = true;
         deleteCalBtn.disabled = true;
     }
+    syncNowClassPopupToggleUi();
+    renderNowClassPopup();
 }
 
 function updateTeamDeleteCalendarButton(list, activeId) {
@@ -28031,6 +28592,7 @@ function saveData() {
     saveDataToLocalCache();
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && requiresExplicitLockForEdit()) {
         showLockFlash(t('teamLockActionAcquire') + ' — ' + t('teamReadOnlySave'), false);
+        warnEditRequiresLockOnce();
         return;
     }
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly()) {
@@ -29562,6 +30124,7 @@ async function initTeamSync() {
     await setupHostEnginePanel();
 
     await ensureActiveCalendarLoaded();
+    await maybeAutoAcquireFreeLockOnLogin();
 
     document.body.dataset.teamSyncInit = '1';
 
