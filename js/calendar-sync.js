@@ -1028,6 +1028,18 @@
             if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
                 return POLL_INTERVAL_HIDDEN_MS;
             }
+            try {
+                if (typeof document !== 'undefined' && document.body) {
+                    if (
+                        document.body.classList.contains('notes-page')
+                        || document.body.classList.contains('workspace-page')
+                    ) {
+                        return 1000;
+                    }
+                }
+            } catch (_) {
+                /* ignore */
+            }
             let base = POLL_INTERVAL_IDLE_MS;
             if (
                 state.holdsLock ||

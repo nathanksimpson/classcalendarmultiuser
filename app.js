@@ -6637,7 +6637,38 @@ async function persistDayNotesAfterChange(rollbackSnapshot) {
     }
     dayNoteSaveInFlight = true;
     try {
-        return await saver.saveAfterMutate(appData.dayNotes, rollbackSnapshot);
+        try {
+            return await saver.saveAfterMutate(appData.dayNotes, rollbackSnapshot);
+        } catch (err) {
+            if (err && err.status === 409 && teamSyncEnabled && typeof CalendarSync !== 'undefined') {
+                try {
+                    const id = CalendarSync.getActiveCalendarId();
+                    if (!id) {
+                        throw err;
+                    }
+                    const doc = await CalendarSync.loadCalendar(id);
+                    const api = getDayNotesApi();
+                    const serverList =
+                        doc && doc.data && Array.isArray(doc.data.dayNotes) ? doc.data.dayNotes : [];
+                    ensureDayNotesArray();
+                    if (api && api.mergeDayNotesById) {
+                        appData.dayNotes = api.mergeDayNotesById(appData.dayNotes, serverList);
+                    } else {
+                        appData.dayNotes = serverList;
+                    }
+                    if (CalendarSync && typeof CalendarSync.saveDayNotesOnly === 'function') {
+                        return await CalendarSync.saveDayNotesOnly(appData.dayNotes, { force: true });
+                    }
+                } catch (retryErr) {
+                    showSyncErrorToast(retryErr);
+                    throw retryErr;
+                }
+            }
+            if (err && err.status !== 423) {
+                showSyncErrorToast(err);
+            }
+            throw err;
+        }
     } finally {
         dayNoteSaveInFlight = false;
     }
@@ -26471,15 +26502,60 @@ async function maybeAutoReloadTeamCalendar(meta, lockState) {
     if (isViewAsSession()) {
         return;
     }
-    if (
-        CalendarSync.state.holdsLock
-        || CalendarSync.state.saving
-        || (CalendarSync.hasPendingSave && CalendarSync.hasPendingSave())
-    ) {
-        return;
-    }
     const serverRev = meta && meta.revision;
     if (!serverRev || serverRev <= CalendarSync.state.revision) {
+        return;
+    }
+
+    async function reloadDayNotesOnlyFromServer() {
+        const id = CalendarSync.getActiveCalendarId();
+        if (!id) {
+            return;
+        }
+        const doc = await CalendarSync.loadCalendar(id);
+        if (!doc || !doc.data) {
+            return;
+        }
+        const nextDayNotes = Array.isArray(doc.data.dayNotes) ? doc.data.dayNotes : [];
+        ensureDayNotesArray();
+        const api = getDayNotesApi();
+        if (api && api.mergeDayNotesById) {
+            appData.dayNotes = api.mergeDayNotesById(appData.dayNotes, nextDayNotes);
+        } else {
+            appData.dayNotes = nextDayNotes;
+        }
+        if (CalendarSync && CalendarSync.state && doc.revision != null) {
+            CalendarSync.state.revision = doc.revision;
+            CalendarSync.state.remoteNewer = false;
+        }
+        const notesBanner = document.getElementById('notesRemoteBanner');
+        if (notesBanner) {
+            notesBanner.hidden = true;
+        }
+        refreshNotesPageIfMounted();
+        if (typeof refreshClassNotesPanelIfMounted === 'function') {
+            refreshClassNotesPanelIfMounted();
+        }
+    }
+
+    const blockedByEditing =
+        CalendarSync.state.holdsLock
+        || CalendarSync.state.saving
+        || (CalendarSync.hasPendingSave && CalendarSync.hasPendingSave());
+
+    if (blockedByEditing) {
+        refreshTeamLockDebugPanel({
+            autoReload: true,
+            dayNotesOnly: true,
+            serverRev,
+            clientRev: CalendarSync.state.revision
+        });
+        try {
+            await reloadDayNotesOnlyFromServer();
+        } catch (err) {
+            console.error('Day-notes-only refresh failed:', err);
+            refreshTeamLockDebugPanel({ autoReloadFailed: err && err.message ? err.message : String(err || '') });
+        }
         return;
     }
     const wasReadOnly = lockState && lockState.wasReadOnly;
@@ -29299,6 +29375,14 @@ async function reloadActiveCalendarFromServer() {
     }
     const doc = await CalendarSync.loadCalendar(id);
     applyServerDocument(doc);
+    if (isNotesPage()) {
+        const notesBanner = document.getElementById('notesRemoteBanner');
+        if (notesBanner) {
+            notesBanner.hidden = true;
+        }
+        CalendarSync.state.remoteNewer = false;
+        return;
+    }
     if (isWorkspacePage()) {
         refreshWorkspaceHomeworkUi();
         const wsBanner = document.getElementById('workspaceRemoteBanner');
@@ -29511,6 +29595,42 @@ async function initTeamSync() {
             alert(t('syncError') + ': ' + translateSyncError(err && err.message ? err.message : String(err || '')));
         }
     });
+
+    if (document && document.body && document.body.dataset.teamSyncVisibilityBound !== '1') {
+        document.body.dataset.teamSyncVisibilityBound = '1';
+        document.addEventListener('visibilitychange', async () => {
+            if (document.hidden) {
+                return;
+            }
+            if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.state) {
+                return;
+            }
+            if (!CalendarSync.state.remoteNewer) {
+                return;
+            }
+            try {
+                if (document.body.classList.contains('notes-page')) {
+                    if (typeof reloadNotesCalendar === 'function') {
+                        await reloadNotesCalendar();
+                    }
+                    return;
+                }
+                if (document.body.classList.contains('workspace-page')) {
+                    if (typeof reloadWorkspaceCalendar === 'function') {
+                        await reloadWorkspaceCalendar();
+                    }
+                    return;
+                }
+                const pendingSave = CalendarSync.hasPendingSave && CalendarSync.hasPendingSave();
+                if (CalendarSync.state.holdsLock || CalendarSync.state.saving || pendingSave) {
+                    return;
+                }
+                await reloadActiveCalendarFromServer();
+            } catch (refreshErr) {
+                console.warn('Visibility refresh failed:', refreshErr);
+            }
+        });
+    }
 
     CalendarSync.startPolling();
 }
