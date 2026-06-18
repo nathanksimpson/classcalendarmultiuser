@@ -2,6 +2,7 @@ name = "classcalendarmultiuser"
 main = "worker/src/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 # Run before deploy (local `npm run deploy` and Cloudflare Workers Builds on git push).
 # dist/ is gitignored; without this, CI fails: assets.directory "dist" does not exist.
@@ -21,9 +22,21 @@ database_name = "calendar-team"
 database_id = "002a1ed6-f90b-425e-a4a7-518d07c4040d"
 migrations_dir = "worker/migrations"
 
+# Route traffic on existing proxied DNS (apex + www). Custom domains failed with
+# error 100117 because manual A/CNAME records already exist on the zone.
+[[routes]]
+pattern = "classmanager.live/*"
+zone_name = "classmanager.live"
+
+[[routes]]
+pattern = "www.classmanager.live/*"
+zone_name = "classmanager.live"
+
+[ai]
+binding = "AI"
+
 [vars]
-# Set to your live URL after the first deploy (Workers *.workers.dev or custom domain).
-PUBLIC_URL = "https://classcalendarmultiuser.nathanksimpson.workers.dev"
+PUBLIC_URL = "https://classmanager.live"
 
 # Secrets (wrangler secret put):
 # KAKAO_CLIENT_ID

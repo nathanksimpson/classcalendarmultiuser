@@ -9835,23 +9835,27 @@ async function copyClassDayNoteToClipboard(note) {
     const text = api && api.sanitizeExportText
         ? api.sanitizeExportText(raw)
         : normalizeTextForClipboard(raw);
-    let translated = text;
-    try {
-        translated = await translateTextForClassNotesClipboard(text);
-    } catch (_) {
-        translated = text;
+    const translateOn = isClassNotesTranslateOnCopyEnabled();
+    if (translateOn) {
+        showClassNotesExportStatus(true, t('classNotesTranslating'), { persist: true });
     }
-    const ok = await copyTextToClipboard(translated);
+    let translated = text;
+    let ok = false;
+    if (translateOn) {
+        const result = await copyTextToClipboardDeferred(() => resolveClassNotesClipboardText(text, true));
+        ok = result.ok;
+        translated = result.value || text;
+    } else {
+        ok = await copyTextToClipboard(text);
+    }
     if (getActiveTab() === 'homework') {
         showHomeworkCopyStatus(ok);
+    } else if (ok && translated !== text && translateOn) {
+        showClassNotesExportStatus(ok, t('dayNotesCopyOk'));
+    } else if (ok && translated === text && translateOn) {
+        showClassNotesExportStatus(ok, t('classNotesTranslateFailed'));
     } else {
-        if (ok && translated !== text && isClassNotesTranslateOnCopyEnabled()) {
-            showClassNotesExportStatus(ok, t('dayNotesCopyOk'));
-        } else if (ok && translated === text && isClassNotesTranslateOnCopyEnabled()) {
-            showClassNotesExportStatus(ok, t('classNotesTranslateFailed'));
-        } else {
-            showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
-        }
+        showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
     }
 }
 
@@ -10064,41 +10068,100 @@ function renderClassNotesTab() {
     previewEl.appendChild(flatSection);
 }
 
-function showClassNotesExportStatus(ok, message) {
-    const el = document.getElementById('classNotesExportStatus');
-    if (!el) {
-        showDayNotesCopyStatus(ok, message);
-        return;
+function showClassNotesExportStatus(ok, message, options) {
+    const persist = options && options.persist === true;
+    const durationMs = persist ? 120000 : 4500;
+    setAppStatusMessage(
+        message || (ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail')),
+        !ok,
+        durationMs
+    );
+}
+
+function supportsDeferredClipboardCopy() {
+    return typeof navigator !== 'undefined'
+        && navigator.clipboard
+        && typeof navigator.clipboard.write === 'function'
+        && typeof ClipboardItem !== 'undefined';
+}
+
+async function resolveClassNotesClipboardText(sourceText, translateOn) {
+    let out = String(sourceText ?? '');
+    if (translateOn) {
+        try {
+            out = await translateTextForClassNotesClipboard(out);
+        } catch (_) {
+            out = sourceText;
+        }
     }
-    el.hidden = false;
-    el.textContent = message || (ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
-    el.classList.toggle('is-ok', !!ok);
-    el.classList.toggle('is-error', !ok);
-    clearTimeout(showClassNotesExportStatus._timer);
-    showClassNotesExportStatus._timer = setTimeout(() => {
-        el.hidden = true;
-    }, 2800);
+    return normalizeTextForClipboard(out.trim());
+}
+
+async function copyTextToClipboardDeferred(getTextAsync) {
+    if (!supportsDeferredClipboardCopy()) {
+        const value = await getTextAsync();
+        return { ok: await copyTextToClipboard(value), value };
+    }
+    let resolvedValue = '';
+    const blobPromise = (async () => {
+        resolvedValue = await getTextAsync();
+        if (!resolvedValue) {
+            throw new Error('empty');
+        }
+        return new Blob([resolvedValue], { type: 'text/plain' });
+    })();
+    try {
+        await navigator.clipboard.write([
+            new ClipboardItem({ 'text/plain': blobPromise })
+        ]);
+        await blobPromise;
+        return { ok: true, value: resolvedValue };
+    } catch (err) {
+        if (resolvedValue) {
+            return { ok: await copyTextToClipboard(resolvedValue), value: resolvedValue };
+        }
+        const value = await getTextAsync();
+        return { ok: await copyTextToClipboard(value), value };
+    }
 }
 
 async function copyClassNotesExport() {
-    const text = buildClassNotesRangeExportText();
-    if (!text.trim()) {
-        const { filters } = getFilteredClassNotesForExport();
-        showClassNotesExportEmptyReason(filters);
-        return;
+    const copyBtn = document.getElementById('classNotesExportCopyBtn');
+    if (copyBtn) {
+        copyBtn.disabled = true;
     }
-    let translated = text;
     try {
-        translated = await translateTextForClassNotesClipboard(text);
-    } catch (_) {
-        translated = text;
+        const text = buildClassNotesRangeExportText();
+        if (!text.trim()) {
+            const { filters } = getFilteredClassNotesForExport();
+            showClassNotesExportEmptyReason(filters);
+            return;
+        }
+        const translateOn = isClassNotesTranslateOnCopyEnabled();
+        if (translateOn) {
+            showClassNotesExportStatus(true, t('classNotesTranslating'), { persist: true });
+        }
+        let translated = text;
+        let ok = false;
+        if (translateOn) {
+            const result = await copyTextToClipboardDeferred(() => resolveClassNotesClipboardText(text, true));
+            ok = result.ok;
+            translated = result.value || text;
+        } else {
+            ok = await copyTextToClipboard(text);
+        }
+        if (ok && translated === text && translateOn) {
+            showClassNotesExportStatus(ok, t('classNotesTranslateFailed'));
+            return;
+        }
+        showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
+    } catch (err) {
+        showClassNotesExportStatus(false, t('dayNotesCopyFail'));
+    } finally {
+        if (copyBtn) {
+            copyBtn.disabled = false;
+        }
     }
-    const ok = await copyTextToClipboard(translated);
-    if (ok && translated === text && isClassNotesTranslateOnCopyEnabled()) {
-        showClassNotesExportStatus(ok, t('classNotesTranslateFailed'));
-        return;
-    }
-    showClassNotesExportStatus(ok, ok ? t('dayNotesCopyOk') : t('dayNotesCopyFail'));
 }
 
 function downloadClassNotesExport() {
@@ -14367,8 +14430,82 @@ function normalizeTextForClipboard(text) {
 }
 
 const CLASS_NOTES_TRANSLATE_CACHE_MAX = 50;
+const CLASS_NOTES_TRANSLATE_CACHE_VERSION = 'v2';
 const classNotesTranslateCache = new Map();
 const classNotesTranslateInflight = new Map();
+
+function isDegenerateTranslationOutput(text, sourceText) {
+    const value = String(text ?? '').trim();
+    const source = String(sourceText ?? '').trim();
+    if (!value) {
+        return true;
+    }
+    if (/(\S{1,20})(?:\s+\1){4,}/.test(value)) {
+        return true;
+    }
+    const words = value.split(/\s+/).filter(Boolean);
+    if (words.length >= 20 && new Set(words).size <= 3) {
+        return true;
+    }
+    if (source && value.length > Math.max(250, source.length * 4)) {
+        return true;
+    }
+    return false;
+}
+
+function shouldSkipClassNotesTranslateLine(line) {
+    const trimmed = String(line ?? '').trim();
+    if (!trimmed) {
+        return true;
+    }
+    if (/^=+$/.test(trimmed) || /^-+$/.test(trimmed)) {
+        return true;
+    }
+    if (/^--\s/.test(trimmed) || /^==\s/.test(trimmed)) {
+        return true;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return true;
+    }
+    // Export range header, e.g. "2026-01-01 – 2026-06-17 - Class notes export"
+    if (/^\d{4}-\d{2}-\d{2}\s*[–-]/.test(trimmed)) {
+        return true;
+    }
+    // Locale date-only lines between note groups
+    if (/^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}\.?$/.test(trimmed)) {
+        return true;
+    }
+    if (/^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?$/.test(trimmed)) {
+        return true;
+    }
+    // Bracket metadata: [time], [category] [time], etc. — never translate these
+    if (/^\[[^\]]+\](\s+\[[^\]]+\])*$/.test(trimmed)) {
+        return true;
+    }
+    if (/^\[[^\]]+\]/.test(trimmed)) {
+        return true;
+    }
+    if (!/[A-Za-z]/.test(trimmed)) {
+        return true;
+    }
+    return false;
+}
+
+async function translateClassNotesChunkViaApi(text) {
+    if (typeof CCPApi === 'undefined' || !CCPApi.apiFetch) {
+        throw new Error('API not available');
+    }
+    const res = await CCPApi.apiFetch('/translate', {
+        method: 'POST',
+        timeoutMs: 15000,
+        body: { text, sourceLang: 'en', targetLang: 'ko' }
+    });
+    const translated = String(res && res.translatedText ? res.translatedText : '').trim();
+    if (!translated || isDegenerateTranslationOutput(translated, text)) {
+        throw new Error('degenerate');
+    }
+    return translated;
+}
 
 function isClassNotesTranslateOnCopyEnabled() {
     ensureUiState();
@@ -14396,14 +14533,19 @@ function cachePutClassNotesTranslation(key, value) {
     if (!key) {
         return;
     }
-    if (classNotesTranslateCache.has(key)) {
-        classNotesTranslateCache.delete(key);
+    const cacheKey = `${CLASS_NOTES_TRANSLATE_CACHE_VERSION}:${key}`;
+    if (classNotesTranslateCache.has(cacheKey)) {
+        classNotesTranslateCache.delete(cacheKey);
     }
-    classNotesTranslateCache.set(key, value);
+    classNotesTranslateCache.set(cacheKey, value);
     while (classNotesTranslateCache.size > CLASS_NOTES_TRANSLATE_CACHE_MAX) {
         const first = classNotesTranslateCache.keys().next().value;
         classNotesTranslateCache.delete(first);
     }
+}
+
+function getClassNotesTranslationCache(key) {
+    return classNotesTranslateCache.get(`${CLASS_NOTES_TRANSLATE_CACHE_VERSION}:${key}`);
 }
 
 async function translateTextForClassNotesClipboard(text) {
@@ -14414,7 +14556,7 @@ async function translateTextForClassNotesClipboard(text) {
     if (!isClassNotesTranslateOnCopyEnabled()) {
         return raw;
     }
-    const cached = classNotesTranslateCache.get(raw);
+    const cached = getClassNotesTranslationCache(raw);
     if (typeof cached === 'string' && cached.trim()) {
         return cached;
     }
@@ -14424,20 +14566,47 @@ async function translateTextForClassNotesClipboard(text) {
     }
     const p = (async () => {
         try {
-            if (typeof CCPApi === 'undefined' || !CCPApi.apiFetch) {
-                throw new Error('API not available');
-            }
-            const res = await CCPApi.apiFetch('/translate', {
-                method: 'POST',
-                timeoutMs: 15000,
-                body: { text: raw, sourceLang: 'en', targetLang: 'ko' }
-            });
-            const translated = String(res && res.translatedText ? res.translatedText : '').trim();
-            if (translated) {
+            const lines = raw.split('\n');
+            let translated = '';
+            if (lines.length === 1) {
+                translated = await translateClassNotesChunkViaApi(raw);
+                if (!translated || isDegenerateTranslationOutput(translated, raw)) {
+                    throw new Error('degenerate');
+                }
+            } else {
+                const out = [];
+                let translateLineCount = 0;
+                for (const line of lines) {
+                    if (shouldSkipClassNotesTranslateLine(line)) {
+                        out.push(line);
+                        continue;
+                    }
+                    const lineCached = getClassNotesTranslationCache(line);
+                    if (typeof lineCached === 'string' && lineCached.trim()
+                        && !isDegenerateTranslationOutput(lineCached, line)) {
+                        out.push(lineCached);
+                        continue;
+                    }
+                    translateLineCount += 1;
+                    try {
+                        const lineTranslated = await translateClassNotesChunkViaApi(line);
+                        cachePutClassNotesTranslation(line, lineTranslated);
+                        out.push(lineTranslated);
+                    } catch (_) {
+                        out.push(line);
+                    }
+                }
+                translated = out.join('\n');
+                if (!translated.trim()) {
+                    throw new Error('empty');
+                }
                 cachePutClassNotesTranslation(raw, translated);
                 return translated;
             }
-            throw new Error('empty');
+            cachePutClassNotesTranslation(raw, translated);
+            return translated;
+        } catch (err) {
+            throw err;
         } finally {
             classNotesTranslateInflight.delete(raw);
         }
@@ -18583,6 +18752,9 @@ function initHomeworkTabListeners() {
 
 function openClassEditor(classData, context, options = {}) {
     if (isTeamCalendarViewOnly() && !classData) {
+        if (isTeamAutoLockOnLoginPending()) {
+            return;
+        }
         showLockFlash(t('teamReadOnlySave'), false);
         warnEditRequiresLockOnce();
         return;
@@ -18611,6 +18783,9 @@ function openClassEditorAfterLoad(classData, context, options = {}) {
 
 function openEventEditor(holidayData, context, options = {}) {
     if (isTeamCalendarViewOnly() && !holidayData) {
+        if (isTeamAutoLockOnLoginPending()) {
+            return;
+        }
         showLockFlash(t('teamReadOnlySave'), false);
         warnEditRequiresLockOnce();
         return;
@@ -26108,6 +26283,8 @@ let teamSyncBootWatchdogTimer = null;
 let teamSyncCalendarHydrated = false;
 /** True after one auto-lock attempt this page load (login boot). */
 let teamAutoLockOnLoginAttempted = false;
+/** True while calendar load + auto-acquire run on login boot (defer lock warnings). */
+let teamAutoLockOnLoginInProgress = false;
 let lastEditRequiresLockWarnAt = 0;
 /** Min gap between blocking lock warnings while the user keeps editing without the lock. */
 const EDIT_REQUIRES_LOCK_WARN_COOLDOWN_MS = 12000;
@@ -26331,6 +26508,10 @@ function isTeamCalendarViewOnly() {
     return teamViewOnlyActive;
 }
 
+function isTeamAutoLockOnLoginPending() {
+    return teamAutoLockOnLoginInProgress;
+}
+
 /** Team sync: editing requires holding the lock (even when no one else holds it). */
 function requiresExplicitLockForEdit() {
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
@@ -26352,6 +26533,9 @@ function requiresExplicitLockForEdit() {
  * @returns {boolean} true when edit should be blocked
  */
 function warnEditRequiresLockOnce() {
+    if (isTeamAutoLockOnLoginPending()) {
+        return false;
+    }
     if (!requiresExplicitLockForEdit()) {
         return false;
     }
@@ -28591,6 +28775,9 @@ function saveDataToLocalCache() {
 function saveData() {
     saveDataToLocalCache();
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && requiresExplicitLockForEdit()) {
+        if (isTeamAutoLockOnLoginPending()) {
+            return;
+        }
         showLockFlash(t('teamLockActionAcquire') + ' — ' + t('teamReadOnlySave'), false);
         warnEditRequiresLockOnce();
         return;
@@ -30123,8 +30310,22 @@ async function initTeamSync() {
 
     await setupHostEnginePanel();
 
-    await ensureActiveCalendarLoaded();
-    await maybeAutoAcquireFreeLockOnLogin();
+    teamAutoLockOnLoginInProgress = true;
+    try {
+        await ensureActiveCalendarLoaded();
+        await maybeAutoAcquireFreeLockOnLogin();
+    } finally {
+        teamAutoLockOnLoginInProgress = false;
+        if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId()) {
+            applyTeamLockAccessState({
+                readOnly: CalendarSync.state.readOnly,
+                lock: CalendarSync.state.lock,
+                holdsLock: CalendarSync.state.holdsLock,
+                pendingEditRequest: CalendarSync.state.pendingEditRequest,
+                lockExpiresAt: CalendarSync.state.lockExpiresAt
+            });
+        }
+    }
 
     document.body.dataset.teamSyncInit = '1';
 

@@ -9,7 +9,7 @@ Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps
 | **Folder** | `D:\Simson USB\Class Calendar Multi User` (USB — drive letter may be `D:`, `E:`, etc.) |
 | **NOT** | `f:\Calendar App` (single-user, no team sync) |
 | **GitHub** | https://github.com/nathanksimpson/classcalendarmultiuser |
-| **Live** | https://classcalendarmultiuser.nathanksimpson.workers.dev |
+| **Live** | https://classmanager.live (also https://classcalendarmultiuser.nathanksimpson.workers.dev) |
 | **Branch** | `main` |
 | **Portable copy** | USB stick — carry repo between home and work PCs (includes `.git`) |
 | **Code source of truth** | GitHub `main` — use `git pull` / `git push`, not USB file copy alone |
@@ -23,7 +23,7 @@ The repo lives on a **USB drive** (`Simson USB\Class Calendar Multi User`) so yo
 
 | What USB does | What it does *not* do |
 |---------------|------------------------|
-| Carry the repo (and `.git`) between PCs | Update https://classcalendarmultiuser.nathanksimpson.workers.dev |
+| Carry the repo (and `.git`) between PCs | Update https://classmanager.live |
 | Let you open the same folder in Cursor on either machine | Replace `git pull` / `git push` |
 | | Keep `node_modules` reliable (re-run `npm install` per PC when needed) |
 

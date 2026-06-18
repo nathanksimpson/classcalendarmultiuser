@@ -29,6 +29,7 @@ const KAKAO_CLIENT_SECRET = process.env.KAKAO_CLIENT_SECRET || '';
 const BOOTSTRAP_SECRET = process.env.BOOTSTRAP_ADMIN_SECRET || '';
 const COOKIE_SECURE = process.env.COOKIE_SECURE === '1' || PUBLIC_URL.startsWith('https://');
 const ALLOW_OPEN_ACCESS = process.env.ALLOW_OPEN_ACCESS === '1';
+const TRANSLATE_PROXY_URL = (process.env.TRANSLATE_PROXY_URL || '').trim();
 
 getDb();
 
@@ -296,6 +297,56 @@ app.post('/api/auth/logout-all', requireUser, (req, res) => {
     users.deleteAllSessionsForUser(req.user.id);
     clearSessionCookie(res);
     res.json({ ok: true });
+});
+
+app.post('/api/translate', requireCookieUser, async (req, res) => {
+    const text = String(req.body && req.body.text ? req.body.text : '').trim();
+    if (!text) {
+        res.status(400).json({ error: 'Missing text' });
+        return;
+    }
+    const sourceLang =
+        String(req.body && req.body.sourceLang ? req.body.sourceLang : 'en').trim().toLowerCase()
+        || 'en';
+    const targetLang = String(req.body && req.body.targetLang ? req.body.targetLang : '').trim().toLowerCase();
+    if (!targetLang) {
+        res.status(400).json({ error: 'Missing targetLang' });
+        return;
+    }
+    if (!TRANSLATE_PROXY_URL) {
+        res.status(503).json({
+            error: 'Translation is not configured locally. Set TRANSLATE_PROXY_URL to a server that supports /api/translate.'
+        });
+        return;
+    }
+    const maxBytes = 30 * 1024;
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+        res.status(413).json({ error: 'Text is too long to translate' });
+        return;
+    }
+    try {
+        const upstream = await fetch(TRANSLATE_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, sourceLang, targetLang })
+        });
+        const payloadText = await upstream.text();
+        let payload = null;
+        if (payloadText) {
+            try {
+                payload = JSON.parse(payloadText);
+            } catch (_) {
+                payload = { raw: payloadText };
+            }
+        }
+        if (!upstream.ok) {
+            res.status(upstream.status).json(payload && payload.error ? payload : { error: 'Translation failed' });
+            return;
+        }
+        res.json(payload || { ok: true, translatedText: '' });
+    } catch (err) {
+        res.status(502).json({ error: 'Translation failed' });
+    }
 });
 
 function wantsPasswordFormRedirect(req) {
