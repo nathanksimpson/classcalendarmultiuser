@@ -131,3 +131,31 @@ npx wrangler d1 list
 ```
 
 Copy the **uuid** in the row for `calendar-team`.
+
+---
+
+## Custom domain (`classmanager.live`)
+
+Production uses **Worker routes** on the zone (not Custom Domains), because apex DNS already had manual A/CNAME records. Custom Domains failed with Cloudflare error **100117** until routes were used instead.
+
+In `wrangler.toml`:
+
+```toml
+PUBLIC_URL = "https://classmanager.live"
+
+[[routes]]
+pattern = "classmanager.live/*"
+zone_name = "classmanager.live"
+
+[[routes]]
+pattern = "www.classmanager.live/*"
+zone_name = "classmanager.live"
+```
+
+After `npm run deploy`, verify:
+
+```text
+https://classmanager.live/api/health
+```
+
+If you see **409** on `domains/records` during deploy, remove `custom_domain = true` routes and use `zone_name` patterns like above. Register the new Kakao redirect URI from `/api/health` → `kakaoRedirectUri`.

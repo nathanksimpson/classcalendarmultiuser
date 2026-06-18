@@ -158,7 +158,7 @@ UI-only changes still need **`npx wrangler deploy`** for production (see deploy 
 
 ## Deploy verification checklist (production)
 
-Production: https://classcalendarmultiuser.nathanksimpson.workers.dev (see `PUBLIC_URL` in `wrangler.toml`).
+Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; workers.dev URL still works).
 
 **Important:** `git push origin main` alone does **not** update the live site unless **Cloudflare Workers Builds** is connected (it runs `wrangler deploy` on push; `wrangler.toml` `[build]` runs `npm run build` first). For manual deploy, run **`npm run deploy`** (`npm run build` then `wrangler deploy`). Local dev still uses source files from the repo root (`npm start`); production static assets are minified into `dist/` (gitignored).
 

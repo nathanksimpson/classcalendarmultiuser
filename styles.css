@@ -5699,13 +5699,6 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     min-height: 280px;
 }
 
-/* Homework: toolbar date picker is enough on desktop; keep mini calendar on phone/tablet */
-@media (min-width: 901px) {
-    .homework-ref-mini-calendar {
-        display: none;
-    }
-}
-
 /* Left sidebars: pin under sticky header; scroll class/list inside the panel */
 .module-list-panel,
 .homework-sidebar-panel.module-list-panel,
@@ -12125,8 +12118,7 @@ body.notes-editor-open.notes-page {
 
 /* Stacked split layouts: top-band sidebars use side-by-side columns to preserve list width */
 @media (max-width: 1024px) {
-    .module-split-layout,
-    .module-split-layout--homework,
+    .module-split-layout:not(.homework-layout),
     .module-split-layout--timetable,
     .teachers-tab-layout.module-split-layout {
         grid-template-columns: 1fr;
@@ -12138,6 +12130,37 @@ body.notes-editor-open.notes-page {
         top: auto;
         align-self: stretch;
         max-height: min(42vh, 380px);
+    }
+
+    /* Homework: keep class sidebar beside editor at half width */
+    .homework-layout.module-split-layout--homework {
+        grid-template-columns: minmax(11rem, 32vw) minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        top: auto;
+        align-self: stretch;
+        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 16px);
+        overflow: hidden;
+    }
+
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list {
+        grid-column: auto;
+        grid-row: auto;
+        flex: 1;
+        min-height: 0;
+        max-height: none;
+    }
+
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-ref-mini-calendar,
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-update-copy-btn,
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-filter-panel,
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list-search {
+        grid-column: auto;
     }
 
     .module-split-layout > .class-notes-filters-panel {
@@ -12161,29 +12184,6 @@ body.notes-editor-open.notes-page {
         grid-column: 2;
         grid-row: 1;
         min-height: 0;
-    }
-
-    /* Homework: controls | class list */
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel {
-        display: grid;
-        grid-template-columns: minmax(var(--split-sidebar-min), 1fr) minmax(var(--split-sidebar-min), 1fr);
-        column-gap: var(--space-3);
-        align-items: stretch;
-        max-height: min(42vh, 380px);
-    }
-
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list {
-        grid-column: 2;
-        grid-row: 1 / -1;
-        min-height: 0;
-        max-height: none;
-    }
-
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-ref-mini-calendar,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-update-copy-btn,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-filter-panel,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list-search {
-        grid-column: 1;
     }
 
     /* Timetable: teachers | classes */
@@ -12308,7 +12308,32 @@ body.notes-editor-open.notes-page {
         max-height: min(40vh, 320px);
     }
 
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list,
+    .homework-layout.module-split-layout--homework {
+        grid-template-columns: 1fr;
+    }
+
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel {
+        display: grid;
+        grid-template-columns: minmax(var(--split-sidebar-min), 1fr) minmax(var(--split-sidebar-min), 1fr);
+        column-gap: var(--space-3);
+        align-items: stretch;
+        max-height: min(40vh, 320px);
+    }
+
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list {
+        grid-column: 2;
+        grid-row: 1 / -1;
+        min-height: 0;
+        max-height: none;
+    }
+
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-ref-mini-calendar,
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-update-copy-btn,
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-filter-panel,
+    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list-search {
+        grid-column: 1;
+    }
+
     .class-notes-layout.module-split-layout .class-notes-filters-panel .class-notes-filter-scroll,
     .module-split-layout > .module-list-panel:not(.homework-sidebar-panel):not(.timetable-sidebar):not(.class-notes-filters-panel) .module-list,
     .workspace-books-layout > .workspace-books-sidebar .workspace-books-list,
@@ -13031,15 +13056,19 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     border-bottom: 1px solid var(--border-color);
 }
 
-/* Zone navigation */
+/* Zone navigation — traditional nested tabs */
 .app-header-unified__nav .app-zone-nav-cluster {
-    padding: var(--space-2) var(--space-3);
+    padding: 0;
 }
 
 .app-zone-nav-cluster {
+    --zone-tab-track-bg: var(--surface-muted, #f1f5f9);
+    --zone-tab-rail: var(--border-color);
+    --zone-tab-active-bg: var(--bg-card);
+    --zone-tab-content-bg: var(--bg-main);
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: 0;
     flex: 1;
     min-width: 0;
 }
@@ -13047,54 +13076,109 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
 .app-zone-nav {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1);
+    align-items: flex-end;
+    gap: 0;
+    margin: 0;
+    padding: var(--space-2) var(--space-3) 0;
+    border-bottom: 1px solid var(--zone-tab-rail);
+    background: var(--zone-tab-track-bg);
 }
 
 .app-zone-btn {
+    position: relative;
+    z-index: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: var(--touch-min, 36px);
-    padding: var(--space-2) var(--space-3);
-    border: none;
-    border-radius: var(--radius-md);
+    margin: 0 2px -1px 0;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
     background: transparent;
     color: var(--text-secondary);
     font-weight: 600;
     font-size: var(--text-body-md, 0.875rem);
+    line-height: 1.2;
     cursor: pointer;
     white-space: nowrap;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
-.app-zone-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-.app-zone-btn.is-active {
-    background: var(--accent-muted, rgba(37, 99, 235, 0.1));
+
+.app-zone-btn:hover:not(.is-active) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.app-zone-btn.is-active,
+.app-zone-btn[aria-selected="true"] {
+    z-index: 2;
+    border-color: var(--zone-tab-rail);
+    border-bottom-color: var(--zone-tab-active-bg);
+    background: var(--zone-tab-active-bg);
     color: var(--primary);
+    box-shadow: 0 -1px 0 var(--zone-tab-rail);
 }
+
 .app-zone-segment-nav {
+    display: block;
+    margin: 0;
+    padding: var(--space-2) var(--space-3) 0;
+    background: var(--zone-tab-active-bg);
+    box-shadow: inset 3px 0 0 var(--accent-muted, rgba(37, 99, 235, 0.35));
+}
+
+.app-zone-segment-panel {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
-    align-items: center;
-    padding: 0 var(--space-3) var(--space-2);
+    align-items: flex-end;
+    gap: 0;
+    margin: 0;
+    padding: 0 0 var(--space-1);
+    border-bottom: 1px solid var(--zone-tab-rail);
 }
-.app-zone-segment-panel { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.app-zone-segment-panel[hidden] { display: none !important; }
+
+.app-zone-segment-panel[hidden] {
+    display: none !important;
+}
+
 .app-zone-segment-btn {
-    min-height: 32px;
+    position: relative;
+    z-index: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    margin: 0 2px -1px 0;
     padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    background: transparent;
     color: var(--text-secondary);
     font-size: var(--text-body-sm, 0.8125rem);
     font-weight: 500;
+    line-height: 1.2;
     cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
-.app-zone-segment-btn.is-active {
-    border-color: var(--primary);
-    color: var(--primary);
+
+.app-zone-segment-btn:hover:not(.is-active):not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.app-zone-segment-btn.is-active,
+.app-zone-segment-btn[aria-selected="true"] {
+    z-index: 1;
+    margin-bottom: -2px;
+    border-color: var(--zone-tab-rail);
+    border-bottom: 2px solid var(--primary);
     background: var(--accent-muted, rgba(37, 99, 235, 0.08));
+    color: var(--primary);
+    font-weight: 600;
 }
 
 .app-tab-nav-label {
@@ -13565,6 +13649,26 @@ html[data-content-expanded="1"] #panel-homework {
 }
 
 /* Phone zone nav */
+html[data-viewport="phone"] .app-zone-nav {
+    padding: var(--space-1) var(--space-2) 0;
+}
+
+html[data-viewport="phone"] .app-zone-btn {
+    min-height: var(--touch-min, 44px);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-body-sm, 0.8125rem);
+}
+
+html[data-viewport="phone"] .app-zone-segment-nav {
+    padding: var(--space-1) var(--space-2) 0;
+    box-shadow: inset 2px 0 0 var(--accent-muted, rgba(37, 99, 235, 0.35));
+}
+
+html[data-viewport="phone"] .app-zone-segment-btn {
+    min-height: var(--touch-min, 44px);
+    padding: var(--space-2) var(--space-3);
+}
+
 html[data-viewport="phone"] .app-zone-btn[data-zone="classes"],
 html[data-viewport="phone"] #appMoreMenuBtn {
     display: none;
@@ -13590,26 +13694,28 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     grid-template-columns: minmax(140px, 200px) minmax(160px, 240px) minmax(0, 1fr);
 }
 
+@media (max-width: 1280px) {
+    .classroom-roster-layout .module-list-panel,
+    .classroom-roster-layout .classroom-roster-student-list-panel {
+        position: relative;
+        top: auto;
+    }
+}
+
 @media (max-width: 1200px) {
     .classroom-roster-layout {
-        grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
-        grid-template-rows: auto auto;
-        row-gap: var(--space-3);
+        grid-template-columns: 1fr;
     }
 
-    .classroom-roster-layout > .module-list-panel:first-of-type {
-        grid-column: 1;
-        grid-row: 1;
-        position: relative;
-        top: auto;
-        align-self: stretch;
-        max-height: min(42vh, 380px);
-        overflow: hidden;
+    .classroom-roster-layout > * {
+        grid-column: auto;
+        grid-row: auto;
     }
 
+    .classroom-roster-layout .module-list-panel,
     .classroom-roster-student-list-panel {
-        grid-column: 1;
-        grid-row: 2;
+        display: flex;
+        flex-direction: column;
         position: relative;
         top: auto;
         align-self: stretch;
@@ -13617,10 +13723,16 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
         overflow: hidden;
     }
 
-    .classroom-roster-editor-panel {
-        grid-column: 2;
-        grid-row: 1 / -1;
-        align-self: stretch;
+    .classroom-roster-bulk-actions {
+        flex-shrink: 0;
+    }
+
+    .classroom-roster-student-list.module-list,
+    .classroom-roster-layout .module-list {
+        grid-column: auto;
+        grid-row: auto;
+        flex: 1;
+        min-height: 0;
     }
 }
 
@@ -14376,6 +14488,10 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
     align-items: center;
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
 }
 
 .classroom-roster-student-list {
@@ -14425,34 +14541,6 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
         --classroom-sheet-chrome-offset-collapsed: 150px;
     }
 
-    .classroom-roster-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .classroom-roster-layout > * {
-        grid-column: auto;
-        grid-row: auto;
-    }
-
-    .classroom-roster-layout .module-list-panel,
-    .classroom-roster-student-list-panel {
-        display: flex;
-        flex-direction: column;
-        max-height: min(42vh, 380px);
-    }
-
-    .classroom-roster-bulk-actions {
-        flex-shrink: 0;
-    }
-
-    .classroom-roster-student-list.module-list,
-    .classroom-roster-layout .module-list {
-        grid-column: auto;
-        grid-row: auto;
-        flex: 1;
-        min-height: 0;
-    }
-
     .classroom-sheet {
         min-width: min(640px, 100%);
     }
@@ -14482,6 +14570,21 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
 
     #zoneSegments-classroom .app-zone-segment-btn {
         min-height: var(--touch-min, 44px);
+        padding: var(--space-2) var(--space-3);
+    }
+}
+
+@media (max-width: 640px) {
+    .app-zone-nav,
+    .app-zone-segment-panel {
+        gap: 0;
+    }
+
+    .app-zone-btn,
+    .app-zone-segment-btn {
+        flex: 1 1 auto;
+        min-width: min(100%, 9rem);
+        justify-content: center;
     }
 }
 
@@ -14503,4 +14606,74 @@ html[data-viewport="phone"] .app-zone-segment-btn[data-segment="teachers"] {
         --classroom-sheet-chrome-offset: 180px;
         --classroom-sheet-chrome-offset-collapsed: 140px;
     }
+}
+
+.now-class-popup-root {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1200;
+    pointer-events: none;
+}
+
+.now-class-popup {
+    pointer-events: auto;
+    width: min(420px, calc(100vw - 32px));
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--surface, #fff);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+    padding: 12px 12px 10px;
+    color: var(--text-color, #111);
+}
+
+.now-class-popup-title {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin: 0 0 6px;
+}
+
+.now-class-popup-subtitle {
+    font-weight: 500;
+    font-size: 0.8rem;
+    opacity: 0.78;
+}
+
+.now-class-popup-section {
+    margin-top: 8px;
+}
+
+.now-class-popup-section-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    opacity: 0.8;
+    margin-bottom: 4px;
+}
+
+.now-class-popup-body {
+    font-size: 0.86rem;
+    line-height: 1.25rem;
+    white-space: pre-wrap;
+    max-height: 7.5rem;
+    overflow: auto;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: var(--surface-alt, rgba(0, 0, 0, 0.03));
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.now-class-popup-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.now-class-popup-actions .btn {
+    min-height: 34px;
 }

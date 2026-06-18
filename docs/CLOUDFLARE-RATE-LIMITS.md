@@ -4,7 +4,7 @@ The app enforces **in-Worker D1 rate limits** on auth routes after migration `00
 
 ## Recommended rules
 
-Create **Rate limiting rules** (Security → WAF → Rate limiting rules) for hostname `classcalendarmultiuser.nathanksimpson.workers.dev` (or your custom domain):
+Create **Rate limiting rules** (Security → WAF → Rate limiting rules) for hostname `classmanager.live` (and optionally `classcalendarmultiuser.nathanksimpson.workers.dev`):
 
 | Path prefix | Suggestion | Notes |
 |-------------|------------|--------|

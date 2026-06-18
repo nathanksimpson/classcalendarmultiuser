@@ -35,7 +35,7 @@ Summary:
 1. Create D1 database **`calendar-team`** → copy **Database ID** into `wrangler.toml`.
 2. `npm run db:migrate:remote`
 3. `wrangler secret put` for Kakao + `BOOTSTRAP_ADMIN_SECRET`
-4. Set `PUBLIC_URL` in `wrangler.toml` to your live `*.workers.dev` URL.
+4. Set `PUBLIC_URL` in `wrangler.toml` to your live URL (e.g. `https://classmanager.live`).
 5. Push to GitHub (Cloudflare rebuilds).
 
 ### 3. First admin

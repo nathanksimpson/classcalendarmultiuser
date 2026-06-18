@@ -1,13 +1,13 @@
 # Kakao sign-in setup
 
-Use this checklist so **Login with Kakao** works on production (`https://classcalendarmultiuser.nathanksimpson.workers.dev`).
+Use this checklist so **Login with Kakao** works on production (`https://classmanager.live`).
 
 ## 1. Check current status
 
 Open in a browser (or run in PowerShell):
 
 ```text
-https://classcalendarmultiuser.nathanksimpson.workers.dev/api/health
+https://classmanager.live/api/health
 ```
 
 You want:
@@ -23,6 +23,12 @@ If it is `false`, the Worker does not have `KAKAO_CLIENT_ID` yet (see step 3).
 1. Go to [developers.kakao.com](https://developers.kakao.com) → your app.
 2. **Kakao Login** → turn on **Kakao Login**.
 3. **Redirect URI** — add **exactly** (no trailing slash):
+
+   ```text
+   https://classmanager.live/api/auth/kakao/callback
+   ```
+
+   Keep the legacy workers.dev URI until you confirm login on the custom domain:
 
    ```text
    https://classcalendarmultiuser.nathanksimpson.workers.dev/api/auth/kakao/callback
@@ -67,7 +73,7 @@ Hard refresh the login page (Ctrl+F5). `/api/health` should show `"kakaoConfigur
 
 **Admin workflow:**
 
-1. Open `https://classcalendarmultiuser.nathanksimpson.workers.dev/admin.html`
+1. Open `https://classmanager.live/admin.html`
 2. After a teacher signs in once, they appear under **Users** (use **Kakao ID** and display name to recognize them — no email required).
 3. Add them to a **group** and/or assign **calendar access** on each calendar.
 4. Teacher clicks **Check again** on the waiting page (or refreshes) → full planner opens.

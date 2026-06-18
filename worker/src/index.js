@@ -48,6 +48,28 @@ const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 14;
 const MIN_PASSWORD_LENGTH = 8;
 
+const MAX_TRANSLATE_BODY_BYTES = 30 * 1024;
+const RATE_TRANSLATE_WINDOW_MS = 5 * 60 * 1000;
+
+function isDegenerateTranslationOutput(text, sourceText) {
+    const value = String(text ?? '').trim();
+    const source = String(sourceText ?? '').trim();
+    if (!value) {
+        return true;
+    }
+    if (/(\S{1,20})(?:\s+\1){4,}/.test(value)) {
+        return true;
+    }
+    const words = value.split(/\s+/).filter(Boolean);
+    if (words.length >= 20 && new Set(words).size <= 3) {
+        return true;
+    }
+    if (source && value.length > Math.max(250, source.length * 4)) {
+        return true;
+    }
+    return false;
+}
+
 function json(data, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(data), {
         status,
@@ -992,6 +1014,45 @@ export default {
             }
             await deleteAllSessionsForUser(env, logoutUser.id);
             return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie(secure) });
+        }
+
+        if (path === '/api/translate' && request.method === 'POST') {
+            const user = await requireCookieUser(request, env);
+            if (!user) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            const limited = await rateLimitOr429(env, request, 'translate', 30, RATE_TRANSLATE_WINDOW_MS);
+            if (limited) {
+                return limited;
+            }
+            if (!env.AI || typeof env.AI.run !== 'function') {
+                return json({ error: 'Translation is not configured on this server' }, 503);
+            }
+            const body = await readJson(request, MAX_TRANSLATE_BODY_BYTES);
+            const text = String(body && body.text ? body.text : '').trim();
+            if (!text) {
+                return json({ error: 'Missing text' }, 400);
+            }
+            const sourceLang = String(body && body.sourceLang ? body.sourceLang : 'en').trim().toLowerCase() || 'en';
+            const targetLang = String(body && body.targetLang ? body.targetLang : '').trim().toLowerCase();
+            if (!targetLang) {
+                return json({ error: 'Missing targetLang' }, 400);
+            }
+            try {
+                const result = await env.AI.run('@cf/meta/m2m100-1.2b', {
+                    text,
+                    source_lang: sourceLang,
+                    target_lang: targetLang
+                });
+                const translatedText = String(result && result.translated_text ? result.translated_text : '').trim();
+                if (!translatedText || isDegenerateTranslationOutput(translatedText, text)) {
+                    return json({ error: 'Translation quality check failed' }, 502);
+                }
+                return json({ ok: true, translatedText });
+            } catch (err) {
+                console.error('Translate error:', err && err.message ? err.message : err);
+                return json({ error: 'Translation failed' }, 502);
+            }
         }
 
         if (path === '/api/auth/kakao' && request.method === 'GET') {
