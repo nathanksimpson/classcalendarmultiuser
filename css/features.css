@@ -7468,6 +7468,36 @@ body.workspace-page #appStatus {
     margin-bottom: 1rem;
 }
 
+.timetable-period-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.75rem;
+}
+
+.timetable-period-table th,
+.timetable-period-table td {
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.timetable-period-table th {
+    font-size: var(--text-sm, 0.875rem);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.timetable-period-table input[type="time"],
+.timetable-period-table input[type="number"] {
+    width: 100%;
+    min-width: 5.5rem;
+}
+
+.timetable-period-rows {
+    max-height: 50vh;
+    overflow: auto;
+}
+
 .timetable-layout {
     min-height: 22rem;
     grid-template-columns: minmax(var(--split-sidebar-min), var(--split-sidebar-max)) minmax(0, 1fr);

@@ -53,6 +53,17 @@
         '7': 'ts7'
     };
 
+    function getPeriodCap() {
+        return (global.CCPTimetablePeriods && global.CCPTimetablePeriods.MAX_PERIODS) || 12;
+    }
+
+    function getMaxPeriodForAppData(appData) {
+        if (global.CCPTimetablePeriods && global.CCPTimetablePeriods.getMaxPeriodNumber) {
+            return global.CCPTimetablePeriods.getMaxPeriodNumber(appData);
+        }
+        return 7;
+    }
+
     function normalizeStr(v) {
         return String(v == null ? '' : v).trim();
     }
@@ -100,7 +111,7 @@
         Object.keys(map).forEach((k) => {
             const dow = parseInt(k, 10);
             const p = parseInt(map[k], 10);
-            if (!Number.isNaN(dow) && dow >= 0 && dow <= 6 && !Number.isNaN(p) && p >= 1 && p <= 7) {
+            if (!Number.isNaN(dow) && dow >= 0 && dow <= 6 && !Number.isNaN(p) && p >= 1 && p <= getPeriodCap()) {
                 out[String(dow)] = p;
             }
         });
@@ -118,7 +129,7 @@
             }
         }
         const p = parseInt(classData.period, 10);
-        return !Number.isNaN(p) && p >= 1 && p <= 7 ? p : null;
+        return !Number.isNaN(p) && p >= 1 && p <= getPeriodCap() ? p : null;
     }
 
     function resolveTimeSlotIdFromPeriod(period, timeSlotIdOverride, appData) {
@@ -169,7 +180,7 @@
             r.placements.forEach((p) => {
                 const dow = parseInt(p.dow, 10);
                 const period = parseInt(p.period, 10);
-                if (!Number.isNaN(dow) && dow >= 0 && dow <= 6 && !Number.isNaN(period) && period >= 1 && period <= 7) {
+                if (!Number.isNaN(dow) && dow >= 0 && dow <= 6 && !Number.isNaN(period) && period >= 1 && period <= getPeriodCap()) {
                     placements.push({ dow, period });
                 }
             });
@@ -207,7 +218,7 @@
                 return p;
             }
         }
-        if (row.period != null && !Number.isNaN(row.period) && row.period >= 1 && row.period <= 7) {
+        if (row.period != null && !Number.isNaN(row.period) && row.period >= 1 && row.period <= getPeriodCap()) {
             return row.period;
         }
         return getClassPeriodNumber(classData, weekday);
@@ -232,7 +243,8 @@
         const seen = new Set();
 
         function addPlacement(dow, period) {
-            if (dow < 1 || dow > 5 || period == null || period < 1 || period > 7) {
+            const maxP = getMaxPeriodForAppData(appData);
+            if (dow < 1 || dow > 5 || period == null || period < 1 || period > maxP) {
                 return;
             }
             if (effectiveDays.length && !effectiveDays.includes(dow)) {

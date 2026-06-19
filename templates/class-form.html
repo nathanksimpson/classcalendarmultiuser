@@ -72,6 +72,13 @@
                             <span data-i18n="useAutoTermEnd">Auto-set end date to the last day of the final month</span>
                         </label>
                     </div>
+                    <div class="form-group" id="classTermEndModeWrap">
+                        <label for="classTermEndMode" data-i18n="termEndModeLabel">Auto end calculation</label>
+                        <select id="classTermEndMode" class="field-select field-control">
+                            <option value="calendarMonths" data-i18n="termEndModeCalendarMonths">Last day of final calendar month</option>
+                            <option value="exactMonths" data-i18n="termEndModeExactMonths">Same day N months later (minus 1 day)</option>
+                        </select>
+                    </div>
                     <div class="form-row form-row-meeting-days">
                         <div class="form-group form-group-meeting-days">
                             <label data-i18n="meetingDays">Meeting days</label>

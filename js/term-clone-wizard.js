@@ -78,6 +78,9 @@
         if (cloned.termStart) {
             cloned.termStart = shiftYearMonthField(cloned.termStart, monthShift);
         }
+        if (cloned.termEnd) {
+            cloned.termEnd = shiftYearMonthField(cloned.termEnd, monthShift);
+        }
 
         (cloned.classes || []).forEach((cls) => {
             if (!cls) {

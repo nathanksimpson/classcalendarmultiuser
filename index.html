@@ -282,8 +282,18 @@
                                     <input type="text" id="calendarName" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
                                 </div>
                                 <div class="toolbar-field">
-                                    <label for="termStart" data-i18n="termStartMonth">Term Start Month:</label>
-                                    <input type="month" id="termStart" value="">
+                                    <label for="termStart" data-i18n="termStartDate">Term start date:</label>
+                                    <input type="date" id="termStart" value="">
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="termEnd" data-i18n="termEndDate">Term end date:</label>
+                                    <input type="date" id="termEnd" value="">
+                                </div>
+                                <div class="toolbar-field toolbar-field--checkbox">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="termUseAutoTermEnd" checked>
+                                        <span data-i18n="useAutoTermEnd">Auto-set end date from month count</span>
+                                    </label>
                                 </div>
                                 <div class="toolbar-field">
                                     <label for="termMonthCount" data-i18n="termMonthCount">Months to display:</label>
@@ -812,6 +822,7 @@
             <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
                 <div class="print-data-section timetable-view-section">
                 <div class="module-toolbar timetable-tab-toolbar">
+                    <button type="button" id="timetablePeriodScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodSchedule">Period schedule</button>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
                     <button type="button" id="timetableExportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableExportExcel">Export Excel</button>
                     <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
@@ -1137,6 +1148,27 @@
                     <button type="button" id="conflictUseTheirs" class="btn btn-outline" data-i18n="syncUseTheirs">Use their version</button>
                     <button type="button" id="conflictUseMine" class="btn btn-primary" data-i18n="syncUseMine">Use my version</button>
                     <button type="button" id="conflictSmartMerge" class="btn btn-secondary" data-i18n="syncSmartMerge">Smart merge</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="timetablePeriodModal" class="modal" role="dialog" aria-labelledby="timetablePeriodModalTitle" aria-modal="true">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2 id="timetablePeriodModalTitle" data-i18n="timetablePeriodSchedule">Period schedule</h2>
+                <button type="button" class="modal-close" id="timetablePeriodModalClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="section-hint" data-i18n="timetablePeriodScheduleHint">Set clock times for each school period. Classes use period numbers on the Classes tab.</p>
+                <div id="timetablePeriodRows" class="timetable-period-rows"></div>
+                <div class="form-actions form-actions--start">
+                    <button type="button" id="timetablePeriodAddBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodAdd">+ Add period</button>
+                    <button type="button" id="timetablePeriodResetBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodResetDefaults">Reset to defaults</button>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="timetablePeriodCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="timetablePeriodSaveBtn" class="btn btn-primary" data-i18n="save">Save</button>
                 </div>
             </div>
         </div>
@@ -1749,7 +1781,9 @@
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary-print.js?v=20260618-term-summary"></script>
-    <script defer src="js/term-clone-wizard.js?v=20260612-phase2"></script>
+    <script defer src="js/term-dates.js?v=20260619-term-flex"></script>
+    <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
+    <script defer src="js/term-clone-wizard.js?v=20260619-term-flex"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/class-list-view.js?v=20260615-ui-refactor"></script>
@@ -1824,7 +1858,7 @@
     <script defer src="js/i18n/calendar-ko.js?v=20260619-nav-reorder"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
-    <script defer src="app.js?v=20260619-nav-reorder"></script>
+    <script defer src="app.js?v=20260619-term-flex"></script>
 </body>
 </html>
 

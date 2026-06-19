@@ -477,6 +477,8 @@ function getDefaultAppData() {
         curriculumOverrides: {},
         curriculumRemovedIds: [],
         termStart: null,
+        termEnd: null,
+        useAutoTermEnd: true,
         termMonthCount: 3,
         calendarName: '',
         dayNotes: [],
@@ -854,7 +856,7 @@ function parseClassPeriodValue(raw) {
         return null;
     }
     const n = parseInt(String(raw).trim(), 10);
-    if (Number.isNaN(n) || n < CLASS_PERIOD_MIN || n > CLASS_PERIOD_MAX) {
+    if (Number.isNaN(n) || n < getClassPeriodMin() || n > getClassPeriodMax()) {
         return null;
     }
     return n;
@@ -951,7 +953,7 @@ function parseClassPeriodFromInput(elOrValue) {
         return null;
     }
     const n = parseInt(String(raw).trim(), 10);
-    if (Number.isNaN(n) || n < CLASS_PERIOD_MIN || n > CLASS_PERIOD_MAX) {
+    if (Number.isNaN(n) || n < getClassPeriodMin() || n > getClassPeriodMax()) {
         return null;
     }
     return n;
@@ -1366,7 +1368,7 @@ function getNextSuggestedClassPeriod() {
     if (periods.length === 0) {
         return CLASS_PERIOD_MIN;
     }
-    return Math.min(Math.max(...periods) + 1, CLASS_PERIOD_MAX);
+    return Math.min(Math.max(...periods) + 1, getClassPeriodMax());
 }
 
 function formatClassLabelWithPeriod(classData) {
@@ -1381,7 +1383,9 @@ function formatClassLabelWithPeriod(classData) {
 function buildClassPeriodSelectInnerHtml(selectedValue) {
     const sel = selectedValue != null && selectedValue !== '' ? String(selectedValue) : '';
     let html = '<option value="">—</option>';
-    for (let p = CLASS_PERIOD_MIN; p <= CLASS_PERIOD_MAX; p += 1) {
+    const maxP = getClassPeriodMax();
+    const minP = getClassPeriodMin();
+    for (let p = minP; p <= maxP; p += 1) {
         const chosen = sel === String(p) ? ' selected' : '';
         html += `<option value="${p}"${chosen}>${p}</option>`;
     }
@@ -4511,7 +4515,32 @@ async function fetchKrPublicHolidayRowsForYear(year) {
     return rows;
 }
 
+function getTermDatesApi() {
+    return typeof CCPTermDates !== 'undefined' ? CCPTermDates : null;
+}
+
+function getTimetablePeriodsApi() {
+    return typeof CCPTimetablePeriods !== 'undefined' ? CCPTimetablePeriods : null;
+}
+
+function getScheduleTermConfig() {
+    return {
+        defaultTermCalendarMonths: SCHEDULE_CONFIG.defaultTermCalendarMonths,
+        minTermMonthCount: SCHEDULE_CONFIG.minTermMonthCount,
+        maxTermMonthCount: SCHEDULE_CONFIG.maxTermMonthCount
+    };
+}
+
+function normalizeTermStartDate(value) {
+    const api = getTermDatesApi();
+    return api ? api.normalizeTermStartDate(value) : String(value || '').trim();
+}
+
 function getTermMonthCount() {
+    const api = getTermDatesApi();
+    if (api) {
+        return api.getTermMonthCount(appData.termMonthCount, getScheduleTermConfig());
+    }
     const n = parseInt(appData.termMonthCount, 10);
     if (Number.isNaN(n)) {
         return SCHEDULE_CONFIG.defaultTermCalendarMonths;
@@ -4520,6 +4549,58 @@ function getTermMonthCount() {
         SCHEDULE_CONFIG.maxTermMonthCount,
         Math.max(SCHEDULE_CONFIG.minTermMonthCount, n)
     );
+}
+
+function getResolvedTermEndISO() {
+    const api = getTermDatesApi();
+    if (api) {
+        return api.getResolvedTermEndISO(appData, getScheduleTermConfig());
+    }
+    if (!appData.termStart) {
+        return '';
+    }
+    const start = normalizeTermStartDate(appData.termStart);
+    if (appData.useAutoTermEnd === false && appData.termEnd) {
+        return String(appData.termEnd).trim();
+    }
+    const endD = computeTermEndDateFromStart(start, getTermMonthCount());
+    return endD ? formatDateForInput(endD) : start;
+}
+
+function getTermCalendarMonthSpan() {
+    const api = getTermDatesApi();
+    if (api) {
+        return api.getTermCalendarMonthSpan(appData, getScheduleTermConfig());
+    }
+    return getTermMonthCount();
+}
+
+function isDateInTermRange(isoDate) {
+    const api = getTermDatesApi();
+    if (api) {
+        return api.isDateInTermRange(isoDate, appData, getScheduleTermConfig());
+    }
+    const { start, end } = getTermDateRangeISO();
+    if (!start || !end) {
+        return true;
+    }
+    return isoDate >= start && isoDate <= end;
+}
+
+function getClassPeriodMax() {
+    const api = getTimetablePeriodsApi();
+    if (api) {
+        return api.getMaxPeriodNumber(appData);
+    }
+    return CLASS_PERIOD_MAX;
+}
+
+function getClassPeriodMin() {
+    const api = getTimetablePeriodsApi();
+    if (api) {
+        return api.getMinPeriodNumber(appData);
+    }
+    return CLASS_PERIOD_MIN;
 }
 
 function ensureUiState() {
@@ -5028,8 +5109,14 @@ function initAppChromeStickyTop() {
 
 function getTermSettingsSummaryText() {
     const name = getCollapsedHeaderCalendarName();
-    const term = (appData.termStart || elements.termStart?.value || '').trim();
-    const parts = [name, term].filter(Boolean);
+    const { start, end } = getTermDateRangeISO();
+    let termLabel = '';
+    if (start && end) {
+        termLabel = start === end ? start : `${start} – ${end}`;
+    } else {
+        termLabel = (appData.termStart || elements.termStart?.value || '').trim();
+    }
+    const parts = [name, termLabel].filter(Boolean);
     return parts.join(' · ');
 }
 
@@ -6482,7 +6569,9 @@ function getDayIndexCacheKey() {
     const lf = appData.ui && appData.ui.lessonFilters;
     return JSON.stringify({
         termStart: appData.termStart,
-        monthCount: getTermMonthCount(),
+        termEnd: appData.termEnd,
+        useAutoTermEnd: appData.useAutoTermEnd,
+        monthCount: getTermCalendarMonthSpan(),
         classIds: (appData.classes || []).map((c) => c.id).join(','),
         eventCount: (appData.events || []).length,
         showAllCurricula: Boolean(appData.ui && appData.ui.showAllCurricula),
@@ -6502,9 +6591,12 @@ function buildDayIndex() {
 
 function buildDayIndexUncached() {
     ensureTermStartData();
-    const monthCount = getTermMonthCount();
-    const [year, month] = appData.termStart.split('-').map(Number);
-    const startDate = new Date(year, month - 1, 1);
+    const { start, end } = getTermDateRangeISO();
+    const termStartDate = parseISODateLocal(start);
+    const gridStartDate = termStartDate
+        ? new Date(termStartDate.getFullYear(), termStartDate.getMonth(), 1)
+        : new Date();
+    const monthCount = getTermCalendarMonthSpan();
 
     const scheduledLessons = {};
     getClassesForCalendarAndPrintSummary().forEach(classData => {
@@ -6544,7 +6636,14 @@ function buildDayIndexUncached() {
         });
     });
 
-    return { scheduledLessons, eventsByDate, monthCount, startDate };
+    return {
+        scheduledLessons,
+        eventsByDate,
+        monthCount,
+        startDate: gridStartDate,
+        termStartDate: start,
+        termEndDate: end
+    };
 }
 
 /** Curriculum slices for mobile notes — all teachers on the class, not calendar display filters. */
@@ -6569,9 +6668,12 @@ function getClassCurriculumSlicesForNotes(classData) {
  */
 function buildNotesDayIndex() {
     ensureTermStartData();
-    const monthCount = getTermMonthCount();
-    const [year, month] = appData.termStart.split('-').map(Number);
-    const startDate = new Date(year, month - 1, 1);
+    const { start, end } = getTermDateRangeISO();
+    const termStartDate = parseISODateLocal(start);
+    const startDate = termStartDate
+        ? new Date(termStartDate.getFullYear(), termStartDate.getMonth(), 1)
+        : new Date();
+    const monthCount = getTermCalendarMonthSpan();
 
     const scheduledLessons = {};
     getClassesInDisplayOrder().forEach((classData) => {
@@ -6616,7 +6718,14 @@ function buildNotesDayIndex() {
         });
     });
 
-    return { scheduledLessons, eventsByDate, monthCount, startDate };
+    return {
+        scheduledLessons,
+        eventsByDate,
+        monthCount,
+        startDate,
+        termStartDate: start,
+        termEndDate: end
+    };
 }
 
 /**
@@ -6685,11 +6794,14 @@ function getNotesClassListGroupsForDate(isoDate, options = {}) {
 }
 
 function getTermDateRangeISO() {
+    const api = getTermDatesApi();
+    if (api) {
+        return api.getTermDateRangeISO(appData, getScheduleTermConfig());
+    }
     if (!appData.termStart) {
         return { start: '', end: '' };
     }
-    const [y, m] = appData.termStart.split('-').map(Number);
-    const start = `${y}-${String(m).padStart(2, '0')}-01`;
+    const start = normalizeTermStartDate(appData.termStart);
     const endD = computeTermEndDateFromStart(start, getTermMonthCount());
     const end = endD ? formatDateForInput(endD) : start;
     return { start, end };
@@ -6729,11 +6841,15 @@ function syncHolidayRangeEndFromStart() {
 }
 
 function applyDefaultClassDatesForNewClass(defaultStartDate) {
-    const start = defaultStartDate || getTermDateRangeISO().start;
+    const range = getTermDateRangeISO();
+    const start = defaultStartDate || range.start;
     if (!start || !elements.classStartDate) {
         return;
     }
     elements.classStartDate.value = start;
+    if (range.end && elements.classEndDate) {
+        elements.classEndDate.value = range.end;
+    }
     if (elements.classUseAutoTermEnd && elements.classUseAutoTermEnd.checked) {
         syncClassTermEndAndBooks();
     }
@@ -11589,6 +11705,25 @@ function formatDateForInput(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function computeTermEndDateExactMonths(startDateStr, monthCount) {
+    const api = getTermDatesApi();
+    if (api) {
+        const endD = api.computeTermEndDateExactMonths(startDateStr, monthCount);
+        return endD;
+    }
+    const d = parseISODateLocal(startDateStr);
+    if (Number.isNaN(d.getTime())) {
+        return null;
+    }
+    const n = parseInt(monthCount, 10);
+    if (Number.isNaN(n) || n < 1) {
+        return null;
+    }
+    const end = new Date(d.getFullYear(), d.getMonth() + n, d.getDate());
+    end.setDate(end.getDate() - 1);
+    return end;
+}
+
 function computeTermEndDateFromStart(startDateStr, monthCount) {
     const d = parseISODateLocal(startDateStr);
     if (Number.isNaN(d.getTime())) {
@@ -11613,6 +11748,10 @@ function applyClassTermEndUiState() {
     const auto = elements.classUseAutoTermEnd.checked;
     elements.classEndDate.readOnly = auto;
     elements.classEndDate.classList.toggle('input-readonly', auto);
+    const modeWrap = document.getElementById('classTermEndModeWrap');
+    if (modeWrap) {
+        modeWrap.hidden = !auto;
+    }
 }
 
 function refreshBookRowsForTermRange() {
@@ -11646,11 +11785,45 @@ function syncClassTermEndAndBooks() {
     if (!start || Number.isNaN(n) || n < 1) {
         return;
     }
-    const endD = computeTermEndDateFromStart(start, n);
+    const modeEl = document.getElementById('classTermEndMode');
+    const mode = modeEl && modeEl.value === 'exactMonths' ? 'exactMonths' : 'calendarMonths';
+    const endD = mode === 'exactMonths'
+        ? computeTermEndDateExactMonths(start, n)
+        : computeTermEndDateFromStart(start, n);
     if (endD) {
         elements.classEndDate.value = formatDateForInput(endD);
     }
     refreshBookRowsForTermRange();
+}
+
+function applyCalendarTermEndUiState() {
+    if (!elements.termUseAutoTermEnd || !elements.termEnd) {
+        return;
+    }
+    const auto = elements.termUseAutoTermEnd.checked;
+    elements.termEnd.readOnly = auto;
+    elements.termEnd.classList.toggle('input-readonly', auto);
+    if (elements.termMonthCount) {
+        const wrap = elements.termMonthCount.closest('.toolbar-field');
+        if (wrap) {
+            wrap.hidden = !auto;
+        }
+    }
+}
+
+function syncCalendarTermEndFromSettings() {
+    if (!elements.termUseAutoTermEnd || !elements.termUseAutoTermEnd.checked) {
+        return;
+    }
+    const start = elements.termStart && elements.termStart.value;
+    if (!start) {
+        return;
+    }
+    const endD = computeTermEndDateFromStart(start, getTermMonthCount());
+    if (endD && elements.termEnd) {
+        elements.termEnd.value = formatDateForInput(endD);
+        appData.termEnd = elements.termEnd.value;
+    }
 }
 
 function getClassLevelDisplay(classData) {
@@ -18139,10 +18312,18 @@ function isNotesPage() {
 function ensureTermStartData() {
     if (!appData.termStart) {
         const now = new Date();
-        appData.termStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        appData.termStart = formatDateForInput(new Date(now.getFullYear(), now.getMonth(), 1));
+    } else {
+        appData.termStart = normalizeTermStartDate(appData.termStart);
     }
     if (!appData.termMonthCount) {
         appData.termMonthCount = SCHEDULE_CONFIG.defaultTermCalendarMonths;
+    }
+    if (appData.useAutoTermEnd !== true && appData.useAutoTermEnd !== false) {
+        appData.useAutoTermEnd = true;
+    }
+    if (!appData.termEnd) {
+        appData.termEnd = getResolvedTermEndISO();
     }
 }
 
@@ -19672,6 +19853,205 @@ async function initTimetableTabControls(options) {
     }
 }
 
+function initTimetablePeriodSchedule() {
+    const openBtn = document.getElementById('timetablePeriodScheduleBtn');
+    const modal = document.getElementById('timetablePeriodModal');
+    if (!openBtn || !modal || openBtn.dataset.timetablePeriodInit) {
+        return;
+    }
+    openBtn.dataset.timetablePeriodInit = '1';
+    let draftSlots = [];
+    let draftMap = {};
+
+    const closeModal = () => {
+        modal.style.display = 'none';
+    };
+
+    const renderRows = () => {
+        const mount = document.getElementById('timetablePeriodRows');
+        const api = getTimetablePeriodsApi();
+        if (!mount || !api) {
+            return;
+        }
+        const nums = api.getPeriodNumbers(draftMap);
+        mount.innerHTML = '';
+        const table = document.createElement('table');
+        table.className = 'timetable-period-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = `<tr>
+            <th>${escapeHtml(t('timetablePeriodColPeriod'))}</th>
+            <th>${escapeHtml(t('timetablePeriodColStart'))}</th>
+            <th>${escapeHtml(t('timetablePeriodColEnd'))}</th>
+            <th>${escapeHtml(t('timetablePeriodColDuration'))}</th>
+            <th></th>
+        </tr>`;
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        nums.forEach((periodNum) => {
+            const slotId = draftMap[String(periodNum)];
+            const slot = draftSlots.find((s) => s.id === slotId) || {};
+            const tr = document.createElement('tr');
+            tr.dataset.period = String(periodNum);
+            tr.innerHTML = `
+                <td>${periodNum}</td>
+                <td><input type="time" class="field-input field-control timetable-period-start" value="${escapeHtml(slot.start || '')}"></td>
+                <td><input type="time" class="field-input field-control timetable-period-end" value="${escapeHtml(slot.end || '')}"></td>
+                <td><input type="number" min="1" max="240" class="field-input field-control timetable-period-duration" value="${slot.durationMin != null ? slot.durationMin : ''}"></td>
+                <td><button type="button" class="btn btn-outline btn-small timetable-period-remove">${escapeHtml(t('timetablePeriodRemove'))}</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        mount.appendChild(table);
+    };
+
+    const collectDraftFromDom = () => {
+        const api = getTimetablePeriodsApi();
+        if (!api) {
+            return { slots: draftSlots, map: draftMap };
+        }
+        const nums = api.getPeriodNumbers(draftMap);
+        const slotById = new Map(draftSlots.map((s) => [s.id, Object.assign({}, s)]));
+        document.querySelectorAll('#timetablePeriodRows tbody tr').forEach((tr) => {
+            const periodNum = tr.dataset.period;
+            const slotId = draftMap[String(periodNum)];
+            if (!slotId || !slotById.has(slotId)) {
+                return;
+            }
+            const start = tr.querySelector('.timetable-period-start')?.value || '';
+            const end = tr.querySelector('.timetable-period-end')?.value || '';
+            const durRaw = tr.querySelector('.timetable-period-duration')?.value;
+            const slot = slotById.get(slotId);
+            slot.start = start;
+            slot.end = end;
+            if (durRaw !== '' && durRaw != null) {
+                slot.durationMin = parseInt(durRaw, 10);
+            } else {
+                const auto = api.computeDurationMin(start, end);
+                if (auto != null) {
+                    slot.durationMin = auto;
+                }
+            }
+        });
+        return {
+            slots: api.normalizeTimeSlots([...slotById.values()]),
+            map: Object.assign({}, draftMap)
+        };
+    };
+
+    openBtn.addEventListener('click', () => {
+        if (isTeamCalendarViewOnly()) {
+            showLockFlash(t('teamReadOnlySave'), false);
+            return;
+        }
+        const api = getTimetablePeriodsApi();
+        if (!api) {
+            return;
+        }
+        draftSlots = api.getSortedTimeSlots(appData);
+        draftMap = Object.assign({}, appData.periodSlotMap || api.getDefaultMap());
+        renderRows();
+        modal.style.display = 'flex';
+    });
+
+    document.getElementById('timetablePeriodModalClose')?.addEventListener('click', closeModal);
+    document.getElementById('timetablePeriodCancelBtn')?.addEventListener('click', closeModal);
+
+    document.getElementById('timetablePeriodRows')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.timetable-period-remove');
+        if (!btn) {
+            return;
+        }
+        const api = getTimetablePeriodsApi();
+        const tr = btn.closest('tr');
+        const periodNum = tr && tr.dataset.period;
+        if (!api || !periodNum) {
+            return;
+        }
+        const inUse = api.findClassesUsingPeriod(appData, periodNum);
+        if (inUse.length) {
+            const names = inUse.map((c) => c.name || c.id).join(', ');
+            alert(t('timetablePeriodInUse').replace('{period}', periodNum).replace('{classes}', names));
+            return;
+        }
+        const collected = collectDraftFromDom();
+        const result = api.removePeriod(collected.slots, collected.map, periodNum);
+        if (!result.ok) {
+            return;
+        }
+        draftSlots = result.slots;
+        draftMap = result.map;
+        renderRows();
+    });
+
+    document.getElementById('timetablePeriodAddBtn')?.addEventListener('click', () => {
+        const api = getTimetablePeriodsApi();
+        if (!api) {
+            return;
+        }
+        const collected = collectDraftFromDom();
+        const result = api.addPeriod(collected.slots, collected.map);
+        if (!result.ok) {
+            return;
+        }
+        draftSlots = result.slots;
+        draftMap = result.map;
+        renderRows();
+    });
+
+    document.getElementById('timetablePeriodResetBtn')?.addEventListener('click', () => {
+        const api = getTimetablePeriodsApi();
+        if (!api || !confirm(t('timetablePeriodResetDefaults'))) {
+            return;
+        }
+        const defaults = api.resetToDefaultSchedule();
+        draftSlots = defaults.slots;
+        draftMap = defaults.map;
+        renderRows();
+    });
+
+    document.getElementById('timetablePeriodSaveBtn')?.addEventListener('click', () => {
+        const api = getTimetablePeriodsApi();
+        if (!api) {
+            return;
+        }
+        const collected = collectDraftFromDom();
+        const validation = api.validatePeriodSchedule(collected.slots, collected.map);
+        if (!validation.ok) {
+            const bad = validation.errors.find((err) => err.startsWith('invalid_range:'));
+            if (bad) {
+                const period = collected.map ? api.getPeriodNumbers(collected.map)[0] : '';
+                alert(t('timetablePeriodInvalidTime').replace('{period}', period || '?'));
+            }
+            return;
+        }
+        appData.timetableTimeSlots = validation.slots;
+        appData.periodSlotMap = api.normalizePeriodSlotMap(collected.map, validation.slots);
+        saveData();
+        refreshAllClassPeriodSelects();
+        const selector = getTimetableTeacherSelectorFromUi();
+        if (selector) {
+            renderTimetableView(selector);
+        }
+        closeModal();
+        showSyncToast(t('saved'), false);
+    });
+}
+
+function refreshAllClassPeriodSelects() {
+    if (elements.classPeriod) {
+        upgradeClassPeriodFieldToSelect(elements.classPeriod);
+    }
+    document.querySelectorAll('.class-period-by-day').forEach((sel) => {
+        const val = sel.value;
+        sel.innerHTML = buildClassPeriodSelectInnerHtml(val);
+    });
+    document.querySelectorAll('.class-teacher-placement-row select.class-teacher-placement-period').forEach((sel) => {
+        const val = sel.value;
+        sel.innerHTML = buildClassPeriodSelectInnerHtml(val);
+    });
+}
+
 function initTimetableExport() {
     const btn = document.getElementById('timetableExportXlsBtn');
     if (!btn || btn.dataset.timetableInit) {
@@ -19712,6 +20092,7 @@ function initTimetableExport() {
 }
 
 function initTimetableTabListeners() {
+    initTimetablePeriodSchedule();
     initTimetableExport();
     const teacherSearch = document.getElementById('timetableTeacherSearch');
     if (teacherSearch && !teacherSearch.dataset.timetableInit) {
@@ -19926,6 +20307,8 @@ function openEventEditor(holidayData, context, options = {}) {
 const elements = {
     calendarName: document.getElementById('calendarName'),
     termStart: document.getElementById('termStart'),
+    termEnd: document.getElementById('termEnd'),
+    termUseAutoTermEnd: document.getElementById('termUseAutoTermEnd'),
     termMonthCount: document.getElementById('termMonthCount'),
     calendarContainer: document.getElementById('calendarContainer'),
     
@@ -20647,8 +21030,16 @@ function initializeTermStart() {
     ensureUiState();
     ensureTermStartData();
     if (elements.termStart) {
-        elements.termStart.value = appData.termStart;
+        elements.termStart.value = normalizeTermStartDate(appData.termStart);
     }
+    if (elements.termEnd) {
+        elements.termEnd.value = getResolvedTermEndISO();
+        appData.termEnd = elements.termEnd.value;
+    }
+    if (elements.termUseAutoTermEnd) {
+        elements.termUseAutoTermEnd.checked = appData.useAutoTermEnd !== false;
+    }
+    applyCalendarTermEndUiState();
     if (elements.termMonthCount) {
         elements.termMonthCount.value = String(getTermMonthCount());
     }
@@ -20916,11 +21307,39 @@ function setupEventListeners() {
     
     // Term Start Change
     elements.termStart.addEventListener('change', (e) => {
-        appData.termStart = e.target.value;
+        appData.termStart = normalizeTermStartDate(e.target.value);
+        syncCalendarTermEndFromSettings();
         updateTermSettingsToggleSummary();
         saveData();
         renderCalendar();
     });
+
+    if (elements.termEnd) {
+        elements.termEnd.addEventListener('change', (e) => {
+            appData.termEnd = e.target.value;
+            appData.useAutoTermEnd = false;
+            if (elements.termUseAutoTermEnd) {
+                elements.termUseAutoTermEnd.checked = false;
+            }
+            applyCalendarTermEndUiState();
+            updateTermSettingsToggleSummary();
+            saveData();
+            renderCalendar();
+        });
+    }
+
+    if (elements.termUseAutoTermEnd) {
+        elements.termUseAutoTermEnd.addEventListener('change', (e) => {
+            appData.useAutoTermEnd = e.target.checked;
+            applyCalendarTermEndUiState();
+            if (appData.useAutoTermEnd) {
+                syncCalendarTermEndFromSettings();
+            }
+            updateTermSettingsToggleSummary();
+            saveData();
+            renderCalendar();
+        });
+    }
 
     if (elements.termMonthCount) {
         elements.termMonthCount.addEventListener('change', (e) => {
@@ -20931,6 +21350,10 @@ function setupEventListeners() {
                     Math.max(SCHEDULE_CONFIG.minTermMonthCount, parsed)
                 );
             }
+            if (appData.useAutoTermEnd !== false) {
+                syncCalendarTermEndFromSettings();
+            }
+            updateTermSettingsToggleSummary();
             saveData();
             renderCalendar();
         });
@@ -21173,6 +21596,15 @@ function setupEventListeners() {
             syncClassTermEndAndBooks();
         }
     });
+    const classTermEndMode = document.getElementById('classTermEndMode');
+    if (classTermEndMode && !classTermEndMode.dataset.bound) {
+        classTermEndMode.dataset.bound = '1';
+        classTermEndMode.addEventListener('change', () => {
+            if (elements.classUseAutoTermEnd.checked) {
+                syncClassTermEndAndBooks();
+            }
+        });
+    }
     
     // Close modals on backdrop click (safe for text selection dragging)
     [elements.classModal, elements.holidayModal, elements.classTypeModal, elements.printOptionsModal,
@@ -23317,6 +23749,10 @@ function populateClassForm(classData = null, options = {}) {
             ? classData.termCalendarMonths
             : (monthSpan > 0 ? monthSpan : SCHEDULE_CONFIG.defaultTermCalendarMonths);
         elements.classUseAutoTermEnd.checked = classData.useAutoTermEnd === true;
+        const modeEl = document.getElementById('classTermEndMode');
+        if (modeEl) {
+            modeEl.value = classData.termEndMode === 'exactMonths' ? 'exactMonths' : 'calendarMonths';
+        }
         applyClassTermEndUiState();
         elements.classTotalLessons.value = sanitizeTotalLessons(classData.totalLessons || 4);
         elements.classColor.value = classData.color;
@@ -23861,10 +24297,14 @@ function handleClassSubmit(e) {
         termCalendarMonths = SCHEDULE_CONFIG.defaultTermCalendarMonths;
     }
     const useAutoTermEnd = elements.classUseAutoTermEnd.checked;
+    const modeEl = document.getElementById('classTermEndMode');
+    const termEndMode = modeEl && modeEl.value === 'exactMonths' ? 'exactMonths' : 'calendarMonths';
     let startDate = elements.classStartDate.value;
     let endDate = elements.classEndDate.value;
     if (useAutoTermEnd && startDate) {
-        const endD = computeTermEndDateFromStart(startDate, termCalendarMonths);
+        const endD = termEndMode === 'exactMonths'
+            ? computeTermEndDateExactMonths(startDate, termCalendarMonths)
+            : computeTermEndDateFromStart(startDate, termCalendarMonths);
         if (endD) {
             endDate = formatDateForInput(endD);
             elements.classEndDate.value = endDate;
@@ -23944,6 +24384,7 @@ function handleClassSubmit(e) {
         notes: elements.classNotes.value,
         termCalendarMonths: termCalendarMonths,
         useAutoTermEnd: useAutoTermEnd,
+        termEndMode: termEndMode,
         startDate: startDate,
         endDate: endDate,
         totalLessons: totalLessons,
@@ -25388,10 +25829,13 @@ function renderCalendar() {
 
 function getAgendaDateStrings(dayCount = 14) {
     ensureTermStartData();
-    const dayIndex = buildDayIndex();
-    const termStart = new Date(dayIndex.startDate);
+    const { start, end } = getTermDateRangeISO();
+    const termStart = parseISODateLocal(start);
+    const termEnd = parseISODateLocal(end);
+    if (!termStart || !termEnd) {
+        return [];
+    }
     termStart.setHours(0, 0, 0, 0);
-    const termEnd = new Date(termStart.getFullYear(), termStart.getMonth() + dayIndex.monthCount, 0);
     termEnd.setHours(23, 59, 59, 999);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -25631,12 +26075,14 @@ function renderMonth(date, dayIndex) {
     }
     
     // Current month days
+    const termStartIso = dayIndex.termStartDate || '';
+    const termEndIso = dayIndex.termEndDate || '';
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayEvents = eventsByDate[dateStr] || [];
         const lessons = scheduledLessons[dateStr] || [];
         
-        const dayDiv = createDayCell(day, false, dayEvents, lessons, dateStr);
+        const dayDiv = createDayCell(day, false, dayEvents, lessons, dateStr, termStartIso, termEndIso);
         gridDiv.appendChild(dayDiv);
     }
     
@@ -25738,12 +26184,14 @@ function buildCalendarEventBarInnerHtml(options) {
                 <span class="event-book">${escapeHtml(bookLabel)}</span>`;
 }
 
-function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], dateStr = '') {
+function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], dateStr = '', termStartIso = '', termEndIso = '') {
     const dayDiv = document.createElement('div');
     dayDiv.className = 'calendar-day';
     
     if (isOtherMonth) {
         dayDiv.classList.add('other-month');
+    } else if (dateStr && termStartIso && termEndIso && (dateStr < termStartIso || dateStr > termEndIso)) {
+        dayDiv.classList.add('out-of-term');
     }
     
     const visibleEvents = (dayEvents || []).filter(ev => {
@@ -28350,7 +28798,7 @@ function applyTeamViewOnlyEditingState(viewOnly) {
         }
     });
 
-    ['calendarName', 'termStart', 'termMonthCount'].forEach((id) => {
+    ['calendarName', 'termStart', 'termEnd', 'termMonthCount'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) {
             return;
@@ -31987,6 +32435,11 @@ function migrateData(data) {
         data.termMonthCount = SCHEDULE_CONFIG.defaultTermCalendarMonths;
         migrated = true;
     }
+    if (typeof CCPTermDates !== 'undefined' && CCPTermDates.migrateTermFields) {
+        if (CCPTermDates.migrateTermFields(data, getScheduleTermConfig())) {
+            migrated = true;
+        }
+    }
 
     if (!Array.isArray(data.dayNotes)) {
         data.dayNotes = [];
@@ -32083,10 +32536,25 @@ function migrateData(data) {
     if (!Array.isArray(data.timetableTimeSlots) || data.timetableTimeSlots.length === 0) {
         data.timetableTimeSlots = getDefaultTimetableTimeSlots();
         migrated = true;
+    } else if (typeof CCPTimetablePeriods !== 'undefined' && CCPTimetablePeriods.normalizeTimeSlots) {
+        const normalizedSlots = CCPTimetablePeriods.normalizeTimeSlots(data.timetableTimeSlots);
+        if (JSON.stringify(normalizedSlots) !== JSON.stringify(data.timetableTimeSlots)) {
+            data.timetableTimeSlots = normalizedSlots;
+            migrated = true;
+        }
     }
     if (!data.periodSlotMap || typeof data.periodSlotMap !== 'object') {
         data.periodSlotMap = getDefaultPeriodSlotMap();
         migrated = true;
+    } else if (typeof CCPTimetablePeriods !== 'undefined' && CCPTimetablePeriods.normalizePeriodSlotMap) {
+        const normalizedMap = CCPTimetablePeriods.normalizePeriodSlotMap(
+            data.periodSlotMap,
+            data.timetableTimeSlots
+        );
+        if (JSON.stringify(normalizedMap) !== JSON.stringify(data.periodSlotMap)) {
+            data.periodSlotMap = normalizedMap;
+            migrated = true;
+        }
     }
 
     // Migrate classes
@@ -33011,6 +33479,9 @@ function getCalendarExportPayload() {
         delete payload.ui;
     }
     payload.schemaVersion = SCHEMA_VERSION;
+    payload.termStart = normalizeTermStartDate(appData.termStart);
+    payload.termEnd = getResolvedTermEndISO();
+    payload.useAutoTermEnd = appData.useAutoTermEnd !== false;
     payload.termMonthCount = getTermMonthCount();
     return payload;
 }
@@ -33050,8 +33521,15 @@ function finishImportUiAfterApply(migrated) {
     syncHolidaysFromEvents();
     resetCalendarClassVisibilityAfterImport();
     if (appData.termStart && elements.termStart) {
-        elements.termStart.value = appData.termStart;
+        elements.termStart.value = normalizeTermStartDate(appData.termStart);
     }
+    if (elements.termEnd) {
+        elements.termEnd.value = getResolvedTermEndISO();
+    }
+    if (elements.termUseAutoTermEnd) {
+        elements.termUseAutoTermEnd.checked = appData.useAutoTermEnd !== false;
+    }
+    applyCalendarTermEndUiState();
     if (elements.termMonthCount) {
         elements.termMonthCount.value = String(getTermMonthCount());
     }

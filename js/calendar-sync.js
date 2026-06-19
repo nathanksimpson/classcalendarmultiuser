@@ -437,6 +437,8 @@
         }
         merged.calendarName = local.calendarName || server.calendarName;
         merged.termStart = local.termStart || server.termStart;
+        merged.termEnd = local.termEnd || server.termEnd;
+        merged.useAutoTermEnd = local.useAutoTermEnd != null ? local.useAutoTermEnd : server.useAutoTermEnd;
         merged.termMonthCount = local.termMonthCount != null ? local.termMonthCount : server.termMonthCount;
         merged.schemaVersion =
             Math.max(local.schemaVersion || 0, server.schemaVersion || 0) ||

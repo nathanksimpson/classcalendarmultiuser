@@ -274,6 +274,37 @@
             };
             out.push(Object.assign({}, warningBase, { tabId: 'syllabus' }));
         }
+        if (typeof CCPTermDates !== 'undefined' && CCPTermDates.getTermDateRangeISO) {
+            const termRange = CCPTermDates.getTermDateRangeISO(appData, {
+                defaultTermCalendarMonths: 3,
+                minTermMonthCount: 3,
+                maxTermMonthCount: 6
+            });
+            const clsStart = String(classData.startDate || '').trim();
+            const clsEnd = String(classData.endDate || '').trim();
+            if (termRange.start && termRange.end && clsStart && clsEnd
+                && (clsStart < termRange.start || clsEnd > termRange.end)) {
+                const warningBase = {
+                    id: `class:${classData.id}:outside_term`,
+                    severity: 'warn',
+                    messageKey: 'tabWarnClassOutsideTerm',
+                    params: {
+                        name,
+                        start: clsStart,
+                        end: clsEnd,
+                        termStart: termRange.start,
+                        termEnd: termRange.end
+                    },
+                    navigate: { type: 'class', classId: classData.id }
+                };
+                CLASS_TAB_IDS.forEach((tabId) => {
+                    out.push(Object.assign({}, warningBase, {
+                        tabId,
+                        navigate: { type: 'class', tabId, classId: classData.id }
+                    }));
+                });
+            }
+        }
     }
 
     function pushCohortWarningsForCohort(out, cohort, appData, cohortApi) {

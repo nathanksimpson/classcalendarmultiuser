@@ -6,8 +6,10 @@
 |-------|------|--------|
 | `schemaVersion` | number | Currently `3` (classroom MVP adds attendance + homework tracking) |
 | `calendarName` | string | Display title |
-| `termStart` | string | `YYYY-MM` term start month |
-| `termMonthCount` | number | 3–6 months shown |
+| `termStart` | string | `YYYY-MM-DD` term start date (legacy `YYYY-MM` migrates to `-01`) |
+| `termEnd` | string | `YYYY-MM-DD` term end date |
+| `useAutoTermEnd` | boolean | When true, `termEnd` is derived from `termMonthCount` |
+| `termMonthCount` | number | 3–6 months (drives auto end and calendar month span) |
 | `classes` | array | Class definitions |
 | `events` | array | **Source of truth** for holidays and other events |
 | `customClassTypes` | array | User-defined class type presets |
@@ -207,6 +209,7 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `startDate`, `endDate` | string | `YYYY-MM-DD` |
 | `termCalendarMonths` | number | |
 | `useAutoTermEnd` | boolean | |
+| `termEndMode` | string | Optional: `calendarMonths` (default) or `exactMonths` when auto end is on |
 | `totalLessons` | number | Per book period in debate auto schedule (typically 4) |
 | `compressionMode` | string | `autoWhenNeeded`, `manual`, `manualPerMonth` (debate per period). Legacy `sequentialTerm` migrates to `autoWhenNeeded` |
 | `compressionMerges` | number[] | Merge start days N+(N+1) on **this class’s** term schedule only |

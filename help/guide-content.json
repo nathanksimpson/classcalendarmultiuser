@@ -21,7 +21,7 @@
         "where": "Schedule → Calendar — calendar options (collapse/expand with the arrow at the top of that section)",
         "steps": [
           "Enter a Calendar Name (e.g. Spring 2026 Term). The title in the header updates.",
-          "Choose Term Start Month — the first month shown on the calendar.",
+          "Choose term start and end dates (any day in the month). Use auto end from month count or pick the end date manually.",
           "Choose Months to display (3–6 months).",
           "The calendar grid updates automatically when you change these."
         ]
@@ -154,6 +154,7 @@
           "Pick a teacher from the list. The grid builds from class teacher assignments on each class.",
           "Homeroom (담임) labels appear when cohorts are configured on Class Setup → Cohorts.",
           "Teachers use My schedule in the header or on the Timetable toolbar for their own grid.",
+          "Use Period schedule on the Timetable toolbar to edit period start/end times, lengths, and add or remove periods (defaults match the current Simson bell schedule).",
           "A conflict badge appears if the same teacher is double-booked; fix periods on Class Setup → All classes or regenerate from Cohorts.",
           "Print timetable and Export Excel work from the toolbar."
         ]
