@@ -64,7 +64,7 @@
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-point-reasons.js?v=20260618-point-reasons',
-            'js/classroom-points.js?v=20260619-term-summary'
+            'js/classroom-points.js?v=20260619-points-subtract'
         ],
         tests: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

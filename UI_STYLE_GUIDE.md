@@ -232,7 +232,7 @@ Use existing banner/status token classes rather than inventing new alert colors.
 
 Calendar term settings: `#calendarOptions` with `.term-settings-header` and `.calendar-options-details` (collapse is calendar-only; does not hide lock UI).
 
-Top app chrome: zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`) in `.app-header-unified`, plus `.app-top-bar` lock/banner stack.
+Top app chrome: global tools row (Calendar menu, Calendar display, Print, Help, Account) above zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`) in `.app-header-unified`, plus `.app-top-bar` lock/banner stack.
 
 **Narrow widths:** zone row (`.app-zone-nav`) and segment row (`.app-zone-segment-panel`) stay on one line with horizontal scroll when tabs do not fit. Edge fade hints (`data-scrollable`, `data-scroll-start`, `data-scroll-end`) appear only when content is off-screen. Active tab scrolls into view on navigation. The **More** zone holds admin **Data** only — segment tabs are never reparented there.
 

@@ -602,7 +602,7 @@ async function resolveKakaoLoginUser(env, profile) {
 }
 
 function kakaoLoginErrorRedirect(code) {
-    return '/login.html?error=' + encodeURIComponent(code);
+    return '/kakao-login.html?error=' + encodeURIComponent(code);
 }
 
 function sanitizeKakaoOAuthPrompt(value) {
@@ -656,7 +656,7 @@ function classifyKakaoOAuthError(err) {
 
 function loginRedirectForKakaoError(err) {
     const code = classifyKakaoOAuthError(err);
-    return `/login.html?error=${encodeURIComponent(code)}`;
+    return `/kakao-login.html?error=${encodeURIComponent(code)}`;
 }
 
 async function kakaoToken(code, redirectUri, clientId, clientSecret) {
@@ -821,17 +821,15 @@ function escapeHtmlAttr(value) {
 
 function passwordLoginSuccessHtml(returnTo) {
     const safeUrl = escapeHtmlAttr(returnTo);
-    const safeJs = String(returnTo).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Signing in…</title>
-<meta http-equiv="refresh" content="0;url=${safeUrl}">
+<title>Signed in</title>
 </head>
 <body>
-<p>Signing in…</p>
-<script>location.replace('${safeJs}');</script>
+<p>Signed in successfully.</p>
+<p><a id="continueLink" href="${safeUrl}">Continue to calendar</a></p>
 </body>
 </html>`;
 }
@@ -854,12 +852,15 @@ function passwordLoginSuccessResponse(returnTo, cookie) {
 
 async function handlePasswordLogin(request, env, secure, htmlSuccess) {
     let loginBody;
+    const requestPath = new URL(request.url).pathname;
+    const errorLoginPage =
+        requestPath === '/password-login.html' ? '/password-login.html' : '/login.html';
     try {
         loginBody = await readPasswordLoginBody(request);
         const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
         if (limited) {
             if (loginBody.wantsRedirect || htmlSuccess) {
-                return passwordLoginErrorRedirect(loginBody.returnTo, 'too_many_requests');
+                return passwordLoginErrorRedirect(loginBody.returnTo, 'too_many_requests', errorLoginPage);
             }
             return limited;
         }
@@ -870,7 +871,7 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
         const storedHash = row && (row.password_hash || row.PASSWORD_HASH);
         if (row && !storedHash) {
             if (loginBody.wantsRedirect || htmlSuccess) {
-                return passwordLoginErrorRedirect(loginBody.returnTo, 'password_not_set');
+                return passwordLoginErrorRedirect(loginBody.returnTo, 'password_not_set', errorLoginPage);
             }
             return json(
                 {
@@ -886,7 +887,7 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
                 : null;
         if (!matched) {
             if (loginBody.wantsRedirect || htmlSuccess) {
-                return passwordLoginErrorRedirect(loginBody.returnTo, 'invalid_password');
+                return passwordLoginErrorRedirect(loginBody.returnTo, 'invalid_password', errorLoginPage);
             }
             return json({ error: 'Invalid email or password' }, 401);
         }
@@ -894,7 +895,7 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
         const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
         const dest = await loginRedirectAfterAuth(env, matched, loginBody.returnTo);
         if (htmlSuccess) {
-            return passwordLoginSuccessResponse(dest, cookie);
+            return redirectWithCookie(dest, cookie);
         }
         if (loginBody.wantsRedirect) {
             return redirectWithCookie(dest, cookie);
@@ -913,18 +914,19 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
         console.error('Password login error:', err && err.message ? err.message : err);
         const ret = loginBody ? loginBody.returnTo : '/';
         if ((loginBody && loginBody.wantsRedirect) || htmlSuccess) {
-            return passwordLoginErrorRedirect(ret, 'sign_in_failed');
+            return passwordLoginErrorRedirect(ret, 'sign_in_failed', errorLoginPage);
         }
         return json({ error: 'Sign-in failed. Try again or use Kakao login.' }, 500);
     }
 }
 
-function passwordLoginErrorRedirect(returnTo, code) {
+function passwordLoginErrorRedirect(returnTo, code, loginPage) {
+    const page = loginPage || '/login.html';
     const q = new URLSearchParams({ error: code });
     if (returnTo && returnTo !== '/') {
         q.set('return', returnTo);
     }
-    return redirectTo(`/login.html?${q.toString()}`);
+    return redirectTo(`${page}?${q.toString()}`);
 }
 
 export default {
@@ -945,6 +947,9 @@ export default {
                 if (!adminUser || !Auth.canAccessAdminPage(adminUser)) {
                     return redirectTo(`/login.html?return=${encodeURIComponent('/admin.html')}`);
                 }
+            }
+            if ((path === '/login' || path === '/login.html' || path === '/password-login.html') && request.method === 'POST') {
+                return handlePasswordLogin(request, env, secure, true);
             }
             if (env.ASSETS) {
                 return env.ASSETS.fetch(request);
@@ -1100,7 +1105,7 @@ export default {
                 return limited;
             }
             if (url.searchParams.get('error')) {
-                return redirectTo('/login.html?error=oauth_denied');
+                return redirectTo('/kakao-login.html?error=oauth_denied');
             }
             const code = url.searchParams.get('code');
             const state = url.searchParams.get('state') || '';
@@ -1111,11 +1116,11 @@ export default {
                 oauthSecret
             );
             if (!verified.ok) {
-                return redirectTo('/login.html?error=oauth_state_invalid');
+                return redirectTo('/kakao-login.html?error=oauth_state_invalid');
             }
             const returnTo = verified.returnTo;
             if (!code || !kakaoId) {
-                return redirectTo('/login.html?error=missing_code');
+                return redirectTo('/kakao-login.html?error=missing_code');
             }
             try {
                 const tokens = await kakaoToken(
@@ -1127,13 +1132,13 @@ export default {
                 const profile = await kakaoMe(tokens.access_token);
                 const resolved = await resolveKakaoLoginUser(env, profile);
                 if (resolved.disabled) {
-                    return redirectTo('/login.html?error=account_disabled');
+                    return redirectTo('/kakao-login.html?error=account_disabled');
                 }
                 if (resolved.error) {
                     return redirectTo(kakaoLoginErrorRedirect(resolved.error));
                 }
                 if (!resolved.user) {
-                    return redirectTo('/login.html?error=missing_kakao_id');
+                    return redirectTo('/kakao-login.html?error=missing_kakao_id');
                 }
                 const session = await createLoginSession(env, resolved.user.id, verified.loginContext);
                 const headers = new Headers({

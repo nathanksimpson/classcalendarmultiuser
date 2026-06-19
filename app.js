@@ -18174,6 +18174,8 @@ function getCohortManagementHooks() {
         saveData,
         navigateToTab,
         showMessage: (msg, isError) => setAppStatusMessage(msg, isError),
+        getTeamLockSaveBlockedMessage,
+        highlightTeamLockBar,
         syncClassCohortLinks,
         syncAllClassCohortLinks: () => syncAllClassCohortLinksInData(appData),
         deleteClassById: (classId) => {
@@ -19941,7 +19943,7 @@ function initTimetablePeriodSchedule() {
 
     openBtn.addEventListener('click', () => {
         if (isTeamCalendarViewOnly()) {
-            showLockFlash(t('teamReadOnlySave'), false);
+            notifyTeamLockRequiredForEdit();
             return;
         }
         const api = getTimetablePeriodsApi();
@@ -20253,8 +20255,7 @@ function openClassEditor(classData, context, options = {}) {
         if (isTeamAutoLockOnLoginPending()) {
             return;
         }
-        showLockFlash(t('teamReadOnlySave'), false);
-        warnEditRequiresLockOnce();
+        notifyTeamLockRequiredForEdit();
         return;
     }
     void ensureExtensionScriptsLoaded()
@@ -20284,8 +20285,7 @@ function openEventEditor(holidayData, context, options = {}) {
         if (isTeamAutoLockOnLoginPending()) {
             return;
         }
-        showLockFlash(t('teamReadOnlySave'), false);
-        warnEditRequiresLockOnce();
+        notifyTeamLockRequiredForEdit();
         return;
     }
     const ctx = context || 'tab';
@@ -28173,6 +28173,7 @@ const TEAM_SYNC_TERMINAL_STATUSES = ['saved', 'connected', 'offline', 'error', '
 const TEAM_SYNC_BOOT_WATCHDOG_MS = 55000;
 /** Auto-dismiss duration for lock-related banner notifications (app notice rail). */
 const TEAM_LOCK_FLASH_DURATION_MS = 3500;
+let teamLockBarHighlightTimer = null;
 
 function formatLockParty(party) {
     if (!party) {
@@ -28203,6 +28204,64 @@ function setTeamLockBarVisible(visible) {
         el.hidden = !visible;
     }
     scheduleTabWarningsRefresh();
+}
+
+function isLockHeldByOtherUser() {
+    const lock = typeof CalendarSync !== 'undefined' && CalendarSync.state ? CalendarSync.state.lock : null;
+    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser();
+    return Boolean(
+        lock &&
+        lock.holderUserId &&
+        (!me || String(lock.holderUserId) !== String(me.id))
+    );
+}
+
+function getTeamLockSaveBlockedMessage() {
+    if (typeof CalendarSync === 'undefined') {
+        return t('teamNeedLockToSave');
+    }
+    if (CalendarSync.state.canEdit === false || CalendarSync.state.permissionReadOnly) {
+        const accessLevel = CalendarSync.state.accessLevel || 'editor';
+        return accessLevel === 'suggester' ? t('teamPermissionSuggester') : t('teamPermissionViewer');
+    }
+    if (isLockHeldByOtherUser()) {
+        return t('teamLockedByOtherSave').replace('{name}', formatLockParty(CalendarSync.state.lock));
+    }
+    return t('teamNeedLockToSave');
+}
+
+function highlightTeamLockBar() {
+    const row = document.getElementById('teamLockBarRow');
+    const status = document.getElementById('teamLockStatus');
+    const el = row || status;
+    if (!el) {
+        return;
+    }
+    setTeamLockBarVisible(true);
+    el.classList.remove('team-lock-bar-row--attention');
+    void el.offsetWidth;
+    el.classList.add('team-lock-bar-row--attention');
+    if (teamLockBarHighlightTimer) {
+        clearTimeout(teamLockBarHighlightTimer);
+    }
+    teamLockBarHighlightTimer = setTimeout(() => {
+        el.classList.remove('team-lock-bar-row--attention');
+        teamLockBarHighlightTimer = null;
+    }, 3200);
+    try {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+function notifyTeamLockRequiredForEdit(options) {
+    const opts = options || {};
+    showLockFlash(getTeamLockSaveBlockedMessage(), Boolean(opts.isError));
+    highlightTeamLockBar();
+    if (opts.alert !== false) {
+        warnEditRequiresLockOnce();
+    }
 }
 
 function getTeamLockUiMode() {
@@ -28431,9 +28490,57 @@ function warnEditRequiresLockOnce() {
         (!me || String(lock.holderUserId) !== String(me.id));
     const msg = heldByOther
         ? t('teamLockedByFlash').replace('{name}', formatLockParty(lock))
-        : t('teamLockActionAcquire') + ': ' + t('teamReadOnlySave');
+        : t('teamNeedLockToSave');
     window.alert(msg);
     return true;
+}
+
+/**
+ * Acquire the edit lock when no other user currently holds it.
+ * @returns {Promise<boolean>} true when lock was acquired
+ */
+async function maybeAutoAcquireFreeLock(calId) {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return false;
+    }
+    const id = calId || CalendarSync.getActiveCalendarId();
+    if (!id) {
+        return false;
+    }
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode()) {
+        return false;
+    }
+    if (CalendarSync.state.canEdit === false || CalendarSync.state.permissionReadOnly) {
+        return false;
+    }
+    if (CalendarSync.state.holdsLock) {
+        return false;
+    }
+    if (isLockHeldByOtherUser()) {
+        return false;
+    }
+
+    try {
+        const result = await CalendarSync.acquireLock(id);
+        if (result && result.acquired && CalendarSync.state.holdsLock) {
+            teamLockPreviousCalendarId = id;
+            applyTeamLockAccessState({
+                readOnly: CalendarSync.state.readOnly,
+                lock: CalendarSync.state.lock,
+                holdsLock: CalendarSync.state.holdsLock,
+                pendingEditRequest: CalendarSync.state.pendingEditRequest,
+                lockExpiresAt: CalendarSync.state.lockExpiresAt
+            });
+            return true;
+        }
+    } catch (err) {
+        if (CalendarSync.logLockDebug) {
+            CalendarSync.logLockDebug('error', 'Auto-acquire free lock failed', {
+                message: err && err.message
+            });
+        }
+    }
+    return false;
 }
 
 /**
@@ -28469,35 +28576,7 @@ async function maybeAutoAcquireFreeLockOnLogin() {
         return;
     }
 
-    if (CalendarSync.state.holdsLock) {
-        return;
-    }
-
-    const lock = CalendarSync.state.lock;
-    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser();
-    if (lock && lock.holderUserId && (!me || String(lock.holderUserId) !== String(me.id))) {
-        return;
-    }
-
-    try {
-        const result = await CalendarSync.acquireLock(id);
-        if (result && result.acquired && CalendarSync.state.holdsLock) {
-            teamLockPreviousCalendarId = id;
-            applyTeamLockAccessState({
-                readOnly: CalendarSync.state.readOnly,
-                lock: CalendarSync.state.lock,
-                holdsLock: CalendarSync.state.holdsLock,
-                pendingEditRequest: CalendarSync.state.pendingEditRequest,
-                lockExpiresAt: CalendarSync.state.lockExpiresAt
-            });
-        }
-    } catch (err) {
-        if (CalendarSync.logLockDebug) {
-            CalendarSync.logLockDebug('error', 'Auto-acquire lock on login failed', {
-                message: err && err.message
-            });
-        }
-    }
+    await maybeAutoAcquireFreeLock(id);
 }
 
 function getEffectiveTeamReadOnly(lockState) {
@@ -28922,6 +29001,25 @@ function getTeamLockInteractionState(lockState) {
     return { mode, summaryText, actionLabel, lockBtnDisabled };
 }
 
+function applyTeamLockActionButton(lockState) {
+    const actionBtn = document.getElementById('teamLockActionBtn');
+    if (!actionBtn) {
+        return;
+    }
+    const { mode, actionLabel, lockBtnDisabled } = getTeamLockInteractionState(lockState);
+    const showAction = mode === 'free' || mode === 'blocked' || mode === 'held';
+    actionBtn.hidden = !showAction;
+    if (!showAction) {
+        return;
+    }
+    actionBtn.textContent = actionLabel;
+    actionBtn.disabled = lockBtnDisabled;
+    actionBtn.className =
+        mode === 'held'
+            ? 'btn btn-outline btn-small team-lock-action-btn'
+            : 'btn btn-primary btn-small team-lock-action-btn';
+}
+
 function applyTeamLockButtonChrome(btn, lockState) {
     if (!btn) {
         return;
@@ -28941,6 +29039,7 @@ function applyTeamLockButtonChrome(btn, lockState) {
     if (chipLabel) {
         chipLabel.textContent = summaryText;
     }
+    applyTeamLockActionButton(lockState);
 }
 
 function updateTeamLockRoster(lockState) {
@@ -29213,88 +29312,110 @@ function setupTeamLockButtons() {
     btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
-            return;
-        }
+        await handleTeamLockButtonClick(btn);
+    });
+}
 
-        const id = CalendarSync.getActiveCalendarId();
-        if (!id) {
-            showLockFlash(t('teamCalendarEmpty'), true);
-            return;
-        }
+function setupTeamLockActionButton() {
+    const actionBtn = document.getElementById('teamLockActionBtn');
+    if (!actionBtn || actionBtn.dataset.teamLockBound === '1') {
+        return;
+    }
+    actionBtn.dataset.teamLockBound = '1';
+    actionBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const statusBtn = document.getElementById('teamLockStatusBtn');
+        await handleTeamLockButtonClick(statusBtn || actionBtn);
+    });
+}
 
-        const { mode } = getTeamLockInteractionState();
+async function handleTeamLockButtonClick(btn) {
+    if (!btn || !teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return;
+    }
 
-        if (mode === 'waiting' || mode === 'pending') {
-            return;
-        }
+    const id = CalendarSync.getActiveCalendarId();
+    if (!id) {
+        showLockFlash(t('teamCalendarEmpty'), true);
+        return;
+    }
 
-        btn.disabled = true;
+    const { mode } = getTeamLockInteractionState();
 
-        try {
-            if (mode === 'held') {
-                await CalendarSync.flushPendingSave().catch(() => {});
-                await CalendarSync.releaseLock(id);
-                teamLockPreviousCalendarId = null;
-                showLockFlash(t('teamLockReleasedFlash'), false);
-            } else if (mode === 'blocked') {
-                const holder = CalendarSync.state.lock;
-                const result = await CalendarSync.acquireLock(id);
-                applyTeamLockAccessState({
-                    readOnly: CalendarSync.state.readOnly,
-                    lock: CalendarSync.state.lock,
-                    holdsLock: CalendarSync.state.holdsLock,
-                    pendingEditRequest: CalendarSync.state.pendingEditRequest,
-                    viewers: CalendarSync.state.viewers,
-                    lockExpiresAt: CalendarSync.state.lockExpiresAt
-                });
-                if (result && result.editRequestRecorded) {
-                    showLockFlash(
-                        t('teamLockRequestSentFlash').replace('{name}', formatLockParty(holder)),
-                        false
-                    );
-                } else if (CalendarSync.state.holdsLock) {
-                    showLockFlash(t('teamLockHeldFlash'), false);
-                }
-                return;
-            } else {
-                await CalendarSync.acquireLock(id);
-                if (CalendarSync.state.holdsLock) {
-                    showLockFlash(t('teamLockHeldFlash'), false);
-                }
+    if (mode === 'waiting' || mode === 'pending') {
+        return;
+    }
+
+    btn.disabled = true;
+    const actionBtn = document.getElementById('teamLockActionBtn');
+
+    try {
+        if (mode === 'held') {
+            await CalendarSync.flushPendingSave().catch(() => {});
+            await CalendarSync.releaseLock(id);
+            teamLockPreviousCalendarId = null;
+            showLockFlash(t('teamLockReleasedFlash'), false);
+        } else if (mode === 'blocked') {
+            const holder = CalendarSync.state.lock;
+            const result = await CalendarSync.acquireLock(id);
+            applyTeamLockAccessState({
+                readOnly: CalendarSync.state.readOnly,
+                lock: CalendarSync.state.lock,
+                holdsLock: CalendarSync.state.holdsLock,
+                pendingEditRequest: CalendarSync.state.pendingEditRequest,
+                viewers: CalendarSync.state.viewers,
+                lockExpiresAt: CalendarSync.state.lockExpiresAt
+            });
+            if (result && result.editRequestRecorded) {
+                showLockFlash(
+                    t('teamLockRequestSentFlash').replace('{name}', formatLockParty(holder)),
+                    false
+                );
+            } else if (CalendarSync.state.holdsLock) {
+                showLockFlash(t('teamLockHeldFlash'), false);
             }
+            return;
+        } else {
+            await CalendarSync.acquireLock(id);
+            if (CalendarSync.state.holdsLock) {
+                showLockFlash(t('teamLockHeldFlash'), false);
+            }
+        }
+        applyTeamLockAccessState({
+            readOnly: CalendarSync.state.readOnly,
+            lock: CalendarSync.state.lock,
+            holdsLock: CalendarSync.state.holdsLock,
+            pendingEditRequest: CalendarSync.state.pendingEditRequest
+        });
+    } catch (err) {
+        try {
+            await CalendarSync.refreshLockMeta(id);
             applyTeamLockAccessState({
                 readOnly: CalendarSync.state.readOnly,
                 lock: CalendarSync.state.lock,
                 holdsLock: CalendarSync.state.holdsLock,
                 pendingEditRequest: CalendarSync.state.pendingEditRequest
             });
-        } catch (err) {
-            try {
-                await CalendarSync.refreshLockMeta(id);
-                applyTeamLockAccessState({
-                    readOnly: CalendarSync.state.readOnly,
-                    lock: CalendarSync.state.lock,
-                    holdsLock: CalendarSync.state.holdsLock,
-                    pendingEditRequest: CalendarSync.state.pendingEditRequest
-                });
-            } catch (_) {
-                /* ignore */
-            }
-            const msg =
-                mode === 'held'
-                    ? t('teamLockReleaseFailed')
-                    : mode === 'blocked'
-                      ? err && err.message
-                          ? translateSyncError(err.message)
-                          : t('teamLockRequestFailed')
-                      : t('teamLockRequestFailed');
-            showLockFlash(msg, true);
-        } finally {
-            const after = getTeamLockInteractionState();
-            btn.disabled = after.lockBtnDisabled;
+        } catch (_) {
+            /* ignore */
         }
-    });
+        const msg =
+            mode === 'held'
+                ? t('teamLockReleaseFailed')
+                : mode === 'blocked'
+                  ? err && err.message
+                      ? translateSyncError(err.message)
+                      : t('teamLockRequestFailed')
+                  : t('teamLockRequestFailed');
+        showLockFlash(msg, true);
+    } finally {
+        const after = getTeamLockInteractionState();
+        btn.disabled = after.lockBtnDisabled;
+        if (actionBtn) {
+            applyTeamLockActionButton();
+        }
+    }
 }
 
 function setupTeamLockPendingButtons() {
@@ -30780,12 +30901,11 @@ function saveData() {
         if (isTeamAutoLockOnLoginPending()) {
             return;
         }
-        showLockFlash(t('teamLockActionAcquire') + ' — ' + t('teamReadOnlySave'), false);
-        warnEditRequiresLockOnce();
+        notifyTeamLockRequiredForEdit();
         return;
     }
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly()) {
-        showLockFlash(t('teamReadOnlySave'), true);
+        notifyTeamLockRequiredForEdit({ isError: true, alert: false });
         return;
     }
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {
@@ -31497,6 +31617,7 @@ async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
     try {
         const doc = await CalendarSync.loadCalendar(id);
         teamLockPreviousCalendarId = null;
+        await maybeAutoAcquireFreeLock(id);
         if (!CalendarSync.state.readOnly && CalendarSync.state.holdsLock) {
             teamLockPreviousCalendarId = id;
         }
@@ -32294,6 +32415,7 @@ async function initTeamSync() {
     updateTeamSyncStatus('connected');
     setupTeamUserBar();
     setupTeamLockButtons();
+    setupTeamLockActionButton();
     setupTeamLockPendingButtons();
     setupTeamLockDebugPanel();
 

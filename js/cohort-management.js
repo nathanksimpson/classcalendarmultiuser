@@ -27,6 +27,23 @@
         return String(v == null ? '' : v).trim();
     }
 
+    function getTeamLockBlockedMessage() {
+        if (hooks && typeof hooks.getTeamLockSaveBlockedMessage === 'function') {
+            return hooks.getTeamLockSaveBlockedMessage();
+        }
+        return hooks && hooks.t ? hooks.t('teamNeedLockToSave') : '';
+    }
+
+    function showTeamLockBlockedMessage() {
+        if (!hooks || !hooks.showMessage) {
+            return;
+        }
+        hooks.showMessage(getTeamLockBlockedMessage(), true);
+        if (typeof hooks.highlightTeamLockBar === 'function') {
+            hooks.highlightTeamLockBar();
+        }
+    }
+
     function getLang() {
         try {
             if (hooks && hooks.getLang) {
@@ -729,7 +746,7 @@
             return;
         }
         if (hooks.isViewOnly && hooks.isViewOnly()) {
-            hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+            showTeamLockBlockedMessage();
             return;
         }
         const api = getTimetableApi();
@@ -849,7 +866,7 @@
         applyBtn.textContent = t('cohortsHomeroomApply');
         applyBtn.addEventListener('click', () => {
             if (hooks.isViewOnly && hooks.isViewOnly()) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             persistCohortEditorChanges(cohort);
@@ -861,7 +878,7 @@
         clearBtn.textContent = t('cohortsHomeroomClear');
         clearBtn.addEventListener('click', () => {
             if (hooks.isViewOnly && hooks.isViewOnly()) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             homeroomSel.value = '';
@@ -1130,7 +1147,7 @@
         saveBtn.disabled = ro;
         saveBtn.addEventListener('click', () => {
             if (ro) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             persistCohortEditorChanges(cohort);
@@ -1144,7 +1161,7 @@
         combineBtn.disabled = ro;
         combineBtn.addEventListener('click', () => {
             if (ro) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             flushCohortEditorFields();
@@ -1158,7 +1175,7 @@
         genBtn.disabled = ro;
         genBtn.addEventListener('click', () => {
             if (ro) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             flushCohortEditorFields();
@@ -1195,7 +1212,7 @@
         dupBtn.disabled = ro;
         dupBtn.addEventListener('click', () => {
             if (ro) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             flushCohortEditorFields();
@@ -1265,7 +1282,7 @@
             return;
         }
         if (hooks.isViewOnly && hooks.isViewOnly()) {
-            hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+            showTeamLockBlockedMessage();
             return;
         }
         if (!confirmDeleteCohort(cohort)) {
@@ -1396,7 +1413,7 @@
         if (editBtn) {
             editBtn.hidden = !cohort;
             editBtn.disabled = ro || !cohort;
-            editBtn.title = editBtn.disabled && ro ? t('teamReadOnlySave') : '';
+            editBtn.title = editBtn.disabled && ro ? getTeamLockBlockedMessage() : '';
             if (!editBtn.dataset.cohortsEditBound) {
                 editBtn.dataset.cohortsEditBound = '1';
                 editBtn.addEventListener('click', () => {
@@ -1418,7 +1435,7 @@
         }
         deleteBtn.hidden = !cohort;
         deleteBtn.disabled = ro;
-        deleteBtn.title = deleteBtn.disabled ? t('teamReadOnlySave') : '';
+        deleteBtn.title = deleteBtn.disabled ? getTeamLockBlockedMessage() : '';
         if (!deleteBtn.dataset.cohortsDeleteBound) {
             deleteBtn.dataset.cohortsDeleteBound = '1';
             deleteBtn.addEventListener('click', () => {
@@ -2093,7 +2110,7 @@
 
         applyBtn.onclick = () => {
             if (hooks.isViewOnly && hooks.isViewOnly()) {
-                hooks.showMessage(hooks.t('teamReadOnlySave'), true);
+                showTeamLockBlockedMessage();
                 return;
             }
             const cohortBId = withSel.value;
