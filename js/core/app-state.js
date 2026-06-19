@@ -57,6 +57,8 @@
             curriculumOverrides: {},
             curriculumRemovedIds: [],
             termStart: null,
+            termEnd: null,
+            useAutoTermEnd: true,
             termMonthCount: 3,
             calendarName: '',
             dayNotes: [],

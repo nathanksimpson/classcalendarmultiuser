@@ -10,7 +10,8 @@
             'js/setup-board.js?v=20260619-setup-hub'
         ],
         timetable: [
-            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
+            'js/timetable-periods.js?v=20260619-term-flex',
+            'js/teacher-timetable.js?v=20260619-term-flex',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
