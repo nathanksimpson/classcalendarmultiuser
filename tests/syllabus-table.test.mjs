@@ -869,4 +869,55 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(rows[0].planTitle.includes('Midterm due'), 'eval name in plan');
 }
 
+// Debate book-period row filter
+{
+    const rows = CCPSyllabus.normalizeRows([
+        { date: '2026-03-02', kind: 'lesson', planTitle: 'Day 1' },
+        { date: '2026-03-09', kind: 'lesson', planTitle: 'Day 2' },
+        { date: '2026-04-01', kind: 'lesson', planTitle: 'Day 1' },
+        { date: '2026-03-05', kind: 'holiday', planTitle: 'Holiday' },
+        { kind: 'note', planTitle: 'Editor note' },
+        { kind: 'lesson', planTitle: 'Unscheduled', lessonNumber: 3 }
+    ]);
+    const period1 = CCPSyllabus.filterRowsForDebatePeriod(rows, '2026-03-01', '2026-03-31');
+    assert(period1.length === 3, 'period 1 keeps in-range lesson + holiday rows');
+    assert(period1.some((r) => r.planTitle === 'Day 1'), 'period 1 includes Day 1');
+    assert(!period1.some((r) => r.planTitle === 'Day 1' && r.date === '2026-04-01'), 'period 1 excludes April');
+    assert(!period1.some((r) => r.kind === 'note'), 'period filter drops editor notes');
+    assert(!period1.some((r) => r.planTitle === 'Unscheduled'), 'period filter drops undated rows');
+
+    const boundary = CCPSyllabus.filterRowsForDebatePeriod(rows, '2026-03-09', '2026-03-09');
+    assert(boundary.length === 1 && boundary[0].planTitle === 'Day 2', 'inclusive boundary dates');
+
+    const empty = CCPSyllabus.filterRowsForDebatePeriod(rows, 'invalid', '2026-03-31');
+    assert(empty.length === 0, 'invalid range returns empty');
+}
+
+// Student jindo: schedule only, no teacher notes column
+{
+    const rows = CCPSyllabus.normalizeRows([
+        { date: '2026-03-02', monthKey: '2026-03', weekLabel: 'Mar 2–6', sessionNumber: 1, planTitle: 'Day 1' },
+        { date: '2026-03-05', monthKey: '2026-03', weekLabel: 'Mar 2–6', sessionNumber: 2, planTitle: 'Day 2' }
+    ]);
+    const docHtml = CCPSyllabus.renderSyllabusDocumentHtml(
+        { title: 'Student' },
+        [{ classData: {}, rows, classTitle: 'Debate 7A' }],
+        {
+            pdfLayout: true,
+            a4Pdf: true,
+            jindoTable: true,
+            studentSyllabus: true,
+            generalNotes: 'Teacher only notes',
+            tableYear: '2026',
+            colWeek: 'Week',
+            colClass: 'Class',
+            colPlan: 'Plan',
+            colNote: 'Note'
+        }
+    );
+    assert(docHtml.includes('syllabus-jindo-print-grid--student'), 'student grid class');
+    assert(!/<table[^>]*syllabus-table-jindo-notes/.test(docHtml), 'no notes side table element');
+    assert(!/<td[^>]*syllabus-jindo-notes-body-cell/.test(docHtml), 'no notes body cell element');
+}
+
 console.log('All syllabus-table tests passed.');

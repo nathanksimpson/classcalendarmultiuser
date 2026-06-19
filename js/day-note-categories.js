@@ -3,12 +3,19 @@
  */
 (function (global) {
     const DEFAULT_CATEGORY_ID = 'class-notes';
-    const BUILTIN_CATEGORY_IDS = new Set(['class-notes', 'parent-consult', 'next-class-notes']);
+    const BUILTIN_CATEGORY_IDS = new Set([
+        'class-notes',
+        'parent-consult',
+        'next-class-notes',
+        'class-points'
+    ]);
+    const SYSTEM_MANAGED_CATEGORY_IDS = new Set(['class-points']);
 
     const BUILTIN_I18N_KEYS = {
         'class-notes': 'dayNoteCategoryClassNotes',
         'parent-consult': 'dayNoteCategoryParentConsult',
-        'next-class-notes': 'dayNoteCategoryNextClass'
+        'next-class-notes': 'dayNoteCategoryNextClass',
+        'class-points': 'dayNoteCategoryClassPoints'
     };
 
     function normalizeCategoryId(raw) {
@@ -49,13 +56,17 @@
         return BUILTIN_CATEGORY_IDS.has(normalizeCategoryId(id));
     }
 
+    function isSystemManagedCategoryId(id) {
+        return SYSTEM_MANAGED_CATEGORY_IDS.has(normalizeCategoryId(id));
+    }
+
     /**
      * @param {function} translate (key) => string
      * @returns {Array<{ id, name, builtin, custom }>}
      */
     function getAllCategories(customCategories, translate) {
         const t = typeof translate === 'function' ? translate : (k) => k;
-        const builtins = ['class-notes', 'parent-consult', 'next-class-notes'].map((id) => ({
+        const builtins = ['class-notes', 'parent-consult', 'next-class-notes', 'class-points'].map((id) => ({
             id,
             name: t(BUILTIN_I18N_KEYS[id] || id),
             builtin: true,
@@ -111,11 +122,13 @@
     global.CCPDayNoteCategories = {
         DEFAULT_CATEGORY_ID,
         BUILTIN_CATEGORY_IDS,
+        SYSTEM_MANAGED_CATEGORY_IDS,
         BUILTIN_I18N_KEYS,
         normalizeCategoryId,
         normalizeDayNoteCategory,
         normalizeDayNoteCategories,
         isBuiltinCategoryId,
+        isSystemManagedCategoryId,
         getAllCategories,
         resolveCategoryLabel,
         createCategory,

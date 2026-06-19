@@ -105,7 +105,7 @@ assert(
 );
 
 const all = categories.getAllCategories([custom], t);
-assert(all.length === 4, 'getAllCategories merges builtins + custom');
+assert(all.length === 5, 'getAllCategories merges builtins + custom');
 assert(
     dayNotes.resolveDayNoteCategoryLabel('next-class-notes', [], t) === 'Notes for next class',
     'resolveDayNoteCategoryLabel for next-class-notes'

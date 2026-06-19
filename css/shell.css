@@ -16,7 +16,7 @@
 .app-top-bar {
     position: sticky;
     top: 0;
-    z-index: 200;
+    z-index: var(--z-sticky-chrome);
     margin: calc(-1 * var(--app-gutter, var(--space-5))) calc(-1 * var(--app-gutter, var(--space-5))) var(--space-4);
     padding: var(--space-2) var(--space-5);
     background: var(--top-bar-bg);
@@ -51,7 +51,8 @@
     border: 1px solid var(--border-color);
     border-radius: 10px;
     box-shadow: var(--shadow-sm);
-    overflow: hidden;
+    overflow-x: clip;
+    overflow-y: visible;
     box-sizing: border-box;
 }
 

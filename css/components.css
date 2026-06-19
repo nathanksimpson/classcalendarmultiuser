@@ -24,7 +24,7 @@
 
 .btn-primary {
     background: var(--primary);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-primary:hover {
@@ -35,7 +35,7 @@
 
 .btn-secondary {
     background: var(--secondary);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-secondary:hover {
@@ -55,7 +55,7 @@
 
 .btn-danger {
     background: var(--danger);
-    color: white;
+    color: var(--text-on-danger);
 }
 
 .btn-danger:hover {

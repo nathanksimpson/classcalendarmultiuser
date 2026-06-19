@@ -157,7 +157,16 @@
                             err && err.message
                                 ? err.message
                                 : tViewAs('viewAsExitFailed');
-                        alert(msg);
+                        if (window.CCPNotice && window.CCPNotice.show) {
+                            window.CCPNotice.show(msg, {
+                                type: 'error',
+                                duration: 0,
+                                dismissible: true,
+                                force: true
+                            });
+                        } else {
+                            alert(msg);
+                        }
                     });
                 });
             }

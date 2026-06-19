@@ -38,6 +38,12 @@ points = d.appendPointEntry(points, {
 assert(points.length === 2, 'two point entries');
 assert(d.sumPointsForStudent(points, 'cls1', 's1') === 3, 'sum points');
 
+points = d.appendPointEntries(points, [
+    { id: 'p3', classId: 'cls1', studentId: 's2', date: '2026-06-03', delta: 1, reason: 'hw' },
+    { id: 'p4', classId: 'cls1', studentId: 's2', date: '2026-06-03', delta: 2, reason: 'hw' }
+]);
+assert(points.length === 4, 'appendPointEntries adds two');
+
 const test = d.upsertStudentTest([], {
     id: 't1',
     classId: 'cls1',

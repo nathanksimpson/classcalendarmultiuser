@@ -29,6 +29,8 @@
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
     --control-disabled-fg: #64748b;
+    --text-on-primary: #f8fafc;
+    --text-on-danger: #f8fafc;
     
     --border-color: #e2e8f0;
     --border-radius: 8px;
@@ -52,11 +54,25 @@
     --pad-popover: var(--space-2);
     --pad-popover-body: var(--space-3);
 
-    --z-context-menu: 500;
+    --z-base: 0;
+    --z-above-base: 1;
+    --z-sticky-cell: 2;
+    --z-sticky-header: 3;
+    --z-local-overlay: 10;
+    --z-dropdown: 100;
+    --z-sticky-chrome: 200;
+    --z-dock: 500;
     --z-popover: 650;
-    --z-tab-warnings: 950;
-    --z-modal: 1000;
-    --z-header-popover: 1100;
+    --z-banner: 800;
+    --z-modal: 1100;
+    --z-modal-popover: 1200;
+    --z-toast: 1300;
+    --z-view-as: 1400;
+    --z-critical: 1500;
+    /* Legacy aliases */
+    --z-context-menu: var(--z-dock);
+    --z-tab-warnings: var(--z-banner);
+    --z-header-popover: var(--z-modal-popover);
 
     --text-h1: 3rem;
     --text-h2: 2.5rem;
@@ -77,9 +93,15 @@
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 16px;
+    --radius-card: 10px;
     --radius-full: 9999px;
 
     --touch-min: 44px;
+
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
 
     --chip-bg: #e2e8f0;
     --chip-color: #1e293b;
@@ -170,13 +192,21 @@
     --banner-warn-border: #f59e0b;
     --banner-warn-color: #78350f;
     --warn-badge-bg: #d97706;
-    --warn-badge-fg: #ffffff;
+    --warn-badge-fg: var(--text-on-primary);
     --banner-error-bg: #fee2e2;
     --banner-error-border: #f87171;
     --banner-error-color: #7f1d1d;
     --banner-info-bg: #eff6ff;
     --banner-info-border: #93c5fd;
     --banner-info-color: #1e40af;
+
+    --banner-view-as-bg: #b45309;
+    --banner-view-as-fg: #fffbeb;
+    --banner-view-as-border: #92400e;
+    --banner-view-as-exit-bg: #fffbeb;
+    --banner-view-as-exit-fg: #92400e;
+    --banner-view-as-exit-border: #fde68a;
+    --banner-view-as-exit-hover-bg: #fef3c7;
 
     --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
@@ -211,5 +241,12 @@ body {
     color: var(--text-primary);
     line-height: var(--leading-body);
     min-height: 100vh;
+    overscroll-behavior: none;
+}
+
+.scroll-region {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 

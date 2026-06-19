@@ -7,13 +7,14 @@
     <title>Admin — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260607-ui-unify">
-    <link rel="stylesheet" href="admin.css?v=20260605-viewas-admin">
+    <link rel="stylesheet" href="styles.css?v=20260619-ui-standards">
+    <link rel="stylesheet" href="admin.css?v=20260619-ui-standards">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
         <div class="view-as-banner-inner">
             <div class="view-as-banner-text">
@@ -45,7 +46,6 @@
             <button type="button" class="admin-tab" role="tab" id="adminTabSystem" data-tab="system" aria-controls="systemPanel" data-i18n="navSystem">System</button>
             <button type="button" class="admin-tab" role="tab" id="adminTabMonitor" data-tab="monitor" aria-controls="monitorPanel" data-i18n="navMonitor">Monitor</button>
         </div>
-        <div id="adminNotice" class="admin-notice" role="status" aria-live="polite" hidden></div>
         <p id="adminStatus" class="admin-status-line" role="status"></p>
 
         <section class="admin-tab-panel admin-section" id="accountsPanel" role="tabpanel" aria-labelledby="adminTabAccounts" hidden>
@@ -323,11 +323,12 @@
             <button type="button" class="btn btn-primary" id="bootstrapBtn" data-i18n="bootstrapCreate">Create admin account</button>
         </section>
     </div>
+    <script charset="utf-8" src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script charset="utf-8" src="js/admin-i18n.js?v=20260605-viewas-admin"></script>
     <script charset="utf-8" src="js/session-restore.js?v=20260605-boot-nav"></script>
     <script charset="utf-8" src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script charset="utf-8" src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
     <script charset="utf-8" src="js/team-auth.js?v=20260601-role-palette"></script>
-    <script charset="utf-8" src="js/admin.js?v=20260608-notify-ttl"></script>
+    <script charset="utf-8" src="js/admin.js?v=20260618-notify-unify"></script>
 </body>
 </html>

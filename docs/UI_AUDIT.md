@@ -9,8 +9,9 @@ Full audit for Class Calendar Multi User. Reference: [UI_STYLE_GUIDE.md](../UI_S
 | Surface | State owner | Render / refresh | A11y status |
 |---------|-------------|------------------|-------------|
 | Zone nav + segments | `appData.ui.activeZone`, `activeTab` | `navigateToZone`, `navigateToTab` | Good — `role="tablist"`, `aria-selected` in `index.html` |
-| Lock / sync banners | `CalendarSync` + DOM | `updateTeamLockUi`, `refreshTeamLockDebugPanel` | Good — `aria-live`, drawer `aria-expanded` |
-| Notice rail | ephemeral | `CCPNotice.show` / `showSyncToast` | Good — `aria-live` polite/assertive |
+| Lock / sync UI | `CalendarSync` + DOM | `updateTeamLockUi`, bell inbox | Good — lock drawer `aria-expanded`; warnings in bell |
+| Notice rail | ephemeral | `CCPNotice.show` / `showSyncToast` | Good — `aria-live` polite/assertive; dismiss on success/error |
+| Notification bell | `CCPTabWarnings` | `scheduleTabWarningsRefresh` | Good — popover dialog; dismiss + Go actions |
 | Calendar month/agenda | `appData` classes/events + `appData.ui` filters | `renderCalendarNow` → orchestrator `calendar` | Partial — dynamic tiles lack live regions |
 | Lesson filter popover | `appData.ui.lessonFilters` | `renderLessonFilterPopoverBody` | Good — `aria-expanded` on trigger |
 | Class editor (movable form) | `appData.classes[]` | `populateClassForm`, `mountClassForm` | Good — modal focus trap via `CCPModal` |
@@ -85,6 +86,9 @@ Test at http://localhost:8080 after `npm start`. Mark: Pass / Gap / N/A.
 | Filters popover | Gap | Pass | Pass | Pass | Pass | Phone: popover width tight |
 | Print modal | Gap | Pass | Pass | Pass | Pass | Phone: use landscape or desktop |
 | Team lock banner | Pass | Pass | Pass | Pass | Pass | Clear copy |
+| Toast rail (save/error) | Pass | Pass | Pass | Pass | Pass | `CCPNotice` top rail; dismiss × |
+| Notification bell inbox | Pass | Pass | Pass | Pass | Pass | Setup + class warnings; dismiss persists |
+| Admin / notes / login toasts | Pass | Pass | Pass | Pass | Pass | Satellite pages use same rail |
 | Keyboard Escape modals | Pass | Pass | Pass | Pass | Pass | Via `CCPModal` |
 | Icon-only bell | Pass | Pass | Pass | Pass | Pass | `title` + `aria-haspopup` |
 

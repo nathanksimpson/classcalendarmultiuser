@@ -34,6 +34,8 @@
         classHasNoMeetingDaysWarning: () => false,
         classNeedsDebateBookPeriodsWarning: () => false,
         getSyncNavWarningsForBell: () => [],
+        getUiInboxWarningsForBell: () => [],
+        onNotificationDismissed: () => {},
         focusDayNoteInNotesTab: () => {},
         reloadActiveCalendarFromServer: () => {},
         showNavWarningToast: () => {}
@@ -474,6 +476,10 @@
             hooks.getSyncNavWarningsForBell().forEach((w) => warnings.push(w));
         }
 
+        if (typeof hooks.getUiInboxWarningsForBell === 'function') {
+            hooks.getUiInboxWarningsForBell().forEach((w) => warnings.push(w));
+        }
+
         return warnings;
     }
 
@@ -550,10 +556,7 @@
     }
 
     function clearNavTabBadges() {
-        document.querySelectorAll('.app-tab-warn-badge').forEach((badge) => {
-            badge.hidden = true;
-            badge.textContent = '';
-        });
+        /* Nav tab badges retired — notifications use header bell only. */
     }
 
     function updateNavBadges() {
@@ -619,6 +622,26 @@
             return;
         }
         openNavWarningsPopover(btn, null, null, null);
+    }
+
+    function setWarningsBtnExpanded(expanded) {
+        const btn = document.getElementById('appWarningsBtn');
+        if (btn) {
+            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+    }
+
+    function openPopoverForActiveWarning(warningId) {
+        const normalizedId = normalizeDismissedId(warningId);
+        if (!normalizedId) {
+            return;
+        }
+        const snap = ensureNotificationSnapshot();
+        const isActive = snap.active.some((w) => normalizeDismissedId(w.id) === normalizedId);
+        if (!isActive) {
+            return;
+        }
+        openLockBarWarningsPopover();
     }
 
     function navigateWarning(warning) {
@@ -695,6 +718,22 @@
                 hooks.showNavWarningToast(hooks.t('tabWarnPendingSuggestionsAction'));
             }
             hooks.navigateToTab('data');
+            return;
+        }
+        if (nav.type === 'setup_guide') {
+            hooks.navigateToZone('classes', 'cohorts');
+            return;
+        }
+        if (nav.type === 'setup_checklist') {
+            if (nav.zone && nav.segment) {
+                hooks.navigateToZone(nav.zone, nav.segment);
+            }
+            return;
+        }
+        if (nav.type === 'curriculum_syllabi_update') {
+            if (typeof hooks.runCurriculumSyllabiBatchUpdate === 'function') {
+                hooks.runCurriculumSyllabiBatchUpdate(nav.curriculumId);
+            }
         }
     }
 
@@ -715,6 +754,9 @@
         persistNotificationMeta(appData, meta);
         if (typeof hooks.persistNotificationDismissals === 'function') {
             hooks.persistNotificationDismissals([normalizedId], now);
+        }
+        if (typeof hooks.onNotificationDismissed === 'function') {
+            hooks.onNotificationDismissed(normalizedId);
         }
         invalidateNotificationSnapshot();
         recomputeNotificationSnapshot();
@@ -754,6 +796,9 @@
         if (typeof hooks.persistNotificationDismissals === 'function' && dismissedIds.length) {
             hooks.persistNotificationDismissals(dismissedIds, now);
         }
+        if (typeof hooks.onNotificationDismissed === 'function') {
+            dismissedIds.forEach((id) => hooks.onNotificationDismissed(id));
+        }
         invalidateNotificationSnapshot();
         recomputeNotificationSnapshot();
         clearNavTabBadges();
@@ -786,7 +831,7 @@
         const goBtn = document.createElement('button');
         goBtn.type = 'button';
         goBtn.className = 'btn btn-outline btn-small';
-        goBtn.textContent = hooks.t('tabWarningsGo');
+        goBtn.textContent = hooks.t(warning.actionLabelKey || 'tabWarningsGo');
         goBtn.addEventListener('click', () => navigateWarning(warning));
         actions.appendChild(goBtn);
 
@@ -892,6 +937,9 @@
         renderPopoverList();
         popover.hidden = false;
         positionPopover(anchor, popover);
+        if (anchor.id === 'appWarningsBtn') {
+            setWarningsBtnExpanded(true);
+        }
     }
 
     function closeNavWarningsPopover() {
@@ -899,66 +947,38 @@
         if (popover) {
             popover.hidden = true;
         }
+        setWarningsBtnExpanded(false);
         popoverAnchor = null;
         popoverTabId = null;
         popoverZoneId = null;
         popoverSegmentId = null;
     }
 
-    function renderTermWarningStrip(containerId, tabId) {
-        const el = document.getElementById(containerId);
-        if (!el) {
-            return;
-        }
-        const ctx = hooks.getViewerContext();
-        const appData = hooks.getAppData();
-        const show = ctx.isSetupHost && !appData.termStart;
-        if (!show) {
-            el.hidden = true;
-            el.innerHTML = '';
-            return;
-        }
-        el.hidden = false;
-        el.className = 'tab-warnings-strip tab-warnings-strip-host';
-        el.innerHTML = `
-            <p class="tab-warnings-strip-msg">${hooks.escapeHtml(hooks.t('tabWarnTermNotSet'))}</p>
-            <button type="button" class="btn btn-outline btn-small tab-warnings-strip-action">${hooks.escapeHtml(hooks.t('tabWarnTermNotSetAction'))}</button>
-        `;
-        const btn = el.querySelector('.tab-warnings-strip-action');
-        if (btn) {
-            btn.addEventListener('click', () => {
-                navigateWarning({
-                    navigate: { type: 'term' },
-                    tabId
-                });
-            }, { once: true });
-        }
-    }
-
-    function renderPersistentTabWarnings(tabId) {
-        const active = tabId || hooks.getActiveTab();
-        if (active === 'calendar') {
-            renderTermWarningStrip('calendarTabTermWarn', 'calendar');
-        } else if (active === 'events') {
-            renderTermWarningStrip('eventsTabTermWarn', 'events');
-        }
-    }
-
     function refreshAll() {
         recomputeNotificationSnapshot();
         clearNavTabBadges();
         updateLockBarNotificationsFromSnapshot();
-        renderPersistentTabWarnings(hooks.getActiveTab());
     }
 
-    function scheduleRefresh() {
+    let pendingOpenPopoverWarningId = null;
+
+    function scheduleRefresh(options) {
+        const opts = options || {};
+        if (opts.openPopoverForWarningId) {
+            pendingOpenPopoverWarningId = opts.openPopoverForWarningId;
+        }
         if (refreshTimer) {
             clearTimeout(refreshTimer);
         }
         refreshTimer = setTimeout(() => {
             refreshTimer = null;
+            const openId = pendingOpenPopoverWarningId;
+            pendingOpenPopoverWarningId = null;
             invalidateNotificationSnapshot();
             refreshAll();
+            if (openId) {
+                openPopoverForActiveWarning(openId);
+            }
         }, 150);
     }
 
@@ -1059,6 +1079,7 @@
         renderPersistentTabWarnings,
         openNavWarningsPopover,
         openLockBarWarningsPopover,
+        openPopoverForActiveWarning,
         closeNavWarningsPopover,
         dismissNavWarning,
         dismissAllNavWarnings,

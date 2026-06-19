@@ -7,7 +7,7 @@
             'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/cohort-management.js?v=20260612-ui-padding-classroom',
-            'js/setup-board.js?v=20260603-title-rename'
+            'js/setup-board.js?v=20260619-setup-hub'
         ],
         timetable: [
             'js/teacher-timetable.js?v=20260612-timetable-conflicts',
@@ -29,7 +29,7 @@
             'js/roster-import.js?v=20260612-roster-paste-tab',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-roster.js?v=20260612-cohort-ui-tight'
+            'js/classroom-roster.js?v=20260619-term-summary'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -43,11 +43,27 @@
             'js/classroom-header.js?v=20260612-ui-padding-classroom',
             'js/classroom-homework.js?v=20260610-boot-mentions'
         ],
+        ledger: [
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-ledger-bridge.js?v=20260619-ui-overhaul',
+            'js/classroom-ledger.js?v=20260619-ui-overhaul'
+        ],
+        'command-center': [
+            'js/homework-tab.js?v=20260619-ui-overhaul',
+            'js/command-center.js?v=20260619-ui-overhaul'
+        ],
+        'setup-hub': [
+            'js/teacher-timetable.js?v=20260619-setup-hub',
+            'js/meeting-days-control.js?v=20260610-setup-board',
+            'js/cohort-management.js?v=20260612-ui-padding-classroom',
+            'js/setup-board.js?v=20260619-setup-hub',
+            'js/setup-hub.js?v=20260619-setup-hub'
+        ],
         points: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260612-ui-padding-classroom',
-            'js/classroom-points.js?v=20260612-phase2'
+            'js/classroom-point-reasons.js?v=20260618-point-reasons',
+            'js/classroom-points.js?v=20260619-term-summary'
         ],
         tests: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

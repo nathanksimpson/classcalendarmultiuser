@@ -10,6 +10,9 @@
     const POLL_INTERVAL_HIDDEN_MS = 60000;
     const POLL_INTERVAL_MAX_MS = 60000;
     const POLL_BACKOFF_FACTOR = 1.5;
+    const SAVE_RETRY_BASE_MS = 2000;
+    const SAVE_RETRY_MAX_MS = 60000;
+    const SAVE_RETRY_FACTOR = 2;
     const LOCK_DEBUG_STORAGE = 'teamLockDebug';
     const LOCK_DEBUG_LOG_MAX = 100;
     const API_FETCH_TIMEOUT_MS = 30000;
@@ -24,6 +27,10 @@
         pollVisibilityBound: false,
         saving: false,
         pendingGetData: null,
+        saveRetryTimer: null,
+        saveRetryBackoffMs: SAVE_RETRY_BASE_MS,
+        mutationSource: null,
+        queueDrainPending: false,
         readOnly: false,
         canEdit: true,
         canSuggest: false,
@@ -39,7 +46,8 @@
         pendingSuggestions: 0,
         navNotificationActiveDays: 14,
         navNotificationDismissedDays: 3,
-        notificationMeta: {}
+        notificationMeta: {},
+        syncStatus: 'idle'
     };
 
     let handlers = {
@@ -52,7 +60,9 @@
         onDuplicateName: null,
         onSaved: null,
         onPrepareLogout: null,
-        onNotificationMetaLoaded: null
+        onNotificationMetaLoaded: null,
+        onQueueChange: null,
+        onOfflineQueued: null
     };
 
     const lockDebug = {
@@ -368,6 +378,7 @@
     }
 
     function setStatus(status, detail) {
+        state.syncStatus = status || 'idle';
         if (typeof handlers.onStatusChange === 'function') {
             const resolved =
                 status === 'error' && detail ? localizeError(detail) : detail;
@@ -434,11 +445,83 @@
         return merged;
     }
 
+    function getMutationSource() {
+        return state.mutationSource;
+    }
+
+    function getPendingMutations() {
+        const src = getMutationSource();
+        if (!src || typeof src.getMutationQueue !== 'function') {
+            return [];
+        }
+        const queue = src.getMutationQueue();
+        return Array.isArray(queue) ? queue : [];
+    }
+
+    function notifyQueueChange() {
+        const queue = getPendingMutations();
+        if (typeof handlers.onQueueChange === 'function') {
+            handlers.onQueueChange(queue.length);
+        }
+    }
+
+    function clearSaveRetryTimer() {
+        if (state.saveRetryTimer) {
+            clearTimeout(state.saveRetryTimer);
+            state.saveRetryTimer = null;
+        }
+    }
+
+    function scheduleSaveRetry(reason) {
+        clearSaveRetryTimer();
+        if (!getPendingMutations().length) {
+            return;
+        }
+        const delay = state.saveRetryBackoffMs || SAVE_RETRY_BASE_MS;
+        state.saveRetryTimer = setTimeout(async () => {
+            state.saveRetryTimer = null;
+            try {
+                await CalendarSync.saveCalendarMutations({ fromRetry: true });
+                state.saveRetryBackoffMs = SAVE_RETRY_BASE_MS;
+            } catch (err) {
+                if (err && err.queuedOffline) {
+                    return;
+                }
+                state.saveRetryBackoffMs = Math.min(
+                    SAVE_RETRY_MAX_MS,
+                    Math.max(SAVE_RETRY_BASE_MS, delay * SAVE_RETRY_FACTOR)
+                );
+                scheduleSaveRetry(reason || 'retry');
+            }
+        }, delay);
+        debugLog('debug', 'Scheduled save retry', { delay, reason: reason || '' });
+    }
+
+    function mutationsOverlapWithServer(mutations, serverData) {
+        if (typeof global.CCPConflictMerge !== 'undefined' && global.CCPConflictMerge.mutationsOverlap) {
+            return global.CCPConflictMerge.mutationsOverlap(mutations, serverData);
+        }
+        return true;
+    }
+
     const CalendarSync = {
         state,
 
         setHandlers(h) {
             handlers = Object.assign({}, handlers, h || {});
+        },
+
+        setMutationSource(source) {
+            state.mutationSource = source || null;
+            notifyQueueChange();
+        },
+
+        getPendingMutationCount() {
+            return getPendingMutations().length;
+        },
+
+        hasPendingMutations() {
+            return getPendingMutations().length > 0;
         },
 
         getActiveCalendarId() {
@@ -601,7 +684,15 @@
             }
             const fn = state.pendingGetData;
             state.pendingGetData = null;
-            if (!fn || state.readOnly || !CalendarSync.getActiveCalendarId()) {
+            if (!CalendarSync.getActiveCalendarId() || state.readOnly) {
+                return;
+            }
+            if (CalendarSync.hasPendingMutations()) {
+                await CalendarSync.saveCalendarMutations();
+                await CalendarSync.waitForSaveComplete();
+                return;
+            }
+            if (!fn) {
                 return;
             }
             let data;
@@ -808,6 +899,7 @@
             }
             setStatus('saving');
             state.saving = true;
+            let retried409 = false;
             try {
                 const doc = await apiFetch('/calendars/' + encodeURIComponent(id), {
                     method: 'PUT',
@@ -820,7 +912,40 @@
                 }
                 return doc;
             } catch (err) {
+                if (err.status === 409 && err.body && err.body.document && !retried409) {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'post-fix',hypothesisId:'H1-H5',location:'calendar-sync.js:saveClassroomData:409-retry',message:'classroom save revision conflict retry',data:{clientRevision:state.revision,serverRevision:err.body.document.revision,sentRevision:opts.force?null:state.revision,fields:fields?Object.keys(fields):[]},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
+                    retried409 = true;
+                    state.revision = err.body.document.revision;
+                    setStatus('saving');
+                    try {
+                        const retryDoc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                            method: 'PUT',
+                            body: Object.assign({}, body, { revision: state.revision })
+                        });
+                        state.revision = retryDoc.revision || state.revision;
+                        setStatus('saved');
+                        if (typeof handlers.onSaved === 'function') {
+                            handlers.onSaved(retryDoc);
+                        }
+                        return retryDoc;
+                    } catch (retryErr) {
+                        if (retryErr.status === 409 && retryErr.body && retryErr.body.document) {
+                            // #region agent log
+                            fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'post-fix',hypothesisId:'H1-H5',location:'calendar-sync.js:saveClassroomData:409-failed',message:'classroom save revision conflict after retry',data:{clientRevision:state.revision,serverRevision:retryErr.body.document.revision},timestamp:Date.now()})}).catch(()=>{});
+                            // #endregion
+                            setStatus('conflict');
+                            throw retryErr;
+                        }
+                        setStatus('error', retryErr.message);
+                        throw retryErr;
+                    }
+                }
                 if (err.status === 409 && err.body && err.body.document) {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H1-H4',location:'calendar-sync.js:saveClassroomData:409',message:'classroom save revision conflict',data:{clientRevision:state.revision,serverRevision:err.body.document.revision,sentRevision:opts.force?null:state.revision,fields:fields?Object.keys(fields):[],errMessage:err.message},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                     setStatus('conflict');
                     throw err;
                 }
@@ -876,8 +1001,168 @@
                 return doc;
             } catch (err) {
                 if (err.status === 409 && err.body && err.body.document) {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H2-H5',location:'calendar-sync.js:saveDayNotesOnly:409',message:'day notes save revision conflict',data:{clientRevision:state.revision,serverRevision:err.body.document.revision,sentRevision:opts.force?null:state.revision,dayNoteCount:Array.isArray(dayNotes)?dayNotes.length:0,errMessage:err.message},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                     setStatus('conflict');
                     throw err;
+                }
+                setStatus('error', err.message);
+                throw err;
+            } finally {
+                state.saving = false;
+            }
+        },
+
+        async saveCalendarMutations(options) {
+            assertSignedIn();
+            if (isViewAsMode()) {
+                viewAsNotice('View As: change not saved');
+                setStatus('saved');
+                return { simulated: true, revision: state.revision };
+            }
+            if (state.canEdit === false) {
+                const err = new Error('You do not have edit access to this calendar');
+                err.status = 403;
+                throw err;
+            }
+            if (state.readOnly) {
+                const err = new Error(
+                    state.permissionReadOnly
+                        ? 'You do not have edit access to this calendar'
+                        : 'Calendar is locked by another teacher'
+                );
+                err.status = state.permissionReadOnly ? 403 : 423;
+                throw err;
+            }
+            const id = CalendarSync.getActiveCalendarId();
+            if (!id) {
+                throw new Error('No active team calendar');
+            }
+            const mutations = getPendingMutations();
+            if (!mutations.length) {
+                return null;
+            }
+            const opts = options || {};
+            setStatus('saving');
+            state.saving = true;
+            clearSaveRetryTimer();
+            try {
+                const doc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                    method: 'PATCH',
+                    body: {
+                        baseRevision: opts.force ? undefined : state.revision,
+                        mutations,
+                        force: Boolean(opts.force)
+                    }
+                });
+                const src = getMutationSource();
+                if (src && typeof src.flushMutationQueue === 'function') {
+                    src.flushMutationQueue(mutations.length);
+                }
+                if (
+                    typeof global.CCPSessionRestore !== 'undefined' &&
+                    global.CCPSessionRestore.clearOfflineQueue
+                ) {
+                    global.CCPSessionRestore.clearOfflineQueue(id);
+                }
+                state.revision = doc.revision || state.revision;
+                state.saveRetryBackoffMs = SAVE_RETRY_BASE_MS;
+                setStatus('saved');
+                notifyQueueChange();
+                if (typeof handlers.onSaved === 'function') {
+                    handlers.onSaved(doc);
+                }
+                return doc;
+            } catch (err) {
+                if (err.status === 409 && err.body && err.body.document) {
+                    const serverDoc = err.body.document;
+                    const serverData = serverDoc.data || serverDoc;
+                    if (!mutationsOverlapWithServer(mutations, serverData)) {
+                        setStatus('saving');
+                        try {
+                            const retryDoc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                                method: 'PATCH',
+                                body: {
+                                    baseRevision: serverDoc.revision,
+                                    mutations,
+                                    force: Boolean(opts.force)
+                                }
+                            });
+                            const src = getMutationSource();
+                            if (src && typeof src.flushMutationQueue === 'function') {
+                                src.flushMutationQueue(mutations.length);
+                            }
+                            if (
+                                typeof global.CCPSessionRestore !== 'undefined' &&
+                                global.CCPSessionRestore.clearOfflineQueue
+                            ) {
+                                global.CCPSessionRestore.clearOfflineQueue(id);
+                            }
+                            state.revision = retryDoc.revision || state.revision;
+                            state.saveRetryBackoffMs = SAVE_RETRY_BASE_MS;
+                            setStatus('saved');
+                            notifyQueueChange();
+                            if (typeof handlers.onSaved === 'function') {
+                                handlers.onSaved(retryDoc);
+                            }
+                            return retryDoc;
+                        } catch (retryErr) {
+                            if (retryErr.status === 409 && retryErr.body && retryErr.body.document) {
+                                setStatus('conflict');
+                                if (typeof handlers.onConflict === 'function') {
+                                    const localSnapshot =
+                                        typeof global.CCPCalendarMutations !== 'undefined'
+                                            ? global.CCPCalendarMutations.applyCalendarMutations(
+                                                  serverData,
+                                                  mutations
+                                              )
+                                            : serverData;
+                                    await handlers.onConflict(retryErr.body.document, localSnapshot);
+                                }
+                                throw retryErr;
+                            }
+                            throw retryErr;
+                        }
+                    }
+                    setStatus('conflict');
+                    if (typeof handlers.onConflict === 'function') {
+                        const localSnapshot =
+                            typeof global.CCPCalendarMutations !== 'undefined'
+                                ? global.CCPCalendarMutations.applyCalendarMutations(
+                                      serverData,
+                                      mutations
+                                  )
+                                : serverData;
+                        await handlers.onConflict(serverDoc, localSnapshot);
+                    }
+                    throw err;
+                }
+                if (err.status === 423) {
+                    debugLog('error', 'PATCH rejected (423 locked)', err.body);
+                    applyLockFromResponse(
+                        tagLockDebugSource(err.body || { readOnly: true, lock: err.body && err.body.lock }, 'patch423')
+                    );
+                    setStatus('error', err.message);
+                    scheduleSaveRetry('locked');
+                    throw err;
+                }
+                const isNetwork =
+                    !err.status ||
+                    err.status === 0 ||
+                    err.message === 'Failed to fetch' ||
+                    err.message === 'Request timed out';
+                if (isNetwork) {
+                    setStatus('queued');
+                    if (typeof handlers.onOfflineQueued === 'function') {
+                        handlers.onOfflineQueued(getPendingMutations().length);
+                    }
+                    notifyQueueChange();
+                    scheduleSaveRetry('offline');
+                    const queuedErr = new Error(err.message || 'Offline');
+                    queuedErr.queuedOffline = true;
+                    queuedErr.status = err.status;
+                    throw queuedErr;
                 }
                 setStatus('error', err.message);
                 throw err;
@@ -979,16 +1264,23 @@
                 if (!fn || !CalendarSync.getActiveCalendarId() || state.readOnly) {
                     return;
                 }
-                let data;
                 try {
-                    data = fn();
-                } catch (e) {
-                    setStatus('error', e.message);
-                    return;
-                }
-                try {
+                    if (CalendarSync.hasPendingMutations()) {
+                        await CalendarSync.saveCalendarMutations();
+                        return;
+                    }
+                    let data;
+                    try {
+                        data = fn();
+                    } catch (e) {
+                        setStatus('error', e.message);
+                        return;
+                    }
                     await CalendarSync.saveCalendar(data);
                 } catch (err) {
+                    if (err && err.queuedOffline) {
+                        return;
+                    }
                     if (err.status !== 409) {
                         console.error('Team save failed:', err);
                     }
@@ -1112,6 +1404,19 @@
                     const pendingSave = CalendarSync.hasPendingSave();
                     const viewAsSkipReload = isViewAsMode();
                     if (!state.saving && !pendingSave && !viewAsSkipReload) {
+                        if (
+                            CalendarSync.hasPendingMutations() &&
+                            state.holdsLock &&
+                            !state.readOnly
+                        ) {
+                            CalendarSync.saveCalendarMutations().catch((drainErr) => {
+                                if (!drainErr || !drainErr.queuedOffline) {
+                                    debugLog('debug', 'Poll mutation drain failed', {
+                                        message: drainErr && drainErr.message
+                                    });
+                                }
+                            });
+                        }
                         if (meta.revision > state.revision) {
                             state.remoteNewer = true;
                             if (typeof handlers.onRemoteNewer === 'function') {

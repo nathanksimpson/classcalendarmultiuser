@@ -1241,6 +1241,7 @@
             <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagInterested" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagInterested'))}</label>
             </fieldset>
             <div class="form-actions classroom-student-actions">
+            ${student ? `<button type="button" class="btn btn-outline" id="classroomStudentPrintTermSummary">${escapeHtml(t('termSummaryPrintStudent'))}</button>` : ''}
             ${editable && !inArchive ? `<button type="button" class="btn btn-primary" id="classroomStudentSave">${escapeHtml(t('save'))}</button>` : ''}
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentDeactivate">${escapeHtml(student.active ? t('classroomDeactivateStudent') : t('classroomActivateStudent'))}</button>` : ''}
             ${canArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentArchive">${escapeHtml(t('studentArchiveBtn'))}</button>` : ''}
@@ -1251,6 +1252,11 @@
         fillStudentForm(student);
 
         editor.querySelector('#classroomStudentSave')?.addEventListener('click', () => saveStudent(mountEl));
+        editor.querySelector('#classroomStudentPrintTermSummary')?.addEventListener('click', () => {
+            if (student && hooks && typeof hooks.printStudentTermSummary === 'function') {
+                hooks.printStudentTermSummary(student.id);
+            }
+        });
         editor.querySelector('#classroomStudentDeactivate')?.addEventListener('click', () => toggleActive(mountEl));
         editor.querySelector('#classroomStudentArchive')?.addEventListener('click', () => openArchiveModal());
         editor.querySelector('#classroomStudentRestore')?.addEventListener('click', () => openRestoreModal());

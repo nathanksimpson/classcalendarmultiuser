@@ -6,6 +6,7 @@ const { recordActivityForUser } = require('./activity-log');
 const DayNotesAccess = require('./day-notes-access');
 const ClassroomAccess = require('./classroom-access');
 const CalStorage = require('./calendar-storage');
+const CalendarMutations = require('../shared/calendar-mutations.cjs');
 
 function listCalendars() {
     const db = getDb();
@@ -258,6 +259,89 @@ function updateCalendarClassroom(id, payload, revision, editorLabel, user) {
     return { ok: true, document: getCalendar(id) };
 }
 
+function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
+    const validated = CalendarMutations.validateMutations(mutations);
+    if (!validated.ok) {
+        return { ok: false, status: 400, error: validated.error };
+    }
+
+    const db = getDb();
+    const existing = db.prepare('SELECT revision, name FROM calendars WHERE id = ?').get(id);
+    if (!existing) {
+        return { ok: false, status: 404, error: 'Calendar not found' };
+    }
+
+    if (!CalAccess.canEditCalendar(user, id)) {
+        return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
+    }
+
+    const lockState = users.lockStatusForClient(id, user.id, user);
+    const forceAllowed =
+        Boolean(force) &&
+        (Auth.canForceUnlock(user) ||
+            Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
+            lockState.holdsLock);
+    if (lockState.readOnly && !forceAllowed) {
+        return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
+    }
+    const lockRow = users.getLock(id);
+    if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
+        return {
+            ok: false,
+            status: 423,
+            error: 'Calendar is locked by another user',
+            lock: lockState.lock
+        };
+    }
+
+    if (!forceAllowed && baseRevision != null && Number(baseRevision) !== Number(existing.revision)) {
+        return { ok: false, status: 409, document: getCalendar(id) };
+    }
+
+    const existingDoc = getCalendar(id);
+    let mergedData = CalendarMutations.applyCalendarMutations(existingDoc.data, mutations);
+
+    const touchesDayNotes = mutations.some((m) => m && m.entity === 'dayNotes');
+    if (touchesDayNotes) {
+        const prepared = DayNotesAccess.prepareDayNotesForSave(user, existingDoc.data, mergedData.dayNotes);
+        if (prepared.error) {
+            return { ok: false, status: 403, error: prepared.error };
+        }
+        mergedData = Object.assign({}, mergedData, { dayNotes: prepared.dayNotes });
+    }
+
+    const nextRevision = Number(existing.revision) + 1;
+    const now = nowIso();
+    const label = editorLabel || user.displayName || user.email || 'Teacher';
+    const stored = CalStorage.serializeCalendarData(id, mergedData);
+    db.prepare(
+        `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
+    ).run(
+        stored.data,
+        stored.dataEncVersion,
+        stored.dataKeyWrapped,
+        nextRevision,
+        now,
+        label,
+        id
+    );
+
+    const meta = getCalendarMeta(id);
+    recordActivityForUser(user, {
+        action: 'calendar_patch',
+        calendarId: id,
+        calendarName: meta && meta.name,
+        summary: `Patched calendar (${mutations.length} mutation(s), revision ${nextRevision})`,
+        detail: { revision: nextRevision, mutationCount: mutations.length }
+    });
+
+    if (lockState.holdsLock) {
+        users.refreshLock(id, user.id);
+    }
+
+    return { ok: true, document: getCalendar(id) };
+}
+
 function deleteCalendar(id) {
     const db = getDb();
     const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
@@ -276,6 +360,7 @@ module.exports = {
     updateCalendar,
     updateCalendarDayNotes,
     updateCalendarClassroom,
+    patchCalendar,
     deleteCalendar,
     newId
 };

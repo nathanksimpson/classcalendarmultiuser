@@ -7,6 +7,20 @@
     let activePickerDialog = null;
     let activeTitleEdit = null;
 
+    const DEFAULT_BOARD_SCOPE = {
+        panelId: 'panel-cohorts',
+        mwfId: 'setupBoardViewMwf',
+        tthId: 'setupBoardViewTth',
+        searchId: 'cohortsListSearch',
+        mwfBtnId: 'setupBoardViewBtnMwf',
+        tthBtnId: 'setupBoardViewBtnTth',
+        allBtnId: 'setupBoardViewBtnAll'
+    };
+
+    /** @type {Map<string, object>} */
+    const scopeHooksByPanel = new Map();
+    const registeredScopes = [];
+
     const COHORT_DOW = { en: ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], ko: ['', '월', '화', '수', '목', '금'] };
     const TTH_SET = new Set([2, 4]);
 
@@ -105,25 +119,44 @@
         return boardView;
     }
 
+    function getScopeConfig(scopeHooks) {
+        const h = scopeHooks || hooks;
+        if (h && typeof h.getBoardScope === 'function') {
+            return h.getBoardScope();
+        }
+        return DEFAULT_BOARD_SCOPE;
+    }
+
+    function registerScope(scope) {
+        if (!scope || !scope.panelId) {
+            return;
+        }
+        if (!registeredScopes.some((s) => s.panelId === scope.panelId)) {
+            registeredScopes.push(scope);
+        }
+    }
+
     function setActiveBoardView(view) {
         boardView = normalizeBoardView(view);
         ensureUiBoardView();
         persistBoardView();
-        syncViewSwitcherUi();
-        const mwf = document.getElementById('setupBoardViewMwf');
-        const tth = document.getElementById('setupBoardViewTth');
-        if (mwf) {
-            mwf.hidden = boardView === 'tth';
-        }
-        if (tth) {
-            tth.hidden = boardView !== 'tth';
-        }
+        registeredScopes.forEach((scope) => {
+            syncViewSwitcherUiForScope(scope);
+            const mwf = document.getElementById(scope.mwfId);
+            const tth = document.getElementById(scope.tthId);
+            if (mwf) {
+                mwf.hidden = boardView === 'tth';
+            }
+            if (tth) {
+                tth.hidden = boardView !== 'tth';
+            }
+        });
     }
 
-    function syncViewSwitcherUi() {
-        const mwfBtn = document.getElementById('setupBoardViewBtnMwf');
-        const tthBtn = document.getElementById('setupBoardViewBtnTth');
-        const allBtn = document.getElementById('setupBoardViewBtnAll');
+    function syncViewSwitcherUiForScope(scope) {
+        const mwfBtn = document.getElementById(scope.mwfBtnId);
+        const tthBtn = document.getElementById(scope.tthBtnId);
+        const allBtn = document.getElementById(scope.allBtnId);
         if (mwfBtn) {
             mwfBtn.classList.toggle('is-active', boardView === 'mwf');
         }
@@ -133,6 +166,10 @@
         if (allBtn) {
             allBtn.classList.toggle('is-active', boardView === 'all');
         }
+    }
+
+    function syncViewSwitcherUi() {
+        registeredScopes.forEach(syncViewSwitcherUiForScope);
     }
 
     function getDefaultSchedulePatternForNewCohort() {
@@ -334,6 +371,10 @@
         nameBtn.textContent = classDisplayLabel(classData);
         nameBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (typeof hooks.onSelectClass === 'function') {
+                hooks.onSelectClass(classData.id, cohort.id);
+                return;
+            }
             hooks.navigateToTab('classes', { classId: classData.id, host: 'setup' });
         });
         main.appendChild(nameBtn);
@@ -789,24 +830,26 @@
         return 0;
     }
 
-    function ensureBoardDom() {
-        const main = document.querySelector('.setup-board-main');
+    function ensureBoardDom(scope) {
+        const cfg = scope || getScopeConfig();
+        const panel = document.getElementById(cfg.panelId);
+        const main = panel && panel.querySelector('.setup-board-main');
         if (!main) {
             return false;
         }
-        let mwf = document.getElementById('setupBoardViewMwf');
-        let tth = document.getElementById('setupBoardViewTth');
+        let mwf = document.getElementById(cfg.mwfId);
+        let tth = document.getElementById(cfg.tthId);
         if (!mwf || !tth) {
             if (!mwf) {
                 mwf = document.createElement('div');
-                mwf.id = 'setupBoardViewMwf';
+                mwf.id = cfg.mwfId;
                 mwf.className = 'setup-board-canvas';
                 mwf.dataset.boardCanvas = 'mwf';
                 main.appendChild(mwf);
             }
             if (!tth) {
                 tth = document.createElement('div');
-                tth.id = 'setupBoardViewTth';
+                tth.id = cfg.tthId;
                 tth.className = 'setup-board-canvas';
                 tth.dataset.boardCanvas = 'tth';
                 tth.hidden = true;
@@ -816,8 +859,9 @@
         return true;
     }
 
-    function getBoardSearchQuery() {
-        return normalizeStr(document.getElementById('cohortsListSearch')?.value).toLowerCase();
+    function getBoardSearchQuery(scope) {
+        const cfg = scope || getScopeConfig();
+        return normalizeStr(document.getElementById(cfg.searchId)?.value).toLowerCase();
     }
 
     function cohortPassesBoardSearch(cohort, appData, query) {
@@ -886,17 +930,23 @@
         }
     }
 
-    function clearBoardRenderError() {
-        const main = document.querySelector('.setup-board-main');
+    function getBoardMain(scope) {
+        const cfg = scope || getScopeConfig();
+        const panel = document.getElementById(cfg.panelId);
+        return panel ? panel.querySelector('.setup-board-main') : null;
+    }
+
+    function clearBoardRenderError(scope) {
+        const main = getBoardMain(scope);
         const alert = main && main.querySelector('.setup-board-render-error');
         if (alert) {
             alert.remove();
         }
     }
 
-    function showBoardRenderError(err) {
+    function showBoardRenderError(err, scope) {
         console.error('CCPSetupBoard.renderBoard failed:', err);
-        const main = document.querySelector('.setup-board-main');
+        const main = getBoardMain(scope);
         if (!main) {
             return;
         }
@@ -910,19 +960,23 @@
         alert.textContent = t('setupBoardRenderError');
     }
 
-    function renderBoard() {
-        if (!hooks) {
+    function renderBoardForScope(panelId) {
+        const scopeHooks = scopeHooksByPanel.get(panelId) || hooks;
+        if (!scopeHooks) {
             return;
         }
+        const prevHooks = hooks;
+        hooks = scopeHooks;
+        const scope = getScopeConfig(scopeHooks);
         let inferredCount = 0;
         let boardError = null;
         try {
-            const appData = hooks.getAppData();
+            const appData = scopeHooks.getAppData();
             if (!appData) {
                 return;
             }
-            if (!ensureBoardDom()) {
-                showBoardRenderError(new Error('setup board DOM missing — hard refresh (Ctrl+F5)'));
+            if (!ensureBoardDom(scope)) {
+                showBoardRenderError(new Error('setup board DOM missing — hard refresh (Ctrl+F5)'), scope);
                 return;
             }
             inferredCount = syncAllCohortLinksAndInferSchedules();
@@ -936,27 +990,36 @@
         }
         try {
             if (boardView === 'all') {
-                renderCohortCanvas('setupBoardViewMwf', 'all');
-                const tthCanvas = document.getElementById('setupBoardViewTth');
+                renderCohortCanvas(scope.mwfId, 'all');
+                const tthCanvas = document.getElementById(scope.tthId);
                 if (tthCanvas) {
                     tthCanvas.innerHTML = '';
                 }
             } else {
-                renderCohortCanvas('setupBoardViewMwf', 'mwf');
-                renderCohortCanvas('setupBoardViewTth', 'tth');
+                renderCohortCanvas(scope.mwfId, 'mwf');
+                renderCohortCanvas(scope.tthId, 'tth');
             }
         } catch (err) {
             boardError = boardError || err;
             console.error('CCPSetupBoard.renderBoard (cohort canvas) failed:', err);
         }
         if (boardError) {
-            showBoardRenderError(boardError);
+            showBoardRenderError(boardError, scope);
         } else {
-            clearBoardRenderError();
-            if (inferredCount > 0 && hooks.saveData) {
-                hooks.saveData();
+            clearBoardRenderError(scope);
+            if (inferredCount > 0 && scopeHooks.saveData) {
+                scopeHooks.saveData();
             }
         }
+        hooks = prevHooks;
+    }
+
+    function renderBoard() {
+        if (!hooks) {
+            return;
+        }
+        const scope = getScopeConfig();
+        renderBoardForScope(scope.panelId);
     }
 
     function isReady() {
@@ -972,7 +1035,8 @@
         if (active !== 'all') {
             setActiveBoardView(getCohortBoardView(cohort));
         }
-        const canvasKey = getActiveBoardView() === 'tth' ? 'setupBoardViewTth' : 'setupBoardViewMwf';
+        const scope = getScopeConfig();
+        const canvasKey = getActiveBoardView() === 'tth' ? scope.tthId : scope.mwfId;
         const canvas = document.getElementById(canvasKey);
         const el = canvas && canvas.querySelector(`[data-cohort-id="${cohortId}"]`);
         if (el) {
@@ -982,39 +1046,41 @@
         }
     }
 
-    function bindOnce() {
-        if (document.body.dataset.setupBoardBound === '1') {
+    function bindScopeControls(scope) {
+        const panel = document.getElementById(scope.panelId);
+        if (!panel || panel.dataset.setupBoardBound === '1') {
             return;
         }
-        document.body.dataset.setupBoardBound = '1';
-
-        document.getElementById('setupBoardViewBtnMwf')?.addEventListener('click', () => {
+        panel.dataset.setupBoardBound = '1';
+        const rerender = () => renderBoardForScope(scope.panelId);
+        document.getElementById(scope.mwfBtnId)?.addEventListener('click', () => {
             setActiveBoardView('mwf');
-            renderBoard();
+            rerender();
         });
-        document.getElementById('setupBoardViewBtnTth')?.addEventListener('click', () => {
+        document.getElementById(scope.tthBtnId)?.addEventListener('click', () => {
             setActiveBoardView('tth');
-            renderBoard();
+            rerender();
         });
-        document.getElementById('setupBoardViewBtnAll')?.addEventListener('click', () => {
+        document.getElementById(scope.allBtnId)?.addEventListener('click', () => {
             setActiveBoardView('all');
-            renderBoard();
+            rerender();
         });
-        document.getElementById('cohortsListSearch')?.addEventListener('input', () => {
-            renderBoard();
-        });
+        document.getElementById(scope.searchId)?.addEventListener('input', rerender);
     }
 
     function initTab(tabHooks) {
         hooks = tabHooks;
-        bindOnce();
+        const scope = getScopeConfig(tabHooks);
+        registerScope(scope);
+        scopeHooksByPanel.set(scope.panelId, tabHooks);
+        bindScopeControls(scope);
         ensureUiBoardView();
         document.body.dataset.setupBoardInitialized = '1';
-        renderBoard();
+        renderBoardForScope(scope.panelId);
     }
 
     function onCalendarDataChanged() {
-        renderBoard();
+        registeredScopes.forEach((scope) => renderBoardForScope(scope.panelId));
     }
 
     function migrateHomeroomHosts() {
@@ -1050,6 +1116,7 @@
         initTab,
         isReady,
         renderBoard,
+        renderBoardForScope,
         onCalendarDataChanged,
         getCohortBoardView,
         getActiveBoardView,

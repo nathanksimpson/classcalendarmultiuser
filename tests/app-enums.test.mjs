@@ -28,10 +28,10 @@ function loadEnums() {
 }
 
 const E = loadEnums();
-assert(E.CLASS_TYPE_WR_SP_ID === 'builtin-wr-sp', 'WR+SP id');
-assert(E.LESSON_LABEL_MODE.GR_WEEKLY_UNIT === 'grWeeklyUnit', 'lesson label');
-assert(E.COMPRESSION_MODE.MANUAL === 'manual', 'compression manual');
-assert(E.EDITOR_MODE.POPOUT === 'popout', 'editor popout');
-assert(E.SENTINEL.NO_GRADE === '__no_grade__', 'sentinel');
+assert(E.SENTINEL.NO_GRADE === '__no_grade__', 'sentinel no grade');
+assert(E.SENTINEL.NO_LEVEL === '__no_level__', 'sentinel no level');
+assert(E.SENTINEL.NO_TYPE === '__no_type__', 'sentinel no type');
+assert(E.SENTINEL.NO_BOOK === '__no_book__', 'sentinel no book');
+assert(E.SENTINEL.NO_TEACHER === '__no_teacher__', 'sentinel no teacher');
 
 console.log('app-enums.test.mjs: all passed');

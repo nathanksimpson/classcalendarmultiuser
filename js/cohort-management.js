@@ -476,6 +476,9 @@
             appData.ui = {};
         }
         appData.ui.cohortsTabSelectedId = selectedCohortId || '';
+        if (typeof global.CCPActiveContext !== 'undefined') {
+            global.CCPActiveContext.set({ cohortId: selectedCohortId || '' }, { source: 'cohort-board' });
+        }
     }
 
     function loadSelectedCohortIdFromUi() {
