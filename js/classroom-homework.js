@@ -109,9 +109,15 @@
         }
         global.CCPClassroomHeader.setMode('homework');
         const data = getAppData();
-        const classes = (data.classes || []).filter(
+        let classes = (data.classes || []).filter(
             (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
         );
+        if (global.CCPCohortSidebarFilter) {
+            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
+                classes,
+                global.CCPCohortSidebarFilter.getActiveCohortId()
+            );
+        }
         global.CCPClassroomHeader.render(
             headerMount,
             {

@@ -113,12 +113,20 @@
     }
 
     function showNotesStatus(ok, message) {
-        const el = document.getElementById('notesStatus');
-        if (!el) {
+        if (!message) {
             return;
         }
-        if (!message) {
-            el.hidden = true;
+        if (window.CCPNotice && window.CCPNotice.show) {
+            window.CCPNotice.show(message, {
+                type: ok ? 'success' : 'error',
+                duration: ok ? 2800 : 0,
+                dismissible: !ok,
+                force: true
+            });
+            return;
+        }
+        const el = document.getElementById('notesStatus');
+        if (!el) {
             return;
         }
         el.hidden = false;

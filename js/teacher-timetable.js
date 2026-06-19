@@ -1619,6 +1619,150 @@
         };
     }
 
+    function getClassesForCohortSchedule(appData, cohortId) {
+        const cohort = (appData.cohorts || []).find((c) => c && c.id === cohortId);
+        if (!cohort) {
+            return { items: [], cohort: null };
+        }
+        const classIdSet = new Set(getCohortClassIds(appData, cohort));
+        const items = [];
+        (appData.classes || []).forEach((classData) => {
+            if (!classIdSet.has(classData.id)) {
+                return;
+            }
+            const teachers = getClassTeachersList(classData);
+            if (!teachers.length) {
+                items.push({ classData, teacherRow: normalizeTeacherRow({}) });
+                return;
+            }
+            teachers.forEach((row) => {
+                items.push({ classData, teacherRow: normalizeTeacherRow(row) });
+            });
+        });
+        return { items, cohort };
+    }
+
+    function buildCohortWeeklyGrid(appData, cohortId, options) {
+        options = options || {};
+        const lang = options.lang === 'ko' ? 'ko' : 'en';
+        const packed = getClassesForCohortSchedule(appData, cohortId);
+        const scheduleItems = packed.items;
+        const cohort = packed.cohort;
+        if (!cohort) {
+            return null;
+        }
+        const timeSlots = getSortedTimeSlots(appData);
+        const slotById = {};
+        timeSlots.forEach((s) => {
+            slotById[s.id] = s;
+        });
+        const classesById = {};
+        (appData.classes || []).forEach((c) => {
+            classesById[c.id] = c;
+        });
+        const blocks = {
+            primary: buildEmptyGrid(timeSlots, 'primary'),
+            secondary: buildEmptyGrid(timeSlots, 'secondary')
+        };
+        const cohortsById = {};
+        (appData.cohorts || []).forEach((c) => {
+            cohortsById[c.id] = c;
+        });
+        scheduleItems.forEach(({ classData, teacherRow }) => {
+            const rowNorm = normalizeTeacherRow(teacherRow);
+            const blockKey = rowNorm.scheduleBlock === 'secondary'
+                ? 'secondary'
+                : (rowNorm.scheduleBlock === 'primary'
+                    ? 'primary'
+                    : (classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary'));
+            const block = blocks[blockKey];
+            const category = rowNorm.category || deriveTeacherCategory(classData);
+            const homeroomLabel = resolveHomeroomLabel(classData, cohortsById, appData);
+            const placements = getTeacherTimetablePlacements(classData, rowNorm, appData);
+            const color = normalizeStr(classData.color) || '#6366f1';
+            const textColor = normalizeStr(classData.textColor) || '';
+            placements.forEach((pl) => {
+                const slotId = pl.timeSlotId;
+                if (!slotId || !slotById[slotId]) {
+                    return;
+                }
+                const gridRow = block.rows.find((r) => r.timeSlotId === slotId);
+                if (!gridRow) {
+                    return;
+                }
+                const cell = gridRow.cells.find((c) => c.dow === pl.dow);
+                if (!cell) {
+                    return;
+                }
+                const cohortIds = getClassCohortIds(classData);
+                const cohortSuffix = cohortIds.length > 1
+                    ? formatCohortNamesForClass(classData, cohortsById, { maxLen: 28 })
+                    : '';
+                let displayName = classData.name || '';
+                let label = category ? `${displayName}\n(${category})` : displayName;
+                if (cohortSuffix) {
+                    label = `${displayName}\n(${cohortSuffix})`;
+                    if (category) {
+                        label += `\n(${category})`;
+                    }
+                }
+                const teacherName = normalizeStr(rowNorm.name || rowNorm.displayName);
+                if (teacherName) {
+                    label += `\n${teacherName}`;
+                }
+                cell.entries.push({
+                    classId: classData.id,
+                    className: displayName,
+                    category,
+                    homeroomLabel,
+                    color,
+                    textColor,
+                    cohortIds: cohortIds.slice(),
+                    combinedCohorts: cohortSuffix,
+                    label
+                });
+            });
+        });
+        Object.keys(blocks).forEach((blockKey) => {
+            const block = blocks[blockKey];
+            block.rows.forEach((row) => {
+                const slot = slotById[row.timeSlotId];
+                row.timeLabel = formatTimeSlotLabel(slot, lang);
+                row.cells.forEach((cell) => {
+                    cell.conflict = cell.entries.length > 1;
+                });
+            });
+        });
+        const resultBlocks = [];
+        function itemUsesBlock(item, blockId) {
+            const rowNorm = normalizeTeacherRow(item.teacherRow);
+            if (rowNorm.scheduleBlock === blockId) {
+                return true;
+            }
+            if (rowNorm.scheduleBlock) {
+                return false;
+            }
+            const onClass = item.classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary';
+            return onClass === blockId;
+        }
+        if (scheduleItems.some((item) => itemUsesBlock(item, 'primary'))) {
+            resultBlocks.push(blocks.primary);
+        }
+        if (scheduleItems.some((item) => itemUsesBlock(item, 'secondary'))) {
+            resultBlocks.push(blocks.secondary);
+        }
+        const hasConflicts = resultBlocks.some((b) =>
+            b.rows.some((r) => r.cells.some((c) => c.conflict))
+        );
+        return {
+            cohortId: cohort.id,
+            cohortName: cohort.name || '',
+            blocks: resultBlocks,
+            hasConflicts,
+            assignedClassCount: new Set(scheduleItems.map((i) => i.classData.id)).size
+        };
+    }
+
     function extractTeacherDoubleBookFromGrid(grid, appData, teacherName, lang) {
         const slotById = {};
         getSortedTimeSlots(appData).forEach((s) => {
@@ -1901,6 +2045,8 @@
         inferBlankCohortSchedules,
         patternBucketForFilter,
         buildTeacherWeeklyGrid,
+        buildCohortWeeklyGrid,
+        getClassesForCohortSchedule,
         collectTeacherTimetableConflicts,
         getPeriodNumberForTimeSlot,
         teacherKeyFromSelector,

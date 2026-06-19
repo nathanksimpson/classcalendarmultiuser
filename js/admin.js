@@ -91,7 +91,6 @@ async function api(path, options) {
     return json;
 }
 
-let adminNoticeTimer = null;
 let resetPasswordTargetId = null;
 let editUserTargetId = null;
 let editUserTriggerEl = null;
@@ -561,26 +560,15 @@ function setSessionStatus(msg, loading) {
 }
 
 function showAdminSaveNotice(msg, isError) {
-    const el = document.getElementById('adminNotice');
-    if (!el || !msg) {
+    if (!msg || !window.CCPNotice || !window.CCPNotice.show) {
         return;
     }
-    if (adminNoticeTimer) {
-        clearTimeout(adminNoticeTimer);
-        adminNoticeTimer = null;
-    }
-    el.textContent = msg;
-    el.hidden = false;
-    el.className =
-        'admin-notice admin-notice--visible ' + (isError ? 'admin-notice--error' : 'admin-notice--success');
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    if (!isError) {
-        adminNoticeTimer = setTimeout(() => {
-            el.hidden = true;
-            el.className = 'admin-notice';
-            adminNoticeTimer = null;
-        }, 6000);
-    }
+    window.CCPNotice.show(msg, {
+        type: isError ? 'error' : 'success',
+        duration: isError ? 0 : 6000,
+        dismissible: true,
+        force: true
+    });
 }
 
 function showAuthError(msg) {

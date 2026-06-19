@@ -32,7 +32,9 @@ Tokens live in [`styles.css`](styles.css) `:root` (Simple Design System + 8px gr
 | `--border-color` | Default borders |
 | `--accent`, `--accent-muted` | Selected chips, highlights |
 
-Semantic status/banner tokens: `--status-success-*`, `--status-error-*`, `--banner-warn-*`, `--banner-error-*`, `--banner-info-*`, `--lock-status-*`.
+Semantic status/banner tokens: `--status-success-*`, `--status-error-*`, `--banner-warn-*`, `--banner-error-*`, `--banner-info-*`, `--banner-view-as-*`, `--lock-status-*`.
+
+On-color text (buttons on tinted surfaces): `--text-on-primary`, `--text-on-danger`.
 
 ### Spacing (8px grid)
 
@@ -48,7 +50,46 @@ Semantic status/banner tokens: `--status-success-*`, `--status-error-*`, `--bann
 
 Padding aliases: `--pad-control-y`, `--pad-control-x`, `--pad-surface`, `--pad-overlay`, `--pad-popover`, `--pad-popover-body`.
 
-Z-index aliases: `--z-context-menu`, `--z-popover`, `--z-tab-warnings`, `--z-modal`, `--z-header-popover`.
+### Z-index ladder
+
+Use `--z-*` tokens only — no raw integers in new CSS.
+
+| Token | Value | Typical use |
+|-------|-------|-------------|
+| `--z-base` | 0 | Default stacking |
+| `--z-above-base` | 1 | Active segment, sticky cell overlay |
+| `--z-sticky-cell` | 2 | Sticky row/column cells |
+| `--z-sticky-header` | 3 | Sticky table/modal headers |
+| `--z-local-overlay` | 10 | Minor local overlays |
+| `--z-dropdown` | 100 | Dropdowns, scroll overlays |
+| `--z-sticky-chrome` | 200 | `.app-top-bar`, sticky toolbars |
+| `--z-dock` | 500 | Visibility dock, floating panels |
+| `--z-popover` | 650 | Fixed popovers |
+| `--z-banner` | 800 | Tab-warnings layer (legacy `--z-tab-warnings`) |
+| `--z-modal` | 1100 | Modals, game overlays |
+| `--z-modal-popover` | 1200 | Header-fixed popovers, notice rail |
+| `--z-toast` | 1300 | `.sync-toast` |
+| `--z-view-as` | 1400 | `.view-as-banner` |
+| `--z-critical` | 1500 | `.team-idle-warning-banner` |
+
+Legacy aliases (still valid): `--z-context-menu` → `--z-dock`, `--z-header-popover` → `--z-modal-popover`.
+
+**Stacking order (top → bottom):** critical banner → view-as → toast → modal popover → modal → chrome.
+
+### Safe areas (iOS / iPad)
+
+Root aliases (desktop insets are `0`):
+
+| Token | Maps to |
+|-------|---------|
+| `--safe-top` | `env(safe-area-inset-top, 0px)` |
+| `--safe-right` | `env(safe-area-inset-right, 0px)` |
+| `--safe-bottom` | `env(safe-area-inset-bottom, 0px)` |
+| `--safe-left` | `env(safe-area-inset-left, 0px)` |
+
+**Pattern:** per-chrome `max(var(--space-*), var(--safe-*))` on fixed/sticky chrome — not `html` padding. Examples: `.app-top-bar`, `.view-as-banner`, `.sync-toast`, `.app-notice-rail`, modal/bottom-sheet footers.
+
+All main HTML entry points use `viewport-fit=cover`.
 
 Layout: `--app-gutter`, `--split-sidebar-min` / `--split-sidebar-max`, `--editor-prose-max`.
 
@@ -64,7 +105,7 @@ Font: `--font-main` (Inter + Korean fallbacks on `body`). Monospace: `--font-mon
 
 ### Radii and shadows
 
-`--radius-sm` (4px), `--radius-md` (8px), `--radius-lg` (16px), `--radius-full`.
+`--radius-sm` (4px), `--radius-md` (8px), `--radius-lg` (16px), `--radius-card` (10px), `--radius-full`.
 
 `--shadow-sm`, `--shadow-md`, `--shadow-lg`, `--shadow-dialog`.
 
@@ -87,9 +128,19 @@ Use these in `@media` — **not** ad-hoc pixel values:
 | Phone | ≤640px | `phone` | `isViewportPhone()` / `VIEWPORT_BP_PHONE` |
 | Small tablet | 641–900px | `tablet-sm` | `matchMedia('(max-width: 900px)')` |
 | Tablet | 901–1024px | `tablet` | `isViewportTabletOrBelow()` |
-| Desktop | >1024px | (unset) | default |
+| Desktop | >1024px | `desktop` | default |
 
-Touch targets: `--touch-min` (44px) on primary controls at `max-width: var(--bp-md)`.
+Touch targets: `--touch-min` (44px) on `.btn`, `.btn-small`, `.btn-sm`, `.btn-compact`, and `.app-top-bar-toggle` when `html[data-viewport]` is `phone`, `tablet-sm`, or `tablet` (≤1024px). Desktop (>1024px) keeps compact 36px controls. Optional utility: `.touch-target`.
+
+**Scroll:** `body { overscroll-behavior: none }` on the shell; inner panels use `.scroll-region` or `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`.
+
+### Dark mode exceptions
+
+Do not token-swap these when auditing dark theme:
+
+- `@media print` rules (may need `#000` borders)
+- Syllabus A4 on-screen preview paper (`background: #fff` on `.syllabus-a4-sheet`)
+- `mask-image` gradient stops using `#000` (not a surface color)
 
 ---
 
@@ -153,11 +204,27 @@ Print modals: wrap forms in `.print-form-mount` inside `.modal-body-scroll`.
 
 Register open/close/focus via `CCPModalRegistry` in `app.js`. Admin modals: `bindAdminModalA11y` in `js/admin.js`.
 
-Z-index: `--z-modal` (1000). Tab warnings popover uses `--z-tab-warnings` (950) so it stays below modals.
+Z-index: `--z-modal` (1100). Tab warnings popover uses `--z-tab-warnings` (alias of `--z-banner`, 800) so it stays below modals. Toasts use `--z-toast` (1300).
 
 ### Notices and status
 
-Satellite pages and shared chrome: `CCPPageChrome` / `CCPNotice` in [`js/page-chrome.js`](js/page-chrome.js).
+Unified notification model (June 2026):
+
+| Lane | API / module | Use for |
+|------|----------------|---------|
+| Transient toast rail | `CCPNotice.show()` in [`js/page-chrome.js`](js/page-chrome.js) | Save/sync feedback, lock flashes, copy status |
+| Actionable inbox | `CCPTabWarnings` + header bell (`#tabWarningsPopover`) | Dismissible setup warnings, schedule gaps, curriculum CTA |
+| Mode / alert chrome | `#viewAsBanner`, `#openFromDriveBanner` | Global mode or file-protocol alert — not toasts |
+| Operational | `#teamLockStatus`, `#teamSyncStatus` | Live lock state, connection/saving pill |
+| Contextual inline | `.schedule-adjustment-bar-notification`, `.section-hint` | Hints beside the control they describe |
+
+**Toast rail:** `#appNoticeRail` on every page shell. Types: `success`, `error`, `info`, `lock`, `sync`. Optional dismiss (×); errors may persist until dismissed.
+
+**Facades:** `showSyncToast()`, `setAppStatusMessage()` in `app.js` delegate to `CCPNotice`.
+
+**Bell inbox:** setup checklist, setup guide, curriculum-updated CTA, term-not-set, class warnings, sync remote-newer. Dismiss persists via `navNotificationMeta` / `UI_NOTIFICATION_IDS`. Pending curriculum syllabi update **auto-opens** the bell popover on save and on reload while still active.
+
+Satellite pages load `page-chrome.js` and use the same rail (notes, admin, login, pending-access).
 
 Use existing banner/status token classes rather than inventing new alert colors.
 
@@ -166,6 +233,8 @@ Use existing banner/status token classes rather than inventing new alert colors.
 Calendar term settings: `#calendarOptions` with `.term-settings-header` and `.calendar-options-details` (collapse is calendar-only; does not hide lock UI).
 
 Top app chrome: zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`) in `.app-header-unified`, plus `.app-top-bar` lock/banner stack.
+
+**Narrow widths:** zone row (`.app-zone-nav`) and segment row (`.app-zone-segment-panel`) stay on one line with horizontal scroll when tabs do not fit. Edge fade hints (`data-scrollable`, `data-scroll-start`, `data-scroll-end`) appear only when content is off-screen. Active tab scrolls into view on navigation. The **More** zone holds admin **Data** only — segment tabs are never reparented there.
 
 ### Accessibility
 
@@ -206,10 +275,11 @@ name → colors → curriculum → term dates → period/level/grade → total l
 
 ## Mobile UX rules
 
-- Setup host hidden on phone (`syncSetupTabsVisibility`); `mobileSetupLimitedBanner` if user lands on setup tabs.
+- Zone and segment rows scroll horizontally when tabs do not fit; edge fades indicate off-screen tabs (`syncZoneNavScrollAffordance` in `app.js`).
+- `mobileSetupLimitedBanner` still shows if a user lands on setup-only tabs without host access.
 - Notes tab on phone redirects to `notes.html`; tab label becomes “Day notes”.
 - Calendar defaults to agenda on phone; Month segment hidden when `data-calendar-view="agenda"`.
-- New controls at phone/tablet widths: meet `--touch-min` (44px) minimum.
+- New controls at phone/tablet widths (`data-viewport` ≤ tablet): meet `--touch-min` (44px) minimum; desktop stays compact.
 
 ---
 

@@ -9,6 +9,7 @@
     const LEGACY_ACTIVE = 'teamCalendarActiveId';
     const MIGRATE_FLAG_PREFIX = 'ccpSessionMigrated:';
     const SESSION_VERSION = 1;
+    const QUEUE_PREFIX = 'classCalendarQueue:';
 
     function isFileProtocol() {
         return typeof location !== 'undefined' && location.protocol === 'file:';
@@ -364,6 +365,49 @@
         return true;
     }
 
+    function queueKey(calendarId) {
+        return QUEUE_PREFIX + String(calendarId || '');
+    }
+
+    function saveOfflineQueue(calendarId, queueArray) {
+        if (isFileProtocol() || isViewAsSkip() || !calendarId) {
+            return;
+        }
+        try {
+            const arr = Array.isArray(queueArray) ? queueArray : [];
+            localStorage.setItem(queueKey(calendarId), JSON.stringify(arr));
+        } catch (_) {
+            /* ignore quota / private mode */
+        }
+    }
+
+    function loadOfflineQueue(calendarId) {
+        if (isFileProtocol() || !calendarId) {
+            return [];
+        }
+        try {
+            const raw = localStorage.getItem(queueKey(calendarId));
+            if (!raw) {
+                return [];
+            }
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function clearOfflineQueue(calendarId) {
+        if (isFileProtocol() || !calendarId) {
+            return;
+        }
+        try {
+            localStorage.removeItem(queueKey(calendarId));
+        } catch (_) {
+            /* ignore */
+        }
+    }
+
     global.CCPSessionRestore = {
         getSessionUserId,
         getUiStorageKey,
@@ -386,7 +430,10 @@
         getNotesSession,
         onUserAuthenticated,
         maybeRestoreLastPath,
-        isViewAsSkip
+        isViewAsSkip,
+        saveOfflineQueue,
+        loadOfflineQueue,
+        clearOfflineQueue
     };
 
     initSessionTracking();

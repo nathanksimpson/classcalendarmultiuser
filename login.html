@@ -6,7 +6,7 @@
     <title>Sign in — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260607-ui-unify">
+    <link rel="stylesheet" href="styles.css?v=20260619-ui-standards">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -202,6 +202,7 @@
     </style>
 </head>
 <body>
+    <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
     <div class="login-theme-bar">
         <button
             type="button"
@@ -268,12 +269,13 @@
                     <input type="hidden" name="return" id="passwordReturn" value="/">
                     <input type="hidden" name="device" id="passwordDevice" value="personal">
                 </form>
-                <p id="loginError" class="login-error" style="display: none;"></p>
+                <p id="loginError" class="login-error visually-hidden" style="display: none;" aria-hidden="true"></p>
                 <p id="loginBootstrapHint" class="login-kakao-hint" style="display: none;"></p>
             </div>
 
         </div>
     </div>
+    <script src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script>
         (function () {
             const LANG_KEY = 'calendarLanguage';
@@ -679,17 +681,33 @@
                 })
                 .catch(function () { /* offline / file URL */ });
 
-            if (params.get('signedOut') === 'idle') {
+            function showLoginNotice(message, isError) {
+                if (!message) {
+                    return;
+                }
+                if (window.CCPNotice && window.CCPNotice.show) {
+                    window.CCPNotice.show(message, {
+                        type: isError ? 'error' : 'info',
+                        duration: isError ? 0 : 8000,
+                        dismissible: true,
+                        force: true
+                    });
+                    return;
+                }
                 const el = document.getElementById('loginError');
-                el.style.display = 'block';
-                el.textContent = tLogin('idleSignedOut');
+                if (el) {
+                    el.style.display = 'block';
+                    el.textContent = message;
+                }
+            }
+
+            if (params.get('signedOut') === 'idle') {
+                showLoginNotice(tLogin('idleSignedOut'), true);
             }
 
             const err = params.get('error');
             if (err) {
-                const el = document.getElementById('loginError');
-                el.style.display = 'block';
-                el.textContent = errorMessage(err);
+                showLoginNotice(errorMessage(err), true);
             }
 
             const passwordForm = document.getElementById('loginForm') || document.getElementById('passwordForm');

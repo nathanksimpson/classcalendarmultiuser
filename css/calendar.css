@@ -113,7 +113,7 @@
 .calendar-visibility-dock {
     position: sticky;
     top: var(--app-chrome-sticky-top, 72px);
-    z-index: 120;
+    z-index: var(--z-dropdown);
     margin: 0 0 12px;
     padding: 0.5rem 0.65rem;
     background: var(--top-bar-bg);
@@ -249,6 +249,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
 
@@ -307,7 +308,7 @@
 }
 
 .day-note-mention-wrap .day-note-mention-dropdown {
-    z-index: 1200;
+    z-index: var(--z-modal-popover);
 }
 
 .day-note-mention-dropdown .autocomplete-item {
@@ -539,7 +540,7 @@
 
 .header-fixed-popover {
     position: fixed;
-    z-index: 650;
+    z-index: var(--z-popover);
     max-width: min(16rem, calc(100vw - 24px));
     top: 0;
     left: 0;
@@ -551,7 +552,7 @@
 
 .lesson-filter-popover {
     position: fixed;
-    z-index: 650;
+    z-index: var(--z-popover);
     max-width: min(460px, calc(100vw - 24px));
     overflow: visible;
 }
@@ -590,6 +591,8 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 0 var(--pad-surface) var(--pad-control-x-lg);
 }
 
@@ -697,7 +700,7 @@
 }
 
 .event-applicability-popover {
-    z-index: 1100;
+    z-index: var(--z-modal);
 }
 
 .event-applicability-filter-row {
@@ -886,7 +889,7 @@
 }
 
 .default-class-editor-modal {
-    z-index: 1100;
+    z-index: var(--z-modal);
 }
 
 #defaultClassEditorModal .modal-content {
@@ -1084,7 +1087,7 @@
     color: var(--text-primary);
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: var(--z-above-base);
     font-size: 0.8125rem;
     font-weight: 600;
     text-transform: none;
@@ -1341,7 +1344,7 @@ body:has(#panel-calendar:not([hidden])) {
     flex-shrink: 0;
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: var(--z-sticky-cell);
     background: var(--bg-card);
 }
 
@@ -1357,12 +1360,16 @@ body:has(#panel-calendar:not([hidden])) {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 #calendarContainer .calendar-day .calendar-event-chips {
     flex-shrink: 0;
     max-height: 35%;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 #calendarContainer .month-header {
@@ -1390,11 +1397,11 @@ body:has(#panel-calendar:not([hidden])) {
 .month-header {
     position: sticky;
     top: var(--calendar-month-sticky-top);
-    z-index: 40;
+    z-index: var(--z-local-overlay);
     flex-shrink: 0;
     padding: 16px 20px;
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
+    color: var(--text-on-primary);
     border-radius: var(--border-radius) var(--border-radius) 0 0;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
 }

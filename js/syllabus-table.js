@@ -203,6 +203,9 @@
     }
 
     function resolvePrintGeneralNotes(classData, labels) {
+        if (labels && labels.studentSyllabus === true) {
+            return '';
+        }
         const fromClass = classData && String(classData.syllabusGeneralNotes || '').trim();
         if (fromClass) {
             return fromClass;
@@ -837,6 +840,29 @@
         });
     }
 
+    /**
+     * Debate book-period print: keep dated rows within [rangeStartDate, rangeEndDate].
+     * Drops editor notes, overflow intros, and undated skipped/unscheduled rows.
+     */
+    function filterRowsForDebatePeriod(rows, rangeStartDate, rangeEndDate) {
+        const start = String(rangeStartDate || '');
+        const end = String(rangeEndDate || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+            return [];
+        }
+        return (rows || []).filter((row) => {
+            const kind = row.kind || 'lesson';
+            if (kind === 'note' || row.overflowIntro === true) {
+                return false;
+            }
+            if (!row.date) {
+                return false;
+            }
+            const d = row.date;
+            return d >= start && d <= end;
+        });
+    }
+
     function normalizeRows(rows) {
         return (rows || []).map(r => ({
             id: r.id || newRowId(),
@@ -1321,6 +1347,7 @@
         const L = labels || {};
         const pdfLayout = L.pdfLayout === true;
         const jindoLayout = pdfLayout && isJindoPdfLayout(L);
+        const studentLayout = jindoLayout && L.studentSyllabus === true;
         const printRows = pdfLayout ? filterRowsForPdfPrint(rows) : rows;
         const normalized = normalizeRows(printRows);
         const useFullMonth = !pdfLayout;
@@ -1328,7 +1355,9 @@
         const merge = jindoLayout
             ? computeJindoCellMerges(normalized, L)
             : computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
-        const jindoNotesHtml = jindoLayout ? buildPrintNotesColumnHtml(L.generalNotes) : '';
+        const jindoNotesHtml = jindoLayout && !studentLayout
+            ? buildPrintNotesColumnHtml(L.generalNotes)
+            : '';
 
         let headerBlock = '';
         if (L.generalNotes && !pdfLayout) {
@@ -1359,8 +1388,9 @@
             pdfLayout ? 'syllabus-table-pdf' : '',
             jindoLayout ? 'syllabus-table-jindo syllabus-table-jindo-main' : ''
         ].filter(Boolean).join(' ');
+        const gridStudentClass = studentLayout ? ' syllabus-jindo-print-grid--student' : '';
         const gridOpen = pdfLayout && jindoLayout
-            ? '<div class="syllabus-jindo-print-grid">'
+            ? `<div class="syllabus-jindo-print-grid${gridStudentClass}">`
             : '';
         const gridClose = pdfLayout && jindoLayout ? '</div>' : '';
         let html = `${headerBlock}${gridOpen}<table class="${tableClass}">`;
@@ -1439,7 +1469,7 @@
         });
 
         html += '</tbody></table>';
-        if (pdfLayout && jindoLayout) {
+        if (pdfLayout && jindoLayout && !studentLayout) {
             html += renderJindoNotesSideTableHtml(L.colNote || 'Note', jindoNotesHtml);
         }
         html += gridClose;
@@ -1604,6 +1634,11 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
   width: ${SYLLABUS_JINDO_MAIN_GRID_WIDTH};
   max-width: ${SYLLABUS_JINDO_MAIN_GRID_WIDTH};
   min-width: 0;
+}
+.syllabus-jindo-print-grid--student .syllabus-table-jindo-main {
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 100%;
 }
 .syllabus-jindo-print-grid .syllabus-table-jindo-notes {
   flex: 0 0 ${SYLLABUS_JINDO_NOTES_COL_WIDTH};
@@ -2604,6 +2639,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         planDetailFromUnitRange,
         mergeSyllabusRows,
         filterRowsForPdfPrint,
+        filterRowsForDebatePeriod,
         normalizeRows,
         formatSyllabusShortDate,
         computeSyllabusCellMerges,

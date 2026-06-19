@@ -48,13 +48,13 @@ Timestamped notes about what happened in class on a given calendar day. Entered 
 | `authorUserId` | string | Optional. Team user id of the teacher who created the note; stamped on save. Co-teachers may read all notes for a class/day but only edit or delete their own (admins with calendar-access management may bypass). Entries without this field are legacy (editable by admins only). |
 | `homeroomNotifyUserId` | string | Optional. When a co-teacher saves a new note, the app stamps the cohort/class 담임 user id so the homeroom teacher gets an in-app bell notification. Omitted when the author is the homeroom teacher or no 담임 is linked. |
 | `taggedStudentIds` | string[] | Optional. Stable student ids mentioned in the note via `@` tags (e.g. `@홍길동`). Derived from note text on save; used for search, highlighted display, and student profile timeline. |
-| `categoryId` | string | Note category. Default `class-notes`. Built-in: `class-notes`, `parent-consult`, `next-class-notes`. Custom ids from `dayNoteCategories[]`. |
+| `categoryId` | string | Note category. Default `class-notes`. Built-in: `class-notes`, `parent-consult`, `next-class-notes`, `class-points` (auto-synced from Points tab). Custom ids from `dayNoteCategories[]`. |
 
 **Not the same as** `classes[].notes` (static class memo in the class editor).
 
 ### `dayNoteCategories[]` (optional)
 
-User-defined day note categories for this calendar. Built-in categories (`class-notes`, `parent-consult`, `next-class-notes`) are always available and are not stored here.
+User-defined day note categories for this calendar. Built-in categories (`class-notes`, `parent-consult`, `next-class-notes`, `class-points`) are always available and are not stored here.
 
 | Field | Type | Notes |
 |-------|------|--------|
@@ -283,6 +283,40 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `bgColor`, `textColor` | string | |
 
 If no targeting filters are set, the event applies to all classes.
+
+## Team sync PATCH mutations (API)
+
+`PATCH /api/calendars/:id` accepts `{ "baseRevision": number, "mutations": [...] }`. Empty `mutations` returns **400**. Stale `baseRevision` returns **409** with `{ conflict: true, document }` (same as PUT).
+
+Each mutation:
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `entity` | string | `classes`, `events`, or `dayNotes` |
+| `action` | string | `upsert`, `remove`, or `mutate` (dayNotes only) |
+| `payload` | object | Entity-specific partial data |
+| `timestamp` | number | Optional client ms timestamp |
+
+**classes:** `upsert` → `{ class: { id, ... } }`; `remove` → `{ classId }`
+
+**events:** `upsert` → `{ event: { id, ... } }`; `remove` → `{ eventId }`
+
+**dayNotes:** `mutate` → `{ op: "upsert", note: {...} }` or `{ op: "remove", noteId }`
+
+Offline queue key: `classCalendarQueue:` + calendar id in `localStorage` (via `CCPSessionRestore`).
+
+## Planned admin scheduling fields (UI organization overhaul — deferred)
+
+These optional top-level fields are reserved for Setup Hub / auto-scheduler work; calendars without them load normally.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `teacherTeachingProfiles[]` | array | Per `userId`: `teacherProfilePreset`, `categories` map (`prefer` / `avoid` / `never` / `neutral`) |
+| `teacherAvailability[]` | array | Optional hard windows (schema TBD) |
+| `scheduleOptimizerPrefs` | object | `version`, `weights`, `thresholds`, `strategy` for break/load optimizer |
+| `rooms[]` | array | `{ id, name, capacity?, notes? }` room catalog |
+| `classes[].roomId` | string | Default room for class (combined `cohortIds[]` share one class → one room) |
+| `classes[].roomIdByWeekday` | object | Optional `{ "1": roomId, ... }` weekday overrides |
 
 ## Migration
 

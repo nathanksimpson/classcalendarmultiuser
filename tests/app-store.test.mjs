@@ -49,6 +49,12 @@ const appStore = store.createAppStore(appData);
     assert(appStore.getState().events.length === 1, 'events/upsert');
     appStore.dispatch({ type: 'events/remove', id: 'e1' });
     assert(appStore.getState().events.length === 0, 'events/remove');
+
+    appStore.setMutationCalendarId('cal-test');
+    appStore.dispatch({ type: 'classes/upsert', classData: { id: 'c2', name: 'Queued' } });
+    assert(appStore.getMutationQueue().length === 1, 'mutation enqueued');
+    appStore.flushMutationQueue(1);
+    assert(appStore.getMutationQueue().length === 0, 'mutation flushed');
 }
 
 console.log('app-store.test.mjs: all passed');

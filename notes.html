@@ -7,12 +7,13 @@
     <title>Class day notes — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260612-chrome-notes-input">
+    <link rel="stylesheet" href="styles.css?v=20260619-ui-standards">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="notes-page">
+    <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
         <div class="view-as-banner-inner">
             <div class="view-as-banner-text">
@@ -119,13 +120,12 @@
                 <div class="notes-editor-actions">
                     <button type="button" id="notesSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
                 </div>
-                <p id="notesStatus" class="notes-status" role="status" aria-live="polite" hidden></p>
+                <p id="notesStatus" class="notes-status visually-hidden" role="status" aria-live="polite" hidden></p>
             </div>
         </div>
     </aside>
 
-    <div id="appStatus" class="app-status" role="status" aria-live="polite"></div>
-
+    <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/schedule-core.js"></script>
     <script defer src="js/class-curriculum-slices.js?v=20260603-cal-suffix2"></script>
     <script defer src="js/utils.js?v=20260606-clipboard-dash"></script>

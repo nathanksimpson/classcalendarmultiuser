@@ -4,6 +4,14 @@
  */
 (function (global) {
     const NOTICE_PRIORITY = { error: 4, lock: 3, sync: 2, success: 1, info: 0 };
+    const NOTICE_DURATIONS = {
+        error: 8000,
+        success: 4000,
+        lock: 5000,
+        sync: 6000,
+        info: 6000,
+        default: 6000
+    };
     let noticeTimer = null;
     let currentPriority = -1;
 
@@ -26,11 +34,17 @@
     }
 
     function getNoticeRail() {
-        return document.getElementById('appNoticeRail') || document.getElementById('appStatus');
+        return document.getElementById('appNoticeRail');
     }
 
-    function getSyncToastEl() {
-        return document.getElementById('syncToast');
+    function getDismissLabel() {
+        if (typeof global.t === 'function') {
+            const label = global.t('noticeDismiss');
+            if (label && label !== 'noticeDismiss') {
+                return label;
+            }
+        }
+        return 'Dismiss';
     }
 
     function afterTransition(el, onDone) {
@@ -60,31 +74,91 @@
         global.setTimeout(finish, 400);
     }
 
+    function clearNoticeRailContent(el) {
+        if (!el) {
+            return;
+        }
+        el.replaceChildren();
+        el.textContent = '';
+    }
+
     function dismissNoticeRail(el) {
         if (!el) {
             return;
         }
-        el.classList.remove('app-notice-rail--visible', 'app-status-visible', 'sync-toast--visible');
+        el.classList.remove('app-notice-rail--visible');
         afterTransition(el, () => {
             el.classList.remove(
                 'app-notice-rail--error',
                 'app-notice-rail--lock',
                 'app-notice-rail--sync',
                 'app-notice-rail--success',
-                'app-status-error',
-                'app-status-lock',
-                'sync-toast-error',
-                'sync-toast-success'
+                'app-notice-rail--info',
+                'app-notice-rail--dismissible'
             );
-            el.textContent = '';
+            clearNoticeRailContent(el);
             el.setAttribute('aria-hidden', 'true');
             currentPriority = -1;
         });
     }
 
+    function bindDismissButton(el, btn) {
+        if (!btn || btn.dataset.ccpNoticeBound === '1') {
+            return;
+        }
+        btn.dataset.ccpNoticeBound = '1';
+        btn.addEventListener('click', () => {
+            if (noticeTimer) {
+                global.clearTimeout(noticeTimer);
+                noticeTimer = null;
+            }
+            dismissNoticeRail(el);
+        });
+    }
+
+    function renderNoticeContent(el, message, dismissible) {
+        clearNoticeRailContent(el);
+        if (!dismissible) {
+            el.textContent = message;
+            return;
+        }
+        el.classList.add('app-notice-rail--dismissible');
+        const inner = document.createElement('div');
+        inner.className = 'app-notice-rail__inner';
+        const msg = document.createElement('span');
+        msg.className = 'app-notice-rail__message';
+        msg.textContent = message;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'app-notice-rail__dismiss';
+        btn.setAttribute('aria-label', getDismissLabel());
+        btn.textContent = '\u00d7';
+        bindDismissButton(el, btn);
+        inner.appendChild(msg);
+        inner.appendChild(btn);
+        el.appendChild(inner);
+    }
+
+    function resolveDuration(type, options) {
+        if (typeof options.duration === 'number') {
+            return options.duration;
+        }
+        if (options.dismissible && type === 'error') {
+            return 0;
+        }
+        return NOTICE_DURATIONS[type] != null ? NOTICE_DURATIONS[type] : NOTICE_DURATIONS.default;
+    }
+
+    function shouldShowDismiss(type, options) {
+        if (typeof options.dismissible === 'boolean') {
+            return options.dismissible;
+        }
+        return type === 'error' || type === 'success';
+    }
+
     /**
      * @param {string} message
-     * @param {{ type?: string, duration?: number, force?: boolean }} [opts]
+     * @param {{ type?: string, duration?: number, force?: boolean, dismissible?: boolean }} [opts]
      */
     function showNotice(message, opts) {
         const options = opts || {};
@@ -92,12 +166,6 @@
         const priority = NOTICE_PRIORITY[type] != null ? NOTICE_PRIORITY[type] : 0;
         const el = getNoticeRail();
         if (!el || !message) {
-            const legacy = getSyncToastEl();
-            if (legacy && message) {
-                legacy.textContent = message;
-                legacy.className = 'sync-toast sync-toast--visible' + (type === 'error' ? ' sync-toast-error' : ' sync-toast-success');
-                legacy.setAttribute('aria-hidden', 'false');
-            }
             return;
         }
         if (!options.force && currentPriority > priority && el.classList.contains('app-notice-rail--visible')) {
@@ -107,18 +175,12 @@
             global.clearTimeout(noticeTimer);
             noticeTimer = null;
         }
-        const duration =
-            typeof options.duration === 'number'
-                ? options.duration
-                : type === 'error'
-                  ? 8000
-                  : type === 'success'
-                    ? 4000
-                    : 6000;
+        const duration = resolveDuration(type, options);
+        const dismissible = shouldShowDismiss(type, options);
 
         const apply = () => {
-            el.textContent = message;
             el.className = 'app-notice-rail app-notice-rail--' + type;
+            renderNoticeContent(el, message, dismissible);
             el.setAttribute('aria-hidden', 'false');
             el.setAttribute('role', 'status');
             el.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
@@ -134,10 +196,6 @@
             }
         };
 
-        if (el.classList.contains('app-notice-rail--visible')) {
-            apply();
-            return;
-        }
         apply();
     }
 
@@ -238,8 +296,37 @@
         refresh();
     }
 
+    const VIEWPORT_BP_PHONE = 640;
+    const VIEWPORT_BP_TABLET = 1024;
+    let viewportTierResizeBound = false;
+
+    function syncViewportTier() {
+        if (typeof document === 'undefined') {
+            return 'desktop';
+        }
+        let tier = 'desktop';
+        if (window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_PHONE}px)`).matches) {
+            tier = 'phone';
+        } else if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+            tier = 'tablet-sm';
+        } else if (window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches) {
+            tier = 'tablet';
+        }
+        document.documentElement.dataset.viewport = tier;
+        return tier;
+    }
+
+    function initViewportTier() {
+        syncViewportTier();
+        if (!viewportTierResizeBound && typeof window !== 'undefined') {
+            viewportTierResizeBound = true;
+            window.addEventListener('resize', syncViewportTier);
+        }
+    }
+
     function initPageShell(options) {
         const opts = options || {};
+        initViewportTier();
         if (global.CCPTheme && global.CCPTheme.loadTheme) {
             global.CCPTheme.loadTheme({
                 buttonIds: opts.themeButtonIds || [],
@@ -269,7 +356,18 @@
         closeModal,
         wireThemeToggle,
         initPageShell,
-        NOTICE_PRIORITY
+        syncViewportTier,
+        initViewportTier,
+        NOTICE_PRIORITY,
+        NOTICE_DURATIONS
     };
     global.CCPNotice = { show: showNotice, dismiss: dismissNotice };
+
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initViewportTier);
+        } else {
+            initViewportTier();
+        }
+    }
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -15,14 +15,14 @@
     "db:migrate:remote": "wrangler d1 migrations apply calendar-team --remote"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
-    "wrangler": "^4.94.0"
+    "esbuild": "0.28.1",
+    "wrangler": "4.100.0"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
-    "express": "^4.21.2"
+    "better-sqlite3": "12.10.0",
+    "express": "4.22.2"
   }
 }

@@ -88,7 +88,7 @@
                 requestMany(['calendar', 'eventList']);
                 return;
             }
-            if (type === 'dayNotes/mutate') {
+            if (type === 'dayNotes/upsert' || type === 'dayNotes/remove' || type === 'dayNotes/mutate') {
                 requestMany(['calendar', 'classNotes']);
                 return;
             }

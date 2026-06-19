@@ -728,6 +728,14 @@
         return list;
     }
 
+    function appendPointEntries(points, entries) {
+        let list = Array.isArray(points) ? points.filter(Boolean).slice() : [];
+        (Array.isArray(entries) ? entries : []).forEach((raw) => {
+            list = appendPointEntry(list, raw);
+        });
+        return list;
+    }
+
     function studentTestKey(classId, testName, testDate) {
         return `${normalizeStr(classId)}|${normalizeStr(testName)}|${normalizeStr(testDate)}`;
     }
@@ -924,6 +932,7 @@
         listPointsForClass,
         sumPointsForStudent,
         appendPointEntry,
+        appendPointEntries,
         normalizeStudentTest,
         findStudentTest,
         upsertStudentTest,

@@ -1453,6 +1453,36 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
     res.json(result.document);
 });
 
+app.patch('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
+    if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    const { baseRevision, mutations, force } = req.body || {};
+    const label = req.user.displayName || req.user.email || 'Teacher';
+    const result = calendars.patchCalendar(
+        req.params.id,
+        baseRevision,
+        mutations,
+        label,
+        Boolean(force),
+        req.user
+    );
+    if (!result.ok) {
+        if (result.status === 409) {
+            res.status(409).json({ conflict: true, document: result.document });
+            return;
+        }
+        if (result.status === 423) {
+            res.status(423).json({ error: result.error, lock: result.lock });
+            return;
+        }
+        res.status(result.status || 500).json({ error: result.error || 'Patch failed' });
+        return;
+    }
+    res.json(result.document);
+});
+
 app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
     if (!CalAccess.canDeleteCalendar(req.user, req.params.id)) {
         res.status(403).json({ error: 'Forbidden' });

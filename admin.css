@@ -155,7 +155,7 @@
 .admin-table-wrap--sticky thead th {
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: var(--z-above-base);
     background: var(--bg-card);
 }
 .admin-access-grid {
@@ -164,6 +164,8 @@
     gap: 0.35rem;
     max-height: 20rem;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 0.25rem 0;
 }
 .admin-access-row {
@@ -300,7 +302,7 @@
 .admin-actions-dropdown {
     display: none;
     position: fixed;
-    z-index: 50;
+    z-index: var(--z-dropdown);
     min-width: 11rem;
     max-width: min(16rem, 90vw);
     margin: 0;
@@ -357,6 +359,8 @@
     gap: 0.35rem;
     max-height: 12rem;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 0.5rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -514,7 +518,7 @@ html.admin-view-as-readonly .admin-actions-cell {
 @media (max-width: 640px) {
     .admin-page {
         margin: 1rem auto;
-        padding: max(1rem, env(safe-area-inset-top, 0px)) 0.75rem 2rem;
+        padding: max(1rem, var(--safe-top)) 0.75rem 2rem;
     }
 
     .admin-nav,

@@ -68,6 +68,81 @@
         return lines;
     }
 
+    function mutationsOverlap(mutations, serverData) {
+        const server = serverData || {};
+        for (const m of mutations || []) {
+            if (!m || !m.entity) {
+                continue;
+            }
+            if (m.entity === 'classes' && m.action === 'upsert') {
+                const localItem = (m.payload && (m.payload.class || m.payload)) || {};
+                const id = localItem.id;
+                if (!id) {
+                    continue;
+                }
+                const serverItem = (server.classes || []).find(
+                    (c) => c && String(c.id) === String(id)
+                );
+                if (serverItem && JSON.stringify(serverItem) !== JSON.stringify(localItem)) {
+                    return true;
+                }
+            }
+            if (m.entity === 'classes' && m.action === 'remove') {
+                const id = m.payload && m.payload.classId;
+                const serverItem = (server.classes || []).find(
+                    (c) => c && String(c.id) === String(id)
+                );
+                if (serverItem) {
+                    return true;
+                }
+            }
+            if (m.entity === 'events' && m.action === 'upsert') {
+                const localItem = (m.payload && (m.payload.event || m.payload)) || {};
+                const id = localItem.id;
+                if (!id) {
+                    continue;
+                }
+                const serverItem = (server.events || []).find(
+                    (e) => e && String(e.id) === String(id)
+                );
+                if (serverItem && JSON.stringify(serverItem) !== JSON.stringify(localItem)) {
+                    return true;
+                }
+            }
+            if (m.entity === 'events' && m.action === 'remove') {
+                const id = m.payload && m.payload.eventId;
+                const serverItem = (server.events || []).find(
+                    (e) => e && String(e.id) === String(id)
+                );
+                if (serverItem) {
+                    return true;
+                }
+            }
+            if (m.entity === 'dayNotes' && m.action === 'mutate') {
+                const payload = m.payload || {};
+                if (payload.op === 'upsert' && payload.note && payload.note.id) {
+                    const id = payload.note.id;
+                    const serverItem = (server.dayNotes || []).find(
+                        (n) => n && String(n.id) === String(id)
+                    );
+                    if (serverItem && JSON.stringify(serverItem) !== JSON.stringify(payload.note)) {
+                        return true;
+                    }
+                }
+                if (payload.op === 'remove') {
+                    const id = payload.noteId || (payload.note && payload.note.id);
+                    const serverItem = (server.dayNotes || []).find(
+                        (n) => n && String(n.id) === String(id)
+                    );
+                    if (serverItem) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     function renderSummaryHtml(lines, t, escapeHtml) {
         const esc = escapeHtml || ((s) => String(s || ''));
         const translate = t || ((k) => k);
@@ -101,6 +176,7 @@
     global.CCPConflictMerge = {
         summarizeConflict,
         renderSummaryHtml,
-        diffIdSets
+        diffIdSets,
+        mutationsOverlap
     };
 })(typeof window !== 'undefined' ? window : globalThis);

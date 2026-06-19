@@ -194,6 +194,7 @@
 .help-matrix-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     margin: 0.75rem 0 0;
 }
 
