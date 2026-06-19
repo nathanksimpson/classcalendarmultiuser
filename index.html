@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260619-nav-drag-polish">
+    <link rel="stylesheet" href="styles.css?v=20260619-header-tools-top">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,6 +42,7 @@
                         </span>
                     </button>
                     <span id="teamLockChipLabel" class="team-lock-chip-label"></span>
+                    <button type="button" id="teamLockActionBtn" class="btn btn-primary btn-small team-lock-action-btn" hidden></button>
                     <button type="button" id="teamLockDrawerToggle" class="btn btn-outline btn-small team-lock-drawer-toggle" aria-expanded="false" aria-controls="teamLockDetails" data-i18n="teamLockDetailsBtn">Details</button>
                     <span id="teamLockPendingActions" class="team-lock-pending-actions team-lock-pending-actions--icon" hidden>
                         <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockAllow">Allow</button>
@@ -115,8 +116,7 @@
 
             <div class="app-top-bar-compact">
                 <div class="app-header-unified" id="appHeaderUnified">
-                <div class="app-header-unified__row app-top-bar-primary">
-                <div class="app-header-unified__nav">
+                <div class="app-header-unified__row app-header-unified__row--global">
                 <div class="app-top-bar-title-block">
                     <div class="app-top-bar-title-row">
                         <h1 data-i18n="appTitle">Class Calendar Planner</h1>
@@ -124,6 +124,20 @@
                         <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status" hidden>Connecting&hellip;</span>
                     </div>
                 </div>
+                <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
+                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
+                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
+                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
+                    <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn calendar-display-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarDisplayBtn">Calendar display&hellip;</button>
+                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
+                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
+                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover" data-i18n="teamAccountMenu">Account</button>
+                    </div>
+                    <input type="file" id="importFile" accept=".json" hidden>
+                </div>
+                </div>
+                <div class="app-header-unified__nav">
                 <div class="app-zone-nav-cluster" id="appZoneNavCluster">
                     <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections">
                         <button type="button" class="app-zone-btn is-active" role="tab" id="zoneBtn-schedule" data-zone="schedule" aria-selected="true" data-i18n="zoneSchedule">Schedule</button>
@@ -164,19 +178,6 @@
                             <button type="button" class="app-zone-segment-btn is-active" data-segment="data" data-i18n="tabData">Data</button>
                         </div>
                     </nav>
-                </div>
-                </div>
-                <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
-                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
-                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
-                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
-                    <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn calendar-display-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarDisplayBtn">Calendar display&hellip;</button>
-                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
-                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
-                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover" data-i18n="teamAccountMenu">Account</button>
-                    </div>
-                    <input type="file" id="importFile" accept=".json" hidden>
                 </div>
                 </div>
                 <div id="teamCalendarPickerGroup" class="team-calendar-picker-group" hidden aria-hidden="true"></div>
@@ -1854,11 +1855,11 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260618-curriculum-bell-open"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260619-nav-reorder"></script>
-    <script defer src="js/i18n/calendar-ko.js?v=20260619-nav-reorder"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260619-points-subtract"></script>
+    <script defer src="js/i18n/calendar-ko.js?v=20260619-points-subtract"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
-    <script defer src="app.js?v=20260619-term-flex"></script>
+    <script defer src="app.js?v=20260619-lock-ui-clarity"></script>
 </body>
 </html>
 

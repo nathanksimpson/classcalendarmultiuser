@@ -230,11 +230,19 @@
         };
     }
 
-    async function savePointEntries(panel, entries) {
-        return enqueuePointsSave(() => savePointEntriesNow(panel, entries));
+    function resolveSignedDelta(rawValue, mode) {
+        const n = Number(rawValue);
+        if (!Number.isFinite(n) || n === 0) {
+            return null;
+        }
+        return mode === 'subtract' ? -Math.abs(n) : Math.abs(n);
     }
 
-    async function savePointEntriesNow(panel, entries) {
+    async function savePointEntries(panel, entries, options) {
+        return enqueuePointsSave(() => savePointEntriesNow(panel, entries, options));
+    }
+
+    async function savePointEntriesNow(panel, entries, options) {
         const d = domain();
         const appData = getAppData();
         if (!d || !entries.length) {
@@ -266,9 +274,13 @@
             // #endregion
             throw err;
         }
+        const batchMode = options && options.batchMode;
         hooks.showToast(
             entries.length > 1
-                ? t('classroomPointsBatchApplied').replace('{n}', String(entries.length))
+                ? t(batchMode === 'subtract' ? 'classroomPointsBatchSubtracted' : 'classroomPointsBatchApplied').replace(
+                      '{n}',
+                      String(entries.length)
+                  )
                 : t('classroomPointsNoteSynced')
         );
         if (entries.length > 1) {
@@ -326,6 +338,7 @@
                 </label>
                 <div class="classroom-points-batch-reason-field">${buildReasonSelectHtml('batch', disabled)}</div>
                 <button type="button" class="btn btn-primary btn-compact" id="classroomPointsBatchApplyBtn"${editable ? '' : ' disabled'}>${escapeHtml(t('classroomPointsBatchApply'))}</button>
+                <button type="button" class="btn btn-outline btn-compact" id="classroomPointsBatchSubtractBtn"${editable ? '' : ' disabled'}>${escapeHtml(t('classroomPointsBatchSubtract'))}</button>
             </div>
             <p class="classroom-points-toolbar-meta section-hint">${escapeHtml(studentLine)}</p>`;
 
@@ -350,11 +363,46 @@
             render(panel);
         });
         mount.querySelector('#classroomPointsBatchApplyBtn')?.addEventListener('click', () => {
-            void applyPointsToSelected(panel);
+            void applyPointsToSelected(panel, 'add');
+        });
+        mount.querySelector('#classroomPointsBatchSubtractBtn')?.addEventListener('click', () => {
+            void applyPointsToSelected(panel, 'subtract');
         });
     }
 
-    async function applyPointsToSelected(panel) {
+    async function applyPointToStudent(panel, studentId, mode) {
+        const d = domain();
+        if (!d || !access() || !access().canEditClass(getClassData())) {
+            return;
+        }
+        const rowsMount = panel.querySelector('#classroomPointsRows');
+        const row = rowsMount?.querySelector(`tr[data-student-id="${studentId}"]`);
+        if (!row) {
+            return;
+        }
+        const delta = resolveSignedDelta(row.querySelector('.classroom-point-delta')?.value, mode);
+        const reasonWrap = row.querySelector('.classroom-point-reason-wrap');
+        const reasonCheck = validateReasonRoot(reasonWrap);
+        if (delta === null) {
+            hooks.showToast(t('classroomPointInvalid'), true);
+            return;
+        }
+        if (!reasonCheck.ok) {
+            hooks.showToast(t('classroomPointReasonOtherRequired'), true);
+            return;
+        }
+        try {
+            await savePointEntries(panel, [buildPointEntry(studentId, delta, reasonCheck.reason)]);
+        } catch (err) {
+            const msg =
+                err && err.status === 409
+                    ? t('classroomPointsConflictToast')
+                    : err.message || String(err);
+            hooks.showToast(msg, true);
+        }
+    }
+
+    async function applyPointsToSelected(panel, mode) {
         const d = domain();
         const students = getStudents();
         if (!d || !access() || !access().canEditClass(getClassData())) {
@@ -364,8 +412,8 @@
             hooks.showToast(t('classroomPointsBatchNoneSelected'), true);
             return;
         }
-        const delta = Number(panel.querySelector('#classroomPointsBatchDelta')?.value);
-        if (!Number.isFinite(delta) || delta === 0) {
+        const delta = resolveSignedDelta(panel.querySelector('#classroomPointsBatchDelta')?.value, mode || 'add');
+        if (delta === null) {
             hooks.showToast(t('classroomPointInvalid'), true);
             return;
         }
@@ -383,7 +431,7 @@
             return;
         }
         try {
-            await savePointEntries(panel, entries);
+            await savePointEntries(panel, entries, { batchMode: mode || 'add' });
         } catch (err) {
             const msg =
                 err && err.status === 409
@@ -512,7 +560,10 @@
                 <td class="classroom-sheet-col-notes">
                     <div class="classroom-point-action-wrap">
                         ${buildReasonSelectHtml(sid, disabled)}
-                        <button type="button" class="btn btn-outline btn-compact classroom-point-add-btn" data-student-id="${escapeHtml(sid)}"${disabled ? ' disabled' : ''}>${escapeHtml(t('classroomPointAdd'))}</button>
+                        <div class="classroom-point-btn-row">
+                            <button type="button" class="btn btn-primary btn-compact classroom-point-add-btn" data-student-id="${escapeHtml(sid)}"${disabled ? ' disabled' : ''}>${escapeHtml(t('classroomPointAdd'))}</button>
+                            <button type="button" class="btn btn-outline btn-compact classroom-point-subtract-btn" data-student-id="${escapeHtml(sid)}"${disabled ? ' disabled' : ''}>${escapeHtml(t('classroomPointSubtract'))}</button>
+                        </div>
                     </div>
                 </td>
             </tr>`;
@@ -523,32 +574,13 @@
         bindSelectionControls(panel, rowsMount, students);
 
         rowsMount.querySelectorAll('.classroom-point-add-btn').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                const sid = btn.getAttribute('data-student-id');
-                const row = rowsMount.querySelector(`tr[data-student-id="${sid}"]`);
-                if (!row || !d) {
-                    return;
-                }
-                const delta = Number(row.querySelector('.classroom-point-delta')?.value);
-                const reasonWrap = row.querySelector('.classroom-point-reason-wrap');
-                const reasonCheck = validateReasonRoot(reasonWrap);
-                if (!Number.isFinite(delta) || delta === 0) {
-                    hooks.showToast(t('classroomPointInvalid'), true);
-                    return;
-                }
-                if (!reasonCheck.ok) {
-                    hooks.showToast(t('classroomPointReasonOtherRequired'), true);
-                    return;
-                }
-                try {
-                    await savePointEntries(panel, [buildPointEntry(sid, delta, reasonCheck.reason)]);
-                } catch (err) {
-                    const msg =
-                        err && err.status === 409
-                            ? t('classroomPointsConflictToast')
-                            : err.message || String(err);
-                    hooks.showToast(msg, true);
-                }
+            btn.addEventListener('click', () => {
+                void applyPointToStudent(panel, btn.getAttribute('data-student-id'), 'add');
+            });
+        });
+        rowsMount.querySelectorAll('.classroom-point-subtract-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                void applyPointToStudent(panel, btn.getAttribute('data-student-id'), 'subtract');
             });
         });
 

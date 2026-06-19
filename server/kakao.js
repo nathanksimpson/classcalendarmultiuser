@@ -138,7 +138,7 @@ function classifyOAuthError(err) {
 
 function loginRedirectForKakaoError(err) {
     const code = classifyOAuthError(err);
-    return '/login.html?error=' + encodeURIComponent(code);
+    return '/kakao-login.html?error=' + encodeURIComponent(code);
 }
 
 module.exports = {

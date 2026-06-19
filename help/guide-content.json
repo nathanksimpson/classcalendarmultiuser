@@ -13,7 +13,7 @@
           "Classroom — Students, Attendance, Homework tracking, Notes (day journal: filter, add, browse, export). Account menu also opens Mobile day notes for phones.",
           "More — Data (calendar backup, lesson plans pack, clear data).",
           "The app remembers your last zone and tab in this browser.",
-          "Header tools: Calendar menu (pick team calendar, + Add Class, + Add Event, + New, Backup), Calendar display…, Print, Help, Account (theme, language, sign out)."
+          "Global header tools (top row): Calendar menu (pick team calendar, + Add Class, + Add Event, + New, Backup), Calendar display…, Print, Help, Account (theme, language, sign out). These stay visible above the zone tabs."
         ]
       },
       {
@@ -290,7 +290,7 @@
           "수업관리 — Students(학생), Attendance(출결), Homework(과제), Notes(수업 일지). Account 메뉴의 Mobile day notes(모바일 일지)도 있습니다.",
           "더보기 — Data(백업·팩·전체 삭제).",
           "마지막으로 연 구역과 탭은 이 브라우저에 저장됩니다.",
-          "헤더 도구: Calendar 메뉴(팀 캘린더, + Add Class, + Add Event, + New, Backup), 캘린더 표시…, Print, 도움말, Account(테마, 언어, 로그아웃)."
+          "헤더 도구(상단 줄): Calendar 메뉴(팀 캘린더, + Add Class, + Add Event, + New, Backup), 캘린더 표시…, Print, 도움말, Account(테마, 언어, 로그아웃). 구역 탭 위에 항상 표시됩니다."
         ]
       },
       {

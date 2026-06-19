@@ -46,6 +46,27 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.set('trust proxy', 1);
 
+// #region agent log
+const fs = require('fs');
+function agentDebugLog(location, message, data, hypothesisId) {
+    try {
+        const line =
+            JSON.stringify({
+                sessionId: '60e4ed',
+                location,
+                message,
+                data,
+                hypothesisId,
+                timestamp: Date.now(),
+                runId: 'post-fix'
+            }) + '\n';
+        fs.appendFileSync(path.join(__dirname, '..', 'debug-60e4ed.log'), line);
+    } catch (_) {
+        /* ignore */
+    }
+}
+// #endregion
+
 function parseCookies(req) {
     const out = {};
     const raw = req.headers.cookie || '';
@@ -354,12 +375,13 @@ function wantsPasswordFormRedirect(req) {
     return ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data');
 }
 
-function passwordLoginErrorRedirect(res, returnTo, code) {
+function passwordLoginErrorRedirect(res, returnTo, code, loginPage) {
+    const page = loginPage || '/login.html';
     const q = new URLSearchParams({ error: code });
     if (returnTo && returnTo !== '/') {
         q.set('return', returnTo);
     }
-    res.redirect(302, `/login.html?${q.toString()}`);
+    res.redirect(302, `${page}?${q.toString()}`);
 }
 
 function escapeHtmlAttr(value) {
@@ -372,17 +394,21 @@ function escapeHtmlAttr(value) {
 
 function passwordLoginSuccessHtml(returnTo) {
     const safeUrl = escapeHtmlAttr(returnTo);
-    const safeJs = String(returnTo).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const safeDestLog = String(returnTo).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Signing in…</title>
-<meta http-equiv="refresh" content="0;url=${safeUrl}">
+<title>Signed in</title>
 </head>
 <body>
-<p>Signing in…</p>
-<script>location.replace('${safeJs}');</script>
+<p>Signed in successfully.</p>
+<p><a id="continueLink" href="${safeUrl}">Continue to calendar</a></p>
+<script>
+// #region agent log
+fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'60e4ed'},body:JSON.stringify({sessionId:'60e4ed',location:'passwordLoginSuccessHtml',message:'success page loaded',data:{dest:'${safeDestLog}',autoRedirect:false},hypothesisId:'H2',timestamp:Date.now(),runId:'post-fix'})}).catch(function(){});
+// #endregion
+</script>
 </body>
 </html>`;
 }
@@ -402,9 +428,24 @@ function handlePasswordLogin(req, res, options) {
     const device = loginContext.sanitizeLoginContext(req.body.device || req.body.loginContext);
     const email = req.body.email || req.body.username;
     const password = req.body.password;
+    const errorLoginPage = req.path === '/password-login.html' ? '/password-login.html' : '/login.html';
+    // #region agent log
+        agentDebugLog('handlePasswordLogin:entry', 'password login request', {
+            path: req.path,
+            htmlSuccess,
+            redirect,
+            bodyKeys: Object.keys(req.body || {}),
+            hasEmailField: Boolean(email),
+            hasPasswordField: Boolean(password),
+            contentType: req.headers['content-type'] || ''
+        }, 'H1');
+        // #endregion
     if (users.activeUserHasNoPassword(email)) {
+        // #region agent log
+        agentDebugLog('handlePasswordLogin:branch', 'password_not_set', { path: req.path, status: 302 }, 'H1');
+        // #endregion
         if (redirect) {
-            passwordLoginErrorRedirect(res, returnTo, 'password_not_set');
+            passwordLoginErrorRedirect(res, returnTo, 'password_not_set', errorLoginPage);
             return;
         }
         res.status(401).json({
@@ -415,8 +456,14 @@ function handlePasswordLogin(req, res, options) {
     }
     const user = users.findUserByEmailPassword(email, password);
     if (!user) {
+        // #region agent log
+        agentDebugLog('handlePasswordLogin:branch', 'invalid_password', {
+            path: req.path,
+            status: redirect ? 302 : 401
+        }, 'H1');
+        // #endregion
         if (redirect) {
-            passwordLoginErrorRedirect(res, returnTo, 'invalid_password');
+            passwordLoginErrorRedirect(res, returnTo, 'invalid_password', errorLoginPage);
             return;
         }
         res.status(401).json({ error: 'Invalid email or password' });
@@ -426,13 +473,31 @@ function handlePasswordLogin(req, res, options) {
     setSessionCookie(res, session.token, session.maxAgeSec);
     const dest = loginRedirectAfterAuth(user, returnTo);
     if (htmlSuccess) {
-        res.status(200).type('html').send(passwordLoginSuccessHtml(dest));
-        return;
-    }
-    if (redirect) {
+        // #region agent log
+        agentDebugLog('handlePasswordLogin:branch', 'html_success_302', {
+            path: req.path,
+            status: 302,
+            dest,
+            hasCalendarAccess: dest.indexOf('pending-access') < 0
+        }, 'H8');
+        // #endregion
         res.redirect(302, dest);
         return;
     }
+    if (redirect) {
+        // #region agent log
+        agentDebugLog('handlePasswordLogin:branch', 'redirect_302', { path: req.path, status: 302, dest }, 'H1');
+        // #endregion
+        res.redirect(302, dest);
+        return;
+    }
+    // #region agent log
+    agentDebugLog('handlePasswordLogin:branch', 'json_success', {
+        path: req.path,
+        status: 200,
+        dest
+    }, 'H7');
+    // #endregion
     res.json({
         id: user.id,
         email: user.email,
@@ -452,9 +517,30 @@ app.post('/login', passwordLoginRateLimit, (req, res) => {
     handlePasswordLogin(req, res, { htmlSuccess: true });
 });
 
+app.post('/login.html', passwordLoginRateLimit, (req, res) => {
+    handlePasswordLogin(req, res, { htmlSuccess: true });
+});
+
+app.post('/password-login.html', passwordLoginRateLimit, (req, res) => {
+    handlePasswordLogin(req, res, { htmlSuccess: true });
+});
+
 app.post('/api/auth/password', passwordLoginRateLimit, (req, res) => {
     handlePasswordLogin(req, res, {});
 });
+
+if (ALLOW_OPEN_ACCESS) {
+    app.post('/api/debug/agent-log', (req, res) => {
+        const body = req.body || {};
+        agentDebugLog(
+            body.location || 'client',
+            body.message || '',
+            body.data || {},
+            body.hypothesisId || 'H7'
+        );
+        res.json({ ok: true });
+    });
+}
 
 app.post('/api/auth/change-password', requireUser, rejectViewAsWrites, (req, res) => {
     try {
@@ -538,7 +624,7 @@ app.get(
     rateLimit.rateLimitMiddleware('auth_kakao_callback', 40, 15 * 60 * 1000),
     async (req, res) => {
         if (req.query.error) {
-            res.redirect('/login.html?error=oauth_denied');
+            res.redirect('/kakao-login.html?error=oauth_denied');
             return;
         }
         const code = req.query.code;
@@ -550,16 +636,16 @@ app.get(
             oauthSecret
         );
         if (!verified.ok) {
-            res.redirect('/login.html?error=oauth_state_invalid');
+            res.redirect('/kakao-login.html?error=oauth_state_invalid');
             return;
         }
         const returnTo = verified.returnTo;
         if (!code) {
-            res.redirect('/login.html?error=missing_code');
+            res.redirect('/kakao-login.html?error=missing_code');
             return;
         }
         if (!KAKAO_CLIENT_ID) {
-            res.redirect('/login.html?error=kakao_not_configured');
+            res.redirect('/kakao-login.html?error=kakao_not_configured');
             return;
         }
         try {
@@ -573,15 +659,15 @@ app.get(
             const profile = kakao.profileFromKakaoMe(me);
             const resolved = users.resolveKakaoLoginUser(profile);
             if (resolved.disabled) {
-                res.redirect('/login.html?error=account_disabled');
+                res.redirect('/kakao-login.html?error=account_disabled');
                 return;
             }
             if (resolved.error) {
-                res.redirect('/login.html?error=' + encodeURIComponent(resolved.error));
+                res.redirect('/kakao-login.html?error=' + encodeURIComponent(resolved.error));
                 return;
             }
             if (!resolved.user) {
-                res.redirect('/login.html?error=missing_kakao_id');
+                res.redirect('/kakao-login.html?error=missing_kakao_id');
                 return;
             }
             const session = users.createLoginSession(resolved.user.id, verified.loginContext);

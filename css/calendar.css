@@ -1479,15 +1479,6 @@ body:has(#panel-calendar:not([hidden])) {
     color: var(--text-muted);
 }
 
-.calendar-day.out-of-term:not(.holiday) {
-    background: var(--bg-main);
-    opacity: 0.55;
-}
-
-.calendar-day.out-of-term:not(.holiday) .day-number {
-    color: var(--text-muted);
-}
-
 .calendar-day.holiday {
     /* Background color set dynamically via JS */
     transition: filter 0.15s ease;

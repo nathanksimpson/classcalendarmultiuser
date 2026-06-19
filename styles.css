@@ -323,13 +323,25 @@ body {
     gap: 0;
 }
 
+.app-header-unified__row--global {
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.app-header-unified__row--global .app-top-bar-title-block {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .app-header-unified__nav {
     display: flex;
     flex-wrap: wrap;
     align-items: stretch;
     flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
-    gap: var(--space-2);
+    gap: 0;
 }
 
 .app-header-unified__nav .app-tab-nav-cluster {
@@ -350,15 +362,20 @@ body {
     max-width: 100%;
     margin-left: 0;
     padding: var(--space-2) var(--space-3);
-    gap: 0;
+    gap: var(--space-2);
     background: transparent;
     border: none;
     border-radius: 0;
     box-shadow: none;
-    border-left: 1px solid var(--border-color);
     overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
+}
+
+.app-header-unified__row--global .app-header-unified__tools {
+    margin-left: auto;
+    justify-content: flex-end;
+    border-left: none;
 }
 
 .app-header-unified__tools-collapsible {
@@ -443,14 +460,8 @@ body {
 }
 
 @media (min-width: 1100px) {
-    .app-header-unified__row,
-    .app-top-bar-primary {
+    .app-header-unified__row--global {
         flex-wrap: nowrap;
-    }
-
-    .app-top-bar--global .app-header-unified__row,
-    .app-top-bar--global .app-top-bar-primary {
-        align-items: stretch;
     }
 
     .app-top-bar-title-block {
@@ -467,7 +478,7 @@ body {
         overflow: hidden;
     }
 
-    .app-header-unified__tools,
+    .app-header-unified__row--global .app-header-unified__tools,
     .app-top-bar-actions {
         flex-shrink: 0;
         width: auto;
@@ -4570,9 +4581,8 @@ input.input-readonly {
     overflow-x: visible;
 }
 
-.app-top-bar--global .app-header-unified__row,
-.app-top-bar--global .app-top-bar-primary {
-    align-items: stretch;
+.app-top-bar--global .app-header-unified__row--global {
+    align-items: center;
 }
 
 .app-top-bar-actions:not(.app-header-unified__tools) {
@@ -4928,18 +4938,17 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 }
 
 @media (max-width: 900px) {
-    .app-top-bar--global .app-header-unified__row,
-    .app-top-bar--global .app-top-bar-primary {
+    .app-header-unified__row--global {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .app-header-unified__tools {
+    .app-header-unified__row--global .app-header-unified__tools {
         width: 100%;
         max-width: 100%;
-        border-left: none;
-        border-top: 1px solid var(--border-color);
+        margin-left: 0;
         justify-content: flex-end;
+        flex-shrink: 1;
     }
 
     .app-tab-nav-cluster {
@@ -4960,15 +4969,6 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
         -webkit-overflow-scrolling: touch;
     }
 
-    .app-header-unified__tools,
-    .app-top-bar-actions {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        margin-left: 0;
-        flex-shrink: 1;
-    }
-
     #headerMyScheduleBtn:not([hidden]) {
         flex: 1 1 100%;
         max-width: 100%;
@@ -4987,17 +4987,9 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 }
 
 @media (max-width: 720px) {
-    .app-top-bar--global .app-top-bar-primary {
-        align-items: stretch;
-    }
-
-    .app-top-bar-actions {
-        width: 100%;
+    .app-header-unified__row--global .app-header-unified__tools {
         justify-content: flex-end;
-        margin-left: 0;
         padding-top: 4px;
-        border-top: none;
-        border-radius: 10px;
     }
 
     .app-header-tool-group {
@@ -12853,10 +12845,9 @@ body.notes-page .notes-filter-my-classes input[type="checkbox"] {
 }
 
 @media (min-width: 1100px) {
-    .app-header-unified__row,
-    .app-top-bar-primary {
+    .app-header-unified__row--global {
         flex-wrap: nowrap;
-        align-items: stretch;
+        align-items: center;
         gap: 0;
     }
 
@@ -12872,14 +12863,14 @@ body.notes-page .notes-filter-my-classes input[type="checkbox"] {
         min-width: 0;
     }
 
-    .app-header-unified__tools,
+    .app-header-unified__row--global .app-header-unified__tools,
     .app-top-bar-actions {
         flex: 0 0 auto;
         justify-content: flex-end;
     }
 }
 
-.app-header-unified .app-top-bar-title-block {
+.app-header-unified__row--global .app-top-bar-title-block {
     padding-left: var(--space-3);
 }
 
@@ -13654,6 +13645,27 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.team-lock-action-btn {
+    flex-shrink: 0;
+    min-height: 28px;
+    padding: 2px var(--space-2);
+    font-size: var(--text-body-xs, 0.75rem);
+    white-space: nowrap;
+}
+.team-lock-bar-row.team-lock-bar-row--attention {
+    animation: team-lock-bar-attention 1.6s ease-out 2;
+    outline: 2px solid var(--banner-warn-border);
+    outline-offset: 1px;
+}
+@keyframes team-lock-bar-attention {
+    0%,
+    100% {
+        box-shadow: none;
+    }
+    35% {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--banner-warn-border) 45%, transparent);
+    }
+}
 .team-lock-drawer-toggle {
     min-height: 28px;
     padding: 2px var(--space-2);
@@ -14142,7 +14154,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     max-width: 16rem;
 }
 
-.classroom-point-add-btn {
+.classroom-point-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.classroom-point-add-btn,
+.classroom-point-subtract-btn {
     flex-shrink: 0;
 }
 

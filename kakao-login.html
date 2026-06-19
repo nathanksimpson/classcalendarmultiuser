@@ -3,26 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Sign in — Class Calendar</title>
-    <script>
-        (function () {
-            var params = new URLSearchParams(location.search);
-            var err = params.get('error') || '';
-            var passwordErrors = { invalid_password: 1, password_not_set: 1, too_many_requests: 1, sign_in_failed: 1 };
-            if (params.get('auth') === 'password' || passwordErrors[err]) {
-                location.replace('/password-login.html' + location.search);
-            }
-            var kakaoErrors = {
-                oauth_failed: 1, oauth_denied: 1, oauth_code_expired: 1, oauth_state_invalid: 1,
-                missing_code: 1, email_required: 1, account_disabled: 1, kakao_client_secret: 1,
-                invalid_scope: 1, missing_kakao_id: 1, not_invited: 1, kakao_not_linked: 1,
-                kakao_mismatch: 1, kakao_not_configured: 1, redirect_uri_mismatch: 1
-            };
-            if (params.get('auth') === 'kakao' || kakaoErrors[err]) {
-                location.replace('/kakao-login.html' + location.search);
-            }
-        })();
-    </script>
+    <title>Kakao sign in — Class Calendar</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260619-ui-standards">
@@ -35,23 +16,25 @@
         .login-card { max-width: 420px; width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem; box-shadow: var(--shadow-lg); }
         .login-card h1 { margin: 0 0 0.5rem; font-size: 1.35rem; }
         .login-card p { margin: 0 0 1.25rem; color: var(--text-muted); font-size: 0.95rem; }
+        .login-back { margin: 0 0 1rem; font-size: 0.88rem; }
+        .login-back a { color: var(--text-secondary); text-decoration: none; }
+        .login-back a:hover { color: var(--text-primary); }
+        .login-kakao { display: block; width: 100%; padding: 0.85rem 1rem; border: none; border-radius: 8px; background: #fee500; color: #191600; font-weight: 600; font-size: 1rem; cursor: pointer; text-align: center; text-decoration: none; box-sizing: border-box; }
+        .login-kakao:hover { filter: brightness(0.97); }
+        .login-kakao.is-disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+        .login-kakao-hint { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; }
+        .login-kakao-switch { margin: 0.65rem 0 0; font-size: 0.88rem; text-align: center; }
+        .login-kakao-switch a { color: var(--text-secondary); }
         .login-device { margin: 0 0 1.25rem; padding: 0; border: none; }
         .login-device legend { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; padding: 0; }
         .login-device label { display: block; margin-bottom: 0.5rem; padding: 0.65rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.35; }
         .login-device label:has(input:checked) { border-color: var(--accent, #3b82f6); background: var(--bg-subtle, rgba(59, 130, 246, 0.08)); color: var(--text-primary); }
         .login-device input { margin-right: 0.5rem; vertical-align: middle; }
         .login-device strong { display: block; color: var(--text-primary); font-size: 0.92rem; margin-bottom: 0.15rem; }
-        .login-method-list { display: flex; flex-direction: column; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-        .login-method-option { display: block; width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-primary); font-weight: 600; font-size: 1rem; text-align: center; text-decoration: none; box-sizing: border-box; cursor: pointer; }
-        .login-method-option:hover { border-color: var(--accent, #3b82f6); color: var(--accent, #3b82f6); }
-        .login-method-option--kakao { background: #fee500; border-color: #fee500; color: #191600; }
-        .login-method-option--kakao:hover { filter: brightness(0.97); color: #191600; border-color: #fee500; }
-        .login-method-option[hidden] { display: none; }
-        .login-method-hint { margin: 0.35rem 0 0; font-size: 0.82rem; font-weight: 400; color: var(--text-muted); }
-        .login-notes-entry { margin: 1.25rem 0 0; text-align: center; }
+        .login-notes-entry { margin: 1rem 0 0; text-align: center; }
         .login-notes-link { display: inline-block; width: 100%; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-primary); font-weight: 600; font-size: 0.95rem; text-decoration: none; box-sizing: border-box; }
         .login-notes-link:hover { border-color: var(--primary); color: var(--primary); }
-        .login-error { color: var(--status-error-color); font-size: 0.9rem; margin-bottom: 1rem; }
+        .login-error { color: var(--status-error-color); font-size: 0.9rem; margin-top: 0.75rem; }
     </style>
 </head>
 <body>
@@ -62,9 +45,9 @@
     </div>
     <div class="login-page">
         <div class="login-card">
+            <p class="login-back"><a id="backToChooserLink" href="/login.html">← Back to sign-in options</a></p>
             <h1 id="loginTitle">Class Calendar — Team</h1>
-            <p id="loginLead">How would you like to sign in?</p>
-            <p id="loginError" class="login-error" style="display: none;"></p>
+            <p id="loginLead">Sign in with your school Kakao account. First-time sign-in creates your account automatically.</p>
 
             <fieldset class="login-device" id="loginDeviceFieldset">
                 <legend id="loginDeviceLegend">Where are you signing in?</legend>
@@ -80,20 +63,12 @@
                 </label>
             </fieldset>
 
-            <ul class="login-method-list" id="loginMethodList">
-                <li>
-                    <a id="chooseKakaoBtn" class="login-method-option login-method-option--kakao" href="/kakao-login.html">
-                        <span id="chooseKakaoLabel">Kakao</span>
-                        <span class="login-method-hint" id="chooseKakaoHint">School Kakao account (recommended)</span>
-                    </a>
-                </li>
-                <li>
-                    <a id="choosePasswordBtn" class="login-method-option" href="/password-login.html">
-                        <span id="choosePasswordLabel">Email &amp; password</span>
-                        <span class="login-method-hint" id="choosePasswordHint">Only if your admin gave you a password</span>
-                    </a>
-                </li>
-            </ul>
+            <a id="kakaoLoginBtn" class="login-kakao" href="/api/auth/kakao">Login with Kakao</a>
+            <p class="login-kakao-switch">
+                <a id="kakaoSwitchAccount" href="/api/auth/kakao?prompt=login">Use a different Kakao account</a>
+            </p>
+            <p id="kakaoConfigHint" class="login-kakao-hint" style="display: none;"></p>
+            <p id="loginError" class="login-error" style="display: none;"></p>
 
             <p class="login-notes-entry">
                 <a id="loginNotesLink" class="login-notes-link" href="/login.html?return=/notes.html">Class day notes (mobile)</a>
@@ -107,36 +82,52 @@
                 en: {
                     langToggle: '🌐 한국어',
                     title: 'Class Calendar — Team',
-                    lead: 'How would you like to sign in?',
+                    lead: 'Sign in with your school Kakao account. First-time sign-in creates your account automatically.',
+                    backToChooser: '← Back to sign-in options',
                     deviceLegend: 'Where are you signing in?',
                     devicePersonalTitle: 'My computer',
                     devicePersonalHint: 'Stay signed in longer (up to your school’s limit).',
                     deviceSharedTitle: 'Shared or public computer',
                     deviceSharedHint: 'Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle.',
-                    chooseKakao: 'Kakao',
-                    chooseKakaoHint: 'School Kakao account (recommended)',
-                    choosePassword: 'Email & password',
-                    choosePasswordHint: 'Only if your admin gave you a password',
+                    kakaoLogin: 'Login with Kakao',
+                    kakaoSwitch: 'Use a different Kakao account',
+                    kakaoNotConfigured: 'Kakao login is not configured. Go back and use email & password instead.',
                     notesEntryLink: 'Class day notes (mobile)',
                     idleSignedOut: 'You were signed out due to inactivity. Sign in again to continue.',
-                    kakaoNotConfigured: 'Kakao is not configured on this server. Use email & password below.'
+                    oauth_failed: 'Kakao sign-in failed. Try again or ask your calendar admin.',
+                    oauth_denied: 'Kakao sign-in was cancelled.',
+                    oauth_code_expired: 'Kakao sign-in timed out. Click Login with Kakao again.',
+                    oauth_state_invalid: 'Sign-in session expired. Click Login with Kakao again.',
+                    missing_code: 'Kakao did not return a sign-in code. Try again.',
+                    account_disabled: 'This account has been deactivated. Contact your calendar admin.',
+                    not_invited: 'You are not on the teacher list yet. Ask your admin to add you in Admin.',
+                    kakao_not_linked: 'Kakao is not linked yet. Ask your admin to add your Kakao user ID.',
+                    kakao_mismatch: 'This Kakao account does not match the ID on file. Contact your admin.'
                 },
                 ko: {
                     langToggle: '🌐 English',
                     title: 'Class Calendar — 팀',
-                    lead: '어떤 방법으로 로그인할까요?',
+                    lead: '학교 카카오 계정으로 로그인하세요. 처음 로그인하면 계정이 자동으로 만들어집니다.',
+                    backToChooser: '← 로그인 방법 선택으로 돌아가기',
                     deviceLegend: '어떤 기기에서 로그인하나요?',
                     devicePersonalTitle: '내 컴퓨터',
                     devicePersonalHint: '로그인 유지가 더 길게 됩니다(학교 설정 한도 내).',
                     deviceSharedTitle: '공용/다른 사람과 함께 쓰는 컴퓨터',
                     deviceSharedHint: '짧게 로그인합니다(최대 1일). 15분 미사용 시 자동 로그아웃됩니다.',
-                    chooseKakao: '카카오',
-                    chooseKakaoHint: '학교 카카오 계정(권장)',
-                    choosePassword: '이메일·비밀번호',
-                    choosePasswordHint: '관리자가 비밀번호를 준 경우에만',
+                    kakaoLogin: '카카오로 로그인',
+                    kakaoSwitch: '다른 카카오 계정으로 로그인',
+                    kakaoNotConfigured: '카카오 로그인이 설정되지 않았습니다. 돌아가서 이메일·비밀번호를 사용하세요.',
                     notesEntryLink: '수업 일지 (모바일)',
                     idleSignedOut: '오래 활동이 없어 자동 로그아웃되었습니다. 다시 로그인해 주세요.',
-                    kakaoNotConfigured: '카카오 로그인이 설정되지 않았습니다. 아래 이메일·비밀번호를 사용하세요.'
+                    oauth_failed: '카카오 로그인에 실패했습니다. 다시 시도하거나 관리자에게 문의하세요.',
+                    oauth_denied: '카카오 로그인이 취소되었습니다.',
+                    oauth_code_expired: '카카오 로그인 시간이 만료되었습니다. 다시 로그인 버튼을 눌러 주세요.',
+                    oauth_state_invalid: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
+                    missing_code: '카카오가 로그인 코드를 반환하지 않았습니다.',
+                    account_disabled: '이 계정은 비활성화되었습니다.',
+                    not_invited: '아직 선생님 목록에 등록되어 있지 않습니다.',
+                    kakao_not_linked: '카카오 계정이 아직 연결되지 않았습니다.',
+                    kakao_mismatch: '이 카카오 계정은 등록된 ID와 일치하지 않습니다.'
                 }
             };
 
@@ -156,16 +147,18 @@
             function applyLang() {
                 document.documentElement.lang = getLang() === 'ko' ? 'ko' : 'en';
                 [
-                    ['loginTitle', 'title'], ['loginLead', 'lead'],
+                    ['loginTitle', 'title'], ['loginLead', 'lead'], ['backToChooserLink', 'backToChooser'],
                     ['loginDeviceLegend', 'deviceLegend'], ['loginDevicePersonalTitle', 'devicePersonalTitle'],
                     ['loginDevicePersonalHint', 'devicePersonalHint'], ['loginDeviceSharedTitle', 'deviceSharedTitle'],
-                    ['loginDeviceSharedHint', 'deviceSharedHint'], ['chooseKakaoLabel', 'chooseKakao'],
-                    ['chooseKakaoHint', 'chooseKakaoHint'], ['choosePasswordLabel', 'choosePassword'],
-                    ['choosePasswordHint', 'choosePasswordHint'], ['loginNotesLink', 'notesEntryLink']
+                    ['loginDeviceSharedHint', 'deviceSharedHint'], ['loginNotesLink', 'notesEntryLink']
                 ].forEach(function (pair) {
                     const el = document.getElementById(pair[0]);
                     if (el) el.textContent = t(pair[1]);
                 });
+                const kakaoBtn = document.getElementById('kakaoLoginBtn');
+                if (kakaoBtn) kakaoBtn.textContent = t('kakaoLogin');
+                const kakaoSwitch = document.getElementById('kakaoSwitchAccount');
+                if (kakaoSwitch) kakaoSwitch.textContent = t('kakaoSwitch');
                 const langBtn = document.getElementById('loginLangToggle');
                 if (langBtn) langBtn.textContent = t('langToggle');
             }
@@ -180,18 +173,26 @@
                 const r = params.get('return') || '/';
                 return r.startsWith('/') && !r.startsWith('//') ? r : '/';
             })();
-
-            function childPageQuery() {
+            function pageQuery() {
                 const q = new URLSearchParams();
                 if (safeReturn !== '/') q.set('return', safeReturn);
+                if (params.get('error')) q.set('error', params.get('error'));
+                if (params.get('signedOut')) q.set('signedOut', params.get('signedOut'));
                 const qs = q.toString();
                 return qs ? '?' + qs : '';
             }
+            const backLink = document.getElementById('backToChooserLink');
+            if (backLink) backLink.href = '/login.html' + pageQuery();
+            const notesLink = document.getElementById('loginNotesLink');
+            if (notesLink) notesLink.href = '/login.html?return=' + encodeURIComponent('/notes.html');
 
             const DEVICE_STORAGE_KEY = 'calendarLoginDevice';
-            function syncDevice() {
+            function getSelectedLoginDevice() {
                 const picked = document.querySelector('input[name="loginDevice"]:checked');
-                const device = picked && picked.value === 'shared' ? 'shared' : 'personal';
+                return picked && picked.value === 'shared' ? 'shared' : 'personal';
+            }
+            function syncDevice() {
+                const device = getSelectedLoginDevice();
                 try { localStorage.setItem(DEVICE_STORAGE_KEY, device); } catch (_) {}
                 return device;
             }
@@ -202,49 +203,41 @@
                     if (input) input.checked = true;
                 }
             } catch (_) {}
+            function kakaoAuthQuery(extra) {
+                const device = syncDevice();
+                const parts = ['return=' + encodeURIComponent(safeReturn), 'device=' + encodeURIComponent(device)];
+                if (extra) parts.push(extra);
+                return parts.join('&');
+            }
+            function updateKakaoLinks() {
+                const kakaoBtn = document.getElementById('kakaoLoginBtn');
+                const kakaoSwitch = document.getElementById('kakaoSwitchAccount');
+                if (kakaoBtn) kakaoBtn.href = '/api/auth/kakao?' + kakaoAuthQuery();
+                if (kakaoSwitch) kakaoSwitch.href = '/api/auth/kakao?' + kakaoAuthQuery('prompt=login');
+            }
+            updateKakaoLinks();
             document.querySelectorAll('input[name="loginDevice"]').forEach(function (input) {
-                input.addEventListener('change', syncDevice);
+                input.addEventListener('change', updateKakaoLinks);
             });
-
-            const childQs = childPageQuery();
-            const kakaoBtn = document.getElementById('chooseKakaoBtn');
-            const passwordBtn = document.getElementById('choosePasswordBtn');
-            if (kakaoBtn) {
-                kakaoBtn.addEventListener('click', function () { syncDevice(); });
-                kakaoBtn.href = '/kakao-login.html' + childQs;
-            }
-            if (passwordBtn) {
-                passwordBtn.addEventListener('click', function () { syncDevice(); });
-                passwordBtn.href = '/password-login.html' + childQs;
-            }
-            const notesLink = document.getElementById('loginNotesLink');
-            if (notesLink) notesLink.href = '/login.html?return=' + encodeURIComponent('/notes.html');
 
             if (params.get('signedOut') === 'idle') {
                 const el = document.getElementById('loginError');
                 if (el) { el.style.display = 'block'; el.textContent = t('idleSignedOut'); }
             }
-
-            fetch('/api/me', { credentials: 'same-origin' })
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (me) {
-                    if (!me || !me.id) return;
-                    if (safeReturn !== '/' && safeReturn !== '/index.html') {
-                        location.replace(safeReturn);
-                    }
-                })
-                .catch(function () {});
+            const err = params.get('error');
+            if (err) {
+                const el = document.getElementById('loginError');
+                if (el) { el.style.display = 'block'; el.textContent = t(err) || err; }
+            }
 
             fetch('/api/health', { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : {}; })
                 .then(function (h) {
                     if (h && h.kakaoConfigured === false) {
-                        if (kakaoBtn) kakaoBtn.hidden = true;
-                        const el = document.getElementById('loginError');
-                        if (el) {
-                            el.style.display = 'block';
-                            el.textContent = t('kakaoNotConfigured');
-                        }
+                        const kakaoBtn = document.getElementById('kakaoLoginBtn');
+                        if (kakaoBtn) { kakaoBtn.classList.add('is-disabled'); kakaoBtn.setAttribute('aria-disabled', 'true'); }
+                        const hint = document.getElementById('kakaoConfigHint');
+                        if (hint) { hint.style.display = 'block'; hint.textContent = t('kakaoNotConfigured'); }
                     }
                 })
                 .catch(function () {});
