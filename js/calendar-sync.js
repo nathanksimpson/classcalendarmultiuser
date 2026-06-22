@@ -915,9 +915,6 @@
                 return doc;
             } catch (err) {
                 if (err.status === 409 && err.body && err.body.document && !retried409) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'post-fix',hypothesisId:'H1-H5',location:'calendar-sync.js:saveClassroomData:409-retry',message:'classroom save revision conflict retry',data:{clientRevision:state.revision,serverRevision:err.body.document.revision,sentRevision:opts.force?null:state.revision,fields:fields?Object.keys(fields):[]},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     retried409 = true;
                     state.revision = err.body.document.revision;
                     setStatus('saving');
@@ -934,9 +931,6 @@
                         return retryDoc;
                     } catch (retryErr) {
                         if (retryErr.status === 409 && retryErr.body && retryErr.body.document) {
-                            // #region agent log
-                            fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'post-fix',hypothesisId:'H1-H5',location:'calendar-sync.js:saveClassroomData:409-failed',message:'classroom save revision conflict after retry',data:{clientRevision:state.revision,serverRevision:retryErr.body.document.revision},timestamp:Date.now()})}).catch(()=>{});
-                            // #endregion
                             setStatus('conflict');
                             throw retryErr;
                         }
@@ -945,9 +939,6 @@
                     }
                 }
                 if (err.status === 409 && err.body && err.body.document) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H1-H4',location:'calendar-sync.js:saveClassroomData:409',message:'classroom save revision conflict',data:{clientRevision:state.revision,serverRevision:err.body.document.revision,sentRevision:opts.force?null:state.revision,fields:fields?Object.keys(fields):[],errMessage:err.message},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     setStatus('conflict');
                     throw err;
                 }
@@ -1003,9 +994,6 @@
                 return doc;
             } catch (err) {
                 if (err.status === 409 && err.body && err.body.document) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H2-H5',location:'calendar-sync.js:saveDayNotesOnly:409',message:'day notes save revision conflict',data:{clientRevision:state.revision,serverRevision:err.body.document.revision,sentRevision:opts.force?null:state.revision,dayNoteCount:Array.isArray(dayNotes)?dayNotes.length:0,errMessage:err.message},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     setStatus('conflict');
                     throw err;
                 }

@@ -4739,6 +4739,7 @@ function ensureUiState() {
     const migratedZone = normalizeLegacyZoneAndSegment(appData.ui.activeZone, appData.ui.activeSegment);
     appData.ui.activeZone = migratedZone.zone;
     appData.ui.activeSegment = migratedZone.segment;
+    migrateEventsSegmentToScheduleZone(appData.ui);
     appData.ui.navZoneOrder = normalizeNavZoneOrder(appData.ui.navZoneOrder);
     if (!appData.ui.navSegmentOrder || typeof appData.ui.navSegmentOrder !== 'object') {
         appData.ui.navSegmentOrder = {};
@@ -6925,9 +6926,6 @@ async function persistDayNotesAfterChange(rollbackSnapshot) {
             return await saver.saveAfterMutate(appData.dayNotes, rollbackSnapshot);
         } catch (err) {
             if (err && err.status === 409 && teamSyncEnabled && typeof CalendarSync !== 'undefined') {
-                // #region agent log
-                fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H2',location:'app.js:persistDayNotesAfterChange:409-retry',message:'day notes 409 auto-retry starting',data:{clientRevision:CalendarSync.state?CalendarSync.state.revision:null,errMessage:err.message},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 try {
                     const id = CalendarSync.getActiveCalendarId();
                     if (!id) {
@@ -12247,6 +12245,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'notes',
     'timetable',
     'command-center',
+    'events',
     'students',
     'attendance',
     'ledger',
@@ -12254,7 +12253,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'points',
     'tests'
 ];
-const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'setup-hub', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
+const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'setup-hub', 'teachers', 'curriculum', 'syllabus', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
 const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'setup-hub', 'teachers'];
 const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS];
@@ -12269,11 +12268,10 @@ const APP_ZONE_MORE = 'more';
 const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_SETUP_HUB, APP_ZONE_CLASSROOM, APP_ZONE_MORE];
 
 const ZONE_SEGMENT_TO_TAB = {
-    schedule: { calendar: 'calendar', homework: 'homework', timetable: 'timetable' },
+    schedule: { calendar: 'calendar', events: 'events', homework: 'homework', timetable: 'timetable' },
     classes: {
         classes: 'classes',
         cohorts: 'cohorts',
-        events: 'events',
         teachers: 'teachers',
         curriculum: 'curriculum',
         syllabus: 'syllabus'
@@ -12337,6 +12335,27 @@ function setStoredNavSegmentOrder(zoneId, order) {
         appData.ui.navSegmentOrder = {};
     }
     appData.ui.navSegmentOrder[zoneId] = normalizeNavSegmentOrder(zoneId, order);
+}
+
+/** Events segment moved from Class Setup zone to Schedule zone (Jun 2026). */
+function migrateEventsSegmentToScheduleZone(ui) {
+    if (!ui || typeof ui !== 'object') {
+        return;
+    }
+    if (!ui.navSegmentOrder || typeof ui.navSegmentOrder !== 'object') {
+        ui.navSegmentOrder = {};
+    }
+    const classesOrder = Array.isArray(ui.navSegmentOrder.classes) ? ui.navSegmentOrder.classes : null;
+    if (classesOrder && classesOrder.includes('events')) {
+        ui.navSegmentOrder.classes = classesOrder.filter((segmentId) => segmentId !== 'events');
+    }
+    const scheduleOrder = Array.isArray(ui.navSegmentOrder.schedule) ? ui.navSegmentOrder.schedule.slice() : [];
+    if (!scheduleOrder.includes('events')) {
+        const calendarIdx = scheduleOrder.indexOf('calendar');
+        const insertAt = calendarIdx >= 0 ? calendarIdx + 1 : 0;
+        scheduleOrder.splice(insertAt, 0, 'events');
+        ui.navSegmentOrder.schedule = scheduleOrder;
+    }
 }
 
 function isNavSegmentVisibleInDom(zoneId, segmentId) {
@@ -12499,8 +12518,8 @@ function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
             segment = 'notes';
         }
     }
-    if (segment === 'events' && (zone === APP_ZONE_SCHEDULE || zone === APP_ZONE_MORE)) {
-        zone = APP_ZONE_CLASSES;
+    if (segment === 'events' && zone === APP_ZONE_CLASSES) {
+        zone = APP_ZONE_SCHEDULE;
     }
     if (segment === 'teachers' && zone === APP_ZONE_MORE) {
         zone = APP_ZONE_CLASSES;
@@ -12542,7 +12561,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
-    events: { zone: APP_ZONE_CLASSES, segment: 'events' },
+    events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
     teachers: { zone: APP_ZONE_CLASSES, segment: 'teachers' },
     data: { zone: APP_ZONE_MORE, segment: 'data' }
 };
@@ -12592,7 +12611,7 @@ function canAccessZoneSegment(zoneId, segmentId) {
     if (segmentId === 'cohorts' || segmentId === 'teachers' || segmentId === 'setup-hub') {
         return canAccessTeachersTab();
     }
-    if (segmentId === 'events' || segmentId === 'data') {
+    if (segmentId === 'data') {
         return canAccessSetupHost();
     }
     return true;
@@ -12654,9 +12673,6 @@ function syncZoneNavPermissions() {
     if (classesPanel) {
         classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="teachers"]').forEach((el) => {
             el.hidden = true;
-        });
-        classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="events"]').forEach((el) => {
-            el.hidden = !canAccessSetupHost();
         });
     }
     const morePanel = document.getElementById('zoneSegments-more');
@@ -14258,7 +14274,7 @@ function getSetupChecklistItems() {
         { id: 'cohorts', labelKey: 'setupChecklistCohorts', done: cohorts.length > 0, zone: APP_ZONE_CLASSES, segment: 'cohorts', requiresAdmin: true },
         { id: 'books', labelKey: 'setupChecklistBooks', done: books.length > 0, zone: APP_ZONE_CLASSES, segment: 'curriculum' },
         { id: 'syllabi', labelKey: 'setupChecklistSyllabi', done: hasSyllabi, zone: APP_ZONE_CLASSES, segment: 'syllabus' },
-        { id: 'events', labelKey: 'setupChecklistEvents', done: hasEvents, zone: APP_ZONE_CLASSES, segment: 'events' }
+        { id: 'events', labelKey: 'setupChecklistEvents', done: hasEvents, zone: APP_ZONE_SCHEDULE, segment: 'events' }
     ];
 }
 
@@ -31575,14 +31591,6 @@ function showSyncToast(message, isError) {
     if (!message || !window.CCPNotice || !window.CCPNotice.show) {
         return;
     }
-    // #region agent log
-    if (isError) {
-        const _msg = String(message || '');
-        if (/conflict|409|syncError|저장 충돌/i.test(_msg)) {
-            fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H1-H3',location:'app.js:showSyncToast',message:'error toast shown',data:{toastMessage:_msg,syncStatus:typeof CalendarSync!=='undefined'&&CalendarSync.state?CalendarSync.state.syncStatus:null},timestamp:Date.now()})}).catch(()=>{});
-        }
-    }
-    // #endregion
     window.CCPNotice.show(message, {
         type: isError ? 'error' : 'success',
         duration: 7000

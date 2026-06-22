@@ -26,7 +26,7 @@ function loadReorderApi() {
 
 const api = loadReorderApi();
 const DEFAULT_ZONES = ['schedule', 'classes', 'setup-hub', 'classroom', 'more'];
-const SCHEDULE_DEFAULTS = ['calendar', 'homework', 'timetable'];
+const SCHEDULE_DEFAULTS = ['calendar', 'events', 'homework', 'timetable'];
 
 assert(
     api.normalizeZoneOrder(['classroom', 'schedule'], DEFAULT_ZONES).join(',') === 'classes,setup-hub,classroom,schedule,more',
@@ -39,7 +39,7 @@ assert(
 );
 
 assert(
-    api.normalizeSegmentOrder('schedule', ['timetable', 'calendar'], SCHEDULE_DEFAULTS).join(',') === 'homework,timetable,calendar',
+    api.normalizeSegmentOrder('schedule', ['timetable', 'calendar'], SCHEDULE_DEFAULTS).join(',') === 'events,homework,timetable,calendar',
     'missing default segments merge at canonical index'
 );
 
@@ -48,9 +48,9 @@ assert(
     'archived command-center segment excluded from normalized order'
 );
 
-const classesOrder = api.normalizeSegmentOrder('classes', ['syllabus', 'classes'], ['classes', 'cohorts', 'events', 'curriculum', 'syllabus']);
+const classesOrder = api.normalizeSegmentOrder('classes', ['syllabus', 'classes'], ['classes', 'cohorts', 'curriculum', 'syllabus']);
 assert(
-    classesOrder.join(',') === 'cohorts,events,curriculum,syllabus,classes',
+    classesOrder.join(',') === 'cohorts,curriculum,syllabus,classes',
     'segment order stays scoped to one zone defaults'
 );
 

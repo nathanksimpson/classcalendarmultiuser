@@ -1,5 +1,5 @@
 /**
- * Term rollover wizard — clone calendar data and shift class/event dates.
+ * Term rollover wizard — clone calendar classes and shift dates (events not copied).
  */
 (function (global) {
     function parseYearMonth(ym) {
@@ -103,21 +103,7 @@
             });
         });
 
-        (cloned.events || []).forEach((ev) => {
-            if (!ev) {
-                return;
-            }
-            ev.id = newEntityId('evt');
-            if (ev.startDate) {
-                ev.startDate = shiftIsoDate(ev.startDate, monthShift);
-            }
-            if (ev.endDate) {
-                ev.endDate = shiftIsoDate(ev.endDate, monthShift);
-            }
-            if (ev.date) {
-                ev.date = shiftIsoDate(ev.date, monthShift);
-            }
-        });
+        cloned.events = [];
 
         if (options.clearClassroom) {
             cloned.attendanceSessions = [];
