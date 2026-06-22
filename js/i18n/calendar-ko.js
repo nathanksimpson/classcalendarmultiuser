@@ -1203,7 +1203,7 @@
         termSummaryModuleMissing: '학기 요약 모듈을 불러오지 못했습니다.',
         termSummaryNoClassSelected: '수업을 선택하세요.',
         dataTermCloneHeading: '이 캘린더로 새 학기 만들기',
-        dataTermCloneHint: '수업·일정을 복제하고 날짜를 앞으로 옮깁니다. 클래스룸 기록은 선택적으로 비웁니다.',
+        dataTermCloneHint: '수업을 복제하고 날짜를 앞으로 옮깁니다. 클래스룸 기록은 선택적으로 비웁니다.',
         dataTermCloneOpen: '새 학기 복제…',
         dataTermCloneNameLabel: '새 캘린더 이름',
         dataTermCloneMonthShift: '날짜 앞으로 (개월)',

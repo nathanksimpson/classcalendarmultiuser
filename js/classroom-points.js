@@ -251,27 +251,12 @@
         const next = d.appendPointEntries
             ? d.appendPointEntries(appData.studentPoints, entries)
             : entries.reduce((list, entry) => d.appendPointEntry(list, entry), appData.studentPoints);
-        // #region agent log
-        const _dbgRevBefore = typeof CalendarSync !== 'undefined' && CalendarSync.state ? CalendarSync.state.revision : null;
-        fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H1-H4',location:'classroom-points.js:savePointEntries:start',message:'points save start',data:{entryCount:entries.length,classId,dateStr,clientRevision:_dbgRevBefore},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         try {
             await hooks.saveClassroom({ studentPoints: next }, { skipPointsNoteReconcile: true });
-            // #region agent log
-            const _dbgRevAfterClassroom = typeof CalendarSync !== 'undefined' && CalendarSync.state ? CalendarSync.state.revision : null;
-            fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H1',location:'classroom-points.js:savePointEntries:afterClassroom',message:'classroom save ok',data:{clientRevision:_dbgRevAfterClassroom},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             if (typeof hooks.syncPointsDayNote === 'function') {
                 await hooks.syncPointsDayNote(classId, dateStr);
             }
-            // #region agent log
-            const _dbgRevAfterDayNote = typeof CalendarSync !== 'undefined' && CalendarSync.state ? CalendarSync.state.revision : null;
-            fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H2-H5',location:'classroom-points.js:savePointEntries:afterDayNote',message:'day note sync ok',data:{clientRevision:_dbgRevAfterDayNote},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
         } catch (err) {
-            // #region agent log
-            fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'72a155'},body:JSON.stringify({sessionId:'72a155',runId:'pre-fix',hypothesisId:'H1-H5',location:'classroom-points.js:savePointEntries:error',message:'points save failed',data:{status:err&&err.status,errMessage:err&&err.message,hasConflictDoc:!!(err&&err.body&&err.body.document),clientRevision:typeof CalendarSync!=='undefined'&&CalendarSync.state?CalendarSync.state.revision:null,serverRevision:err&&err.body&&err.body.document?err.body.document.revision:null},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             throw err;
         }
         const batchMode = options && options.batchMode;

@@ -1192,7 +1192,7 @@
         termSummaryModuleMissing: 'Term summary module failed to load.',
         termSummaryNoClassSelected: 'Select a class first.',
         dataTermCloneHeading: 'New term from this calendar',
-        dataTermCloneHint: 'Clone classes and events, shift dates forward, and optionally clear classroom logs.',
+        dataTermCloneHint: 'Clone classes, shift dates forward, and optionally clear classroom logs.',
         dataTermCloneOpen: 'Clone for new term…',
         dataTermCloneNameLabel: 'New calendar name',
         dataTermCloneMonthShift: 'Shift dates forward (months)',
