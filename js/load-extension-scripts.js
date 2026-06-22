@@ -13,7 +13,7 @@
         'js/default-class-editor.js',
         'js/books-editor.js?v=20260609-inline-warn-badge',
         'js/homework-import.js?v=20260606-clipboard-dash',
-        'js/homework-tab.js?v=20260612-prep-notes',
+        'js/homework-tab.js?v=20260619-ui-overhaul',
         'js/syllabus-templates.js?v=20260603-curriculum-notes'
     ];
 
@@ -23,7 +23,9 @@
     function loadScript(src) {
         return new Promise((resolve, reject) => {
             const marker = src.split('?')[0];
-            const existing = document.querySelector('script[data-cc-src="' + marker + '"]');
+            const existing = document.querySelector(
+                'script[data-cc-src="' + marker + '"], script[data-cc-tab-src="' + marker + '"]'
+            );
             if (existing) {
                 if (existing.dataset.ccLoaded === '1') {
                     resolve();
