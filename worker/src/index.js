@@ -35,7 +35,7 @@ import {
     sessionPolicyFromRow
 } from './login-context.js';
 import { scryptSync, timingSafeEqual } from 'node:crypto';
-import { dbOne, dbAll, dbRun, nowIso } from './db.js';
+import { dbOne, dbAll, dbRun, rowsChanged, nowIso } from './db.js';
 import * as Lock from './lock.js';
 import * as CalendarMeta from './calendar-meta.js';
 import * as CalendarMutations from '../../shared/calendar-mutations.cjs';
@@ -930,7 +930,7 @@ function passwordLoginErrorRedirect(returnTo, code, loginPage) {
 }
 
 export default {
-    async fetch(request, env) {
+    async fetch(request, env, execCtx) {
         const url = new URL(request.url);
         const path = url.pathname;
         // Use the actual request scheme — PUBLIC_URL is https even on wrangler dev (http://localhost).
@@ -1412,16 +1412,6 @@ export default {
             return json(groups);
         }
 
-        if (path === '/api/presence/heartbeat' && request.method === 'POST') {
-            const blocked = rejectViewAsJson();
-            if (blocked) {
-                return blocked;
-            }
-            const body = await readJson(request);
-            await Presence.upsertPresence(env, user, body);
-            return json({ ok: true });
-        }
-
         const notifyMetaDismissMatch = path.match(
             /^\/api\/calendars\/([^/]+)\/notification-meta\/([^/]+)\/dismiss$/
         );
@@ -1597,6 +1587,20 @@ export default {
                 );
                 if (!meta) {
                     return json({ error: 'Calendar not found' }, 404);
+                }
+                // Stamp presence as a side effect of the active poll so the client
+                // no longer needs a separate heartbeat request each tick. Skip in
+                // View As mode, and run it without blocking the meta response.
+                if (!viewAsSession) {
+                    const presenceWrite = Presence.upsertPresence(env, user, {
+                        calendarId: calId,
+                        calendarName: meta.name || ''
+                    }).catch(() => {});
+                    if (execCtx && typeof execCtx.waitUntil === 'function') {
+                        execCtx.waitUntil(presenceWrite);
+                    } else {
+                        await presenceWrite;
+                    }
                 }
                 return json(await CalendarMeta.calendarMetaExtras(env, user, calId, meta));
             }
@@ -1795,17 +1799,26 @@ export default {
                     const nextRev = Number(existingRow.revision) + 1;
                     const label = user.displayName || user.email || 'Teacher';
                     const stored = serializeCalendarData(calId, mergedData, env);
-                    await dbRun(
+                    const writeResult = await dbRun(
                         env,
-                        'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                        'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
                         stored.data,
                         stored.dataEncVersion,
                         stored.dataKeyWrapped,
                         nextRev,
                         nowIso(),
                         label,
-                        calId
+                        calId,
+                        Number(existingRow.revision)
                     );
+                    if (rowsChanged(writeResult) !== 1) {
+                        const doc = await dbOne(
+                            env,
+                            `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                            calId
+                        );
+                        return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                    }
                     await ActivityLog.recordActivityForUser(env, user, {
                         action: 'classroom_save',
                         calendarId: calId,
@@ -1856,17 +1869,26 @@ export default {
                     const nextRev = Number(existingRow.revision) + 1;
                     const label = user.displayName || user.email || 'Teacher';
                     const stored = serializeCalendarData(calId, mergedData, env);
-                    await dbRun(
+                    const writeResult = await dbRun(
                         env,
-                        'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                        'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
                         stored.data,
                         stored.dataEncVersion,
                         stored.dataKeyWrapped,
                         nextRev,
                         nowIso(),
                         label,
-                        calId
+                        calId,
+                        Number(existingRow.revision)
                     );
+                    if (rowsChanged(writeResult) !== 1) {
+                        const doc = await dbOne(
+                            env,
+                            `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                            calId
+                        );
+                        return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                    }
                     await ActivityLog.recordActivityForUser(env, user, {
                         action: 'day_notes_save',
                         calendarId: calId,
@@ -1929,7 +1951,6 @@ export default {
                     );
                     return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
                 }
-                const nextRev = Number(existing.revision) + 1;
                 const label = user.displayName || user.email || 'Teacher';
                 const displayName = body.name != null ? String(body.name).trim() : existing.name;
                 if (displayName.toLowerCase() !== String(existing.name || '').trim().toLowerCase()) {
@@ -1939,9 +1960,12 @@ export default {
                     }
                 }
                 const stored = serializeCalendarData(calId, body.data, env);
-                await dbRun(
+                // Compare-and-set: guard the write on the revision we just read so two
+                // concurrent writers cannot both bump from the same base revision.
+                let nextRev = Number(existing.revision) + 1;
+                let writeResult = await dbRun(
                     env,
-                    'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                    'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
                     displayName,
                     stored.data,
                     stored.dataEncVersion,
@@ -1949,8 +1973,50 @@ export default {
                     nextRev,
                     nowIso(),
                     label,
-                    calId
+                    calId,
+                    Number(existing.revision)
                 );
+                if (rowsChanged(writeResult) !== 1) {
+                    if (!forceAllowed) {
+                        const doc = await dbOne(
+                            env,
+                            `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                            calId
+                        );
+                        return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                    }
+                    // Force save: re-base onto the latest revision and retry a few times.
+                    let forcedOk = false;
+                    for (let attempt = 0; attempt < 5 && !forcedOk; attempt += 1) {
+                        const cur = await dbOne(env, 'SELECT revision FROM calendars WHERE id = ?', calId);
+                        if (!cur) {
+                            break;
+                        }
+                        nextRev = Number(cur.revision) + 1;
+                        writeResult = await dbRun(
+                            env,
+                            'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
+                            displayName,
+                            stored.data,
+                            stored.dataEncVersion,
+                            stored.dataKeyWrapped,
+                            nextRev,
+                            nowIso(),
+                            label,
+                            calId,
+                            Number(cur.revision)
+                        );
+                        forcedOk = rowsChanged(writeResult) === 1;
+                    }
+                    if (!forcedOk) {
+                        const doc = await dbOne(
+                            env,
+                            `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                            calId
+                        );
+                        return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                    }
+                }
                 await ActivityLog.recordActivityForUser(env, user, {
                     action: 'calendar_save',
                     calendarId: calId,
@@ -2040,17 +2106,29 @@ export default {
                 const nextRev = Number(existingRow.revision) + 1;
                 const label = user.displayName || user.email || 'Teacher';
                 const stored = serializeCalendarData(calId, mergedData, env);
-                await dbRun(
+                // Compare-and-set guard: if another writer bumped the revision between our
+                // read and this write, 0 rows change and we return 409 so the client can
+                // re-apply its mutations onto the new server state.
+                const writeResult = await dbRun(
                     env,
-                    'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
+                    'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
                     stored.data,
                     stored.dataEncVersion,
                     stored.dataKeyWrapped,
                     nextRev,
                     nowIso(),
                     label,
-                    calId
+                    calId,
+                    Number(existingRow.revision)
                 );
+                if (rowsChanged(writeResult) !== 1) {
+                    const doc = await dbOne(
+                        env,
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                        calId
+                    );
+                    return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                }
                 if (!lockStale && lockRow && lockRow.holder_user_id === user.id) {
                     await Lock.touchLockHolder(env, calId, user.id);
                 }

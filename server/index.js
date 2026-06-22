@@ -991,11 +991,6 @@ app.get('/api/admin/presence', requireAdminUser, requirePermission(Auth.PERMS.VI
     res.json(Presence.listOnlinePresence());
 });
 
-app.post('/api/presence/heartbeat', requireUser, rejectViewAsWrites, (req, res) => {
-    Presence.upsertPresence(req.user, req.body || {});
-    res.json({ ok: true });
-});
-
 app.get('/api/teachers', requireUser, (req, res) => {
     const calendars = CalAccess.listCalendarsForUser(req.user);
     const hasCalendarAccess =
@@ -1134,6 +1129,18 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
     if (!meta) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
+    }
+    // Stamp presence as a side effect of the active poll so the client no longer
+    // needs a separate heartbeat request each tick. Skip in View As mode.
+    if (!req.viewAsSession) {
+        try {
+            Presence.upsertPresence(req.user, {
+                calendarId: req.params.id,
+                calendarName: meta.name || ''
+            });
+        } catch (_) {
+            /* presence is best-effort */
+        }
     }
     res.json(CalendarMeta.calendarMetaExtras(req.user, req.params.id, meta));
 });

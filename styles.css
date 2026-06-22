@@ -12698,11 +12698,36 @@ html[data-calendar-view="agenda"] .calendar-container .month-calendar {
     line-height: var(--leading-body);
 }
 
+/*
+ * Phone setup tabs are view-only. Full editing of these complex boards/tables
+ * is reserved for larger screens (see mobile-setup-limited-banner). We disable
+ * only the interactive controls instead of the whole region, so teachers can
+ * still scroll and read the setup on a phone — previously pointer-events:none on
+ * the container also blocked scrolling, which cut off wide tables.
+ */
 html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout,
 html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap,
 html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel {
+    opacity: 0.92;
+}
+
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout button,
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout input,
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout select,
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout textarea,
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout [contenteditable],
+html[data-viewport="phone"] .app-tab-panel[data-tab="cohorts"] .setup-board-layout [draggable="true"],
+html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap button,
+html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap input,
+html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap select,
+html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap textarea,
+html[data-viewport="phone"] .app-tab-panel[data-tab="syllabus"] .syllabus-editor-table-wrap [contenteditable],
+html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel button,
+html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel input,
+html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel select,
+html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel textarea,
+html[data-viewport="phone"] .app-tab-panel[data-tab="curriculum"] .module-editor-panel [contenteditable] {
     pointer-events: none;
-    opacity: 0.85;
 }
 
 @media (max-width: 640px) {

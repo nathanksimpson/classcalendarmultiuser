@@ -3,6 +3,38 @@
 // ============================================
 let currentLanguage = 'en';
 
+// Languages we have already tried to lazy-load (prevents retry loops on failure).
+const _i18nLoadAttempted = new Set(['en']);
+
+/**
+ * If the active language bundle is not loaded yet (lazy Korean), fetch it once
+ * and re-run the supplied apply function. Returns true if a load was started.
+ */
+function ensureActiveLanguageLoaded(reapply) {
+    if (
+        typeof CCPCalendarI18n === 'undefined' ||
+        !CCPCalendarI18n.ensureLanguage ||
+        !CCPCalendarI18n.isLanguageLoaded
+    ) {
+        return false;
+    }
+    if (CCPCalendarI18n.isLanguageLoaded(currentLanguage)) {
+        return false;
+    }
+    if (_i18nLoadAttempted.has(currentLanguage)) {
+        return false;
+    }
+    _i18nLoadAttempted.add(currentLanguage);
+    CCPCalendarI18n.ensureLanguage(currentLanguage)
+        .then(() => {
+            if (typeof reapply === 'function') {
+                reapply();
+            }
+        })
+        .catch(() => {});
+    return true;
+}
+
 const translations =
     typeof CCPCalendarI18n !== 'undefined' && CCPCalendarI18n.translations
         ? CCPCalendarI18n.translations
@@ -54,6 +86,7 @@ function formatI18n(key, vars) {
 
 /** i18n for notes.html only — avoids calendar-only DOM updates that crash without index.html chrome. */
 function applyNotesPageLanguage() {
+    ensureActiveLanguageLoaded(applyNotesPageLanguage);
     document.querySelectorAll('[data-i18n]').forEach((el) => {
         const key = el.getAttribute('data-i18n');
         if (translations[currentLanguage][key]) {
@@ -92,6 +125,7 @@ function applyNotesPageLanguage() {
 }
 
 function applyLanguage() {
+    ensureActiveLanguageLoaded(applyLanguage);
     if (isNotesPage()) {
         applyNotesPageLanguage();
         return;
@@ -246,9 +280,28 @@ function updateCalendarTitle() {
 }
 
 function toggleLanguage() {
-    currentLanguage = currentLanguage === 'en' ? 'ko' : 'en';
-    localStorage.setItem('calendarLanguage', currentLanguage);
-    applyLanguage();
+    const next = currentLanguage === 'en' ? 'ko' : 'en';
+    const applyNext = () => {
+        currentLanguage = next;
+        try {
+            localStorage.setItem('calendarLanguage', next);
+        } catch (_) {
+            /* ignore */
+        }
+        applyLanguage();
+    };
+    // Korean may be lazy-loaded (English-only users skip it on first paint),
+    // so fetch the bundle before switching, then apply.
+    if (
+        typeof CCPCalendarI18n !== 'undefined' &&
+        CCPCalendarI18n.ensureLanguage &&
+        CCPCalendarI18n.isLanguageLoaded &&
+        !CCPCalendarI18n.isLanguageLoaded(next)
+    ) {
+        CCPCalendarI18n.ensureLanguage(next).then(applyNext).catch(applyNext);
+        return;
+    }
+    applyNext();
 }
 
 function loadLanguage() {
@@ -5033,6 +5086,79 @@ function initCalendarViewToggle() {
     agendaBtn.addEventListener('click', () => setCalendarViewMode('agenda'));
     monthBtn.addEventListener('click', () => setCalendarViewMode('month'));
     syncCalendarViewModeDom();
+}
+
+/**
+ * Touch swipe on the calendar (phone/tablet only): a horizontal flick switches
+ * between the Agenda list and the Month grid. Swipe left -> month, right ->
+ * agenda. Additive and gated to small screens, so desktop is unaffected.
+ */
+function initCalendarSwipe() {
+    if (initCalendarSwipe._bound) {
+        return;
+    }
+    const container = elements.calendarContainer;
+    if (!container || typeof window === 'undefined' || !('ontouchstart' in window)) {
+        return;
+    }
+    initCalendarSwipe._bound = true;
+
+    const SWIPE_MIN_X = 60; // min horizontal distance to count as a swipe (px)
+    const SWIPE_MAX_Y = 45; // max vertical drift before we treat it as scrolling
+    const SWIPE_MAX_MS = 600; // must be a quick flick, not a slow drag
+    const HORIZONTAL_RATIO = 1.5; // horizontal must dominate vertical by this much
+    let startX = 0;
+    let startY = 0;
+    let startT = 0;
+    let tracking = false;
+
+    container.addEventListener(
+        'touchstart',
+        (e) => {
+            if (!isViewportTabletOrBelow() || !e.touches || e.touches.length !== 1) {
+                tracking = false;
+                return;
+            }
+            const tch = e.touches[0];
+            startX = tch.clientX;
+            startY = tch.clientY;
+            startT = Date.now();
+            tracking = true;
+        },
+        { passive: true }
+    );
+
+    container.addEventListener(
+        'touchend',
+        (e) => {
+            if (!tracking) {
+                return;
+            }
+            tracking = false;
+            const tch = (e.changedTouches && e.changedTouches[0]) || null;
+            if (!tch) {
+                return;
+            }
+            const dx = tch.clientX - startX;
+            const dy = tch.clientY - startY;
+            if (Date.now() - startT > SWIPE_MAX_MS) {
+                return;
+            }
+            if (
+                Math.abs(dx) < SWIPE_MIN_X ||
+                Math.abs(dy) > SWIPE_MAX_Y ||
+                Math.abs(dx) <= Math.abs(dy) * HORIZONTAL_RATIO
+            ) {
+                return;
+            }
+            const target = dx < 0 ? 'month' : 'agenda';
+            if (getCalendarViewMode() !== target) {
+                setCalendarViewMode(target);
+                renderCalendar();
+            }
+        },
+        { passive: true }
+    );
 }
 
 /** Cohorts setup board: palette sticky top + viewport height for the board grid. */
@@ -21060,6 +21186,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initTermSettingsToggle();
         initViewportTier();
         initCalendarViewToggle();
+        initCalendarSwipe();
         initAppChromeStickyTop();
         applyLanguage();
 
@@ -26072,28 +26199,22 @@ function renderCalendarNow(options) {
     const dayIndex = buildDayIndex();
     const viewMode = getCalendarViewMode();
     const forceFull = Boolean(options && options.forceFull);
-    const canIncrementalAgenda =
-        !forceFull &&
-        viewMode === 'agenda' &&
-        elements.calendarContainer.querySelector('.calendar-agenda-list');
-
-    if (!canIncrementalAgenda) {
-        elements.calendarContainer.innerHTML = '';
-    } else {
-        const existingAgenda = elements.calendarContainer.querySelector('.calendar-agenda-list');
-        if (existingAgenda) {
-            existingAgenda.remove();
-        }
-    }
 
     if (viewMode === 'agenda') {
+        const canIncrementalAgenda =
+            !forceFull &&
+            elements.calendarContainer.querySelector('.calendar-agenda-list');
+        if (!canIncrementalAgenda) {
+            elements.calendarContainer.innerHTML = '';
+        } else {
+            const existingAgenda = elements.calendarContainer.querySelector('.calendar-agenda-list');
+            if (existingAgenda) {
+                existingAgenda.remove();
+            }
+        }
         renderCalendarAgenda(dayIndex);
     } else {
-        for (let i = 0; i < dayIndex.monthCount; i++) {
-            const monthDate = new Date(dayIndex.startDate);
-            monthDate.setMonth(monthDate.getMonth() + i);
-            renderMonth(monthDate, dayIndex);
-        }
+        renderMonthsIncremental(dayIndex, forceFull);
     }
 
     updatePrintSummary();
@@ -26106,7 +26227,81 @@ function renderCalendarNow(options) {
     }
 }
 
-function renderMonth(date, dayIndex) {
+/** Fast, stable hash of a string (FNV-1a) used as a cheap content signature. */
+function calendarHashString(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h.toString(36);
+}
+
+/**
+ * Signature of a freshly built month node, derived from its rendered HTML so it
+ * captures everything createDayCell produces (classes, colors, text, data-*).
+ * Must be computed BEFORE stamping data-monthSig so it stays comparable across
+ * renders, and BEFORE typography fit mutates the live node.
+ */
+function calendarMonthSignature(monthNode) {
+    return calendarHashString(monthNode.outerHTML);
+}
+
+/**
+ * Render the term's months, swapping only the months whose rendered content
+ * changed. Months are built off-DOM (no layout) and compared by signature to
+ * the live nodes; unchanged months keep their existing DOM (preserving handlers
+ * and typography sizing). Falls back to a clean full rebuild when the structure
+ * differs, on forced renders, or while rendering for print.
+ */
+function renderMonthsIncremental(dayIndex, forceFull) {
+    const container = elements.calendarContainer;
+    const built = [];
+    for (let i = 0; i < dayIndex.monthCount; i++) {
+        const monthDate = new Date(dayIndex.startDate);
+        monthDate.setMonth(monthDate.getMonth() + i);
+        built.push(buildMonthNode(monthDate, dayIndex));
+    }
+
+    const children = Array.from(container.children);
+    const allMonths =
+        children.length > 0 &&
+        children.every((c) => c.classList && c.classList.contains('month-calendar'));
+    const canIncremental =
+        !forceFull &&
+        !calendarRenderForPrint &&
+        allMonths &&
+        children.length === dayIndex.monthCount;
+
+    if (!canIncremental) {
+        const frag = document.createDocumentFragment();
+        built.forEach((node) => {
+            node.dataset.monthSig = calendarMonthSignature(node);
+            frag.appendChild(node);
+        });
+        container.innerHTML = '';
+        container.appendChild(frag);
+        return;
+    }
+
+    for (let i = 0; i < built.length; i++) {
+        const newNode = built[i];
+        const sig = calendarMonthSignature(newNode);
+        const oldNode = children[i];
+        if (oldNode && oldNode.dataset.monthSig === sig) {
+            continue;
+        }
+        newNode.dataset.monthSig = sig;
+        if (oldNode) {
+            oldNode.replaceWith(newNode);
+        } else {
+            container.appendChild(newNode);
+        }
+    }
+}
+
+/** Build (but do not attach) a `.month-calendar` node for the given month. */
+function buildMonthNode(date, dayIndex) {
     const year = date.getFullYear();
     const month = date.getMonth();
     
@@ -26174,7 +26369,7 @@ function renderMonth(date, dayIndex) {
     monthDiv.dataset.weekRows = String(weekRows);
     
     monthDiv.appendChild(gridDiv);
-    elements.calendarContainer.appendChild(monthDiv);
+    return monthDiv;
 }
 
 /** Print calendar merge line: Day 2+3 (no "Merge" wording). */

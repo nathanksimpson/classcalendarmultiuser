@@ -43,9 +43,6 @@
         if (op === 'upsert' && payload.note && payload.note.id) {
             return upsertById(list, payload.note, 'id');
         }
-        if (Array.isArray(payload && payload.dayNotes)) {
-            return payload.dayNotes.slice();
-        }
         return list;
     }
 

@@ -7,6 +7,7 @@
     const SAVE_DEBOUNCE_MS = 1500;
     const POLL_INTERVAL_ACTIVE_MS = 3000;
     const POLL_INTERVAL_IDLE_MS = 15000;
+    const POLL_INTERVAL_NOTES_MS = 2500;
     const POLL_INTERVAL_HIDDEN_MS = 60000;
     const POLL_INTERVAL_MAX_MS = 60000;
     const POLL_BACKOFF_FACTOR = 1.5;
@@ -30,7 +31,6 @@
         saveRetryTimer: null,
         saveRetryBackoffMs: SAVE_RETRY_BASE_MS,
         mutationSource: null,
-        queueDrainPending: false,
         readOnly: false,
         canEdit: true,
         canSuggest: false,
@@ -1316,7 +1316,7 @@
                         document.body.classList.contains('notes-page')
                         || document.body.classList.contains('workspace-page')
                     ) {
-                        return 1000;
+                        return POLL_INTERVAL_NOTES_MS;
                     }
                 }
             } catch (_) {
@@ -1363,21 +1363,9 @@
                 try {
                     const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
                     state.pollBackoffFactor = 1;
-                    if (!isViewAsMode()) {
-                        const hbHeaders = { 'Content-Type': 'application/json' };
-                        if (typeof TeamAuth !== 'undefined' && TeamAuth.authHeaders) {
-                            Object.assign(hbHeaders, TeamAuth.authHeaders());
-                        }
-                        fetch('/api/presence/heartbeat', {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: hbHeaders,
-                            body: JSON.stringify({
-                                calendarId: id,
-                                calendarName: meta.name || ''
-                            })
-                        }).catch(() => {});
-                    }
+                    // Presence is stamped server-side as a side effect of this meta
+                    // poll (skipped in View As there), so no separate heartbeat request
+                    // is needed per tick.
                     const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
                     if (state.holdsLock) {
                         await CalendarSync.touchLock(id);
