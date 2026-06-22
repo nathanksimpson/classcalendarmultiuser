@@ -647,7 +647,7 @@
 
     function openLockBarWarningsPopover() {
         const btn = document.getElementById('appWarningsBtn');
-        if (!btn || btn.hidden) {
+        if (!btn) {
             return;
         }
         const popover = document.getElementById('tabWarningsPopover');
