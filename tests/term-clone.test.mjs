@@ -46,6 +46,5 @@ assert(cloned.termStart === '2026-06', 'term shifted');
 assert(cloned.classes[0].id !== 'cls-old', 'new class id');
 assert(cloned.classes[0].startDate === '2026-06-01', 'class date shifted');
 assert(cloned.attendanceSessions.length === 0, 'classroom cleared');
-assert(cloned.events.length === 0, 'events not cloned');
 
 console.log('term-clone.test.mjs: all passed');
