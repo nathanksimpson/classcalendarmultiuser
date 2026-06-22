@@ -26,6 +26,7 @@
             'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
+        homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
         students: [
             'js/roster-import.js?v=20260612-roster-paste-tab',
             'js/classroom-access.js?v=20260612-classroom-mvp',
