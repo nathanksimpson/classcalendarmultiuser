@@ -284,6 +284,8 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `grades`, `sectionLevels`, `classNames` | arrays | Optional filters |
 | `allElementary`, `allMiddleSchool` | boolean | Quick bands |
 | `bgColor`, `textColor` | string | |
+| `notifyEnabled` | boolean | Optional. When true, show bell alerts before/on the event date |
+| `notifyLeadDays` | number | Optional. 0–30 days before anchor date to start alerting (0 = day-of only) |
 
 If no targeting filters are set, the event applies to all classes.
 

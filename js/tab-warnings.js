@@ -35,10 +35,12 @@
         classNeedsDebateBookPeriodsWarning: () => false,
         getSyncNavWarningsForBell: () => [],
         getUiInboxWarningsForBell: () => [],
+        getEventDateNavWarningsForBell: () => [],
         onNotificationDismissed: () => {},
         focusDayNoteInNotesTab: () => {},
         reloadActiveCalendarFromServer: () => {},
-        showNavWarningToast: () => {}
+        showNavWarningToast: () => {},
+        openEventEditor: () => {}
     };
 
     let refreshTimer = null;
@@ -511,6 +513,10 @@
             hooks.getUiInboxWarningsForBell().forEach((w) => warnings.push(w));
         }
 
+        if (typeof hooks.getEventDateNavWarningsForBell === 'function') {
+            hooks.getEventDateNavWarningsForBell().forEach((w) => warnings.push(w));
+        }
+
         return warnings;
     }
 
@@ -601,8 +607,7 @@
             return;
         }
         const lockVisible = lock && !lock.hidden;
-        const hasNotifications = activeCount > 0 || historyCount > 0;
-        row.hidden = !lockVisible && !hasNotifications;
+        row.hidden = !lockVisible;
     }
 
     function updateLockBarNotificationsFromSnapshot(snap) {
@@ -619,10 +624,8 @@
             return;
         }
 
-        const lock = document.getElementById('teamLockStatus');
-        const lockVisible = lock && !lock.hidden;
-        notifyWrap.hidden = !lockVisible && activeCount === 0 && historyCount === 0;
-        btn.hidden = notifyWrap.hidden;
+        notifyWrap.hidden = false;
+        btn.hidden = false;
 
         if (countEl) {
             countEl.textContent = activeCount > 9 ? '9+' : String(activeCount);
@@ -765,6 +768,17 @@
             if (typeof hooks.runCurriculumSyllabiBatchUpdate === 'function') {
                 hooks.runCurriculumSyllabiBatchUpdate(nav.curriculumId);
             }
+            return;
+        }
+        if (nav.type === 'event') {
+            const appData = hooks.getAppData();
+            const ev = (appData.events || []).find((e) => e && e.id === nav.eventId);
+            if (ev && typeof hooks.openEventEditor === 'function') {
+                hooks.openEventEditor(ev, 'tab');
+            } else {
+                hooks.navigateToTab('events');
+            }
+            return;
         }
     }
 

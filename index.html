@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260619-header-tools-top">
+    <link rel="stylesheet" href="styles.css?v=20260622-event-alerts">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,17 +64,6 @@
                 </div>
                 <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden data-i18n="lockDebugToggle" data-i18n-title="lockDebugTitle" title="Lock sync debug" aria-expanded="false" aria-controls="teamLockDebugPanel">Debug</button>
             </div>
-            <div id="appWarningsNotify" class="app-warnings-notify" hidden>
-                <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
-                    <span class="app-notify-bell-icon" aria-hidden="true">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                        </svg>
-                    </span>
-                    <span id="appWarningsCount" class="app-warnings-count" hidden aria-hidden="true">0</span>
-                </button>
-            </div>
             </div>
             <div id="teamLockDebugPanel" class="team-lock-debug-panel" hidden>
                 <div class="team-lock-debug-header">
@@ -125,6 +114,17 @@
                     </div>
                 </div>
                 <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
+                    <div id="appWarningsNotify" class="app-warnings-notify app-warnings-notify--header">
+                        <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
+                            <span class="app-notify-bell-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                            </span>
+                            <span id="appWarningsCount" class="app-warnings-count" hidden aria-hidden="true">0</span>
+                        </button>
+                    </div>
                     <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
                     <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
@@ -1036,7 +1036,7 @@
                     </div>
                     <div class="print-data-section print-data-section--term-clone">
                         <h2 class="module-section-title" data-i18n="dataTermCloneHeading">New term from this calendar</h2>
-                        <p class="section-hint" data-i18n="dataTermCloneHint">Clone classes and events, shift dates forward, and optionally clear classroom logs.</p>
+                        <p class="section-hint" data-i18n="dataTermCloneHint">Clone classes, shift dates forward, and optionally clear classroom logs.</p>
                         <div class="print-data-actions">
                             <button type="button" id="dataTermCloneBtn" class="btn btn-outline btn-small" data-i18n="dataTermCloneOpen">Clone for new term&hellip;</button>
                         </div>
@@ -1774,7 +1774,7 @@
     <script defer src="js/load-extension-scripts.js?v=20260622-homework-tab-load"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
-    <script defer src="js/team-auth.js?v=20260608-i18n-audit"></script>
+    <script defer src="js/team-auth.js?v=20260622-event-alerts"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-mutations.js?v=20260619-delta-sync"></script>
     <script defer src="js/calendar-sync.js?v=20260619-delta-sync"></script>
@@ -1784,7 +1784,8 @@
     <script defer src="js/classroom-term-summary-print.js?v=20260618-term-summary"></script>
     <script defer src="js/term-dates.js?v=20260619-term-flex"></script>
     <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
-    <script defer src="js/term-clone-wizard.js?v=20260619-term-flex"></script>
+    <script defer src="js/term-clone-wizard.js?v=20260622-no-events"></script>
+    <script defer src="js/event-date-warnings.js?v=20260622-event-alerts"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/class-list-view.js?v=20260615-ui-refactor"></script>
@@ -1854,12 +1855,12 @@
     </div>
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
-    <script defer src="js/tab-warnings.js?v=20260618-curriculum-bell-open"></script>
+    <script defer src="js/tab-warnings.js?v=20260622-event-alerts"></script>
     <script defer src="js/i18n/calendar-en.js?v=20260619-points-subtract"></script>
     <script defer src="js/i18n/calendar-ko.js?v=20260619-points-subtract"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260608-notify-i18n"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
-    <script defer src="app.js?v=20260622-homework-tab-load"></script>
+    <script defer src="app.js?v=20260622-event-alerts"></script>
 </body>
 </html>
 

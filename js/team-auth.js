@@ -231,6 +231,11 @@
         } catch (_) {
             /* server also releases locks on logout */
         }
+        try {
+            sessionStorage.removeItem('ccpEventAlertsPopoverShown');
+        } catch (_) {
+            /* ignore */
+        }
     }
 
     function openAccessDevUser() {

@@ -13580,6 +13580,19 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     flex-shrink: 0;
 }
 
+.app-warnings-notify--header {
+    margin-left: 0;
+    margin-right: var(--space-1);
+}
+
+.event-notify-lead-row[hidden] {
+    display: none;
+}
+
+.event-notify-fields .event-notify-lead-row {
+    margin-top: var(--space-2);
+}
+
 .app-notify-bell-btn {
     position: relative;
     display: inline-flex;
