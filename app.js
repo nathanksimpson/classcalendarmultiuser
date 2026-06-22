@@ -5343,7 +5343,11 @@ function normalizeEvent(raw) {
         linkedClassId: raw.linkedClassId || '',
         syllabusUnitId: raw.syllabusUnitId || '',
         nameKo: raw.nameKo ? String(raw.nameKo).trim() : '',
-        nameEn: raw.nameEn ? String(raw.nameEn).trim() : ''
+        nameEn: raw.nameEn ? String(raw.nameEn).trim() : '',
+        notifyEnabled: raw.notifyEnabled === true,
+        notifyLeadDays: (typeof CCPEventDateWarnings !== 'undefined' && CCPEventDateWarnings.clampNotifyLeadDays)
+            ? CCPEventDateWarnings.clampNotifyLeadDays(raw.notifyLeadDays)
+            : (Number(raw.notifyLeadDays) >= 0 ? Math.min(30, Math.floor(Number(raw.notifyLeadDays))) : 0)
     };
 }
 
@@ -12954,6 +12958,8 @@ function refreshMountedFormElementRefs() {
     elements.holidayId = document.getElementById('holidayId');
     elements.eventType = document.getElementById('eventType');
     elements.eventNotes = document.getElementById('eventNotes');
+    elements.eventNotifyEnabled = document.getElementById('eventNotifyEnabled');
+    elements.eventNotifyLeadDays = document.getElementById('eventNotifyLeadDays');
     elements.holidayName = document.getElementById('holidayName');
     elements.holidayIsRange = document.getElementById('holidayIsRange');
     elements.holidaySingleDate = document.getElementById('holidaySingleDate');
@@ -14275,6 +14281,11 @@ function getTabWarningsViewerContext() {
 function scheduleTabWarningsRefresh(options) {
     if (typeof CCPTabWarnings !== 'undefined' && CCPTabWarnings.scheduleRefresh) {
         CCPTabWarnings.scheduleRefresh(options || {});
+        if (options && typeof options.onRefreshComplete === 'function') {
+            setTimeout(() => {
+                options.onRefreshComplete();
+            }, 200);
+        }
     }
 }
 
@@ -14319,6 +14330,8 @@ function initTabWarningsModule() {
         classNeedsDebateBookPeriodsWarning,
         getSyncNavWarningsForBell,
         getUiInboxWarningsForBell,
+        getEventDateNavWarningsForBell,
+        openEventEditor,
         onNotificationDismissed: onTabWarningDismissed,
         runCurriculumSyllabiBatchUpdate: () => handleCurriculumUpdatedBannerAction(),
         focusDayNoteInNotesTab,
@@ -20409,6 +20422,8 @@ const elements = {
     holidayId: document.getElementById('holidayId'),
     eventType: document.getElementById('eventType'),
     eventNotes: document.getElementById('eventNotes'),
+    eventNotifyEnabled: document.getElementById('eventNotifyEnabled'),
+    eventNotifyLeadDays: document.getElementById('eventNotifyLeadDays'),
     holidayName: document.getElementById('holidayName'),
     holidayIsRange: document.getElementById('holidayIsRange'),
     holidaySingleDate: document.getElementById('holidaySingleDate'),
@@ -21056,6 +21071,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             teamSyncCalendarHydrated = true;
             renderCalendar();
             requestAnimationFrame(syncAppChromeStickyTop);
+            scheduleTabWarningsRefresh({ onRefreshComplete: maybeAutoOpenEventAlertsPopover });
         }
 
         const savedTab = getActiveTab();
@@ -21503,6 +21519,10 @@ function setupEventListeners() {
     // Form Submissions
     elements.classForm?.addEventListener('submit', handleClassSubmit);
     elements.holidayForm?.addEventListener('submit', handleHolidaySubmit);
+    if (elements.eventNotifyEnabled && !elements.eventNotifyEnabled.dataset.bound) {
+        elements.eventNotifyEnabled.dataset.bound = '1';
+        elements.eventNotifyEnabled.addEventListener('change', syncEventNotifyLeadRowVisibility);
+    }
     elements.printForm?.addEventListener('submit', handlePrint);
     
     // Delete Buttons
@@ -23949,6 +23969,30 @@ function syncDeleteHolidayButtonVisibility(visible) {
     });
 }
 
+function syncEventNotifyLeadRowVisibility() {
+    const leadRow = document.querySelector('.event-notify-lead-row');
+    const enabled = elements.eventNotifyEnabled && elements.eventNotifyEnabled.checked;
+    if (leadRow) {
+        leadRow.hidden = !enabled;
+    }
+    if (elements.eventNotifyLeadDays) {
+        elements.eventNotifyLeadDays.disabled = !enabled;
+    }
+}
+
+function syncEventNotifyFieldsFromHoliday(holidayData) {
+    const normalized = holidayData ? normalizeEvent(holidayData) : null;
+    if (elements.eventNotifyEnabled) {
+        elements.eventNotifyEnabled.checked = normalized ? normalized.notifyEnabled === true : false;
+    }
+    if (elements.eventNotifyLeadDays) {
+        const lead = normalized ? normalized.notifyLeadDays : 0;
+        const allowed = ['0', '1', '3', '7', '14', '30'];
+        elements.eventNotifyLeadDays.value = allowed.includes(String(lead)) ? String(lead) : '0';
+    }
+    syncEventNotifyLeadRowVisibility();
+}
+
 function populateHolidayForm(holidayData = null, options = {}) {
     closeEventApplicabilityPopover();
 
@@ -23960,6 +24004,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
     if (elements.eventNotes) {
         elements.eventNotes.value = holidayData ? (holidayData.notes || '') : '';
     }
+    syncEventNotifyFieldsFromHoliday(holidayData);
 
     if (holidayData) {
         elements.holidayModalTitle.textContent = t('editEvent');
@@ -24007,6 +24052,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
         }
         if (elements.eventType) elements.eventType.value = EVENT_TYPES.HOLIDAY;
         if (elements.eventNotes) elements.eventNotes.value = '';
+        syncEventNotifyFieldsFromHoliday(null);
         elements.holidayIsRange.checked = false;
         elements.holidaySingleDate.style.display = 'block';
         elements.holidayDateRange.style.display = 'none';
@@ -24612,7 +24658,9 @@ function handleHolidaySubmit(e) {
         classNames,
         sectionLevels,
         allElementary,
-        allMiddleSchool
+        allMiddleSchool,
+        notifyEnabled: elements.eventNotifyEnabled ? elements.eventNotifyEnabled.checked === true : false,
+        notifyLeadDays: elements.eventNotifyLeadDays ? Number(elements.eventNotifyLeadDays.value) || 0 : 0
     };
     if (existingEv && existingEv.nameKo && existingEv.nameEn) {
         savePayload.nameKo = existingEv.nameKo;
@@ -24630,6 +24678,7 @@ function handleHolidaySubmit(e) {
 
     syncHolidaysFromEvents();
     saveData();
+    scheduleTabWarningsRefresh();
     if (eventEditorMount === 'tab') {
         updateEventEditorEmptyState();
     } else {
@@ -30340,6 +30389,46 @@ function focusDayNoteInNotesTab({ noteId, classId, date }) {
     });
 }
 
+function getEventDateNavWarningsForBell() {
+    if (typeof CCPEventDateWarnings === 'undefined' || !CCPEventDateWarnings.collectEventDateWarnings) {
+        return [];
+    }
+    const today = formatDateISO(new Date());
+    return CCPEventDateWarnings.collectEventDateWarnings(getCalendarEvents(), today, {
+        getDisplayName: (ev) => getEventDisplayName(ev)
+    });
+}
+
+const EVENT_ALERTS_POPOVER_SESSION_KEY = 'ccpEventAlertsPopoverShown';
+
+function maybeAutoOpenEventAlertsPopover() {
+    if (typeof CCPTabWarnings === 'undefined' || !CCPTabWarnings.openLockBarWarningsPopover) {
+        return;
+    }
+    try {
+        if (sessionStorage.getItem(EVENT_ALERTS_POPOVER_SESSION_KEY) === '1') {
+            return;
+        }
+    } catch (_) {
+        return;
+    }
+    const active = typeof CCPTabWarnings.getNavVisibleWarnings === 'function'
+        ? CCPTabWarnings.getNavVisibleWarnings()
+        : [];
+    const hasEventAlert = active.some((w) => String(w.id || '').startsWith('event:'));
+    if (!hasEventAlert) {
+        return;
+    }
+    requestAnimationFrame(() => {
+        CCPTabWarnings.openLockBarWarningsPopover();
+        try {
+            sessionStorage.setItem(EVENT_ALERTS_POPOVER_SESSION_KEY, '1');
+        } catch (_) {
+            /* ignore */
+        }
+    });
+}
+
 function getSyncNavWarningsForBell() {
     const warnings = getDayNoteHomeroomNavWarnings();
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.state) {
@@ -31430,7 +31519,7 @@ function finishTeamSyncBoot() {
         teamSyncCalendarHydrated = true;
     }
     updateSetupGuideBanner();
-    scheduleTabWarningsRefresh();
+    scheduleTabWarningsRefresh({ onRefreshComplete: maybeAutoOpenEventAlertsPopover });
     const el = document.getElementById('teamSyncStatus');
     if (!el || !isTeamSyncBootIncomplete(el)) {
         return;
