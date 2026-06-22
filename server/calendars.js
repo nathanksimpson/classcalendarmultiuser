@@ -132,22 +132,59 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         return { ok: false, status: 409, document: getCalendar(id) };
     }
 
-    const nextRevision = Number(existing.revision) + 1;
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
     const stored = CalStorage.serializeCalendarData(id, data);
-    db.prepare(
-        `UPDATE calendars SET name = ?, data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(
-        displayName,
-        stored.data,
-        stored.dataEncVersion,
-        stored.dataKeyWrapped,
-        nextRevision,
-        now,
-        label,
-        id
-    );
+    // Compare-and-set: guard the write on the revision we just read.
+    let nextRevision = Number(existing.revision) + 1;
+    let writeResult = db
+        .prepare(
+            `UPDATE calendars SET name = ?, data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ? AND revision = ?`
+        )
+        .run(
+            displayName,
+            stored.data,
+            stored.dataEncVersion,
+            stored.dataKeyWrapped,
+            nextRevision,
+            now,
+            label,
+            id,
+            Number(existing.revision)
+        );
+    if (writeResult.changes !== 1) {
+        if (!forceAllowed) {
+            return { ok: false, status: 409, document: getCalendar(id) };
+        }
+        // Force save: re-base onto the latest revision and retry.
+        let forcedOk = false;
+        for (let attempt = 0; attempt < 5 && !forcedOk; attempt += 1) {
+            const cur = db.prepare('SELECT revision FROM calendars WHERE id = ?').get(id);
+            if (!cur) {
+                break;
+            }
+            nextRevision = Number(cur.revision) + 1;
+            writeResult = db
+                .prepare(
+                    `UPDATE calendars SET name = ?, data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ? AND revision = ?`
+                )
+                .run(
+                    displayName,
+                    stored.data,
+                    stored.dataEncVersion,
+                    stored.dataKeyWrapped,
+                    nextRevision,
+                    nowIso(),
+                    label,
+                    id,
+                    Number(cur.revision)
+                );
+            forcedOk = writeResult.changes === 1;
+        }
+        if (!forcedOk) {
+            return { ok: false, status: 409, document: getCalendar(id) };
+        }
+    }
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {
@@ -189,17 +226,23 @@ function updateCalendarDayNotes(id, dayNotes, revision, editorLabel, user) {
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
     const stored = CalStorage.serializeCalendarData(id, mergedData);
-    db.prepare(
-        `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(
-        stored.data,
-        stored.dataEncVersion,
-        stored.dataKeyWrapped,
-        nextRevision,
-        now,
-        label,
-        id
-    );
+    const writeResult = db
+        .prepare(
+            `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ? AND revision = ?`
+        )
+        .run(
+            stored.data,
+            stored.dataEncVersion,
+            stored.dataKeyWrapped,
+            nextRevision,
+            now,
+            label,
+            id,
+            Number(existingDoc.revision)
+        );
+    if (writeResult.changes !== 1) {
+        return { ok: false, status: 409, document: getCalendar(id) };
+    }
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {
@@ -235,17 +278,23 @@ function updateCalendarClassroom(id, payload, revision, editorLabel, user) {
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
     const stored = CalStorage.serializeCalendarData(id, mergedData);
-    db.prepare(
-        `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(
-        stored.data,
-        stored.dataEncVersion,
-        stored.dataKeyWrapped,
-        nextRevision,
-        now,
-        label,
-        id
-    );
+    const writeResult = db
+        .prepare(
+            `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ? AND revision = ?`
+        )
+        .run(
+            stored.data,
+            stored.dataEncVersion,
+            stored.dataKeyWrapped,
+            nextRevision,
+            now,
+            label,
+            id,
+            Number(existingDoc.revision)
+        );
+    if (writeResult.changes !== 1) {
+        return { ok: false, status: 409, document: getCalendar(id) };
+    }
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {
@@ -314,17 +363,24 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
     const stored = CalStorage.serializeCalendarData(id, mergedData);
-    db.prepare(
-        `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ?`
-    ).run(
-        stored.data,
-        stored.dataEncVersion,
-        stored.dataKeyWrapped,
-        nextRevision,
-        now,
-        label,
-        id
-    );
+    // Compare-and-set: on contention return 409 so the client re-applies its mutations.
+    const writeResult = db
+        .prepare(
+            `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ? AND revision = ?`
+        )
+        .run(
+            stored.data,
+            stored.dataEncVersion,
+            stored.dataKeyWrapped,
+            nextRevision,
+            now,
+            label,
+            id,
+            Number(existing.revision)
+        );
+    if (writeResult.changes !== 1) {
+        return { ok: false, status: 409, document: getCalendar(id) };
+    }
 
     const meta = getCalendarMeta(id);
     recordActivityForUser(user, {
