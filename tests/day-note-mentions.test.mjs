@@ -243,4 +243,32 @@ assert(
     'preserveMentionActiveIndex stays -1 when nothing was highlighted'
 );
 
+const purpleFiltered = mentions.filterMentionCandidates(studentsSingle, 'Purple');
+assert(
+    purpleFiltered.length > 0 && purpleFiltered[0].studentId === 'stu-1',
+    'filterMentionCandidates ranks Purple T prefix match first'
+);
+
+const minjiFiltered = mentions.filterMentionCandidates(studentsSingle, 'Minji');
+assert(
+    minjiFiltered.length > 0 && minjiFiltered[0].studentId === 'stu-1',
+    'filterMentionCandidates ranks English name prefix first'
+);
+
+assert(
+    mentions.getMentionCompletionSuffix('Purple', stu1Entry) === ' T 김민지 ',
+    'getMentionCompletionSuffix returns insertLabel remainder for prefix match'
+);
+
+assert(
+    mentions.getMentionCompletionSuffix('Minji', stu1Entry) === 'Purple T 김민지 ',
+    'getMentionCompletionSuffix returns full insertLabel for name prefix match'
+);
+
+assert(
+    mentions.scoreMentionCandidate(stu1Entry, 'Purple T 김민지')
+        > mentions.scoreMentionCandidate(stu1Entry, 'Purple'),
+    'exact insertLabel match scores higher than prefix'
+);
+
 console.log('day-note-mentions.test.mjs: all passed');
