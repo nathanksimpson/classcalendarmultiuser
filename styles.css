@@ -1071,6 +1071,52 @@ body {
     margin-bottom: 0;
 }
 
+.day-note-mention-wrap {
+    position: relative;
+}
+
+.day-note-mention-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    margin: 0;
+    padding: var(--pad-control-y-lg) var(--pad-control-x);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius);
+    box-sizing: border-box;
+    font-family: var(--font-main);
+    font-size: 0.9375rem;
+    line-height: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--text-primary);
+}
+
+.day-note-mention-wrap .day-note-textarea {
+    position: relative;
+    z-index: 1;
+}
+
+.day-note-mention-wrap--ghost-active .day-note-mention-ghost {
+    background: var(--input-bg);
+}
+
+.day-note-mention-wrap--ghost-active .day-note-textarea {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-primary);
+}
+
+.day-note-mention-ghost-suffix {
+    color: var(--text-muted, var(--text-secondary));
+    opacity: 0.72;
+}
+
 .day-note-mention-wrap .day-note-mention-dropdown {
     z-index: var(--z-modal-popover);
 }

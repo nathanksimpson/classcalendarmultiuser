@@ -175,13 +175,76 @@
         });
     }
 
+    /**
+     * Higher score = better autocomplete match within the same roster tier.
+     * @returns {number}
+     */
+    function scoreMentionCandidate(entry, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q || !entry) {
+            return 0;
+        }
+        const insertLabel = String(entry.insertLabel || '').toLowerCase();
+        const name = String(entry.name || '').toLowerCase();
+        const nameEn = String(entry.nameEn || '').toLowerCase();
+        let score = 0;
+        if (insertLabel === q) {
+            score = 100;
+        } else if (insertLabel.startsWith(q)) {
+            score = 90;
+        } else if (name.startsWith(q) || nameEn.startsWith(q)) {
+            score = 80;
+        } else if (entry.searchHay && entry.searchHay.includes(q)) {
+            score = 50;
+        } else {
+            return 0;
+        }
+        const lenBonus = Math.max(0, 10 - Math.min(10, String(entry.insertLabel || '').length / 5));
+        return score + lenBonus;
+    }
+
+    /**
+     * Gray inline completion suffix shown after the typed @query.
+     * @returns {string}
+     */
+    function getMentionCompletionSuffix(query, candidate) {
+        if (!candidate) {
+            return '';
+        }
+        const q = String(query || '');
+        const ql = q.toLowerCase();
+        const insertLabel = String(candidate.insertLabel || '');
+        const il = insertLabel.toLowerCase();
+        if (il.startsWith(ql)) {
+            return `${insertLabel.slice(q.length)} `;
+        }
+        const name = String(candidate.name || '');
+        const nameEn = String(candidate.nameEn || '');
+        if (name.toLowerCase().startsWith(ql) || nameEn.toLowerCase().startsWith(ql)) {
+            return `${insertLabel} `;
+        }
+        return '';
+    }
+
     function filterMentionCandidates(students, query) {
         const q = String(query || '').trim().toLowerCase();
         const list = students || [];
         const filtered = !q
             ? list.slice()
             : list.filter((s) => s.searchHay.includes(q));
-        return sortMentionCandidates(filtered);
+        return [...filtered].sort((a, b) => {
+            const tierDiff = (a.tier || 0) - (b.tier || 0);
+            if (tierDiff !== 0) {
+                return tierDiff;
+            }
+            if (q) {
+                const scoreDiff = scoreMentionCandidate(b, q) - scoreMentionCandidate(a, q);
+                if (scoreDiff !== 0) {
+                    return scoreDiff;
+                }
+            }
+            return String(a.insertLabel || '').localeCompare(String(b.insertLabel || ''));
+        });
     }
 
     /**
@@ -545,11 +608,14 @@
 
         let wrap = null;
         let dropdown = null;
+        let ghost = null;
         let fullUiReady = false;
         let activeIndex = -1;
         let visibleCandidates = [];
         let mentionCaret = null;
+        let mentionQuery = '';
         let suppressMentionRefresh = false;
+        let isComposing = false;
 
         function ensureFullMentionUi() {
             if (fullUiReady || !textarea.parentNode) {
@@ -563,6 +629,13 @@
                 textarea.parentNode.insertBefore(wrap, textarea);
                 wrap.appendChild(textarea);
             }
+            ghost = wrap.querySelector('.day-note-mention-ghost');
+            if (!ghost) {
+                ghost = document.createElement('div');
+                ghost.className = 'day-note-mention-ghost';
+                ghost.setAttribute('aria-hidden', 'true');
+                wrap.insertBefore(ghost, textarea);
+            }
             dropdown = wrap.querySelector('.day-note-mention-dropdown');
             if (!dropdown) {
                 dropdown = document.createElement('div');
@@ -572,11 +645,58 @@
             }
             textarea.addEventListener('keydown', onMentionKeydown);
             textarea.addEventListener('blur', onMentionBlur);
+            textarea.addEventListener('scroll', syncGhostScroll);
+            textarea.addEventListener('compositionstart', onMentionCompositionStart);
+        }
+
+        function syncGhostScroll() {
+            if (!ghost) {
+                return;
+            }
+            ghost.scrollTop = textarea.scrollTop;
+            ghost.scrollLeft = textarea.scrollLeft;
+        }
+
+        function clearMentionGhost() {
+            if (!ghost || !wrap) {
+                return;
+            }
+            ghost.replaceChildren();
+            ghost.textContent = '';
+            wrap.classList.remove('day-note-mention-wrap--ghost-active');
+        }
+
+        function syncMentionGhost(query) {
+            if (!ghost || !wrap) {
+                return;
+            }
+            if (isComposing) {
+                clearMentionGhost();
+                return;
+            }
+            const q = String(query || '').trim();
+            if (!q || activeIndex < 0 || !visibleCandidates.length) {
+                clearMentionGhost();
+                return;
+            }
+            const picked = visibleCandidates[activeIndex];
+            const suffix = getMentionCompletionSuffix(query, picked);
+            if (!suffix) {
+                clearMentionGhost();
+                return;
+            }
+            const value = textarea.value || '';
+            const end = textarea.selectionEnd != null ? textarea.selectionEnd : value.length;
+            ghost.innerHTML = `${escapeHtml(value.slice(0, end))}<span class="day-note-mention-ghost-suffix">${escapeHtml(suffix)}</span>`;
+            wrap.classList.add('day-note-mention-wrap--ghost-active');
+            syncGhostScroll();
         }
 
         function hideDropdown() {
+            mentionCaret = null;
+            mentionQuery = '';
+            clearMentionGhost();
             if (!dropdown || !dropdown.classList.contains('active')) {
-                mentionCaret = null;
                 activeIndex = -1;
                 visibleCandidates = [];
                 return;
@@ -616,15 +736,26 @@
             const prevCandidates = visibleCandidates;
             const prevIndex = activeIndex;
             visibleCandidates = candidates;
-            activeIndex = preserveMentionActiveIndex(prevIndex, prevCandidates, candidates);
+            const preserved = preserveMentionActiveIndex(prevIndex, prevCandidates, candidates);
+            if (preserved >= 0) {
+                activeIndex = preserved;
+            } else if (String(query || '').trim() && candidates.length) {
+                activeIndex = 0;
+            } else {
+                activeIndex = -1;
+            }
+            mentionQuery = String(query || '');
             dropdown.replaceChildren();
             if (!candidates.length) {
+                activeIndex = -1;
+                mentionQuery = String(query || '');
                 const empty = document.createElement('div');
                 empty.className = 'autocomplete-item autocomplete-item--empty';
                 empty.textContent = t('dayNoteMentionNoMatch');
                 dropdown.appendChild(empty);
                 dropdown.classList.add('active');
                 restoreTextareaFocusIfNeeded(hadFocus, selStart, selEnd);
+                clearMentionGhost();
                 return;
             }
             const showDividers = !String(query || '').trim();
@@ -668,6 +799,7 @@
             });
             dropdown.classList.add('active');
             restoreTextareaFocusIfNeeded(hadFocus, selStart, selEnd);
+            syncMentionGhost(query);
         }
 
         function syncActiveItem() {
@@ -677,6 +809,7 @@
             dropdown.querySelectorAll('.autocomplete-item').forEach((el, idx) => {
                 el.classList.toggle('selected', idx === activeIndex);
             });
+            syncMentionGhost(mentionQuery);
         }
 
         function insertSelectedLabel(label, rangeOverride) {
@@ -720,8 +853,13 @@
 
         function onMentionInput(ev) {
             if (suppressMentionRefresh || (ev && ev.isComposing)) {
+                if (ev && ev.isComposing) {
+                    isComposing = true;
+                    clearMentionGhost();
+                }
                 return;
             }
+            isComposing = false;
             if (!caretHasMentionTrigger()) {
                 if (dropdown && dropdown.classList.contains('active')) {
                     mentionCaret = null;
@@ -732,13 +870,30 @@
             refreshDropdown();
         }
 
+        function onMentionCompositionStart() {
+            isComposing = true;
+            clearMentionGhost();
+        }
+
         function onMentionCompositionEnd() {
+            isComposing = false;
             if (suppressMentionRefresh) {
                 return;
             }
             if (caretHasMentionTrigger()) {
                 refreshDropdown();
             }
+        }
+
+        function acceptMentionSelection(ev) {
+            if (activeIndex < 0 || !visibleCandidates.length) {
+                return false;
+            }
+            ev.preventDefault();
+            const picked = visibleCandidates[activeIndex];
+            const range = resolveMentionInsertRange(textarea, mentionQueryOpts());
+            insertSelectedLabel(picked.insertLabel, range);
+            return true;
         }
 
         function onMentionKeydown(ev) {
@@ -756,11 +911,8 @@
                 ev.preventDefault();
                 activeIndex = Math.max(activeIndex - 1, -1);
                 syncActiveItem();
-            } else if (ev.key === 'Enter' && activeIndex >= 0) {
-                ev.preventDefault();
-                const picked = visibleCandidates[activeIndex];
-                const range = resolveMentionInsertRange(textarea, mentionQueryOpts());
-                insertSelectedLabel(picked.insertLabel, range);
+            } else if ((ev.key === 'Enter' || ev.key === 'Tab') && activeIndex >= 0) {
+                acceptMentionSelection(ev);
             } else if (ev.key === 'Escape') {
                 ev.preventDefault();
                 hideDropdown();
@@ -786,6 +938,8 @@
         getAllActiveStudentRows,
         getStudentsForMentions,
         sortMentionCandidates,
+        scoreMentionCandidate,
+        getMentionCompletionSuffix,
         filterMentionCandidates,
         findMentionsInText,
         syncTaggedStudentIdsFromText,
