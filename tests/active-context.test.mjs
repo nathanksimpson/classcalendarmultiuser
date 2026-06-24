@@ -105,4 +105,15 @@ function loadActiveContext() {
     assert(cohort === 'g1', 'derive cohort from cohortIds');
 }
 
+{
+    const { api, sandbox } = loadActiveContext();
+    api.set({ sessionDate: '2026-06-23' }, { source: 'test' });
+    sandbox.appData.ui.homeworkReferenceDate = '2026-06-24';
+    sandbox.appData.ui.classroomTabDate = '2026-06-24';
+    api.set({ classId: 'cls-b' }, { source: 'class-only' });
+    assert(sandbox.appData.ui.homeworkReferenceDate === '2026-06-24', 'classId-only set keeps homeworkReferenceDate');
+    assert(sandbox.appData.ui.classroomTabDate === '2026-06-24', 'classId-only set keeps classroomTabDate');
+    assert(api.get().sessionDate === '2026-06-23', 'classId-only set keeps stored sessionDate until explicit update');
+}
+
 console.log('active-context.test.mjs: all passed');

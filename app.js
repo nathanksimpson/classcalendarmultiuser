@@ -14769,6 +14769,17 @@ function getHomeworkRefCalendarView() {
     return homeworkRefCalendarView;
 }
 
+function syncHomeworkReferenceDateToActiveContext(isoDate) {
+    if (!isoDate || typeof CCPActiveContext === 'undefined') {
+        return;
+    }
+    const ctx = CCPActiveContext.get();
+    if (ctx && ctx.sessionDate === isoDate) {
+        return;
+    }
+    CCPActiveContext.set({ sessionDate: isoDate }, { source: 'homework-reference-date' });
+}
+
 function setHomeworkReferenceDate(isoDate, options = {}) {
     const input = document.getElementById('homeworkReferenceDate');
     if (!input || !isoDate) {
@@ -14778,6 +14789,7 @@ function setHomeworkReferenceDate(isoDate, options = {}) {
     ensureUiState();
     appData.ui.homeworkReferenceDate = isoDate;
     saveUiStateToLocalStorage();
+    syncHomeworkReferenceDateToActiveContext(isoDate);
     if (options.syncView !== false) {
         syncHomeworkRefCalendarViewToDate(isoDate);
     }
@@ -14956,6 +14968,7 @@ function initHomeworkTabControls() {
             ensureUiState();
             appData.ui.homeworkReferenceDate = input.value || '';
             saveUiStateToLocalStorage();
+            syncHomeworkReferenceDateToActiveContext(input.value || '');
             syncHomeworkRefCalendarViewToDate(input.value);
             renderHomeworkReferenceMiniCalendar();
             renderHomeworkClassList();
@@ -15100,8 +15113,12 @@ function renderHomeworkClassList() {
         list.appendChild(createModuleClassListButton(c, {
             isSelected: c.id === selectedId,
             onClick: () => {
+                const refDate = getHomeworkReferenceDateFromUi();
                 if (typeof CCPActiveContext !== 'undefined') {
-                    CCPActiveContext.set({ classId: c.id }, { source: 'homework-sidebar' });
+                    CCPActiveContext.set({
+                        classId: c.id,
+                        sessionDate: refDate
+                    }, { source: 'homework-sidebar' });
                 } else {
                     appData.ui.homeworkTabClassId = c.id;
                     saveData();

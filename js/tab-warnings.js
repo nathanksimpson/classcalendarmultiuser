@@ -991,6 +991,10 @@
         updateLockBarNotificationsFromSnapshot();
     }
 
+    function renderPersistentTabWarnings() {
+        refreshAll();
+    }
+
     let pendingOpenPopoverWarningId = null;
 
     function scheduleRefresh(options) {

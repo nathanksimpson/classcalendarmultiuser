@@ -60,7 +60,7 @@
         });
     }
 
-    function syncUiMirror(ctx) {
+    function syncUiMirror(ctx, patch) {
         if (typeof global.appData === 'undefined' || !global.appData.ui) {
             return;
         }
@@ -68,14 +68,16 @@
             global.ensureUiState();
         }
         const ui = global.appData.ui;
-        if (ctx.classId !== undefined) {
+        const fullMirror = !patch;
+        if (fullMirror || patch.classId !== undefined) {
             ui.homeworkTabClassId = ctx.classId || '';
             ui.classroomTabClassId = ctx.classId || '';
         }
-        if (ctx.cohortId !== undefined) {
+        if (fullMirror || patch.cohortId !== undefined) {
             ui.cohortsTabSelectedId = ctx.cohortId || '';
         }
-        if (ctx.sessionDate !== undefined) {
+        const mirrorSessionDate = fullMirror || patch.sessionDate !== undefined;
+        if (mirrorSessionDate && ctx.sessionDate !== undefined) {
             ui.classroomTabDate = ctx.sessionDate || '';
             ui.homeworkReferenceDate = ctx.sessionDate || '';
         }
@@ -109,7 +111,7 @@
                 patch.sessionDate !== undefined ? String(patch.sessionDate || '').trim() : prev.sessionDate
         };
         writeStorage(userId, next);
-        syncUiMirror(next);
+        syncUiMirror(next, patch);
         if (typeof global.saveUiStateToLocalStorage === 'function') {
             global.saveUiStateToLocalStorage();
         }
