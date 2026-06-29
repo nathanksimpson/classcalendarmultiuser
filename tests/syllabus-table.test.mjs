@@ -59,14 +59,11 @@ function assert(cond, msg) {
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-extra-dense'), '28 rows use normal density');
     assert(docHtml.includes('syllabus-a4-sheet'), 'A4 sheet wrapper per class');
     assert(docHtml.includes('<colgroup>'), 'colgroup for column widths');
-    assert(docHtml.includes('width:70%'), 'jindo main plan column');
-    assert(docHtml.includes('width:11%'), 'jindo month column width');
-    assert(docHtml.includes('width:70%'), 'jindo plan column width');
-    assert(docHtml.includes('15%'), 'jindo notes column 15%');
-    assert(docHtml.includes('85%'), 'jindo main grid 85%');
-    assert(docHtml.includes('syllabus-jindo-print-grid'), 'jindo uses side notes table');
-    assert(docHtml.includes('width:10%'), 'jindo date column width');
-    assert(docHtml.includes('width:9%'), 'jindo week column width');
+    assert(docHtml.includes('syllabus-table-modern'), 'modern teacher print table');
+    assert(docHtml.includes('width:35%'), 'modern plan column');
+    assert(docHtml.includes('syllabus-modern-print-shell'), 'modern print flex shell');
+    assert(docHtml.includes('syllabus-modern-print-note'), 'side note column');
+    assert(!docHtml.includes('<div class="syllabus-jindo-print-grid'), 'no jindo side grid for teacher print');
 }
 
 // Week label Mon–Fri
@@ -693,7 +690,7 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(filtered[0].planTitle === 'Unit 1', 'first print row is first lesson');
 }
 
-// 진도표 PDF layout (jindo): dates, week-of-month, title-only plan, sparse 비고
+// Modern teacher A4 PDF: English columns, single table + merged Note
 {
     const rows = CCPSyllabus.normalizeRows([
         {
@@ -723,37 +720,30 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
         pdfLayout: true,
         a4Pdf: true,
         jindoTable: true,
-        useKoreanJindo: true,
+        classTitle: 'Navy M',
         tableYear: '2026',
-        colDate: '날짜',
-        colPlanJindo: '세부 진도계획',
-        colNote: '비고',
-        colYear: '{year}년',
-        generalNotes: '★ SP : 3/4(수)~5/29(금)'
+        colDate: 'Date',
+        colPlan: 'Lesson plan',
+        colPagesDetail: 'Pages / detail',
+        colNote: 'Note',
+        generalNotes: '★ SP : Mar 4 – May 29'
     });
-    const mainBody = html.split('syllabus-table-jindo-notes')[0].split('<tbody>')[1] || '';
-    assert(!mainBody.includes('Lesson plan intro'), 'editor note row not in main tbody');
-    assert(mainBody.includes('3/4'), 'first body row is first dated lesson');
-    assert(html.includes('syllabus-table-jindo'), 'jindo table class');
-    assert(html.includes('3/4'), 'date in date column');
-    assert(html.includes('1주'), 'week of month label');
-    assert(html.includes('3월'), 'korean month in month column');
-    assert(html.includes('syllabus-jindo-print-grid'), 'main + notes side-by-side');
-    assert(html.includes('syllabus-table-jindo-notes'), 'separate notes table');
-    assert(html.includes('syllabus-jindo-notes-th'), 'notes table header cell');
-    const mainTbody = (html.split('syllabus-table-jindo-notes')[0].split('</thead>')[1]) || '';
-    assert(!mainTbody.includes('syllabus-jindo-note'), 'no note column in main table');
-    assert(html.includes('세부 진도계획'), 'korean plan header');
-    assert(html.includes('날짜'), 'korean date header');
-    assert(html.includes('비고'), 'korean note header');
+    const mainBody = (html.split('<tbody>')[1] || '').split('</tbody>')[0] || '';
+    assert(!mainBody.includes('Lesson plan intro'), 'editor note row not in tbody');
+    assert(mainBody.includes('3/4'), 'first body row uses M/D date format');
+    assert(html.includes('syllabus-table-modern'), 'modern table class');
+    assert(html.includes('Lesson plan'), 'english plan header');
+    assert(html.includes('Pages / detail'), 'pages column header');
+    assert(html.includes('syllabus-modern-print-shell'), 'modern print flex shell');
+    assert(html.includes('syllabus-modern-print-note'), 'side note column');
+    assert(html.includes('syllabus-print-title-block'), 'modern title block');
+    assert(!html.includes('syllabus-note-merged'), 'no merged note td in table');
+    assert(!html.includes('<div class="syllabus-jindo-print-grid'), 'no side-by-side jindo grid');
+    assert(!html.includes('syllabus-table-jindo-notes'), 'no separate notes table');
     assert(html.includes('Unit 2 (1/2)'), 'short plan title');
-    assert(!html.includes('Homework:'), 'no homework in overview');
+    assert(html.includes('SB p. 8-11') || html.includes('8-11'), 'pages/detail column content');
     assert(!html.includes('syllabus-merged-note-item'), 'no per-row note labels');
     assert(html.includes('★ SP'), 'general notes in note column');
-    assert(html.includes('syllabus-jindo-note-body'), 'jindo notes wrapped for pre-wrap layout');
-    const notesSection = html.split('syllabus-table-jindo-notes')[1] || '';
-    assert(notesSection.includes('syllabus-jindo-notes-body-cell'), 'notes body cell');
-    assert(notesSection.includes('syllabus-jindo-note-body'), 'notes content wrapper');
 }
 
 // Legacy PDF layout (jindo off): merged note column, brief plan cells

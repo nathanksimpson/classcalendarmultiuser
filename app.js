@@ -350,9 +350,16 @@ function updateThemeToggleButtons() {
             ? t('themeToggleTitle')
             : 'Switch light/dark theme';
 
-    ['themeToggleBtn', 'workspaceThemeToggle', 'notesThemeToggle'].forEach((id) => {
+    ['themeToggleBtn', 'headerThemeToggleBtn', 'workspaceThemeToggle', 'notesThemeToggle'].forEach((id) => {
         const btn = document.getElementById(id);
         if (!btn) {
+            return;
+        }
+        if (id === 'headerThemeToggleBtn') {
+            btn.textContent = '◐';
+            btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+            btn.setAttribute('title', titleText);
+            btn.setAttribute('aria-label', titleText);
             return;
         }
         btn.textContent = labelText;
@@ -369,7 +376,13 @@ function applyTheme(theme) {
                 const labelKey = isDark ? 'themeLight' : 'themeDark';
                 return translations[currentLanguage][labelKey] || (isDark ? '☀️ Light' : '🌙 Dark');
             },
-            getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme'
+            getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme',
+            afterUpdate: () => {
+                updateThemeToggleButtons();
+                if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
+                    CCPClassColorTile.refreshAll();
+                }
+            }
         });
         return;
     }
@@ -397,7 +410,13 @@ function toggleTheme() {
                 const labelKey = isDark ? 'themeLight' : 'themeDark';
                 return translations[currentLanguage][labelKey] || (isDark ? '☀️ Light' : '🌙 Dark');
             },
-            getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme'
+            getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme',
+            afterUpdate: () => {
+                updateThemeToggleButtons();
+                if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
+                    CCPClassColorTile.refreshAll();
+                }
+            }
         });
         return;
     }
@@ -4690,7 +4709,7 @@ function ensureUiState() {
         }
     });
     if (appData.ui.topBarCollapsed === undefined) {
-        appData.ui.topBarCollapsed = false;
+        appData.ui.topBarCollapsed = true;
     }
     if (appData.ui.activeTab === 'print') {
         appData.ui.activeTab = 'data';
@@ -4993,7 +5012,7 @@ function applyMobileUiDefaults() {
         }
         changed = true;
     }
-    if (appData.ui.calendarViewMode !== 'agenda' && appData.ui.calendarViewMode !== 'month') {
+    if (appData.ui.calendarViewMode !== 'agenda' && appData.ui.calendarViewMode !== 'month' && appData.ui.calendarViewMode !== 'week') {
         appData.ui.calendarViewMode = 'agenda';
         changed = true;
     }
@@ -5047,7 +5066,7 @@ function syncNotesTabPhoneChrome() {
 function getCalendarViewMode() {
     ensureUiState();
     const stored = appData.ui.calendarViewMode;
-    if (stored === 'agenda' || stored === 'month') {
+    if (stored === 'agenda' || stored === 'month' || stored === 'week') {
         return stored;
     }
     return isViewportPhone() ? 'agenda' : 'month';
@@ -5055,9 +5074,11 @@ function getCalendarViewMode() {
 
 function setCalendarViewMode(mode) {
     ensureUiState();
-    dispatchUiSet('calendarViewMode', mode === 'agenda' ? 'agenda' : 'month');
+    const next = mode === 'agenda' ? 'agenda' : (mode === 'week' ? 'week' : 'month');
+    dispatchUiSet('calendarViewMode', next);
     saveUiStateToLocalStorage();
     syncCalendarViewModeDom();
+    renderCalendarNow({ forceFull: true });
 }
 
 function syncCalendarViewModeDom() {
@@ -5065,6 +5086,8 @@ function syncCalendarViewModeDom() {
     document.documentElement.dataset.calendarView = mode;
     const agendaBtn = document.getElementById('calendarViewAgendaBtn');
     const monthBtn = document.getElementById('calendarViewMonthBtn');
+    const weekBtn = document.getElementById('calendarViewWeekBtn');
+    const zoomControl = document.getElementById('calendarZoomControl');
     if (agendaBtn) {
         agendaBtn.classList.toggle('is-active', mode === 'agenda');
         agendaBtn.setAttribute('aria-selected', String(mode === 'agenda'));
@@ -5073,11 +5096,99 @@ function syncCalendarViewModeDom() {
         monthBtn.classList.toggle('is-active', mode === 'month');
         monthBtn.setAttribute('aria-selected', String(mode === 'month'));
     }
+    if (weekBtn) {
+        weekBtn.classList.toggle('is-active', mode === 'week');
+        weekBtn.setAttribute('aria-selected', String(mode === 'week'));
+        weekBtn.hidden = isViewportPhone();
+    }
+    if (zoomControl) {
+        zoomControl.hidden = mode === 'agenda';
+    }
+}
+
+const CALENDAR_ZOOM_MIN = 0.8;
+const CALENDAR_ZOOM_MAX = 1.4;
+const CALENDAR_ZOOM_STEP = 0.1;
+const CALENDAR_ZOOM_DEFAULT = 1;
+
+function clampCalendarZoom(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return CALENDAR_ZOOM_DEFAULT;
+    }
+    const stepped = Math.round(n / CALENDAR_ZOOM_STEP) * CALENDAR_ZOOM_STEP;
+    return Math.min(CALENDAR_ZOOM_MAX, Math.max(CALENDAR_ZOOM_MIN, stepped));
+}
+
+function getCalendarZoom() {
+    ensureUiState();
+    return clampCalendarZoom(appData.ui.calendarZoom != null ? appData.ui.calendarZoom : CALENDAR_ZOOM_DEFAULT);
+}
+
+function setCalendarZoom(value) {
+    ensureUiState();
+    const next = clampCalendarZoom(value);
+    if (getCalendarZoom() === next) {
+        syncCalendarZoomDom();
+        return;
+    }
+    appData.ui.calendarZoom = next;
+    saveUiStateToLocalStorage();
+    syncCalendarZoomDom();
+    scheduleCalendarTileTypographyFit();
+}
+
+function syncCalendarZoomDom() {
+    const zoom = getCalendarZoom();
+    const root = document.documentElement;
+    root.style.setProperty('--calendar-zoom', String(zoom));
+    const range = document.getElementById('calendarZoomRange');
+    const pct = document.getElementById('calendarZoomPctLabel');
+    if (range) {
+        range.value = String(zoom);
+        range.setAttribute('aria-valuenow', String(zoom));
+    }
+    if (pct) {
+        pct.textContent = `${Math.round(zoom * 100)}%`;
+    }
+}
+
+function initCalendarZoom() {
+    if (typeof appData !== 'undefined') {
+        ensureUiState();
+        if (appData.ui.calendarZoom == null || !Number.isFinite(Number(appData.ui.calendarZoom))) {
+            appData.ui.calendarZoom = CALENDAR_ZOOM_DEFAULT;
+        }
+    }
+    syncCalendarZoomDom();
+    if (initCalendarZoom._bound) {
+        return;
+    }
+    initCalendarZoom._bound = true;
+    const range = document.getElementById('calendarZoomRange');
+    const outBtn = document.getElementById('calendarZoomOutBtn');
+    const inBtn = document.getElementById('calendarZoomInBtn');
+    if (range) {
+        range.addEventListener('input', () => {
+            setCalendarZoom(parseFloat(range.value));
+        });
+    }
+    if (outBtn) {
+        outBtn.addEventListener('click', () => {
+            setCalendarZoom(getCalendarZoom() - CALENDAR_ZOOM_STEP);
+        });
+    }
+    if (inBtn) {
+        inBtn.addEventListener('click', () => {
+            setCalendarZoom(getCalendarZoom() + CALENDAR_ZOOM_STEP);
+        });
+    }
 }
 
 function initCalendarViewToggle() {
     const agendaBtn = document.getElementById('calendarViewAgendaBtn');
     const monthBtn = document.getElementById('calendarViewMonthBtn');
+    const weekBtn = document.getElementById('calendarViewWeekBtn');
     if (!agendaBtn || !monthBtn || initCalendarViewToggle._bound) {
         syncCalendarViewModeDom();
         return;
@@ -5085,6 +5196,9 @@ function initCalendarViewToggle() {
     initCalendarViewToggle._bound = true;
     agendaBtn.addEventListener('click', () => setCalendarViewMode('agenda'));
     monthBtn.addEventListener('click', () => setCalendarViewMode('month'));
+    if (weekBtn) {
+        weekBtn.addEventListener('click', () => setCalendarViewMode('week'));
+    }
     syncCalendarViewModeDom();
 }
 
@@ -5228,7 +5342,7 @@ function initAppChromeStickyTop() {
         }
         appChromeStickyResizeObserver = new ResizeObserver(() => syncAppChromeStickyTop());
         appChromeStickyResizeObserver.observe(topBar);
-        ['teamLockBarRow', 'teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack'].forEach((id) => {
+        ['teamLockSyncBar', 'teamLockBarRow', 'teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack'].forEach((id) => {
             const el = document.getElementById(id);
             if (el) {
                 appChromeStickyResizeObserver.observe(el);
@@ -5287,6 +5401,7 @@ function applyTopBarCollapsedState() {
     calendarOptions.classList.toggle('calendar-options--collapsed', collapsed);
     updateTermSettingsToggleSummary();
     updateTopBarCalendarLabel();
+    updateTermSummaryStrip();
     requestAnimationFrame(syncAppChromeStickyTop);
 }
 
@@ -5327,6 +5442,158 @@ function updateTopBarCalendarLabel() {
     requestAnimationFrame(syncAppChromeStickyTop);
 }
 
+function updateTermSummaryStrip() {
+    const strip = document.getElementById('termSummaryStrip');
+    if (!strip) {
+        return;
+    }
+    const activeZone = document.body.dataset.activeZone || '';
+    const activeTab = typeof getActiveTab === 'function' ? getActiveTab() : '';
+    const onSchedule = activeZone === 'schedule' || ['calendar', 'events', 'homework', 'timetable', 'command-center'].includes(activeTab);
+    if (!onSchedule) {
+        strip.hidden = true;
+        return;
+    }
+    const name = getCollapsedHeaderCalendarName();
+    const { start, end } = getTermDateRangeISO();
+    const nameEl = document.getElementById('termSummaryName');
+    const datesEl = document.getElementById('termSummaryDates');
+    const monthsEl = document.getElementById('termSummaryMonths');
+    const monthsWrap = document.getElementById('termSummaryMonthsWrap');
+    if (!name && !start) {
+        strip.hidden = true;
+        return;
+    }
+    strip.hidden = false;
+    if (nameEl) {
+        nameEl.textContent = name || '';
+        nameEl.hidden = !name;
+    }
+    let dateLabel = '';
+    if (start && end) {
+        dateLabel = start === end ? start : `${start} – ${end}`;
+    } else if (start) {
+        dateLabel = start;
+    }
+    if (datesEl) {
+        datesEl.textContent = dateLabel;
+        datesEl.hidden = !dateLabel;
+    }
+    const monthCount = elements.termMonthCount?.value || appData.termMonthCount || '';
+    if (monthsEl && monthsWrap) {
+        if (monthCount) {
+            monthsEl.textContent = `${monthCount} mo`;
+            monthsWrap.hidden = false;
+        } else {
+            monthsEl.textContent = '';
+            monthsWrap.hidden = true;
+        }
+    }
+}
+
+function initTermSummaryToggle() {
+    const btn = document.getElementById('termSummaryToggle');
+    if (!btn || btn.dataset.termSummaryBound === '1') {
+        updateTermSummaryStrip();
+        return;
+    }
+    btn.dataset.termSummaryBound = '1';
+    btn.addEventListener('click', () => {
+        ensureUiState();
+        setTopBarCollapsed(!appData.ui.topBarCollapsed);
+        const options = document.getElementById('calendarOptions');
+        if (options && appData.ui.topBarCollapsed !== true) {
+            options.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    });
+    updateTermSummaryStrip();
+}
+
+function hexToRgba(hex, alpha) {
+    const n = String(hex || '#356a9e').replace('#', '');
+    if (n.length < 6) {
+        return `rgba(53,106,158,${alpha})`;
+    }
+    const r = parseInt(n.slice(0, 2), 16);
+    const g = parseInt(n.slice(2, 4), 16);
+    const b = parseInt(n.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function applyCalmEventBarStyle(el, accentHex) {
+    if (!el) {
+        return;
+    }
+    const useCalmPrint = calendarRenderForPrint;
+    if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.applyCalmBar && !useCalmPrint) {
+        CCPClassColorTile.applyCalmBar(el, { color: accentHex });
+        return;
+    }
+    const isDark = !useCalmPrint && document.documentElement.getAttribute('data-theme') === 'dark';
+    const alpha = useCalmPrint ? 0.16 : (isDark ? 0.16 : 0.14);
+    el.classList.add('event-bar--calm');
+    el.style.backgroundColor = hexToRgba(accentHex, alpha);
+    el.style.borderLeft = `3px solid ${accentHex}`;
+    el.style.color = useCalmPrint ? '#243244' : (isDark ? '#dde6f1' : '#243244');
+    if (useCalmPrint) {
+        el.style.borderRadius = '4px';
+        el.style.padding = '3px 7px';
+        el.style.fontWeight = '600';
+        el.style.marginBottom = '3px';
+        el.style.whiteSpace = 'nowrap';
+        el.style.overflow = 'hidden';
+        el.style.textOverflow = 'ellipsis';
+    }
+    const book = el.querySelector('.event-book');
+    if (book) {
+        book.style.color = useCalmPrint ? '#6b7689' : (isDark ? 'rgba(221, 230, 241, 0.55)' : '#6b7689');
+        book.style.opacity = '1';
+    }
+}
+
+function applyCalmAgendaItemStyle(item, accentHex) {
+    if (!item || !accentHex) {
+        return;
+    }
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const alpha = isDark ? 0.16 : 0.14;
+    item.style.setProperty('--agenda-accent', accentHex);
+    item.style.backgroundColor = hexToRgba(accentHex, alpha);
+    item.style.borderLeftColor = accentHex;
+    item.style.color = isDark ? '#dde6f1' : '#243244';
+}
+
+function syncSelectedClassPanelAccent(classData) {
+    if (typeof CCPClassColorTile === 'undefined') {
+        return;
+    }
+    const header = document.querySelector('#classForm .class-modal-header');
+    CCPClassColorTile.applyPanelAccent(header, classData && classData.id ? classData : null);
+}
+
+function previewClassPanelAccentFromForm() {
+    if (!elements.classColor) {
+        return;
+    }
+    const color = elements.classColor.value;
+    if (!color) {
+        syncSelectedClassPanelAccent(null);
+        return;
+    }
+    const id = elements.classId && elements.classId.value ? elements.classId.value : '';
+    const saved = id && appData.classes ? appData.classes.find((c) => c.id === id) : null;
+    const preview = {
+        id: id || '__preview__',
+        color,
+        textColor: elements.classTextColor ? elements.classTextColor.value : undefined
+    };
+    syncSelectedClassPanelAccent(saved ? Object.assign({}, saved, preview) : preview);
+}
+
+function renderCalendarClassFilterRail() {
+    updateLessonFilterButtonLabel();
+}
+
 function initTermSettingsToggle() {
     const toggle = document.getElementById('termSettingsToggle');
     const header = document.querySelector('.term-settings-header');
@@ -5349,6 +5616,7 @@ function initTermSettingsToggle() {
         });
     }
     applyTopBarCollapsedState();
+    updateTermSummaryStrip();
 }
 
 /** @deprecated use initTermSettingsToggle */
@@ -5444,6 +5712,14 @@ function eventTypeBlocksClass(type) {
     const normalized = normalizeEventType(type);
     return normalized === EVENT_TYPES.HOLIDAY
         || normalized === EVENT_TYPES.EVALUATION_PERIOD;
+}
+
+/** True when a holiday cancels every class (no grade/class/section filter). */
+function isSchoolWideHolidayEvent(event) {
+    return !!(event
+        && normalizeEventType(event.type) === EVENT_TYPES.HOLIDAY
+        && eventTypeBlocksClass(event.type)
+        && !eventHasAnyTargetFilter(event));
 }
 
 function normalizeEvent(raw) {
@@ -5742,6 +6018,30 @@ function applyLessonFiltersToPopoverDom() {
             cb.checked = values.includes(cb.value);
         }
     });
+    applyLessonFilterClassColorTiles();
+}
+
+function applyLessonFilterClassColorTiles() {
+    if (typeof CCPClassColorTile === 'undefined') {
+        return;
+    }
+    const section = document.querySelector('#lessonFilterPopoverBody [data-filter-key="classIds"]');
+    if (!section) {
+        return;
+    }
+    const classById = new Map(getClassesScheduledOnCalendar().map((c) => [c.id, c]));
+    section.querySelectorAll('.lesson-filter-chip').forEach((label) => {
+        const input = label.querySelector('input[data-lesson-filter="classIds"]');
+        if (!input) {
+            return;
+        }
+        const classData = classById.get(input.value);
+        if (!classData) {
+            return;
+        }
+        label.dataset.classId = classData.id;
+        CCPClassColorTile.apply(label, classData, { checked: input.checked });
+    });
 }
 
 function normalizeLessonFilterSearchQuery(query) {
@@ -5837,6 +6137,7 @@ function renderLessonFilterPopoverBody() {
         searchEl.value = prevQuery;
     }
     applyLessonFilterSearch();
+    applyLessonFilterClassColorTiles();
 }
 
 function updateLessonFilterStatusText() {
@@ -5876,12 +6177,14 @@ function updateLessonFilterButtonLabel() {
                 .replace('{visible}', String(visible))
                 .replace('{total}', String(total));
         } else {
-            btn.textContent = narrow ? t('calendarDisplayBtnActiveShort') : t('calendarDisplayBtnActive');
+            btn.textContent = narrow ? t('calendarFilterBtnActiveShort') : t('calendarFilterBtnActive');
         }
         btn.classList.add('lesson-filter-btn--active');
+        btn.classList.add('is-active');
     } else {
-        btn.textContent = narrow ? t('calendarDisplayBtnShort') : t('calendarDisplayBtn');
+        btn.textContent = narrow ? t('calendarFilterBtnShort') : t('calendarFilterBtn');
         btn.classList.remove('lesson-filter-btn--active');
+        btn.classList.remove('is-active');
     }
 }
 
@@ -6064,6 +6367,7 @@ function commitLessonFiltersFromPopover() {
     // UI-only: viewer preference.
     saveUiStateToLocalStorage();
     invalidateScheduleCache();
+    renderCalendarClassFilterRail();
     requestUiCalendarRender();
 }
 
@@ -6084,6 +6388,7 @@ function applyLessonFilterForTeacher(selector) {
     updatePrintLessonFilterHint();
     saveUiStateToLocalStorage();
     invalidateScheduleCache();
+    renderCalendarClassFilterRail();
     requestUiCalendarRender();
 }
 
@@ -6122,6 +6427,7 @@ function resetLessonFilters() {
     // UI-only: viewer preference.
     saveUiStateToLocalStorage();
     invalidateScheduleCache();
+    renderCalendarClassFilterRail();
     requestUiCalendarRender();
 }
 
@@ -6142,6 +6448,7 @@ function resetCalendarClassVisibilityAfterImport() {
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
     invalidateScheduleCache();
+    renderCalendarClassFilterRail();
     requestUiCalendarRender();
 }
 
@@ -14154,6 +14461,10 @@ function navigateToTabBody(tabId, options = {}) {
     scheduleNowClassPopupRenderSoon();
 
     syncHostSubTabNav(hostId, tabId);
+    updateTermSummaryStrip();
+    if (tabId === 'calendar') {
+        renderCalendarClassFilterRail();
+    }
 
     APP_TAB_IDS.forEach((id) => {
         const panel = document.getElementById(`panel-${id}`);
@@ -14587,6 +14898,7 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'module-list-item' + (isSelected ? ' is-selected' : '');
+    btn.dataset.classId = classData.id;
     btn.setAttribute('role', 'option');
     btn.setAttribute('aria-selected', String(isSelected));
     const flags = (typeof CCPTabWarnings !== 'undefined' && CCPTabWarnings.getClassWarningFlags)
@@ -14604,6 +14916,9 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
         badge += inlineWarnBadgeHtml(curTitle);
     }
     btn.innerHTML = `<span>${escapeHtml(classData.name)}${badge}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
+    if (typeof CCPClassColorTile !== 'undefined') {
+        CCPClassColorTile.apply(btn, classData, { selected: isSelected });
+    }
     btn.addEventListener('click', onClick);
     return btn;
 }
@@ -21201,8 +21516,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         initDayNotesUi();
         initNowClassPopup();
         initTermSettingsToggle();
+        initTermSummaryToggle();
         initViewportTier();
         initCalendarViewToggle();
+        initCalendarZoom();
         initCalendarSwipe();
         initAppChromeStickyTop();
         applyLanguage();
@@ -21630,8 +21947,12 @@ function setupEventListeners() {
     // Language Toggle
     document.getElementById('langToggleBtn').addEventListener('click', toggleLanguage);
     const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const headerThemeToggleBtn = document.getElementById('headerThemeToggleBtn');
     if (themeToggleBtn) {
         themeToggleBtn.addEventListener('click', toggleTheme);
+    }
+    if (headerThemeToggleBtn) {
+        headerThemeToggleBtn.addEventListener('click', toggleTheme);
     }
     const nowPopupToggleBtn = document.getElementById('nowClassPopupToggleBtn');
     if (nowPopupToggleBtn) {
@@ -21662,6 +21983,14 @@ function setupEventListeners() {
     setupClassTeachersFormDelegation();
     // Form Submissions
     elements.classForm?.addEventListener('submit', handleClassSubmit);
+    if (elements.classColor && elements.classColor.dataset.panelAccentBound !== '1') {
+        elements.classColor.dataset.panelAccentBound = '1';
+        elements.classColor.addEventListener('input', previewClassPanelAccentFromForm);
+    }
+    if (elements.classTextColor && elements.classTextColor.dataset.panelAccentBound !== '1') {
+        elements.classTextColor.dataset.panelAccentBound = '1';
+        elements.classTextColor.addEventListener('input', previewClassPanelAccentFromForm);
+    }
     elements.holidayForm?.addEventListener('submit', handleHolidaySubmit);
     elements.printForm?.addEventListener('submit', handlePrint);
     
@@ -23975,7 +24304,7 @@ function populateClassForm(classData = null, options = {}) {
         applyClassTermEndUiState();
         elements.classTotalLessons.value = sanitizeTotalLessons(classData.totalLessons || 4);
         elements.classColor.value = classData.color;
-        elements.classTextColor.value = classData.textColor || DEFAULT_CLASS_TEXT_COLOR;
+        elements.classTextColor.value = classData.textColor || deriveClassTextColorForSave(classData.color);
 
         populateClassTypeSelect();
         let savedTypeId = classData.classTypeId || '';
@@ -24065,7 +24394,7 @@ function populateClassForm(classData = null, options = {}) {
             elements.classPeriod.value = String(getNextSuggestedClassPeriod());
         }
         elements.classColor.value = getNextColor();
-        elements.classTextColor.value = DEFAULT_CLASS_TEXT_COLOR;
+        elements.classTextColor.value = deriveClassTextColorForSave(elements.classColor.value);
         elements.classTotalLessons.value = 4;
         elements.customScheduleEnabled.checked = false;
         elements.customScheduleSection.style.display = 'none';
@@ -24093,6 +24422,14 @@ function populateClassForm(classData = null, options = {}) {
     syncPeriodByDayUi();
     syncClassOpenEditorButton();
     applyTeamViewOnlyEditingState(teamViewOnlyActive);
+    if (classData && classData.id) {
+        syncSelectedClassPanelAccent(classData);
+    } else if (!classData && elements.classColor && elements.classColor.value) {
+        previewClassPanelAccentFromForm();
+    } else {
+        syncSelectedClassPanelAccent(null);
+    }
+    refreshClassColorPaletteUi();
 }
 
 function openClassModal(classData = null, options = {}) {
@@ -24194,9 +24531,38 @@ function openHolidayModal(holidayData = null, options = {}) {
 // Color Management
 // ============================================
 function getNextColor() {
-    const color = colorPalette[colorIndex % colorPalette.length];
+    const palette = (typeof CCPClassColorPalette !== 'undefined' && CCPClassColorPalette.CALM_PALETTE)
+        ? CCPClassColorPalette.CALM_PALETTE
+        : colorPalette;
+    const color = palette[colorIndex % palette.length];
     colorIndex++;
     return color;
+}
+
+function deriveClassTextColorForSave(hex) {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return isDark ? '#dde6f1' : '#243244';
+}
+
+function refreshClassColorPaletteUi(selectedHex) {
+    const grid = document.getElementById('classColorPaletteGrid');
+    const preview = document.getElementById('classColorPreviewRow');
+    if (!grid || typeof CCPClassColorPalette === 'undefined') {
+        return;
+    }
+    const hex = selectedHex || (elements.classColor && elements.classColor.value) || '#356a9e';
+    const name = elements.className && elements.className.value ? elements.className.value.trim() : '';
+    CCPClassColorPalette.renderGrid(grid, hex, (picked) => {
+        if (elements.classColor) {
+            elements.classColor.value = picked;
+        }
+        if (elements.classTextColor) {
+            elements.classTextColor.value = deriveClassTextColorForSave(picked);
+        }
+        refreshClassColorPaletteUi(picked);
+        previewClassPanelAccentFromForm();
+    });
+    CCPClassColorPalette.renderPreviewRow(preview, hex, name || 'Preview');
 }
 
 // ============================================
@@ -24613,7 +24979,7 @@ function handleClassSubmit(e) {
         curriculumId: curriculumId || '',
         scheduleModel: scheduleModel,
         color: elements.classColor.value,
-        textColor: elements.classTextColor.value || DEFAULT_CLASS_TEXT_COLOR,
+        textColor: elements.classTextColor.value || deriveClassTextColorForSave(elements.classColor.value),
         compressionMerges: compressionMergesFinal,
         skippedLessons: skippedLessonsFinal,
         ...(isDebateSchedule ? {
@@ -26146,6 +26512,7 @@ function renderCalendarAgenda(dayIndex) {
             main.appendChild(itemTitle);
             item.appendChild(swatch);
             item.appendChild(main);
+            applyCalmAgendaItemStyle(item, ev.bgColor || EVENT_TYPE_DEFAULT_COLORS[type]?.bg || '#cbd5e1');
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openEventEditor(ev, 'calendar-popout');
@@ -26171,6 +26538,7 @@ function renderCalendarAgenda(dayIndex) {
             main.appendChild(itemTitle);
             item.appendChild(swatch);
             item.appendChild(main);
+            applyCalmAgendaItemStyle(item, classData.color || '#356a9e');
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (prefersMobileNotesNav()) {
@@ -26214,6 +26582,7 @@ function renderCalendarNow(options) {
         saveUiStateToLocalStorage();
     }
     const dayIndex = buildDayIndex();
+    setCalendarFocusedMonthIndex(getCalendarFocusedMonthIndex(dayIndex), dayIndex);
     const viewMode = getCalendarViewMode();
     const forceFull = Boolean(options && options.forceFull);
 
@@ -26230,6 +26599,12 @@ function renderCalendarNow(options) {
             }
         }
         renderCalendarAgenda(dayIndex);
+    } else if (viewMode === 'week') {
+        elements.calendarContainer.innerHTML = '';
+        renderCalendarWeek(dayIndex);
+    } else if (calendarRenderForPrint) {
+        elements.calendarContainer.innerHTML = '';
+        renderCalendarPrintMonths(dayIndex);
     } else {
         renderMonthsIncremental(dayIndex, forceFull);
     }
@@ -26237,6 +26612,8 @@ function renderCalendarNow(options) {
     updatePrintSummary();
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
+    renderCalendarClassFilterRail();
+    syncCalendarZoomDom();
     scheduleCalendarTileTypographyFit();
     if (isLessonFilterPopoverOpen()) {
         renderLessonFilterPopoverBody();
@@ -26264,20 +26641,272 @@ function calendarMonthSignature(monthNode) {
     return calendarHashString(monthNode.outerHTML);
 }
 
+function getDefaultCalendarMonthIndex(dayIndex) {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    for (let i = 0; i < dayIndex.monthCount; i++) {
+        const monthDate = new Date(dayIndex.startDate);
+        monthDate.setMonth(monthDate.getMonth() + i);
+        if (monthDate.getFullYear() === y && monthDate.getMonth() === m) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+function clampCalendarMonthIndex(index, dayIndex) {
+    const max = Math.max(0, ((dayIndex && dayIndex.monthCount) || 1) - 1);
+    const n = Number(index);
+    if (!Number.isFinite(n) || n < 0) {
+        return 0;
+    }
+    if (n > max) {
+        return max;
+    }
+    return n;
+}
+
+function getCalendarFocusedMonthIndex(dayIndex) {
+    ensureUiState();
+    let idx = appData.ui.calendarMonthIndex;
+    if (idx == null || !Number.isFinite(Number(idx))) {
+        idx = getDefaultCalendarMonthIndex(dayIndex);
+    }
+    return clampCalendarMonthIndex(Number(idx), dayIndex);
+}
+
+function setCalendarFocusedMonthIndex(index, dayIndex) {
+    ensureUiState();
+    const clamped = clampCalendarMonthIndex(index, dayIndex);
+    appData.ui.calendarMonthIndex = clamped;
+    saveUiStateToLocalStorage();
+    return clamped;
+}
+
+function navigateCalendarMonth(delta) {
+    const dayIndex = buildDayIndex();
+    const next = getCalendarFocusedMonthIndex(dayIndex) + delta;
+    setCalendarFocusedMonthIndex(next, dayIndex);
+    renderCalendarNow({ forceFull: true });
+}
+
+function getDefaultCalendarWeekStartIso(dayIndex) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { start, end } = getTermDateRangeISO();
+    const termStart = parseISODateLocal(start);
+    const termEnd = parseISODateLocal(end);
+    let cursor = today;
+    if (termStart && today < termStart) {
+        cursor = new Date(termStart);
+    } else if (termEnd && today > termEnd) {
+        cursor = new Date(termEnd);
+    }
+    cursor.setDate(cursor.getDate() - cursor.getDay());
+    return formatDateISO(cursor);
+}
+
+function getCalendarWeekStartIso(dayIndex) {
+    ensureUiState();
+    const stored = appData.ui.calendarWeekStart;
+    if (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) {
+        return stored;
+    }
+    return getDefaultCalendarWeekStartIso(dayIndex);
+}
+
+function setCalendarWeekStartIso(iso) {
+    ensureUiState();
+    appData.ui.calendarWeekStart = iso;
+    saveUiStateToLocalStorage();
+}
+
+function navigateCalendarWeek(delta) {
+    const dayIndex = buildDayIndex();
+    const start = parseISODateLocal(getCalendarWeekStartIso(dayIndex));
+    if (!start) {
+        return;
+    }
+    start.setDate(start.getDate() + delta * 7);
+    setCalendarWeekStartIso(formatDateISO(start));
+    renderCalendarNow({ forceFull: true });
+}
+
+function formatWeekRangeLabel(weekStartIso) {
+    const start = parseISODateLocal(weekStartIso);
+    if (!start) {
+        return weekStartIso;
+    }
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const monthNames = t('monthNames');
+    const s = `${monthNames[start.getMonth()]} ${start.getDate()}`;
+    const e = start.getMonth() === end.getMonth()
+        ? String(end.getDate())
+        : `${monthNames[end.getMonth()]} ${end.getDate()}`;
+    return `${s} – ${e}, ${end.getFullYear()}`;
+}
+
+function getTermBadgeHtml(dayIndex) {
+    const start = dayIndex.termStartDate || '';
+    const end = dayIndex.termEndDate || '';
+    if (!start || !end) {
+        return '';
+    }
+    const fmt = (iso) => {
+        const d = parseISODateLocal(iso);
+        if (!d) {
+            return iso;
+        }
+        const months = t('monthNames');
+        return `${months[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+    };
+    return `<span class="month-card-term-badge">${escapeHtml(t('termBadgeLabel'))} · ${escapeHtml(fmt(start))} – ${escapeHtml(fmt(end))}</span>`;
+}
+
+function renderCalendarWeek(dayIndex) {
+    const weekStartIso = getCalendarWeekStartIso(dayIndex);
+    const node = buildWeekNode(weekStartIso, dayIndex);
+    elements.calendarContainer.appendChild(node);
+}
+
+function buildWeekNode(weekStartIso, dayIndex) {
+    const start = parseISODateLocal(weekStartIso);
+    const dayNames = t('dayNamesShort');
+    const scheduledLessons = dayIndex.scheduledLessons;
+    const eventsByDate = dayIndex.eventsByDate;
+    const termStartIso = dayIndex.termStartDate || '';
+    const termEndIso = dayIndex.termEndDate || '';
+
+    const weekDiv = document.createElement('div');
+    weekDiv.className = 'month-calendar month-calendar-card week-calendar-card';
+
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'month-header month-card-header';
+    headerDiv.innerHTML = `
+        <div class="month-card-header__title-wrap">
+            <h2>${escapeHtml(formatWeekRangeLabel(weekStartIso))}</h2>
+            <div class="month-card-nav" role="group" aria-label="${escapeHtml(t('calendarViewWeek'))}">
+                <button type="button" class="month-card-nav-btn" data-calendar-week-nav="prev" aria-label="${escapeHtml(t('calendarWeekPrev'))}">‹</button>
+                <button type="button" class="month-card-nav-btn" data-calendar-week-nav="next" aria-label="${escapeHtml(t('calendarWeekNext'))}">›</button>
+            </div>
+        </div>
+        <div class="month-card-header__tools">
+            ${getTermBadgeHtml(dayIndex)}
+        </div>`;
+
+    weekDiv.appendChild(headerDiv);
+
+    const weekdayRow = document.createElement('div');
+    weekdayRow.className = 'calendar-weekday-row';
+    dayNames.forEach((day) => {
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'calendar-day-header';
+        dayHeader.textContent = day;
+        weekdayRow.appendChild(dayHeader);
+    });
+    weekDiv.appendChild(weekdayRow);
+
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'calendar-grid';
+    const row = document.createElement('div');
+    row.className = 'calendar-week-row';
+    row.style.display = 'contents';
+
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        const dateStr = formatDateISO(d);
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        const inFocusedMonth = true;
+        const dayDiv = createDayCell(
+            d.getDate(),
+            !inFocusedMonth,
+            dayEvents,
+            lessons,
+            dateStr,
+            termStartIso,
+            termEndIso
+        );
+        gridDiv.appendChild(dayDiv);
+    }
+
+    weekDiv.style.setProperty('--calendar-week-rows', '1');
+    weekDiv.appendChild(gridDiv);
+
+    if (!initCalendarWeekNavBound) {
+        initCalendarWeekNavBound = true;
+        elements.calendarContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-calendar-week-nav]');
+            if (!btn) {
+                return;
+            }
+            const dir = btn.getAttribute('data-calendar-week-nav');
+            if (dir === 'prev') {
+                navigateCalendarWeek(-1);
+            } else if (dir === 'next') {
+                navigateCalendarWeek(1);
+            }
+        });
+    }
+
+    return weekDiv;
+}
+
+let initCalendarWeekNavBound = false;
+
+function initCalendarMonthNav() {
+    const container = elements.calendarContainer;
+    if (!container || initCalendarMonthNav._bound) {
+        return;
+    }
+    initCalendarMonthNav._bound = true;
+    container.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-calendar-month-nav]');
+        if (!btn || btn.disabled) {
+            return;
+        }
+        const dir = btn.getAttribute('data-calendar-month-nav');
+        if (dir === 'prev') {
+            navigateCalendarMonth(-1);
+        } else if (dir === 'next') {
+            navigateCalendarMonth(1);
+        }
+    });
+}
+
+let calendarScrollToMonthPending = true;
+
+function scrollToFocusedCalendarMonth(behavior) {
+    const dayIndex = buildDayIndex();
+    const idx = getCalendarFocusedMonthIndex(dayIndex);
+    const el = elements.calendarContainer
+        && elements.calendarContainer.querySelector(`.month-calendar[data-month-index="${idx}"]`);
+    if (!el) {
+        return;
+    }
+    try {
+        el.scrollIntoView({ block: 'start', behavior: behavior || 'auto' });
+    } catch (_) {
+        el.scrollIntoView(true);
+    }
+}
+
 /**
- * Render the term's months, swapping only the months whose rendered content
- * changed. Months are built off-DOM (no layout) and compared by signature to
- * the live nodes; unchanged months keep their existing DOM (preserving handlers
- * and typography sizing). Falls back to a clean full rebuild when the structure
- * differs, on forced renders, or while rendering for print.
+ * Render the term's months in a vertical scroll stack (schedule-tab style).
+ * Unchanged months may keep their DOM when only one month is on screen and
+ * signatures match; otherwise rebuilds the stack.
  */
 function renderMonthsIncremental(dayIndex, forceFull) {
     const container = elements.calendarContainer;
     const built = [];
+    const printAll = calendarRenderForPrint;
+
     for (let i = 0; i < dayIndex.monthCount; i++) {
         const monthDate = new Date(dayIndex.startDate);
         monthDate.setMonth(monthDate.getMonth() + i);
-        built.push(buildMonthNode(monthDate, dayIndex));
+        built.push(buildMonthNode(monthDate, dayIndex, i, dayIndex.monthCount));
     }
 
     const children = Array.from(container.children);
@@ -26288,7 +26917,7 @@ function renderMonthsIncremental(dayIndex, forceFull) {
         !forceFull &&
         !calendarRenderForPrint &&
         allMonths &&
-        children.length === dayIndex.monthCount;
+        children.length === built.length;
 
     if (!canIncremental) {
         const frag = document.createDocumentFragment();
@@ -26298,54 +26927,72 @@ function renderMonthsIncremental(dayIndex, forceFull) {
         });
         container.innerHTML = '';
         container.appendChild(frag);
+        if (!printAll && calendarScrollToMonthPending) {
+            calendarScrollToMonthPending = false;
+            requestAnimationFrame(() => scrollToFocusedCalendarMonth('auto'));
+        }
         return;
     }
 
-    for (let i = 0; i < built.length; i++) {
-        const newNode = built[i];
+    built.forEach((newNode, i) => {
         const sig = calendarMonthSignature(newNode);
         const oldNode = children[i];
-        if (oldNode && oldNode.dataset.monthSig === sig) {
-            continue;
-        }
         newNode.dataset.monthSig = sig;
-        if (oldNode) {
-            oldNode.replaceWith(newNode);
-        } else {
-            container.appendChild(newNode);
+        if (!oldNode || oldNode.dataset.monthSig !== sig) {
+            if (oldNode) {
+                oldNode.replaceWith(newNode);
+            } else {
+                container.appendChild(newNode);
+            }
         }
+    });
+    while (container.children.length > built.length) {
+        container.lastElementChild.remove();
     }
 }
 
 /** Build (but do not attach) a `.month-calendar` node for the given month. */
-function buildMonthNode(date, dayIndex) {
+function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
     const year = date.getFullYear();
     const month = date.getMonth();
+    const idx = monthIndex != null ? monthIndex : 0;
+    const total = monthCount != null ? monthCount : dayIndex.monthCount;
     
     const monthNames = t('monthNames');
     const dayNames = t('dayNamesShort');
     
-    // Create month container
     const monthDiv = document.createElement('div');
-    monthDiv.className = 'month-calendar';
+    monthDiv.className = 'month-calendar month-calendar-card';
+    monthDiv.dataset.monthIndex = String(idx);
     
-    // Month header
     const headerDiv = document.createElement('div');
-    headerDiv.className = 'month-header';
-    headerDiv.innerHTML = `<h2>${monthNames[month]} ${year}</h2>`;
+    headerDiv.className = 'month-header month-card-header';
+    headerDiv.innerHTML = `
+        <div class="month-card-header__title-wrap">
+            <h2>${monthNames[month]} ${year}</h2>
+        </div>
+        <div class="month-card-header__tools">
+            ${getTermBadgeHtml(dayIndex)}
+        </div>
+        <div class="month-card-legend" aria-label="${escapeHtml(t('calendarFilterTitle'))}">
+            <span class="month-card-legend__item"><span class="month-card-legend__swatch month-card-legend__swatch--class"></span>${escapeHtml(t('calendarLegendClass'))}</span>
+            <span class="month-card-legend__item"><span class="month-card-legend__swatch month-card-legend__swatch--holiday"></span>${escapeHtml(t('calendarLegendHoliday'))}</span>
+            <span class="month-card-legend__item"><span class="month-card-legend__swatch month-card-legend__swatch--test"></span>${escapeHtml(t('calendarLegendTest'))}</span>
+        </div>`;
     monthDiv.appendChild(headerDiv);
-    
-    // Calendar grid
-    const gridDiv = document.createElement('div');
-    gridDiv.className = 'calendar-grid';
-    
-    // Day headers
+
+    const weekdayRow = document.createElement('div');
+    weekdayRow.className = 'calendar-weekday-row';
     dayNames.forEach(day => {
         const dayHeader = document.createElement('div');
         dayHeader.className = 'calendar-day-header';
         dayHeader.textContent = day;
-        gridDiv.appendChild(dayHeader);
+        weekdayRow.appendChild(dayHeader);
     });
+    monthDiv.appendChild(weekdayRow);
+    
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'calendar-grid';
     
     // Get first day of month and total days
     const firstDay = new Date(year, month, 1).getDay();
@@ -26355,35 +27002,42 @@ function buildMonthNode(date, dayIndex) {
     const scheduledLessons = dayIndex.scheduledLessons;
     const eventsByDate = dayIndex.eventsByDate;
     
-    // Previous month days
-    for (let i = firstDay - 1; i >= 0; i--) {
-        const dayDiv = createDayCell(prevMonthDays - i, true);
-        gridDiv.appendChild(dayDiv);
-    }
-    
-    // Current month days
     const termStartIso = dayIndex.termStartDate || '';
     const termEndIso = dayIndex.termEndDate || '';
+    const allCells = [];
+
+    // Previous month days
+    for (let i = firstDay - 1; i >= 0; i--) {
+        allCells.push(createDayCell(prevMonthDays - i, true));
+    }
+
+    // Current month days
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayEvents = eventsByDate[dateStr] || [];
         const lessons = scheduledLessons[dateStr] || [];
-        
-        const dayDiv = createDayCell(day, false, dayEvents, lessons, dateStr, termStartIso, termEndIso);
-        gridDiv.appendChild(dayDiv);
+        allCells.push(createDayCell(day, false, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
-    
+
     // Next month days (fill to complete last row)
     const totalCells = firstDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
-        const dayDiv = createDayCell(i, true);
-        gridDiv.appendChild(dayDiv);
+        allCells.push(createDayCell(i, true));
     }
 
-    const weekRows = (firstDay + daysInMonth + remainingCells) / 7;
-    monthDiv.style.setProperty('--calendar-week-rows', String(weekRows));
-    monthDiv.dataset.weekRows = String(weekRows);
+    const weekRows = [];
+    for (let w = 0; w < allCells.length; w += 7) {
+        weekRows.push(allCells.slice(w, w + 7));
+    }
+
+    weekRows.forEach((rowCells) => {
+        rowCells.forEach((cell) => gridDiv.appendChild(cell));
+    });
+
+    const renderedWeeks = weekRows.length;
+    monthDiv.style.setProperty('--calendar-week-rows', String(Math.max(renderedWeeks, 1)));
+    monthDiv.dataset.weekRows = String(Math.max(renderedWeeks, 1));
     
     monthDiv.appendChild(gridDiv);
     return monthDiv;
@@ -26509,14 +27163,38 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         });
     }
 
-    // Day number
+    // Day number + optional term boundary badge
+    const dayTop = document.createElement('div');
+    dayTop.className = 'calendar-day-top';
+    dayTop.style.display = 'flex';
+    dayTop.style.alignItems = 'center';
+    dayTop.style.justifyContent = 'space-between';
+    dayTop.style.gap = '4px';
+
     const numberDiv = document.createElement('div');
     numberDiv.className = 'day-number';
     numberDiv.textContent = dayNumber;
     if (blockingEvent) {
         numberDiv.style.color = getReadableTextOnBackground(blockingBg, blockingText);
     }
-    dayDiv.appendChild(numberDiv);
+    dayTop.appendChild(numberDiv);
+
+    if (!isOtherMonth && dateStr && termStartIso && termEndIso) {
+        if (dateStr === termStartIso) {
+            dayDiv.classList.add('calendar-day--term-boundary');
+            const badge = document.createElement('span');
+            badge.className = 'calendar-day-term-badge';
+            badge.textContent = t('termStartsBadge');
+            dayTop.appendChild(badge);
+        } else if (dateStr === termEndIso) {
+            dayDiv.classList.add('calendar-day--term-boundary');
+            const badge = document.createElement('span');
+            badge.className = 'calendar-day-term-badge';
+            badge.textContent = t('termEndsBadge');
+            dayTop.appendChild(badge);
+        }
+    }
+    dayDiv.appendChild(dayTop);
     
     if (blockingEvent) {
         const blockType = normalizeEventType(blockingEvent.type);
@@ -26529,9 +27207,16 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
             appliesText = ` (${getEventAppliesToDescriptionParts(blockingEvent).join('; ')})`;
         }
         const blockingLabel = getEventDisplayName(blockingEvent) + appliesText;
-        holidayDiv.textContent = blockingLabel;
-        holidayDiv.title = blockingLabel;
-        dayDiv.appendChild(holidayDiv);
+        if (calendarRenderForPrint && blockType === EVENT_TYPES.HOLIDAY) {
+            holidayDiv.classList.add('holiday-name--print-inline');
+            holidayDiv.textContent = getEventDisplayName(blockingEvent);
+            holidayDiv.title = blockingLabel;
+            dayTop.appendChild(holidayDiv);
+        } else {
+            holidayDiv.textContent = blockingLabel;
+            holidayDiv.title = blockingLabel;
+            dayDiv.appendChild(holidayDiv);
+        }
     }
 
     const chipsWrap = document.createElement('div');
@@ -26556,12 +27241,16 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         const eventsDiv = document.createElement('div');
         eventsDiv.className = 'day-events';
         let hasDebateLesson = false;
+        const lessonCap = 4;
+        const expanded = dayDiv.dataset.lessonsExpanded === '1';
+        const toRender = expanded ? visibleLessons : visibleLessons.slice(0, lessonCap);
+        const overflow = expanded ? 0 : Math.max(0, visibleLessons.length - lessonCap);
 
-        visibleLessons.forEach(({ classData, lesson, slice, calendarTitle }) => {
+        toRender.forEach(({ classData, lesson, slice, calendarTitle }) => {
             const eventBar = document.createElement('div');
             eventBar.className = 'event-bar cal-item-lessons';
-            eventBar.style.backgroundColor = classData.color;
-            eventBar.style.color = classData.textColor || DEFAULT_CLASS_TEXT_COLOR;
+            const accentColor = classData.color || '#356a9e';
+            applyCalmEventBarStyle(eventBar, accentColor);
             const lessonDateStr = lesson.date instanceof Date
                 ? formatDateISO(lesson.date)
                 : (lesson.date || '');
@@ -26655,6 +27344,30 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
             
             eventsDiv.appendChild(eventBar);
         });
+
+        if (overflow > 0) {
+            const moreBtn = document.createElement('button');
+            moreBtn.type = 'button';
+            moreBtn.className = 'event-bar-more';
+            moreBtn.textContent = t('calendarMoreEvents').replace('{n}', String(overflow));
+            moreBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dayDiv.dataset.lessonsExpanded = '1';
+                const parent = dayDiv.parentElement;
+                const replacement = createDayCell(
+                    dayNumber,
+                    isOtherMonth,
+                    dayEvents,
+                    lessons,
+                    dateStr,
+                    termStartIso,
+                    termEndIso
+                );
+                replacement.dataset.lessonsExpanded = '1';
+                dayDiv.replaceWith(replacement);
+            });
+            eventsDiv.appendChild(moreBtn);
+        }
 
         if (hasDebateLesson) {
             dayDiv.classList.add('calendar-day--has-debate-lessons');
@@ -26826,17 +27539,323 @@ function confirmCalendarPrintDespiteDensityWarnings() {
     return window.confirm(message);
 }
 
-/** Landscape A4 — one month per printed page (matches @page in APP_PRINT_CALENDAR_INLINE_CSS). */
+/** Brief-style chip label: "Class · Unit 3" / "Class · Day 2". */
+function formatCalendarPrintChipLabel(displayName, lesson, scheduleClass) {
+    const name = String(displayName || '').trim();
+    const part = formatCalendarPrintLessonLabel(lesson, scheduleClass);
+    if (!name) {
+        return part;
+    }
+    if (!part) {
+        return name;
+    }
+    return `${name} · ${part}`;
+}
+
+function getCalendarPrintWeekdayLabels() {
+    return t('dayNamesShort').map((label) => String(label).toUpperCase());
+}
+
+function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
+    if (isOtherMonth) {
+        return { chips: [], holidayName: '', isHoliday: false };
+    }
+    const visibleEvents = (dayEvents || []).filter((ev) => {
+        const type = normalizeEventType(ev.type);
+        if (type === EVENT_TYPES.HOLIDAY) {
+            return isPrintVisibilityOn('holiday');
+        }
+        return isPrintVisibilityOn(type);
+    });
+
+    const schoolWideHoliday = visibleEvents.find(isSchoolWideHolidayEvent);
+    if (schoolWideHoliday) {
+        return {
+            chips: [],
+            holidayName: getEventDisplayName(schoolWideHoliday),
+            isHoliday: true
+        };
+    }
+
+    const chips = [];
+    visibleEvents.forEach((ev) => {
+        const type = normalizeEventType(ev.type);
+        const defaults = EVENT_TYPE_DEFAULT_COLORS[type] || EVENT_TYPE_DEFAULT_COLORS.other;
+        let label = getEventDisplayName(ev);
+        if (eventTypeBlocksClass(ev.type) && eventHasAnyTargetFilter(ev)) {
+            label += ` (${getEventAppliesToDescriptionParts(ev).join('; ')})`;
+        }
+        chips.push({
+            kind: 'event',
+            label,
+            bgColor: ev.bgColor || defaults.bg,
+            textColor: ev.textColor || defaults.text,
+            eventType: type
+        });
+    });
+
+    if (isPrintVisibilityOn('lessons')) {
+        const visibleLessons = (lessons || [])
+            .filter(({ classData }) => classPassesLessonFilters(classData))
+            .filter(({ classData, slice }) => {
+                const effective = slice && slice.classData ? slice.classData : classData;
+                return !isHolidayForClass(dateStr, effective);
+            });
+        visibleLessons.forEach(({ classData, lesson, slice, calendarTitle }) => {
+            const scheduleClass = slice && slice.classData ? slice.classData : classData;
+            const displayName = calendarTitle || classData.name;
+            chips.push({
+                kind: 'lesson',
+                label: formatCalendarPrintChipLabel(displayName, lesson, scheduleClass),
+                color: classData.color || '#356a9e'
+            });
+        });
+    }
+
+    return { chips, holidayName: '', isHoliday: false };
+}
+
+function collectCalendarPrintMonthWeeks(monthDate, dayIndex) {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    const scheduledLessons = dayIndex.scheduledLessons;
+    const eventsByDate = dayIndex.eventsByDate;
+    const allCells = [];
+    let maxChipsInDay = 0;
+
+    for (let i = firstDay - 1; i >= 0; i--) {
+        allCells.push({
+            dayNumber: prevMonthDays - i,
+            isOtherMonth: true,
+            chips: [],
+            holidayName: '',
+            isHoliday: false
+        });
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons, false);
+        maxChipsInDay = Math.max(maxChipsInDay, content.chips.length);
+        allCells.push({
+            dayNumber: day,
+            isOtherMonth: false,
+            ...content
+        });
+    }
+
+    const totalCells = firstDay + daysInMonth;
+    const remainingCells = (7 - (totalCells % 7)) % 7;
+    for (let i = 1; i <= remainingCells; i++) {
+        allCells.push({
+            dayNumber: i,
+            isOtherMonth: true,
+            chips: [],
+            holidayName: '',
+            isHoliday: false
+        });
+    }
+
+    const weekRows = [];
+    for (let w = 0; w < allCells.length; w += 7) {
+        weekRows.push(allCells.slice(w, w + 7));
+    }
+
+    const monthNames = t('monthNames');
+    return {
+        weeks: weekRows,
+        maxChipsInDay,
+        monthTitle: `${monthNames[month]} ${year}`
+    };
+}
+
+function buildCalendarPrintDayCell(dayData) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-print-day';
+    if (dayData.isOtherMonth) {
+        cell.classList.add('is-other-month');
+    }
+    if (dayData.isHoliday) {
+        cell.classList.add('is-holiday');
+    }
+
+    const top = document.createElement('div');
+    top.className = 'calendar-print-day-top';
+    const num = document.createElement('span');
+    num.className = 'calendar-print-day-num';
+    num.textContent = String(dayData.dayNumber);
+    top.appendChild(num);
+    if (dayData.holidayName) {
+        const hol = document.createElement('span');
+        hol.className = 'calendar-print-holiday-label';
+        hol.textContent = dayData.holidayName;
+        top.appendChild(hol);
+    }
+    cell.appendChild(top);
+
+    const chipsWrap = document.createElement('div');
+    chipsWrap.className = 'calendar-print-chips';
+    (dayData.chips || []).forEach((chip) => {
+        const chipEl = document.createElement('div');
+        chipEl.textContent = chip.label;
+        chipEl.title = chip.label;
+        if (chip.kind === 'event') {
+            chipEl.className = 'calendar-print-chip calendar-print-chip--event'
+                + (chip.eventType ? ` cal-item-${chip.eventType}` : '');
+            chipEl.style.backgroundColor = chip.bgColor || '#e2e8f0';
+            chipEl.style.color = chip.textColor || '#1e293b';
+        } else {
+            chipEl.className = 'calendar-print-chip calendar-print-chip--lesson';
+            const accent = chip.color || '#356a9e';
+            chipEl.style.setProperty('--chip-accent', accent);
+            chipEl.style.backgroundColor = hexToRgba(accent, 0.16);
+            chipEl.style.borderLeftColor = accent;
+        }
+        chipsWrap.appendChild(chipEl);
+    });
+    cell.appendChild(chipsWrap);
+    return cell;
+}
+
+function appendCalendarPrintSheetChrome(sheet, monthTitle, pageIndex, pageTotal) {
+    const calName = (appData && appData.calendarName && appData.calendarName.trim())
+        ? appData.calendarName.trim()
+        : t('appTitle');
+    let termLine = '';
+    if (appData.termStart && appData.termEnd) {
+        termLine = `Term: ${formatDateDisplay(appData.termStart)} – ${formatDateDisplay(appData.termEnd)}`;
+    }
+    const titleBlock = document.createElement('div');
+    titleBlock.className = 'calendar-print-title-block';
+    titleBlock.innerHTML =
+        '<div class="calendar-print-title-block__main">'
+        + `<div class="calendar-print-title-block__month">${escapeHtml(monthTitle)}</div>`
+        + `<div class="calendar-print-title-block__meta">${escapeHtml(calName)}`
+        + (termLine ? ` · ${escapeHtml(termLine)}` : '')
+        + '</div></div>'
+        + `<div class="calendar-print-title-block__page">Page ${pageIndex + 1} of ${pageTotal}</div>`;
+    const footer = document.createElement('div');
+    footer.className = 'calendar-print-footer';
+    const printed = new Date().toLocaleDateString();
+    footer.innerHTML =
+        `<span>ClassManager · printed ${escapeHtml(printed)}</span>`
+        + '<span class="calendar-print-footer__hint">Debate classes show the day · other classes show the unit</span>';
+    sheet.appendChild(titleBlock);
+    sheet.appendChild(footer);
+}
+
+function buildCalendarPrintMonthSheet(monthDate, dayIndex, pageIndex, pageTotal) {
+    const { weeks, maxChipsInDay, monthTitle } = collectCalendarPrintMonthWeeks(monthDate, dayIndex);
+    const sheet = document.createElement('div');
+    sheet.className = 'calendar-print-sheet';
+    sheet.style.page = 'calendar-landscape';
+    sheet.dataset.printMonthTitle = monthTitle;
+    sheet.dataset.maxChips = String(maxChipsInDay);
+
+    const body = document.createElement('div');
+    body.className = 'calendar-print-month-body';
+
+    const weekdayRow = document.createElement('div');
+    weekdayRow.className = 'calendar-print-weekday-row';
+    getCalendarPrintWeekdayLabels().forEach((label) => {
+        const el = document.createElement('div');
+        el.className = 'calendar-print-weekday';
+        el.textContent = label;
+        weekdayRow.appendChild(el);
+    });
+    body.appendChild(weekdayRow);
+
+    const weeksWrap = document.createElement('div');
+    weeksWrap.className = 'calendar-print-weeks';
+    weeks.forEach((weekDays) => {
+        const weekEl = document.createElement('div');
+        weekEl.className = 'calendar-print-week';
+        weekDays.forEach((dayData) => {
+            weekEl.appendChild(buildCalendarPrintDayCell(dayData));
+        });
+        weeksWrap.appendChild(weekEl);
+    });
+    body.appendChild(weeksWrap);
+
+    appendCalendarPrintSheetChrome(sheet, monthTitle, pageIndex, pageTotal);
+    const footer = sheet.querySelector('.calendar-print-footer');
+    sheet.insertBefore(body, footer);
+    return sheet;
+}
+
+function renderCalendarPrintMonths(dayIndex) {
+    const container = elements.calendarContainer;
+    if (!container) {
+        return;
+    }
+    const frag = document.createDocumentFragment();
+    const total = dayIndex.monthCount;
+    for (let i = 0; i < total; i++) {
+        const monthDate = new Date(dayIndex.startDate);
+        monthDate.setMonth(monthDate.getMonth() + i);
+        frag.appendChild(buildCalendarPrintMonthSheet(monthDate, dayIndex, i, total));
+    }
+    container.appendChild(frag);
+}
+
+const CALENDAR_PRINT_CHIP_TARGET_MAX = 6;
+const CALENDAR_PRINT_CHIP_FONT_PX = 10.5;
+const CALENDAR_PRINT_CHIP_SCALE_MIN = 0.52;
+
+function fitCalendarPrintMonthSheet(sheet) {
+    const weeksWrap = sheet.querySelector('.calendar-print-weeks');
+    if (!weeksWrap) {
+        return;
+    }
+
+    sheet.style.setProperty('--cal-print-scale', '1');
+    sheet.querySelectorAll('.calendar-print-week, .calendar-print-day').forEach((el) => {
+        el.style.height = '';
+        el.style.minHeight = '';
+        el.style.maxHeight = '';
+    });
+
+    void sheet.offsetHeight;
+
+    const weeks = Array.from(weeksWrap.querySelectorAll('.calendar-print-week'));
+    const weekCount = Math.max(1, weeks.length);
+    const rowH = weeksWrap.clientHeight / weekCount;
+
+    const maxChips = Math.min(
+        CALENDAR_PRINT_CHIP_TARGET_MAX,
+        Math.max(1, parseInt(sheet.dataset.maxChips || '1', 10))
+    );
+    const chipLineH = CALENDAR_PRINT_CHIP_FONT_PX * 1.2;
+    const chipBoxH = chipLineH + 6;
+    const chipGap = 3;
+    const dayTopH = 14;
+    const cellPadV = 10;
+    const neededRowH = dayTopH + cellPadV + (maxChips * chipBoxH) + ((maxChips - 1) * chipGap);
+    let scale = 1;
+    if (rowH > 0 && neededRowH > rowH) {
+        scale = rowH / neededRowH;
+    }
+    scale = Math.max(CALENDAR_PRINT_CHIP_SCALE_MIN, Math.min(1, scale));
+    sheet.style.setProperty('--cal-print-scale', String(scale));
+}
+
+/** Landscape A4 — one month per printed page (matches Print Styles A4 brief). */
 const CALENDAR_PRINT_LANDSCAPE = {
     pageW: 297,
     pageH: 210,
-    margin: 10,
-    fitSafety: 2,
+    paddingV: 8,
+    paddingH: 9,
+    fitSafety: 1,
     get contentW() {
-        return this.pageW - this.margin * 2;
+        return this.pageW - this.paddingH * 2;
     },
     get contentH() {
-        return this.pageH - this.margin * 2;
+        return this.pageH - this.paddingV * 2;
     },
     get fitContentH() {
         return this.contentH - this.fitSafety;
@@ -26869,6 +27888,36 @@ body.app-print-calendar-doc:not(.calendar-print-ready) .app-print-document--cale
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
+    html.app-print-calendar-root,
+    body.app-print-calendar-doc {
+        width: ${CALENDAR_PRINT_LANDSCAPE.pageW}mm !important;
+        min-width: ${CALENDAR_PRINT_LANDSCAPE.pageW}mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .app-print-document--calendar .calendar-print-sheet {
+        display: flex !important;
+        flex-direction: column !important;
+        width: ${CALENDAR_PRINT_LANDSCAPE.pageW}mm !important;
+        height: ${CALENDAR_PRINT_LANDSCAPE.pageH}mm !important;
+        max-height: ${CALENDAR_PRINT_LANDSCAPE.pageH}mm !important;
+        padding: ${CALENDAR_PRINT_LANDSCAPE.paddingV}mm ${CALENDAR_PRINT_LANDSCAPE.paddingH}mm !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .app-print-document--calendar .calendar-print-month-body,
+    .app-print-document--calendar .calendar-print-weeks {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    .app-print-document--calendar .calendar-print-week {
+        display: flex !important;
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+    }
 }
 html.app-print-calendar-root,
 body.app-print-calendar-doc {
@@ -26878,6 +27927,8 @@ body.app-print-calendar-doc {
     padding: 0;
     background: #fff;
     color: #111;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
 .app-print-document--calendar { max-width: 100%; padding: 0; }
@@ -26885,7 +27936,6 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     display: flex !important;
     flex-direction: column !important;
     flex-wrap: nowrap !important;
-    grid-template-columns: unset !important;
     gap: 0 !important;
     width: 100%;
     max-width: 100%;
@@ -26896,192 +27946,198 @@ body.app-print-calendar-doc { margin: 0; background: #fff; color: #111; }
     height: ${CALENDAR_PRINT_LANDSCAPE.pageH}mm;
     max-height: ${CALENDAR_PRINT_LANDSCAPE.pageH}mm;
     box-sizing: border-box;
-    padding: ${CALENDAR_PRINT_LANDSCAPE.margin}mm;
+    padding: ${CALENDAR_PRINT_LANDSCAPE.paddingV}mm ${CALENDAR_PRINT_LANDSCAPE.paddingH}mm;
     margin: 0 auto;
     overflow: hidden;
     page-break-after: always;
     break-after: page;
     page-break-inside: avoid;
     break-inside: avoid;
-    position: relative;
-    display: block;
-}
-.app-print-document--calendar .calendar-print-fit-wrap {
-    box-sizing: border-box;
-    overflow: hidden;
-    margin: 0 auto;
-}
-.app-print-document--calendar .calendar-print-fit-wrap > .month-calendar {
     display: flex;
     flex-direction: column;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100%;
-    box-sizing: border-box;
+    --cal-print-scale: 1;
 }
-.app-print-document--calendar .calendar-print-fit-wrap .calendar-grid {
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-}
-.app-print-document--calendar .calendar-grid {
-    width: 100%;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-}
-.app-print-document--calendar .month-calendar,
-.app-print-document--calendar .calendar-grid {
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-}
-.app-print-document--calendar .calendar-day {
-    min-height: 6mm !important;
-    height: auto;
-    overflow: hidden;
-    padding: 1px !important;
+.app-print-document--calendar .calendar-print-title-block {
     display: flex;
-    flex-direction: column;
-}
-.app-print-document--calendar .calendar-day .day-number {
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 4mm;
+    margin-bottom: 2.5mm;
+    padding-bottom: 3mm;
+    border-bottom: 2px solid #1c2430;
     flex-shrink: 0;
 }
-.app-print-document--calendar .calendar-day .holiday-name,
-.app-print-document--calendar .calendar-day .calendar-event-chips {
-    min-height: 0;
+.app-print-document--calendar .calendar-print-title-block__month {
+    font-size: 21px;
+    font-weight: 700;
+    color: #1c2430;
+    line-height: 1.15;
 }
-.app-print-document--calendar .calendar-day .day-events {
+.app-print-document--calendar .calendar-print-title-block__meta {
+    font-size: 12px;
+    color: #5a6a80;
+    margin-top: 2px;
+}
+.app-print-document--calendar .calendar-print-title-block__page {
+    font-size: 11px;
+    color: #8893a3;
+    white-space: nowrap;
+}
+.app-print-document--calendar .calendar-print-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4mm;
+    margin-top: 2mm;
+    padding-top: 2mm;
+    border-top: none;
+    font-size: 10px;
+    color: #8893a3;
+    flex-shrink: 0;
+}
+.app-print-document--calendar .calendar-print-footer__hint {
+    text-align: right;
+}
+.app-print-document--calendar .calendar-print-month-body {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
-.app-print-document--calendar .calendar-day .day-events {
-    justify-content: flex-start;
-}
-.app-print-document--calendar .calendar-day .event-bar {
-    flex: 1 1 0;
-    min-height: 0;
-    justify-content: center;
-}
-.app-print-document--calendar .calendar-day .calendar-event-chips {
+.app-print-document--calendar .calendar-print-weekday-row {
     display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid #c9d2dd;
+    border-bottom: none;
+    box-sizing: border-box;
 }
-.app-print-document--calendar .calendar-day .calendar-event-chip {
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-}
-.app-print-document--calendar .calendar-day-header {
-    padding: 2px 1px !important;
-    font-size: 5.5pt !important;
-    letter-spacing: 0.02em;
-}
-.app-print-document--calendar .day-number {
-    font-size: 6pt !important;
-    padding: 0 2px !important;
-    line-height: 1.1;
-}
-.app-print-document--calendar .holiday-name {
-    font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 5.5pt) * 1.12)), 10pt) !important;
-    padding: 0 2px 1px !important;
-    line-height: 1.1;
-}
-.app-print-document--calendar .calendar-event-chips {
-    gap: 0 !important;
-    margin-top: 0;
-    padding: 0 1px;
-}
-.app-print-document--calendar .day-events {
-    overflow: hidden;
-    gap: 0 !important;
-    padding: 0 1px !important;
-    margin-top: 0;
-}
-.app-print-document--calendar .event-bar {
-    font-size: min(var(--cal-tile-font, 5.5pt), 10pt);
-    padding: 0 2px;
-    line-height: 1.05;
-    gap: 0;
-    border-radius: 2px;
-}
-.app-print-document--calendar .event-bar .event-title,
-.app-print-document--calendar .event-bar .event-book {
-    font-size: inherit;
-    line-height: 1.05;
-}
-.app-print-document--calendar .event-bar .event-book {
-    font-size: min(var(--cal-tile-font-sm, 5pt), 8.5pt);
-    font-weight: 500;
-    opacity: 0.95;
-}
-.app-print-document--calendar .event-bar--debate-compact {
-    padding: 0 2px;
-    gap: 0;
-}
-.app-print-document--calendar .event-bar--debate-compact .event-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.app-print-document--calendar .event-bar--print-merged {
-    flex: 2 2 0;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    line-height: 1.05;
-    justify-content: center;
-    min-height: 0;
-}
-.app-print-document--calendar .event-bar--print-merged .event-title,
-.app-print-document--calendar .event-bar--print-merged .event-merge {
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.05;
-    max-width: 100%;
-}
-.app-print-document--calendar .event-bar--print-merged .event-merge {
+.app-print-document--calendar .calendar-print-weekday {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    padding: 5px 0;
+    font-size: 10.5px;
     font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #5a6a80;
+    background: #f4f6f9;
+    border-right: 1px solid #e3e8ef;
+    box-sizing: border-box;
 }
-.app-print-document--calendar .calendar-event-chip {
-    font-size: min(var(--cal-tile-font, 5pt), 10pt);
-    padding: 0 2px;
-    line-height: 1.05;
-    border-radius: 2px;
+.app-print-document--calendar .calendar-print-weekday:last-child {
+    border-right: none;
+}
+.app-print-document--calendar .calendar-print-weeks {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #c9d2dd;
+    border-top: 1px solid #c9d2dd;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.app-print-document--calendar .calendar-print-week {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.app-print-document--calendar .calendar-print-day {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    border-right: 1px solid #e3e8ef;
+    border-bottom: 1px solid #c9d2dd;
+    padding: calc(5px * var(--cal-print-scale, 1)) calc(6px * var(--cal-print-scale, 1));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+.app-print-document--calendar .calendar-print-day:last-child {
+    border-right: none;
+}
+.app-print-document--calendar .calendar-print-day.is-other-month {
+    background: #fafbfc;
+}
+.app-print-document--calendar .calendar-print-day.is-holiday {
+    background: #fef3c7;
+}
+.app-print-document--calendar .calendar-print-day-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: calc(3px * var(--cal-print-scale, 1));
+    flex-shrink: 0;
+    min-height: 0;
+}
+.app-print-document--calendar .calendar-print-day-num {
+    font-size: calc(11px * var(--cal-print-scale, 1));
+    font-weight: 700;
+    line-height: 1.1;
+    color: #33414f;
+    flex-shrink: 0;
+}
+.app-print-document--calendar .calendar-print-day.is-other-month .calendar-print-day-num {
+    color: #b7c0cc;
+}
+.app-print-document--calendar .calendar-print-day.is-holiday .calendar-print-day-num {
+    color: #b07d18;
+}
+.app-print-document--calendar .calendar-print-holiday-label {
+    font-size: calc(8px * var(--cal-print-scale, 1));
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #b07d18;
+    line-height: 1.1;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.app-print-document--calendar .calendar-print-chips {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow: hidden;
+    gap: calc(3px * var(--cal-print-scale, 1));
+}
+.app-print-document--calendar .calendar-print-chip {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    font-size: calc(${CALENDAR_PRINT_CHIP_FONT_PX}px * var(--cal-print-scale, 1));
+    line-height: 1.2;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+.app-print-document--calendar .calendar-print-chip--lesson {
+    color: #243244;
+    font-weight: 600;
+    padding: calc(3px * var(--cal-print-scale, 1)) calc(7px * var(--cal-print-scale, 1));
+    border-left: calc(3px * var(--cal-print-scale, 1)) solid var(--chip-accent, #356a9e);
+    border-radius: calc(4px * var(--cal-print-scale, 1));
+}
+.app-print-document--calendar .calendar-print-chip--event {
+    font-weight: 500;
+    padding: calc(2px * var(--cal-print-scale, 1)) calc(4px * var(--cal-print-scale, 1));
+    border-radius: calc(3px * var(--cal-print-scale, 1));
+    border-left: none;
 }
 .app-print-document--calendar .calendar-print-sheet:last-child {
     page-break-after: auto;
     break-after: auto;
-}
-.app-print-document--calendar .month-calendar {
-    width: auto;
-    max-width: none;
-    box-shadow: none;
-    border: 1px solid #000;
-    page-break-inside: avoid;
-    break-inside: avoid;
-}
-.app-print-document--calendar .month-header {
-    position: static !important;
-    top: auto !important;
-    z-index: auto !important;
-    box-shadow: none !important;
-    padding: 3mm 4mm !important;
-    background: var(--primary) !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-}
-.app-print-document--calendar .month-header h2 {
-    font-size: 11pt !important;
-    line-height: 1.15;
 }
 `;
 
@@ -27174,24 +28230,49 @@ body.app-print-summary-doc { margin: 0; background: #fff; color: #111; }
 }
 `;
 
-/** Landscape print tab: calendar grid only. */
-function buildAppPrintCalendarDocumentHtml() {
-    if (!elements.calendarContainer) {
+/** Build print-only month sheets from calendar data (no screen UI). */
+function buildCalendarPrintContainerHtml() {
+    if (!appData || !appData.termStart) {
         return '';
     }
-    clearCalendarTileTypography(document, elements.calendarContainer);
+    ensureTermStartData();
+    ensureUiState();
+    if (!appData.ui.printVisibility) {
+        appData.ui.printVisibility = readPrintCalendarVisibilityFromForm();
+    }
+    syncHolidaysFromEvents();
+    if (pruneLessonFiltersToScheduledOptions()) {
+        saveUiStateToLocalStorage();
+    }
+    const dayIndex = buildDayIndex();
+    const total = dayIndex.monthCount;
+    const parts = [];
+    for (let i = 0; i < total; i++) {
+        const monthDate = new Date(dayIndex.startDate);
+        monthDate.setMonth(monthDate.getMonth() + i);
+        parts.push(buildCalendarPrintMonthSheet(monthDate, dayIndex, i, total).outerHTML);
+    }
+    return parts.join('');
+}
+
+/** Landscape print tab: calendar grid only (self-contained — no app stylesheet). */
+function buildAppPrintCalendarDocumentHtml() {
+    const calendarHtml = buildCalendarPrintContainerHtml();
+    if (!calendarHtml) {
+        return '';
+    }
     const title = escapeHtml(`Calendar — ${getAppPrintCalendarName()}`);
     const bodyClass = collectAppPrintCalendarBodyClasses().join(' ');
-    const cssHref = escapeHtml(getAppStylesheetHref());
     const lang = escapeHtml(document.documentElement.lang || 'en');
-    const calendarHtml = elements.calendarContainer.innerHTML;
     const bodyClasses = ['app-print-calendar-doc', bodyClass].filter(Boolean).join(' ');
     return `<!DOCTYPE html>
 <html lang="${lang}" data-theme="light" class="print-color-mode-light app-print-calendar-root">
 <head>
 <meta charset="UTF-8">
 <title>${title}</title>
-<link rel="stylesheet" href="${cssHref}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 ${APP_PRINT_CALENDAR_INLINE_CSS}
 </style>
@@ -27566,7 +28647,10 @@ let calendarTileTypographyLastSize = { w: 0, h: 0 };
 const CALENDAR_TILE_TYPO_RESIZE_EPS = 2;
 
 function calendarDomHasPrintSnapshotLessonBars(root) {
-    return !!(root && root.querySelector('.event-bar--print-merged'));
+    return !!(root && (
+        root.querySelector('.event-bar--print-merged')
+        || root.querySelector('.calendar-print-sheet')
+    ));
 }
 
 function runCalendarTileTypographyFit() {
@@ -27695,99 +28779,60 @@ function layoutCalendarMonthForLandscapePrint(month, contentWpx, contentHpx) {
 }
 
 /** Wrap each month in a landscape sheet and scale to fit one page (like syllabus A4 fit). */
-function fitCalendarMonthsForPrint(doc) {
-    const a4 = CALENDAR_PRINT_LANDSCAPE;
-    doc.querySelectorAll('.calendar-print-fit-wrap').forEach((wrap) => {
-        const month = wrap.querySelector('.month-calendar');
-        if (!month) {
-            wrap.remove();
-            return;
-        }
-        const sheet = wrap.closest('.calendar-print-sheet');
-        wrap.replaceWith(month);
-        if (sheet && !sheet.querySelector('.month-calendar')) {
-            sheet.remove();
-        }
-    });
-    doc.querySelectorAll('.calendar-print-sheet').forEach((sheet) => {
-        const month = sheet.querySelector('.month-calendar');
-        if (month) {
-            sheet.replaceWith(month);
-        } else {
-            sheet.remove();
-        }
-    });
+function getCalendarPrintMeta(monthEl) {
+    const monthHeader = monthEl && monthEl.querySelector('.month-header h2');
+    const monthTitle = monthHeader ? monthHeader.textContent.trim() : '';
+    const calName = (appData && appData.calendarName && appData.calendarName.trim())
+        ? appData.calendarName.trim()
+        : t('appTitle');
+    let termLine = '';
+    if (appData.termStart && appData.termEnd) {
+        termLine = `Term: ${formatDateDisplay(appData.termStart)} – ${formatDateDisplay(appData.termEnd)}`;
+    }
+    return { monthTitle, calName, termLine };
+}
 
-    const months = Array.from(
-        doc.querySelectorAll('.app-print-document--calendar .month-calendar')
+function wrapCalendarPrintSheetChrome(sheet, monthEl, pageIndex, pageTotal) {
+    const meta = getCalendarPrintMeta(monthEl);
+    const titleBlock = document.createElement('div');
+    titleBlock.className = 'calendar-print-title-block';
+    titleBlock.innerHTML =
+        '<div class="calendar-print-title-block__main">'
+        + `<div class="calendar-print-title-block__month">${escapeHtml(meta.monthTitle)}</div>`
+        + `<div class="calendar-print-title-block__meta">${escapeHtml(meta.calName)}`
+        + (meta.termLine ? ` · ${escapeHtml(meta.termLine)}` : '')
+        + '</div></div>'
+        + `<div class="calendar-print-title-block__page">Page ${pageIndex + 1} of ${pageTotal}</div>`;
+    const footer = document.createElement('div');
+    footer.className = 'calendar-print-footer';
+    const printed = new Date().toLocaleDateString();
+    footer.innerHTML =
+        `<span>ClassManager · printed ${escapeHtml(printed)}</span>`
+        + '<span class="calendar-print-footer__hint">Debate classes show the day · other classes show the unit</span>';
+    sheet.insertBefore(titleBlock, sheet.firstChild);
+    sheet.appendChild(footer);
+}
+
+function fitCalendarMonthsForPrint(doc) {
+    const sheets = Array.from(
+        doc.querySelectorAll('.app-print-document--calendar .calendar-print-sheet')
     );
-    if (!months.length) {
+    if (!sheets.length) {
         return 0;
     }
 
-    const mmPx = measureMmToPxForPrint(doc);
-    const contentWpx = Math.round(a4.contentW * mmPx);
-    const contentHpx = Math.round(a4.fitContentH * mmPx);
-
-    months.forEach((month, index) => {
-        month.style.transform = '';
-        month.style.transformOrigin = '';
-        month.style.width = '';
-        month.style.height = '';
-        month.style.margin = '';
-
-        const sheet = doc.createElement('div');
-        sheet.className = 'calendar-print-sheet';
-        sheet.style.page = 'calendar-landscape';
-        month.parentNode.insertBefore(sheet, month);
-        sheet.appendChild(month);
-
-        layoutCalendarMonthForLandscapePrint(month, contentWpx, contentHpx);
-
-        void doc.body.offsetHeight;
-
-        const naturalH = month.scrollHeight;
-        const naturalW = month.scrollWidth || month.offsetWidth;
-        const scale = computeCalendarMonthScale(naturalH, naturalW, contentWpx, contentHpx);
-        const scaledH = Math.ceil(naturalH * scale);
-
-        const wrap = doc.createElement('div');
-        wrap.className = 'calendar-print-fit-wrap';
-        wrap.style.width = `${contentWpx}px`;
-        wrap.style.height = `${contentHpx}px`;
-        wrap.style.maxHeight = `${contentHpx}px`;
-        wrap.style.overflow = 'hidden';
-        wrap.style.boxSizing = 'border-box';
-
-        sheet.insertBefore(wrap, month);
-        wrap.appendChild(month);
-
-        if (scale < 0.999) {
-            month.style.transformOrigin = 'top center';
-            month.style.transform = `scale(${scale})`;
-            month.style.width = `${naturalW}px`;
-            month.style.maxWidth = `${naturalW}px`;
-            wrap.style.display = 'flex';
-            wrap.style.alignItems = 'flex-start';
-            wrap.style.justifyContent = 'center';
-            wrap.style.paddingTop = scaledH < contentHpx
-                ? `${Math.floor((contentHpx - scaledH) / 2)}px`
-                : '0';
-        } else {
-            month.style.transform = '';
-            month.style.width = '100%';
-            month.style.maxWidth = '100%';
-            month.style.height = '100%';
-            wrap.style.paddingTop = '0';
-        }
-
-        if (index < months.length - 1) {
+    sheets.forEach((sheet, index) => {
+        fitCalendarPrintMonthSheet(sheet);
+        if (index < sheets.length - 1) {
             sheet.style.pageBreakAfter = 'always';
             sheet.style.breakAfter = 'page';
+        } else {
+            sheet.style.pageBreakAfter = 'auto';
+            sheet.style.breakAfter = 'auto';
         }
     });
 
-    return months.length;
+    return sheets.length;
 }
 
 function whenPrintWindowReady(printWin, fn) {
@@ -27913,61 +28958,78 @@ function runAppPrintJobs(jobs, opts) {
         printWin.focus();
 
         whenPrintWindowReady(printWin, () => {
+            const schedulePrintDialog = () => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        let finished = false;
+                        let closedPoll = null;
+                        const finish = () => {
+                            if (finished) {
+                                return;
+                            }
+                            finished = true;
+                            if (closedPoll !== null) {
+                                clearInterval(closedPoll);
+                                closedPoll = null;
+                            }
+                            try {
+                                printWin.close();
+                            } catch (e) { /* user may have closed the tab */ }
+                            printOneJob();
+                        };
+                        printWin.addEventListener('afterprint', finish, { once: true });
+                        printWin.addEventListener('pagehide', finish, { once: true });
+                        closedPoll = setInterval(() => {
+                            if (finished) {
+                                return;
+                            }
+                            let closed = false;
+                            try {
+                                closed = printWin.closed;
+                            } catch (e) {
+                                closed = true;
+                            }
+                            if (closed) {
+                                finish();
+                            }
+                        }, 250);
+                        try {
+                            printWin.print();
+                        } catch (e) {
+                            /* user can print manually from the new tab */
+                        }
+                        setTimeout(finish, 120000);
+                    });
+                });
+            };
+
             if (job.kind === 'summary') {
                 fitSyllabusInPrintWindow(printWin, opts);
+                schedulePrintDialog();
             } else if (job.kind === 'calendar') {
-                try {
-                    fitCalendarMonthsForPrint(printWin.document);
-                    const orient = printWin.document.createElement('style');
-                    orient.setAttribute('data-calendar-print-orient', '1');
-                    orient.textContent = '@page { size: A4 landscape; margin: 0; }';
-                    printWin.document.head.appendChild(orient);
-                } finally {
-                    printWin.document.body.classList.add('calendar-print-ready');
-                }
-            }
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    let finished = false;
-                    let closedPoll = null;
-                    const finish = () => {
-                        if (finished) {
-                            return;
-                        }
-                        finished = true;
-                        if (closedPoll !== null) {
-                            clearInterval(closedPoll);
-                            closedPoll = null;
-                        }
-                        try {
-                            printWin.close();
-                        } catch (e) { /* user may have closed the tab */ }
-                        printOneJob();
-                    };
-                    printWin.addEventListener('afterprint', finish, { once: true });
-                    printWin.addEventListener('pagehide', finish, { once: true });
-                    closedPoll = setInterval(() => {
-                        if (finished) {
-                            return;
-                        }
-                        let closed = false;
-                        try {
-                            closed = printWin.closed;
-                        } catch (e) {
-                            closed = true;
-                        }
-                        if (closed) {
-                            finish();
-                        }
-                    }, 250);
+                const finishCalendarPrintPrep = () => {
                     try {
-                        printWin.print();
-                    } catch (e) {
-                        /* user can print manually from the new tab */
+                        fitCalendarMonthsForPrint(printWin.document);
+                        if (!printWin.document.querySelector('[data-calendar-print-orient]')) {
+                            const orient = printWin.document.createElement('style');
+                            orient.setAttribute('data-calendar-print-orient', '1');
+                            orient.textContent = '@page { size: A4 landscape; margin: 0; }';
+                            printWin.document.head.appendChild(orient);
+                        }
+                    } finally {
+                        printWin.document.body.classList.add('calendar-print-ready');
                     }
-                    setTimeout(finish, 120000);
-                });
-            });
+                    schedulePrintDialog();
+                };
+                const fonts = printWin.document.fonts;
+                if (fonts && typeof fonts.ready?.then === 'function') {
+                    fonts.ready.then(finishCalendarPrintPrep).catch(finishCalendarPrintPrep);
+                } else {
+                    setTimeout(finishCalendarPrintPrep, 80);
+                }
+            } else {
+                schedulePrintDialog();
+            }
         });
     }
 
@@ -28124,24 +29186,14 @@ function runAppPrint(printMode) {
     // UI-only: persist print visibility preferences locally.
     saveUiStateToLocalStorage();
 
-    calendarRenderForPrint = printCalendar;
-    try {
-        if (printCalendar && appData.termStart) {
-            // Print capture must render synchronously while calendarRenderForPrint is true.
-            // renderCalendar() debounces 75ms and would run after the flag is cleared.
-            if (renderCalendarTimer) {
-                clearTimeout(renderCalendarTimer);
-                renderCalendarTimer = null;
-            }
-            renderCalendarNow();
-        } else {
-            updatePrintSummary();
-        }
-        if (showSummary && opts.printSyllabusTables) {
+    if (printCalendar && appData.termStart) {
+        syncHolidaysFromEvents();
+    }
+    if (showSummary) {
+        updatePrintSummary();
+        if (opts.printSyllabusTables) {
             renderAllSyllabusTables();
         }
-    } finally {
-        calendarRenderForPrint = false;
     }
 
     document.body.classList.toggle('hide-calendar-print', !printCalendar);
@@ -28486,7 +29538,11 @@ function showLockFlash(message, isError) {
 }
 
 function setTeamLockBarVisible(visible) {
+    const syncBar = document.getElementById('teamLockSyncBar');
     const el = document.getElementById('teamLockStatus');
+    if (syncBar) {
+        syncBar.hidden = !visible;
+    }
     if (el) {
         el.hidden = !visible;
     }
@@ -28518,7 +29574,7 @@ function getTeamLockSaveBlockedMessage() {
 }
 
 function highlightTeamLockBar() {
-    const row = document.getElementById('teamLockBarRow');
+    const row = document.getElementById('teamLockSyncBar') || document.getElementById('teamLockBarRow');
     const status = document.getElementById('teamLockStatus');
     const el = row || status;
     if (!el) {
@@ -29285,7 +30341,7 @@ function getTeamLockInteractionState(lockState) {
         }
     }
 
-    return { mode, summaryText, actionLabel, lockBtnDisabled };
+    return { mode, summaryText, actionLabel, lockBtnDisabled, holdsLock: Boolean(holdsLock) };
 }
 
 function applyTeamLockActionButton(lockState) {
@@ -29311,16 +30367,20 @@ function applyTeamLockButtonChrome(btn, lockState) {
     if (!btn) {
         return;
     }
-    const { mode, summaryText, actionLabel, lockBtnDisabled } = getTeamLockInteractionState(lockState);
+    const { mode, summaryText, actionLabel, lockBtnDisabled, holdsLock } = getTeamLockInteractionState(lockState);
     btn.title = actionLabel;
     btn.setAttribute('aria-label', summaryText + '. ' + actionLabel);
     btn.disabled = lockBtnDisabled;
-    const iconOpen = btn.querySelector('.team-lock-icon--open');
-    const iconClosed = btn.querySelector('.team-lock-icon--closed');
-    if (iconOpen && iconClosed) {
-        const showOpen = mode === 'free';
-        iconOpen.hidden = !showOpen;
-        iconClosed.hidden = showOpen;
+    btn.setAttribute('data-holds-lock', holdsLock ? 'true' : 'false');
+    btn.setAttribute('data-lock-mode', mode);
+    const showOpenPadlock = mode === 'free';
+    const closedBadge = btn.querySelector('.team-lock-skeuo-badge--closed');
+    const openBadge = btn.querySelector('.team-lock-skeuo-badge--open');
+    if (closedBadge) {
+        closedBadge.hidden = showOpenPadlock;
+    }
+    if (openBadge) {
+        openBadge.hidden = !showOpenPadlock;
     }
     const chipLabel = document.getElementById('teamLockChipLabel');
     if (chipLabel) {
@@ -29936,12 +30996,21 @@ function setupChangePasswordModal() {
 
 function updateTeamAccountMenuTrigger(user) {
     const menuBtn = document.getElementById('teamAccountMenuBtn');
+    const labelEl = document.getElementById('teamAccountMenuLabel');
+    const avatarEl = document.getElementById('teamAccountAvatar');
     if (!menuBtn) {
         return;
     }
     const accountWord = t('teamAccountMenu');
     if (!user) {
-        menuBtn.textContent = accountWord;
+        if (labelEl) {
+            labelEl.textContent = accountWord;
+        } else {
+            menuBtn.textContent = accountWord;
+        }
+        if (avatarEl) {
+            avatarEl.textContent = '';
+        }
         menuBtn.removeAttribute('aria-label');
         menuBtn.removeAttribute('title');
         return;
@@ -29949,7 +31018,15 @@ function updateTeamAccountMenuTrigger(user) {
     const fullName = (user.displayName || user.email || '').trim();
     const shortLabel =
         (fullName.split(/\s+/).filter(Boolean)[0] || fullName || accountWord).slice(0, 24) || accountWord;
-    menuBtn.textContent = shortLabel;
+    const initial = (shortLabel.charAt(0) || 'U').toUpperCase();
+    if (labelEl) {
+        labelEl.textContent = shortLabel;
+    } else {
+        menuBtn.textContent = shortLabel;
+    }
+    if (avatarEl) {
+        avatarEl.textContent = initial;
+    }
     if (fullName && shortLabel !== fullName) {
         menuBtn.setAttribute('aria-label', `${accountWord}: ${fullName}`);
         menuBtn.setAttribute('title', `${accountWord}: ${fullName}`);
@@ -31715,23 +32792,27 @@ async function runTeamSyncBoot() {
 
 function updateTeamSyncStatus(status, detail) {
     const el = document.getElementById('teamSyncStatus');
-    if (!el) {
-        return;
+    if (el) {
+        const map = {
+            connecting: 'syncConnecting',
+            syncing: 'syncSyncing',
+            connected: 'syncConnected',
+            offline: 'syncOffline',
+            saving: 'syncSaving',
+            saved: 'syncSaved',
+            queued: 'syncOfflineQueued',
+            error: 'syncError',
+            conflict: 'syncConflictTitle'
+        };
+        const resolvedDetail = detail ? translateSyncError(detail) : '';
+        el.textContent = resolvedDetail || t(map[status] || 'syncConnecting');
+        el.className = 'team-sync-status status-' + (status || 'connecting');
     }
-    const map = {
-        connecting: 'syncConnecting',
-        syncing: 'syncSyncing',
-        connected: 'syncConnected',
-        offline: 'syncOffline',
-        saving: 'syncSaving',
-        saved: 'syncSaved',
-        queued: 'syncOfflineQueued',
-        error: 'syncError',
-        conflict: 'syncConflictTitle'
-    };
-    const resolvedDetail = detail ? translateSyncError(detail) : '';
-    el.textContent = resolvedDetail || t(map[status] || 'syncConnecting');
-    el.className = 'team-sync-status status-' + (status || 'connecting');
+    const savedDot = document.getElementById('teamSyncSavedDot');
+    if (savedDot) {
+        const showSaved = status === 'saved' || status === 'connected';
+        savedDot.hidden = !showSaved;
+    }
 }
 
 /** Recover team sync after bfcache or return from admin/other pages with stuck boot status. */

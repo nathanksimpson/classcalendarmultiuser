@@ -6,8 +6,8 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260612-ui-padding-classroom',
-            'js/setup-board.js?v=20260619-setup-hub'
+            'js/cohort-management.js?v=20260629-ui-fixes',
+            'js/setup-board.js?v=20260629-ui-fixes'
         ],
         timetable: [
             'js/timetable-periods.js?v=20260619-term-flex',
@@ -57,8 +57,8 @@
         'setup-hub': [
             'js/teacher-timetable.js?v=20260619-setup-hub',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260612-ui-padding-classroom',
-            'js/setup-board.js?v=20260619-setup-hub',
+            'js/cohort-management.js?v=20260629-ui-fixes',
+            'js/setup-board.js?v=20260629-ui-fixes',
             'js/setup-hub.js?v=20260619-setup-hub'
         ],
         points: [

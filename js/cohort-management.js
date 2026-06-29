@@ -697,6 +697,10 @@
                 updateClassApplyButtonState();
                 renderLinkedPanel(cohort);
             });
+            if (global.CCPClassColorTile) {
+                chip.dataset.classId = classData.id;
+                global.CCPClassColorTile.apply(chip, classData, { checked });
+            }
             body.appendChild(chip);
         });
         if (!sorted.length) {

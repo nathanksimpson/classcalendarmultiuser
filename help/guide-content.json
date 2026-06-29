@@ -1,6 +1,6 @@
 {
   "en": {
-    "title": "Help — Class Calendar Planner",
+    "title": "Help — ClassManager",
     "intro": "This app builds a term calendar for your classes: lesson days, holidays, deadlines, syllabus tables, timetables, curriculum books, day notes, and printouts. The header has four zones (Schedule, Class Setup, Classroom, More), each with its own tabs. When your school uses the team cloud link, you also share calendars with colleagues (sections 17–21). Use this guide in order when you are new, or jump to a section you need.",
     "sections": [
       {
@@ -277,7 +277,7 @@
     ]
   },
   "ko": {
-    "title": "도움말 — Class Calendar Planner",
+    "title": "도움말 — ClassManager",
     "intro": "이 앱은 학기 캘린더를 만듭니다. 수업일, 공휴일, 마감일, 강의 계획표, 시간표, 교재, 수업 일지, 인쇄까지 한곳에서 관리할 수 있습니다. 상단에는 일정·수업 설정·수업관리·더보기 네 구역과 각 구역의 탭이 있습니다. 학교 팀 클라우드 링크를 쓰면 동료와 캘린더를 공유합니다(17–21절). 처음에는 아래 순서대로, 필요한 항목만 골라 읽어도 됩니다.",
     "sections": [
       {

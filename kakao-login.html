@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Kakao sign in — Class Calendar</title>
+    <title>Kakao sign in — ClassManager</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260619-ui-standards">
+    <link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; background: var(--bg-main); color: var(--text-primary); }
         .login-theme-bar { position: fixed; top: 0; right: 0; z-index: 10; padding: 0.75rem 1rem; }
@@ -46,7 +46,7 @@
     <div class="login-page">
         <div class="login-card">
             <p class="login-back"><a id="backToChooserLink" href="/login.html">← Back to sign-in options</a></p>
-            <h1 id="loginTitle">Class Calendar — Team</h1>
+            <h1 id="loginTitle">ClassManager — Team</h1>
             <p id="loginLead">Sign in with your school Kakao account. First-time sign-in creates your account automatically.</p>
 
             <fieldset class="login-device" id="loginDeviceFieldset">
@@ -81,7 +81,7 @@
             const COPY = {
                 en: {
                     langToggle: '🌐 한국어',
-                    title: 'Class Calendar — Team',
+                    title: 'ClassManager — Team',
                     lead: 'Sign in with your school Kakao account. First-time sign-in creates your account automatically.',
                     backToChooser: '← Back to sign-in options',
                     deviceLegend: 'Where are you signing in?',
@@ -106,7 +106,7 @@
                 },
                 ko: {
                     langToggle: '🌐 English',
-                    title: 'Class Calendar — 팀',
+                    title: 'ClassManager — 팀',
                     lead: '학교 카카오 계정으로 로그인하세요. 처음 로그인하면 계정이 자동으로 만들어집니다.',
                     backToChooser: '← 로그인 방법 선택으로 돌아가기',
                     deviceLegend: '어떤 기기에서 로그인하나요?',

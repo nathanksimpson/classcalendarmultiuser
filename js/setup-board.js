@@ -364,6 +364,7 @@
 
         const main = document.createElement('div');
         main.className = 'setup-board-cohort-class-row-main';
+        main.dataset.classId = classData.id;
 
         const nameBtn = document.createElement('button');
         nameBtn.type = 'button';
@@ -407,6 +408,10 @@
         }
 
         li.appendChild(main);
+
+        if (global.CCPClassColorTile) {
+            global.CCPClassColorTile.apply(main, classData, {});
+        }
 
         const editLink = document.createElement('button');
         editLink.type = 'button';
@@ -552,6 +557,7 @@
             classes.forEach((cls) => {
                 const row = document.createElement('div');
                 row.className = 'setup-board-picker-row';
+                row.dataset.classId = cls.id;
                 const label = document.createElement('span');
                 label.className = 'setup-board-picker-row-label';
                 label.textContent = classDisplayLabel(cls);
@@ -572,6 +578,9 @@
                 }
                 row.appendChild(label);
                 row.appendChild(actions);
+                if (global.CCPClassColorTile) {
+                    global.CCPClassColorTile.apply(row, cls, {});
+                }
                 list.appendChild(row);
             });
         }

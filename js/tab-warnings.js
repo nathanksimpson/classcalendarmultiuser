@@ -595,14 +595,14 @@
     }
 
     function updateLockBarRowVisibility(activeCount, historyCount) {
-        const row = document.getElementById('teamLockBarRow');
+        const row = document.getElementById('teamLockSyncBar') || document.getElementById('teamLockBarRow');
         const lock = document.getElementById('teamLockStatus');
         if (!row) {
             return;
         }
         const lockVisible = lock && !lock.hidden;
         const hasNotifications = activeCount > 0 || historyCount > 0;
-        row.hidden = !lockVisible && !hasNotifications;
+        row.hidden = false;
     }
 
     function updateLockBarNotificationsFromSnapshot(snap) {

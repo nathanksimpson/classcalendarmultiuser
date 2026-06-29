@@ -2,7 +2,7 @@
 
 How on-screen UI is built in Class Calendar Multi User. **Read this before planning or implementing UI changes.**
 
-For broader dev workflow (deploy, API, locks), see [DEVELOPER.md](DEVELOPER.md). For **syllabus A4 print/PDF layout only**, see [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) — that guide does **not** apply to the on-screen syllabus editor or general app chrome.
+For broader dev workflow (deploy, API, locks), see [DEVELOPER.md](DEVELOPER.md). For **syllabus A4 print/PDF layout only**, see [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) — that guide does **not** apply to the on-screen syllabus editor or general app chrome. For **AI design mockups** (Claude Design, Figma AI), use [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) — keep it in sync when tokens or shell layout change.
 
 ---
 
@@ -11,6 +11,7 @@ For broader dev workflow (deploy, API, locks), see [DEVELOPER.md](DEVELOPER.md).
 | Task | Guide |
 |------|--------|
 | Buttons, forms, modals, tabs, toolbars, setup board, calendar chrome | **This file** |
+| AI design brief (colors, type, shell, components — paste into Claude Design) | [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) |
 | Syllabus 진도표 print/PDF (two-table jindo layout, A4 fit) | [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
 | API, sync, locks, deploy | [DEVELOPER.md](DEVELOPER.md) / [AGENTS.md](AGENTS.md) |
 
@@ -19,6 +20,14 @@ For broader dev workflow (deploy, API, locks), see [DEVELOPER.md](DEVELOPER.md).
 ## Design foundation
 
 Tokens live in [`styles.css`](styles.css) `:root` (Simple Design System + 8px grid). **Always use tokens** — do not hard-code hex colors, pixel spacing, or font sizes in new feature CSS.
+
+### ClassManager redesign (June 2026)
+
+- **Brand:** ClassManager, primary accent `#14b98f`, font **IBM Plex Sans** (+ Noto Sans KR).
+- **Shell:** three-row chrome — frosted primary tools row, zone folder tabs, segment pills + term summary strip; **lock/sync bar** (`#teamLockSyncBar`) below nav with saved indicator.
+- **Calendar chips:** `.event-bar--calm` — tinted fill + 3px left color rail; max 4 lessons/day then `+N more`.
+- **Filter rail:** `#calendarClassFilterRail` — class-colored chips synced to `lessonFilters`.
+- **Term settings:** collapsed by default (`topBarCollapsed`); expand via term strip link or `#termSummaryToggle`.
 
 ### Colors
 
@@ -101,7 +110,7 @@ Layout: `--app-gutter`, `--split-sidebar-min` / `--split-sidebar-max`, `--editor
 | `--text-body-xl` … `--text-body-xs` | UI copy |
 | `--leading-heading`, `--leading-body` | Line height |
 
-Font: `--font-main` (Inter + Korean fallbacks on `body`). Monospace: `--font-mono`.
+Font: `--font-main` (IBM Plex Sans + Korean fallbacks on `body`). Monospace: `--font-mono`.
 
 ### Radii and shadows
 
@@ -232,7 +241,11 @@ Use existing banner/status token classes rather than inventing new alert colors.
 
 Calendar term settings: `#calendarOptions` with `.term-settings-header` and `.calendar-options-details` (collapse is calendar-only; does not hide lock UI).
 
-Top app chrome: global tools row (Calendar menu, Calendar display, Print, Help, Account) above zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`) in `.app-header-unified`, plus `.app-top-bar` lock/banner stack.
+Top app chrome: global tools row (Calendar menu, Display, Print, Help, theme toggle, Account) in frosted `.app-top-bar-row--primary`; zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`); **lock/sync bar** `.team-lock-sync-bar` with `#teamSyncSavedDot`.
+
+Calendar views (desktop + tablet): Month · Week · Agenda via `.calendar-view-toolbar`. Phone: agenda default, Week hidden.
+
+Class colors: curated calm palette (`js/class-color-palette.js`); borderless filter chips (`.calendar-class-chip`).
 
 **Narrow widths:** zone row (`.app-zone-nav`) and segment row (`.app-zone-segment-panel`) stay on one line with horizontal scroll when tabs do not fit. Edge fade hints (`data-scrollable`, `data-scroll-start`, `data-scroll-end`) appear only when content is off-screen. Active tab scrolls into view on navigation. The **More** zone holds admin **Data** only — segment tabs are never reparented there.
 
@@ -293,6 +306,7 @@ name → colors → curriculum → term dates → period/level/grade → total l
 - Copy patterns from reference implementations (below).
 - Bump `?v=` cache strings in `index.html` (or `js/load-extension-scripts.js`) when changing JS/CSS.
 - List which existing components you will reuse when **planning** a UI change.
+- When changing `:root` tokens, shell chrome, or core component look — update [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) in the same PR/commit.
 
 **Don't**
 
@@ -361,6 +375,7 @@ Full audit: [docs/UI_AUDIT.md](docs/UI_AUDIT.md).
 
 | Area | Paths |
 |------|--------|
+| AI design brief (sync with tokens) | [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) |
 | Global styles + tokens | `styles.css` (dev), `css/*.css` partials + `npm run css:split` |
 | State / render core | `js/core/app-store.js`, `js/core/render-orchestrator.js` |
 | View modules | `js/views/class-list-view.js`, `event-list-view.js`, `calendar-view.js` |

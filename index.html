@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Class Calendar Planner &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260623-mention-autocomplete">
+    <title>ClassManager &mdash; Team</title>
+    <link rel="stylesheet" href="styles.css?v=20260629-calendar-zoom-filter">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260622-i18n-lazy';
+        window.CCP_I18N_VERSION = '20260629-ui-fixes';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -28,7 +28,7 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
@@ -43,47 +43,18 @@
     <header class="app-top-bar app-top-bar--global" id="appTopBar">
             <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
 
-            <div id="teamLockBarRow" class="team-lock-bar-row" hidden>
-            <div id="teamLockStatus" class="team-lock-status team-lock-status--compact" hidden>
-                <div class="team-lock-control">
-                    <button type="button" id="teamLockStatusBtn" class="team-lock-status-btn" aria-live="polite">
-                        <span class="team-lock-icon team-lock-icon--open" aria-hidden="true">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
-                            </svg>
-                        </span>
-                        <span class="team-lock-icon team-lock-icon--closed" aria-hidden="true" hidden>
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                    </button>
-                    <span id="teamLockChipLabel" class="team-lock-chip-label"></span>
-                    <button type="button" id="teamLockActionBtn" class="btn btn-primary btn-small team-lock-action-btn" hidden></button>
-                    <button type="button" id="teamLockDrawerToggle" class="btn btn-outline btn-small team-lock-drawer-toggle" aria-expanded="false" aria-controls="teamLockDetails" data-i18n="teamLockDetailsBtn">Details</button>
-                    <span id="teamLockPendingActions" class="team-lock-pending-actions team-lock-pending-actions--icon" hidden>
-                        <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockAllow">Allow</button>
-                        <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockDismiss">Dismiss</button>
-                    </span>
-                </div>
-                <div id="teamLockDetails" class="team-lock-details">
-                    <div id="teamLockLineEditing" class="team-lock-line" hidden></div>
-                    <div id="teamLockLineWants" class="team-lock-line" hidden></div>
-                    <div id="teamLockLineViewing" class="team-lock-line" hidden></div>
-                    <div id="teamLockLineUpdates" class="team-lock-line team-lock-line--updates" hidden>
-                        <span class="team-lock-line-text" data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
-                        <span class="team-lock-line-actions">
-                            <button type="button" id="teamLockUpdatesReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
-                            <button type="button" id="teamLockUpdatesDismissBtn" class="btn btn-outline btn-small" data-i18n="syncKeepLocalView">Keep my view</button>
-                        </span>
+            <div class="app-top-bar-compact">
+                <div class="app-header-unified" id="appHeaderUnified">
+                <div class="app-top-bar-row app-top-bar-row--primary" id="appTopBarPrimaryRow">
+                    <div class="app-brand">
+                        <span class="app-brand-icon">◳</span>
+                        <span class="app-brand-name" data-i18n="appTitle">ClassManager</span>
                     </div>
-                    <div id="teamLockLineExpiry" class="team-lock-line team-lock-line--muted" hidden></div>
-                </div>
-                <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden data-i18n="lockDebugToggle" data-i18n-title="lockDebugTitle" title="Lock sync debug" aria-expanded="false" aria-controls="teamLockDebugPanel">Debug</button>
-            </div>
-            <div id="appWarningsNotify" class="app-warnings-notify" hidden>
+                    <h1 class="visually-hidden" data-i18n="appTitle">ClassManager</h1>
+                    <span id="topBarCalendarLabel" class="top-bar-calendar-label visually-hidden" hidden></span>
+                    <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status" hidden>Connecting&hellip;</span>
+                    <div class="app-top-bar-row__spacer" aria-hidden="true"></div>
+                    <div id="appWarningsNotify" class="app-warnings-notify" hidden>
                 <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
                     <span class="app-notify-bell-icon" aria-hidden="true">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -93,7 +64,121 @@
                     </span>
                     <span id="appWarningsCount" class="app-warnings-count" hidden aria-hidden="true">0</span>
                 </button>
-            </div>
+                    </div>
+                    <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
+                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
+                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
+                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
+                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
+                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
+                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme" aria-label="Theme">◐</button>
+                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
+                            <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
+                            <span id="teamAccountAvatar" class="team-account-avatar" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <input type="file" id="importFile" accept=".json" hidden>
+                </div>
+                </div>
+                <div id="teamLockSyncBar" class="team-lock-sync-bar" hidden>
+                    <div id="teamLockStatus" class="team-lock-status team-lock-status--compact team-lock-status--sync-bar">
+                        <div class="team-lock-control">
+                            <button type="button" id="teamLockStatusBtn" class="team-lock-status-btn team-lock-status-btn--skeuo" aria-live="polite">
+                                <span class="team-lock-skeuo-badge team-lock-skeuo-badge--closed" aria-hidden="true">
+                                    <span class="team-lock-skeuo-shackle"></span>
+                                    <span class="team-lock-skeuo-body"></span>
+                                </span>
+                                <span class="team-lock-skeuo-badge team-lock-skeuo-badge--open" aria-hidden="true" hidden>
+                                    <svg class="team-lock-open-icon" width="19" height="21" viewBox="0 0 24 26" fill="none" aria-hidden="true">
+                                        <rect x="4.5" y="11.5" width="15" height="12.5" rx="2.6" fill="#ffffff"></rect>
+                                        <path d="M8 11.5 V7.2 a4.6 4.6 0 0 1 9.1 -1" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    </svg>
+                                </span>
+                            </button>
+                            <span id="teamLockChipLabel" class="team-lock-chip-label"></span>
+                            <button type="button" id="teamLockActionBtn" class="btn btn-primary btn-small team-lock-action-btn" hidden></button>
+                            <button type="button" id="teamLockDrawerToggle" class="btn btn-outline btn-small team-lock-drawer-toggle" aria-expanded="false" aria-controls="teamLockDetails" data-i18n="teamLockDetailsBtn">Details</button>
+                            <span id="teamLockPendingActions" class="team-lock-pending-actions team-lock-pending-actions--icon" hidden>
+                                <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockAllow">Allow</button>
+                                <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockDismiss">Dismiss</button>
+                            </span>
+                        </div>
+                        <div id="teamLockDetails" class="team-lock-details">
+                            <div id="teamLockLineEditing" class="team-lock-line" hidden></div>
+                            <div id="teamLockLineWants" class="team-lock-line" hidden></div>
+                            <div id="teamLockLineViewing" class="team-lock-line" hidden></div>
+                            <div id="teamLockLineUpdates" class="team-lock-line team-lock-line--updates" hidden>
+                                <span class="team-lock-line-text" data-i18n="syncRemoteNewer">Someone else saved a newer version.</span>
+                                <span class="team-lock-line-actions">
+                                    <button type="button" id="teamLockUpdatesReloadBtn" class="btn btn-primary btn-small" data-i18n="syncReload">Reload latest</button>
+                                    <button type="button" id="teamLockUpdatesDismissBtn" class="btn btn-outline btn-small" data-i18n="syncKeepLocalView">Keep my view</button>
+                                </span>
+                            </div>
+                            <div id="teamLockLineExpiry" class="team-lock-line team-lock-line--muted" hidden></div>
+                        </div>
+                        <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden data-i18n="lockDebugToggle" data-i18n-title="lockDebugTitle" title="Lock sync debug" aria-expanded="false" aria-controls="teamLockDebugPanel">Debug</button>
+                    </div>
+                    <span id="teamSyncSavedDot" class="team-sync-saved-indicator" hidden>
+                        <span class="team-sync-saved-indicator__dot" aria-hidden="true"></span>
+                        <span data-i18n="syncAllSaved">All changes saved</span>
+                    </span>
+                </div>
+                <div class="app-top-bar-row app-top-bar-row--zones" id="appZoneNavCluster">
+                    <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections">
+                        <button type="button" class="app-zone-btn is-active" role="tab" id="zoneBtn-schedule" data-zone="schedule" aria-selected="true" data-i18n="zoneSchedule">Schedule</button>
+                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classes" data-zone="classes" aria-selected="false" data-i18n="zoneClassSetup">Class Setup</button>
+                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-setup-hub" data-zone="setup-hub" aria-selected="false" data-i18n="zoneSetupHub">Setup Hub</button>
+                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classroom" data-zone="classroom" aria-selected="false" data-i18n="zoneClassroom">Classroom</button>
+                        <button type="button" class="app-zone-btn app-zone-btn--more" role="tab" id="appMoreMenuBtn" data-zone="more" aria-selected="false" data-i18n="zoneMore">More</button>
+                    </div>
+                </div>
+                <div class="app-top-bar-row app-top-bar-row--nav">
+                    <nav class="app-zone-segment-nav" id="appZoneSegmentNav" aria-label="Section">
+                        <div id="zoneSegments-schedule" class="app-zone-segment-panel is-active" data-zone="schedule">
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="calendar" data-i18n="tabCalendar">Calendar</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="events" data-i18n="tabEvents">Events</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="tabHomework">Homework copy</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="timetable" data-i18n="tabTimetable">Timetable</button>
+                        </div>
+                        <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="cohorts" data-i18n="tabCohorts">Cohorts</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-i18n="tabCurriculum">Books</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-i18n="tabSyllabus">Syllabi</button>
+                        </div>
+                        <div id="zoneSegments-setup-hub" class="app-zone-segment-panel" data-zone="setup-hub" hidden>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="setup-hub" data-i18n="tabSetupHub">Setup Hub</button>
+                        </div>
+                        <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-i18n="classroomTabStudents">Students</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-i18n="classroomTabLedger">Ledger</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="classroomTabHomework">Homework</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="points" data-i18n="classroomTabPoints">Points</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
+                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
+                        </div>
+                        <div id="zoneSegments-more" class="app-zone-segment-panel" data-zone="more" hidden>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="data" data-i18n="tabData">Data</button>
+                        </div>
+                    </nav>
+                    <div id="termSummaryStrip" class="term-summary-strip" hidden>
+                        <span id="termSummaryName" class="term-summary-strip__name"></span>
+                        <span class="term-summary-strip__sep" aria-hidden="true">&middot;</span>
+                        <span id="termSummaryDates" class="term-summary-strip__dates"></span>
+                        <span id="termSummaryMonthsWrap" class="term-summary-strip__months-wrap" hidden>
+                            <span class="term-summary-strip__sep" aria-hidden="true">&middot;</span>
+                            <span id="termSummaryMonths" class="term-summary-strip__months"></span>
+                        </span>
+                        <button type="button" id="termSummaryToggle" class="term-summary-strip__link" data-i18n="termSummarySettings">Term settings ▸</button>
+                    </div>
+                </div>
+                <div id="teamCalendarPickerGroup" class="team-calendar-picker-group" hidden aria-hidden="true"></div>
+                </div>
             </div>
             <div id="teamLockDebugPanel" class="team-lock-debug-panel" hidden>
                 <div class="team-lock-debug-header">
@@ -133,75 +218,6 @@
 
             </div>
 
-            <div class="app-top-bar-compact">
-                <div class="app-header-unified" id="appHeaderUnified">
-                <div class="app-header-unified__row app-header-unified__row--global">
-                <div class="app-top-bar-title-block">
-                    <div class="app-top-bar-title-row">
-                        <h1 data-i18n="appTitle">Class Calendar Planner</h1>
-                        <span id="topBarCalendarLabel" class="top-bar-calendar-label" hidden></span>
-                        <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status" hidden>Connecting&hellip;</span>
-                    </div>
-                </div>
-                <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
-                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
-                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
-                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
-                    <button type="button" id="lessonFilterBtn" class="btn btn-outline btn-small lesson-filter-btn calendar-display-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarDisplayBtn">Calendar display&hellip;</button>
-                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
-                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
-                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover" data-i18n="teamAccountMenu">Account</button>
-                    </div>
-                    <input type="file" id="importFile" accept=".json" hidden>
-                </div>
-                </div>
-                <div class="app-header-unified__nav">
-                <div class="app-zone-nav-cluster" id="appZoneNavCluster">
-                    <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections">
-                        <button type="button" class="app-zone-btn is-active" role="tab" id="zoneBtn-schedule" data-zone="schedule" aria-selected="true" data-i18n="zoneSchedule">Schedule</button>
-                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classes" data-zone="classes" aria-selected="false" data-i18n="zoneClassSetup">Class Setup</button>
-                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-setup-hub" data-zone="setup-hub" aria-selected="false" data-i18n="zoneSetupHub">Setup Hub</button>
-                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classroom" data-zone="classroom" aria-selected="false" data-i18n="zoneClassroom">Classroom</button>
-                        <button type="button" class="app-zone-btn app-zone-btn--more" role="tab" id="appMoreMenuBtn" data-zone="more" aria-selected="false" data-i18n="zoneMore">More</button>
-                    </div>
-                    <nav class="app-zone-segment-nav" id="appZoneSegmentNav" aria-label="Section">
-                        <div id="zoneSegments-schedule" class="app-zone-segment-panel is-active" data-zone="schedule">
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="calendar" data-i18n="tabCalendar">Calendar</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="events" data-i18n="tabEvents">Events</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="tabHomework">Homework copy</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="timetable" data-i18n="tabTimetable">Timetable</button>
-                        </div>
-                        <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="cohorts" data-i18n="tabCohorts">Cohorts</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-i18n="tabCurriculum">Books</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-i18n="tabSyllabus">Syllabi</button>
-                        </div>
-                        <div id="zoneSegments-setup-hub" class="app-zone-segment-panel" data-zone="setup-hub" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="setup-hub" data-i18n="tabSetupHub">Setup Hub</button>
-                        </div>
-                        <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-i18n="classroomTabStudents">Students</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-i18n="classroomTabLedger">Ledger</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="classroomTabHomework">Homework</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="points" data-i18n="classroomTabPoints">Points</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
-                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
-                        </div>
-                        <div id="zoneSegments-more" class="app-zone-segment-panel" data-zone="more" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="data" data-i18n="tabData">Data</button>
-                        </div>
-                    </nav>
-                </div>
-                </div>
-                <div id="teamCalendarPickerGroup" class="team-calendar-picker-group" hidden aria-hidden="true"></div>
-                </div>
-            </div>
     </header>
 
     <div class="app-container">
@@ -230,7 +246,7 @@
                 <div id="lessonFilterPopover" class="lesson-filter-popover calendar-display-popover" hidden role="dialog" aria-modal="true" aria-labelledby="lessonFilterTitle">
                     <div class="lesson-filter-popover-panel">
                         <div class="lesson-filter-header">
-                            <h3 id="lessonFilterTitle" data-i18n="calendarDisplayTitle">Calendar display</h3>
+                            <h3 id="lessonFilterTitle" data-i18n="calendarFilterTitle">Calendar Filter</h3>
                             <button type="button" class="lesson-filter-close" id="lessonFilterCloseBtn" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
                         </div>
                         <div class="calendar-display-popover-scroll">
@@ -286,7 +302,7 @@
                     </div>
                 </div>
 
-                <div id="calendarOptions" class="calendar-options">
+                <div id="calendarOptions" class="calendar-options calendar-options--collapsed">
                     <div class="term-settings-header">
                         <button type="button" id="termSettingsToggle" class="term-settings-caret" aria-expanded="true" aria-controls="topBarDetails" data-i18n-aria-label="termSettingsHide" aria-label="Hide term settings">
                             <span class="term-settings-caret-icon" aria-hidden="true"></span>
@@ -335,8 +351,18 @@
 
                 <div class="calendar-view-toolbar" role="toolbar" aria-label="Calendar view">
                     <div class="calendar-view-switch" role="tablist" aria-label="Calendar layout">
-                        <button type="button" id="calendarViewAgendaBtn" class="syllabus-segment-btn" role="tab" aria-selected="false" data-calendar-view="agenda" data-i18n="calendarViewAgenda">Agenda</button>
                         <button type="button" id="calendarViewMonthBtn" class="syllabus-segment-btn is-active" role="tab" aria-selected="true" data-calendar-view="month" data-i18n="calendarViewMonth">Month</button>
+                        <button type="button" id="calendarViewWeekBtn" class="syllabus-segment-btn" role="tab" aria-selected="false" data-calendar-view="week" data-i18n="calendarViewWeek">Week</button>
+                        <button type="button" id="calendarViewAgendaBtn" class="syllabus-segment-btn" role="tab" aria-selected="false" data-calendar-view="agenda" data-i18n="calendarViewAgenda">Agenda</button>
+                    </div>
+                    <button type="button" id="lessonFilterBtn" class="calendar-view-toolbar__filter btn btn-outline btn-small lesson-filter-btn calendar-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarFilterBtn">Calendar Filter</button>
+                    <div class="calendar-view-toolbar__spacer" aria-hidden="true"></div>
+                    <div id="calendarZoomControl" class="calendar-zoom-control" data-i18n-title="calendarZoomHint" title="Adjusts on-screen density only — does not affect print">
+                        <span class="calendar-zoom-control__label" data-i18n="calendarZoomLabel">Zoom</span>
+                        <button type="button" id="calendarZoomOutBtn" class="calendar-zoom-control__step" aria-label="Zoom out">−</button>
+                        <input type="range" id="calendarZoomRange" class="calendar-zoom-control__range" min="0.8" max="1.4" step="0.1" value="1" aria-valuemin="0.8" aria-valuemax="1.4" aria-valuenow="1">
+                        <button type="button" id="calendarZoomInBtn" class="calendar-zoom-control__step" aria-label="Zoom in">+</button>
+                        <span id="calendarZoomPctLabel" class="calendar-zoom-control__pct" aria-live="polite">100%</span>
                     </div>
                 </div>
                 <div id="calendarContainer" class="calendar-container">
@@ -1782,7 +1808,7 @@
     <script defer src="js/schedule-core.js"></script>
     <script defer src="js/utils.js?v=20260612-export-ascii"></script>
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
-    <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
+    <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
     <script defer src="js/active-context.js?v=20260624-hw-date-fix"></script>
@@ -1806,7 +1832,7 @@
     <script defer src="js/term-clone-wizard.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
-    <script defer src="js/views/class-list-view.js?v=20260615-ui-refactor"></script>
+    <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
     <script defer src="js/views/event-list-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/calendar-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-state.js?v=20260615-ui-refactor"></script>
@@ -1873,12 +1899,14 @@
     </div>
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
-    <script defer src="js/tab-warnings.js?v=20260624-hw-date-fix"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260622-teaching-workflow"></script>
+    <script defer src="js/tab-warnings.js?v=20260629-classmanager-redesign"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
-    <script defer src="app.js?v=20260624-hw-date-fix"></script>
+    <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
+    <script defer src="js/class-color-tile.js?v=20260629-classmanager-redesign"></script>
+    <script defer src="app.js?v=20260629-calendar-filter-toolbar"></script>
 </body>
 </html>
 
