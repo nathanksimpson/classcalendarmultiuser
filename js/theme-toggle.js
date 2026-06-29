@@ -22,12 +22,18 @@
             if (!btn) {
                 return;
             }
-            if (typeof opts.getButtonLabel === 'function') {
+            if (btn.hasAttribute('data-theme-icon-only')) {
+                /* icon-only control: keep ◐ (or markup); do not set Dark/Light label */
+            } else if (typeof opts.getButtonLabel === 'function') {
                 btn.textContent = opts.getButtonLabel(isDark);
             }
             btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
             if (typeof opts.getButtonTitle === 'function') {
-                btn.setAttribute('title', opts.getButtonTitle());
+                const title = opts.getButtonTitle();
+                btn.setAttribute('title', title);
+                if (btn.hasAttribute('data-theme-icon-only')) {
+                    btn.setAttribute('aria-label', title);
+                }
             }
         });
         if (typeof opts.afterUpdate === 'function') {

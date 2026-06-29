@@ -61,6 +61,13 @@
         return badge;
     }
 
+    function applyClassColorTile(btn, classData, isSelected) {
+        if (global.CCPClassColorTile) {
+            btn.dataset.classId = classData.id;
+            global.CCPClassColorTile.apply(btn, classData, { selected: isSelected });
+        }
+    }
+
     function createListButton(classData, isSelected) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -70,6 +77,7 @@
         btn.setAttribute('role', 'option');
         btn.setAttribute('aria-selected', String(isSelected));
         btn.innerHTML = buildItemHtml(classData, getWarningBadge(classData));
+        applyClassColorTile(btn, classData, isSelected);
         return btn;
     }
 
@@ -78,6 +86,7 @@
         btn.setAttribute('aria-selected', String(isSelected));
         btn.dataset.id = classData.id;
         btn.innerHTML = buildItemHtml(classData, getWarningBadge(classData));
+        applyClassColorTile(btn, classData, isSelected);
     }
 
     function renderEmpty(list, q) {

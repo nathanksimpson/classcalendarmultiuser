@@ -37,16 +37,11 @@
                 <section class="form-section class-form-section class-form-section-appearance form-group--full-only" aria-labelledby="classFormSectionAppearanceTitle">
                     <h3 id="classFormSectionAppearanceTitle" class="form-section-title" data-i18n="classFormSectionAppearance">Appearance</h3>
                     <div class="form-group class-color-group editor-popout-colors">
-                        <div class="class-color-pickers">
-                            <div class="class-color-field">
-                                <label for="classColor" data-i18n="classBackgroundColor">Background color</label>
-                                <input type="color" id="classColor" value="#e67e22">
-                            </div>
-                            <div class="class-color-field">
-                                <label for="classTextColor" data-i18n="classTextColor">Text color</label>
-                                <input type="color" id="classTextColor" value="#ffffff">
-                            </div>
-                        </div>
+                        <label data-i18n="classBackgroundColor">Class color</label>
+                        <input type="hidden" id="classColor" value="#356a9e">
+                        <input type="hidden" id="classTextColor" value="">
+                        <div id="classColorPaletteGrid" class="class-color-palette-host" role="group" aria-label="Class color"></div>
+                        <div id="classColorPreviewRow" class="class-color-preview-host" aria-live="polite"></div>
                     </div>
                 </section>
 

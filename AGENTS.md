@@ -12,10 +12,12 @@ Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps
 | **Live** | https://classmanager.live (also https://classcalendarmultiuser.nathanksimpson.workers.dev) |
 | **Branch** | `main` |
 | **Portable copy** | USB stick — carry repo between home and work PCs (includes `.git`) |
-| **Code source of truth** | GitHub `main` — use `git pull` / `git push`, not USB file copy alone |
+| **Code source of truth** | **USB folder** synced with GitHub `main` — `git pull` / `git push` from `D:\Simson USB\Class Calendar Multi User` (drive letter may differ) |
 | **Live features** | Production URL after `npm run deploy` — may differ from an unsynced local copy |
 
-After starting a session: `git pull origin main` in the project folder (on **whichever PC** you are using). Do not assume the USB folder matches production until you pull and/or compare with the live site.
+**Open Cursor on the USB path only.** The old network workspace (`\\simson-jsl\...\Class Calendar Multi-User`) is **retired** — do not edit it or port fixes from it. Any uncommitted work there is stale; USB + `origin/main` wins.
+
+After starting a session: `git pull origin main` in the USB project folder (on **whichever PC** you are using). Do not assume the USB folder matches production until you pull and/or compare with the live site.
 
 ## USB portable workflow (home ↔ work)
 
@@ -51,7 +53,8 @@ The repo lives on a **USB drive** (`Simson USB\Class Calendar Multi User`) so yo
 - **`.env` and `data/`** stay gitignored — copy `.env` once per PC if you need Kakao auth locally; DB is created on first `npm start` if missing.
 - **Drive letter changes** — always navigate via `\Simson USB\Class Calendar Multi User\` in File Explorer, or use [`START TEAM CALENDAR.bat`](START%20TEAM%20CALENDAR.bat) (`%~dp0` works on any drive letter).
 - **UNC / network paths** — `npm run deploy` may fail from a network workspace; run deploy from the USB local path (e.g. `D:\Simson USB\...`) or use `subst` to map a drive letter.
-- **Old paths retired:** `f:\Calendar App Multi User`, network `\\simson-jsl\...` Cursor workspace — always `git pull` and compare with GitHub/production.
+- **Old paths retired:** `f:\Calendar App Multi User`, Google Drive copy, and network `\\simson-jsl\...` Cursor workspace — **do not use**. If you see a stale UNC checkout, run `git fetch origin && git reset --hard origin/main` once, then work only from USB.
+- **`npm test` / `npm run deploy`:** run from a local drive path (`D:\Simson USB\...` or `subst Z:` → USB). UNC cwd often breaks npm.
 
 ## Local preview (required for real data)
 
@@ -89,8 +92,8 @@ Without `npm start`, the app cannot load or save calendar data.
 |------|--------|
 | Worker API | `worker/src/index.js`, `worker/src/app-settings.js`, `worker/src/calendar-access.js` |
 | Local server | `server/index.js`, `server/users.js`, `server/calendars.js`, `server/app-settings.js` |
-| Client sync | `js/calendar-sync.js`, `js/team-auth.js` |
-| Client UI | `app.js`, `index.html`, `styles.css` — follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); syllabus print also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
+| Client sync | `js/calendar-sync.js`, `js/team-auth.js`, `js/day-notes-save.js` (`CCPDayNotesSave` → `saveDayNotesOnly`) |
+| Client UI | `app.js`, `index.html`, `styles.css` — follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); AI mockups: [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md); syllabus print also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
 | Debate book periods | `js/debate-periods.js` — start-date book periods (not calendar month only) |
 | Kakao / waiting | `login.html`, `pending-access.html`, `server/kakao.js`, `server/users.js` (`resolveKakaoLoginUser`) |
 | Admin | `admin.html`, `js/admin.js` |
@@ -130,4 +133,4 @@ Stopping local dev does **not** affect the production Cloudflare worker.
 3. Read lock routes in `worker/src/index.js` and polling in `js/calendar-sync.js`
 4. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
 5. Match worker + server; bump `index.html` cache strings; `npm run deploy` from one PC, then `git push`
-6. **UI updates:** follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); syllabus print layout also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)
+6. **UI updates:** follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); update [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) when tokens or shell layout change; syllabus print layout also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)

@@ -52,6 +52,8 @@
     const SYLLABUS_JINDO_MAIN_GRID_WIDTH = '85%';
     /** month | week | date | plan — % of main grid (85% page); plan gets the rest */
     const SYLLABUS_JINDO_MAIN_COL_WIDTHS = ['11%', '9%', '10%', '70%'];
+    /** Modern A4 main grid: Month | Week | Date | Lesson plan | Pages/detail */
+    const SYLLABUS_MODERN_MAIN_COL_WIDTHS = ['11%', '9%', '10%', '35%', '35%'];
     const MIN_SYLLABUS_PRINT_SCALE = 0.92;
     const SYLLABUS_A4_REFERENCE = {
         titlePt: 12,
@@ -86,6 +88,52 @@
             return '';
         }
         return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+
+    function formatModernPrintDate(dateStr) {
+        return formatJindoDateMd(dateStr);
+    }
+
+    function renderModernPrintTitleBlock(L) {
+        const title = escapeHtml(L.classTitle || '');
+        const metaParts = [];
+        if (L.subtitle) {
+            metaParts.push(escapeHtml(L.subtitle));
+        }
+        if (L.termRange) {
+            metaParts.push(`Term: ${escapeHtml(L.termRange)}`);
+        }
+        if (L.programLine) {
+            metaParts.push(escapeHtml(L.programLine));
+        }
+        const metaHtml = metaParts.join(' · ');
+        const pageLabel = L.pageLabel ? escapeHtml(L.pageLabel) : '';
+        return '<div class="syllabus-print-title-block">'
+            + '<div class="syllabus-print-title-block__main">'
+            + `<div class="syllabus-print-title-block__name">${title} · Syllabus</div>`
+            + (metaHtml ? `<div class="syllabus-print-title-block__meta">${metaHtml}</div>` : '')
+            + '</div>'
+            + (pageLabel ? `<div class="syllabus-print-title-block__page">${pageLabel}</div>` : '')
+            + '</div>';
+    }
+
+    function renderModernPrintNoteAside(noteHeader, notesInnerHtml) {
+        const header = escapeHtml(noteHeader || 'Note');
+        const body = notesInnerHtml || '';
+        return '<aside class="syllabus-modern-print-note" aria-label="' + header + '">'
+            + `<div class="syllabus-modern-print-note__head">${header}</div>`
+            + `<div class="syllabus-modern-print-note__body">${body}</div>`
+            + '</aside>';
+    }
+
+    function renderPagesDetailCell(row) {
+        const detail = String(row.planDetail || '').trim();
+        if (!detail) {
+            return '';
+        }
+        const sections = splitPlanDetailSections(detail);
+        const covered = sections.covered || detail;
+        return escapeHtml(covered);
     }
 
     function formatJindoMonthFromKey(monthKey, useKorean) {
@@ -1348,15 +1396,21 @@
         const pdfLayout = L.pdfLayout === true;
         const jindoLayout = pdfLayout && isJindoPdfLayout(L);
         const studentLayout = jindoLayout && L.studentSyllabus === true;
+        const modernPdf = jindoLayout && !studentLayout;
         const printRows = pdfLayout ? filterRowsForPdfPrint(rows) : rows;
         const normalized = normalizeRows(printRows);
         const useFullMonth = !pdfLayout;
         const useCompactWeek = pdfLayout && !jindoLayout;
-        const merge = jindoLayout
-            ? computeJindoCellMerges(normalized, L)
-            : computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
-        const jindoNotesHtml = jindoLayout && !studentLayout
+        const merge = modernPdf
+            ? computeSyllabusCellMerges(normalized, false, true)
+            : jindoLayout
+                ? computeJindoCellMerges(normalized, L)
+                : computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
+        const jindoNotesHtml = jindoLayout && !studentLayout && !modernPdf
             ? buildPrintNotesColumnHtml(L.generalNotes)
+            : '';
+        const modernNotesHtml = modernPdf
+            ? buildPrintGeneralNotesHtml(L.generalNotes)
             : '';
 
         let headerBlock = '';
@@ -1366,11 +1420,18 @@
         }
         if (L.classTitle || L.jindoTitle) {
             if (pdfLayout) {
-                const titleText = (jindoLayout && L.jindoTitle) ? L.jindoTitle : L.classTitle;
-                const titleCls = jindoLayout
-                    ? 'syllabus-pdf-title syllabus-jindo-title'
-                    : 'syllabus-pdf-title';
-                headerBlock += `<h2 class="${titleCls}">${escapeHtml(titleText || '')}</h2>`;
+                if (modernPdf && (L.classTitle || L.jindoTitle)) {
+                    headerBlock += renderModernPrintTitleBlock({
+                        ...L,
+                        classTitle: L.classTitle || L.jindoTitle
+                    });
+                } else {
+                    const titleText = (jindoLayout && L.jindoTitle) ? L.jindoTitle : L.classTitle;
+                    const titleCls = jindoLayout
+                        ? 'syllabus-pdf-title syllabus-jindo-title'
+                        : 'syllabus-pdf-title';
+                    headerBlock += `<h2 class="${titleCls}">${escapeHtml(titleText || '')}</h2>`;
+                }
             } else if (L.classTitle) {
                 const titleParts = [escapeHtml(L.classTitle)];
                 if (L.subtitle) {
@@ -1389,10 +1450,53 @@
             jindoLayout ? 'syllabus-table-jindo syllabus-table-jindo-main' : ''
         ].filter(Boolean).join(' ');
         const gridStudentClass = studentLayout ? ' syllabus-jindo-print-grid--student' : '';
-        const gridOpen = pdfLayout && jindoLayout
+        const gridOpen = pdfLayout && jindoLayout && !modernPdf
             ? `<div class="syllabus-jindo-print-grid${gridStudentClass}">`
             : '';
-        const gridClose = pdfLayout && jindoLayout ? '</div>' : '';
+        const gridClose = pdfLayout && jindoLayout && !modernPdf ? '</div>' : '';
+
+        if (modernPdf) {
+            const tableClass = 'syllabus-table syllabus-table-pdf syllabus-table-modern';
+            let html = headerBlock;
+            html += '<div class="syllabus-modern-print-shell">';
+            html += '<div class="syllabus-modern-print-main">';
+            html += `<table class="${tableClass}">`;
+            html += '<colgroup>';
+            SYLLABUS_MODERN_MAIN_COL_WIDTHS.forEach((w) => {
+                html += `<col style="width:${w}">`;
+            });
+            html += '</colgroup>';
+            html += '<thead><tr>';
+            html += `<th class="syllabus-th-month">${escapeHtml(L.colMonth || 'Month')}</th>`;
+            html += `<th class="syllabus-th-week">${escapeHtml(L.colWeek || 'Week')}</th>`;
+            html += `<th class="syllabus-th-date">${escapeHtml(L.colDate || 'Date')}</th>`;
+            html += `<th class="syllabus-th-plan">${escapeHtml(L.colPlanPrint || L.colPlan || 'Lesson plan')}</th>`;
+            html += `<th class="syllabus-th-pages">${escapeHtml(L.colPagesDetail || 'Pages / detail')}</th>`;
+            html += '</tr></thead><tbody>';
+
+            normalized.forEach((row, i) => {
+                const dateOrSessionDisplay = row.date
+                    ? formatModernPrintDate(row.date)
+                    : (row.kind !== 'note' && row.sessionNumber > 0 ? String(row.sessionNumber) : '');
+                const trClass = syllabusRowClass(row);
+                const cellStyle = syllabusCellStyleAttr(row);
+                html += `<tr class="${trClass}">`;
+                html += renderMergedMonthWeekCells(i, merge, false, cellStyle, false);
+                html += `<td class="syllabus-col-date"${cellStyle}>${escapeHtml(dateOrSessionDisplay)}</td>`;
+                html += `<td class="syllabus-col-plan"${cellStyle}>${renderPlanCellBrief(row)}</td>`;
+                html += `<td class="syllabus-col-pages"${cellStyle}>${renderPagesDetailCell(row)}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            html += renderModernPrintNoteAside(L.colNote || 'Note', modernNotesHtml);
+            html += '</div>';
+            html += '<div class="syllabus-print-footer">'
+                + '<span>ClassManager · Header repeats on every page · rows never split across pages</span>'
+                + '</div>';
+            return html;
+        }
+
         let html = `${headerBlock}${gridOpen}<table class="${tableClass}">`;
         if (pdfLayout) {
             html += '<colgroup>';
@@ -1469,7 +1573,7 @@
         });
 
         html += '</tbody></table>';
-        if (pdfLayout && jindoLayout && !studentLayout) {
+        if (pdfLayout && jindoLayout && !studentLayout && !modernPdf) {
             html += renderJindoNotesSideTableHtml(L.colNote || 'Note', jindoNotesHtml);
         }
         html += gridClose;
@@ -1555,6 +1659,130 @@ body { font-family: "DM Sans", Arial, sans-serif; font-size: 11pt; color: #111; 
 .syllabus-plan-subline { display: block; font-size: 0.88em; margin-top: 3px; font-style: italic; opacity: 0.92; }
 .syllabus-plan-subline-emphasis { font-style: normal; font-weight: 500; }
 .syllabus-row-holiday td { border-color: #d97706; background-color: #fef3c7; color: #b45309; }
+.syllabus-table-modern .syllabus-row-holiday td { background-color: #fef3c7; }
+.syllabus-table-modern .syllabus-row-event.syllabus-row-evaluation_deadline td,
+.syllabus-table-modern .syllabus-row-test td {
+    box-shadow: inset 4px 0 0 #c0392b;
+}
+.syllabus-table-modern th {
+    background: #f4f6f9;
+    border-color: #c9d2dd;
+}
+.syllabus-print-title-block {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 3mm;
+  border-bottom: 2px solid #1c2430;
+  margin-bottom: 3.5mm;
+  flex-shrink: 0;
+}
+.syllabus-print-title-block__name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1c2430;
+  line-height: 1.15;
+}
+.syllabus-print-title-block__meta {
+  font-size: 12px;
+  color: #5a6a80;
+  margin-top: 2px;
+}
+.syllabus-print-title-block__page {
+  font-size: 11px;
+  color: #8893a3;
+  white-space: nowrap;
+}
+.syllabus-modern-print-shell {
+  border: 1px solid #c9d2dd;
+  border-radius: 6px;
+  overflow: hidden;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.syllabus-modern-print-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #c9d2dd;
+}
+.syllabus-table-modern {
+  width: 100%;
+  border-collapse: collapse;
+  border: none !important;
+  table-layout: fixed;
+}
+.syllabus-table-modern th,
+.syllabus-table-modern td {
+  border: 1px solid #eef1f5;
+  padding: 8px 10px;
+  vertical-align: middle;
+  font-size: 12.5px;
+  box-sizing: border-box;
+}
+.syllabus-table-modern thead th {
+  background: #f4f6f9;
+  border-bottom: 1px solid #c9d2dd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #5a6a80;
+  text-transform: uppercase;
+}
+.syllabus-table-modern .syllabus-th-month { width: 56px; }
+.syllabus-table-modern .syllabus-th-week { width: 52px; }
+.syllabus-table-modern .syllabus-th-date { width: 62px; }
+.syllabus-modern-print-note {
+  flex: 0 0 200px;
+  width: 200px;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  background: #fcfdfe;
+  box-sizing: border-box;
+}
+.syllabus-modern-print-note__head {
+  padding: 8px 10px;
+  background: #f4f6f9;
+  border-bottom: 1px solid #c9d2dd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #5a6a80;
+  text-transform: uppercase;
+  box-sizing: border-box;
+}
+.syllabus-modern-print-note__body {
+  flex: 1 1 auto;
+  padding: 11px 12px;
+  font-size: 12px;
+  color: #33414f;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.syllabus-print-footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 2.5mm;
+  font-size: 10px;
+  color: #8893a3;
+  flex-shrink: 0;
+}
+.syllabus-a4-page .syllabus-table-modern {
+  border: none !important;
+}
+.syllabus-a4-page .syllabus-class-block {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .syllabus-row-event td { border-color: #7c3aed; background-color: #e9d5ff; color: #6b21a1; }
 .syllabus-row-event.syllabus-row-evaluation_deadline td { border-color: #991b1b; background-color: #fecaca; color: #991b1b; }
 .syllabus-row-event.syllabus-row-homework_deadline td { border-color: #1e40af; background-color: #dbeafe; color: #1e40af; }
@@ -2049,7 +2277,8 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         }
         return el.classList.contains('syllabus-col-note')
             || el.classList.contains('syllabus-note-merged')
-            || el.classList.contains('syllabus-jindo-note');
+            || el.classList.contains('syllabus-jindo-note')
+            || el.classList.contains('syllabus-modern-print-note__body');
     }
 
     function normalizeSyllabusPrintScales(lessonGroupScale, noteScale) {
@@ -2081,6 +2310,14 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             grid.style.flex = '';
             grid.style.minHeight = '';
             grid.style.alignItems = '';
+        }
+        const modernShell = pageEl.querySelector('.syllabus-modern-print-shell');
+        if (modernShell) {
+            modernShell.style.height = '';
+            modernShell.style.display = '';
+            modernShell.style.flex = '';
+            modernShell.style.minHeight = '';
+            modernShell.style.overflow = '';
         }
         pageEl.querySelectorAll('[data-syllabus-scaled]').forEach(el => {
             el.style.fontSize = '';
@@ -2125,7 +2362,25 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         pageEl.setAttribute('data-syllabus-scale', String(lessonScale));
 
         const title = pageEl.querySelector('.syllabus-pdf-title');
-        if (title) {
+        const titleBlock = pageEl.querySelector('.syllabus-print-title-block');
+        if (titleBlock) {
+            const nameEl = titleBlock.querySelector('.syllabus-print-title-block__name');
+            const metaEl = titleBlock.querySelector('.syllabus-print-title-block__meta');
+            const pageEl2 = titleBlock.querySelector('.syllabus-print-title-block__page');
+            if (nameEl) {
+                nameEl.style.fontSize = `${(base.title + 2) * lessonScale}pt`;
+                nameEl.dataset.syllabusScaled = '1';
+            }
+            if (metaEl) {
+                metaEl.style.fontSize = `${base.table * lessonScale}pt`;
+                metaEl.dataset.syllabusScaled = '1';
+            }
+            if (pageEl2) {
+                pageEl2.style.fontSize = `${(base.table - 1) * lessonScale}pt`;
+                pageEl2.dataset.syllabusScaled = '1';
+            }
+            titleBlock.dataset.syllabusScaled = '1';
+        } else if (title) {
             title.style.fontSize = `${base.title * lessonScale}pt`;
             title.style.marginBottom = `${base.titleMarginMm * lessonScale}mm`;
             title.style.textAlign = 'center';
@@ -2190,7 +2445,8 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             '.syllabus-table-jindo-notes .syllabus-jindo-notes-th, '
             + '.syllabus-table-jindo-notes .syllabus-jindo-notes-body-cell, '
             + '.syllabus-jindo-note-body, '
-            + '.syllabus-col-note, .syllabus-note-merged'
+            + '.syllabus-col-note, .syllabus-note-merged, '
+            + '.syllabus-modern-print-note__head, .syllabus-modern-print-note__body'
         ).forEach(el => {
             el.style.fontSize = `${base.table * noteScaleFinal}pt`;
             el.style.lineHeight = '1.35';
@@ -2258,7 +2514,10 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         if (isContinuationPrintPage(pageEl)) {
             return;
         }
-        const title = pageEl.querySelector('.syllabus-pdf-title');
+        if (pageEl.querySelector('.syllabus-modern-print-shell')) {
+            return;
+        }
+        const title = pageEl.querySelector('.syllabus-pdf-title, .syllabus-print-title-block');
         const table = pageEl.querySelector('.syllabus-table');
         if (table?.classList.contains('syllabus-table-jindo')) {
             return;
@@ -2389,6 +2648,80 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         }
     }
 
+    function syncModernPrintNoteHeight(mainTable, noteAside) {
+        if (!mainTable || !noteAside) {
+            return;
+        }
+        const mainH = mainTable.offsetHeight;
+        const theadH = mainTable.querySelector('thead')?.offsetHeight || 0;
+        const bodyH = Math.max(0, mainH - theadH);
+
+        noteAside.style.height = `${mainH}px`;
+        noteAside.dataset.syllabusScaled = '1';
+
+        const noteHead = noteAside.querySelector('.syllabus-modern-print-note__head');
+        if (noteHead) {
+            noteHead.style.height = `${theadH}px`;
+            noteHead.style.boxSizing = 'border-box';
+            noteHead.dataset.syllabusScaled = '1';
+        }
+
+        const noteBody = noteAside.querySelector('.syllabus-modern-print-note__body');
+        if (noteBody) {
+            noteBody.style.height = `${bodyH}px`;
+            noteBody.style.overflow = 'hidden';
+            noteBody.dataset.syllabusScaled = '1';
+        }
+    }
+
+    /**
+     * Modern A4: main table + side Note column share height; lesson rows split evenly.
+     */
+    function stretchModernPrintLayout(pageEl, contentHpx, mmPx) {
+        if (isContinuationPrintPage(pageEl)) {
+            return;
+        }
+        const title = pageEl.querySelector('.syllabus-print-title-block');
+        const footer = pageEl.querySelector('.syllabus-print-footer');
+        const shell = pageEl.querySelector('.syllabus-modern-print-shell');
+        const mainTable = shell?.querySelector('.syllabus-table-modern');
+        if (!shell || !mainTable) {
+            return;
+        }
+
+        const fitHpx = getSyllabusStretchHeightPx(pageEl, contentHpx, mmPx);
+        const titleH = title ? title.offsetHeight : 0;
+        const footerH = footer ? footer.offsetHeight : 0;
+        const layoutTarget = fitHpx - titleH - footerH;
+        if (layoutTarget <= 0) {
+            return;
+        }
+
+        shell.style.display = 'flex';
+        shell.style.flexDirection = 'row';
+        shell.style.alignItems = 'stretch';
+        shell.style.flex = '1 1 auto';
+        shell.style.minHeight = '0';
+        shell.style.height = `${Math.floor(layoutTarget)}px`;
+        shell.style.overflow = 'hidden';
+        shell.dataset.syllabusScaled = '1';
+
+        const mainWrap = shell.querySelector('.syllabus-modern-print-main');
+        if (mainWrap) {
+            mainWrap.style.flex = '1 1 auto';
+            mainWrap.style.minWidth = '0';
+            mainWrap.style.display = 'flex';
+            mainWrap.style.flexDirection = 'column';
+            mainWrap.style.height = '100%';
+            mainWrap.dataset.syllabusScaled = '1';
+        }
+
+        stretchJindoMainTable(mainTable, layoutTarget);
+
+        const noteAside = shell.querySelector('.syllabus-modern-print-note');
+        syncModernPrintNoteHeight(mainTable, noteAside);
+    }
+
     /**
      * 진도표: main + side notes tables share height; lesson rows split evenly in main table.
      */
@@ -2431,12 +2764,16 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
     }
 
     function applyStretchForPrint(pageEl, contentHpx, mmPx) {
-        const grid = pageEl.querySelector('.syllabus-jindo-print-grid');
-        const jindoMain = pageEl.querySelector('.syllabus-table-jindo-main, .syllabus-table-jindo');
-        if (grid || jindoMain?.classList.contains('syllabus-table-jindo')) {
-            stretchJindoPrintLayout(pageEl, contentHpx, mmPx);
+        if (pageEl.querySelector('.syllabus-modern-print-shell')) {
+            stretchModernPrintLayout(pageEl, contentHpx, mmPx);
         } else {
-            stretchSyllabusTableRows(pageEl, contentHpx, mmPx);
+            const grid = pageEl.querySelector('.syllabus-jindo-print-grid');
+            const jindoMain = pageEl.querySelector('.syllabus-table-jindo-main, .syllabus-table-jindo');
+            if (grid || jindoMain?.classList.contains('syllabus-table-jindo')) {
+                stretchJindoPrintLayout(pageEl, contentHpx, mmPx);
+            } else {
+                stretchSyllabusTableRows(pageEl, contentHpx, mmPx);
+            }
         }
     }
 

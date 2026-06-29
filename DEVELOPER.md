@@ -57,7 +57,7 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 
 ### UI tokens and shared controls
 
-Full guide for agents and UI work: **[UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md)** (on-screen UI). Syllabus A4 print/PDF: **[Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)**.
+Full guide for agents and UI work: **[UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md)** (on-screen UI). AI design mockups: **[CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md)** (keep in sync with `styles.css` tokens). Syllabus A4 print/PDF: **[Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)**.
 
 Typography, spacing, and colors are defined in [`styles.css`](styles.css) `:root` (Simple Design System + 8px grid: `--space-*`, `--text-body-*`, `--text-h*`).
 
@@ -93,7 +93,7 @@ Use `--bp-sm`, `--bp-md`, `--bp-lg`, `--bp-tablet`, `--bp-xl` in new `@media` ru
 
 **Day notes vs class Notes:** `classes[].notes` in the class editor is a static class memo. `dayNotes[]` is timestamped per-class, per-calendar-day entries. **Entry:** calendar → right-click lesson → Add note (quick log for that class/day). **Single day:** day right-click or **Day notes** in term settings. **Browse/export range:** top-level **Notes** tab or **Classes** → **Notes** (same UI shell: date range, class/subject/grade filters, saved list, export). Data helpers: `js/day-notes.js` (`filterNotes`, `formatRangeExportByClass`). Tab DOM/preview cards: `js/class-notes-panel.js`; mount, filters, listeners, save/sync: `app.js` (`ensureClassNotesShell`, `initClassNotesPanelListeners`, `refreshClassNotesPanelIfMounted`). Filter checkboxes rebuild when calendar data loads via `refreshClassNotesPanelIfMounted`, not only on first tab open (`classNotesFiltersBuilt` guards one-time date restore).
 
-**Day notes and the edit lock:** Saving notes uses `PUT` with `dayNotesOnly: true` (`CalendarSync.saveDayNotesOnly`) — **no calendar edit lock** required. Schedule changes still use the lock. Each note may include `authorUserId`; co-teachers see all notes for a class/day but may only edit/delete their own (server: `prepareDayNotesForSave` in `server/day-notes-access.js` / `worker/src/day-notes-access.js`). Legacy notes without `authorUserId` are read-only for teachers (admins with `manage_calendar_access` may change them). Concurrent note saves from two teachers can still produce a calendar **revision 409**; reload merges by note `id` via `mergeDayNotesById`.
+**Day notes and the edit lock:** Client path: `app.js` → `CCPDayNotesSave` in `js/day-notes-save.js` → `CalendarSync.saveDayNotesOnly` (`PUT` with `dayNotesOnly: true`). **Both** `index.html` and `notes.html` must load `day-notes-save.js` **before** `app.js`. **No calendar edit lock** required for notes. Schedule changes still use the lock. Each note may include `authorUserId`; co-teachers see all notes for a class/day but may only edit/delete their own (server: `prepareDayNotesForSave` in `server/day-notes-access.js` / `worker/src/day-notes-access.js`). Legacy notes without `authorUserId` are read-only for teachers (admins with `manage_calendar_access` may change them). Concurrent note saves from two teachers can still produce a calendar **revision 409**; `persistDayNotesAfterChange` merges by note `id` via `mergeDayNotesById` and retries with `force: true`.
 
 ## Editing surfaces (popout vs tab vs workspace)
 
