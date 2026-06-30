@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "sync-from-main": "node scripts/sync-from-main.mjs",
-    "build": "node scripts/build-assets.mjs",
-    "css:split": "node scripts/split-styles.mjs",
+    "build": "npm run css:split && node scripts/build-assets.mjs",
+    "css:split": "node scripts/split-styles.mjs && node scripts/sync-syllabus-print-css.mjs",
     "build:help-content": "node scripts/export-help-content.mjs",
     "test": "node scripts/run-all-tests.mjs",
     "test:all": "node scripts/run-all-tests.mjs",

@@ -307,6 +307,52 @@
     margin-bottom: 0;
 }
 
+.day-note-mention-wrap {
+    position: relative;
+}
+
+.day-note-mention-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    margin: 0;
+    padding: var(--pad-control-y-lg) var(--pad-control-x);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius);
+    box-sizing: border-box;
+    font-family: var(--font-main);
+    font-size: 0.9375rem;
+    line-height: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--text-primary);
+}
+
+.day-note-mention-wrap .day-note-textarea {
+    position: relative;
+    z-index: 1;
+}
+
+.day-note-mention-wrap--ghost-active .day-note-mention-ghost {
+    background: var(--input-bg);
+}
+
+.day-note-mention-wrap--ghost-active .day-note-textarea {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-primary);
+}
+
+.day-note-mention-ghost-suffix {
+    color: var(--text-muted, var(--text-secondary));
+    opacity: 0.72;
+}
+
 .day-note-mention-wrap .day-note-mention-dropdown {
     z-index: var(--z-modal-popover);
 }
@@ -1294,7 +1340,7 @@
 }
 
 body:has(#panel-calendar:not([hidden])) {
-    scroll-snap-type: y proximity;
+    scroll-snap-type: none;
 }
 
 .calendar-container {
@@ -1327,15 +1373,15 @@ body:has(#panel-calendar:not([hidden])) {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    min-height: var(--calendar-month-view-height);
-    scroll-snap-align: start;
+    min-height: 0;
+    scroll-snap-align: none;
     scroll-snap-stop: normal;
-    scroll-margin-top: var(--calendar-month-sticky-top);
+    scroll-margin-top: calc(var(--app-chrome-sticky-top, 0px) + 3.5rem);
 }
 
-/* Fit one month per viewport: flexible week rows, no fixed cell height */
+/* Fit one month per viewport: flexible week rows; zoom scales min cell height */
 #calendarContainer .calendar-day {
-    min-height: 0;
+    min-height: var(--calendar-day-min-h, 0);
     display: flex;
     flex-direction: column;
 }

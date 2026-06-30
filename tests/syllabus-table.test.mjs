@@ -58,11 +58,11 @@ function assert(cond, msg) {
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-dense'), '28 rows use normal density');
     assert(!docHtml.includes('syllabus-a4-page syllabus-a4-extra-dense'), '28 rows use normal density');
     assert(docHtml.includes('syllabus-a4-sheet'), 'A4 sheet wrapper per class');
-    assert(docHtml.includes('<colgroup>'), 'colgroup for column widths');
-    assert(docHtml.includes('syllabus-table-modern'), 'modern teacher print table');
-    assert(docHtml.includes('width:35%'), 'modern plan column');
-    assert(docHtml.includes('syllabus-modern-print-shell'), 'modern print flex shell');
-    assert(docHtml.includes('syllabus-modern-print-note'), 'side note column');
+    assert(docHtml.includes('syllabus-a4-print-grid'), 'Print Styles A4 div grid');
+    assert(docHtml.includes('syllabus-a4-print-body'), 'Print Styles row body');
+    assert(docHtml.includes('syllabus-a4-print-row'), 'Print Styles lesson rows');
+    assert(docHtml.includes('syllabus-modern-print-shell'), 'modern print flex shell alias');
+    assert(docHtml.includes('syllabus-a4-print-note'), 'side note column');
     assert(!docHtml.includes('<div class="syllabus-jindo-print-grid'), 'no jindo side grid for teacher print');
 }
 
@@ -728,10 +728,10 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
         colNote: 'Note',
         generalNotes: '★ SP : Mar 4 – May 29'
     });
-    const mainBody = (html.split('<tbody>')[1] || '').split('</tbody>')[0] || '';
-    assert(!mainBody.includes('Lesson plan intro'), 'editor note row not in tbody');
-    assert(mainBody.includes('3/4'), 'first body row uses M/D date format');
-    assert(html.includes('syllabus-table-modern'), 'modern table class');
+    const printBody = (html.split('syllabus-a4-print-body">')[1] || '').split('</div></div>')[0] || '';
+    assert(!printBody.includes('Lesson plan intro'), 'editor note row not in print body');
+    assert(printBody.includes('3/4'), 'first body row uses M/D date format');
+    assert(html.includes('syllabus-a4-print-grid'), 'Print Styles A4 div grid');
     assert(html.includes('Lesson plan'), 'english plan header');
     assert(html.includes('Pages / detail'), 'pages column header');
     assert(html.includes('syllabus-modern-print-shell'), 'modern print flex shell');
@@ -744,6 +744,72 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(html.includes('SB p. 8-11') || html.includes('8-11'), 'pages/detail column content');
     assert(!html.includes('syllabus-merged-note-item'), 'no per-row note labels');
     assert(html.includes('★ SP'), 'general notes in note column');
+}
+
+// Modern print week column: abbrev ignores stored full month names
+{
+    const rows = CCPSyllabus.normalizeRows([
+        {
+            date: '2026-07-07',
+            monthKey: '2026-07',
+            weekLabel: 'July 6–10',
+            sessionNumber: 1,
+            planTitle: 'Unit 1'
+        },
+        {
+            date: '2026-07-09',
+            monthKey: '2026-07',
+            weekLabel: 'July 6–10',
+            sessionNumber: 2,
+            planTitle: 'Unit 2'
+        }
+    ]);
+    const abbrevHtml = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+        pdfLayout: true,
+        a4Pdf: true,
+        jindoTable: true,
+        weekFormat: 'abbrev',
+        classTitle: 'Test'
+    });
+    assert(abbrevHtml.includes('Jul 6–10'), 'abbrev week uses short month');
+    assert(!abbrevHtml.includes('July 6–10'), 'abbrev week ignores stored July label');
+    assert(abbrevHtml.includes('syllabus-a4-print-week--abbrev'), 'abbrev format class on grid');
+
+    const indexHtml = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+        pdfLayout: true,
+        a4Pdf: true,
+        jindoTable: true,
+        weekFormat: 'index',
+        classTitle: 'Test'
+    });
+    assert(indexHtml.includes('>W1<') || indexHtml.includes('W1</div>'), 'index week shows W1');
+    assert(!indexHtml.includes('July'), 'index week has no full month name');
+    assert(indexHtml.includes('syllabus-a4-print-week--index'), 'index format class on grid');
+}
+
+// Modern print: hide date column when showDateColumn is false
+{
+    const rows = CCPSyllabus.normalizeRows([
+        {
+            date: '2026-07-07',
+            monthKey: '2026-07',
+            weekLabel: 'July 6–10',
+            sessionNumber: 1,
+            planTitle: 'Unit 1'
+        }
+    ]);
+    const noDateHtml = CCPSyllabus.renderSyllabusTableHtml({}, rows, {
+        pdfLayout: true,
+        a4Pdf: true,
+        jindoTable: true,
+        weekFormat: 'abbrev',
+        showDateColumn: false,
+        colWeek: 'Week',
+        classTitle: 'Test'
+    });
+    assert(noDateHtml.includes('syllabus-a4-print--no-date'), 'no-date class on grid');
+    assert(!noDateHtml.includes('syllabus-a4-print-col-date'), 'date column omitted');
+    assert(noDateHtml.includes('>Week<'), 'week header not truncated');
 }
 
 // Legacy PDF layout (jindo off): merged note column, brief plan cells

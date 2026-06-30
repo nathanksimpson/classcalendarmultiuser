@@ -8,25 +8,26 @@ Use this document when recreating or debugging print/PDF output—not the on-scr
 
 ## Reference model (teacher print — current)
 
-Matches [`Print Styles (A4).dc.html`](Print%20Styles%20(A4).dc.html) syllabus section:
+Matches **Print Styles (A4) standalone** syllabus section (`css/syllabus-print-a4.css`, synced from the Figma mockup):
 
-| Month | Week | Date | Lesson plan | Pages / detail | *(Note — side panel)* |
+| Month | Week | Date | Lesson plan | Pages / detail | *(Notes — side panel)* |
 |-------|------|------|-------------|----------------|------------------------|
 
 ```text
 ┌ Title · Syllabus + meta ─────────────── P2 · Class ─┐
 ├──────────────────────────────┬─────────────────────┤
-│ Month │ Week │ Date │ Plan │ Pages │ Note (200px)   │
-│ (rows, holiday/test styles)  │ general notes       │
+│ Month │ Week │ Date │ Plan │ Pages │ Notes (200px)  │
+│ (flex div rows)              │ general notes       │
 └──────────────────────────────┴─────────────────────┘
 │ ClassManager · Header repeats…                    Page │
 ```
 
-- **Flex shell** (`syllabus-modern-print-shell`): **5-column** main table + **200px** Note aside (not a table column).
+- **Flex grid** (`syllabus-a4-print-grid`): **div rows** + **200px** Notes aside (Print Styles layout; not an HTML table).
 - **Title block** (`syllabus-print-title-block`): `Class · Syllabus`, meta (days · Term: … · book), optional page label.
-- **Dates:** `M/D` via `formatModernPrintDate()` (same as jindo).
+- **Dates:** `M/D` via `formatModernPrintDate()`.
 - **Row styles:** holiday `#fef3c7`; test/evaluation deadline `inset 4px 0 0 #c0392b`.
-- **Note panel:** class general notes only (`buildPrintGeneralNotesHtml()`), synced height via `stretchModernPrintLayout()`.
+- **Notes panel:** class general notes only (`buildPrintGeneralNotesHtml()`), synced height via `stretchModernPrintLayout()`.
+- **Print CSS source of truth:** [`css/syllabus-print-a4.css`](css/syllabus-print-a4.css) → embedded in export via `npm run css:split`.
 
 Implementation flag: `modernPdf` in [`js/syllabus-table.js`](js/syllabus-table.js) when `pdfLayout` + jindo layout is enabled for teacher (non-student) print.
 
@@ -54,7 +55,8 @@ Defined in [`js/syllabus-table.js`](js/syllabus-table.js):
 
 | File | Role |
 |------|------|
-| [`js/syllabus-table.js`](js/syllabus-table.js) | Render HTML, `A4_PDF_CSS`, merge logic, fit/stretch |
+| [`css/syllabus-print-a4.css`](css/syllabus-print-a4.css) | Print Styles A4 layout (source of truth; synced into export CSS) |
+| [`js/syllabus-table.js`](js/syllabus-table.js) | Render HTML, merge logic, fit/stretch |
 | [`js/load-extension-scripts.js`](js/load-extension-scripts.js) | Cache-bust `?v=` on `syllabus-table.js` |
 | [`tests/syllabus-table.test.mjs`](tests/syllabus-table.test.mjs) | Unit tests for render/fit |
 
@@ -63,15 +65,16 @@ Defined in [`js/syllabus-table.js`](js/syllabus-table.js):
 ## Verify after changes
 
 1. Print summary → syllabus only for a class with holidays, tests, and long general notes.
-2. Confirm five-column main table + 200px Note aside (`syllabus-modern-print-shell`), not a merged Note `<td>`.
+2. Confirm five-column div grid + 200px Notes aside (`syllabus-a4-print-grid`), not a merged Note `<td>`.
 3. **Ctrl+F5** after changing `syllabus-table.js` (check Network for current `?v=`).
 
 ---
 
 ## Deploy checklist
 
-1. Update render/CSS in `js/syllabus-table.js`.
-2. Bump `js/syllabus-table.js?v=` in [`js/load-extension-scripts.js`](js/load-extension-scripts.js).
+1. Edit layout/CSS in `css/syllabus-print-a4.css`, then `npm run css:split` (syncs into `js/syllabus-table.js`).
+2. Update render logic in `js/syllabus-table.js` if markup changes.
+3. Bump `js/syllabus-table.js?v=` in [`js/load-extension-scripts.js`](js/load-extension-scripts.js).
 3. Run `npm test` (syllabus-table tests).
 4. `npm run deploy` when production should update.
 
