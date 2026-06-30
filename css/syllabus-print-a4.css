@@ -1,0 +1,617 @@
+/**
+
+ * Syllabus A4 portrait print — source of truth from Print Styles (A4) standalone mockup.
+
+ * Synced into js/syllabus-table.js export CSS via npm run css:split.
+
+ */
+
+
+
+/* Page shell (screen preview + export) */
+
+.syllabus-a4-print-page {
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  display: flex;
+
+  flex-direction: column;
+
+}
+
+
+
+/* Title block */
+
+.syllabus-print-title-block {
+
+  display: flex;
+
+  align-items: flex-end;
+
+  justify-content: space-between;
+
+  padding-bottom: 12px;
+
+  border-bottom: 2px solid #1c2430;
+
+  margin-bottom: 14px;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-print-title-block__name {
+
+  font-size: 20px;
+
+  font-weight: 700;
+
+  color: #1c2430;
+
+  line-height: 1.15;
+
+}
+
+.syllabus-print-title-block__meta {
+
+  font-size: 12px;
+
+  color: #5a6a80;
+
+  margin-top: 2px;
+
+}
+
+.syllabus-print-title-block__page {
+
+  font-size: 11px;
+
+  color: #8893a3;
+
+  white-space: nowrap;
+
+}
+
+
+
+/* Main grid: lesson table + note aside */
+
+.syllabus-a4-print-grid,
+
+.syllabus-modern-print-shell {
+
+  border: 1px solid #c9d2dd;
+
+  border-radius: 6px;
+
+  overflow: hidden;
+
+  flex: 0 0 auto;
+
+  display: flex;
+
+  flex-direction: row;
+
+  align-items: stretch;
+
+  min-height: 0;
+
+  box-sizing: border-box;
+
+  width: 100%;
+
+}
+
+
+
+.syllabus-a4-print-main,
+
+.syllabus-modern-print-main {
+
+  flex: 1 1 0;
+
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  border-right: 1px solid #c9d2dd;
+
+}
+
+
+
+/* Header row */
+
+.syllabus-a4-print-head {
+
+  display: flex;
+
+  background: #f4f6f9;
+
+  border-bottom: 1px solid #c9d2dd;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+
+  color: #5a6a80;
+
+  text-transform: uppercase;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-month {
+
+  width: 44px;
+
+  padding: 8px 4px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  letter-spacing: 0.02em;
+
+  white-space: nowrap;
+
+  overflow: visible;
+
+  text-overflow: clip;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-week {
+
+  width: 58px;
+
+  padding: 8px 4px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  letter-spacing: 0.02em;
+
+  white-space: nowrap;
+
+  overflow: visible;
+
+  text-overflow: clip;
+
+}
+
+.syllabus-a4-print-week--index .syllabus-a4-print-head .syllabus-a4-print-col-week {
+
+  width: 36px;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-date {
+
+  width: 62px;
+
+  padding: 8px 4px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  letter-spacing: 0.02em;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-plan {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-pages {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+}
+
+
+
+/* Body rows */
+
+.syllabus-a4-print-body {
+
+  display: flex;
+
+  flex-direction: column;
+
+  flex: 1 1 auto;
+
+  min-height: 0;
+
+}
+
+.syllabus-a4-print-row {
+
+  flex: 1 1 0;
+
+  display: flex;
+
+  border-bottom: 1px solid #eef1f5;
+
+  font-size: 12.5px;
+
+  line-height: 1.25;
+
+  align-items: center;
+
+  min-height: 0;
+
+  box-sizing: border-box;
+
+}
+
+.syllabus-a4-print-row:last-child {
+
+  border-bottom: none;
+
+}
+
+.syllabus-a4-page .syllabus-a4-print-row:last-child {
+
+  border-bottom: 1px solid #eef1f5;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-month {
+
+  width: 40px;
+
+  padding: 6px 4px;
+
+  border-right: 1px solid #eef1f5;
+
+  font-weight: 700;
+
+  font-size: 11px;
+
+  color: #5a6a80;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-week {
+
+  width: 58px;
+
+  padding: 6px 4px;
+
+  border-right: 1px solid #eef1f5;
+
+  color: #5a6a80;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-week--index .syllabus-a4-print-row .syllabus-a4-print-col-week {
+
+  width: 36px;
+
+}
+
+.syllabus-a4-print-week--abbrev .syllabus-a4-print-row .syllabus-a4-print-col-week {
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-date {
+
+  width: 62px;
+
+  padding: 6px 4px;
+
+  border-right: 1px solid #eef1f5;
+
+  color: #33414f;
+
+  font-weight: 600;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-plan {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  border-right: 1px solid #eef1f5;
+
+  color: #1c2430;
+
+  font-weight: 600;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+  overflow: hidden;
+
+  line-height: 1.25;
+
+  white-space: nowrap;
+
+  text-overflow: ellipsis;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-pages {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  color: #33414f;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+  overflow: hidden;
+
+  line-height: 1.25;
+
+  white-space: nowrap;
+
+  text-overflow: ellipsis;
+
+}
+
+
+
+/* Row kinds (Print Styles mockup) */
+
+.syllabus-a4-print-row.syllabus-row-holiday {
+
+  background: #fef3c7;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-date,
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-plan {
+
+  color: #b07d18;
+
+  font-weight: 700;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-plan,
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-pages {
+
+  white-space: normal;
+
+  text-overflow: clip;
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+
+  -webkit-box-orient: vertical;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-test td,
+
+.syllabus-a4-print-row.syllabus-row-evaluation_deadline {
+
+  box-shadow: inset 4px 0 0 #c0392b;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-test .syllabus-a4-print-col-date,
+
+.syllabus-a4-print-row.syllabus-row-test .syllabus-a4-print-col-plan,
+
+.syllabus-a4-print-row.syllabus-row-evaluation_deadline .syllabus-a4-print-col-date,
+
+.syllabus-a4-print-row.syllabus-row-evaluation_deadline .syllabus-a4-print-col-plan {
+
+  color: #c0392b;
+
+  font-weight: 700;
+
+}
+
+
+
+/* Note aside */
+
+.syllabus-a4-print-note,
+
+.syllabus-modern-print-note {
+
+  width: 200px;
+
+  flex: 0 0 200px;
+
+  max-width: 200px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  background: #fcfdfe;
+
+  box-sizing: border-box;
+
+}
+
+.syllabus-a4-print-note__head,
+
+.syllabus-modern-print-note__head {
+
+  padding: 8px 10px;
+
+  background: #f4f6f9;
+
+  border-bottom: 1px solid #c9d2dd;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+
+  color: #5a6a80;
+
+  text-transform: uppercase;
+
+  box-sizing: border-box;
+
+  display: flex;
+
+  align-items: center;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-note__body,
+
+.syllabus-modern-print-note__body {
+
+  flex: 1 1 auto;
+
+  padding: 11px 12px;
+
+  font-size: 12px;
+
+  color: #33414f;
+
+  line-height: 1.55;
+
+  white-space: pre-line;
+
+  overflow: hidden;
+
+  box-sizing: border-box;
+
+}
+
+
+
+.syllabus-print-footer {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  padding-top: 10px;
+
+  font-size: 10px;
+
+  color: #8893a3;
+
+  flex-shrink: 0;
+
+}
+
+
+
+.syllabus-print-plan-brief {
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+
+  -webkit-box-orient: vertical;
+
+  overflow: hidden;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* A4 fitted page overrides */
+.syllabus-a4-page .syllabus-a4-print-grid,
+.syllabus-a4-page .syllabus-modern-print-shell {
+  border: 1px solid #c9d2dd;
+  border-radius: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+  flex: 0 0 auto;
+}
+.syllabus-a4-page .syllabus-a4-print-main,
+.syllabus-a4-page .syllabus-modern-print-main {
+  border-right: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: visible;
+}
+.syllabus-a4-page .syllabus-a4-print-note,
+.syllabus-a4-page .syllabus-modern-print-note {
+  position: relative;
+  flex: 0 0 200px;
+  width: 200px;
+  max-width: 200px;
+  overflow: hidden;
+}
+.syllabus-a4-page .syllabus-a4-print-note__body,
+.syllabus-a4-page .syllabus-modern-print-note__body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-right: 1px solid #c9d2dd;
+  border-bottom: 1px solid #c9d2dd;
+  flex: none;
+}
+.syllabus-a4-page .syllabus-class-block:has(.syllabus-a4-print-grid),
+.syllabus-a4-page .syllabus-class-block:has(.syllabus-modern-print-shell) {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.syllabus-a4-page .syllabus-print-footer {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+}

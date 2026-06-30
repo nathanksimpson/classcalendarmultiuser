@@ -6,33 +6,33 @@
 
 :root {
     color-scheme: light;
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --secondary: #64748b;
+    --primary: #14b98f;
+    --primary-dark: #0e9b76;
+    --secondary: #5a6a80;
     --danger: #dc2626;
     --success: #16a34a;
     
-    --bg-main: #f8fafc;
+    --bg-main: #f4f6f9;
     --bg-card: #ffffff;
-    --bg-hover: #f1f5f9;
-    --surface-elevated: #f1f5f9;
-    --surface-muted: #f1f5f9;
+    --bg-hover: #eef1f5;
+    --surface-elevated: #f0f3f7;
+    --surface-muted: #eef1f5;
     --surface: #ffffff;
-    --bg-secondary: #f1f5f9;
+    --bg-secondary: #eef1f5;
     --input-bg: #ffffff;
 
-    --link-color: #2563eb;
-    --accent: #2563eb;
-    --accent-muted: #dbeafe;
+    --link-color: #0f9b75;
+    --accent: #14b98f;
+    --accent-muted: #eaf6f1;
     
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --text-muted: #94a3b8;
+    --text-primary: #1c2430;
+    --text-secondary: #5a6a80;
+    --text-muted: #8893a3;
     --control-disabled-fg: #64748b;
     --text-on-primary: #f8fafc;
     --text-on-danger: #f8fafc;
     
-    --border-color: #e2e8f0;
+    --border-color: #e3e8ef;
     --border-radius: 8px;
 
     /* Layout tokens (Simple Design System + 8px grid) */
@@ -126,11 +126,26 @@
     --holiday-bg: #fef3c7;
     --holiday-border: #f59e0b;
 
-    --top-bar-bg: rgba(248, 250, 252, 0.92);
-    --top-bar-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-    --toolbar-section-border: #cbd5e1;
+    --top-bar-bg: rgba(255, 255, 255, 0.94);
+    --top-bar-shadow: 0 4px 16px rgba(20, 30, 50, 0.08);
+    --toolbar-section-border: #d4dbe4;
     --toolbar-field-bg: #ffffff;
-    --toolbar-field-border: #cbd5e1;
+    --toolbar-field-border: #d4dbe4;
+
+    /* ClassManager redesign — skeuo chrome + calm chips */
+    --brand-accent: #14b98f;
+    --brand-accent-dark: #06241c;
+    --shell-zone-track-bg: #eef1f5;
+    --shell-zone-active-top: #14b98f;
+    --shell-segment-active-bg: linear-gradient(180deg, #22d6a8, #12a37f);
+    --shell-segment-inactive-bg: linear-gradient(180deg, #ffffff, #eef2f6);
+    --lock-badge-bg: linear-gradient(180deg, #1ed3a4, #0e9b76);
+    --lock-badge-text: #128a68;
+    --chip-calm-fill-alpha: 0.14;
+    --chip-calm-text: #243244;
+    --chip-calm-subtext: #6b7689;
+    --calendar-card-border: #e3e8ef;
+    --calendar-grid-line: #eef1f5;
 
     --notify-duration-in: 0.42s;
     --notify-duration-out: 0.32s;
@@ -208,7 +223,7 @@
     --banner-view-as-exit-border: #fde68a;
     --banner-view-as-exit-hover-bg: #fef3c7;
 
-    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-main: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
 
     /* Sticky offsets: set from JS to match #appTopBar height */

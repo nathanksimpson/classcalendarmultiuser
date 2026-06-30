@@ -33,15 +33,35 @@
         return alpha;
     }
 
-    function getReadableText(accent, classData) {
-        if (classData && classData.textColor) {
-            return classData.textColor;
-        }
-        if (typeof global.getReadableTextOnBackground === 'function') {
-            const bg = hexToRgba(accent, getFillAlpha({}));
-            return global.getReadableTextOnBackground(bg, isDarkTheme() ? '#dde6f1' : '#243244');
+    function getChipCalmTokenText() {
+        if (typeof document !== 'undefined' && document.documentElement) {
+            const token = getComputedStyle(document.documentElement).getPropertyValue('--chip-calm-text').trim();
+            if (token) {
+                return token;
+            }
         }
         return isDarkTheme() ? '#dde6f1' : '#243244';
+    }
+
+    function getChipCalmTokenSubtext() {
+        if (typeof document !== 'undefined' && document.documentElement) {
+            const token = getComputedStyle(document.documentElement).getPropertyValue('--chip-calm-subtext').trim();
+            if (token) {
+                return token;
+            }
+        }
+        return isDarkTheme() ? 'rgba(221, 230, 241, 0.55)' : '#6b7689';
+    }
+
+    /** Readable label on a calm tinted class chip — always use theme tokens. */
+    function resolveTextColor(classData, options) {
+        void classData;
+        void options;
+        return getChipCalmTokenText();
+    }
+
+    function getReadableText(accent, classData, options) {
+        return resolveTextColor(classData || { color: accent }, options);
     }
 
     function apply(el, classData, options) {
@@ -90,7 +110,7 @@
         el.classList.add('event-bar--calm');
         const book = el.querySelector('.event-book');
         if (book) {
-            book.style.color = isDarkTheme() ? 'rgba(221, 230, 241, 0.55)' : '#6b7689';
+            book.style.color = getChipCalmTokenSubtext();
             book.style.opacity = '1';
         }
     }
@@ -152,6 +172,7 @@
         applyCalmBar,
         applyPanelAccent,
         refreshAll,
+        resolveTextColor,
         hexToRgba
     };
 })(typeof window !== 'undefined' ? window : globalThis);

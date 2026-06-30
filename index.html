@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260629-calendar-zoom-filter">
+    <link rel="stylesheet" href="styles.css?v=20260630-homework-sidebar-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260629-ui-fixes';
+        window.CCP_I18N_VERSION = '20260630-homework-copy-redesign';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -91,8 +91,8 @@
                                 </span>
                                 <span class="team-lock-skeuo-badge team-lock-skeuo-badge--open" aria-hidden="true" hidden>
                                     <svg class="team-lock-open-icon" width="19" height="21" viewBox="0 0 24 26" fill="none" aria-hidden="true">
-                                        <rect x="4.5" y="11.5" width="15" height="12.5" rx="2.6" fill="#ffffff"></rect>
-                                        <path d="M8 11.5 V7.2 a4.6 4.6 0 0 1 9.1 -1" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                                        <rect x="4.5" y="11.5" width="15" height="12.5" rx="2.6" fill="currentColor"></rect>
+                                        <path d="M8 11.5 V7.2 a4.6 4.6 0 0 1 9.1 -1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
                                     </svg>
                                 </span>
                             </button>
@@ -775,21 +775,29 @@
             </section>
 
             <section id="panel-homework" class="app-tab-panel" data-tab="homework" role="tabpanel" aria-labelledby="zoneBtn-schedule" hidden>
-                <div class="module-toolbar homework-tab-toolbar">
-                    <button type="button" id="contentExpandToggleBtn" class="btn btn-outline btn-small" data-i18n="contentExpand">Expand view</button>
-                    <button type="button" id="homeworkDailySummaryPrintBtn" class="btn btn-outline btn-small" data-i18n="dailySummaryPrintBtn">Print daily summary</button>
-                    <div class="homework-ref-date-controls">
-                        <label class="homework-ref-date-label" for="homeworkReferenceDate">
-                            <span data-i18n="homeworkTabReferenceDate">Reference date</span>
-                            <input type="date" id="homeworkReferenceDate" class="homework-ref-date-input" aria-describedby="homeworkReferenceMiniCalendar">
-                        </label>
-                        <button type="button" id="homeworkReferenceTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
+                <div class="homework-tab-chrome">
+                    <div id="homeworkWorkingFromBar" class="homework-working-from-bar">
+                        <div class="homework-working-from-main">
+                            <span class="homework-working-from-label" data-i18n="homeworkTabReferenceDate">Reference date</span>
+                            <strong id="homeworkWorkingFromLabel" class="homework-working-from-value"></strong>
+                            <label class="homework-ref-date-visually-hidden" for="homeworkReferenceDate">
+                                <span data-i18n="homeworkTabReferenceDate">Reference date</span>
+                            </label>
+                            <input type="date" id="homeworkReferenceDate" class="homework-ref-date-input homework-ref-date-input--hidden" aria-describedby="homeworkReferenceDateHelp homeworkReferenceMiniCalendar">
+                            <button type="button" id="homeworkReferenceTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
+                        </div>
+                        <p id="homeworkReferenceDateHelp" class="homework-working-from-help section-hint" data-i18n="homeworkTabReferenceDateHelp">Sets which lesson counts as &ldquo;this class&rdquo; for every block below.</p>
+                    </div>
+                    <div class="module-toolbar homework-tab-toolbar">
+                        <button type="button" id="contentExpandToggleBtn" class="btn btn-outline btn-small" data-i18n="contentExpand">Expand view</button>
+                        <button type="button" id="homeworkDailySummaryPrintBtn" class="btn btn-outline btn-small" data-i18n="dailySummaryPrintBtn">Print daily summary</button>
+                        <button type="button" id="homeworkBatchCopyBtn" class="btn btn-outline btn-small homework-batch-copy-btn" data-i18n="homeworkTabBatchCopy">Copy all classes</button>
                     </div>
                 </div>
                 <div class="homework-layout module-split-layout module-split-layout--homework">
                     <aside class="module-list-panel homework-sidebar-panel" aria-label="Class list">
                         <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application" data-i18n-aria-label="homeworkTabMiniCalendarLabel" aria-label="Pick reference date"></div>
-                        <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Update homework copy paste</button>
+                        <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Reload copy text from syllabi</button>
                         <div class="homework-filter-panel">
                             <div class="homework-filter-checkboxes">
                                 <label class="checkbox-label homework-filter-my-classes">
@@ -804,51 +812,73 @@
                             <p class="homework-filter-hint section-hint" data-i18n="homeworkFilterHint">Use search to narrow by subject, grade, or class name.</p>
                         </div>
                         <input type="search" id="homeworkClassListSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes&hellip;">
+                        <p id="homeworkListSummary" class="homework-list-summary section-hint" hidden></p>
                         <div id="homeworkClassList" class="module-list" role="listbox" aria-label="Classes for homework"></div>
                     </aside>
                     <div class="module-editor-panel homework-editor-panel">
                         <p id="homeworkEditorEmpty" class="module-empty-hint" data-i18n="homeworkTabEditorEmpty">Select a class to see homework copy blocks from its syllabus.</p>
                         <div id="homeworkEditorContent" class="homework-editor-content" hidden>
+                            <nav id="homeworkClassQueue" class="homework-class-queue" aria-label="Class queue">
+                                <button type="button" id="homeworkQueuePrevBtn" class="btn btn-outline btn-small homework-queue-btn" data-i18n-aria-label="homeworkTabQueuePrev" aria-label="Previous class">&lsaquo;</button>
+                                <span id="homeworkQueueLabel" class="homework-queue-label"></span>
+                                <button type="button" id="homeworkQueueNextBtn" class="btn btn-outline btn-small homework-queue-btn" data-i18n-aria-label="homeworkTabQueueNext" aria-label="Next class">&rsaquo;</button>
+                            </nav>
                             <header class="homework-class-header">
-                                <h2 id="homeworkClassTitle" class="homework-class-title"></h2>
-                                <p id="homeworkClassMeta" class="homework-class-meta"></p>
+                                <div class="homework-class-header-text">
+                                    <h2 id="homeworkClassTitle" class="homework-class-title"></h2>
+                                    <p id="homeworkClassMeta" class="homework-class-meta"></p>
+                                </div>
                                 <button type="button" id="homeworkOpenClassBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabOpenSyllabus">Edit syllabus</button>
                             </header>
+                            <div id="homeworkSessionChips" class="homework-session-chips" hidden></div>
+                            <p id="homeworkTargetLessonMeta" class="homework-target-meta" hidden></p>
+                            <section id="homeworkIntroCard" class="homework-intro-card homework-panel-card">
+                                <p class="homework-intro-short" data-i18n="homeworkTabIntroShort">This tab only prepares text to copy into your two external sites — the Simson grading site and the homework assignment site. Editing a block here saves straight to this class&rsquo;s syllabus.</p>
+                                <details id="homeworkIntroDetails" class="homework-intro-details">
+                                    <summary data-i18n="homeworkTabShowHow">Show how this works</summary>
+                                    <p class="section-hint" data-i18n="homeworkTabShowHowBody">Text comes from each class syllabus (Pages / detail). After calendar changes, use Reload copy text from syllabi in the sidebar. Copy buttons add the class name and session header for pasting on external sites.</p>
+                                </details>
+                            </section>
+                            <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
+                            <p id="homeworkTabMessage" class="homework-tab-message" role="status" hidden></p>
                             <section id="homeworkLastClassNotes" class="homework-last-class-notes homework-panel-card" hidden>
                                 <div class="homework-last-class-notes-header">
-                                    <h3 class="homework-last-class-notes-title" data-i18n="homeworkLastClassNotesTitle">From last class</h3>
-                                    <p id="homeworkLastClassNotesMeta" class="section-hint homework-last-class-notes-meta"></p>
+                                    <div class="homework-last-class-notes-heading">
+                                        <h3 class="homework-last-class-notes-title" data-i18n="homeworkLastClassNotesTitle">From last class</h3>
+                                        <p id="homeworkLastClassNotesMeta" class="section-hint homework-last-class-notes-meta"></p>
+                                    </div>
+                                    <button type="button" id="homeworkCopyLastClassNotesBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabCopyNote" hidden>Copy note</button>
                                 </div>
                                 <div id="homeworkLastClassNotesBody" class="homework-last-class-notes-body class-notes-preview"></div>
                                 <p id="homeworkLastClassNotesEmpty" class="section-hint homework-last-class-notes-empty" hidden></p>
                                 <p id="homeworkLastClassNotesNoPrior" class="section-hint homework-last-class-notes-no-prior" hidden data-i18n="homeworkLastClassNotesNoPrior">No earlier class meeting found for this term.</p>
                             </section>
-                            <p class="homework-external-banner" data-i18n="homeworkTabExternalBanner">Copy from here, then paste on your other websites (Simson grading and homework assignment).</p>
-                            <p id="homeworkTabHint" class="section-hint" data-i18n="homeworkTabHint"></p>
-                            <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
-                            <p id="homeworkTabMessage" class="homework-tab-message" role="status" hidden></p>
-                            <p id="homeworkTargetLessonMeta" class="homework-target-meta"></p>
-                            <p class="section-hint homework-editable-hint" data-i18n="homeworkTabEditableHint">Edit the text areas below to update the syllabus (Pages / detail). Copy adds the class name and session header.</p>
-                            <div class="homework-copy-section">
-                                <div class="homework-copy-header">
-                                    <h3 data-i18n="homeworkTabGradingTitle">Previous week &mdash; for Simson grading site</h3>
+                            <h3 id="homeworkBlocksHeading" class="homework-blocks-heading" data-i18n="homeworkTabBlocksHeading">Two blocks &rarr; two sites</h3>
+                            <div id="homeworkBlockGrade" class="homework-copy-block homework-copy-block--grade">
+                                <div class="homework-copy-block-header">
+                                    <div class="homework-copy-block-titles">
+                                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">①</span> <span data-i18n="homeworkTabGradingTitle">Grade now</span></h4>
+                                        <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabGradingSubtitle">Homework due at this class</p>
+                                        <p class="homework-copy-block-dest section-hint" data-i18n="homeworkTabGradingDest">Paste into the Simson grading site</p>
+                                    </div>
                                     <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyGradingBtn" data-i18n="homeworkTabCopy">Copy</button>
                                 </div>
-                                <p class="section-hint" data-i18n="homeworkTabGradingHint">Copy this block, open your Simson grading webpage in another tab, and paste there.</p>
                                 <textarea id="homeworkGradingText" class="homework-copy-textarea" rows="8" spellcheck="false" aria-describedby="homeworkGradingSourceHint"></textarea>
                                 <p id="homeworkGradingSourceHint" class="homework-source-hint section-hint" hidden></p>
                             </div>
-                            <div class="homework-copy-section">
-                                <div class="homework-copy-header">
-                                    <h3 data-i18n="homeworkTabAssignTitle">This week &mdash; for homework assignment site</h3>
+                            <div id="homeworkBlockAssign" class="homework-copy-block homework-copy-block--assign">
+                                <div class="homework-copy-block-header">
+                                    <div class="homework-copy-block-titles">
+                                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">②</span> <span data-i18n="homeworkTabAssignTitle">Assign now</span></h4>
+                                        <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabAssignSubtitle">Homework to assign for next class</p>
+                                    </div>
                                 </div>
                                 <div class="homework-due-block homework-due-block--assign">
-                                    <span class="homework-due-label" data-i18n="homeworkTabDueDate">Homework due (next class)</span>
+                                    <span class="homework-due-label" data-i18n="homeworkTabDueNextClass">Due next class</span>
                                     <div class="homework-due-date-row">
                                         <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
                                         <button type="button" id="homeworkCopyDueDateBtn" class="btn btn-outline btn-small homework-copy-btn" data-i18n="homeworkTabCopyDate">Copy date</button>
                                     </div>
-                                    <p class="homework-copy-homework-title" data-i18n="homeworkTabCopyHomeworkTitle">Homework text &mdash; paste into the description field on your homework assignment site.</p>
                                     <div class="homework-copy-actions-stack">
                                         <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopyHomework">Copy homework</button>
                                     </div>
@@ -858,7 +888,8 @@
                                 <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
                             </div>
                             <div class="homework-copy-actions">
-                                <button type="button" class="btn btn-outline btn-small" id="homeworkCopyBothBtn" data-i18n="homeworkTabCopyBoth">Copy grading + assignment</button>
+                                <button type="button" class="btn btn-outline btn-small" id="homeworkCopyBothBtn" data-i18n="homeworkTabCopyBoth">Copy both blocks</button>
+                                <p class="section-hint homework-copy-both-hint" data-i18n="homeworkTabCopyBothHint">Grading + assignment in one clipboard block, with headers.</p>
                             </div>
                         </div>
                     </div>
@@ -1567,6 +1598,45 @@
         </div>
     </div>
 
+    <div id="teacherSyllabusPrintModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="teacherSyllabusPrintModalTitle">
+        <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
+            <div class="modal-header">
+                <h2 id="teacherSyllabusPrintModalTitle" data-i18n="teacherSyllabusPrintTitle">Print syllabus</h2>
+                <button type="button" class="modal-close" id="closeTeacherSyllabusPrintModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll">
+                <form id="teacherSyllabusPrintForm" class="print-options-form teacher-syllabus-print-form">
+                    <div class="form-actions print-form-header-actions">
+                        <button type="button" class="btn btn-outline" id="teacherSyllabusPrintCancelBtn" data-i18n="cancel">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="teacherSyllabusPrintRunBtn" data-i18n="printBtn">Print</button>
+                    </div>
+                    <section class="print-form-section" aria-labelledby="teacherSyllabusPrintOptionsTitle">
+                        <h3 id="teacherSyllabusPrintOptionsTitle" class="print-form-section-title" data-i18n="teacherSyllabusPrintOptions">Print options</h3>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="teacherSyllabusPrintShowDate" checked>
+                                <span data-i18n="syllabusPrintShowDateColumn">Show Date column</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="teacherSyllabusPrintWeekFormat" data-i18n="syllabusPrintWeekFormat">Week column</label>
+                            <select id="teacherSyllabusPrintWeekFormat" class="form-control">
+                                <option value="abbrev" data-i18n="syllabusPrintWeekFormatAbbrev">Date range (Jul 6–10)</option>
+                                <option value="index" data-i18n="syllabusPrintWeekFormatIndex">Week number only (W1, W2)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="teacherSyllabusPrintDetailAppendix">
+                                <span data-i18n="printSyllabusDetailAppendix">Include homework detail pages (appendix)</span>
+                            </label>
+                        </div>
+                    </section>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="printOptionsModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="printOptionsModalTitle">
         <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
             <div class="modal-header">
@@ -1899,14 +1969,14 @@
     </div>
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
-    <script defer src="js/tab-warnings.js?v=20260629-classmanager-redesign"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260629-classmanager-redesign"></script>
+    <script defer src="js/tab-warnings.js?v=20260629-cohort-nav-clear"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260630-homework-copy-redesign"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
-    <script defer src="js/class-color-tile.js?v=20260629-classmanager-redesign"></script>
-    <script defer src="app.js?v=20260629-calendar-filter-toolbar"></script>
+    <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
+    <script defer src="app.js?v=20260630-homework-sidebar-height"></script>
 </body>
 </html>
 

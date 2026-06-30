@@ -53,7 +53,14 @@
     /** month | week | date | plan — % of main grid (85% page); plan gets the rest */
     const SYLLABUS_JINDO_MAIN_COL_WIDTHS = ['11%', '9%', '10%', '70%'];
     /** Modern A4 main grid: Month | Week | Date | Lesson plan | Pages/detail */
-    const SYLLABUS_MODERN_MAIN_COL_WIDTHS = ['11%', '9%', '10%', '35%', '35%'];
+    /** Modern teacher A4: main table columns (within flex main); note aside is separate. */
+    const SYLLABUS_MODERN_NOTE_COL_WIDTH = '14%';
+    const SYLLABUS_MODERN_MAIN_COL_WIDTHS = ['9%', '8%', '8%', '34%', '31%'];
+    /** Reference row font for Print Styles A4 div layout (matches css/syllabus-print-a4.css). */
+    const SYLLABUS_MODERN_PRINT_ROW_PX = 12.5;
+    const SYLLABUS_MODERN_PRINT_HEAD_PX = 11;
+    /** Extra px reserved so modern print footer + bottom border are not clipped. */
+    const SYLLABUS_MODERN_PRINT_BOTTOM_FUDGE_PX = 10;
     const MIN_SYLLABUS_PRINT_SCALE = 0.92;
     const SYLLABUS_A4_REFERENCE = {
         titlePt: 12,
@@ -118,12 +125,81 @@
     }
 
     function renderModernPrintNoteAside(noteHeader, notesInnerHtml) {
-        const header = escapeHtml(noteHeader || 'Note');
+        const header = escapeHtml(noteHeader || 'Notes');
         const body = notesInnerHtml || '';
-        return '<aside class="syllabus-modern-print-note" aria-label="' + header + '">'
-            + `<div class="syllabus-modern-print-note__head">${header}</div>`
-            + `<div class="syllabus-modern-print-note__body">${body}</div>`
+        return '<aside class="syllabus-a4-print-note syllabus-modern-print-note" aria-label="' + header + '">'
+            + `<div class="syllabus-a4-print-note__head syllabus-modern-print-note__head syllabus-th-note">${header}</div>`
+            + `<div class="syllabus-a4-print-note__body syllabus-modern-print-note__body">${body}</div>`
             + '</aside>';
+    }
+
+    /** Modern A4 plan column: lesson title only (pages/detail is a separate column). */
+    function renderModernPrintPlanCell(row) {
+        const title = escapeHtml(row.planTitle || '');
+        if (!title) {
+            return '';
+        }
+        const kind = row.kind || 'lesson';
+        if (kind === 'note') {
+            return '';
+        }
+        return `<span class="syllabus-print-title">${title}</span>`;
+    }
+
+    /** Print Styles (A4) div rows — flat month/week (no rowspan). */
+    function renderModernPrintDivRows(normalized, merge, labels) {
+        const L = labels || {};
+        const showDate = L.showDateColumn !== false;
+        let html = '';
+        normalized.forEach((row, i) => {
+            const rowClass = syllabusRowClass(row);
+            const rowStyleAttr = syllabusCellStyleAttr(row);
+            const monthText = merge.monthRowspan[i] > 0 ? escapeHtml(merge.monthDisplays[i]) : '';
+            const weekText = merge.weekRowspan[i] > 0 ? escapeHtml(merge.weekDisplays[i] || '') : '';
+            const dateOrSessionDisplay = row.date
+                ? formatModernPrintDate(row.date)
+                : (row.kind !== 'note' && row.sessionNumber > 0 ? String(row.sessionNumber) : '');
+            html += `<div class="syllabus-a4-print-row ${rowClass}"${rowStyleAttr}>`;
+            html += `<div class="syllabus-a4-print-col-month">${monthText}</div>`;
+            html += `<div class="syllabus-a4-print-col-week">${weekText}</div>`;
+            if (showDate) {
+                html += `<div class="syllabus-a4-print-col-date">${escapeHtml(dateOrSessionDisplay)}</div>`;
+            }
+            html += `<div class="syllabus-a4-print-col-plan">${renderModernPrintPlanCell(row)}</div>`;
+            html += `<div class="syllabus-a4-print-col-pages">${renderPagesDetailCell(row)}</div>`;
+            html += '</div>';
+        });
+        return html;
+    }
+
+    /** Print Styles (A4) standalone mockup layout (flex grid + note aside). */
+    function renderModernPrintDivLayout(L, normalized, merge, modernNotesHtml) {
+        const weekFormat = L.weekFormat || 'abbrev';
+        const showDate = L.showDateColumn !== false;
+        const weekFormatCls = weekFormat === 'index'
+            ? ' syllabus-a4-print-week--index'
+            : ' syllabus-a4-print-week--abbrev';
+        const dateCls = showDate ? '' : ' syllabus-a4-print--no-date';
+        let html = `<div class="syllabus-a4-print-grid syllabus-modern-print-shell${weekFormatCls}${dateCls}">`;
+        html += '<div class="syllabus-a4-print-main syllabus-modern-print-main">';
+        html += '<div class="syllabus-a4-print-head">';
+        html += `<div class="syllabus-a4-print-col-month">${escapeHtml(L.colMonth || 'Month')}</div>`;
+        html += `<div class="syllabus-a4-print-col-week">${escapeHtml(L.colWeek || 'Week')}</div>`;
+        if (showDate) {
+            html += `<div class="syllabus-a4-print-col-date">${escapeHtml(L.colDate || 'Date')}</div>`;
+        }
+        html += `<div class="syllabus-a4-print-col-plan">${escapeHtml(L.colPlanPrint || L.colPlan || 'Lesson plan')}</div>`;
+        html += `<div class="syllabus-a4-print-col-pages">${escapeHtml(L.colPagesDetail || 'Pages / detail')}</div>`;
+        html += '</div>';
+        html += '<div class="syllabus-a4-print-body">';
+        html += renderModernPrintDivRows(normalized, merge, L);
+        html += '</div></div>';
+        html += renderModernPrintNoteAside(L.colNote || 'Notes', modernNotesHtml);
+        html += '</div>';
+        html += '<div class="syllabus-print-footer">'
+            + '<span>ClassManager · Header repeats on every page · rows never split across pages</span>'
+            + '</div>';
+        return html;
     }
 
     function renderPagesDetailCell(row) {
@@ -132,7 +208,8 @@
             return '';
         }
         const sections = splitPlanDetailSections(detail);
-        const covered = sections.covered || detail;
+        let covered = sections.covered || detail;
+        covered = stripRedundantPlanDetailLines(row.planTitle, covered);
         return escapeHtml(covered);
     }
 
@@ -1291,7 +1368,15 @@
         return carryMonth || '';
     }
 
-    function getRowWeekDisplay(row, useFullMonth, carryWeek, useCompactWeek) {
+    function getRowWeekDisplay(row, useFullMonth, carryWeek, useCompactWeek, options) {
+        const opts = options || {};
+        const weekFormat = opts.weekFormat || 'stored';
+        if (weekFormat === 'abbrev' && row.date) {
+            return getSchoolWeekLabel(row.date, false);
+        }
+        if (weekFormat === 'compact' && row.date) {
+            return getSchoolWeekLabelCompact(row.date);
+        }
         let week = (row.weekLabel || '').trim();
         if (!week && row.date) {
             week = useCompactWeek
@@ -1306,8 +1391,11 @@
 
     /**
      * Month/week rowspan groups (PDF-style: one merged cell per month, one per school week).
+     * @param {object} [options] - weekFormat: 'stored' | 'abbrev' | 'index' | 'compact'; useKoreanWeek for index
      */
-    function computeSyllabusCellMerges(rows, useFullMonth, useCompactWeek) {
+    function computeSyllabusCellMerges(rows, useFullMonth, useCompactWeek, options) {
+        const opts = options || {};
+        const weekFormat = opts.weekFormat || 'stored';
         const n = rows.length;
         const monthDisplays = [];
         const weekDisplays = [];
@@ -1315,11 +1403,19 @@
         const weekRowspan = new Array(n).fill(0);
         let carryMonth = '';
         let carryWeek = '';
+        const indexWeekDisplays = weekFormat === 'index'
+            ? computeJindoWeekDisplays(rows, opts.useKoreanWeek === true)
+            : null;
 
         for (let i = 0; i < n; i += 1) {
             const row = rows[i];
             const month = getRowMonthDisplay(row, useFullMonth, carryMonth);
-            const week = getRowWeekDisplay(row, useFullMonth, carryWeek, useCompactWeek);
+            let week;
+            if (indexWeekDisplays) {
+                week = indexWeekDisplays[i] || carryWeek;
+            } else {
+                week = getRowWeekDisplay(row, useFullMonth, carryWeek, useCompactWeek, opts);
+            }
             if (month) {
                 carryMonth = month;
             }
@@ -1401,8 +1497,12 @@
         const normalized = normalizeRows(printRows);
         const useFullMonth = !pdfLayout;
         const useCompactWeek = pdfLayout && !jindoLayout;
+        const weekFormat = L.weekFormat || (modernPdf ? 'abbrev' : 'stored');
         const merge = modernPdf
-            ? computeSyllabusCellMerges(normalized, false, true)
+            ? computeSyllabusCellMerges(normalized, false, false, {
+                weekFormat,
+                useKoreanWeek: L.useKoreanJindo === true
+            })
             : jindoLayout
                 ? computeJindoCellMerges(normalized, L)
                 : computeSyllabusCellMerges(normalized, useFullMonth, useCompactWeek);
@@ -1456,45 +1556,7 @@
         const gridClose = pdfLayout && jindoLayout && !modernPdf ? '</div>' : '';
 
         if (modernPdf) {
-            const tableClass = 'syllabus-table syllabus-table-pdf syllabus-table-modern';
-            let html = headerBlock;
-            html += '<div class="syllabus-modern-print-shell">';
-            html += '<div class="syllabus-modern-print-main">';
-            html += `<table class="${tableClass}">`;
-            html += '<colgroup>';
-            SYLLABUS_MODERN_MAIN_COL_WIDTHS.forEach((w) => {
-                html += `<col style="width:${w}">`;
-            });
-            html += '</colgroup>';
-            html += '<thead><tr>';
-            html += `<th class="syllabus-th-month">${escapeHtml(L.colMonth || 'Month')}</th>`;
-            html += `<th class="syllabus-th-week">${escapeHtml(L.colWeek || 'Week')}</th>`;
-            html += `<th class="syllabus-th-date">${escapeHtml(L.colDate || 'Date')}</th>`;
-            html += `<th class="syllabus-th-plan">${escapeHtml(L.colPlanPrint || L.colPlan || 'Lesson plan')}</th>`;
-            html += `<th class="syllabus-th-pages">${escapeHtml(L.colPagesDetail || 'Pages / detail')}</th>`;
-            html += '</tr></thead><tbody>';
-
-            normalized.forEach((row, i) => {
-                const dateOrSessionDisplay = row.date
-                    ? formatModernPrintDate(row.date)
-                    : (row.kind !== 'note' && row.sessionNumber > 0 ? String(row.sessionNumber) : '');
-                const trClass = syllabusRowClass(row);
-                const cellStyle = syllabusCellStyleAttr(row);
-                html += `<tr class="${trClass}">`;
-                html += renderMergedMonthWeekCells(i, merge, false, cellStyle, false);
-                html += `<td class="syllabus-col-date"${cellStyle}>${escapeHtml(dateOrSessionDisplay)}</td>`;
-                html += `<td class="syllabus-col-plan"${cellStyle}>${renderPlanCellBrief(row)}</td>`;
-                html += `<td class="syllabus-col-pages"${cellStyle}>${renderPagesDetailCell(row)}</td>`;
-                html += '</tr>';
-            });
-
-            html += '</tbody></table></div>';
-            html += renderModernPrintNoteAside(L.colNote || 'Note', modernNotesHtml);
-            html += '</div>';
-            html += '<div class="syllabus-print-footer">'
-                + '<span>ClassManager · Header repeats on every page · rows never split across pages</span>'
-                + '</div>';
-            return html;
+            return headerBlock + renderModernPrintDivLayout(L, normalized, merge, modernNotesHtml);
         }
 
         let html = `${headerBlock}${gridOpen}<table class="${tableClass}">`;
@@ -1659,130 +1721,6 @@ body { font-family: "DM Sans", Arial, sans-serif; font-size: 11pt; color: #111; 
 .syllabus-plan-subline { display: block; font-size: 0.88em; margin-top: 3px; font-style: italic; opacity: 0.92; }
 .syllabus-plan-subline-emphasis { font-style: normal; font-weight: 500; }
 .syllabus-row-holiday td { border-color: #d97706; background-color: #fef3c7; color: #b45309; }
-.syllabus-table-modern .syllabus-row-holiday td { background-color: #fef3c7; }
-.syllabus-table-modern .syllabus-row-event.syllabus-row-evaluation_deadline td,
-.syllabus-table-modern .syllabus-row-test td {
-    box-shadow: inset 4px 0 0 #c0392b;
-}
-.syllabus-table-modern th {
-    background: #f4f6f9;
-    border-color: #c9d2dd;
-}
-.syllabus-print-title-block {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding-bottom: 3mm;
-  border-bottom: 2px solid #1c2430;
-  margin-bottom: 3.5mm;
-  flex-shrink: 0;
-}
-.syllabus-print-title-block__name {
-  font-size: 20px;
-  font-weight: 700;
-  color: #1c2430;
-  line-height: 1.15;
-}
-.syllabus-print-title-block__meta {
-  font-size: 12px;
-  color: #5a6a80;
-  margin-top: 2px;
-}
-.syllabus-print-title-block__page {
-  font-size: 11px;
-  color: #8893a3;
-  white-space: nowrap;
-}
-.syllabus-modern-print-shell {
-  border: 1px solid #c9d2dd;
-  border-radius: 6px;
-  overflow: hidden;
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  min-height: 0;
-  box-sizing: border-box;
-}
-.syllabus-modern-print-main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #c9d2dd;
-}
-.syllabus-table-modern {
-  width: 100%;
-  border-collapse: collapse;
-  border: none !important;
-  table-layout: fixed;
-}
-.syllabus-table-modern th,
-.syllabus-table-modern td {
-  border: 1px solid #eef1f5;
-  padding: 8px 10px;
-  vertical-align: middle;
-  font-size: 12.5px;
-  box-sizing: border-box;
-}
-.syllabus-table-modern thead th {
-  background: #f4f6f9;
-  border-bottom: 1px solid #c9d2dd;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #5a6a80;
-  text-transform: uppercase;
-}
-.syllabus-table-modern .syllabus-th-month { width: 56px; }
-.syllabus-table-modern .syllabus-th-week { width: 52px; }
-.syllabus-table-modern .syllabus-th-date { width: 62px; }
-.syllabus-modern-print-note {
-  flex: 0 0 200px;
-  width: 200px;
-  max-width: 200px;
-  display: flex;
-  flex-direction: column;
-  background: #fcfdfe;
-  box-sizing: border-box;
-}
-.syllabus-modern-print-note__head {
-  padding: 8px 10px;
-  background: #f4f6f9;
-  border-bottom: 1px solid #c9d2dd;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #5a6a80;
-  text-transform: uppercase;
-  box-sizing: border-box;
-}
-.syllabus-modern-print-note__body {
-  flex: 1 1 auto;
-  padding: 11px 12px;
-  font-size: 12px;
-  color: #33414f;
-  line-height: 1.55;
-  white-space: pre-line;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-.syllabus-print-footer {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 2.5mm;
-  font-size: 10px;
-  color: #8893a3;
-  flex-shrink: 0;
-}
-.syllabus-a4-page .syllabus-table-modern {
-  border: none !important;
-}
-.syllabus-a4-page .syllabus-class-block {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
 .syllabus-row-event td { border-color: #7c3aed; background-color: #e9d5ff; color: #6b21a1; }
 .syllabus-row-event.syllabus-row-evaluation_deadline td { border-color: #991b1b; background-color: #fecaca; color: #991b1b; }
 .syllabus-row-event.syllabus-row-homework_deadline td { border-color: #1e40af; background-color: #dbeafe; color: #1e40af; }
@@ -1791,6 +1729,628 @@ body { font-family: "DM Sans", Arial, sans-serif; font-size: 11pt; color: #111; 
 .syllabus-row-extra td { border-color: #6b7280; border-style: dashed; background-color: #e5e7eb; color: #374151; }
 .syllabus-row-overflow td { border-color: #9ca3af; }
 .syllabus-row-note td { background: #fafafa; font-style: italic; }
+`;
+
+    const SYLLABUS_PRINT_A4_CSS = `
+/* SYLLABUS_PRINT_A4_CSS_START */
+/**
+
+ * Syllabus A4 portrait print — source of truth from Print Styles (A4) standalone mockup.
+
+ * Synced into js/syllabus-table.js export CSS via npm run css:split.
+
+ */
+
+
+
+/* Page shell (screen preview + export) */
+
+.syllabus-a4-print-page {
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  display: flex;
+
+  flex-direction: column;
+
+}
+
+
+
+/* Title block */
+
+.syllabus-print-title-block {
+
+  display: flex;
+
+  align-items: flex-end;
+
+  justify-content: space-between;
+
+  padding-bottom: 12px;
+
+  border-bottom: 2px solid #1c2430;
+
+  margin-bottom: 14px;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-print-title-block__name {
+
+  font-size: 20px;
+
+  font-weight: 700;
+
+  color: #1c2430;
+
+  line-height: 1.15;
+
+}
+
+.syllabus-print-title-block__meta {
+
+  font-size: 12px;
+
+  color: #5a6a80;
+
+  margin-top: 2px;
+
+}
+
+.syllabus-print-title-block__page {
+
+  font-size: 11px;
+
+  color: #8893a3;
+
+  white-space: nowrap;
+
+}
+
+
+
+/* Main grid: lesson table + note aside */
+
+.syllabus-a4-print-grid,
+
+.syllabus-modern-print-shell {
+
+  border: 1px solid #c9d2dd;
+
+  border-radius: 6px;
+
+  overflow: hidden;
+
+  flex: 0 0 auto;
+
+  display: flex;
+
+  flex-direction: row;
+
+  align-items: stretch;
+
+  min-height: 0;
+
+  box-sizing: border-box;
+
+  width: 100%;
+
+}
+
+
+
+.syllabus-a4-print-main,
+
+.syllabus-modern-print-main {
+
+  flex: 1 1 0;
+
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  border-right: 1px solid #c9d2dd;
+
+}
+
+
+
+/* Header row */
+
+.syllabus-a4-print-head {
+
+  display: flex;
+
+  background: #f4f6f9;
+
+  border-bottom: 1px solid #c9d2dd;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+
+  color: #5a6a80;
+
+  text-transform: uppercase;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-month {
+
+  width: 44px;
+
+  padding: 8px 4px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  letter-spacing: 0.02em;
+
+  white-space: nowrap;
+
+  overflow: visible;
+
+  text-overflow: clip;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-week {
+
+  width: 58px;
+
+  padding: 8px 4px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  letter-spacing: 0.02em;
+
+  white-space: nowrap;
+
+  overflow: visible;
+
+  text-overflow: clip;
+
+}
+
+.syllabus-a4-print-week--index .syllabus-a4-print-head .syllabus-a4-print-col-week {
+
+  width: 36px;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-date {
+
+  width: 62px;
+
+  padding: 8px 4px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  letter-spacing: 0.02em;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-plan {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  border-right: 1px solid #e3e8ef;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+}
+
+.syllabus-a4-print-head .syllabus-a4-print-col-pages {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+}
+
+
+
+/* Body rows */
+
+.syllabus-a4-print-body {
+
+  display: flex;
+
+  flex-direction: column;
+
+  flex: 1 1 auto;
+
+  min-height: 0;
+
+}
+
+.syllabus-a4-print-row {
+
+  flex: 1 1 0;
+
+  display: flex;
+
+  border-bottom: 1px solid #eef1f5;
+
+  font-size: 12.5px;
+
+  line-height: 1.25;
+
+  align-items: center;
+
+  min-height: 0;
+
+  box-sizing: border-box;
+
+}
+
+.syllabus-a4-print-row:last-child {
+
+  border-bottom: none;
+
+}
+
+.syllabus-a4-page .syllabus-a4-print-row:last-child {
+
+  border-bottom: 1px solid #eef1f5;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-month {
+
+  width: 40px;
+
+  padding: 6px 4px;
+
+  border-right: 1px solid #eef1f5;
+
+  font-weight: 700;
+
+  font-size: 11px;
+
+  color: #5a6a80;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-week {
+
+  width: 58px;
+
+  padding: 6px 4px;
+
+  border-right: 1px solid #eef1f5;
+
+  color: #5a6a80;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-week--index .syllabus-a4-print-row .syllabus-a4-print-col-week {
+
+  width: 36px;
+
+}
+
+.syllabus-a4-print-week--abbrev .syllabus-a4-print-row .syllabus-a4-print-col-week {
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-date {
+
+  width: 62px;
+
+  padding: 6px 4px;
+
+  border-right: 1px solid #eef1f5;
+
+  color: #33414f;
+
+  font-weight: 600;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-plan {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  border-right: 1px solid #eef1f5;
+
+  color: #1c2430;
+
+  font-weight: 600;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+  overflow: hidden;
+
+  line-height: 1.25;
+
+  white-space: nowrap;
+
+  text-overflow: ellipsis;
+
+}
+
+.syllabus-a4-print-row .syllabus-a4-print-col-pages {
+
+  flex: 1 1 0;
+
+  padding: 8px 10px;
+
+  color: #33414f;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+  overflow: hidden;
+
+  line-height: 1.25;
+
+  white-space: nowrap;
+
+  text-overflow: ellipsis;
+
+}
+
+
+
+/* Row kinds (Print Styles mockup) */
+
+.syllabus-a4-print-row.syllabus-row-holiday {
+
+  background: #fef3c7;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-date,
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-plan {
+
+  color: #b07d18;
+
+  font-weight: 700;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-plan,
+
+.syllabus-a4-print-row.syllabus-row-holiday .syllabus-a4-print-col-pages {
+
+  white-space: normal;
+
+  text-overflow: clip;
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+
+  -webkit-box-orient: vertical;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-test td,
+
+.syllabus-a4-print-row.syllabus-row-evaluation_deadline {
+
+  box-shadow: inset 4px 0 0 #c0392b;
+
+}
+
+.syllabus-a4-print-row.syllabus-row-test .syllabus-a4-print-col-date,
+
+.syllabus-a4-print-row.syllabus-row-test .syllabus-a4-print-col-plan,
+
+.syllabus-a4-print-row.syllabus-row-evaluation_deadline .syllabus-a4-print-col-date,
+
+.syllabus-a4-print-row.syllabus-row-evaluation_deadline .syllabus-a4-print-col-plan {
+
+  color: #c0392b;
+
+  font-weight: 700;
+
+}
+
+
+
+/* Note aside */
+
+.syllabus-a4-print-note,
+
+.syllabus-modern-print-note {
+
+  width: 200px;
+
+  flex: 0 0 200px;
+
+  max-width: 200px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  background: #fcfdfe;
+
+  box-sizing: border-box;
+
+}
+
+.syllabus-a4-print-note__head,
+
+.syllabus-modern-print-note__head {
+
+  padding: 8px 10px;
+
+  background: #f4f6f9;
+
+  border-bottom: 1px solid #c9d2dd;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+
+  color: #5a6a80;
+
+  text-transform: uppercase;
+
+  box-sizing: border-box;
+
+  display: flex;
+
+  align-items: center;
+
+  flex-shrink: 0;
+
+}
+
+.syllabus-a4-print-note__body,
+
+.syllabus-modern-print-note__body {
+
+  flex: 1 1 auto;
+
+  padding: 11px 12px;
+
+  font-size: 12px;
+
+  color: #33414f;
+
+  line-height: 1.55;
+
+  white-space: pre-line;
+
+  overflow: hidden;
+
+  box-sizing: border-box;
+
+}
+
+
+
+.syllabus-print-footer {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  padding-top: 10px;
+
+  font-size: 10px;
+
+  color: #8893a3;
+
+  flex-shrink: 0;
+
+}
+
+
+
+.syllabus-print-plan-brief {
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+
+  -webkit-box-orient: vertical;
+
+  overflow: hidden;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* A4 fitted page overrides */
+.syllabus-a4-page .syllabus-a4-print-grid,
+.syllabus-a4-page .syllabus-modern-print-shell {
+  border: 1px solid #c9d2dd;
+  border-radius: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+  flex: 0 0 auto;
+}
+.syllabus-a4-page .syllabus-a4-print-main,
+.syllabus-a4-page .syllabus-modern-print-main {
+  border-right: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: visible;
+}
+.syllabus-a4-page .syllabus-a4-print-note,
+.syllabus-a4-page .syllabus-modern-print-note {
+  position: relative;
+  flex: 0 0 200px;
+  width: 200px;
+  max-width: 200px;
+  overflow: hidden;
+}
+.syllabus-a4-page .syllabus-a4-print-note__body,
+.syllabus-a4-page .syllabus-modern-print-note__body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-right: 1px solid #c9d2dd;
+  border-bottom: 1px solid #c9d2dd;
+  flex: none;
+}
+.syllabus-a4-page .syllabus-class-block:has(.syllabus-a4-print-grid),
+.syllabus-a4-page .syllabus-class-block:has(.syllabus-modern-print-shell) {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.syllabus-a4-page .syllabus-print-footer {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+}
+/* SYLLABUS_PRINT_A4_CSS_END */
 `;
 
     const A4_PDF_CSS = `
@@ -1825,7 +2385,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
   max-height: ${SYLLABUS_A4_PAGE.fitContentH}mm;
   box-sizing: border-box;
   margin: 0;
-  padding: 0 0 4mm 0;
+  padding: 0 0 5mm 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2220,7 +2780,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
     }
 
     function getSyllabusExportStyles(a4Pdf) {
-        return a4Pdf ? `${EXPORT_CSS}\n${A4_PDF_CSS}` : EXPORT_CSS;
+        return a4Pdf ? `${EXPORT_CSS}\n${SYLLABUS_PRINT_A4_CSS}\n${A4_PDF_CSS}` : EXPORT_CSS;
     }
 
     function measureMmToPx(doc) {
@@ -2326,7 +2886,9 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             el.style.marginBottom = '';
             el.style.marginTop = '';
             el.style.height = '';
+            el.style.minHeight = '';
             el.style.maxHeight = '';
+            el.style.flexShrink = '';
             el.style.overflow = '';
             el.style.verticalAlign = '';
             el.style.position = '';
@@ -2334,6 +2896,9 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             el.style.right = '';
             el.style.bottom = '';
             el.style.left = '';
+            el.style.flex = '';
+            el.style.flexGrow = '';
+            el.style.flexShrink = '';
             el.style.display = '';
             el.removeAttribute('data-syllabus-scaled');
         });
@@ -2394,7 +2959,26 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             table.dataset.syllabusScaled = '1';
         }
 
-        pageEl.querySelectorAll('.syllabus-table th').forEach(th => {
+        const modernMain = pageEl.querySelector('.syllabus-a4-print-main');
+        if (modernMain) {
+            const rowPx = SYLLABUS_MODERN_PRINT_ROW_PX * lessonScale;
+            const headPx = SYLLABUS_MODERN_PRINT_HEAD_PX * lessonScale;
+            modernMain.querySelectorAll('.syllabus-a4-print-head').forEach((head) => {
+                head.style.fontSize = `${headPx}px`;
+                head.style.lineHeight = '1.2';
+                head.dataset.syllabusScaled = '1';
+            });
+            modernMain.querySelectorAll('.syllabus-a4-print-row').forEach((row) => {
+                row.style.fontSize = `${rowPx}px`;
+                row.style.lineHeight = '1.25';
+                row.dataset.syllabusScaled = '1';
+            });
+        }
+
+        pageEl.querySelectorAll('.syllabus-table th, .syllabus-a4-print-head, .syllabus-a4-print-note__head, .syllabus-modern-print-note__head.syllabus-th-note').forEach(th => {
+            if (modernMain && th.closest('.syllabus-a4-print-main')) {
+                return;
+            }
             const scale = th.classList.contains('syllabus-th-note') ? noteScaleFinal : lessonScale;
             th.style.fontSize = `${base.th * scale}pt`;
             const padScale = th.classList.contains('syllabus-th-note') ? noteScaleFinal : lessonScale;
@@ -2411,8 +2995,14 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
 
         pageEl.querySelectorAll(
             '.syllabus-col-month, .syllabus-col-year, .syllabus-col-week, '
-            + '.syllabus-col-date, .syllabus-col-class, .syllabus-col-plan'
+            + '.syllabus-col-date, .syllabus-col-class, .syllabus-col-plan, '
+            + '.syllabus-a4-print-head, .syllabus-a4-print-row, '
+            + '.syllabus-a4-print-col-month, .syllabus-a4-print-col-week, '
+            + '.syllabus-a4-print-col-date, .syllabus-a4-print-col-plan, .syllabus-a4-print-col-pages'
         ).forEach(el => {
+            if (modernMain && el.closest('.syllabus-a4-print-main')) {
+                return;
+            }
             el.style.fontSize = `${base.table * lessonScale}pt`;
             el.dataset.syllabusScaled = '1';
         });
@@ -2422,6 +3012,9 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             + '.syllabus-plan-detail, .syllabus-plan-subline, .syllabus-print-covered, '
             + '.syllabus-print-homework-full'
         ).forEach(el => {
+            if (modernMain && el.closest('.syllabus-a4-print-main')) {
+                return;
+            }
             if (el.closest('.syllabus-col-note, .syllabus-note-merged, .syllabus-jindo-note')) {
                 return;
             }
@@ -2446,7 +3039,7 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             + '.syllabus-table-jindo-notes .syllabus-jindo-notes-body-cell, '
             + '.syllabus-jindo-note-body, '
             + '.syllabus-col-note, .syllabus-note-merged, '
-            + '.syllabus-modern-print-note__head, .syllabus-modern-print-note__body'
+            + '.syllabus-a4-print-note__body, .syllabus-modern-print-note__body'
         ).forEach(el => {
             el.style.fontSize = `${base.table * noteScaleFinal}pt`;
             el.style.lineHeight = '1.35';
@@ -2500,6 +3093,62 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
 
     function isContinuationPrintPage(pageEl) {
         return Boolean(pageEl && pageEl.classList.contains('syllabus-a4-continuation-page'));
+    }
+
+    function measureModernPrintGridHeight(mainTable) {
+        if (!mainTable) {
+            return 0;
+        }
+        void mainTable.offsetHeight;
+        const scrollH = mainTable.scrollHeight || 0;
+        const offsetH = mainTable.offsetHeight || 0;
+        return Math.max(scrollH, offsetH);
+    }
+
+    function getModernPrintPageContentHeightPx(pageEl) {
+        const title = pageEl.querySelector('.syllabus-print-title-block, .syllabus-pdf-title');
+        const footer = pageEl.querySelector('.syllabus-print-footer');
+        const main = pageEl.querySelector('.syllabus-a4-print-main, .syllabus-table-modern');
+        const titleH = title ? title.offsetHeight : 0;
+        const footerH = footer ? footer.offsetHeight : 0;
+        const tableH = main ? measureModernPrintGridHeight(main) : 0;
+        return titleH + tableH + footerH;
+    }
+
+    function distributeStretchRowHeights(rows, tbodyFit) {
+        const n = rows.length;
+        if (!n || tbodyFit <= 0) {
+            return [];
+        }
+        const base = Math.floor(tbodyFit / n);
+        let remainder = tbodyFit - base * n;
+        return rows.map(() => {
+            const extra = remainder > 0 ? 1 : 0;
+            if (remainder > 0) {
+                remainder -= 1;
+            }
+            return base + extra;
+        });
+    }
+
+    function applyStretchRowHeights(rows, rowHeights, tdSelector) {
+        rows.forEach((tr, idx) => {
+            const rowH = rowHeights[idx];
+            tr.style.height = `${rowH}px`;
+            tr.style.minHeight = `${rowH}px`;
+            tr.style.maxHeight = '';
+            tr.dataset.syllabusScaled = '1';
+            tr.querySelectorAll(tdSelector).forEach((td) => {
+                if (isSyllabusNoteCell(td)) {
+                    return;
+                }
+                td.style.height = `${rowH}px`;
+                td.style.minHeight = `${rowH}px`;
+                td.style.maxHeight = '';
+                td.style.verticalAlign = 'middle';
+                td.dataset.syllabusScaled = '1';
+            });
+        });
     }
 
     function applyLessonGroupCellOverflow(td) {
@@ -2565,7 +3214,9 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         });
     }
 
-    function stretchJindoMainTable(mainTable, layoutTargetPx) {
+    function stretchJindoMainTable(mainTable, layoutTargetPx, options) {
+        const opts = options || {};
+        const tbodyFill = opts.tbodyFill != null ? opts.tbodyFill : 0.992;
         const tbody = mainTable.querySelector('tbody');
         const thead = mainTable.querySelector('thead');
         if (!tbody) {
@@ -2585,26 +3236,13 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
             return theadH;
         }
 
-        const tbodyFit = Math.floor(tbodyTarget * 0.992);
+        const tbodyFit = Math.floor(tbodyTarget * tbodyFill);
         tbody.style.height = `${tbodyFit}px`;
         tbody.style.display = 'table-row-group';
-        const rowHpx = Math.floor(tbodyFit / rows.length);
-
-        rows.forEach(tr => {
-            tr.style.height = `${rowHpx}px`;
-            tr.dataset.syllabusScaled = '1';
-            tr.querySelectorAll(
-                'td.syllabus-col-plan, td.syllabus-col-date, td.syllabus-col-class, td.syllabus-cell-merged'
-            ).forEach((td) => {
-                if (isSyllabusNoteCell(td)) {
-                    return;
-                }
-                td.style.height = `${rowHpx}px`;
-                td.style.maxHeight = '';
-                td.style.verticalAlign = 'middle';
-                td.dataset.syllabusScaled = '1';
-            });
-        });
+        const rowHeights = distributeStretchRowHeights(rows, tbodyFit);
+        const tdSelector = 'td.syllabus-col-plan, td.syllabus-col-pages, td.syllabus-col-date, '
+            + 'td.syllabus-col-class, td.syllabus-cell-merged, td.syllabus-col-month, td.syllabus-col-week';
+        applyStretchRowHeights(rows, rowHeights, tdSelector);
         return theadH;
     }
 
@@ -2648,34 +3286,120 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         }
     }
 
-    function syncModernPrintNoteHeight(mainTable, noteAside) {
-        if (!mainTable || !noteAside) {
-            return;
+    function stretchModernPrintBody(mainEl, layoutTargetPx, options) {
+        const opts = options || {};
+        const tbodyFill = opts.tbodyFill != null ? opts.tbodyFill : 1;
+        const head = mainEl.querySelector('.syllabus-a4-print-head');
+        const body = mainEl.querySelector('.syllabus-a4-print-body');
+        if (!body) {
+            return 0;
         }
-        const mainH = mainTable.offsetHeight;
-        const theadH = mainTable.querySelector('thead')?.offsetHeight || 0;
-        const bodyH = Math.max(0, mainH - theadH);
+        mainEl.style.height = `${Math.floor(layoutTargetPx)}px`;
+        mainEl.dataset.syllabusScaled = '1';
 
-        noteAside.style.height = `${mainH}px`;
+        const headH = head ? head.offsetHeight : 0;
+        const bodyTarget = layoutTargetPx - headH;
+        if (bodyTarget <= 0) {
+            return headH;
+        }
+
+        const rows = Array.from(body.querySelectorAll('.syllabus-a4-print-row'));
+        if (!rows.length) {
+            return headH;
+        }
+
+        const bodyFit = Math.floor(bodyTarget * tbodyFill);
+        body.style.height = `${bodyFit}px`;
+        body.style.display = 'flex';
+        body.style.flexDirection = 'column';
+        body.style.flex = '1 1 auto';
+        body.style.minHeight = '0';
+        body.dataset.syllabusScaled = '1';
+
+        const rowHeights = distributeStretchRowHeights(rows, bodyFit);
+        rows.forEach((row, idx) => {
+            const rowH = rowHeights[idx];
+            row.style.height = `${rowH}px`;
+            row.style.minHeight = `${rowH}px`;
+            row.style.maxHeight = '';
+            row.style.flex = '0 0 auto';
+            row.style.alignItems = 'center';
+            row.dataset.syllabusScaled = '1';
+            row.querySelectorAll('.syllabus-a4-print-col-plan, .syllabus-a4-print-col-pages').forEach((cell) => {
+                cell.style.height = '';
+                cell.style.minHeight = '';
+                cell.style.maxHeight = '';
+                cell.style.overflow = 'hidden';
+                cell.dataset.syllabusScaled = '1';
+            });
+        });
+        return headH;
+    }
+
+    function syncModernPrintNoteHeight(mainEl, noteAside) {
+        if (!mainEl || !noteAside) {
+            return 0;
+        }
+        const gridH = measureModernPrintGridHeight(mainEl);
+        if (gridH <= 0) {
+            return 0;
+        }
+
+        const head = mainEl.querySelector('.syllabus-a4-print-head, thead');
+        const theadH = head ? head.offsetHeight : 0;
+
+        mainEl.style.height = `${gridH}px`;
+        mainEl.style.minHeight = `${gridH}px`;
+        mainEl.style.maxHeight = '';
+        mainEl.dataset.syllabusScaled = '1';
+
+        noteAside.style.display = 'block';
+        noteAside.style.position = 'relative';
+        noteAside.style.height = `${gridH}px`;
+        noteAside.style.minHeight = `${gridH}px`;
+        noteAside.style.maxHeight = '';
+        noteAside.style.alignSelf = 'flex-start';
+        noteAside.style.boxSizing = 'border-box';
+        noteAside.style.overflow = 'visible';
         noteAside.dataset.syllabusScaled = '1';
 
-        const noteHead = noteAside.querySelector('.syllabus-modern-print-note__head');
+        const noteHead = noteAside.querySelector('.syllabus-a4-print-note__head, .syllabus-modern-print-note__head');
         if (noteHead) {
             noteHead.style.height = `${theadH}px`;
+            noteHead.style.minHeight = `${theadH}px`;
+            noteHead.style.maxHeight = `${theadH}px`;
             noteHead.style.boxSizing = 'border-box';
+            noteHead.style.display = 'flex';
+            noteHead.style.alignItems = 'center';
+            noteHead.style.flexShrink = '0';
             noteHead.dataset.syllabusScaled = '1';
         }
 
-        const noteBody = noteAside.querySelector('.syllabus-modern-print-note__body');
+        void noteAside.offsetHeight;
+        const headH = noteHead ? noteHead.offsetHeight : theadH;
+
+        const noteBody = noteAside.querySelector('.syllabus-a4-print-note__body, .syllabus-modern-print-note__body');
         if (noteBody) {
-            noteBody.style.height = `${bodyH}px`;
+            noteBody.style.position = 'absolute';
+            noteBody.style.top = `${headH}px`;
+            noteBody.style.left = '0';
+            noteBody.style.right = '0';
+            noteBody.style.bottom = '0';
+            noteBody.style.height = '';
+            noteBody.style.minHeight = '';
+            noteBody.style.maxHeight = '';
+            noteBody.style.flex = 'none';
+            noteBody.style.flexShrink = '0';
+            noteBody.style.boxSizing = 'border-box';
             noteBody.style.overflow = 'hidden';
             noteBody.dataset.syllabusScaled = '1';
         }
+
+        return gridH;
     }
 
     /**
-     * Modern A4: main table + side Note column share height; lesson rows split evenly.
+     * Modern A4: Print Styles div grid + side Note column share height; lesson rows split evenly.
      */
     function stretchModernPrintLayout(pageEl, contentHpx, mmPx) {
         if (isContinuationPrintPage(pageEl)) {
@@ -2683,43 +3407,84 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         }
         const title = pageEl.querySelector('.syllabus-print-title-block');
         const footer = pageEl.querySelector('.syllabus-print-footer');
-        const shell = pageEl.querySelector('.syllabus-modern-print-shell');
-        const mainTable = shell?.querySelector('.syllabus-table-modern');
-        if (!shell || !mainTable) {
+        const shell = pageEl.querySelector('.syllabus-modern-print-shell, .syllabus-a4-print-grid');
+        const mainEl = shell?.querySelector('.syllabus-a4-print-main, .syllabus-table-modern');
+        if (!shell || !mainEl) {
             return;
         }
 
+        const noteWidth = '200px';
         const fitHpx = getSyllabusStretchHeightPx(pageEl, contentHpx, mmPx);
         const titleH = title ? title.offsetHeight : 0;
         const footerH = footer ? footer.offsetHeight : 0;
-        const layoutTarget = fitHpx - titleH - footerH;
+        const layoutTarget = fitHpx - titleH - footerH - SYLLABUS_MODERN_PRINT_BOTTOM_FUDGE_PX;
         if (layoutTarget <= 0) {
             return;
         }
 
         shell.style.display = 'flex';
         shell.style.flexDirection = 'row';
-        shell.style.alignItems = 'stretch';
-        shell.style.flex = '1 1 auto';
+        shell.style.alignItems = 'flex-start';
+        shell.style.flex = '0 0 auto';
+        shell.style.flexGrow = '0';
+        shell.style.flexShrink = '0';
         shell.style.minHeight = '0';
-        shell.style.height = `${Math.floor(layoutTarget)}px`;
-        shell.style.overflow = 'hidden';
+        shell.style.width = '100%';
+        shell.style.maxWidth = '100%';
+        shell.style.boxSizing = 'border-box';
+        shell.style.overflow = 'visible';
         shell.dataset.syllabusScaled = '1';
 
-        const mainWrap = shell.querySelector('.syllabus-modern-print-main');
+        const mainWrap = shell.querySelector('.syllabus-a4-print-main, .syllabus-modern-print-main');
         if (mainWrap) {
-            mainWrap.style.flex = '1 1 auto';
+            mainWrap.style.flex = '1 1 0';
             mainWrap.style.minWidth = '0';
+            mainWrap.style.maxWidth = `calc(100% - ${noteWidth})`;
+            mainWrap.style.overflow = 'visible';
             mainWrap.style.display = 'flex';
             mainWrap.style.flexDirection = 'column';
-            mainWrap.style.height = '100%';
+            mainWrap.style.alignSelf = 'flex-start';
             mainWrap.dataset.syllabusScaled = '1';
         }
 
-        stretchJindoMainTable(mainTable, layoutTarget);
+        const noteAside = shell.querySelector('.syllabus-a4-print-note, .syllabus-modern-print-note');
+        if (noteAside) {
+            noteAside.style.flex = `0 0 ${noteWidth}`;
+            noteAside.style.width = noteWidth;
+            noteAside.style.maxWidth = noteWidth;
+            noteAside.style.minWidth = '0';
+            noteAside.dataset.syllabusScaled = '1';
+        }
 
-        const noteAside = shell.querySelector('.syllabus-modern-print-note');
-        syncModernPrintNoteHeight(mainTable, noteAside);
+        const printBody = mainEl.querySelector('.syllabus-a4-print-body');
+        if (printBody) {
+            stretchModernPrintBody(mainEl, layoutTarget, { tbodyFill: 1 });
+        } else {
+            stretchJindoMainTable(mainEl, layoutTarget, { tbodyFill: 1 });
+        }
+        mainEl.style.width = '100%';
+        mainEl.style.maxWidth = '100%';
+        mainEl.dataset.syllabusScaled = '1';
+
+        const gridH = syncModernPrintNoteHeight(mainEl, noteAside);
+        if (gridH > 0) {
+            shell.style.height = `${gridH}px`;
+            shell.style.minHeight = `${gridH}px`;
+            shell.style.maxHeight = '';
+            shell.dataset.syllabusScaled = '1';
+            if (mainWrap) {
+                mainWrap.style.height = `${gridH}px`;
+                mainWrap.style.minHeight = `${gridH}px`;
+                mainWrap.style.maxHeight = '';
+                mainWrap.dataset.syllabusScaled = '1';
+            }
+            if (noteAside) {
+                noteAside.style.height = `${gridH}px`;
+                noteAside.style.minHeight = `${gridH}px`;
+                noteAside.style.maxHeight = '';
+                noteAside.dataset.syllabusScaled = '1';
+            }
+        }
     }
 
     /**
@@ -2778,6 +3543,9 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
     }
 
     function pageExceedsFitHeight(pageEl, fitHpx) {
+        if (pageEl.querySelector('.syllabus-modern-print-shell')) {
+            return getModernPrintPageContentHeightPx(pageEl) > fitHpx + 2;
+        }
         return pageEl.scrollHeight > fitHpx + 2;
     }
 

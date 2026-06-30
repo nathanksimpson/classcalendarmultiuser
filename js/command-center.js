@@ -262,12 +262,15 @@
             mount.innerHTML = `<p class="section-hint">${escapeHtml(t('homeworkTabModuleMissing'))}</p>`;
             return;
         }
+        const hwHooks = hooks.getHomeworkHooks ? hooks.getHomeworkHooks() : null;
+        const syllabusRows = typeof hooks.getSyllabusRowsForClass === 'function'
+            ? hooks.getSyllabusRowsForClass(classData)
+            : (Array.isArray(classData.syllabusRows) ? classData.syllabusRows : []);
         const packet = ht.computeHomeworkForClass({
             classData,
-            syllabusRows: classData.syllabusRows,
+            syllabusRows,
             referenceDate: ctx.sessionDate || ht.formatISO(new Date()),
-            hooks: hooks.getHomeworkHooks ? hooks.getHomeworkHooks() : null,
-            t
+            hooks: hwHooks
         });
         if (!packet || !packet.hasSyllabusLessons) {
             mount.innerHTML = `<p class="section-hint">${escapeHtml(t('commandCenterHwNoRow'))}</p>`;
@@ -281,26 +284,58 @@
         }
         const assignText = packet.assignHomework || '';
         const gradingText = packet.gradingHomework || '';
-        const dueLabel = packet.dueDate && hooks.formatDateDisplay
-            ? hooks.formatDateDisplay(packet.dueDate)
-            : packet.dueDate || '';
+        const dueLabel = packet.dueDate && hooks.formatHomeworkDueDateDisplay
+            ? hooks.formatHomeworkDueDateDisplay(packet.dueDate)
+            : (packet.dueDate && hooks.formatDateDisplay
+                ? hooks.formatDateDisplay(packet.dueDate)
+                : packet.dueDate || '');
+        const chips = [];
+        if (packet.targetSessionNumber > 0) {
+            chips.push(`<span class="homework-session-chip homework-session-chip--current">${escapeHtml(t('homeworkTabThisClassChip').replace('{n}', String(packet.targetSessionNumber)).replace('{title}', packet.targetLessonTitle || ''))}</span>`);
+        }
+        if (packet.gradingSessionNumber > 0 && packet.gradingLessonDate) {
+            chips.push(`<span class="homework-session-chip homework-session-chip--grading">${escapeHtml(t('homeworkTabGradingFromChip').replace('{n}', String(packet.gradingSessionNumber)).replace('{date}', hooks.formatDateDisplay(packet.gradingLessonDate)))}</span>`);
+        }
+        const chipsHtml = chips.length
+            ? `<div class="homework-session-chips homework-session-chips--compact">${chips.join('')}</div>`
+            : '';
         mount.innerHTML = `
-            <div class="command-center-hw-block">
-                <h3 class="command-center-hw-title">${escapeHtml(t('homeworkTabAssignTitle'))}</h3>
-                ${dueLabel ? `<p class="section-hint">${escapeHtml(t('homeworkTabDueDate'))}: <strong>${escapeHtml(dueLabel)}</strong></p>` : ''}
-                <textarea class="field-textarea command-center-hw-textarea" id="commandCenterHwAssign" rows="6" readonly>${escapeHtml(assignText)}</textarea>
-                <button type="button" class="btn btn-outline btn-compact" id="commandCenterCopyAssign">${escapeHtml(t('homeworkTabCopyHomework'))}</button>
+            ${chipsHtml}
+            <p class="section-hint homework-cc-blocks-heading">${escapeHtml(t('homeworkTabBlocksHeading'))}</p>
+            <div class="homework-copy-block homework-copy-block--grade homework-copy-block--compact">
+                <div class="homework-copy-block-header">
+                    <div class="homework-copy-block-titles">
+                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">①</span> ${escapeHtml(t('homeworkTabGradingTitle'))}</h4>
+                        <p class="homework-copy-block-subtitle section-hint">${escapeHtml(t('homeworkTabGradingSubtitle'))}</p>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-compact homework-copy-btn" id="commandCenterCopyGrading">${escapeHtml(t('homeworkTabCopy'))}</button>
+                </div>
+                <textarea class="field-textarea homework-copy-textarea homework-copy-textarea--readonly" id="commandCenterHwGrading" rows="5" readonly spellcheck="false">${escapeHtml(gradingText)}</textarea>
             </div>
-            <div class="command-center-hw-block">
-                <h3 class="command-center-hw-title">${escapeHtml(t('homeworkTabGradingTitle'))}</h3>
-                <textarea class="field-textarea command-center-hw-textarea" id="commandCenterHwGrading" rows="6" readonly>${escapeHtml(gradingText)}</textarea>
-                <button type="button" class="btn btn-outline btn-compact" id="commandCenterCopyGrading">${escapeHtml(t('homeworkTabCopy'))}</button>
+            <div class="homework-copy-block homework-copy-block--assign homework-copy-block--compact">
+                <div class="homework-copy-block-header">
+                    <div class="homework-copy-block-titles">
+                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">②</span> ${escapeHtml(t('homeworkTabAssignTitle'))}</h4>
+                        <p class="homework-copy-block-subtitle section-hint">${escapeHtml(t('homeworkTabAssignSubtitle'))}</p>
+                    </div>
+                </div>
+                ${dueLabel ? `<p class="section-hint homework-cc-due"><span>${escapeHtml(t('homeworkTabDueNextClass'))}:</span> <strong>${escapeHtml(dueLabel)}</strong></p>` : ''}
+                <textarea class="field-textarea homework-copy-textarea homework-copy-textarea--readonly" id="commandCenterHwAssign" rows="5" readonly spellcheck="false">${escapeHtml(assignText)}</textarea>
+                <button type="button" class="btn btn-outline btn-compact homework-copy-btn" id="commandCenterCopyAssign">${escapeHtml(t('homeworkTabCopyHomework'))}</button>
             </div>`;
         mount.querySelector('#commandCenterCopyAssign')?.addEventListener('click', () => {
-            void hooks.copyText(assignText);
+            const body = mount.querySelector('#commandCenterHwAssign')?.value || assignText;
+            const formatted = hooks.formatHomeworkPasteBlock
+                ? hooks.formatHomeworkPasteBlock(body, classData, packet, 'assign')
+                : body;
+            void hooks.copyText(formatted);
         });
         mount.querySelector('#commandCenterCopyGrading')?.addEventListener('click', () => {
-            void hooks.copyText(gradingText);
+            const body = mount.querySelector('#commandCenterHwGrading')?.value || gradingText;
+            const formatted = hooks.formatHomeworkPasteBlock
+                ? hooks.formatHomeworkPasteBlock(body, classData, packet, 'grading')
+                : body;
+            void hooks.copyText(formatted);
         });
     }
 

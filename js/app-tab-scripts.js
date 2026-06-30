@@ -52,7 +52,7 @@
         ],
         'command-center': [
             'js/homework-tab.js?v=20260619-ui-overhaul',
-            'js/command-center.js?v=20260619-ui-overhaul'
+            'js/command-center.js?v=20260630-homework-copy-redesign'
         ],
         'setup-hub': [
             'js/teacher-timetable.js?v=20260619-setup-hub',

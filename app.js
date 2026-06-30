@@ -378,10 +378,7 @@ function applyTheme(theme) {
             },
             getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme',
             afterUpdate: () => {
-                updateThemeToggleButtons();
-                if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
-                    CCPClassColorTile.refreshAll();
-                }
+                refreshClassColorSurfacesAfterThemeChange();
             }
         });
         return;
@@ -392,6 +389,7 @@ function applyTheme(theme) {
     document.documentElement.style.colorScheme = next;
     localStorage.setItem('calendarTheme', next);
     updateThemeToggleButtons();
+    refreshClassColorSurfacesAfterThemeChange();
 }
 
 function loadTheme() {
@@ -412,16 +410,23 @@ function toggleTheme() {
             },
             getButtonTitle: () => translations[currentLanguage].themeToggleTitle || 'Switch light/dark theme',
             afterUpdate: () => {
-                updateThemeToggleButtons();
-                if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
-                    CCPClassColorTile.refreshAll();
-                }
+                refreshClassColorSurfacesAfterThemeChange();
             }
         });
         return;
     }
     const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
     applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function refreshClassColorSurfacesAfterThemeChange() {
+    updateThemeToggleButtons();
+    if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
+        CCPClassColorTile.refreshAll();
+    }
+    if (typeof renderCalendarNow === 'function') {
+        renderCalendarNow({ forceFull: true });
+    }
 }
 
 // ============================================
@@ -616,7 +621,9 @@ function initAppStoreAndRenderOrchestrator() {
     }
     CCPRenderOrchestrator.register('calendar', () => {
         if (typeof renderCalendarNow === 'function') {
-            renderCalendarNow();
+            const forceFull = pendingCalendarForceFull;
+            pendingCalendarForceFull = false;
+            renderCalendarNow(forceFull ? { forceFull: true } : undefined);
         }
     });
     CCPRenderOrchestrator.register('classList', () => {
@@ -690,6 +697,12 @@ function initAppStoreAndRenderOrchestrator() {
             ]);
             if (scheduleTypes.has(action.type) && typeof invalidateScheduleCache === 'function') {
                 invalidateScheduleCache();
+            }
+            if (action.type === 'classes/upsert' || action.type === 'classes/remove') {
+                pendingCalendarForceFull = true;
+                if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
+                    CCPClassColorTile.refreshAll();
+                }
             }
         });
     }
@@ -1067,6 +1080,16 @@ function filterClassesForActiveCohort(classes) {
     }
     const cohortId = CCPCohortSidebarFilter.getActiveCohortId();
     return CCPCohortSidebarFilter.filterClassesByCohort(list, cohortId);
+}
+
+function clearActiveCohortFilter(source) {
+    if (typeof CCPActiveContext === 'undefined' || !CCPActiveContext.getActiveCohortId) {
+        return;
+    }
+    if (!CCPActiveContext.getActiveCohortId()) {
+        return;
+    }
+    CCPActiveContext.set({ cohortId: '' }, { source: source || 'cohort-filter-clear' });
 }
 
 function filterEventsForActiveCohort(events) {
@@ -4864,6 +4887,9 @@ function ensureUiState() {
             appData.ui.homeworkFilters.subjects = null;
         }
     }
+    if (typeof appData.ui.homeworkHelpExpanded !== 'boolean') {
+        appData.ui.homeworkHelpExpanded = false;
+    }
     const dayNotesApi = typeof window !== 'undefined' ? window.CCPDayNotes : null;
     if (dayNotesApi && dayNotesApi.normalizeClassNotesSortMode) {
         appData.ui.classNotesSort = dayNotesApi.normalizeClassNotesSortMode(appData.ui.classNotesSort);
@@ -4898,6 +4924,24 @@ function getSyllabusTemplatesApi() {
     return typeof window !== 'undefined' ? window.CCPSyllabusTemplates : null;
 }
 
+/** Viewport height for homework class sidebar; class list scrolls inside remaining space. */
+function syncHomeworkSidebarChromeOffset() {
+    const panel = document.getElementById('panel-homework');
+    if (!panel || panel.hidden || getActiveTab() !== 'homework') {
+        return;
+    }
+    const measure = () => {
+        const sidebar = panel.querySelector('.homework-sidebar-panel');
+        if (!sidebar) {
+            return;
+        }
+        const top = sidebar.getBoundingClientRect().top;
+        const available = Math.max(240, Math.floor(window.innerHeight - top - 16));
+        panel.style.setProperty('--homework-sidebar-max-height', `${available}px`);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(measure));
+}
+
 /** Match sticky month header / panels to the real global top bar height (avoids a gap below it). */
 function syncAppChromeStickyTop() {
     const topBar = document.getElementById('appTopBar');
@@ -4921,6 +4965,7 @@ function syncAppChromeStickyTop() {
     }
     document.documentElement.style.setProperty('--calendar-month-sticky-top', `${monthStickyTop}px`);
     syncCohortsBoardStickyOffsets();
+    syncHomeworkSidebarChromeOffset();
     if (
         openHeaderFixedPopoverId
         || isLessonFilterPopoverOpen()
@@ -4954,6 +4999,20 @@ function isViewportNarrowHeader() {
         && window.matchMedia('(max-width: 900px)').matches;
 }
 
+function enforceDesktopCalendarViewMode() {
+    if (isViewportPhone()) {
+        return false;
+    }
+    ensureUiState();
+    const mode = appData.ui.calendarViewMode;
+    if (mode === 'agenda' || mode === 'week') {
+        appData.ui.calendarViewMode = 'month';
+        saveUiStateToLocalStorage();
+        return true;
+    }
+    return false;
+}
+
 function syncViewportTier() {
     if (typeof document === 'undefined') {
         return 'desktop';
@@ -4967,8 +5026,12 @@ function syncViewportTier() {
         tier = 'tablet';
     }
     document.documentElement.dataset.viewport = tier;
+    const calendarViewReset = enforceDesktopCalendarViewMode();
     applyMobileUiDefaults();
     syncCalendarViewModeDom();
+    if (calendarViewReset && typeof renderCalendarNow === 'function' && getActiveTab() === 'calendar') {
+        renderCalendarNow({ forceFull: true });
+    }
     syncMobileSetupLimitedBanner();
     syncNotesTabPhoneChrome();
     syncWorkspaceMobileLimitedBanner();
@@ -5087,7 +5150,12 @@ function syncCalendarViewModeDom() {
     const agendaBtn = document.getElementById('calendarViewAgendaBtn');
     const monthBtn = document.getElementById('calendarViewMonthBtn');
     const weekBtn = document.getElementById('calendarViewWeekBtn');
+    const viewSwitch = document.querySelector('.calendar-view-switch');
     const zoomControl = document.getElementById('calendarZoomControl');
+    const phone = isViewportPhone();
+    if (viewSwitch) {
+        viewSwitch.hidden = !phone;
+    }
     if (agendaBtn) {
         agendaBtn.classList.toggle('is-active', mode === 'agenda');
         agendaBtn.setAttribute('aria-selected', String(mode === 'agenda'));
@@ -5099,7 +5167,7 @@ function syncCalendarViewModeDom() {
     if (weekBtn) {
         weekBtn.classList.toggle('is-active', mode === 'week');
         weekBtn.setAttribute('aria-selected', String(mode === 'week'));
-        weekBtn.hidden = isViewportPhone();
+        weekBtn.hidden = phone;
     }
     if (zoomControl) {
         zoomControl.hidden = mode === 'agenda';
@@ -5520,13 +5588,26 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function applyCalmEventBarStyle(el, accentHex) {
+/** Theme-aware text on calm tinted class chips (calendar bars, lists, filters). */
+function resolveClassCalmTextColor(classData) {
+    if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.resolveTextColor) {
+        return CCPClassColorTile.resolveTextColor(classData || {});
+    }
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return isDark ? '#dde6f1' : '#243244';
+}
+
+function applyCalmEventBarStyle(el, classColorSource) {
     if (!el) {
         return;
     }
+    const classData = classColorSource && typeof classColorSource === 'object'
+        ? classColorSource
+        : { color: classColorSource };
+    const accentHex = (classData && classData.color) || '#356a9e';
     const useCalmPrint = calendarRenderForPrint;
     if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.applyCalmBar && !useCalmPrint) {
-        CCPClassColorTile.applyCalmBar(el, { color: accentHex });
+        CCPClassColorTile.applyCalmBar(el, classData);
         return;
     }
     const isDark = !useCalmPrint && document.documentElement.getAttribute('data-theme') === 'dark';
@@ -5534,7 +5615,9 @@ function applyCalmEventBarStyle(el, accentHex) {
     el.classList.add('event-bar--calm');
     el.style.backgroundColor = hexToRgba(accentHex, alpha);
     el.style.borderLeft = `3px solid ${accentHex}`;
-    el.style.color = useCalmPrint ? '#243244' : (isDark ? '#dde6f1' : '#243244');
+    const calmText = resolveClassCalmTextColor(classData);
+    el.style.setProperty('--class-tile-text', calmText);
+    el.style.color = calmText;
     if (useCalmPrint) {
         el.style.borderRadius = '4px';
         el.style.padding = '3px 7px';
@@ -5546,21 +5629,33 @@ function applyCalmEventBarStyle(el, accentHex) {
     }
     const book = el.querySelector('.event-book');
     if (book) {
-        book.style.color = useCalmPrint ? '#6b7689' : (isDark ? 'rgba(221, 230, 241, 0.55)' : '#6b7689');
+        const subtext = getComputedStyle(document.documentElement).getPropertyValue('--chip-calm-subtext').trim()
+            || (isDark ? 'rgba(221, 230, 241, 0.55)' : '#6b7689');
+        book.style.color = subtext;
         book.style.opacity = '1';
     }
 }
 
-function applyCalmAgendaItemStyle(item, accentHex) {
-    if (!item || !accentHex) {
+function applyCalmAgendaItemStyle(item, colorSource) {
+    if (!item) {
+        return;
+    }
+    const classData = colorSource && typeof colorSource === 'object'
+        ? colorSource
+        : { color: colorSource };
+    const accentHex = (classData && classData.color) || '#356a9e';
+    if (!accentHex) {
         return;
     }
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const alpha = isDark ? 0.16 : 0.14;
     item.style.setProperty('--agenda-accent', accentHex);
+    item.style.setProperty('--class-tile-accent', accentHex);
     item.style.backgroundColor = hexToRgba(accentHex, alpha);
     item.style.borderLeftColor = accentHex;
-    item.style.color = isDark ? '#dde6f1' : '#243244';
+    const calmText = resolveClassCalmTextColor(classData);
+    item.style.setProperty('--class-tile-text', calmText);
+    item.style.color = calmText;
 }
 
 function syncSelectedClassPanelAccent(classData) {
@@ -7015,6 +7110,7 @@ function getDayIndexCacheKey() {
         useAutoTermEnd: appData.useAutoTermEnd,
         monthCount: getTermCalendarMonthSpan(),
         classIds: (appData.classes || []).map((c) => c.id).join(','),
+        classColors: (appData.classes || []).map((c) => `${c.id}:${c.color || ''}:${c.textColor || ''}`).join('|'),
         eventCount: (appData.events || []).length,
         showAllCurricula: Boolean(appData.ui && appData.ui.showAllCurricula),
         lessonFilters: lf ? JSON.stringify(lf) : ''
@@ -14151,6 +14247,7 @@ function initSyllabusEditorListeners() {
     document.getElementById('syllabusSaveTemplateBtn')?.addEventListener('click', saveSyllabusTemplateFromEditor);
     document.getElementById('syllabusPrintHeaderBtn')?.addEventListener('click', printClassSyllabusFromModal);
     document.getElementById('syllabusPrintStudentBtn')?.addEventListener('click', openStudentSyllabusPrintDialog);
+    syncSyllabusPrintWeekFormatSelects();
     setupStudentSyllabusPrintUi();
     document.getElementById('syllabusOpenClassSettingsBtn')?.addEventListener('click', () => {
         const id = appData.ui.syllabusTabClassId;
@@ -14753,6 +14850,7 @@ function initTabWarningsModule() {
         getActiveTab,
         navigateToZone,
         navigateToTab,
+        clearActiveCohortFilter,
         openClassEditor,
         focusScheduleAdjustmentForClass,
         saveUiStateToLocalStorage,
@@ -15039,8 +15137,10 @@ async function ensureHomeworkTabReady() {
 
 function refreshHomeworkTabUi() {
     initHomeworkTabControls();
+    syncHomeworkWorkingFromLabel(getHomeworkReferenceDateFromUi());
     renderHomeworkClassList();
     renderHomeworkEditor();
+    syncHomeworkSidebarChromeOffset();
 }
 
 function getHomeworkTabHooks() {
@@ -15108,9 +15208,310 @@ function setHomeworkReferenceDate(isoDate, options = {}) {
     if (options.syncView !== false) {
         syncHomeworkRefCalendarViewToDate(isoDate);
     }
+    syncHomeworkWorkingFromLabel(isoDate);
     renderHomeworkReferenceMiniCalendar();
     renderHomeworkClassList();
     renderHomeworkEditor();
+}
+
+function formatHomeworkWorkingFromLabel(isoDate) {
+    const date = parseISODateLocal(isoDate);
+    if (Number.isNaN(date.getTime())) {
+        return isoDate || '';
+    }
+    const locale = currentLanguage === 'ko' ? 'ko-KR' : 'en-US';
+    return date.toLocaleDateString(locale, {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+function formatHomeworkDueDateDisplay(isoDate) {
+    if (!isoDate) {
+        return '';
+    }
+    const date = parseISODateLocal(isoDate);
+    if (Number.isNaN(date.getTime())) {
+        return isoDate;
+    }
+    const locale = currentLanguage === 'ko' ? 'ko-KR' : 'en-US';
+    const weekday = date.toLocaleDateString(locale, { weekday: 'short' });
+    return `${isoDate} · ${weekday}`;
+}
+
+function syncHomeworkWorkingFromLabel(isoDate) {
+    const labelEl = document.getElementById('homeworkWorkingFromLabel');
+    if (!labelEl) {
+        return;
+    }
+    const ref = isoDate || getHomeworkReferenceDateFromUi();
+    labelEl.textContent = formatI18n('homeworkTabWorkingFrom', {
+        date: formatHomeworkWorkingFromLabel(ref)
+    });
+}
+
+function getHomeworkVisibleClasses() {
+    ensureUiState();
+    const q = (document.getElementById('homeworkClassListSearch')?.value || '').trim().toLowerCase();
+    const selectedIso = getHomeworkReferenceDateFromUi();
+    const selectedDate = parseISODateLocal(selectedIso);
+    const selectedWeekday = (selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime()))
+        ? selectedDate.getDay()
+        : null;
+    const hwFilters = getHomeworkFiltersFromDom();
+    const baseOrder = getClassesInDisplayOrder();
+    let filteredIds = resolveClassListFilter({
+        myClassesOnly: hwFilters.myClassesOnly,
+        todayIso: hwFilters.todayOnly ? selectedIso : '',
+        baseClassIds: baseOrder.map((c) => c.id)
+    });
+    if (hwFilters.myClassesOnly && !getClassIdsAssignedToViewer()) {
+        filteredIds = [];
+    }
+    const filteredIdSet = new Set(filteredIds);
+    let classes = baseOrder.filter((c) => filteredIdSet.has(c.id));
+    classes = filterClassesForActiveCohort(classes);
+    classes = classes.filter((c) => {
+        if (!q) {
+            return true;
+        }
+        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c)].join(' ').toLowerCase();
+        return hay.includes(q);
+    });
+
+    const onDay = [];
+    const offDay = [];
+    if (selectedWeekday !== null) {
+        classes.forEach((c) => (classOccursOnIsoDate(c, selectedIso) ? onDay : offDay).push(c));
+        onDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
+        offDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
+    } else {
+        offDay.push(...classes);
+    }
+
+    let allVisible;
+    if (hwFilters.todayOnly) {
+        allVisible = onDay.slice();
+    } else if (onDay.length > 0) {
+        allVisible = onDay.concat(offDay);
+    } else {
+        allVisible = classes.slice();
+    }
+
+    return {
+        onDay,
+        offDay,
+        allVisible,
+        classes,
+        selectedIso,
+        selectedWeekday,
+        filters: hwFilters
+    };
+}
+
+function getHomeworkQueueClasses() {
+    const { onDay, allVisible } = getHomeworkVisibleClasses();
+    return onDay.length > 0 ? onDay : allVisible;
+}
+
+function navigateHomeworkQueue(delta) {
+    const queue = getHomeworkQueueClasses();
+    if (!queue.length) {
+        return;
+    }
+    const currentId = getHomeworkTabSelectedClassId();
+    let idx = queue.findIndex((c) => c.id === currentId);
+    if (idx < 0) {
+        idx = 0;
+    } else {
+        idx = (idx + delta + queue.length) % queue.length;
+    }
+    const next = queue[idx];
+    if (!next) {
+        return;
+    }
+    const refDate = getHomeworkReferenceDateFromUi();
+    if (typeof CCPActiveContext !== 'undefined') {
+        CCPActiveContext.set({
+            classId: next.id,
+            sessionDate: refDate
+        }, { source: 'homework-queue' });
+    } else {
+        appData.ui.homeworkTabClassId = next.id;
+        saveData();
+    }
+    renderHomeworkClassList();
+    renderHomeworkEditor();
+}
+
+function createHomeworkClassListButton(classData, { isSelected, onClick }) {
+    const btn = createModuleClassListButton(classData, { isSelected, onClick });
+    if (isSelected) {
+        const titleSpan = btn.querySelector('span');
+        if (titleSpan) {
+            const badge = `<span class="homework-open-badge">${escapeHtml(t('homeworkTabOpenBadge'))}</span>`;
+            titleSpan.insertAdjacentHTML('beforeend', badge);
+        }
+    }
+    return btn;
+}
+
+function updateHomeworkListSummary(visible) {
+    const summaryEl = document.getElementById('homeworkListSummary');
+    if (!summaryEl) {
+        return;
+    }
+    const { onDay, allVisible, selectedIso } = visible;
+    if (!allVisible.length) {
+        summaryEl.hidden = true;
+        summaryEl.textContent = '';
+        return;
+    }
+    const parts = [];
+    if (onDay.length > 0) {
+        parts.push(formatI18n('homeworkTabListSummaryOnDate', {
+            date: formatHomeworkWorkingFromLabel(selectedIso),
+            count: String(onDay.length)
+        }));
+    }
+    parts.push(formatI18n('homeworkTabListSummaryTotal', {
+        count: String(allVisible.length)
+    }));
+    summaryEl.textContent = parts.join(' · ');
+    summaryEl.hidden = false;
+}
+
+function updateHomeworkBatchCopyButton(visible) {
+    const btn = document.getElementById('homeworkBatchCopyBtn');
+    if (!btn) {
+        return;
+    }
+    const count = visible.allVisible.length;
+    btn.textContent = formatI18n('homeworkTabBatchCopy', { count: String(count) });
+    btn.disabled = count === 0;
+}
+
+function buildHomeworkBothBlocksClipboard(classData, packet, gradingBody, assignBody) {
+    const g = formatHomeworkPasteBlock(gradingBody, classData, packet, 'grading').trim();
+    const a = formatHomeworkPasteBlock(assignBody, classData, packet, 'assign').trim();
+    const due = packet?.dueDate || '';
+    return [
+        '=== ' + t('homeworkTabGradingTitle') + ' ===',
+        g,
+        '',
+        '=== ' + t('homeworkTabAssignTitle') + ' ===',
+        t('homeworkTabDueLabel') + ': ' + due,
+        a.trim()
+    ].join('\n');
+}
+
+function buildHomeworkBatchClipboard(classes, referenceDate) {
+    const blocks = [];
+    (classes || []).forEach((classData) => {
+        const effective = getEffectiveClassForViewer(classData);
+        const packet = computeHomeworkPacketForClassOnDate(effective, referenceDate);
+        const gradingBody = packet.gradingHomework || '';
+        const assignBody = packet.assignHomework || '';
+        if (!gradingBody && !assignBody) {
+            return;
+        }
+        blocks.push(buildHomeworkBothBlocksClipboard(classData, packet, gradingBody, assignBody));
+    });
+    return blocks.join('\n\n');
+}
+
+function renderHomeworkSessionChips(packet) {
+    const container = document.getElementById('homeworkSessionChips');
+    if (!container) {
+        return;
+    }
+    container.replaceChildren();
+    if (!packet || !packet.hasSyllabusLessons) {
+        container.hidden = true;
+        return;
+    }
+    const chips = [];
+    if (packet.targetSessionNumber > 0) {
+        const chip = document.createElement('span');
+        chip.className = 'homework-session-chip homework-session-chip--current';
+        chip.textContent = formatI18n('homeworkTabThisClassChip', {
+            n: String(packet.targetSessionNumber),
+            title: packet.targetLessonTitle || ''
+        });
+        chips.push(chip);
+    }
+    if (packet.gradingSessionNumber > 0 && packet.gradingLessonDate) {
+        const chip = document.createElement('span');
+        chip.className = 'homework-session-chip homework-session-chip--grading';
+        chip.textContent = formatI18n('homeworkTabGradingFromChip', {
+            n: String(packet.gradingSessionNumber),
+            date: formatDateDisplay(packet.gradingLessonDate)
+        });
+        chips.push(chip);
+    }
+    if (!chips.length) {
+        container.hidden = true;
+        return;
+    }
+    chips.forEach((chip) => container.appendChild(chip));
+    container.hidden = false;
+}
+
+function renderHomeworkClassQueueBar() {
+    const queueEl = document.getElementById('homeworkClassQueue');
+    const labelEl = document.getElementById('homeworkQueueLabel');
+    const prevBtn = document.getElementById('homeworkQueuePrevBtn');
+    const nextBtn = document.getElementById('homeworkQueueNextBtn');
+    if (!queueEl || !labelEl) {
+        return;
+    }
+    const queue = getHomeworkQueueClasses();
+    const classId = getHomeworkTabSelectedClassId();
+    if (!classId || queue.length < 2) {
+        queueEl.hidden = true;
+        return;
+    }
+    queueEl.hidden = false;
+    let idx = queue.findIndex((c) => c.id === classId);
+    if (idx < 0) {
+        idx = 0;
+    }
+    const visible = getHomeworkVisibleClasses();
+    const onDay = visible.onDay.length > 0;
+    const labelKey = onDay ? 'homeworkTabQueueLabel' : 'homeworkTabQueueLabelGeneral';
+    labelEl.textContent = formatI18n(labelKey, {
+        current: String(idx + 1),
+        total: String(queue.length)
+    });
+    if (prevBtn) {
+        prevBtn.disabled = queue.length < 2;
+    }
+    if (nextBtn) {
+        nextBtn.disabled = queue.length < 2;
+    }
+}
+
+async function copyHomeworkLastClassNotes() {
+    const prep = homeworkEditorState?.lastClassPrep;
+    if (!prep || !prep.notes || !prep.notes.length) {
+        return;
+    }
+    const api = getDayNotesApi();
+    const lines = [];
+    prep.notes.forEach((note) => {
+        const text = note && note.text ? String(note.text).trim() : '';
+        if (text) {
+            lines.push(text);
+        }
+    });
+    const combined = lines.join('\n\n');
+    if (!combined) {
+        return;
+    }
+    const ok = await copyTextToClipboard(combined);
+    showHomeworkCopyStatus(ok);
 }
 
 function renderHomeworkReferenceMiniCalendar() {
@@ -15285,6 +15686,7 @@ function initHomeworkTabControls() {
             saveUiStateToLocalStorage();
             syncHomeworkReferenceDateToActiveContext(input.value || '');
             syncHomeworkRefCalendarViewToDate(input.value);
+            syncHomeworkWorkingFromLabel(input.value || '');
             renderHomeworkReferenceMiniCalendar();
             renderHomeworkClassList();
             renderHomeworkEditor();
@@ -15324,6 +15726,20 @@ function initHomeworkTabControls() {
     }
 
     renderHomeworkReferenceMiniCalendar();
+    syncHomeworkWorkingFromLabel(input.value);
+
+    const introDetails = document.getElementById('homeworkIntroDetails');
+    if (introDetails && introDetails.dataset.homeworkInit !== '1') {
+        introDetails.dataset.homeworkInit = '1';
+        if (appData.ui.homeworkHelpExpanded === true) {
+            introDetails.open = true;
+        }
+        introDetails.addEventListener('toggle', () => {
+            ensureUiState();
+            appData.ui.homeworkHelpExpanded = introDetails.open;
+            saveUiStateToLocalStorage();
+        });
+    }
 }
 
 function computeHomeworkPacketForClassOnDate(classData, dateStr) {
@@ -15357,41 +15773,22 @@ function renderHomeworkClassList() {
         return;
     }
     ensureUiState();
-    const q = (document.getElementById('homeworkClassListSearch')?.value || '').trim().toLowerCase();
-    const selectedIso = getHomeworkReferenceDateFromUi();
-    const selectedDate = parseISODateLocal(selectedIso);
-    const selectedWeekday = (selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime()))
-        ? selectedDate.getDay()
-        : null;
+    const visible = getHomeworkVisibleClasses();
+    const { onDay, offDay, allVisible, selectedIso, selectedWeekday, filters: hwFilters } = visible;
     let selectedId = getHomeworkTabSelectedClassId();
     list.innerHTML = '';
-    const baseOrder = getClassesInDisplayOrder();
-    const hwFilters = getHomeworkFiltersFromDom();
-    let filteredIds = resolveClassListFilter({
-        myClassesOnly: hwFilters.myClassesOnly,
-        todayIso: hwFilters.todayOnly ? selectedIso : '',
-        baseClassIds: baseOrder.map((c) => c.id)
-    });
-    if (hwFilters.myClassesOnly && !getClassIdsAssignedToViewer()) {
-        filteredIds = [];
-    }
-    const filteredIdSet = new Set(filteredIds);
-    let classes = baseOrder.filter((c) => filteredIdSet.has(c.id));
-    classes = filterClassesForActiveCohort(classes);
-    classes = classes.filter((c) => {
-        if (!q) {
-            return true;
-        }
-        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c)].join(' ').toLowerCase();
-        return hay.includes(q);
-    });
-    if (selectedId && !classes.some((c) => c.id === selectedId)) {
+
+    updateHomeworkListSummary(visible);
+    updateHomeworkBatchCopyButton(visible);
+
+    if (selectedId && !allVisible.some((c) => c.id === selectedId)) {
         selectedId = '';
         appData.ui.homeworkTabClassId = '';
         saveData();
         renderHomeworkEditor();
     }
-    if (classes.length === 0) {
+    if (allVisible.length === 0) {
+        const q = (document.getElementById('homeworkClassListSearch')?.value || '').trim().toLowerCase();
         const empty = document.createElement('p');
         empty.className = 'module-list-empty';
         empty.style.padding = 'var(--space-3)';
@@ -15407,16 +15804,6 @@ function renderHomeworkClassList() {
         return;
     }
 
-    const onDay = [];
-    const offDay = [];
-    if (selectedWeekday !== null) {
-        classes.forEach((c) => (classOccursOnIsoDate(c, selectedIso) ? onDay : offDay).push(c));
-        onDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
-        offDay.sort((a, b) => compareClassesForDisplayOrder(a, b, selectedWeekday));
-    } else {
-        offDay.push(...classes);
-    }
-
     const appendSectionTitle = (label, options = {}) => {
         const el = document.createElement('div');
         el.className = 'module-list-section-title' + (options.divider ? ' module-list-section-title--divider' : '');
@@ -15425,7 +15812,7 @@ function renderHomeworkClassList() {
     };
 
     const renderClassButton = (c) => {
-        list.appendChild(createModuleClassListButton(c, {
+        list.appendChild(createHomeworkClassListButton(c, {
             isSelected: c.id === selectedId,
             onClick: () => {
                 const refDate = getHomeworkReferenceDateFromUi();
@@ -15446,18 +15833,24 @@ function renderHomeworkClassList() {
 
     if (hwFilters.todayOnly) {
         if (onDay.length > 0) {
-            appendSectionTitle(t('homeworkTabSelectedDateClasses') || "Selected date's classes");
+            appendSectionTitle(formatI18n('homeworkTabListSummaryOnDate', {
+                date: formatHomeworkWorkingFromLabel(selectedIso),
+                count: String(onDay.length)
+            }));
             onDay.forEach(renderClassButton);
         }
         return;
     }
 
     if (onDay.length > 0) {
-        appendSectionTitle(t('homeworkTabSelectedDateClasses') || "Selected date's classes");
+        appendSectionTitle(formatI18n('homeworkTabListSummaryOnDate', {
+            date: formatHomeworkWorkingFromLabel(selectedIso),
+            count: String(onDay.length)
+        }));
         onDay.forEach(renderClassButton);
     }
     appendSectionTitle(t('homeworkTabOtherClasses') || 'Other classes', { divider: onDay.length > 0 });
-    (onDay.length > 0 ? offDay : classes).forEach(renderClassButton);
+    (onDay.length > 0 ? offDay : allVisible).forEach(renderClassButton);
 }
 
 /** Active homework tab editor state (class + packet row ids for syllabus save). */
@@ -15517,21 +15910,35 @@ function saveHomeworkDetailToSyllabus(classData, rowId, planDetail) {
 function updateHomeworkSourceHints(packet) {
     const gradingHint = document.getElementById('homeworkGradingSourceHint');
     const assignHint = document.getElementById('homeworkAssignSourceHint');
+    const formatSavesTo = (rowId, sessionNumber, title) => {
+        if (!rowId) {
+            return '';
+        }
+        return t('homeworkTabSavesToShort')
+            .replace('{n}', String(sessionNumber || ''))
+            .replace('{title}', title || '');
+    };
     if (gradingHint) {
-        if (packet && packet.gradingSourceRowId) {
-            gradingHint.textContent = t('homeworkTabSavesTo')
-                .replace('{n}', String(packet.gradingSessionNumber || ''))
-                .replace('{title}', packet.gradingLessonTitle || '');
+        const text = formatSavesTo(
+            packet && packet.gradingSourceRowId,
+            packet && packet.gradingSessionNumber,
+            packet && packet.gradingLessonTitle
+        );
+        if (text) {
+            gradingHint.textContent = text;
             gradingHint.hidden = false;
         } else {
             gradingHint.hidden = true;
         }
     }
     if (assignHint) {
-        if (packet && packet.assignSourceRowId) {
-            assignHint.textContent = t('homeworkTabSavesTo')
-                .replace('{n}', String(packet.assignSourceSessionNumber || packet.dueSessionNumber || ''))
-                .replace('{title}', packet.assignSourceTitle || '');
+        const text = formatSavesTo(
+            packet && packet.assignSourceRowId,
+            packet && (packet.assignSourceSessionNumber || packet.dueSessionNumber),
+            packet && packet.assignSourceTitle
+        );
+        if (text) {
+            assignHint.textContent = text;
             assignHint.hidden = false;
         } else {
             assignHint.hidden = true;
@@ -15597,6 +16004,7 @@ function renderHomeworkLastClassNotes(classData, packet) {
     const bodyEl = document.getElementById('homeworkLastClassNotesBody');
     const emptyEl = document.getElementById('homeworkLastClassNotesEmpty');
     const noPriorEl = document.getElementById('homeworkLastClassNotesNoPrior');
+    const copyBtn = document.getElementById('homeworkCopyLastClassNotesBtn');
     if (!section || !bodyEl) {
         return;
     }
@@ -15612,6 +16020,12 @@ function renderHomeworkLastClassNotes(classData, packet) {
         }
         if (noPriorEl) {
             noPriorEl.hidden = true;
+        }
+        if (copyBtn) {
+            copyBtn.hidden = true;
+        }
+        if (homeworkEditorState) {
+            homeworkEditorState.lastClassPrep = null;
         }
     };
     if (!classData) {
@@ -15633,6 +16047,9 @@ function renderHomeworkLastClassNotes(classData, packet) {
         classData,
         getHomeworkTabHooks()
     );
+    if (homeworkEditorState) {
+        homeworkEditorState.lastClassPrep = prep;
+    }
     section.hidden = false;
     bodyEl.replaceChildren();
     if (!prep.previousMeetingDate) {
@@ -15667,6 +16084,9 @@ function renderHomeworkLastClassNotes(classData, packet) {
             });
             bodyEl.appendChild(entry);
         });
+        if (copyBtn) {
+            copyBtn.hidden = false;
+        }
     } else {
         if (metaEl) {
             metaEl.textContent = '';
@@ -15711,12 +16131,10 @@ function renderHomeworkDueDateSkips(packet) {
 function renderHomeworkEditor() {
     const empty = document.getElementById('homeworkEditorEmpty');
     const content = document.getElementById('homeworkEditorContent');
-    const hintEl = document.getElementById('homeworkTabHint');
     const gradingEl = document.getElementById('homeworkGradingText');
     const assignEl = document.getElementById('homeworkAssignText');
     const dueEl = document.getElementById('homeworkDueDateDisplay');
     const dueCopyBtn = document.getElementById('homeworkCopyDueDateBtn');
-    const metaEl = document.getElementById('homeworkTargetLessonMeta');
     const msgEl = document.getElementById('homeworkTabMessage');
     const titleEl = document.getElementById('homeworkClassTitle');
     const classMetaEl = document.getElementById('homeworkClassMeta');
@@ -15730,6 +16148,10 @@ function renderHomeworkEditor() {
         empty.hidden = false;
         content.hidden = true;
         renderHomeworkLastClassNotes(null, null);
+        const queueEl = document.getElementById('homeworkClassQueue');
+        if (queueEl) {
+            queueEl.hidden = true;
+        }
         return;
     }
     const effective = getEffectiveClassForViewer(classData);
@@ -15753,13 +16175,11 @@ function renderHomeworkEditor() {
         curriculumHint.textContent = t('syllabusViewingCurriculum');
         curriculumHint.hidden = !viewer;
     }
-    if (hintEl && !hintEl.dataset.i18nBound) {
-        hintEl.dataset.i18nBound = '1';
-        hintEl.setAttribute('data-i18n', 'homeworkTabHint');
-    }
     renderHomeworkSourceBook(classData);
     const packet = computeHomeworkPacketForClass(effective);
-    homeworkEditorState = { classId: classData.id, packet };
+    homeworkEditorState = { classId: classData.id, packet, lastClassPrep: null };
+    renderHomeworkClassQueueBar();
+    renderHomeworkSessionChips(packet);
     if (gradingEl) {
         gradingEl.value = packet.gradingHomework || '';
         gradingEl.disabled = !packet.gradingSourceRowId;
@@ -15770,31 +16190,13 @@ function renderHomeworkEditor() {
     }
     updateHomeworkSourceHints(packet);
     if (dueEl) {
-        dueEl.textContent = packet.dueDate || '—';
+        dueEl.textContent = packet.dueDate ? formatHomeworkDueDateDisplay(packet.dueDate) : '—';
     }
     if (dueCopyBtn) {
         dueCopyBtn.disabled = !packet.dueDate;
     }
     renderHomeworkDueDateSkips(packet);
     renderHomeworkLastClassNotes(classData, packet);
-    if (metaEl) {
-        const parts = [];
-        if (packet.targetLessonDate) {
-            parts.push(formatI18n('homeworkTabTargetLesson', {
-                date: formatDateDisplay(packet.targetLessonDate),
-                n: packet.targetSessionNumber,
-                title: packet.targetLessonTitle || ''
-            }));
-        }
-        if (packet.gradingSessionNumber > 0 && packet.gradingLessonDate) {
-            parts.push(formatI18n('homeworkTabGradingFrom', {
-                n: packet.gradingSessionNumber,
-                date: formatDateDisplay(packet.gradingLessonDate),
-                title: packet.gradingLessonTitle || ''
-            }));
-        }
-        metaEl.textContent = parts.join(' · ');
-    }
     if (msgEl) {
         if (packet.messageKey) {
             msgEl.hidden = false;
@@ -18640,6 +19042,12 @@ function getCommandCenterHooks() {
         formatDateDisplay,
         navigateToZone,
         getHomeworkHooks: getHomeworkTabHooksForCommandCenter,
+        formatHomeworkPasteBlock,
+        formatHomeworkDueDateDisplay,
+        getSyllabusRowsForClass(classData) {
+            const effective = getEffectiveClassForViewer(classData);
+            return getSyllabusRowsForClass(effective, { preferMerged: true });
+        },
         async copyText(text) {
             const ok = await copyTextToClipboard(text || '');
             showHomeworkCopyStatus(ok);
@@ -20748,22 +21156,42 @@ function initHomeworkTabListeners() {
             const packet = state?.packet;
             const gBody = document.getElementById('homeworkGradingText')?.value || '';
             const aBody = document.getElementById('homeworkAssignText')?.value || '';
-            const g = classData && packet
-                ? formatHomeworkPasteBlock(gBody, classData, packet, 'grading')
-                : gBody.trim();
-            const a = classData && packet
-                ? formatHomeworkPasteBlock(aBody, classData, packet, 'assign')
-                : aBody.trim();
-            const due = packet?.dueDate || '';
-            const combined = [
-                '=== ' + t('homeworkTabGradingTitle') + ' ===',
-                g.trim(),
-                '',
-                '=== ' + t('homeworkTabAssignTitle') + ' ===',
-                t('homeworkTabDueLabel') + ': ' + due,
-                a.trim()
-            ].join('\n');
+            if (!classData || !packet) {
+                return;
+            }
+            const combined = buildHomeworkBothBlocksClipboard(classData, packet, gBody, aBody);
             showHomeworkCopyStatus(await copyTextToClipboard(combined));
+        });
+    }
+    const queuePrev = document.getElementById('homeworkQueuePrevBtn');
+    if (queuePrev && !queuePrev.dataset.homeworkInit) {
+        queuePrev.dataset.homeworkInit = '1';
+        queuePrev.addEventListener('click', () => navigateHomeworkQueue(-1));
+    }
+    const queueNext = document.getElementById('homeworkQueueNextBtn');
+    if (queueNext && !queueNext.dataset.homeworkInit) {
+        queueNext.dataset.homeworkInit = '1';
+        queueNext.addEventListener('click', () => navigateHomeworkQueue(1));
+    }
+    const batchCopyBtn = document.getElementById('homeworkBatchCopyBtn');
+    if (batchCopyBtn && !batchCopyBtn.dataset.homeworkInit) {
+        batchCopyBtn.dataset.homeworkInit = '1';
+        batchCopyBtn.addEventListener('click', async () => {
+            const visible = getHomeworkVisibleClasses();
+            const refDate = getHomeworkReferenceDateFromUi();
+            const combined = buildHomeworkBatchClipboard(visible.allVisible, refDate);
+            if (!combined.trim()) {
+                setAppStatusMessage(t('homeworkTabNoHomeworkText'), true);
+                return;
+            }
+            showHomeworkCopyStatus(await copyTextToClipboard(combined));
+        });
+    }
+    const copyNoteBtn = document.getElementById('homeworkCopyLastClassNotesBtn');
+    if (copyNoteBtn && !copyNoteBtn.dataset.homeworkInit) {
+        copyNoteBtn.dataset.homeworkInit = '1';
+        copyNoteBtn.addEventListener('click', () => {
+            void copyHomeworkLastClassNotes();
         });
     }
 }
@@ -22740,6 +23168,119 @@ function setupStudentSyllabusPrintUi() {
     ['studentSyllabusScopeFull', 'studentSyllabusScopeAllPeriods', 'studentSyllabusScopeOnePeriod'].forEach((id) => {
         document.getElementById(id)?.addEventListener('change', syncStudentSyllabusPeriodPickVisibility);
     });
+    setupTeacherSyllabusPrintUi();
+}
+
+function setupTeacherSyllabusPrintUi() {
+    const form = document.getElementById('teacherSyllabusPrintForm');
+    if (form && !form.dataset.bound) {
+        form.dataset.bound = '1';
+        form.addEventListener('submit', printTeacherSyllabusFromDialog);
+    }
+    document.getElementById('teacherSyllabusPrintCancelBtn')?.addEventListener('click', closeTeacherSyllabusPrintModal);
+    document.getElementById('closeTeacherSyllabusPrintModal')?.addEventListener('click', closeTeacherSyllabusPrintModal);
+}
+
+function openTeacherSyllabusPrintModal() {
+    let classId = elements.classId && elements.classId.value;
+    if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
+        classId = appData.ui.syllabusTabClassId || classId;
+    }
+    if (!classId) {
+        alert(t('syllabusTableEmptyHint'));
+        return;
+    }
+    const mod = getSyllabusModule();
+    if (!mod) {
+        alert(t('syllabusModuleMissing'));
+        return;
+    }
+    const saved = appData.classes.find(c => c.id === classId);
+    const snapshot = {
+        ...(saved || {}),
+        id: classId,
+        syllabusUnits: collectSyllabusUnitsFromForm(),
+        syllabusGeneralNotes: getSyllabusGeneralNotesFromForm() || saved?.syllabusGeneralNotes || ''
+    };
+    const syllabusRows = resolveSyllabusRowsForPrint(snapshot);
+    if (!syllabusRows.length) {
+        alert(t('syllabusTableEmptyHint'));
+        return;
+    }
+    syncSyllabusPrintOptionsControls();
+    const modal = document.getElementById('teacherSyllabusPrintModal');
+    if (modal) {
+        openModal(modal);
+    }
+}
+
+function closeTeacherSyllabusPrintModal() {
+    const modal = document.getElementById('teacherSyllabusPrintModal');
+    if (modal) {
+        closeModal(modal);
+    }
+}
+
+function printTeacherSyllabusFromDialog(e) {
+    if (e) {
+        e.preventDefault();
+    }
+    let classId = elements.classId && elements.classId.value;
+    if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
+        classId = appData.ui.syllabusTabClassId || classId;
+    }
+    if (!classId) {
+        alert(t('syllabusTableEmptyHint'));
+        return;
+    }
+    const mod = getSyllabusModule();
+    if (!mod) {
+        alert(t('syllabusModuleMissing'));
+        return;
+    }
+    const saved = appData.classes.find(c => c.id === classId);
+    const snapshot = {
+        ...(saved || {}),
+        id: classId,
+        syllabusUnits: collectSyllabusUnitsFromForm(),
+        syllabusGeneralNotes: getSyllabusGeneralNotesFromForm() || saved?.syllabusGeneralNotes || ''
+    };
+    const syllabusRows = resolveSyllabusRowsForPrint(snapshot);
+    if (!syllabusRows.length) {
+        alert(t('syllabusTableEmptyHint'));
+        return;
+    }
+    ensureUiState();
+    appData.ui.syllabusPrintWeekFormat = normalizeSyllabusPrintWeekFormat(
+        document.getElementById('teacherSyllabusPrintWeekFormat')?.value
+    );
+    appData.ui.syllabusPrintShowDateColumn = document.getElementById('teacherSyllabusPrintShowDate')?.checked !== false;
+    appData.ui.syllabusPrintDetailAppendix = document.getElementById('teacherSyllabusPrintDetailAppendix')?.checked === true;
+    saveUiStateToLocalStorage();
+    syncSyllabusPrintOptionsControls();
+    const sectionMeta = getSyllabusSectionMeta(snapshot);
+    const sections = [{
+        classData: snapshot,
+        rows: syllabusRows,
+        classTitle: sectionMeta.classTitle,
+        jindoTitle: buildJindoPrintTitle(snapshot),
+        tableYear: sectionMeta.tableYear,
+        subtitle: sectionMeta.subtitle,
+        termRange: sectionMeta.termRange
+    }];
+    const meta = {
+        title: (appData.calendarName && appData.calendarName.trim()) || t('syllabusTables'),
+        subtitle: appData.termStart ? appData.termStart : ''
+    };
+    const labels = {
+        ...getSyllabusTableLabels(snapshot),
+        ...getSyllabusRenderLabels(snapshot)
+    };
+    closeTeacherSyllabusPrintModal();
+    printSyllabusDocument(
+        mod.renderSyllabusDocumentHtml(meta, sections, labels),
+        sectionMeta.classTitle
+    );
 }
 
 function getSyllabusStudentPrintLabels(classData) {
@@ -22750,6 +23291,83 @@ function getSyllabusStudentPrintLabels(classData) {
         includeDetailAppendix: false,
         syllabusPrintContinuation: 'never'
     };
+}
+
+function normalizeSyllabusPrintWeekFormat(value) {
+    return value === 'index' ? 'index' : 'abbrev';
+}
+
+function getSyllabusPrintWeekFormat() {
+    ensureUiState();
+    return normalizeSyllabusPrintWeekFormat(appData.ui.syllabusPrintWeekFormat);
+}
+
+function getSyllabusPrintShowDateColumn() {
+    ensureUiState();
+    if (appData.ui.syllabusPrintShowDateColumn === false) {
+        return false;
+    }
+    return true;
+}
+
+function readSyllabusPrintWeekFormatFromActiveSelect() {
+    const el = document.getElementById('teacherSyllabusPrintWeekFormat')
+        || document.getElementById('printSyllabusWeekFormat');
+    if (el && el.value) {
+        return normalizeSyllabusPrintWeekFormat(el.value);
+    }
+    return getSyllabusPrintWeekFormat();
+}
+
+function readSyllabusPrintShowDateFromActiveControls() {
+    const el = document.getElementById('teacherSyllabusPrintShowDate')
+        || document.getElementById('printSyllabusShowDate');
+    if (el) {
+        return el.checked !== false;
+    }
+    return getSyllabusPrintShowDateColumn();
+}
+
+function persistSyllabusPrintWeekFormat(value) {
+    ensureUiState();
+    appData.ui.syllabusPrintWeekFormat = normalizeSyllabusPrintWeekFormat(value);
+    syncSyllabusPrintOptionsControls();
+}
+
+function persistSyllabusPrintShowDateColumn(value) {
+    ensureUiState();
+    appData.ui.syllabusPrintShowDateColumn = value !== false;
+    syncSyllabusPrintOptionsControls();
+}
+
+function syncSyllabusPrintOptionsControls() {
+    ensureUiState();
+    const fmt = getSyllabusPrintWeekFormat();
+    const showDate = getSyllabusPrintShowDateColumn();
+    const detailAppendix = appData.ui.syllabusPrintDetailAppendix === true;
+    ['teacherSyllabusPrintWeekFormat', 'printSyllabusWeekFormat'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = fmt;
+        }
+    });
+    ['teacherSyllabusPrintShowDate', 'printSyllabusShowDate'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.checked = showDate;
+        }
+    });
+    ['teacherSyllabusPrintDetailAppendix', 'printSyllabusDetailAppendix'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.checked = detailAppendix;
+        }
+    });
+}
+
+/** @deprecated use syncSyllabusPrintOptionsControls */
+function syncSyllabusPrintWeekFormatSelects() {
+    syncSyllabusPrintOptionsControls();
 }
 
 function getSyllabusTableLabels(classData) {
@@ -22773,6 +23391,8 @@ function getSyllabusTableLabels(classData) {
         useKoreanJindo: useKo,
         includeDetailAppendix: detailAppendix,
         syllabusPrintContinuation: detailAppendix ? 'always' : 'never',
+        weekFormat: readSyllabusPrintWeekFormatFromActiveSelect(),
+        showDateColumn: readSyllabusPrintShowDateFromActiveControls(),
         pdfLayout: true,
         a4Pdf: true,
         tableYear: classData ? getSyllabusYearForClass(classData) : getSyllabusYearForClass({}),
@@ -24194,53 +24814,7 @@ function printSyllabusDocument(docHtml, windowTitle) {
 }
 
 function printClassSyllabusFromModal() {
-    let classId = elements.classId && elements.classId.value;
-    if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
-        classId = appData.ui.syllabusTabClassId || classId;
-    }
-    if (!classId) {
-        alert(t('syllabusTableEmptyHint'));
-        return;
-    }
-    const mod = getSyllabusModule();
-    if (!mod) {
-        alert(t('syllabusModuleMissing'));
-        return;
-    }
-    const saved = appData.classes.find(c => c.id === classId);
-    const snapshot = {
-        ...(saved || {}),
-        id: classId,
-        syllabusUnits: collectSyllabusUnitsFromForm(),
-        syllabusGeneralNotes: getSyllabusGeneralNotesFromForm() || saved?.syllabusGeneralNotes || ''
-    };
-    const syllabusRows = resolveSyllabusRowsForPrint(snapshot);
-    if (!syllabusRows.length) {
-        alert(t('syllabusTableEmptyHint'));
-        return;
-    }
-    const sectionMeta = getSyllabusSectionMeta(snapshot);
-    const sections = [{
-        classData: snapshot,
-        rows: syllabusRows,
-        classTitle: sectionMeta.classTitle,
-        jindoTitle: buildJindoPrintTitle(snapshot),
-        tableYear: sectionMeta.tableYear,
-        subtitle: sectionMeta.subtitle,
-        termRange: sectionMeta.termRange
-    }];
-    const meta = {
-        title: (appData.calendarName && appData.calendarName.trim()) || t('syllabusTables'),
-        subtitle: appData.termStart ? appData.termStart : ''
-    };
-    const labels = {
-        ...getSyllabusTableLabels(snapshot),
-        ...getSyllabusRenderLabels(snapshot)
-    };
-    printSyllabusDocument(
-        mod.renderSyllabusDocumentHtml(meta, sections, labels),
-        sectionMeta.classTitle
-    );
+    openTeacherSyllabusPrintModal();
 }
 
 const EVENT_TYPE_HINT_KEYS = {
@@ -24540,6 +25114,7 @@ function getNextColor() {
 }
 
 function deriveClassTextColorForSave(hex) {
+    void hex;
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     return isDark ? '#dde6f1' : '#243244';
 }
@@ -25032,6 +25607,13 @@ function handleClassSubmit(e) {
     dispatchClassesUpsert(classData);
     
     const isUpdate = Boolean(existingId);
+    const classAppearanceChanged = Boolean(
+        existingClass
+        && (
+            existingClass.color !== classData.color
+            || existingClass.textColor !== classData.textColor
+        )
+    );
     saveData();
     updateClassSyllabusSummary(classData);
     refreshTimetablePanels();
@@ -25057,6 +25639,11 @@ function handleClassSubmit(e) {
         syncClassSyllabusRowsFromCalendar(effective, { refreshScheduleTitles: true });
         saveData();
         renderHomeworkEditor();
+    }
+    if (classAppearanceChanged) {
+        invalidateScheduleCache();
+        pendingCalendarForceFull = true;
+        renderCalendarNow({ forceFull: true });
     }
     if (isUpdate) {
         setAppStatusMessage(t('classSaved'), false);
@@ -26397,6 +26984,7 @@ function getHolidayDates(holiday) {
 // Calendar Rendering
 // ============================================
 let renderCalendarTimer = null;
+let pendingCalendarForceFull = false;
 
 function scheduleRenderCalendar() {
     if (renderCalendarTimer) {
@@ -27249,8 +27837,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         toRender.forEach(({ classData, lesson, slice, calendarTitle }) => {
             const eventBar = document.createElement('div');
             eventBar.className = 'event-bar cal-item-lessons';
-            const accentColor = classData.color || '#356a9e';
-            applyCalmEventBarStyle(eventBar, accentColor);
+            applyCalmEventBarStyle(eventBar, classData);
             const lessonDateStr = lesson.date instanceof Date
                 ? formatDateISO(lesson.date)
                 : (lesson.date || '');
@@ -29042,6 +29629,10 @@ function getPrintOptionsFromForm() {
     const printCompressionNotes = document.getElementById('printCompressionNotes')?.checked !== false;
     const printSyllabusTables = document.getElementById('printSyllabusTables')?.checked !== false;
     const printSyllabusDetailAppendix = document.getElementById('printSyllabusDetailAppendix')?.checked === true;
+    const printSyllabusWeekFormat = normalizeSyllabusPrintWeekFormat(
+        document.getElementById('printSyllabusWeekFormat')?.value
+    );
+    const printSyllabusShowDate = document.getElementById('printSyllabusShowDate')?.checked !== false;
     const printEventsList = document.getElementById('printEventsList')?.checked !== false;
     const wantAnySummarySection = printClassList || printEventsList
         || printLessonSchedule || printCompressionNotes || printSyllabusTables;
@@ -29053,6 +29644,8 @@ function getPrintOptionsFromForm() {
         printCompressionNotes,
         printSyllabusTables,
         printSyllabusDetailAppendix,
+        printSyllabusWeekFormat,
+        printSyllabusShowDate,
         printEventsList,
         wantAnySummarySection,
         syllabusOnly
@@ -29106,6 +29699,7 @@ async function openPrintOptionsDialog() {
         ensureUiState();
         detailAppendixEl.checked = appData.ui.syllabusPrintDetailAppendix === true;
     }
+    syncSyllabusPrintWeekFormatSelects();
     if (elements.printOptionsModal) {
         openModal(elements.printOptionsModal);
     }
@@ -29183,6 +29777,8 @@ function runAppPrint(printMode) {
     ensureUiState();
     appData.ui.printVisibility = readPrintCalendarVisibilityFromForm();
     appData.ui.syllabusPrintDetailAppendix = formOpts.printSyllabusDetailAppendix === true;
+    appData.ui.syllabusPrintWeekFormat = formOpts.printSyllabusWeekFormat;
+    appData.ui.syllabusPrintShowDateColumn = formOpts.printSyllabusShowDate !== false;
     // UI-only: persist print visibility preferences locally.
     saveUiStateToLocalStorage();
 
@@ -29341,7 +29937,6 @@ function updatePrintSummary() {
             const itemDiv = document.createElement('d' + 'iv');
             itemDiv.className = 'lesson-schedule-item';
             itemDiv.style.borderLeftColor = classData.color;
-            itemDiv.style.color = classData.textColor || DEFAULT_CLASS_TEXT_COLOR;
 
             const lessonsHtml = lessons.map(l => {
                 const mk = l.monthKey || formatDateISO(l.date).slice(0, 7);
