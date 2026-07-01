@@ -1495,6 +1495,7 @@
                 cohorts: del.cohorts,
                 attendanceSessions: purged.attendanceSessions,
                 homeworkCompletions: purged.homeworkCompletions,
+                essaySubmissions: purged.essaySubmissions,
                 studentPoints: purged.studentPoints,
                 studentTests: purged.studentTests
             });

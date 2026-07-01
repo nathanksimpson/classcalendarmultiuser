@@ -42,8 +42,14 @@
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260612-ui-padding-classroom',
+            'js/classroom-header.js?v=20260630-essays',
             'js/classroom-homework.js?v=20260610-boot-mentions'
+        ],
+        essays: [
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-header.js?v=20260630-essays',
+            'js/classroom-essays.js?v=20260630-essays-retest'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

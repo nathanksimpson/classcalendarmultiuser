@@ -1446,6 +1446,7 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         cohorts,
         attendanceSessions,
         homeworkCompletions,
+        essaySubmissions,
         studentPoints,
         studentTests
     } = req.body || {};
@@ -1460,6 +1461,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'homeworkCompletions')) {
             payload.homeworkCompletions = homeworkCompletions;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'essaySubmissions')) {
+            payload.essaySubmissions = essaySubmissions;
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'studentPoints')) {
             payload.studentPoints = studentPoints;

@@ -430,6 +430,7 @@
         }
         merged.attendanceSessions = mergeArrayById(local.attendanceSessions, server.attendanceSessions);
         merged.homeworkCompletions = mergeArrayById(local.homeworkCompletions, server.homeworkCompletions);
+        merged.essaySubmissions = mergeArrayById(local.essaySubmissions, server.essaySubmissions);
         merged.studentPoints = mergeArrayById(local.studentPoints, server.studentPoints, 'id');
         merged.studentTests = mergeArrayById(local.studentTests, server.studentTests);
         if (local.ui || server.ui) {
@@ -892,6 +893,9 @@
             }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
                 body.homeworkCompletions = fields.homeworkCompletions;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'essaySubmissions')) {
+                body.essaySubmissions = fields.essaySubmissions;
             }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentPoints')) {
                 body.studentPoints = fields.studentPoints;
