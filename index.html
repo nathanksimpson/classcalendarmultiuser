@@ -378,6 +378,7 @@
                         <summary class="btn btn-outline btn-compact header-dropdown-trigger" data-i18n="rosterImportMenu">Import&hellip;</summary>
                         <div class="header-dropdown-panel classroom-roster-import-menu-panel">
                             <button type="button" id="classroomRosterImportBtn" class="header-dropdown-item" data-i18n="rosterImportBtn">Import roster&hellip;</button>
+                            <button type="button" id="classroomRosterEssayTrackerImportBtn" class="header-dropdown-item" data-i18n="essayTrackerImportBtn">Import from Essay Tracker&hellip;</button>
                             <button type="button" id="classroomRosterPasteBtn" class="header-dropdown-item" data-i18n="rosterPasteBtn">Paste from SMS&hellip;</button>
                         </div>
                     </details>
@@ -401,6 +402,7 @@
                             <button type="button" id="classroomRosterClearSelectionBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveClearSelection">Clear</button>
                             <button type="button" id="classroomRosterMoveBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveBtn" disabled>Move to cohort&hellip;</button>
                         </div>
+                        <input type="search" id="classroomRosterStudentSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="studentListSearchPlaceholder" placeholder="Search students&hellip;">
                         <div id="classroomRosterStudentList" class="module-list classroom-roster-student-list" role="listbox" aria-label="Students"></div>
                     </div>
                     <div class="module-editor-panel classroom-roster-editor-panel">
@@ -475,18 +477,22 @@
                 </div>
             </section>
 
-            <section id="panel-essays" class="app-tab-panel" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+            <section id="panel-essays" class="app-tab-panel classroom-essays-layout" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomEssaysHeader"></div>
-                <div id="classroomEssaysDeadlines" class="classroom-essay-deadlines-wrap"></div>
                 <div class="classroom-sheet-panel">
-                    <div class="module-toolbar classroom-tab-toolbar classroom-essay-toolbar">
-                        <div id="classroomEssaysFilters" class="classroom-essay-filters"></div>
-                        <button type="button" id="classroomEssaysSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
-                    </div>
-                    <div class="classroom-sheet-scroll" tabindex="0">
-                        <table class="classroom-sheet classroom-sheet--essays">
+                    <div class="classroom-essay-workspace">
+                        <div id="classroomEssaysStatsBar" class="classroom-essay-stats-bar" role="group" aria-label="Essay status summary" data-i18n-aria-label="classroomEssayFilterLabel"></div>
+                        <div class="module-toolbar classroom-tab-toolbar classroom-essay-toolbar">
+                            <div id="classroomEssaysFilters" class="classroom-essay-filters"></div>
+                            <span id="classroomEssaysSaveStatus" class="classroom-essay-save-status section-hint classroom-essay-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
+                        </div>
+                        <div class="classroom-sheet-scroll classroom-essay-sheet-scroll" tabindex="0">
+                            <table class="classroom-sheet classroom-sheet--essays">
                             <thead>
                                 <tr>
+                                    <th scope="col" class="classroom-sheet-col-select">
+                                        <input type="checkbox" id="classroomEssaysSelectAll" class="classroom-essays-select-all" aria-label="Select all" data-i18n-aria-label="classroomEssayBatchSelectAll" />
+                                    </th>
                                     <th scope="col" class="classroom-sheet-col-index">#</th>
                                     <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
                                     <th scope="col" class="classroom-sheet-col-essay-status" data-i18n="classroomColEssayStatus">Status</th>
@@ -495,7 +501,8 @@
                                 </tr>
                             </thead>
                             <tbody id="classroomEssaysRows"></tbody>
-                        </table>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </section>

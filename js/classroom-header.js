@@ -36,7 +36,13 @@
     }
 
     function t(key) {
-        return hooks && hooks.t ? hooks.t(key) : key;
+        if (hooks && hooks.t) {
+            return hooks.t(key);
+        }
+        if (typeof global.t === 'function') {
+            return global.t(key);
+        }
+        return key;
     }
 
     function escapeHtml(s) {
@@ -47,6 +53,10 @@
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
+    }
+
+    function escapeAttr(s) {
+        return escapeHtml(s).replace(/"/g, '&quot;');
     }
 
     function getTeacherLine(classData) {
@@ -60,6 +70,40 @@
                 return `${row.name || row.userId}${cat}`;
             })
             .join(', ');
+    }
+
+    function classSearchHaystack(classData) {
+        if (!classData) {
+            return '';
+        }
+        const teachers = getTeacherLine(classData);
+        return [
+            classData.name,
+            classData.id,
+            classData.grade,
+            classData.levelPreset,
+            classData.levelCustom,
+            classData.subject,
+            teachers
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+    }
+
+    function filterClassesForSearch(classes, query, selectedClassId) {
+        const q = (query || '').trim().toLowerCase();
+        let filtered = classes;
+        if (q) {
+            filtered = classes.filter((c) => classSearchHaystack(c).includes(q));
+        }
+        if (selectedClassId && !filtered.some((c) => c.id === selectedClassId)) {
+            const selected = classes.find((c) => c.id === selectedClassId);
+            if (selected) {
+                filtered = [selected, ...filtered];
+            }
+        }
+        return filtered;
     }
 
     function renderStats(session, studentCount) {
@@ -79,6 +123,23 @@
         };
     }
 
+    function buildClassOptions(classes, selectedClassId, essaySubmissions) {
+        return classes
+            .map((c) => {
+                const sel = c.id === selectedClassId ? ' selected' : '';
+                const resubmitBadge =
+                    mode === 'essays' && domain()
+                        ? domain().essayResubmitCountForClass(essaySubmissions, c.id)
+                        : 0;
+                const badge =
+                    resubmitBadge > 0
+                        ? ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`
+                        : '';
+                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}${escapeHtml(badge)}</option>`;
+            })
+            .join('');
+    }
+
     function render(mountEl, state, options) {
         if (!mountEl) {
             return;
@@ -91,29 +152,28 @@
         const classes = Array.isArray(s.classes) ? s.classes : [];
         const stats = renderStats(s.attendanceSession, s.studentCount);
         const teachers = getTeacherLine(classData);
-
-        const classOptions = classes
-            .map((c) => {
-                const sel = c.id === s.classId ? ' selected' : '';
-                const resubmitBadge =
-                    mode === 'essays' && domain()
-                        ? domain().essayResubmitCountForClass(s.essaySubmissions, c.id)
-                        : 0;
-                const badge =
-                    resubmitBadge > 0
-                        ? ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`
-                        : '';
-                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}${escapeHtml(badge)}</option>`;
-            })
-            .join('');
+        const classSearchQuery = s.classSearchQuery != null ? String(s.classSearchQuery) : '';
+        const classesForSelect =
+            mode === 'essays'
+                ? filterClassesForSearch(classes, classSearchQuery, s.classId)
+                : classes;
+        const classOptions = buildClassOptions(classesForSelect, s.classId, s.essaySubmissions);
 
         const collapsedClass = collapsed ? ' classroom-header--collapsed' : '';
         let body = '';
         body += `<div class="classroom-header${collapsedClass}" id="classroomContextHeader">`;
         body += '<div class="classroom-header-top">';
         body += `<button type="button" class="btn btn-outline btn-compact classroom-header-toggle" id="classroomHeaderToggle" aria-expanded="${collapsed ? 'false' : 'true'}">${escapeHtml(collapsed ? t('classroomHeaderExpand') : t('classroomHeaderCollapse'))}</button>`;
-        body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>`;
-        body += `<select id="classroomHeaderClassSelect" class="field-select field-control--compact">${classOptions}</select></label>`;
+        if (mode === 'essays') {
+            body += '<div class="classroom-header-class-picker">';
+            body += `<label class="classroom-header-field classroom-header-class-search-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>`;
+            body += `<input type="search" id="classroomHeaderClassSearch" class="module-list-search classroom-header-class-search" autocomplete="off" spellcheck="false" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" value="${escapeAttr(classSearchQuery)}" />`;
+            body += `<select id="classroomHeaderClassSelect" class="field-select field-control--compact">${classOptions}</select></label>`;
+            body += '</div>';
+        } else {
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>`;
+            body += `<select id="classroomHeaderClassSelect" class="field-select field-control--compact">${classOptions}</select></label>`;
+        }
         if (teachers) {
             body += `<span class="classroom-header-teachers section-hint">${escapeHtml(t('classroomTeachersLabel'))}: ${escapeHtml(teachers)}</span>`;
         }
@@ -121,11 +181,16 @@
 
         body += '<div class="classroom-header-body">';
         body += '<div class="classroom-header-stats">';
-        body += `<span class="classroom-stat">${escapeHtml(t('classroomStatTotal'))}: <strong>${stats.total}</strong></span>`;
-        body += `<span class="classroom-stat classroom-stat--present">${escapeHtml(t('classroomStatPresent'))}: <strong>${stats.present}</strong></span>`;
-        body += `<span class="classroom-stat classroom-stat--late">${escapeHtml(t('classroomStatLate'))}: <strong>${stats.late}</strong></span>`;
-        body += `<span class="classroom-stat classroom-stat--absent">${escapeHtml(t('classroomStatAbsent'))}: <strong>${stats.absent}</strong></span>`;
-        body += `<span class="classroom-stat">${escapeHtml(t('classroomStatEarlyLeave'))}: <strong>${stats.early}</strong></span>`;
+        if (mode === 'essays') {
+            const ec = s.essayStatusCounts || {};
+            body += `<span class="classroom-stat">${escapeHtml(t('classroomStatTotal'))}: <strong>${ec.total != null ? ec.total : stats.total}</strong></span>`;
+        } else {
+            body += `<span class="classroom-stat">${escapeHtml(t('classroomStatTotal'))}: <strong>${stats.total}</strong></span>`;
+            body += `<span class="classroom-stat classroom-stat--present">${escapeHtml(t('classroomStatPresent'))}: <strong>${stats.present}</strong></span>`;
+            body += `<span class="classroom-stat classroom-stat--late">${escapeHtml(t('classroomStatLate'))}: <strong>${stats.late}</strong></span>`;
+            body += `<span class="classroom-stat classroom-stat--absent">${escapeHtml(t('classroomStatAbsent'))}: <strong>${stats.absent}</strong></span>`;
+            body += `<span class="classroom-stat">${escapeHtml(t('classroomStatEarlyLeave'))}: <strong>${stats.early}</strong></span>`;
+        }
         body += '</div>';
 
         if (mode === 'attendance') {
@@ -159,10 +224,21 @@
                     return `<option value="${escapeHtml(key)}" data-date="${escapeHtml(row.date || '')}"${sel}>${escapeHtml(label)}</option>`;
                 })
                 .join('');
-            body += '<div class="classroom-header-controls">';
+            const deadlines = s.essayDeadlines || {};
+            const ss = deadlines.ssDueDate || '';
+            const te = deadlines.teacherEvalDueDate || '';
+            const deadlineDisabled = s.essayDeadlinesReadOnly ? ' disabled' : '';
+            body += '<div class="classroom-header-controls classroom-header-controls--essays">';
             body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>`;
             body += `<select id="classroomHeaderAssignment" class="field-select field-control--compact">${rowOpts}</select></label>`;
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssaySsDue'))}</span>`;
+            body += `<input type="date" id="classroomHeaderEssaySsDue" class="field-input field-control--compact" value="${escapeHtml(ss)}"${deadlineDisabled} /></label>`;
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssayTeacherEvalDue'))}</span>`;
+            body += `<input type="date" id="classroomHeaderEssayTeacherEvalDue" class="field-input field-control--compact" value="${escapeHtml(te)}"${deadlineDisabled} /></label>`;
             body += '</div>';
+            if (s.essayDeadlineHintsHtml) {
+                body += `<div class="classroom-essay-deadline-hints classroom-header-essay-deadline-hints">${s.essayDeadlineHintsHtml}</div>`;
+            }
         } else if (mode === 'points') {
             body += '<div class="classroom-header-controls">';
             body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomDateLabel'))}</span>`;
@@ -200,6 +276,12 @@
             render(mountEl, state, options);
         });
 
+        mountEl.querySelector('#classroomHeaderClassSearch')?.addEventListener('input', (e) => {
+            if (typeof opts.onClassSearchChange === 'function') {
+                opts.onClassSearchChange(e.target.value);
+            }
+        });
+
         mountEl.querySelector('#classroomHeaderClassSelect')?.addEventListener('change', (e) => {
             if (typeof opts.onClassChange === 'function') {
                 opts.onClassChange(e.target.value);
@@ -223,6 +305,18 @@
             const opt = e.target.selectedOptions[0];
             if (typeof opts.onAssignmentChange === 'function') {
                 opts.onAssignmentChange(e.target.value, opt ? opt.getAttribute('data-date') : '');
+            }
+        });
+
+        mountEl.querySelector('#classroomHeaderEssaySsDue')?.addEventListener('change', (e) => {
+            if (typeof opts.onEssaySsDueChange === 'function') {
+                opts.onEssaySsDueChange(e.target.value);
+            }
+        });
+
+        mountEl.querySelector('#classroomHeaderEssayTeacherEvalDue')?.addEventListener('change', (e) => {
+            if (typeof opts.onEssayTeacherEvalDueChange === 'function') {
+                opts.onEssayTeacherEvalDueChange(e.target.value);
             }
         });
 
@@ -263,6 +357,8 @@
         initTab,
         render,
         setMode,
+        classSearchHaystack,
+        filterClassesForSearch,
         setCollapsed(value) {
             collapseOverridden = true;
             collapsed = Boolean(value);
