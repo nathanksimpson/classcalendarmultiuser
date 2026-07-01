@@ -28,6 +28,7 @@
 | `dayNoteCategories` | array | Custom day note category labels (see below) |
 | `attendanceSessions` | array | Per-class daily attendance (see below) — schema v3 |
 | `homeworkCompletions` | array | Per-assignment homework grades (see below) — schema v3 |
+| `essaySubmissions` | array | Per-assignment essay submission status (see below) — schema v3 |
 | `studentPoints` | array | Phase 2 stub — point ledger entries (empty on migrate) |
 | `studentTests` | array | Phase 2 stub — test scores |
 | `portfolioRecordings` | array | Phase 2 stub — lesson recordings |
@@ -126,6 +127,22 @@ One record per class per syllabus lesson row (assignment). Keyed by `classId` + 
 | `syllabusRowId` | string | Links to a lesson row in `classes[].syllabusRows` |
 | `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
 | `records[]` | array | `{ studentId, grade, selfCheck, parentCheck, note }` — grade: `A`–`F`, `N`, `X`; selfCheck: `none`, `not_checked`, `satisfied` |
+| `authorUserId` | string | Last editor |
+| `updatedAt` | string | ISO-8601 |
+
+### `essaySubmissions[]` (optional, schema v3)
+
+One record per class per syllabus lesson row (essay assignment). Keyed by `classId` + `syllabusRowId`.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `classId` | string | Links to `classes[].id` |
+| `syllabusRowId` | string | Links to a lesson row in `classes[].syllabusRows` |
+| `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
+| `ssDueDate` | string | Student submission due (`YYYY-MM-DD`, optional override) |
+| `teacherEvalDueDate` | string | Teacher evaluation due (`YYYY-MM-DD`, optional override) |
+| `records[]` | array | `{ studentId, status, submittedRetest, note }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` |
 | `authorUserId` | string | Last editor |
 | `updatedAt` | string | ISO-8601 |
 

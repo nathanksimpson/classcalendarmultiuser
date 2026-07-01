@@ -65,6 +65,7 @@
             dayNoteCategories: [],
             attendanceSessions: [],
             homeworkCompletions: [],
+            essaySubmissions: [],
             studentPoints: [],
             studentTests: [],
             portfolioRecordings: [],

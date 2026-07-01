@@ -1779,6 +1779,9 @@ export default {
                     if (Object.prototype.hasOwnProperty.call(body, 'homeworkCompletions')) {
                         payload.homeworkCompletions = body.homeworkCompletions;
                     }
+                    if (Object.prototype.hasOwnProperty.call(body, 'essaySubmissions')) {
+                        payload.essaySubmissions = body.essaySubmissions;
+                    }
                     if (Object.prototype.hasOwnProperty.call(body, 'studentPoints')) {
                         payload.studentPoints = body.studentPoints;
                     }

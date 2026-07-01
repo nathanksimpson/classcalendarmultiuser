@@ -562,6 +562,7 @@ function getDefaultAppData() {
         dayNoteCategories: [],
         attendanceSessions: [],
         homeworkCompletions: [],
+        essaySubmissions: [],
         studentPoints: [],
         studentTests: [],
         portfolioRecordings: [],
@@ -12779,6 +12780,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'attendance',
     'ledger',
     'homework-tracking',
+    'essays',
     'points',
     'tests'
 ];
@@ -12811,6 +12813,7 @@ const ZONE_SEGMENT_TO_TAB = {
         attendance: 'attendance',
         ledger: 'ledger',
         homework: 'homework-tracking',
+        essays: 'essays',
         points: 'points',
         tests: 'tests',
         notes: 'notes'
@@ -13086,6 +13089,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
     ledger: { zone: APP_ZONE_CLASSROOM, segment: 'ledger' },
     'homework-tracking': { zone: APP_ZONE_CLASSROOM, segment: 'homework' },
+    essays: { zone: APP_ZONE_CLASSROOM, segment: 'essays' },
     points: { zone: APP_ZONE_CLASSROOM, segment: 'points' },
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
@@ -14656,6 +14660,7 @@ function navigateToTabBody(tabId, options = {}) {
         || tabId === 'attendance'
         || tabId === 'ledger'
         || tabId === 'homework-tracking'
+        || tabId === 'essays'
         || tabId === 'points'
         || tabId === 'tests'
     ) {
@@ -18884,6 +18889,9 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.homeworkCompletions)) {
         appData.homeworkCompletions = serverData.homeworkCompletions;
     }
+    if (Array.isArray(serverData.essaySubmissions)) {
+        appData.essaySubmissions = serverData.essaySubmissions;
+    }
     if (Array.isArray(serverData.studentPoints)) {
         appData.studentPoints = serverData.studentPoints;
         if (!options || !options.skipPointsNoteReconcile) {
@@ -18904,6 +18912,9 @@ async function saveClassroomPartial(fields, options) {
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
         appData.homeworkCompletions = fields.homeworkCompletions;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'essaySubmissions')) {
+        appData.essaySubmissions = fields.essaySubmissions;
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentPoints')) {
         appData.studentPoints = fields.studentPoints;
@@ -19015,6 +19026,8 @@ async function initClassroomTabControls(tabId, options = {}) {
             CCPClassroomAttendance.initTab(hooks, options);
         } else if (tabId === 'homework-tracking' && typeof CCPClassroomHomework !== 'undefined') {
             CCPClassroomHomework.initTab(hooks, options);
+        } else if (tabId === 'essays' && typeof CCPClassroomEssays !== 'undefined') {
+            CCPClassroomEssays.initTab(hooks, options);
         } else if (tabId === 'ledger' && typeof CCPClassroomLedger !== 'undefined') {
             CCPClassroomLedger.initTab(hooks, options);
         } else if (tabId === 'points' && typeof CCPClassroomPoints !== 'undefined') {
@@ -33189,6 +33202,7 @@ function refreshActiveTabAfterHydration() {
         tab === 'students'
         || tab === 'attendance'
         || tab === 'homework-tracking'
+        || tab === 'essays'
         || tab === 'points'
         || tab === 'tests'
     ) {
@@ -34599,7 +34613,7 @@ function migrateData(data) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'studentPoints', 'studentTests', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;

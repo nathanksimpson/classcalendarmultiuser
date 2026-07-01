@@ -95,7 +95,15 @@
         const classOptions = classes
             .map((c) => {
                 const sel = c.id === s.classId ? ' selected' : '';
-                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
+                const resubmitBadge =
+                    mode === 'essays' && domain()
+                        ? domain().essayResubmitCountForClass(s.essaySubmissions, c.id)
+                        : 0;
+                const badge =
+                    resubmitBadge > 0
+                        ? ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`
+                        : '';
+                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}${escapeHtml(badge)}</option>`;
             })
             .join('');
 
@@ -140,6 +148,20 @@
             body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomAssignmentLabel'))}</span>`;
             body += `<select id="classroomHeaderAssignment" class="field-select field-control--compact">${rowOpts}</select></label>`;
             body += `<p class="section-hint classroom-grade-legend">${escapeHtml(t('classroomGradeLegend'))}</p>`;
+            body += '</div>';
+        } else if (mode === 'essays') {
+            const rows = classData && domain() ? domain().getEssayRowsFromSyllabus(classData.syllabusRows) : [];
+            const rowOpts = rows
+                .map((row) => {
+                    const key = domain().getSyllabusRowKey(row);
+                    const sel = key === s.syllabusRowId ? ' selected' : '';
+                    const label = `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+                    return `<option value="${escapeHtml(key)}" data-date="${escapeHtml(row.date || '')}"${sel}>${escapeHtml(label)}</option>`;
+                })
+                .join('');
+            body += '<div class="classroom-header-controls">';
+            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>`;
+            body += `<select id="classroomHeaderAssignment" class="field-select field-control--compact">${rowOpts}</select></label>`;
             body += '</div>';
         } else if (mode === 'points') {
             body += '<div class="classroom-header-controls">';

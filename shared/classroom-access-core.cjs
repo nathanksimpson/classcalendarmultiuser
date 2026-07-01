@@ -162,6 +162,33 @@ function validateHomeworkChange(user, calendarData, prevList, nextList) {
     return null;
 }
 
+function validateEssayChange(user, calendarData, prevList, nextList) {
+    const prev = Array.isArray(prevList) ? prevList : [];
+    const next = Array.isArray(nextList) ? nextList : [];
+    const prevByKey = new Map(prev.filter(Boolean).map((e) => [`${e.classId}|${e.syllabusRowId}`, e]));
+    const nextByKey = new Map(next.filter(Boolean).map((e) => [`${e.classId}|${e.syllabusRowId}`, e]));
+
+    const touchedClassIds = new Set();
+    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
+        const was = prevByKey.get(key);
+        const now = nextByKey.get(key);
+        if (JSON.stringify(was) !== JSON.stringify(now)) {
+            const classId = (now && now.classId) || (was && was.classId);
+            if (classId) {
+                touchedClassIds.add(classId);
+            }
+        }
+    }
+
+    for (const classId of touchedClassIds) {
+        const err = assertCanEditClass(user, calendarData, classId);
+        if (err) {
+            return err;
+        }
+    }
+    return null;
+}
+
 function stampSessions(sessions, userId) {
     const now = new Date().toISOString();
     const uid = String(userId);
@@ -182,6 +209,10 @@ function stampHomework(completions, userId) {
             updatedAt: now
         })
     );
+}
+
+function stampEssay(submissions, userId) {
+    return stampHomework(submissions, userId);
 }
 
 function validatePointsChange(user, calendarData, prevList, nextList) {
@@ -261,10 +292,11 @@ function prepareClassroomForSave(user, calendarData, payload) {
     const hasCohorts = Object.prototype.hasOwnProperty.call(body, 'cohorts');
     const hasAttendance = Object.prototype.hasOwnProperty.call(body, 'attendanceSessions');
     const hasHomework = Object.prototype.hasOwnProperty.call(body, 'homeworkCompletions');
+    const hasEssays = Object.prototype.hasOwnProperty.call(body, 'essaySubmissions');
     const hasPoints = Object.prototype.hasOwnProperty.call(body, 'studentPoints');
     const hasTests = Object.prototype.hasOwnProperty.call(body, 'studentTests');
 
-    if (!hasCohorts && !hasAttendance && !hasHomework && !hasPoints && !hasTests) {
+    if (!hasCohorts && !hasAttendance && !hasHomework && !hasEssays && !hasPoints && !hasTests) {
         return { error: 'No classroom fields to save', merged: {} };
     }
 
@@ -292,6 +324,15 @@ function prepareClassroomForSave(user, calendarData, payload) {
             return { error: err, merged: {} };
         }
         merged.homeworkCompletions = nextHw;
+    }
+
+    if (hasEssays) {
+        const nextEssays = stampEssay(body.essaySubmissions, user.id);
+        const err = validateEssayChange(user, data, data.essaySubmissions, nextEssays);
+        if (err) {
+            return { error: err, merged: {} };
+        }
+        merged.essaySubmissions = nextEssays;
     }
 
     if (hasPoints) {

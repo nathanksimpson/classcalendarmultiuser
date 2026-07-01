@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260630-homework-sidebar-height">
+    <link rel="stylesheet" href="styles.css?v=20260630-essays-retest">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
@@ -157,6 +157,7 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-i18n="classroomTabLedger">Ledger</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="classroomTabHomework">Homework</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="essays" data-i18n="classroomTabEssays">Essays</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="points" data-i18n="classroomTabPoints">Points</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
@@ -469,6 +470,31 @@
                                 </tr>
                             </thead>
                             <tbody id="classroomHomeworkRows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="panel-essays" class="app-tab-panel" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+                <div id="classroomEssaysHeader"></div>
+                <div id="classroomEssaysDeadlines" class="classroom-essay-deadlines-wrap"></div>
+                <div class="classroom-sheet-panel">
+                    <div class="module-toolbar classroom-tab-toolbar classroom-essay-toolbar">
+                        <div id="classroomEssaysFilters" class="classroom-essay-filters"></div>
+                        <button type="button" id="classroomEssaysSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                    </div>
+                    <div class="classroom-sheet-scroll" tabindex="0">
+                        <table class="classroom-sheet classroom-sheet--essays">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="classroom-sheet-col-index">#</th>
+                                    <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
+                                    <th scope="col" class="classroom-sheet-col-essay-status" data-i18n="classroomColEssayStatus">Status</th>
+                                    <th scope="col" class="classroom-sheet-col-retest" data-i18n="classroomEssayRetest">Retest</th>
+                                    <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classroomEssaysRows"></tbody>
                         </table>
                     </div>
                 </div>

@@ -7507,9 +7507,16 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 #panel-curriculum .workspace-books-list,
 #panel-syllabus .workspace-books-list,
 .workspace-books-sidebar .workspace-books-list {
+    display: block;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+.workspace-books-list .module-list-item + .module-list-item {
+    margin-top: 2px;
 }
 
 /* Syllabus tab — mirror curriculum split + editor chrome */
@@ -12823,10 +12830,6 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         grid-column: 1 / -1;
     }
 
-    #panel-syllabus .syllabus-tab-sidebar.workspace-books-sidebar {
-        align-items: start;
-    }
-
     #panel-syllabus .syllabus-tab-sidebar.workspace-books-sidebar .syllabus-list-segments {
         grid-column: 1 / -1;
         grid-row: 1;
@@ -12834,7 +12837,12 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         flex-shrink: 0;
     }
 
-    #panel-syllabus .syllabus-list-section {
+    #panel-syllabus .syllabus-tab-sidebar-toolbar {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    #panel-syllabus .syllabus-list-section:not([hidden]) {
         display: contents;
     }
 
@@ -12857,22 +12865,31 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         grid-column: 2;
         grid-row: 1 / -1;
         min-height: 0;
+        align-self: stretch;
+        overflow-y: auto;
     }
 
     #panel-curriculum .workspace-books-list {
         grid-column: 2;
         grid-row: 2 / -1;
         min-height: 0;
+        align-self: stretch;
+        overflow-y: auto;
     }
 
     #panel-syllabus .syllabus-list-section .workspace-books-list {
         grid-column: 2;
         grid-row: 2 / -1;
         min-height: 0;
+        align-self: stretch;
+        overflow-y: auto;
     }
 
     #panel-syllabus .syllabus-tab-sidebar:has(#syllabusTabTemplateToolbar:not([hidden])) .syllabus-list-section .workspace-books-list {
         grid-row: 3 / -1;
+        min-height: 0;
+        align-self: stretch;
+        overflow-y: auto;
     }
 }
 
@@ -12882,6 +12899,14 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         display: flex;
         flex-direction: column;
         max-height: min(40vh, 320px);
+    }
+
+    #panel-syllabus .syllabus-list-section:not([hidden]) {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .homework-layout.module-split-layout--homework {
@@ -14966,6 +14991,133 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-sheet--homework .classroom-sheet-col-notes {
     width: 26%;
+}
+
+.classroom-essay-deadlines-wrap {
+    margin-bottom: var(--space-3);
+    padding: 0 var(--space-3);
+}
+
+.classroom-essay-deadlines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: flex-end;
+}
+
+.classroom-essay-deadline-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+}
+
+.classroom-essay-deadline {
+    margin: 0;
+    font-size: 0.8125rem;
+}
+
+.classroom-essay-deadline--overdue {
+    color: var(--danger, #c92a2a);
+}
+
+.classroom-essay-deadline--ok {
+    color: var(--text-secondary);
+}
+
+.classroom-essay-toolbar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+}
+
+.classroom-essay-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+}
+
+.classroom-essay-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.classroom-essay-filter.is-active {
+    border-color: var(--primary-color);
+    background: var(--primary-light, #edf2ff);
+}
+
+.classroom-essay-summary {
+    margin: 0;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-index {
+    width: 3%;
+    text-align: center;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-student {
+    width: 22%;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-essay-status {
+    width: 42%;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-retest {
+    width: 12%;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-notes {
+    width: 21%;
+}
+
+.classroom-essay-status-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.essay-status-btn {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm, 4px);
+    background: var(--bg-secondary, #f1f3f5);
+    color: var(--text-primary);
+    font-size: 0.6875rem;
+    padding: 3px 6px;
+    cursor: pointer;
+    line-height: 1.2;
+}
+
+.essay-status-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.essay-status-btn--active.essay-status--not {
+    background: #f1f3f5;
+    border-color: #868e96;
+}
+
+.essay-status-btn--active.essay-status--submitted {
+    background: #e7f5ff;
+    border-color: #339af0;
+}
+
+.essay-status-btn--active.essay-status--complete {
+    background: #d3f9d8;
+    border-color: #37b24d;
+}
+
+.essay-status-btn--active.essay-status--resubmit {
+    background: #fff4e6;
+    border-color: #f76707;
 }
 
 .classroom-homework-checks {

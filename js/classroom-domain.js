@@ -5,6 +5,7 @@
     const ATTENDANCE_STATUSES = ['present', 'late', 'absent', 'early_leave'];
     const HOMEWORK_GRADES = ['A', 'B', 'C', 'N', 'F', 'X'];
     const HOMEWORK_SELF_CHECKS = ['none', 'not_checked', 'satisfied'];
+    const ESSAY_STATUSES = ['not_submitted', 'submitted', 'complete', 'resubmit_required'];
     const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon'];
     const ARCHIVE_REASONS = ['break', 'new', 'left', 'starting_soon'];
     const ARCHIVE_COHORT_ID = 'cohort-student-archive';
@@ -338,6 +339,16 @@
                 });
             });
         }
+        if (Array.isArray(next.essaySubmissions)) {
+            next.essaySubmissions = next.essaySubmissions.map((essay) => {
+                if (!essay || !Array.isArray(essay.records)) {
+                    return essay;
+                }
+                return Object.assign({}, essay, {
+                    records: essay.records.filter((r) => normalizeStr(r.studentId) !== sid)
+                });
+            });
+        }
         if (Array.isArray(next.studentPoints)) {
             next.studentPoints = next.studentPoints.filter(
                 (p) => !p || normalizeStr(p.studentId) !== sid
@@ -636,6 +647,170 @@
         return completion.records.find((r) => r.studentId === sid) || null;
     }
 
+    function isEssaySyllabusRow(row) {
+        if (!row) {
+            return false;
+        }
+        const hay = `${normalizeStr(row.planTitle)} ${normalizeStr(row.planDetail)} ${normalizeStr(row.homework)}`.toLowerCase();
+        return hay.includes('essay') || hay.includes('에세이');
+    }
+
+    function getEssayRowsFromSyllabus(rows) {
+        const lessons = getLessonRowsFromSyllabus(rows);
+        const essayRows = lessons.filter(isEssaySyllabusRow);
+        return essayRows.length ? essayRows : lessons;
+    }
+
+    function normalizeEssayRecord(raw) {
+        if (!raw || !raw.studentId) {
+            return null;
+        }
+        const status = normalizeStr(raw.status);
+        const validStatus = ESSAY_STATUSES.includes(status) ? status : 'not_submitted';
+        return {
+            studentId: normalizeStr(raw.studentId),
+            status: validStatus,
+            submittedRetest: Boolean(raw.submittedRetest),
+            note: normalizeStr(raw.note)
+        };
+    }
+
+    function normalizeEssaySubmission(raw) {
+        if (!raw || !raw.id || !raw.classId) {
+            return null;
+        }
+        const syllabusRowId = normalizeStr(raw.syllabusRowId);
+        if (!syllabusRowId) {
+            return null;
+        }
+        const records = Array.isArray(raw.records)
+            ? raw.records.map(normalizeEssayRecord).filter(Boolean)
+            : [];
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            syllabusRowId,
+            lessonDate: normalizeStr(raw.lessonDate),
+            ssDueDate: normalizeStr(raw.ssDueDate),
+            teacherEvalDueDate: normalizeStr(raw.teacherEvalDueDate),
+            records,
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function findEssaySubmission(submissions, classId, syllabusRowId) {
+        const list = Array.isArray(submissions) ? submissions : [];
+        const cid = normalizeStr(classId);
+        const rid = normalizeStr(syllabusRowId);
+        return list.find((e) => e && e.classId === cid && e.syllabusRowId === rid) || null;
+    }
+
+    function upsertEssaySubmission(submissions, entry) {
+        const normalized = normalizeEssaySubmission(entry);
+        if (!normalized) {
+            return Array.isArray(submissions) ? submissions.slice() : [];
+        }
+        const list = Array.isArray(submissions) ? submissions.filter(Boolean).slice() : [];
+        const idx = list.findIndex(
+            (e) => e.classId === normalized.classId && e.syllabusRowId === normalized.syllabusRowId
+        );
+        if (idx >= 0) {
+            list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
+        } else {
+            list.push(normalized);
+        }
+        return list;
+    }
+
+    function getEssayRecordForStudent(submission, studentId) {
+        if (!submission || !Array.isArray(submission.records)) {
+            return null;
+        }
+        const sid = normalizeStr(studentId);
+        return submission.records.find((r) => r.studentId === sid) || null;
+    }
+
+    function ensureEssayRecordsForStudents(submission, studentEntries) {
+        const base = submission
+            ? Object.assign({}, submission, {
+                records: Array.isArray(submission.records) ? submission.records.slice() : []
+            })
+            : { records: [] };
+        const records = base.records.slice();
+        const seen = new Set(records.map((r) => normalizeStr(r.studentId)));
+        (Array.isArray(studentEntries) ? studentEntries : []).forEach((entry) => {
+            const sid = entry && entry.student && normalizeStr(entry.student.id);
+            if (!sid || seen.has(sid)) {
+                return;
+            }
+            records.push({
+                studentId: sid,
+                status: 'not_submitted',
+                submittedRetest: false,
+                note: ''
+            });
+            seen.add(sid);
+        });
+        base.records = records;
+        return base;
+    }
+
+    function countEssayByStatus(submission) {
+        const counts = { not_submitted: 0, submitted: 0, complete: 0, resubmit_required: 0 };
+        if (!submission || !Array.isArray(submission.records)) {
+            return counts;
+        }
+        submission.records.forEach((r) => {
+            const status = r && ESSAY_STATUSES.includes(r.status) ? r.status : 'not_submitted';
+            counts[status] += 1;
+        });
+        return counts;
+    }
+
+    function essayResubmitCount(submission) {
+        return countEssayByStatus(submission).resubmit_required;
+    }
+
+    function essayResubmitCountForClass(submissions, classId) {
+        const cid = normalizeStr(classId);
+        let total = 0;
+        (Array.isArray(submissions) ? submissions : []).forEach((raw) => {
+            const essay = normalizeEssaySubmission(raw);
+            if (essay && essay.classId === cid) {
+                total += essayResubmitCount(essay);
+            }
+        });
+        return total;
+    }
+
+    function daysUntilISO(dateStr) {
+        const due = normalizeStr(dateStr);
+        if (!due) {
+            return null;
+        }
+        const today = todayISO();
+        const tParts = today.split('-').map(Number);
+        const dParts = due.split('-').map(Number);
+        const tMs = Date.UTC(tParts[0], tParts[1] - 1, tParts[2]);
+        const dMs = Date.UTC(dParts[0], dParts[1] - 1, dParts[2]);
+        return Math.round((dMs - tMs) / 86400000);
+    }
+
+    function pickDefaultEssaySyllabusRow(classData, refDate) {
+        const rows = getEssayRowsFromSyllabus(classData && classData.syllabusRows);
+        if (!rows.length) {
+            return null;
+        }
+        const ref = normalizeStr(refDate) || todayISO();
+        for (let i = 0; i < rows.length; i += 1) {
+            if (compareDateStr(rows[i].date, ref) >= 0) {
+                return rows[i];
+            }
+        }
+        return rows[rows.length - 1];
+    }
+
     function getLessonRowsFromSyllabus(rows) {
         if (global.CCPHomeworkTab && global.CCPHomeworkTab.getLessonRowsFromSyllabus) {
             return global.CCPHomeworkTab.getLessonRowsFromSyllabus(rows);
@@ -833,6 +1008,10 @@
             data.homeworkCompletions = [];
             migrated = true;
         }
+        if (!Array.isArray(data.essaySubmissions)) {
+            data.essaySubmissions = [];
+            migrated = true;
+        }
         if (!Array.isArray(data.studentPoints)) {
             data.studentPoints = [];
             migrated = true;
@@ -890,6 +1069,7 @@
         ATTENDANCE_STATUSES,
         HOMEWORK_GRADES,
         HOMEWORK_SELF_CHECKS,
+        ESSAY_STATUSES,
         STUDENT_TAGS,
         ARCHIVE_REASONS,
         ARCHIVE_COHORT_ID,
@@ -925,6 +1105,17 @@
         findHomeworkCompletion,
         upsertHomeworkCompletion,
         getHomeworkRecordForStudent,
+        normalizeEssaySubmission,
+        findEssaySubmission,
+        upsertEssaySubmission,
+        getEssayRecordForStudent,
+        ensureEssayRecordsForStudents,
+        countEssayByStatus,
+        essayResubmitCount,
+        essayResubmitCountForClass,
+        daysUntilISO,
+        getEssayRowsFromSyllabus,
+        pickDefaultEssaySyllabusRow,
         getLessonRowsFromSyllabus,
         getSyllabusRowKey,
         pickDefaultSyllabusRow,

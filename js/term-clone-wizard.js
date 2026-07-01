@@ -108,6 +108,7 @@
         if (options.clearClassroom) {
             cloned.attendanceSessions = [];
             cloned.homeworkCompletions = [];
+            cloned.essaySubmissions = [];
             cloned.studentPoints = [];
             cloned.studentTests = [];
             cloned.dayNotes = [];
@@ -128,6 +129,21 @@
                     h.classId = remapClassId(h.classId);
                     if (h.lessonDate) {
                         h.lessonDate = shiftIsoDate(h.lessonDate, monthShift);
+                    }
+                }
+            });
+            (cloned.essaySubmissions || []).forEach((e) => {
+                if (e) {
+                    e.id = newEntityId('essay');
+                    e.classId = remapClassId(e.classId);
+                    if (e.lessonDate) {
+                        e.lessonDate = shiftIsoDate(e.lessonDate, monthShift);
+                    }
+                    if (e.ssDueDate) {
+                        e.ssDueDate = shiftIsoDate(e.ssDueDate, monthShift);
+                    }
+                    if (e.teacherEvalDueDate) {
+                        e.teacherEvalDueDate = shiftIsoDate(e.teacherEvalDueDate, monthShift);
                     }
                 }
             });
