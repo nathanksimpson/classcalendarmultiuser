@@ -19008,7 +19008,8 @@ function getClassroomHooks() {
         formatDateDisplay,
         printStudentTermSummary(studentId) {
             openStudentTermSummaryPrint(studentId);
-        }
+        },
+        debounce
     };
 }
 
@@ -19019,6 +19020,9 @@ async function initClassroomTabControls(tabId, options = {}) {
     }
     await ensureTeamTeacherAccountsLoaded();
     const hooks = getClassroomHooks();
+    if (typeof CCPClassroomHeader !== 'undefined' && CCPClassroomHeader.initTab) {
+        CCPClassroomHeader.initTab(hooks);
+    }
     try {
         if (tabId === 'students' && typeof CCPClassroomRoster !== 'undefined') {
             CCPClassroomRoster.initTab(hooks, options);
@@ -35892,14 +35896,27 @@ function generateId() {
 
 function debounce(func, wait) {
     let timeout;
-    return function executedFunction(...args) {
+    const debounced = function executedFunction(...args) {
         const later = () => {
             clearTimeout(timeout);
+            timeout = null;
             func(...args);
         };
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+    debounced.flush = function flush(...args) {
+        if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+            func(...args);
+        }
+    };
+    debounced.cancel = function cancel() {
+        clearTimeout(timeout);
+        timeout = null;
+    };
+    return debounced;
 }
 
 // ============================================

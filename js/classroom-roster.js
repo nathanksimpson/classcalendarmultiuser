@@ -10,6 +10,7 @@
     let importPlan = [];
     let importWizardStep = 1;
     let importFileLabel = '';
+    let importPackSource = '';
     let pastePlanRow = null;
     let pastePreviewTimer = null;
     const selectedStudentIds = new Set();
@@ -42,6 +43,31 @@
 
     function getSelectedCohort() {
         return getCohorts().find((c) => c && c.id === selectedCohortId) || null;
+    }
+
+    function studentSearchHaystack(student) {
+        if (!student) {
+            return '';
+        }
+        return [
+            student.name,
+            student.nameEn,
+            student.locationTag,
+            student.memo,
+            student.id
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+    }
+
+    function studentInitial(student) {
+        const name = (student && (student.nameEn || student.name)) || '';
+        const trimmed = String(name).trim();
+        if (!trimmed) {
+            return '?';
+        }
+        return trimmed.charAt(0).toUpperCase();
     }
 
     function canEditRoster() {
@@ -275,7 +301,11 @@
         const confirmBtn = document.getElementById('rosterImportConfirmBtn');
         const hint = document.getElementById('rosterImportFileHint');
         if (hint && importFileLabel) {
-            hint.textContent = importFileLabel;
+            const sourceHint =
+                importPackSource === 'essay-homework-tracker' ? t('essayTrackerImportHint') : '';
+            hint.textContent = sourceHint
+                ? `${importFileLabel} — ${sourceHint}`
+                : importFileLabel;
             hint.hidden = false;
         }
         if (step1) {
@@ -312,6 +342,7 @@
         importPlan = [];
         importWizardStep = 1;
         importFileLabel = '';
+        importPackSource = '';
         setImportError('');
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('rosterImportModal'));
@@ -326,7 +357,13 @@
         }
         importPack = pack;
         importFileLabel = fileLabel || '';
+        importPackSource = String(pack.source || '').trim();
         importPlan = ri.matchImportCohorts(pack.cohorts, getCohorts());
+        if (pack.mergeByName) {
+            importPlan.forEach((row) => {
+                row.mergeByName = true;
+            });
+        }
         importWizardStep = 1;
         setImportError('');
         updateImportWizardUi();
@@ -356,7 +393,10 @@
         reader.onload = () => {
             try {
                 const json = JSON.parse(String(reader.result || ''));
-                const parsed = ri.parseRosterPack(json);
+                const parsed =
+                    typeof ri.parseImportFile === 'function'
+                        ? ri.parseImportFile(json)
+                        : ri.parseRosterPack(json);
                 if (parsed.error) {
                     hooks.showToast(t('rosterImportParseError') + ' ' + parsed.error, true);
                     return;
@@ -411,6 +451,7 @@
         const newId = () => (domain() ? domain().newId('cohort') : `cohort_${Date.now()}`);
         const result = ri.applyRosterImport(getCohorts(), importPlan, {
             newId,
+            newStudentId: () => (domain() ? domain().newId('stu') : `stu_${Date.now()}`),
             homeroomTeacherUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : ''
         });
         if (result.error) {
@@ -916,6 +957,10 @@
             document.getElementById('classroomRosterImportFile')?.click();
             closeImportMenu();
         });
+        panel.querySelector('#classroomRosterEssayTrackerImportBtn')?.addEventListener('click', () => {
+            document.getElementById('classroomRosterImportFile')?.click();
+            closeImportMenu();
+        });
         panel.querySelector('#classroomRosterImportFile')?.addEventListener('change', (e) => {
             const file = e.target.files && e.target.files[0];
             readImportFile(file);
@@ -1064,7 +1109,16 @@
         const students = d ? d.normalizeCohortStudents(cohort) : [];
         const retentionDays = getArchiveRetentionDays();
         const bulkEditable = canEditRoster() && !isArchiveCohort(cohort);
-        students.forEach((student) => {
+        const searchQ = (mountEl.querySelector('#classroomRosterStudentSearch')?.value || '').trim().toLowerCase();
+        const visibleStudents = searchQ
+            ? students.filter((student) => studentSearchHaystack(student).includes(searchQ))
+            : students;
+        if (searchQ && !visibleStudents.length) {
+            listEl.innerHTML = `<p class="section-hint module-list-empty">${escapeHtml(t('studentListSearchEmpty'))}</p>`;
+            updateBulkActionsUi();
+            return;
+        }
+        visibleStudents.forEach((student) => {
             const row = document.createElement('div');
             let rowCls = 'classroom-roster-student-row';
             if (student.id === selectedStudentId) {
@@ -1100,12 +1154,30 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'module-list-item classroom-roster-student-name';
-            const en = student.nameEn ? ` (${student.nameEn})` : '';
-            let label = `${student.name}${en}`;
-            if (student.expectedStartDate && student.archiveReason === 'starting_soon') {
-                label += ` · ${student.expectedStartDate}`;
+            const avatar = document.createElement('span');
+            avatar.className = 'classroom-roster-student-avatar';
+            avatar.setAttribute('aria-hidden', 'true');
+            avatar.textContent = studentInitial(student);
+            btn.appendChild(avatar);
+            const textWrap = document.createElement('span');
+            textWrap.className = 'classroom-roster-student-text';
+            const primary = document.createElement('span');
+            primary.className = 'classroom-roster-student-primary';
+            primary.textContent = student.name || student.id;
+            textWrap.appendChild(primary);
+            if (student.nameEn) {
+                const secondary = document.createElement('span');
+                secondary.className = 'classroom-roster-student-secondary section-hint';
+                secondary.textContent = student.nameEn;
+                textWrap.appendChild(secondary);
             }
-            btn.textContent = label;
+            if (student.expectedStartDate && student.archiveReason === 'starting_soon') {
+                const meta = document.createElement('span');
+                meta.className = 'classroom-roster-student-meta section-hint';
+                meta.textContent = student.expectedStartDate;
+                textWrap.appendChild(meta);
+            }
+            btn.appendChild(textWrap);
             btn.addEventListener('click', () => {
                 selectedStudentId = student.id;
                 renderStudentEditor(mountEl);
@@ -1220,36 +1292,52 @@
         }
 
         editor.innerHTML = `
+            <div class="classroom-roster-student-card">
             <h3 class="form-section-title">${escapeHtml(student ? t('classroomEditStudent') : t('classroomAddStudent'))}</h3>
-            ${!cohort ? `<p class="section-hint">${escapeHtml(t('classroomPickCohort'))}</p>` : ''}
+            ${!cohort ? `<div class="classroom-roster-empty-card"><p class="section-hint">${escapeHtml(t('classroomRosterPickCohortHint'))}</p></div>` : ''}
             ${cohort && !editable ? `<p class="section-hint">${escapeHtml(t('classroomRosterReadOnly'))}</p>` : ''}
             ${inArchive ? `<p class="section-hint">${escapeHtml(t('studentArchiveCohortHint'))}</p>` : ''}
             ${retentionHint}
-            <div class="form-group"><label for="classroomStudentName">${escapeHtml(t('classroomStudentName'))}</label>
-            <input type="text" id="classroomStudentName" class="field-input" ${editable ? '' : 'disabled'} /></div>
-            <div class="form-group"><label for="classroomStudentNameEn">${escapeHtml(t('classroomStudentNameEn'))}</label>
-            <input type="text" id="classroomStudentNameEn" class="field-input" ${editable ? '' : 'disabled'} /></div>
-            <div class="form-group"><label for="classroomStudentLocation">${escapeHtml(t('classroomStudentLocation'))}</label>
-            <input type="text" id="classroomStudentLocation" class="field-input" ${editable ? '' : 'disabled'} /></div>
-            <div class="form-group"><label for="classroomStudentMemo">${escapeHtml(t('classroomStudentMemo'))}</label>
-            <textarea id="classroomStudentMemo" class="field-input" rows="2" ${editable ? '' : 'disabled'}></textarea></div>
+            ${cohort ? `
+            <section class="classroom-roster-form-section">
+              <h4 class="form-section-subtitle">${escapeHtml(t('classroomRosterSectionIdentity'))}</h4>
+              <div class="form-group"><label for="classroomStudentName">${escapeHtml(t('classroomStudentName'))}</label>
+              <input type="text" id="classroomStudentName" class="field-input" ${editable ? '' : 'disabled'} /></div>
+              <div class="form-group"><label for="classroomStudentNameEn">${escapeHtml(t('classroomStudentNameEn'))}</label>
+              <input type="text" id="classroomStudentNameEn" class="field-input" ${editable ? '' : 'disabled'} /></div>
+            </section>
+            <section class="classroom-roster-form-section">
+              <h4 class="form-section-subtitle">${escapeHtml(t('classroomRosterSectionDetails'))}</h4>
+              <div class="form-group"><label for="classroomStudentLocation">${escapeHtml(t('classroomStudentLocation'))}</label>
+              <input type="text" id="classroomStudentLocation" class="field-input" ${editable ? '' : 'disabled'} /></div>
+              <div class="form-group"><label for="classroomStudentMemo">${escapeHtml(t('classroomStudentMemo'))}</label>
+              <textarea id="classroomStudentMemo" class="field-input" rows="2" ${editable ? '' : 'disabled'}></textarea></div>
+            </section>
             ${student ? buildStudentTaggedNotesHtml(student) : ''}
-            <div class="form-group"><label class="checkbox-label"><input type="checkbox" id="classroomStudentActive" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomStudentActive'))}</label></div>
-            <fieldset class="form-group"><legend>${escapeHtml(t('classroomStudentTags'))}</legend>
-            <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagNew" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagNew'))}</label>
-            <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagEnding" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagEndingSoon'))}</label>
-            <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagInterested" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagInterested'))}</label>
-            </fieldset>
-            <div class="form-actions classroom-student-actions">
+            <section class="classroom-roster-form-section">
+              <h4 class="form-section-subtitle">${escapeHtml(t('classroomRosterSectionStatus'))}</h4>
+              <div class="form-group"><label class="checkbox-label"><input type="checkbox" id="classroomStudentActive" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomStudentActive'))}</label></div>
+              <fieldset class="form-group classroom-roster-tags-fieldset"><legend>${escapeHtml(t('classroomStudentTags'))}</legend>
+              <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagNew" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagNew'))}</label>
+              <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagEnding" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagEndingSoon'))}</label>
+              <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagInterested" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagInterested'))}</label>
+              </fieldset>
+            </section>
+            <div class="form-actions classroom-student-actions classroom-roster-student-actions">
             ${student ? `<button type="button" class="btn btn-outline" id="classroomStudentPrintTermSummary">${escapeHtml(t('termSummaryPrintStudent'))}</button>` : ''}
             ${editable && !inArchive ? `<button type="button" class="btn btn-primary" id="classroomStudentSave">${escapeHtml(t('save'))}</button>` : ''}
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentDeactivate">${escapeHtml(student.active ? t('classroomDeactivateStudent') : t('classroomActivateStudent'))}</button>` : ''}
             ${canArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentArchive">${escapeHtml(t('studentArchiveBtn'))}</button>` : ''}
             ${canRestore ? `<button type="button" class="btn btn-outline" id="classroomStudentRestore">${escapeHtml(t('studentRestoreBtn'))}</button>` : ''}
             ${canDelete ? `<button type="button" class="btn btn-outline btn-danger-outline" id="classroomStudentDelete">${escapeHtml(t('studentDeleteBtn'))}</button>` : ''}
+            </div>` : ''}
             </div>`;
 
         fillStudentForm(student);
+
+        if (cohort && editable && !student) {
+            editor.querySelector('#classroomStudentName')?.focus();
+        }
 
         editor.querySelector('#classroomStudentSave')?.addEventListener('click', () => saveStudent(mountEl));
         editor.querySelector('#classroomStudentPrintTermSummary')?.addEventListener('click', () => {
@@ -1583,10 +1671,18 @@
         panel.querySelector('#classroomRosterAddBtn')?.addEventListener('click', () => {
             selectedStudentId = null;
             renderStudentEditor(panel);
+            const nameInput = panel.querySelector('#classroomStudentName');
+            if (nameInput) {
+                nameInput.focus();
+            }
         }, { once: true });
 
         panel.querySelector('#classroomRosterCohortSearch')?.addEventListener('input', () => {
             renderCohortList(panel);
+        }, { once: true });
+
+        panel.querySelector('#classroomRosterStudentSearch')?.addEventListener('input', () => {
+            renderStudentList(panel);
         }, { once: true });
 
         setupRosterImportExport(panel);
@@ -1610,6 +1706,8 @@
 
     global.CCPClassroomRoster = {
         initTab,
-        render
+        render,
+        studentSearchHaystack,
+        studentInitial
     };
 })(typeof window !== 'undefined' ? window : globalThis);

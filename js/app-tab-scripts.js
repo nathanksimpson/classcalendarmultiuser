@@ -28,28 +28,29 @@
         ],
         homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
         students: [
-            'js/roster-import.js?v=20260612-roster-paste-tab',
+            'js/essay-tracker-import.js?v=20260630-essay-import',
+            'js/roster-import.js?v=20260630-essay-import',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-roster.js?v=20260619-term-summary'
+            'js/classroom-roster.js?v=20260701-roster-ui'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260612-ui-padding-classroom',
+            'js/classroom-header.js?v=20260630-header-i18n',
             'js/classroom-attendance.js?v=20260610-boot-mentions'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260630-essays',
+            'js/classroom-header.js?v=20260630-header-i18n',
             'js/classroom-homework.js?v=20260610-boot-mentions'
         ],
         essays: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260630-essays',
-            'js/classroom-essays.js?v=20260630-essays-retest'
+            'js/classroom-header.js?v=20260701-essay-redesign',
+            'js/classroom-essays.js?v=20260701-essay-redesign'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -76,7 +77,7 @@
         tests: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260612-ui-padding-classroom',
+            'js/classroom-header.js?v=20260630-header-i18n',
             'js/classroom-tests.js?v=20260612-phase2'
         ]
     };

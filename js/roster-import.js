@@ -556,6 +556,9 @@
     }
 
     function computeRowPreview(row, targetCohort) {
+        if (row.mergeByName) {
+            return computeRowPreviewByIdentity(row, targetCohort);
+        }
         const imported = (Array.isArray(row.students) ? row.students : [])
             .map(normalizeStudent)
             .filter(Boolean);
@@ -578,6 +581,84 @@
         const kept = row.mergeMode === 'merge' ? existing.filter((s) => !importIds.has(s.id)).length : 0;
         const removed = row.mergeMode === 'replace' ? existing.filter((s) => !importIds.has(s.id)).length : 0;
         return { added, updated, kept, removed, total: imported.length };
+    }
+
+    function studentIdentityKey(s) {
+        const n = normalizeCohortLabel(s && s.name);
+        const e = normalizeCohortLabel(s && s.nameEn);
+        if (!n && !e) {
+            return '';
+        }
+        return `${n}|${e}`;
+    }
+
+    function computeRowPreviewByIdentity(row, targetCohort) {
+        const imported = (Array.isArray(row.students) ? row.students : [])
+            .map(normalizeStudent)
+            .filter(Boolean);
+        const existing = targetCohort
+            ? (Array.isArray(targetCohort.students) ? targetCohort.students : [])
+                  .map(normalizeStudent)
+                  .filter(Boolean)
+            : [];
+        const existingByKey = new Map();
+        existing.forEach((s) => {
+            const k = studentIdentityKey(s);
+            if (k && !existingByKey.has(k)) {
+                existingByKey.set(k, s);
+            }
+        });
+        const importKeys = new Set(
+            imported.map((s) => studentIdentityKey(s)).filter(Boolean)
+        );
+        let added = 0;
+        let updated = 0;
+        imported.forEach((s) => {
+            if (existingByKey.has(studentIdentityKey(s))) {
+                updated += 1;
+            } else {
+                added += 1;
+            }
+        });
+        const kept =
+            row.mergeMode === 'merge'
+                ? existing.filter((s) => !importKeys.has(studentIdentityKey(s))).length
+                : 0;
+        const removed =
+            row.mergeMode === 'replace'
+                ? existing.filter((s) => !importKeys.has(studentIdentityKey(s))).length
+                : 0;
+        return { added, updated, kept, removed, total: imported.length };
+    }
+
+    function assignImportIdsByIdentity(existing, imported, newStudentId) {
+        const existingByKey = new Map();
+        (Array.isArray(existing) ? existing : []).forEach((s) => {
+            const k = studentIdentityKey(s);
+            if (k && !existingByKey.has(k)) {
+                existingByKey.set(k, s);
+            }
+        });
+        const makeId =
+            typeof newStudentId === 'function'
+                ? newStudentId
+                : () => `stu_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+        return (Array.isArray(imported) ? imported : []).map((imp) => {
+            const k = studentIdentityKey(imp);
+            const match = k ? existingByKey.get(k) : null;
+            if (match) {
+                return Object.assign({}, imp, { id: match.id });
+            }
+            const id = normalizeStr(imp.id) || makeId();
+            return Object.assign({}, imp, { id });
+        });
+    }
+
+    function mergeStudentListsByIdentity(existing, imported, mode, newStudentId) {
+        const assigned = assignImportIdsByIdentity(existing, imported, newStudentId)
+            .map(normalizeStudent)
+            .filter(Boolean);
+        return mergeStudentLists(existing, assigned, mode);
     }
 
     function computeImportPreview(plan, calendarCohorts) {
@@ -624,6 +705,10 @@
                 ? opts.newId
                 : () => `cohort_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
         const homeroomUserId = normalizeStr(opts.homeroomTeacherUserId);
+        const newStudentId =
+            typeof opts.newStudentId === 'function'
+                ? opts.newStudentId
+                : () => `stu_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
         const validation = validateImportPlan(plan);
         if (!validation.ok) {
             return { error: validation.error, cohorts: null };
@@ -665,7 +750,9 @@
                 return;
             }
             const target = cohorts[idx];
-            const merged = mergeStudentLists(target.students, row.students, mergeMode);
+            const merged = row.mergeByName
+                ? mergeStudentListsByIdentity(target.students, row.students, mergeMode, newStudentId)
+                : mergeStudentLists(target.students, row.students, mergeMode);
             cohorts[idx] = Object.assign({}, target, { students: merged });
         });
 
@@ -687,6 +774,18 @@
         validateImportPlan,
         computeImportPreview,
         applyRosterImport,
-        importCohortKey
+        importCohortKey,
+        studentIdentityKey,
+        mergeStudentListsByIdentity,
+        parseImportFile(json) {
+            const roster = parseRosterPack(json);
+            if (!roster.error) {
+                return roster;
+            }
+            if (global.CCPEssayTrackerImport && global.CCPEssayTrackerImport.isEssayTrackerPack(json)) {
+                return global.CCPEssayTrackerImport.parseEssayTrackerPack(json);
+            }
+            return roster;
+        }
     };
 })(typeof window !== 'undefined' ? window : globalThis);
