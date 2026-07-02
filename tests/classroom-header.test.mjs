@@ -38,4 +38,27 @@ const { CCPClassroomHeader } = sandbox.window;
     assert(filtered.length === 1 && filtered[0].id === 'c2', 'keep selected class when no match');
 }
 
+{
+    assert(
+        typeof CCPClassroomHeader.updateClassSelectForSearch === 'function',
+        'updateClassSelectForSearch exported'
+    );
+    assert(
+        typeof CCPClassroomHeader.buildClassComboboxListHtml === 'function',
+        'buildClassComboboxListHtml exported'
+    );
+    const classes = [
+        { id: 'c1', name: 'Alpha Writing', grade: '5' },
+        { id: 'c2', name: 'Beta Reading', grade: '4' }
+    ];
+    const html = CCPClassroomHeader.buildClassComboboxListHtml({
+        classes,
+        classId: 'c2',
+        classSearchQuery: 'writing',
+        essaySubmissions: []
+    });
+    assert(html.includes('data-class-id'), 'combobox list items');
+    assert(html.includes('Alpha Writing'), 'search match in list');
+}
+
 console.log('classroom-header.test.mjs: all passed');

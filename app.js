@@ -424,6 +424,9 @@ function refreshClassColorSurfacesAfterThemeChange() {
     if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
         CCPClassColorTile.refreshAll();
     }
+    if (typeof refreshEventColorPaletteUi === 'function') {
+        refreshEventColorPaletteUi();
+    }
     if (typeof renderCalendarNow === 'function') {
         renderCalendarNow({ forceFull: true });
     }
@@ -509,6 +512,109 @@ const EVENT_TYPE_DEFAULT_COLORS = {
     evaluation_period: { bg: '#e9d5ff', text: '#6b21a1' },
     other: { bg: '#e5e7eb', text: '#374151' }
 };
+
+/** Calm-palette accent per event type (aligned with class color theme). */
+const EVENT_TYPE_DEFAULT_ACCENTS = {
+    holiday: '#cfa23a',
+    evaluation_deadline: '#c96b8e',
+    homework_deadline: '#356a9e',
+    evaluation_period: '#6f54a8',
+    other: '#5a6a80'
+};
+
+function getEventThemeName() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function getEventTypeDefaultAccent(type) {
+    const normalized = normalizeEventType(type || EVENT_TYPES.OTHER);
+    return EVENT_TYPE_DEFAULT_ACCENTS[normalized] || EVENT_TYPE_DEFAULT_ACCENTS.other;
+}
+
+/** Theme token text for event/holiday chips (matches class calm tiles). */
+function resolveEventCalmTextColor() {
+    if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.resolveTextColor) {
+        return CCPClassColorTile.resolveTextColor({});
+    }
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return isDark ? '#dde6f1' : '#243244';
+}
+
+function deriveEventColorsFromAccent(accent, theme) {
+    const accentHex = String(accent || getEventTypeDefaultAccent(EVENT_TYPES.HOLIDAY)).trim();
+    const themeName = theme || getEventThemeName();
+    const calmText = resolveEventCalmTextColor();
+    if (typeof CCPClassColorPalette !== 'undefined' && CCPClassColorPalette.chipStyle) {
+        const style = CCPClassColorPalette.chipStyle(accentHex, themeName);
+        return {
+            accentColor: accentHex,
+            bgColor: style.background,
+            textColor: calmText
+        };
+    }
+    const alpha = themeName === 'dark' ? 0.2 : 0.16;
+    return {
+        accentColor: accentHex,
+        bgColor: hexToRgba(accentHex, alpha),
+        textColor: calmText
+    };
+}
+
+function resolveEventAccentColor(event) {
+    if (!event) {
+        return '';
+    }
+    if (event.accentColor) {
+        return String(event.accentColor).trim();
+    }
+    const type = normalizeEventType(event.type);
+    const legacy = EVENT_TYPE_DEFAULT_COLORS[type] || EVENT_TYPE_DEFAULT_COLORS.other;
+    if (event.bgColor === legacy.bg && event.textColor === legacy.text) {
+        return getEventTypeDefaultAccent(type);
+    }
+    return '';
+}
+
+function resolveEventDisplayColors(event, type) {
+    const normalized = normalizeEventType(type || (event && event.type) || EVENT_TYPES.OTHER);
+    const calmText = resolveEventCalmTextColor();
+    const accent = (event && resolveEventAccentColor(event)) || getEventTypeDefaultAccent(normalized);
+    const derived = deriveEventColorsFromAccent(accent);
+
+    if (event && event.accentColor) {
+        return {
+            bg: derived.bgColor,
+            text: calmText,
+            accent: derived.accentColor,
+            type: normalized
+        };
+    }
+
+    if (event && resolveEventAccentColor(event)) {
+        return {
+            bg: derived.bgColor,
+            text: calmText,
+            accent: derived.accentColor,
+            type: normalized
+        };
+    }
+
+    if (event && (event.bgColor || event.textColor)) {
+        return {
+            bg: event.bgColor || derived.bgColor,
+            text: calmText,
+            accent,
+            type: normalized
+        };
+    }
+
+    return {
+        bg: derived.bgColor,
+        text: calmText,
+        accent: derived.accentColor,
+        type: normalized
+    };
+}
 
 function getDefaultTimetableTimeSlots() {
     if (typeof CCPTeacherTimetable !== 'undefined' && CCPTeacherTimetable.getDefaultTimetableTimeSlots) {
@@ -2990,12 +3096,11 @@ function collectEligibleMeetingDatesInMonth(rangeStart, rangeEnd, meetingDays, c
 }
 
 function getSyllabusEventColors(event, type) {
-    const normalized = normalizeEventType(type || (event && event.type) || EVENT_TYPES.OTHER);
-    const defaults = EVENT_TYPE_DEFAULT_COLORS[normalized] || EVENT_TYPE_DEFAULT_COLORS.other;
+    const colors = resolveEventDisplayColors(event, type);
     return {
-        bg: (event && event.bgColor) || defaults.bg,
-        text: (event && event.textColor) || defaults.text,
-        type: normalized
+        bg: colors.bg,
+        text: colors.text,
+        type: colors.type
     };
 }
 
@@ -4925,22 +5030,11 @@ function getSyllabusTemplatesApi() {
     return typeof window !== 'undefined' ? window.CCPSyllabusTemplates : null;
 }
 
-/** Viewport height for homework class sidebar; class list scrolls inside remaining space. */
+/** Homework sidebar height is CSS-only (sticky + max-height); kept for call-site compatibility. */
 function syncHomeworkSidebarChromeOffset() {
-    const panel = document.getElementById('panel-homework');
-    if (!panel || panel.hidden || getActiveTab() !== 'homework') {
-        return;
+    if (isHomeworkReferenceDatePopoverOpen()) {
+        positionHomeworkReferenceDatePopover();
     }
-    const measure = () => {
-        const sidebar = panel.querySelector('.homework-sidebar-panel');
-        if (!sidebar) {
-            return;
-        }
-        const top = sidebar.getBoundingClientRect().top;
-        const available = Math.max(240, Math.floor(window.innerHeight - top - 16));
-        panel.style.setProperty('--homework-sidebar-max-height', `${available}px`);
-    };
-    requestAnimationFrame(() => requestAnimationFrame(measure));
 }
 
 /** Match sticky month header / panels to the real global top bar height (avoids a gap below it). */
@@ -5820,10 +5914,28 @@ function isSchoolWideHolidayEvent(event) {
 
 function normalizeEvent(raw) {
     const type = normalizeEventType(raw.type || EVENT_TYPES.HOLIDAY);
-    const defaults = EVENT_TYPE_DEFAULT_COLORS[type] || EVENT_TYPE_DEFAULT_COLORS.other;
     const isRange = raw.isRange === true
         || (type === EVENT_TYPES.EVALUATION_PERIOD && raw.startDate && raw.endDate);
-    return {
+    let accentColor = raw.accentColor ? String(raw.accentColor).trim() : '';
+    let bgColor = raw.bgColor;
+    let textColor = raw.textColor;
+
+    if (accentColor) {
+        const derived = deriveEventColorsFromAccent(accentColor);
+        bgColor = derived.bgColor;
+        textColor = derived.textColor;
+    } else if (!bgColor && !textColor) {
+        accentColor = getEventTypeDefaultAccent(type);
+        const derived = deriveEventColorsFromAccent(accentColor);
+        bgColor = derived.bgColor;
+        textColor = derived.textColor;
+    } else {
+        const defaults = EVENT_TYPE_DEFAULT_COLORS[type] || EVENT_TYPE_DEFAULT_COLORS.other;
+        bgColor = bgColor || defaults.bg;
+        textColor = textColor || defaults.text;
+    }
+
+    const event = {
         id: raw.id || generateId(),
         type,
         name: raw.name || '',
@@ -5832,8 +5944,8 @@ function normalizeEvent(raw) {
         date: isRange ? null : (raw.date || null),
         startDate: isRange ? (raw.startDate || null) : null,
         endDate: isRange ? (raw.endDate || null) : null,
-        bgColor: raw.bgColor || defaults.bg,
-        textColor: raw.textColor || defaults.text,
+        bgColor,
+        textColor,
         grades: Array.isArray(raw.grades) ? raw.grades : [],
         classNames: Array.isArray(raw.classNames) ? raw.classNames : [],
         sectionLevels: Array.isArray(raw.sectionLevels) ? raw.sectionLevels : [],
@@ -5844,6 +5956,10 @@ function normalizeEvent(raw) {
         nameKo: raw.nameKo ? String(raw.nameKo).trim() : '',
         nameEn: raw.nameEn ? String(raw.nameEn).trim() : ''
     };
+    if (accentColor) {
+        event.accentColor = accentColor;
+    }
+    return event;
 }
 
 function holidayFromEvent(ev) {
@@ -8460,6 +8576,10 @@ function getPointsDayNoteApi() {
     return typeof window !== 'undefined' ? window.CCPClassroomPointsDayNote : null;
 }
 
+function getEssayResubmitDayNoteApi() {
+    return typeof window !== 'undefined' ? window.CCPClassroomEssayResubmitDayNote : null;
+}
+
 function isSystemManagedDayNoteCategory(categoryId) {
     const api = getDayNoteCategoriesApi();
     return Boolean(
@@ -8493,6 +8613,72 @@ async function syncPointsDayNoteForClassDate(classId, dateStr) {
         classId: cid,
         dateStr: date,
         students,
+        translate: t,
+        authorUserId: getDayNotesActorUserId() || undefined,
+        normalizeDayNote: dayNotesApi.normalizeDayNote,
+        generateId
+    });
+    if (next === appData.dayNotes) {
+        return;
+    }
+    const rollbackSnapshot = JSON.parse(JSON.stringify(appData.dayNotes || []));
+    appData.dayNotes = next;
+    if (appStore) {
+        appStore.dispatch({ type: 'dayNotes/mutate', dayNotes: next, meta: { silent: true } });
+    }
+    await enqueueDayNotesPersist(rollbackSnapshot);
+    refreshDayNotesUiAfterChange(false);
+    if (document.getElementById('classNotesShell')) {
+        ensureClassNotesFilterIncludes(cid);
+        widenClassNotesDateRangeForNote(date);
+        renderClassNotesTab();
+    }
+    if (!isNotesPage()) {
+        refreshNotesPageIfMounted();
+    }
+    scheduleTabWarningsRefresh();
+}
+
+async function syncEssayResubmitDayNoteForClassDate(classId, dateStr, options) {
+    const api = getEssayResubmitDayNoteApi();
+    const d = typeof CCPClassroomDomain !== 'undefined' ? CCPClassroomDomain : null;
+    const cid = String(classId || '').trim();
+    const date = String(dateStr || '').trim();
+    const opts = options || {};
+    if (!api || !d || !cid || !date) {
+        return;
+    }
+    if (isDayNoteWriteBlocked(cid)) {
+        return;
+    }
+    const dayNotesApi = getDayNotesApi();
+    if (!dayNotesApi || !dayNotesApi.normalizeDayNote) {
+        return;
+    }
+    ensureDayNotesArray();
+    const classData = (appData.classes || []).find((c) => c && c.id === cid);
+    const students = d.resolveStudentsForClass(classData, appData.cohorts);
+    const syllabusRowId = String(opts.syllabusRowId || '').trim();
+    let essaySubmission = opts.essaySubmission || null;
+    if (!essaySubmission && syllabusRowId) {
+        essaySubmission = d.findEssaySubmission(appData.essaySubmissions, cid, syllabusRowId);
+    }
+    let assignmentLabel = String(opts.assignmentLabel || '').trim();
+    if (!assignmentLabel && classData && syllabusRowId) {
+        const row = d
+            .getEssayRowsFromSyllabus(classData.syllabusRows)
+            .find((r) => d.getSyllabusRowKey(r) === syllabusRowId);
+        if (row) {
+            assignmentLabel = `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+        }
+    }
+    const next = api.syncEssayResubmitDayNote({
+        dayNotes: appData.dayNotes,
+        essaySubmission,
+        classId: cid,
+        dateStr: date,
+        students,
+        assignmentLabel,
         translate: t,
         authorUserId: getDayNotesActorUserId() || undefined,
         normalizeDayNote: dayNotesApi.normalizeDayNote,
@@ -13510,6 +13696,7 @@ function refreshMountedFormElementRefs() {
     elements.holidayDateRange = document.getElementById('holidayDateRange');
     elements.holidayStartDate = document.getElementById('holidayStartDate');
     elements.holidayEndDate = document.getElementById('holidayEndDate');
+    elements.holidayAccentColor = document.getElementById('holidayAccentColor');
     elements.holidayBgColor = document.getElementById('holidayBgColor');
     elements.holidayTextColor = document.getElementById('holidayTextColor');
     elements.holidayAllClasses = document.getElementById('holidayAllClasses');
@@ -14531,7 +14718,7 @@ function navigateToTab(tabId, options = {}) {
     navigateToTabBody(tabId, options);
 }
 
-function navigateToTabBody(tabId, options = {}) {
+async function navigateToTabBody(tabId, options = {}) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
     }
@@ -14546,8 +14733,17 @@ function navigateToTabBody(tabId, options = {}) {
             tabId = 'calendar';
         }
     }
-    document.body.dataset.activeTab = tabId;
     ensureUiState();
+    const previousTab = appData.ui.activeTab;
+    if (
+        previousTab === 'essays'
+        && tabId !== 'essays'
+        && typeof CCPClassroomEssays !== 'undefined'
+        && CCPClassroomEssays.flushBeforeLeave
+    ) {
+        await CCPClassroomEssays.flushBeforeLeave();
+    }
+    document.body.dataset.activeTab = tabId;
     if (tabId !== 'calendar' && isLessonFilterPopoverOpen()) {
         closeLessonFilterPopover();
     }
@@ -15200,6 +15396,128 @@ function syncHomeworkReferenceDateToActiveContext(isoDate) {
     CCPActiveContext.set({ sessionDate: isoDate }, { source: 'homework-reference-date' });
 }
 
+function isHomeworkReferenceDatePopoverOpen() {
+    const popover = document.getElementById('homeworkReferenceDatePopover');
+    return !!(popover && !popover.hidden);
+}
+
+function positionHomeworkReferenceDatePopover() {
+    const trigger = document.getElementById('homeworkReferenceDateBtn');
+    const popover = document.getElementById('homeworkReferenceDatePopover');
+    if (!trigger || !popover || popover.hidden) {
+        return;
+    }
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    const gap = 6;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    popover.style.position = 'fixed';
+    popover.style.zIndex = getComputedStyle(document.documentElement).getPropertyValue('--z-popover').trim() || '650';
+    popover.hidden = false;
+    const popoverWidth = popover.offsetWidth;
+    const popoverHeight = popover.offsetHeight;
+    let left = rect.left;
+    left = Math.max(margin, Math.min(left, viewportW - margin - popoverWidth));
+    let top = rect.bottom + gap;
+    if (top + popoverHeight > viewportH - margin) {
+        top = Math.max(margin, rect.top - gap - popoverHeight);
+    }
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+}
+
+function openHomeworkReferenceDatePopover() {
+    const trigger = document.getElementById('homeworkReferenceDateBtn');
+    const popover = document.getElementById('homeworkReferenceDatePopover');
+    if (!trigger || !popover) {
+        return;
+    }
+    renderHomeworkReferenceMiniCalendar();
+    const ariaLabel = popover.getAttribute('data-i18n-aria-label');
+    if (ariaLabel && t(ariaLabel)) {
+        popover.setAttribute('aria-label', t(ariaLabel));
+    }
+    trigger.setAttribute('aria-expanded', 'true');
+    positionHomeworkReferenceDatePopover();
+}
+
+function closeHomeworkReferenceDatePopover() {
+    const trigger = document.getElementById('homeworkReferenceDateBtn');
+    const popover = document.getElementById('homeworkReferenceDatePopover');
+    if (popover) {
+        popover.hidden = true;
+    }
+    if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function initHomeworkReferenceDatePopover() {
+    const trigger = document.getElementById('homeworkReferenceDateBtn');
+    const popover = document.getElementById('homeworkReferenceDatePopover');
+    const miniCal = document.getElementById('homeworkReferenceMiniCalendar');
+    if (!trigger || !popover) {
+        return;
+    }
+    if (trigger.dataset.homeworkPopoverInit === '1') {
+        return;
+    }
+    trigger.dataset.homeworkPopoverInit = '1';
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isHomeworkReferenceDatePopoverOpen()) {
+            closeHomeworkReferenceDatePopover();
+        } else {
+            openHomeworkReferenceDatePopover();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!isHomeworkReferenceDatePopoverOpen()) {
+            return;
+        }
+        if (popover.contains(e.target) || trigger.contains(e.target)) {
+            return;
+        }
+        closeHomeworkReferenceDatePopover();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isHomeworkReferenceDatePopoverOpen()) {
+            closeHomeworkReferenceDatePopover();
+            trigger.focus();
+        }
+    });
+
+    if (miniCal && miniCal.dataset.homeworkInit !== '1') {
+        miniCal.dataset.homeworkInit = '1';
+        miniCal.addEventListener('click', (e) => {
+            const dayBtn = e.target.closest('button[data-date]');
+            if (dayBtn && dayBtn.dataset.date) {
+                setHomeworkReferenceDate(dayBtn.dataset.date);
+                closeHomeworkReferenceDatePopover();
+                return;
+            }
+            const navBtn = e.target.closest('button[data-action]');
+            if (!navBtn) {
+                return;
+            }
+            const view = getHomeworkRefCalendarView();
+            if (navBtn.dataset.action === 'prev-month') {
+                const d = new Date(view.year, view.month - 1, 1);
+                homeworkRefCalendarView = { year: d.getFullYear(), month: d.getMonth() };
+            } else if (navBtn.dataset.action === 'next-month') {
+                const d = new Date(view.year, view.month + 1, 1);
+                homeworkRefCalendarView = { year: d.getFullYear(), month: d.getMonth() };
+            }
+            renderHomeworkReferenceMiniCalendar();
+            positionHomeworkReferenceDatePopover();
+        });
+    }
+}
+
 function setHomeworkReferenceDate(isoDate, options = {}) {
     const input = document.getElementById('homeworkReferenceDate');
     if (!input || !isoDate) {
@@ -15668,11 +15986,11 @@ function initHomeworkFilterControls() {
 
 function initHomeworkTabControls() {
     const input = document.getElementById('homeworkReferenceDate');
-    const miniCal = document.getElementById('homeworkReferenceMiniCalendar');
     if (!input) {
         return;
     }
     initHomeworkFilterControls();
+    initHomeworkReferenceDatePopover();
     const mod = getHomeworkTabModule();
     ensureUiState();
     const savedDate = appData.ui.homeworkReferenceDate;
@@ -15703,34 +16021,10 @@ function initHomeworkTabControls() {
         todayBtn.dataset.homeworkInit = '1';
         todayBtn.addEventListener('click', () => {
             setHomeworkReferenceDate(formatDateISO(new Date()));
+            closeHomeworkReferenceDatePopover();
         });
     }
 
-    if (miniCal && miniCal.dataset.homeworkInit !== '1') {
-        miniCal.dataset.homeworkInit = '1';
-        miniCal.addEventListener('click', (e) => {
-            const dayBtn = e.target.closest('button[data-date]');
-            if (dayBtn && dayBtn.dataset.date) {
-                setHomeworkReferenceDate(dayBtn.dataset.date);
-                return;
-            }
-            const navBtn = e.target.closest('button[data-action]');
-            if (!navBtn) {
-                return;
-            }
-            const view = getHomeworkRefCalendarView();
-            if (navBtn.dataset.action === 'prev-month') {
-                const d = new Date(view.year, view.month - 1, 1);
-                homeworkRefCalendarView = { year: d.getFullYear(), month: d.getMonth() };
-            } else if (navBtn.dataset.action === 'next-month') {
-                const d = new Date(view.year, view.month + 1, 1);
-                homeworkRefCalendarView = { year: d.getFullYear(), month: d.getMonth() };
-            }
-            renderHomeworkReferenceMiniCalendar();
-        });
-    }
-
-    renderHomeworkReferenceMiniCalendar();
     syncHomeworkWorkingFromLabel(input.value);
 
     const introDetails = document.getElementById('homeworkIntroDetails');
@@ -18982,6 +19276,9 @@ function getClassroomHooks() {
         async syncPointsDayNote(classId, dateStr) {
             return syncPointsDayNoteForClassDate(classId, dateStr);
         },
+        async syncEssayResubmitDayNote(classId, dateStr, options) {
+            return syncEssayResubmitDayNoteForClassDate(classId, dateStr, options);
+        },
         navigateToTab,
         getArchiveRetentionDays() {
             ensureUiState();
@@ -19031,7 +19328,7 @@ async function initClassroomTabControls(tabId, options = {}) {
         } else if (tabId === 'homework-tracking' && typeof CCPClassroomHomework !== 'undefined') {
             CCPClassroomHomework.initTab(hooks, options);
         } else if (tabId === 'essays' && typeof CCPClassroomEssays !== 'undefined') {
-            CCPClassroomEssays.initTab(hooks, options);
+            await CCPClassroomEssays.initTab(hooks, options);
         } else if (tabId === 'ledger' && typeof CCPClassroomLedger !== 'undefined') {
             CCPClassroomLedger.initTab(hooks, options);
         } else if (tabId === 'points' && typeof CCPClassroomPoints !== 'undefined') {
@@ -21335,6 +21632,7 @@ const elements = {
     holidayDateRange: document.getElementById('holidayDateRange'),
     holidayStartDate: document.getElementById('holidayStartDate'),
     holidayEndDate: document.getElementById('holidayEndDate'),
+    holidayAccentColor: document.getElementById('holidayAccentColor'),
     holidayBgColor: document.getElementById('holidayBgColor'),
     holidayTextColor: document.getElementById('holidayTextColor'),
     holidayAllClasses: document.getElementById('holidayAllClasses'),
@@ -24855,9 +25153,7 @@ function syncEventTypeHint() {
 function applyEventTypeDefaultColors() {
     if (!elements.eventType) return;
     const type = normalizeEventType(elements.eventType.value);
-    const defaults = EVENT_TYPE_DEFAULT_COLORS[type] || EVENT_TYPE_DEFAULT_COLORS.other;
-    elements.holidayBgColor.value = defaults.bg;
-    elements.holidayTextColor.value = defaults.text;
+    applyEventAccentToForm(getEventTypeDefaultAccent(type));
     if (type === EVENT_TYPES.EVALUATION_PERIOD) {
         elements.holidayIsRange.checked = true;
         elements.holidaySingleDate.style.display = 'none';
@@ -25076,8 +25372,17 @@ function populateHolidayForm(holidayData = null, options = {}) {
         }
         
         // Handle colors
-        elements.holidayBgColor.value = holidayData.bgColor || '#fef3c7';
-        elements.holidayTextColor.value = holidayData.textColor || '#b45309';
+        const accent = resolveEventAccentColor(holidayData);
+        if (accent) {
+            applyEventAccentToForm(accent);
+        } else {
+            const legacyColors = resolveEventDisplayColors(holidayData);
+            if (elements.holidayAccentColor) {
+                elements.holidayAccentColor.value = '';
+            }
+            elements.holidayBgColor.value = legacyColors.bg;
+            elements.holidayTextColor.value = legacyColors.text;
+        }
         
         const isAllClasses = !holidayHasAnyTargetFilter(holidayData);
         elements.holidayAllClasses.checked = isAllClasses;
@@ -25111,6 +25416,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
     syncEventApplicabilityUiFromDraft();
     syncEventOpenEditorButton();
     syncEventTypeHint();
+    refreshEventColorPaletteUi();
     applyTeamViewOnlyEditingState(teamViewOnlyActive);
 }
 
@@ -25134,6 +25440,57 @@ function deriveClassTextColorForSave(hex) {
     void hex;
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     return isDark ? '#dde6f1' : '#243244';
+}
+
+function applyEventAccentToForm(accent) {
+    if (!accent) {
+        return;
+    }
+    const derived = deriveEventColorsFromAccent(accent);
+    if (elements.holidayAccentColor) {
+        elements.holidayAccentColor.value = derived.accentColor;
+    }
+    if (elements.holidayBgColor) {
+        elements.holidayBgColor.value = derived.bgColor;
+    }
+    if (elements.holidayTextColor) {
+        elements.holidayTextColor.value = derived.textColor;
+    }
+    refreshEventColorPaletteUi(derived.accentColor);
+}
+
+function refreshEventColorPaletteUi(selectedHex) {
+    const grid = document.getElementById('eventColorPaletteGrid');
+    const preview = document.getElementById('eventColorPreviewRow');
+    if (!grid || typeof CCPClassColorPalette === 'undefined') {
+        return;
+    }
+    const accent = selectedHex
+        || (elements.holidayAccentColor && elements.holidayAccentColor.value)
+        || '';
+    if (accent && elements.holidayBgColor && elements.holidayTextColor) {
+        const derived = deriveEventColorsFromAccent(accent);
+        elements.holidayBgColor.value = derived.bgColor;
+        elements.holidayTextColor.value = derived.textColor;
+    }
+    const name = elements.holidayName && elements.holidayName.value
+        ? elements.holidayName.value.trim()
+        : '';
+    CCPClassColorPalette.renderGrid(grid, accent || null, (picked) => {
+        applyEventAccentToForm(picked);
+    });
+    if (accent) {
+        CCPClassColorPalette.renderPreviewRow(preview, accent, name || 'Preview');
+        return;
+    }
+    if (preview && elements.holidayBgColor) {
+        const bg = elements.holidayBgColor.value;
+        const text = resolveEventCalmTextColor();
+        preview.innerHTML =
+            '<span class="class-color-preview-label">Preview</span>' +
+            '<span class="class-color-preview-chip" style="background:' + bg + ';color:' + text + '">' +
+            (name || 'Preview') + '</span>';
+    }
 }
 
 function refreshClassColorPaletteUi(selectedHex) {
@@ -25736,6 +26093,7 @@ function handleHolidaySubmit(e) {
         date: isRange ? null : elements.holidayDate.value,
         startDate: isRange ? elements.holidayStartDate.value : null,
         endDate: isRange ? elements.holidayEndDate.value : null,
+        accentColor: elements.holidayAccentColor ? elements.holidayAccentColor.value.trim() : '',
         bgColor: elements.holidayBgColor.value,
         textColor: elements.holidayTextColor.value,
         grades,
@@ -27100,6 +27458,7 @@ function renderCalendarAgenda(dayIndex) {
 
         dayEvents.forEach((ev) => {
             const type = normalizeEventType(ev.type);
+            const displayColors = resolveEventDisplayColors(ev);
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'calendar-agenda-item calendar-agenda-item--event';
@@ -27108,7 +27467,7 @@ function renderCalendarAgenda(dayIndex) {
             }
             const swatch = document.createElement('span');
             swatch.className = 'calendar-agenda-item-swatch';
-            swatch.style.backgroundColor = ev.bgColor || EVENT_TYPE_DEFAULT_COLORS[type]?.bg || '#cbd5e1';
+            swatch.style.backgroundColor = displayColors.accent;
             const main = document.createElement('span');
             main.className = 'calendar-agenda-item-main';
             const itemTitle = document.createElement('div');
@@ -27117,7 +27476,7 @@ function renderCalendarAgenda(dayIndex) {
             main.appendChild(itemTitle);
             item.appendChild(swatch);
             item.appendChild(main);
-            applyCalmAgendaItemStyle(item, ev.bgColor || EVENT_TYPE_DEFAULT_COLORS[type]?.bg || '#cbd5e1');
+            applyCalmAgendaItemStyle(item, { color: displayColors.accent });
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openEventEditor(ev, 'calendar-popout');
@@ -27750,9 +28109,9 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     let blockingText = '';
     if (blockingEvent) {
         const blockType = normalizeEventType(blockingEvent.type);
-        const defaults = EVENT_TYPE_DEFAULT_COLORS[blockType] || EVENT_TYPE_DEFAULT_COLORS.other;
-        blockingBg = blockingEvent.bgColor || defaults.bg;
-        blockingText = blockingEvent.textColor || defaults.text;
+        const displayColors = resolveEventDisplayColors(blockingEvent);
+        blockingBg = displayColors.bg;
+        blockingText = displayColors.text;
         if (blockType === EVENT_TYPES.HOLIDAY) {
             dayDiv.classList.add('holiday', 'cal-item-holiday');
         }
@@ -27761,6 +28120,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         }
         dayDiv.dataset.eventId = blockingEvent.id;
         dayDiv.style.backgroundColor = blockingBg;
+        dayDiv.style.setProperty('--class-tile-text', blockingText);
         dayDiv.addEventListener('click', (e) => {
             if (e.target === dayDiv || e.target.classList.contains('day-number') || e.target.classList.contains('holiday-name') || e.target.classList.contains('calendar-event-chip')) {
                 openEventEditor(blockingEvent, 'calendar-popout');
@@ -27780,7 +28140,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     numberDiv.className = 'day-number';
     numberDiv.textContent = dayNumber;
     if (blockingEvent) {
-        numberDiv.style.color = getReadableTextOnBackground(blockingBg, blockingText);
+        numberDiv.style.color = blockingText;
     }
     dayTop.appendChild(numberDiv);
 
@@ -27806,7 +28166,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         const holidayDiv = document.createElement('div');
         holidayDiv.className = `holiday-name cal-item-${blockType}`;
         holidayDiv.dataset.eventId = blockingEvent.id;
-        holidayDiv.style.color = getReadableTextOnBackground(blockingBg, blockingText);
+        holidayDiv.style.color = blockingText;
         let appliesText = '';
         if (eventHasAnyTargetFilter(blockingEvent)) {
             appliesText = ` (${getEventAppliesToDescriptionParts(blockingEvent).join('; ')})`;
@@ -27828,11 +28188,11 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     chipsWrap.className = 'calendar-event-chips';
     visibleEvents.filter(ev => !eventTypeBlocksClass(ev.type)).forEach(ev => {
         const type = normalizeEventType(ev.type);
+        const displayColors = resolveEventDisplayColors(ev);
         const chip = document.createElement('div');
-        chip.className = `calendar-event-chip cal-item-${type} event-type-${type}`;
+        chip.className = `calendar-event-chip event-bar--calm cal-item-${type} event-type-${type}`;
         chip.dataset.eventId = ev.id;
-        chip.style.backgroundColor = ev.bgColor || EVENT_TYPE_DEFAULT_COLORS[type].bg;
-        chip.style.color = ev.textColor || EVENT_TYPE_DEFAULT_COLORS[type].text;
+        applyCalmEventBarStyle(chip, { color: displayColors.accent });
         const chipLabel = getEventDisplayName(ev);
         chip.textContent = chipLabel;
         chip.title = chipLabel || getEventTypeLabel(type);
@@ -28184,7 +28544,7 @@ function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
     const chips = [];
     visibleEvents.forEach((ev) => {
         const type = normalizeEventType(ev.type);
-        const defaults = EVENT_TYPE_DEFAULT_COLORS[type] || EVENT_TYPE_DEFAULT_COLORS.other;
+        const displayColors = resolveEventDisplayColors(ev);
         let label = getEventDisplayName(ev);
         if (eventTypeBlocksClass(ev.type) && eventHasAnyTargetFilter(ev)) {
             label += ` (${getEventAppliesToDescriptionParts(ev).join('; ')})`;
@@ -28192,8 +28552,8 @@ function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
         chips.push({
             kind: 'event',
             label,
-            bgColor: ev.bgColor || defaults.bg,
-            textColor: ev.textColor || defaults.text,
+            bgColor: displayColors.bg,
+            textColor: displayColors.text,
             eventType: type
         });
     });

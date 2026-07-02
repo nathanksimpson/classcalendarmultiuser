@@ -7,15 +7,17 @@
         'class-notes',
         'parent-consult',
         'next-class-notes',
-        'class-points'
+        'class-points',
+        'essay-resubmit'
     ]);
-    const SYSTEM_MANAGED_CATEGORY_IDS = new Set(['class-points']);
+    const SYSTEM_MANAGED_CATEGORY_IDS = new Set(['class-points', 'essay-resubmit']);
 
     const BUILTIN_I18N_KEYS = {
         'class-notes': 'dayNoteCategoryClassNotes',
         'parent-consult': 'dayNoteCategoryParentConsult',
         'next-class-notes': 'dayNoteCategoryNextClass',
-        'class-points': 'dayNoteCategoryClassPoints'
+        'class-points': 'dayNoteCategoryClassPoints',
+        'essay-resubmit': 'dayNoteCategoryEssayResubmit'
     };
 
     function normalizeCategoryId(raw) {
@@ -66,7 +68,7 @@
      */
     function getAllCategories(customCategories, translate) {
         const t = typeof translate === 'function' ? translate : (k) => k;
-        const builtins = ['class-notes', 'parent-consult', 'next-class-notes', 'class-points'].map((id) => ({
+        const builtins = ['class-notes', 'parent-consult', 'next-class-notes', 'class-points', 'essay-resubmit'].map((id) => ({
             id,
             name: t(BUILTIN_I18N_KEYS[id] || id),
             builtin: true,

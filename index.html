@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260630-essays-retest">
+    <link rel="stylesheet" href="styles.css?v=20260702-essay-enhance">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
@@ -811,15 +811,23 @@
                 <div class="homework-tab-chrome">
                     <div id="homeworkWorkingFromBar" class="homework-working-from-bar">
                         <div class="homework-working-from-main">
-                            <span class="homework-working-from-label" data-i18n="homeworkTabReferenceDate">Reference date</span>
-                            <strong id="homeworkWorkingFromLabel" class="homework-working-from-value"></strong>
+                            <div class="homework-ref-date-row">
+                                <span class="homework-working-from-label" data-i18n="homeworkTabReferenceDate">Reference date</span>
+                                <button type="button" id="homeworkReferenceDateBtn" class="homework-ref-date-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="homeworkReferenceDatePopover">
+                                    <strong id="homeworkWorkingFromLabel" class="homework-working-from-value"></strong>
+                                    <span class="homework-ref-date-caret" aria-hidden="true">&#9662;</span>
+                                </button>
+                                <button type="button" id="homeworkReferenceTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
+                            </div>
                             <label class="homework-ref-date-visually-hidden" for="homeworkReferenceDate">
                                 <span data-i18n="homeworkTabReferenceDate">Reference date</span>
                             </label>
-                            <input type="date" id="homeworkReferenceDate" class="homework-ref-date-input homework-ref-date-input--hidden" aria-describedby="homeworkReferenceDateHelp homeworkReferenceMiniCalendar">
-                            <button type="button" id="homeworkReferenceTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
+                            <input type="date" id="homeworkReferenceDate" class="homework-ref-date-input homework-ref-date-input--hidden" aria-describedby="homeworkReferenceDateHelp">
                         </div>
                         <p id="homeworkReferenceDateHelp" class="homework-working-from-help section-hint" data-i18n="homeworkTabReferenceDateHelp">Sets which lesson counts as &ldquo;this class&rdquo; for every block below.</p>
+                        <div id="homeworkReferenceDatePopover" class="homework-ref-date-popover" hidden role="dialog" data-i18n-aria-label="homeworkTabMiniCalendarLabel" aria-label="Pick reference date">
+                            <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application" aria-label="Pick reference date"></div>
+                        </div>
                     </div>
                     <div class="module-toolbar homework-tab-toolbar">
                         <button type="button" id="contentExpandToggleBtn" class="btn btn-outline btn-small" data-i18n="contentExpand">Expand view</button>
@@ -829,7 +837,6 @@
                 </div>
                 <div class="homework-layout module-split-layout module-split-layout--homework">
                     <aside class="module-list-panel homework-sidebar-panel" aria-label="Class list">
-                        <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application" data-i18n-aria-label="homeworkTabMiniCalendarLabel" aria-label="Pick reference date"></div>
                         <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Reload copy text from syllabi</button>
                         <div class="homework-filter-panel">
                             <div class="homework-filter-checkboxes">
@@ -912,13 +919,15 @@
                                         <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
                                         <button type="button" id="homeworkCopyDueDateBtn" class="btn btn-outline btn-small homework-copy-btn" data-i18n="homeworkTabCopyDate">Copy date</button>
                                     </div>
-                                    <div class="homework-copy-actions-stack">
-                                        <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopyHomework">Copy homework</button>
-                                    </div>
                                     <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>
                                 </div>
-                                <textarea id="homeworkAssignText" class="homework-copy-textarea" rows="8" spellcheck="false" aria-describedby="homeworkAssignSourceHint"></textarea>
-                                <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
+                                <div class="homework-copy-text-panel">
+                                    <div class="homework-copy-text-panel-header">
+                                        <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopyHomework">Copy homework</button>
+                                    </div>
+                                    <textarea id="homeworkAssignText" class="homework-copy-textarea" rows="8" spellcheck="false" aria-describedby="homeworkAssignSourceHint"></textarea>
+                                    <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
+                                </div>
                             </div>
                             <div class="homework-copy-actions">
                                 <button type="button" class="btn btn-outline btn-small" id="homeworkCopyBothBtn" data-i18n="homeworkTabCopyBoth">Copy both blocks</button>
@@ -1306,6 +1315,31 @@
                 <div class="form-actions">
                     <button type="button" id="termCloneCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                     <button type="button" id="termCloneSubmitBtn" class="btn btn-primary" data-i18n="dataTermCloneSubmit">Create cloned calendar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="essayProgressReportModal" class="modal" role="dialog" aria-labelledby="essayProgressReportTitle" aria-modal="true" hidden>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2 id="essayProgressReportTitle" data-i18n="classroomEssayProgressReportTitle">Essay grading progress</h2>
+                <button type="button" class="modal-close" id="essayProgressReportClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body classroom-essay-progress-modal-body">
+                <div class="classroom-essay-progress-filters">
+                    <button type="button" id="essayProgressSelectAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayProgressSelectAll">Select all</button>
+                    <button type="button" id="essayProgressClearAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayProgressClearAll">Clear all</button>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="essayProgressPendingOnly" />
+                        <span data-i18n="classroomEssayProgressPendingOnly">Only assignments with pending grading</span>
+                    </label>
+                </div>
+                <div id="essayProgressAssignmentList" class="classroom-essay-progress-assignment-list"></div>
+                <div id="essayProgressPreview" class="classroom-essay-progress-preview" aria-live="polite"></div>
+                <div class="form-actions">
+                    <button type="button" id="essayProgressPreviewBtn" class="btn btn-outline" data-i18n="classroomEssayProgressPreview">Preview</button>
+                    <button type="button" id="essayProgressPrintBtn" class="btn btn-primary" data-i18n="classroomEssayProgressPrint">Print / PDF</button>
                 </div>
             </div>
         </div>
@@ -1917,7 +1951,7 @@
     <script defer src="js/active-context.js?v=20260624-hw-date-fix"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
-    <script defer src="js/template-loader.js?v=20260603-class-form-order"></script>
+    <script defer src="js/template-loader.js?v=20260701-event-color-palette"></script>
     <script defer src="js/app-tab-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
@@ -2009,7 +2043,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
-    <script defer src="app.js?v=20260630-homework-sidebar-height"></script>
+    <script defer src="app.js?v=20260702-essay-enhance"></script>
 </body>
 </html>
 

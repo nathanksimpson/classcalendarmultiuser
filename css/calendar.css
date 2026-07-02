@@ -856,14 +856,20 @@
 }
 
 .calendar-event-chip {
-    font-size: min(var(--cal-tile-font, 0.625rem), 13px);
-    padding: 2px 4px;
-    border-radius: 3px;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 5px 9px;
+    border-radius: 5px;
     line-height: 1.2;
+    color: var(--class-tile-text, var(--chip-calm-text));
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.calendar-event-chip.event-bar--calm {
+    box-shadow: none;
 }
 
 .calendar-day.has-eval-period:not(.holiday) {
@@ -1542,13 +1548,11 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .holiday-name {
-    font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 0.7rem) * 1.12)), 13px);
-    /* Color set dynamically via JS */
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 0 6px 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
     line-height: 1.2;
+    color: var(--class-tile-text, var(--chip-calm-text));
+    padding: 0 6px 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

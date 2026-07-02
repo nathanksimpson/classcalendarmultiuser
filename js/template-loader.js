@@ -5,7 +5,7 @@
     const TEMPLATES = [
         { id: 'classFormTemplate', url: 'templates/class-form.html?v=20260603-class-form-order' },
         { id: 'syllabusEditorTemplate', url: 'templates/syllabus-editor.html' },
-        { id: 'holidayFormTemplate', url: 'templates/holiday-form.html' },
+        { id: 'holidayFormTemplate', url: 'templates/holiday-form.html?v=20260701-event-color-palette' },
         { id: 'printFormTemplate', url: 'templates/print-form.html' }
     ];
 

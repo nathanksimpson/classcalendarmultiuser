@@ -1635,14 +1635,20 @@ body {
 }
 
 .calendar-event-chip {
-    font-size: min(var(--cal-tile-font, 0.625rem), 13px);
-    padding: 2px 4px;
-    border-radius: 3px;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 5px 9px;
+    border-radius: 5px;
     line-height: 1.2;
+    color: var(--class-tile-text, var(--chip-calm-text));
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.calendar-event-chip.event-bar--calm {
+    box-shadow: none;
 }
 
 .calendar-day.has-eval-period:not(.holiday) {
@@ -2319,13 +2325,11 @@ body:has(#panel-calendar:not([hidden])) {
 }
 
 .holiday-name {
-    font-size: min(var(--cal-tile-font-holiday, calc(var(--cal-tile-font, 0.7rem) * 1.12)), 13px);
-    /* Color set dynamically via JS */
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 0 6px 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
     line-height: 1.2;
+    color: var(--class-tile-text, var(--chip-calm-text));
+    padding: 0 6px 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -8149,6 +8153,60 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     gap: var(--space-2) var(--space-3);
 }
 
+.homework-ref-date-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+}
+
+.homework-ref-date-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--pad-control-y) var(--pad-control-x-lg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-card);
+    font-family: inherit;
+    cursor: pointer;
+    color: inherit;
+    line-height: 1.3;
+}
+
+.homework-ref-date-trigger:hover {
+    background: var(--bg-hover);
+}
+
+.homework-ref-date-trigger:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.homework-ref-date-caret {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1;
+}
+
+.homework-ref-date-popover {
+    position: fixed;
+    z-index: var(--z-popover);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+.homework-ref-date-popover[hidden] {
+    display: none !important;
+}
+
+.homework-ref-date-popover .homework-ref-mini-calendar {
+    width: min(calc(100vw - 24px), 300px);
+}
+
 .homework-working-from-label {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -8230,6 +8288,7 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 
 .homework-class-queue {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
@@ -8240,11 +8299,14 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 }
 
 .homework-queue-label {
-    font-size: 0.875rem;
+    font-size: clamp(0.8125rem, 2.5vw, 0.875rem);
     font-weight: 600;
     color: var(--text-primary);
-    min-width: 8rem;
+    min-width: 0;
+    flex: 1 1 6rem;
+    max-width: 100%;
     text-align: center;
+    line-height: 1.35;
 }
 
 .homework-queue-btn {
@@ -8404,6 +8466,7 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 .homework-sidebar-panel {
     gap: 6px;
     min-height: 0;
+    min-width: 0;
 }
 
 .homework-filter-panel {
@@ -8426,7 +8489,6 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     line-height: 1.35;
 }
 
-.homework-sidebar-panel .homework-ref-mini-calendar,
 .homework-sidebar-panel .homework-update-copy-btn,
 .homework-sidebar-panel .homework-filter-panel,
 .homework-sidebar-panel .module-list-search,
@@ -8436,17 +8498,16 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 
 .homework-sidebar-panel .module-list {
     flex: 1 1 0;
-    min-height: 10rem;
+    min-height: 0;
     overflow-y: auto;
 }
 
-/* Homework sidebar: fill viewport below chrome; class list scrolls in the flex remainder */
+/* Homework sidebar: sticky under chrome; class list scrolls in the flex remainder */
 #panel-homework .homework-sidebar-panel.module-list-panel {
     position: sticky;
     top: calc(var(--app-chrome-sticky-top, 72px) + 8px);
     align-self: start;
-    height: var(--homework-sidebar-max-height, calc(100dvh - var(--app-chrome-sticky-top, 72px) - 5rem));
-    max-height: var(--homework-sidebar-max-height, calc(100dvh - var(--app-chrome-sticky-top, 72px) - 5rem));
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 16px);
     overflow: hidden;
 }
 
@@ -8659,6 +8720,28 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
+}
+
+.homework-copy-block .homework-due-block {
+    background: var(--bg-hover);
+}
+
+.homework-copy-text-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.homework-copy-text-panel-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
 }
 
 .homework-due-label {
@@ -12717,7 +12800,7 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
 
     /* Homework: keep class sidebar beside editor; height follows content up to viewport cap */
     .homework-layout.module-split-layout--homework {
-        grid-template-columns: minmax(11rem, 32vw) minmax(0, 1fr);
+        grid-template-columns: clamp(11rem, 26vw, 17.5rem) minmax(0, 1fr);
         align-items: start;
     }
 
@@ -12725,8 +12808,7 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         display: flex;
         flex-direction: column;
         align-self: start;
-        height: var(--homework-sidebar-max-height, calc(100dvh - var(--app-chrome-sticky-top, 72px) - 5rem));
-        max-height: var(--homework-sidebar-max-height, calc(100dvh - var(--app-chrome-sticky-top, 72px) - 5rem));
+        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 16px);
         overflow: hidden;
     }
 
@@ -12734,11 +12816,10 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         grid-column: auto;
         grid-row: auto;
         flex: 1 1 0;
-        min-height: 10rem;
+        min-height: 0;
         max-height: none;
     }
 
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-ref-mini-calendar,
     .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-update-copy-btn,
     .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-filter-panel,
     .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list-search,
@@ -12894,7 +12975,7 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
 }
 
 @media (max-width: 640px) {
-    .module-split-layout > :is(.module-list-panel, .workspace-books-sidebar, .curriculum-tab-sidebar, .syllabus-tab-sidebar),
+    .module-split-layout > :is(.module-list-panel:not(.homework-sidebar-panel), .workspace-books-sidebar, .curriculum-tab-sidebar, .syllabus-tab-sidebar),
     .workspace-books-layout > .workspace-books-sidebar {
         display: flex;
         flex-direction: column;
@@ -12914,29 +12995,18 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
     }
 
     .homework-layout.module-split-layout--homework .homework-sidebar-panel {
-        display: grid;
-        grid-template-columns: minmax(var(--split-sidebar-min), 1fr) minmax(var(--split-sidebar-min), 1fr);
-        column-gap: var(--space-3);
-        align-items: stretch;
+        display: flex;
+        flex-direction: column;
         align-self: start;
-        height: var(--homework-sidebar-max-height, calc(100dvh - var(--app-chrome-sticky-top, 72px) - 5rem));
-        max-height: var(--homework-sidebar-max-height, calc(100dvh - var(--app-chrome-sticky-top, 72px) - 5rem));
+        min-width: 0;
+        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 16px);
     }
 
     .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list {
-        grid-column: 2;
-        grid-row: 1 / -1;
-        min-height: 10rem;
+        flex: 1 1 0;
+        min-height: 0;
         max-height: none;
         overflow-y: auto;
-    }
-
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-ref-mini-calendar,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-update-copy-btn,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-filter-panel,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .module-list-search,
-    .homework-layout.module-split-layout--homework .homework-sidebar-panel .homework-list-summary {
-        grid-column: 1;
     }
 
     .class-notes-layout.module-split-layout .class-notes-filters-panel .class-notes-filter-scroll,
@@ -15180,6 +15250,175 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     min-width: min(280px, 100%);
 }
 
+.classroom-header--essays .classroom-header-top {
+    align-items: flex-end;
+}
+
+.classroom-header-class-combobox {
+    position: relative;
+    flex: 1 1 16rem;
+    max-width: 320px;
+    min-width: min(240px, 100%);
+}
+
+.classroom-header-class-combobox-field {
+    margin: 0;
+}
+
+.classroom-header-class-combobox-input {
+    width: 100%;
+}
+
+.classroom-header-class-combobox.is-open .classroom-header-class-combobox-input {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.classroom-header-class-combobox-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    border-top: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+.classroom-header-class-combobox-empty {
+    margin: 0;
+    padding: 10px 12px;
+}
+
+.classroom-header-class-combobox-item.is-highlighted {
+    background: var(--bg-hover);
+}
+
+.classroom-header-body--essays {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.classroom-header--essays .classroom-header-stats {
+    flex: 0 1 auto;
+    gap: var(--space-2);
+}
+
+.classroom-header--essays .classroom-header-controls--essays {
+    flex: 1 1 28rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.classroom-header-field--assignment {
+    flex: 2 1 14rem;
+    min-width: 12rem;
+}
+
+.classroom-header-field--date {
+    flex: 0 1 9rem;
+    min-width: 8rem;
+}
+
+.classroom-header--essays .classroom-header-essay-deadline-hints {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    width: auto;
+    margin: 0;
+    flex: 1 1 100%;
+}
+
+.classroom-header--essays .classroom-essay-deadline {
+    margin: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.classroom-essay-progress-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-height: min(70vh, 560px);
+}
+
+.classroom-essay-progress-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.classroom-essay-progress-assignment-list {
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--space-2);
+    flex: 1;
+    min-height: 200px;
+}
+
+.classroom-essay-progress-class-group + .classroom-essay-progress-class-group {
+    margin-top: var(--space-3);
+}
+
+.classroom-essay-progress-class-name {
+    margin: 0 0 var(--space-1);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.classroom-essay-progress-assignment-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    padding: 4px 0;
+    font-size: 0.8125rem;
+}
+
+.classroom-essay-progress-preview {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--space-3);
+    max-height: 240px;
+    overflow: auto;
+    background: var(--bg-card);
+}
+
+.classroom-essay-progress-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.classroom-essay-progress-preview-table th,
+.classroom-essay-progress-preview-table td {
+    border: 1px solid var(--border-color);
+    padding: 4px 6px;
+    text-align: left;
+}
+
+@media (max-width: 900px) {
+    .classroom-header--essays .classroom-header-controls--essays {
+        flex-wrap: wrap;
+    }
+
+    .classroom-header-class-combobox {
+        max-width: 100%;
+    }
+}
+
 .classroom-header-class-search-field {
     flex-direction: column;
     align-items: stretch;
@@ -15236,7 +15475,9 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-essay-filters {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
     gap: var(--space-2);
     flex: 1;
     min-width: 0;
