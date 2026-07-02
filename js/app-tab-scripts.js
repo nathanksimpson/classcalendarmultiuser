@@ -49,8 +49,11 @@
         essays: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260701-essay-redesign',
-            'js/classroom-essays.js?v=20260701-essay-redesign'
+            'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
+            'js/classroom-essay-progress.js?v=20260702-essay-enhance',
+            'js/classroom-essay-progress-print.js?v=20260702-essay-enhance',
+            'js/classroom-header.js?v=20260702-essay-enhance',
+            'js/classroom-essays.js?v=20260702-essay-enhance2'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

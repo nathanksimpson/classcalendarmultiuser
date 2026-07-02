@@ -14,6 +14,8 @@
     let saveInFlight = null;
     let debouncedSaveEssays = null;
     let panelRef = null;
+    const progressReportSelectedKeys = new Set();
+    let progressReportPendingOnly = false;
 
     function domain() {
         return global.CCPClassroomDomain;
@@ -64,6 +66,314 @@
         const d = domain();
         const data = getAppData();
         return d ? d.resolveStudentsForClass(getClassData(), data.cohorts) : [];
+    }
+
+    function getAccessibleClasses() {
+        const data = getAppData();
+        let classes = (data.classes || []).filter(
+            (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
+        );
+        if (global.CCPCohortSidebarFilter) {
+            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
+                classes,
+                global.CCPCohortSidebarFilter.getActiveCohortId()
+            );
+        }
+        return classes;
+    }
+
+    function getAssignmentLabelForCurrent() {
+        const classData = getClassData();
+        const d = domain();
+        if (!classData || !d || !syllabusRowId) {
+            return '';
+        }
+        const row = d
+            .getEssayRowsFromSyllabus(classData.syllabusRows)
+            .find((r) => d.getSyllabusRowKey(r) === syllabusRowId);
+        if (!row) {
+            return '';
+        }
+        return `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+    }
+
+    async function syncResubmitDayNote() {
+        const d = domain();
+        const today = d ? d.todayISO() : '';
+        if (!hooks || !hooks.syncEssayResubmitDayNote || !classId || !today) {
+            return;
+        }
+        await hooks.syncEssayResubmitDayNote(classId, today, {
+            syllabusRowId,
+            essaySubmission: draftSubmission,
+            assignmentLabel: getAssignmentLabelForCurrent()
+        });
+    }
+
+    function loadProgressReportSelection() {
+        const data = getAppData();
+        progressReportSelectedKeys.clear();
+        const raw = data.ui && data.ui.essayProgressReportSelection;
+        if (typeof raw === 'string' && raw.trim()) {
+            raw.split(',').forEach((key) => {
+                const trimmed = key.trim();
+                if (trimmed) {
+                    progressReportSelectedKeys.add(trimmed);
+                }
+            });
+        }
+    }
+
+    function saveProgressReportSelection() {
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref(
+                'essayProgressReportSelection',
+                Array.from(progressReportSelectedKeys).join(',')
+            );
+        }
+    }
+
+    function listProgressAssignments() {
+        const progressApi = global.CCPClassroomEssayProgress;
+        if (!progressApi) {
+            return [];
+        }
+        return progressApi.listEssayAssignments(getAppData(), {
+            classes: getAccessibleClasses(),
+            access: access()
+        });
+    }
+
+    function getProgressPrintLabels() {
+        return {
+            title: t('classroomEssayProgressReportTitle'),
+            colAssignment: t('classroomEssayProgressColAssignment'),
+            colLessonDate: t('classroomEssayProgressColLessonDate'),
+            colTotal: t('classroomEssayProgressColTotal'),
+            colNotSubmitted: t('classroomEssayProgressColNotSubmitted'),
+            colSubmitted: t('classroomEssayProgressColSubmitted'),
+            colComplete: t('classroomEssayProgressColComplete'),
+            colResubmit: t('classroomEssayProgressColResubmit'),
+            colSsDue: t('classroomEssayProgressColSsDue'),
+            colTeDue: t('classroomEssayProgressColTeDue'),
+            colPercentComplete: t('classroomEssayProgressColPercentComplete'),
+            noAssignments: t('classroomEssayProgressNoAssignments'),
+            generatedAt: t('classroomEssayProgressGeneratedAt'),
+            overdue: t('classroomEssayProgressOverdue')
+        };
+    }
+
+    function renderProgressPreviewHtml(assignments) {
+        const groups = global.CCPClassroomEssayProgress
+            ? global.CCPClassroomEssayProgress.groupAssignmentsByClass(assignments)
+            : [];
+        if (!groups.length) {
+            return `<p class="section-hint">${escapeHtml(t('classroomEssayProgressNoAssignments'))}</p>`;
+        }
+        return groups
+            .map((group) => {
+                const rows = (group.rows || [])
+                    .map(
+                        (row) => `<tr>
+                        <td>${escapeHtml(row.assignmentLabel || '')}</td>
+                        <td>${escapeHtml(String(row.totalStudents || 0))}</td>
+                        <td>${escapeHtml(String(row.counts && row.counts.complete != null ? row.counts.complete : 0))}</td>
+                        <td>${escapeHtml(String(row.counts && row.counts.submitted != null ? row.counts.submitted : 0))}</td>
+                        <td>${escapeHtml(String(row.percentComplete != null ? row.percentComplete : 0))}%</td>
+                    </tr>`
+                    )
+                    .join('');
+                return `<div class="classroom-essay-progress-class-group">
+                    <h4 class="classroom-essay-progress-class-name">${escapeHtml(group.className || '')}</h4>
+                    <table class="classroom-essay-progress-preview-table">
+                        <thead><tr>
+                            <th>${escapeHtml(t('classroomEssayProgressColAssignment'))}</th>
+                            <th>${escapeHtml(t('classroomEssayProgressColTotal'))}</th>
+                            <th>${escapeHtml(t('classroomEssayProgressColComplete'))}</th>
+                            <th>${escapeHtml(t('classroomEssayProgressColSubmitted'))}</th>
+                            <th>${escapeHtml(t('classroomEssayProgressColPercentComplete'))}</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+            })
+            .join('');
+    }
+
+    function getSelectedProgressAssignments() {
+        const progressApi = global.CCPClassroomEssayProgress;
+        if (!progressApi) {
+            return [];
+        }
+        const all = listProgressAssignments();
+        if (!progressReportSelectedKeys.size) {
+            return progressApi.filterAssignments(all, { pendingOnly: progressReportPendingOnly });
+        }
+        return progressApi.filterAssignments(all, {
+            selectedKeys: progressReportSelectedKeys,
+            pendingOnly: progressReportPendingOnly
+        });
+    }
+
+    function openEssayProgressPrint(assignments) {
+        const printApi = global.CCPClassroomEssayProgressPrint;
+        const progressApi = global.CCPClassroomEssayProgress;
+        if (!printApi || !progressApi || !assignments.length) {
+            return;
+        }
+        const data = getAppData();
+        const d = domain();
+        const labels = getProgressPrintLabels();
+        const groups = progressApi.groupAssignmentsByClass(assignments);
+        const bodyHtml = printApi.renderDocumentHtml(
+            {
+                calendarName: data.calendarName || '',
+                generatedAt: d ? d.todayISO() : '',
+                groups
+            },
+            labels
+        );
+        const title = labels.title;
+        const inlineCss = printApi.PRINT_STYLES || '';
+        const appStyles =
+            typeof document !== 'undefined'
+                ? Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+                    .map((link) => link.href)
+                    .filter(Boolean)[0] || 'styles.css'
+                : 'styles.css';
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+            <link rel="stylesheet" href="${escapeAttr(appStyles)}">
+            <style>${inlineCss}</style>
+        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('printSyllabusBlocked'), true);
+            }
+            return;
+        }
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        printWin.document.title = title;
+        printWin.focus();
+        printWin.print();
+    }
+
+    function renderProgressReportModal() {
+        const listEl = document.getElementById('essayProgressAssignmentList');
+        const previewEl = document.getElementById('essayProgressPreview');
+        const pendingCb = document.getElementById('essayProgressPendingOnly');
+        if (!listEl) {
+            return;
+        }
+        if (pendingCb) {
+            pendingCb.checked = progressReportPendingOnly;
+        }
+        const assignments = listProgressAssignments();
+        const grouped = global.CCPClassroomEssayProgress
+            ? global.CCPClassroomEssayProgress.groupAssignmentsByClass(assignments)
+            : [];
+        const savedSelection = getAppData().ui && getAppData().ui.essayProgressReportSelection;
+        const neverSavedSelection = savedSelection === undefined || savedSelection === null;
+        if (neverSavedSelection && !progressReportSelectedKeys.size && assignments.length) {
+            assignments.forEach((row) => progressReportSelectedKeys.add(row.key));
+        }
+        listEl.innerHTML = grouped
+            .map((group) => {
+                const rows = (group.rows || [])
+                    .map((row) => {
+                        const checked = progressReportSelectedKeys.has(row.key) ? ' checked' : '';
+                        return `<label class="classroom-essay-progress-assignment-row">
+                            <input type="checkbox" data-assignment-key="${escapeAttr(row.key)}"${checked} />
+                            <span>${escapeHtml(row.assignmentLabel || '')} <span class="section-hint">(${escapeHtml(String(row.percentComplete || 0))}% ${escapeHtml(t('classroomEssayProgressColComplete'))})</span></span>
+                        </label>`;
+                    })
+                    .join('');
+                return `<div class="classroom-essay-progress-class-group">
+                    <h4 class="classroom-essay-progress-class-name">${escapeHtml(group.className || '')}</h4>
+                    ${rows}
+                </div>`;
+            })
+            .join('');
+        listEl.querySelectorAll('input[data-assignment-key]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const key = input.getAttribute('data-assignment-key');
+                if (!key) {
+                    return;
+                }
+                if (input.checked) {
+                    progressReportSelectedKeys.add(key);
+                } else {
+                    progressReportSelectedKeys.delete(key);
+                }
+                saveProgressReportSelection();
+                if (previewEl) {
+                    previewEl.innerHTML = renderProgressPreviewHtml(getSelectedProgressAssignments());
+                }
+            });
+        });
+        if (previewEl) {
+            previewEl.innerHTML = renderProgressPreviewHtml(getSelectedProgressAssignments());
+        }
+    }
+
+    function openProgressReportModal() {
+        const modal = document.getElementById('essayProgressReportModal');
+        if (!modal) {
+            return;
+        }
+        loadProgressReportSelection();
+        renderProgressReportModal();
+        if (hooks && hooks.openModal) {
+            hooks.openModal(modal);
+        } else {
+            modal.classList.add('active');
+            modal.hidden = false;
+        }
+    }
+
+    function bindProgressReportModal() {
+        const modal = document.getElementById('essayProgressReportModal');
+        if (!modal || modal.dataset.bound === '1') {
+            return;
+        }
+        modal.dataset.bound = '1';
+        document.getElementById('essayProgressReportClose')?.addEventListener('click', () => {
+            if (hooks && hooks.closeModal) {
+                hooks.closeModal(modal);
+            }
+        });
+        document.getElementById('essayProgressSelectAll')?.addEventListener('click', () => {
+            listProgressAssignments().forEach((row) => progressReportSelectedKeys.add(row.key));
+            saveProgressReportSelection();
+            renderProgressReportModal();
+        });
+        document.getElementById('essayProgressClearAll')?.addEventListener('click', () => {
+            progressReportSelectedKeys.clear();
+            saveProgressReportSelection();
+            renderProgressReportModal();
+        });
+        document.getElementById('essayProgressPendingOnly')?.addEventListener('change', (e) => {
+            progressReportPendingOnly = !!e.target.checked;
+            renderProgressReportModal();
+        });
+        document.getElementById('essayProgressPreviewBtn')?.addEventListener('click', () => {
+            const previewEl = document.getElementById('essayProgressPreview');
+            if (previewEl) {
+                previewEl.innerHTML = renderProgressPreviewHtml(getSelectedProgressAssignments());
+            }
+        });
+        document.getElementById('essayProgressPrintBtn')?.addEventListener('click', () => {
+            const selected = getSelectedProgressAssignments();
+            if (!selected.length) {
+                if (hooks && hooks.showToast) {
+                    hooks.showToast(t('classroomEssayProgressNoAssignments'), true);
+                }
+                return;
+            }
+            openEssayProgressPrint(selected);
+        });
     }
 
     function pruneSelectedStudentIds(students) {
@@ -264,6 +574,41 @@
         }
     }
 
+    function isTypingInEssayNote(panel) {
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        return Boolean(
+            active && panel && panel.contains(active) && active.classList.contains('classroom-essay-note')
+        );
+    }
+
+    function blurActiveEssayNote(panel) {
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        if (
+            active
+            && panel
+            && panel.contains(active)
+            && active.classList.contains('classroom-essay-note')
+            && typeof active.blur === 'function'
+        ) {
+            active.blur();
+        }
+    }
+
+    function syncPanelAfterSilentSave(panel) {
+        if (!panel || panel.hidden || isTypingInEssayNote(panel)) {
+            return;
+        }
+        renderStatsBar(panel);
+        renderRows(panel);
+        renderSaveStatus(panel);
+    }
+
+    async function flushBeforeLeave() {
+        const panel = panelRef || document.getElementById('panel-essays');
+        blurActiveEssayNote(panel);
+        await flushPendingSave();
+    }
+
     function essayStatsSegmentFlex(counts) {
         const keys = ['not_submitted', 'submitted', 'complete', 'resubmit_required'];
         const total = keys.reduce((sum, key) => sum + (counts[key] || 0), 0);
@@ -351,6 +696,7 @@
         renderFilters(panel);
         renderRows(panel);
         scheduleSave();
+        void syncResubmitDayNote();
     }
 
     function renderFilters(panel) {
@@ -377,7 +723,12 @@
                     <span>${escapeHtml(t('classroomEssayBatchRetest'))}</span>
                 </label>
                 <button type="button" id="classroomEssaysBatchApplyBtn" class="btn btn-primary btn-compact"${disabled}>${escapeHtml(t('classroomEssayBatchApply'))}</button>
+                <button type="button" id="classroomEssaysProgressReportBtn" class="btn btn-outline btn-compact">${escapeHtml(t('classroomEssayProgressReportBtn'))}</button>
             </div>`;
+
+        mount.querySelector('#classroomEssaysProgressReportBtn')?.addEventListener('click', () => {
+            openProgressReportModal();
+        });
 
         mount.querySelector('#classroomEssaysBatchApplyBtn')?.addEventListener('click', () => {
             const status = mount.querySelector('#classroomEssaysBatchStatus')?.value || 'not_submitted';
@@ -395,15 +746,7 @@
         global.CCPClassroomHeader.setMode('essays');
         const data = getAppData();
         const editable = access() && access().canEditClass(getClassData());
-        let classes = (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
-        );
-        if (global.CCPCohortSidebarFilter) {
-            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
-                classes,
-                global.CCPCohortSidebarFilter.getActiveCohortId()
-            );
-        }
+        let classes = getAccessibleClasses();
         global.CCPClassroomHeader.render(
             headerMount,
             {
@@ -431,13 +774,36 @@
                     if (hooks && hooks.setUiPref) {
                         hooks.setUiPref('classroomEssayClassSearch', classSearchQuery);
                     }
-                    renderHeader(panel);
+                    global.CCPClassroomHeader.renderClassComboboxList(
+                        headerMount,
+                        {
+                            classId,
+                            classes,
+                            classSearchQuery,
+                            essaySubmissions: data.essaySubmissions
+                        },
+                        { onClassChange: async (id) => {
+                            await flushPendingSave();
+                            classId = id;
+                            classSearchQuery = '';
+                            if (hooks && hooks.setUiPref) {
+                                hooks.setUiPref('classroomTabClassId', id);
+                                hooks.setUiPref('classroomEssayClassSearch', '');
+                            }
+                            syllabusRowId = '';
+                            selectedStudentIds.clear();
+                            loadSubmission();
+                            render(panel);
+                        } }
+                    );
                 },
                 onClassChange: async (id) => {
                     await flushPendingSave();
                     classId = id;
+                    classSearchQuery = '';
                     if (hooks && hooks.setUiPref) {
                         hooks.setUiPref('classroomTabClassId', id);
+                        hooks.setUiPref('classroomEssayClassSearch', '');
                     }
                     syllabusRowId = '';
                     selectedStudentIds.clear();
@@ -636,6 +1002,7 @@
                     renderRows(panel);
                 }
                 scheduleSave();
+                void syncResubmitDayNote();
             });
         });
         rowsMount.querySelectorAll('.classroom-essay-retest').forEach((cb) => {
@@ -647,7 +1014,10 @@
         rowsMount.querySelectorAll('.classroom-essay-note').forEach((input) => {
             input.addEventListener('input', () => {
                 setRecord(input.getAttribute('data-student-id'), { note: input.value });
+            });
+            input.addEventListener('blur', () => {
                 scheduleSave();
+                void syncResubmitDayNote();
             });
         });
     }
@@ -674,9 +1044,12 @@
                     hooks.showToast(t('saved'));
                 }
                 loadSubmission();
-                if (!opt.skipRender) {
+                if (!opt.skipRender && !opt.silent) {
                     render(panel);
+                } else if (opt.silent) {
+                    syncPanelAfterSilentSave(panel);
                 }
+                void syncResubmitDayNote();
             } catch (err) {
                 saveStatus = 'error';
                 updateSaveStatus('error');
@@ -717,9 +1090,10 @@
         renderSaveStatus(panel);
     }
 
-    function initTab(h, options) {
+    async function initTab(h, options) {
         hooks = h;
         ensureDebouncedSave();
+        await flushBeforeLeave();
         const data = getAppData();
         const d = domain();
         classId =
@@ -740,6 +1114,7 @@
             pickDefaultRow();
         }
         loadSubmission();
+        bindProgressReportModal();
         render(document.getElementById('panel-essays'));
     }
 
@@ -760,6 +1135,7 @@
     global.CCPClassroomEssays = {
         initTab,
         render,
+        flushBeforeLeave,
         applyBatchStatusToRecords,
         essayStatsSegmentFlex
     };

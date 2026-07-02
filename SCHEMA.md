@@ -300,7 +300,8 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `isRange` | boolean | |
 | `grades`, `sectionLevels`, `classNames` | arrays | Optional filters |
 | `allElementary`, `allMiddleSchool` | boolean | Quick bands |
-| `bgColor`, `textColor` | string | |
+| `bgColor`, `textColor` | string | Display colors (derived from `accentColor` when set) |
+| `accentColor` | string | Optional calm-palette accent hex (theme-aware tint at render) |
 
 If no targeting filters are set, the event applies to all classes.
 

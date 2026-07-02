@@ -22,15 +22,13 @@
                     <input type="text" id="holidayName" required data-i18n-placeholder="holidayNamePlaceholder" placeholder="e.g., Thanksgiving">
                 </div>
 
-                <div class="form-row editor-popout-colors event-color-row">
-                    <div class="form-group">
-                        <label for="holidayBgColor" data-i18n="bgColor">Background Color</label>
-                        <input type="color" id="holidayBgColor" value="#fef3c7">
-                    </div>
-                    <div class="form-group">
-                        <label for="holidayTextColor" data-i18n="textColor">Text Color</label>
-                        <input type="color" id="holidayTextColor" value="#b45309">
-                    </div>
+                <div class="form-group event-color-group editor-popout-colors">
+                    <label data-i18n="bgColor">Color</label>
+                    <input type="hidden" id="holidayAccentColor" value="#cfa23a">
+                    <input type="hidden" id="holidayBgColor" value="#fef3c7">
+                    <input type="hidden" id="holidayTextColor" value="#b45309">
+                    <div id="eventColorPaletteGrid" class="class-color-palette-host" role="group" aria-label="Event color"></div>
+                    <div id="eventColorPreviewRow" class="class-color-preview-host" aria-live="polite"></div>
                 </div>
 
                 <div class="form-group">

@@ -7,6 +7,9 @@
     let collapseOverridden = false;
     let resizeBound = false;
     let mode = 'attendance';
+    let classComboboxOpen = false;
+    let classComboboxHighlight = -1;
+    let classComboboxOutsideBound = false;
 
     const NARROW_HEADER_MQ = '(max-width: 1024px)';
 
@@ -123,21 +126,215 @@
         };
     }
 
+    function getClassDisplayLabel(classData, essaySubmissions) {
+        if (!classData) {
+            return '';
+        }
+        let label = classData.name || classData.id || '';
+        if (mode === 'essays' && domain()) {
+            const resubmitBadge = domain().essayResubmitCountForClass(essaySubmissions, classData.id);
+            if (resubmitBadge > 0) {
+                label += ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`;
+            }
+        }
+        return label;
+    }
+
     function buildClassOptions(classes, selectedClassId, essaySubmissions) {
         return classes
             .map((c) => {
                 const sel = c.id === selectedClassId ? ' selected' : '';
-                const resubmitBadge =
-                    mode === 'essays' && domain()
-                        ? domain().essayResubmitCountForClass(essaySubmissions, c.id)
-                        : 0;
-                const badge =
-                    resubmitBadge > 0
-                        ? ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`
-                        : '';
-                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}${escapeHtml(badge)}</option>`;
+                const label = getClassDisplayLabel(c, essaySubmissions);
+                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(label)}</option>`;
             })
             .join('');
+    }
+
+    function buildClassComboboxListHtml(state) {
+        const s = state || {};
+        const classes = Array.isArray(s.classes) ? s.classes : [];
+        const classSearchQuery = s.classSearchQuery != null ? String(s.classSearchQuery) : '';
+        const filtered = filterClassesForSearch(classes, classSearchQuery, s.classId);
+        if (!filtered.length) {
+            return `<p class="classroom-header-class-combobox-empty section-hint">${escapeHtml(t('classroomEssayClassComboboxEmpty'))}</p>`;
+        }
+        return filtered
+            .map((c, index) => {
+                const selected = c.id === s.classId ? ' is-selected' : '';
+                const highlighted = index === classComboboxHighlight ? ' is-highlighted' : '';
+                const label = getClassDisplayLabel(c, s.essaySubmissions);
+                return `<button type="button" class="module-list-item classroom-header-class-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+            })
+            .join('');
+    }
+
+    function getSelectedClassName(state) {
+        const s = state || {};
+        const classes = Array.isArray(s.classes) ? s.classes : [];
+        const selected = classes.find((c) => c && c.id === s.classId);
+        return selected ? getClassDisplayLabel(selected, s.essaySubmissions) : '';
+    }
+
+    function setComboboxInputDisplay(mountEl, state, open) {
+        const input = mountEl && mountEl.querySelector('#classroomHeaderClassComboboxInput');
+        if (!input) {
+            return;
+        }
+        const s = state || {};
+        if (open) {
+            input.value = s.classSearchQuery != null ? String(s.classSearchQuery) : '';
+        } else {
+            input.value = getSelectedClassName(s);
+        }
+    }
+
+    function setComboboxOpen(mountEl, state, options, open) {
+        classComboboxOpen = open;
+        if (!open) {
+            classComboboxHighlight = -1;
+        }
+        const wrap = mountEl && mountEl.querySelector('.classroom-header-class-combobox');
+        const list = mountEl && mountEl.querySelector('#classroomHeaderClassComboboxList');
+        const input = mountEl && mountEl.querySelector('#classroomHeaderClassComboboxInput');
+        if (wrap) {
+            wrap.classList.toggle('is-open', open);
+        }
+        if (list) {
+            list.hidden = !open;
+        }
+        if (input) {
+            input.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        setComboboxInputDisplay(mountEl, state, open);
+        if (open) {
+            renderClassComboboxList(mountEl, state, options);
+        }
+    }
+
+    function renderClassComboboxList(mountEl, state, options) {
+        const list = mountEl && mountEl.querySelector('#classroomHeaderClassComboboxList');
+        if (!list) {
+            return;
+        }
+        list.innerHTML = buildClassComboboxListHtml(state);
+        list.querySelectorAll('[data-class-id]').forEach((btn, index) => {
+            btn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-class-id');
+                if (typeof options.onClassChange === 'function' && id) {
+                    options.onClassChange(id);
+                }
+                if (typeof options.onClassSearchChange === 'function') {
+                    options.onClassSearchChange('');
+                }
+                setComboboxOpen(mountEl, Object.assign({}, state, { classSearchQuery: '' }), options, false);
+            });
+            if (index === classComboboxHighlight) {
+                btn.classList.add('is-highlighted');
+            }
+        });
+    }
+
+    function bindClassComboboxOutsideClose(mountEl, state, options) {
+        if (classComboboxOutsideBound || typeof document === 'undefined') {
+            return;
+        }
+        classComboboxOutsideBound = true;
+        document.addEventListener('mousedown', (e) => {
+            if (!classComboboxOpen || !mountEl) {
+                return;
+            }
+            const wrap = mountEl.querySelector('.classroom-header-class-combobox');
+            if (wrap && !wrap.contains(e.target)) {
+                setComboboxOpen(mountEl, state, options, false);
+            }
+        });
+    }
+
+    function bindClassCombobox(mountEl, state, options) {
+        const input = mountEl.querySelector('#classroomHeaderClassComboboxInput');
+        const list = mountEl.querySelector('#classroomHeaderClassComboboxList');
+        if (!input || !list) {
+            return;
+        }
+        bindClassComboboxOutsideClose(mountEl, state, options);
+        setComboboxOpen(mountEl, state, options, false);
+
+        input.addEventListener('focus', () => {
+            setComboboxOpen(mountEl, state, options, true);
+            input.select();
+        });
+
+        input.addEventListener('input', () => {
+            classComboboxHighlight = -1;
+            if (typeof options.onClassSearchChange === 'function') {
+                options.onClassSearchChange(input.value);
+            }
+            const nextState = Object.assign({}, state, { classSearchQuery: input.value });
+            renderClassComboboxList(mountEl, nextState, options);
+            if (!classComboboxOpen) {
+                setComboboxOpen(mountEl, nextState, options, true);
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            const items = Array.from(list.querySelectorAll('[data-class-id]'));
+            if (!items.length) {
+                if (e.key === 'Escape') {
+                    setComboboxOpen(mountEl, state, options, false);
+                    input.blur();
+                }
+                return;
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                classComboboxHighlight = Math.min(classComboboxHighlight + 1, items.length - 1);
+                renderClassComboboxList(
+                    mountEl,
+                    Object.assign({}, state, { classSearchQuery: input.value }),
+                    options
+                );
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                classComboboxHighlight = Math.max(classComboboxHighlight - 1, 0);
+                renderClassComboboxList(
+                    mountEl,
+                    Object.assign({}, state, { classSearchQuery: input.value }),
+                    options
+                );
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const pick = items[Math.max(classComboboxHighlight, 0)];
+                if (pick) {
+                    pick.click();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setComboboxOpen(mountEl, state, options, false);
+                input.blur();
+            }
+        });
+    }
+
+    function updateClassSelectForSearch(mountEl, state) {
+        if (!mountEl || mode !== 'essays') {
+            return;
+        }
+        renderClassComboboxList(mountEl, state, {});
+    }
+
+    function buildEssayStatsHtml(essayStatusCounts, fallbackTotal) {
+        const ec = essayStatusCounts || {};
+        const total = ec.total != null ? ec.total : fallbackTotal;
+        return [
+            `<span class="classroom-stat">${escapeHtml(t('classroomStatTotal'))}: <strong>${total}</strong></span>`,
+            `<span class="classroom-stat classroom-stat--essay-not">${escapeHtml(t('classroomEssayStatusNotSubmitted'))}: <strong>${ec.not_submitted || 0}</strong></span>`,
+            `<span class="classroom-stat classroom-stat--essay-submitted">${escapeHtml(t('classroomEssayStatusSubmitted'))}: <strong>${ec.submitted || 0}</strong></span>`,
+            `<span class="classroom-stat classroom-stat--essay-complete">${escapeHtml(t('classroomEssayStatusComplete'))}: <strong>${ec.complete || 0}</strong></span>`,
+            `<span class="classroom-stat classroom-stat--essay-resubmit">${escapeHtml(t('classroomEssayStatusResubmit'))}: <strong>${ec.resubmit_required || 0}</strong></span>`
+        ].join('');
     }
 
     function render(mountEl, state, options) {
@@ -158,18 +355,21 @@
                 ? filterClassesForSearch(classes, classSearchQuery, s.classId)
                 : classes;
         const classOptions = buildClassOptions(classesForSelect, s.classId, s.essaySubmissions);
+        const selectedClassName = getSelectedClassName(s);
+        const comboboxInputValue = classComboboxOpen ? classSearchQuery : selectedClassName;
 
         const collapsedClass = collapsed ? ' classroom-header--collapsed' : '';
+        const essaysClass = mode === 'essays' ? ' classroom-header--essays' : '';
         let body = '';
-        body += `<div class="classroom-header${collapsedClass}" id="classroomContextHeader">`;
+        body += `<div class="classroom-header${collapsedClass}${essaysClass}" id="classroomContextHeader">`;
         body += '<div class="classroom-header-top">';
         body += `<button type="button" class="btn btn-outline btn-compact classroom-header-toggle" id="classroomHeaderToggle" aria-expanded="${collapsed ? 'false' : 'true'}">${escapeHtml(collapsed ? t('classroomHeaderExpand') : t('classroomHeaderCollapse'))}</button>`;
         if (mode === 'essays') {
-            body += '<div class="classroom-header-class-picker">';
-            body += `<label class="classroom-header-field classroom-header-class-search-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>`;
-            body += `<input type="search" id="classroomHeaderClassSearch" class="module-list-search classroom-header-class-search" autocomplete="off" spellcheck="false" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" value="${escapeAttr(classSearchQuery)}" />`;
-            body += `<select id="classroomHeaderClassSelect" class="field-select field-control--compact">${classOptions}</select></label>`;
-            body += '</div>';
+            body += `<div class="classroom-header-class-combobox" data-class-combobox>`;
+            body += `<label class="classroom-header-field classroom-header-class-combobox-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>`;
+            body += `<input type="search" id="classroomHeaderClassComboboxInput" class="module-list-search classroom-header-class-combobox-input" role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="classroomHeaderClassComboboxList" aria-expanded="false" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" value="${escapeAttr(comboboxInputValue)}" />`;
+            body += `<div id="classroomHeaderClassComboboxList" class="classroom-header-class-combobox-list module-list" role="listbox" hidden>${buildClassComboboxListHtml(s)}</div>`;
+            body += '</label></div>';
         } else {
             body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>`;
             body += `<select id="classroomHeaderClassSelect" class="field-select field-control--compact">${classOptions}</select></label>`;
@@ -179,11 +379,10 @@
         }
         body += '</div>';
 
-        body += '<div class="classroom-header-body">';
+        body += `<div class="classroom-header-body${mode === 'essays' ? ' classroom-header-body--essays' : ''}">`;
         body += '<div class="classroom-header-stats">';
         if (mode === 'essays') {
-            const ec = s.essayStatusCounts || {};
-            body += `<span class="classroom-stat">${escapeHtml(t('classroomStatTotal'))}: <strong>${ec.total != null ? ec.total : stats.total}</strong></span>`;
+            body += buildEssayStatsHtml(s.essayStatusCounts, stats.total);
         } else {
             body += `<span class="classroom-stat">${escapeHtml(t('classroomStatTotal'))}: <strong>${stats.total}</strong></span>`;
             body += `<span class="classroom-stat classroom-stat--present">${escapeHtml(t('classroomStatPresent'))}: <strong>${stats.present}</strong></span>`;
@@ -229,16 +428,16 @@
             const te = deadlines.teacherEvalDueDate || '';
             const deadlineDisabled = s.essayDeadlinesReadOnly ? ' disabled' : '';
             body += '<div class="classroom-header-controls classroom-header-controls--essays">';
-            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>`;
+            body += `<label class="classroom-header-field classroom-header-field--assignment"><span>${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>`;
             body += `<select id="classroomHeaderAssignment" class="field-select field-control--compact">${rowOpts}</select></label>`;
-            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssaySsDue'))}</span>`;
+            body += `<label class="classroom-header-field classroom-header-field--date"><span>${escapeHtml(t('classroomEssaySsDue'))}</span>`;
             body += `<input type="date" id="classroomHeaderEssaySsDue" class="field-input field-control--compact" value="${escapeHtml(ss)}"${deadlineDisabled} /></label>`;
-            body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomEssayTeacherEvalDue'))}</span>`;
+            body += `<label class="classroom-header-field classroom-header-field--date"><span>${escapeHtml(t('classroomEssayTeacherEvalDue'))}</span>`;
             body += `<input type="date" id="classroomHeaderEssayTeacherEvalDue" class="field-input field-control--compact" value="${escapeHtml(te)}"${deadlineDisabled} /></label>`;
-            body += '</div>';
             if (s.essayDeadlineHintsHtml) {
                 body += `<div class="classroom-essay-deadline-hints classroom-header-essay-deadline-hints">${s.essayDeadlineHintsHtml}</div>`;
             }
+            body += '</div>';
         } else if (mode === 'points') {
             body += '<div class="classroom-header-controls">';
             body += `<label class="classroom-header-field"><span>${escapeHtml(t('classroomDateLabel'))}</span>`;
@@ -268,6 +467,15 @@
         }
         body += '</div></div>';
 
+        const comboboxInputEl = mountEl.querySelector('#classroomHeaderClassComboboxInput');
+        const restoreComboboxFocus =
+            comboboxInputEl
+            && typeof document !== 'undefined'
+            && document.activeElement === comboboxInputEl;
+        const selStart = restoreComboboxFocus ? comboboxInputEl.selectionStart : null;
+        const selEnd = restoreComboboxFocus ? comboboxInputEl.selectionEnd : null;
+        const wasComboboxOpen = classComboboxOpen;
+
         mountEl.innerHTML = body;
 
         mountEl.querySelector('#classroomHeaderToggle')?.addEventListener('click', () => {
@@ -276,17 +484,31 @@
             render(mountEl, state, options);
         });
 
-        mountEl.querySelector('#classroomHeaderClassSearch')?.addEventListener('input', (e) => {
-            if (typeof opts.onClassSearchChange === 'function') {
-                opts.onClassSearchChange(e.target.value);
+        if (mode === 'essays') {
+            bindClassCombobox(mountEl, s, opts);
+            if (wasComboboxOpen) {
+                setComboboxOpen(mountEl, s, opts, true);
             }
-        });
-
-        mountEl.querySelector('#classroomHeaderClassSelect')?.addEventListener('change', (e) => {
-            if (typeof opts.onClassChange === 'function') {
-                opts.onClassChange(e.target.value);
+            if (restoreComboboxFocus) {
+                const newInput = mountEl.querySelector('#classroomHeaderClassComboboxInput');
+                if (newInput) {
+                    newInput.focus();
+                    if (selStart != null && typeof newInput.setSelectionRange === 'function') {
+                        try {
+                            newInput.setSelectionRange(selStart, selEnd);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                    }
+                }
             }
-        });
+        } else {
+            mountEl.querySelector('#classroomHeaderClassSelect')?.addEventListener('change', (e) => {
+                if (typeof opts.onClassChange === 'function') {
+                    opts.onClassChange(e.target.value);
+                }
+            });
+        }
 
         mountEl.querySelector('#classroomHeaderDate')?.addEventListener('change', (e) => {
             if (typeof opts.onDateChange === 'function') {
@@ -357,8 +579,12 @@
         initTab,
         render,
         setMode,
-        classSearchHaystack,
+        updateClassSelectForSearch,
+        renderClassComboboxList,
+        buildClassComboboxListHtml,
         filterClassesForSearch,
+        classSearchHaystack,
+        getClassDisplayLabel,
         setCollapsed(value) {
             collapseOverridden = true;
             collapsed = Boolean(value);
