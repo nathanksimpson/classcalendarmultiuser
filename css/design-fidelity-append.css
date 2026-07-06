@@ -1,0 +1,151 @@
+/* Design fidelity roadmap — zone chrome (essay styles live in features.css) */
+
+
+
+.classroom-zone-context-inner {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    align-items: flex-end;
+
+    gap: var(--space-3);
+
+    padding: var(--space-3) 0;
+
+}
+
+
+
+.classroom-zone-date-field {
+
+    min-width: 10rem;
+
+}
+
+
+
+.cohorts-board-with-detail {
+
+    display: grid;
+
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+
+    gap: var(--space-4);
+
+    align-items: start;
+
+}
+
+
+
+.cohorts-class-detail-pane {
+
+    background: var(--bg-card);
+
+    border: 1px solid var(--border-color);
+
+    border-radius: var(--radius-lg);
+
+    padding: var(--space-4);
+
+    min-height: 12rem;
+
+}
+
+
+
+.cohorts-class-detail-actions {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: var(--space-2);
+
+    margin-top: var(--space-3);
+
+}
+
+
+
+.classroom-sheet--attendance .selection-chip,
+
+.classroom-sheet--homework .selection-chip {
+
+    min-height: var(--touch-min);
+
+    padding: var(--space-2) var(--space-3);
+
+}
+
+
+
+.classroom-sheet-row--status-rail {
+
+    border-left: 3px solid var(--classroom-row-rail, var(--border-color));
+
+}
+
+
+
+.classroom-sheet-row--status-present {
+
+    --classroom-row-rail: var(--status-success-border);
+
+}
+
+
+
+.classroom-sheet-row--status-late {
+
+    --classroom-row-rail: var(--badge-warn-color);
+
+}
+
+
+
+.classroom-sheet-row--status-absent {
+
+    --classroom-row-rail: var(--status-danger-border);
+
+}
+
+
+
+.classroom-sheet-row--status-early_leave {
+
+    --classroom-row-rail: var(--text-muted);
+
+}
+
+
+
+.classroom-sheet-row--status-homework-done {
+
+    --classroom-row-rail: var(--status-success-border);
+
+}
+
+
+
+.classroom-sheet-row--status-homework-missing {
+
+    --classroom-row-rail: var(--status-danger-border);
+
+}
+
+
+
+@media (max-width: 1024px) {
+
+    .cohorts-board-with-detail {
+
+        grid-template-columns: 1fr;
+
+    }
+
+}
+
+

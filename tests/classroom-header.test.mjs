@@ -40,25 +40,9 @@ const { CCPClassroomHeader } = sandbox.window;
 
 {
     assert(
-        typeof CCPClassroomHeader.updateClassSelectForSearch === 'function',
-        'updateClassSelectForSearch exported'
+        typeof CCPClassroomHeader.getClassDisplayLabel === 'function',
+        'getClassDisplayLabel exported'
     );
-    assert(
-        typeof CCPClassroomHeader.buildClassComboboxListHtml === 'function',
-        'buildClassComboboxListHtml exported'
-    );
-    const classes = [
-        { id: 'c1', name: 'Alpha Writing', grade: '5' },
-        { id: 'c2', name: 'Beta Reading', grade: '4' }
-    ];
-    const html = CCPClassroomHeader.buildClassComboboxListHtml({
-        classes,
-        classId: 'c2',
-        classSearchQuery: 'writing',
-        essaySubmissions: []
-    });
-    assert(html.includes('data-class-id'), 'combobox list items');
-    assert(html.includes('Alpha Writing'), 'search match in list');
 }
 
 console.log('classroom-header.test.mjs: all passed');

@@ -227,6 +227,10 @@ Modal backdrop dark: `rgba(2, 6, 23, 0.72)`
 
 - White cards on gray page background
 - Toolbar sections: white card, bordered `#d4dbe4`, grouped controls
+- **Classroom sheets:** `module-toolbar classroom-tab-toolbar` above table; primary Save all in `.toolbar-actions` (right-aligned)
+- **List sidebars:** optional `.list-filter-presets` → search field → list
+- **Popover filters:** reuse `lesson-filter-popover` pattern (calendar, essay class filter)
+- **Sticky editors** (syllabus, curriculum): top action bar with `btn-primary btn-small` Save
 
 ---
 
@@ -310,7 +314,7 @@ Zone and segment rows **never wrap** — they scroll horizontally with fade hint
 
 ## How to use with Claude Design
 
-Paste this file (or link to it), then add your specific request, for example:
+Paste this file **and** [`CLAUDE_DESIGN_SCENES.md`](CLAUDE_DESIGN_SCENES.md) (scenes/workflows), then add your specific request, for example:
 
 > “Design a mobile ‘Add class’ bottom sheet using the ClassManager design system above.”
 
@@ -322,6 +326,7 @@ Paste this file (or link to it), then add your specific request, for example:
 
 | What | Path |
 |------|------|
+| Scenes, workflows, and IA (for redesign mockups) | [`CLAUDE_DESIGN_SCENES.md`](CLAUDE_DESIGN_SCENES.md) |
 | UI implementation rules + cookbook | [`UI_STYLE_GUIDE.md`](UI_STYLE_GUIDE.md) |
 | Syllabus A4 print only (not on-screen UI) | [`Syllabus Style Guide.md`](Syllabus%20Style%20Guide.md) |
 | Token definitions (source of truth) | [`styles.css`](styles.css) `:root` |

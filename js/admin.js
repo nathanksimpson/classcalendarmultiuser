@@ -1782,9 +1782,7 @@ function openEditGroupMembers(group, activeTeachers) {
     wrap.appendChild(grid);
     renderCheckboxGrid(grid, activeTeachers, 'editGroupMember', group.memberIds || [], 'displayName');
     const btnRow = document.createElement('div');
-    btnRow.style.display = 'flex';
-    btnRow.style.flexWrap = 'wrap';
-    btnRow.style.gap = '0.5rem';
+    btnRow.className = 'form-actions';
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.className = 'btn btn-primary';

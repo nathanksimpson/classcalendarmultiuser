@@ -1,4 +1,5 @@
 import * as Auth from './auth-permissions.js';
+const SYSTEM_MANAGED_CATEGORY_IDS = new Set(['class-points', 'essay-resubmit']);
 
 export function isUserAssignedToClassInData(classData, userId) {
     if (!classData || !userId) {
@@ -31,6 +32,15 @@ function noteHomeroomNotifyUserId(note) {
     }
     const id = note.homeroomNotifyUserId;
     return id != null && String(id).trim() ? String(id).trim() : '';
+}
+
+function normalizeCategoryId(raw) {
+    const id = String(raw || '').trim();
+    return id || 'class-notes';
+}
+
+function isSystemManagedCategoryId(categoryId) {
+    return SYSTEM_MANAGED_CATEGORY_IDS.has(normalizeCategoryId(categoryId));
 }
 
 function buildSavedDayNote(now, was, uid, bypass) {
@@ -83,6 +93,9 @@ export function prepareDayNotesForSave(user, calendarData, nextDayNotes) {
         if (!cls || !isUserAssignedToClassInData(cls, user.id)) {
             return { error: 'You can only edit notes for classes you teach', dayNotes: [] };
         }
+        if (isSystemManagedCategoryId(was.categoryId)) {
+            continue;
+        }
         const author = noteAuthorId(was);
         if (author && author !== uid) {
             return { error: "You cannot edit another teacher's note", dayNotes: [] };
@@ -127,19 +140,28 @@ export function prepareDayNotesForSave(user, calendarData, nextDayNotes) {
         }
 
         if (!bypass) {
-            const wasAuthor = noteAuthorId(was);
-            if (wasAuthor && wasAuthor !== uid) {
-                return { error: "You cannot edit another teacher's note", dayNotes: [] };
-            }
-            if (!wasAuthor) {
-                return {
-                    error: 'This note cannot be edited (created before author tracking)',
-                    dayNotes: []
-                };
-            }
-            const nowAuthor = noteAuthorId(now);
-            if (nowAuthor && nowAuthor !== wasAuthor) {
-                return { error: 'Cannot change note author', dayNotes: [] };
+            const systemManaged = isSystemManagedCategoryId(was.categoryId || now.categoryId);
+            if (systemManaged) {
+                const nowAuthor = noteAuthorId(now);
+                const wasAuthor = noteAuthorId(was);
+                if (nowAuthor && wasAuthor && nowAuthor !== wasAuthor) {
+                    return { error: 'Cannot change note author', dayNotes: [] };
+                }
+            } else {
+                const wasAuthor = noteAuthorId(was);
+                if (wasAuthor && wasAuthor !== uid) {
+                    return { error: "You cannot edit another teacher's note", dayNotes: [] };
+                }
+                if (!wasAuthor) {
+                    return {
+                        error: 'This note cannot be edited (created before author tracking)',
+                        dayNotes: []
+                    };
+                }
+                const nowAuthor = noteAuthorId(now);
+                if (nowAuthor && nowAuthor !== wasAuthor) {
+                    return { error: 'Cannot change note author', dayNotes: [] };
+                }
             }
         }
 

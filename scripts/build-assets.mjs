@@ -192,8 +192,11 @@ async function main() {
     rmDist();
     fs.mkdirSync(dist, { recursive: true });
     copyRecursive(root, dist);
+    // styles.css at repo root is the source of truth (AGENTS.md). copyRecursive already
+    // copies it into dist/ — do not replace with css/index.css, which can lag styles.css
+    // when css:split was not run after an edit.
     const bundledCssPath = path.join(root, 'css', 'index.css');
-    if (fs.existsSync(bundledCssPath)) {
+    if (!fs.existsSync(path.join(dist, 'styles.css')) && fs.existsSync(bundledCssPath)) {
         try {
             const bundled = concatCssForDist('css/index.css');
             fs.writeFileSync(path.join(dist, 'styles.css'), bundled, 'utf8');

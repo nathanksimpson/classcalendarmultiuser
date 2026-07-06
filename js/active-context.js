@@ -238,6 +238,29 @@
         return set(patch, { source: source || 'class' });
     }
 
+    function resolveActiveClassId(appData, options) {
+        options = options || {};
+        const visible = Array.isArray(options.visibleClasses) ? options.visibleClasses : null;
+        const fromOptions = options.classId != null ? String(options.classId || '').trim() : '';
+        if (fromOptions && (!visible || visible.some((c) => c && c.id === fromOptions))) {
+            return fromOptions;
+        }
+        const ctxId = get().classId || '';
+        if (ctxId && (!visible || visible.some((c) => c && c.id === ctxId))) {
+            return ctxId;
+        }
+        const ui = appData && appData.ui ? appData.ui : {};
+        const uiId = ui.classroomTabClassId || ui.homeworkTabClassId || '';
+        if (uiId && (!visible || visible.some((c) => c && c.id === uiId))) {
+            return uiId;
+        }
+        if (visible && visible.length) {
+            return visible[0].id || '';
+        }
+        const classes = appData && Array.isArray(appData.classes) ? appData.classes : [];
+        return classes[0] && classes[0].id ? classes[0].id : '';
+    }
+
     global.CCPActiveContext = {
         EVENT_NAME,
         get,
@@ -246,6 +269,7 @@
         migrateLegacy,
         hydrateUiFromStorage,
         resolveDefaults,
+        resolveActiveClassId,
         deriveCohortIdFromClass,
         setFromClass,
         getActiveClassId() {

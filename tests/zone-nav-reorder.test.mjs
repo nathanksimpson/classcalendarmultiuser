@@ -25,16 +25,16 @@ function loadReorderApi() {
 }
 
 const api = loadReorderApi();
-const DEFAULT_ZONES = ['schedule', 'classes', 'setup-hub', 'classroom', 'more'];
+const DEFAULT_ZONES = ['schedule', 'classes', 'classroom', 'more'];
 const SCHEDULE_DEFAULTS = ['calendar', 'events', 'homework', 'timetable'];
 
 assert(
-    api.normalizeZoneOrder(['classroom', 'schedule'], DEFAULT_ZONES).join(',') === 'classes,setup-hub,classroom,schedule,more',
+    api.normalizeZoneOrder(['classroom', 'schedule'], DEFAULT_ZONES).join(',') === 'classes,classroom,schedule,more',
     'custom zone order preserved with missing zones merged at canonical positions'
 );
 
 assert(
-    api.normalizeZoneOrder(['bogus', 'schedule', 'classroom'], DEFAULT_ZONES).join(',') === 'schedule,classes,setup-hub,classroom,more',
+    api.normalizeZoneOrder(['bogus', 'schedule', 'classroom'], DEFAULT_ZONES).join(',') === 'schedule,classes,classroom,more',
     'unknown zone ids are stripped'
 );
 

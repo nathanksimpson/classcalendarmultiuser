@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260702-essay-enhance">
+    <link rel="stylesheet" href="styles.css?v=20260706-notes-filters-collapse-v5">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260630-homework-copy-redesign';
+        window.CCP_I18N_VERSION = '20260706-notes-filters-collapse-v5';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -128,9 +128,8 @@
                     <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections">
                         <button type="button" class="app-zone-btn is-active" role="tab" id="zoneBtn-schedule" data-zone="schedule" aria-selected="true" data-i18n="zoneSchedule">Schedule</button>
                         <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classes" data-zone="classes" aria-selected="false" data-i18n="zoneClassSetup">Class Setup</button>
-                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-setup-hub" data-zone="setup-hub" aria-selected="false" data-i18n="zoneSetupHub">Setup Hub</button>
                         <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classroom" data-zone="classroom" aria-selected="false" data-i18n="zoneClassroom">Classroom</button>
-                        <button type="button" class="app-zone-btn app-zone-btn--more" role="tab" id="appMoreMenuBtn" data-zone="more" aria-selected="false" data-i18n="zoneMore">More</button>
+                        <button type="button" class="app-zone-btn app-zone-btn--more" role="tab" id="zoneBtn-data" data-zone="more" aria-selected="false" data-i18n="zoneData">Data</button>
                     </div>
                 </div>
                 <div class="app-top-bar-row app-top-bar-row--nav">
@@ -149,9 +148,6 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-i18n="tabCurriculum">Books</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-i18n="tabSyllabus">Syllabi</button>
                         </div>
-                        <div id="zoneSegments-setup-hub" class="app-zone-segment-panel" data-zone="setup-hub" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="setup-hub" data-i18n="tabSetupHub">Setup Hub</button>
-                        </div>
                         <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden>
                             <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-i18n="classroomTabStudents">Students</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
@@ -162,9 +158,6 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
                             <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
-                        </div>
-                        <div id="zoneSegments-more" class="app-zone-segment-panel" data-zone="more" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="data" data-i18n="tabData">Data</button>
                         </div>
                     </nav>
                     <div id="termSummaryStrip" class="term-summary-strip" hidden>
@@ -411,12 +404,17 @@
                 </div>
             </section>
 
+            <div id="classroomZoneContextBar" class="classroom-zone-context-bar" hidden></div>
+
             <section id="panel-attendance" class="app-tab-panel" data-tab="attendance" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomAttendanceHeader"></div>
                 <div class="classroom-sheet-panel">
                     <div class="module-toolbar classroom-tab-toolbar">
                         <button type="button" id="classroomAttendanceAllPresentBtn" class="btn btn-outline btn-compact" data-i18n="classroomMarkAllPresent">Mark all present</button>
-                        <button type="button" id="classroomAttendanceSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                        <div class="toolbar-actions">
+                            <span id="classroomAttendanceSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomAttendanceSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
                     </div>
                     <div class="classroom-sheet-scroll" tabindex="0">
                         <table class="classroom-sheet classroom-sheet--attendance">
@@ -437,7 +435,10 @@
                 <div id="classroomLedgerHeader"></div>
                 <div class="classroom-sheet-panel classroom-ledger-panel">
                     <div class="module-toolbar classroom-tab-toolbar">
-                        <button type="button" id="classroomLedgerSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                        <div class="toolbar-actions">
+                            <span id="classroomLedgerSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomLedgerSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
                     </div>
                     <div id="classroomLedgerScroll" class="classroom-sheet-scroll classroom-ledger-scroll" tabindex="0">
                         <table class="classroom-sheet classroom-sheet--ledger">
@@ -459,7 +460,10 @@
                 <div id="classroomHomeworkHeader"></div>
                 <div class="classroom-sheet-panel">
                     <div class="module-toolbar classroom-tab-toolbar">
-                        <button type="button" id="classroomHomeworkSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                        <div class="toolbar-actions">
+                            <span id="classroomHomeworkSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomHomeworkSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
                     </div>
                     <div class="classroom-sheet-scroll" tabindex="0">
                         <table class="classroom-sheet classroom-sheet--homework">
@@ -479,12 +483,16 @@
 
             <section id="panel-essays" class="app-tab-panel classroom-essays-layout" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomEssaysHeader"></div>
+                <div id="classroomEssaysAssignmentBar" class="classroom-essays-assignment-bar"></div>
                 <div class="classroom-sheet-panel">
                     <div class="classroom-essay-workspace">
                         <div id="classroomEssaysStatsBar" class="classroom-essay-stats-bar" role="group" aria-label="Essay status summary" data-i18n-aria-label="classroomEssayFilterLabel"></div>
                         <div class="module-toolbar classroom-tab-toolbar classroom-essay-toolbar">
-                            <div id="classroomEssaysFilters" class="classroom-essay-filters"></div>
-                            <span id="classroomEssaysSaveStatus" class="classroom-essay-save-status section-hint classroom-essay-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
+                            <div id="classroomEssaysBatchActions" class="classroom-essay-filters classroom-batch-row"></div>
+                            <div class="toolbar-actions">
+                                <span id="classroomEssaysSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
+                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                            </div>
                         </div>
                         <div class="classroom-sheet-scroll classroom-essay-sheet-scroll" tabindex="0">
                             <table class="classroom-sheet classroom-sheet--essays">
@@ -495,22 +503,23 @@
                                     </th>
                                     <th scope="col" class="classroom-sheet-col-index">#</th>
                                     <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
-                                    <th scope="col" class="classroom-sheet-col-essay-status" data-i18n="classroomColEssayStatus">Status</th>
-                                    <th scope="col" class="classroom-sheet-col-retest" data-i18n="classroomEssayRetest">Retest</th>
+                                    <th scope="col" class="classroom-sheet-col-submission" data-i18n="classroomColSubmission">Submission</th>
+                                    <th scope="col" class="classroom-sheet-col-evaluation" data-i18n="classroomColEvaluation">Evaluation</th>
                                     <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
                                 </tr>
                             </thead>
                             <tbody id="classroomEssaysRows"></tbody>
                             </table>
                         </div>
+                        <p id="classroomEssaysFooterHint" class="classroom-essay-footer-hint section-hint" role="status"></p>
                     </div>
                 </div>
             </section>
 
             <section id="panel-points" class="app-tab-panel" data-tab="points" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
-                <div id="classroomPointsToolbar" class="module-toolbar classroom-tab-toolbar classroom-points-toolbar"></div>
                 <div id="classroomPointsIntro" class="classroom-points-intro-wrap"></div>
                 <div class="classroom-sheet-panel">
+                    <div id="classroomPointsToolbar" class="module-toolbar classroom-tab-toolbar classroom-points-toolbar"></div>
                     <div class="classroom-sheet-scroll" tabindex="0">
                         <table class="classroom-sheet classroom-sheet--points">
                             <thead>
@@ -535,7 +544,10 @@
                 <div id="classroomTestsHeader"></div>
                 <div class="classroom-sheet-panel">
                     <div class="module-toolbar classroom-tab-toolbar">
-                        <button type="button" id="classroomTestsSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomSaveAll">Save all</button>
+                        <div class="toolbar-actions">
+                            <span id="classroomTestsSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomTestsSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
                     </div>
                     <div class="classroom-sheet-scroll" tabindex="0">
                         <table class="classroom-sheet classroom-sheet--tests">
@@ -563,9 +575,18 @@
 
             <template id="classNotesShellTemplate">
                 <div id="classNotesShell" class="class-notes-shell">
+                    <div id="classNotesFiltersBackdrop" class="class-notes-filters-backdrop" hidden aria-hidden="true"></div>
                     <div class="class-notes-layout module-split-layout">
-                        <aside class="module-list-panel class-notes-filters-panel class-notes-panel-card homework-sidebar-panel" aria-labelledby="classNotesFiltersHeading">
-                            <h2 id="classNotesFiltersHeading" class="class-notes-filters-title" data-i18n="classNotesFiltersTitle">Filters</h2>
+                        <aside id="classNotesFiltersPanel" class="module-list-panel class-notes-filters-panel class-notes-panel-card homework-sidebar-panel" aria-labelledby="classNotesFiltersHeading">
+                            <div class="class-notes-filters-header term-settings-header">
+                                <button type="button" id="classNotesFiltersToggle" class="term-settings-caret" aria-expanded="true" aria-controls="classNotesFiltersBody" data-i18n-aria-label="classNotesFiltersHide" aria-label="Hide filters">
+                                    <span class="term-settings-caret-icon" aria-hidden="true"></span>
+                                </button>
+                                <h2 id="classNotesFiltersHeading" class="class-notes-filters-title" data-i18n="classNotesFiltersTitle">Filters</h2>
+                                <span id="classNotesFiltersSummary" class="term-settings-summary" hidden></span>
+                                <button type="button" id="classNotesFiltersCloseBtn" class="btn btn-outline btn-small class-notes-filters-close-btn" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+                            </div>
+                            <div id="classNotesFiltersBody" class="class-notes-filters-body" aria-labelledby="classNotesFiltersHeading">
                             <div class="class-notes-date-range">
                                 <label class="class-notes-filter-field" for="classNotesFilterFrom">
                                     <span data-i18n="classNotesDateFrom">From</span>
@@ -581,9 +602,9 @@
                                     <input type="checkbox" id="classNotesMeetingDaysOnly">
                                     <span data-i18n="classNotesMeetingDaysOnly">Only on class meeting days</span>
                                 </label>
-                                <label class="checkbox-label selection-chip">
+                                <label class="checkbox-label selection-chip" data-filter-preset="my-classes">
                                     <input type="checkbox" id="classNotesMyClassesOnly">
-                                    <span data-i18n="notesMyClassesOnly">My classes only</span>
+                                    <span data-i18n="filterMyClassesOnly">My classes only</span>
                                 </label>
                                 <label class="checkbox-label selection-chip">
                                     <input type="checkbox" id="classNotesTodayOnly">
@@ -616,6 +637,7 @@
                                     <h3 class="class-notes-filter-subtitle lesson-filter-section-title" data-i18n="classNotesFilterCategory">Category</h3>
                                     <div id="classNotesFilterCategories" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
                                 </section>
+                            </div>
                             </div>
                         </aside>
                         <div class="module-editor-panel class-notes-main-panel">
@@ -838,11 +860,11 @@
                 <div class="homework-layout module-split-layout module-split-layout--homework">
                     <aside class="module-list-panel homework-sidebar-panel" aria-label="Class list">
                         <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Reload copy text from syllabi</button>
-                        <div class="homework-filter-panel">
+                        <div class="homework-filter-panel list-filter-presets">
                             <div class="homework-filter-checkboxes">
-                                <label class="checkbox-label homework-filter-my-classes">
+                                <label class="checkbox-label homework-filter-my-classes" data-filter-preset="my-classes">
                                     <input type="checkbox" id="homeworkMyClassesOnly">
-                                    <span data-i18n="homeworkMyClassesOnly">My classes only</span>
+                                    <span data-i18n="filterMyClassesOnly">My classes only</span>
                                 </label>
                                 <label class="checkbox-label homework-filter-today-only">
                                     <input type="checkbox" id="homeworkTodayOnly">
@@ -1024,10 +1046,12 @@
                         </div>
                     </div>
                     <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--contextual" id="cohortsContextualActions" hidden>
+                        <button type="button" id="cohortsOpenTimetableBtn" class="btn btn-outline btn-compact" data-i18n="setupHubOpenTimetable">Open timetable</button>
                         <button type="button" id="cohortsEditBtn" class="btn btn-outline btn-compact" hidden data-i18n="cohortsEditBtn">Edit cohort</button>
                         <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
                     </div>
                 </div>
+                <div class="cohorts-board-with-detail">
                 <div class="setup-board-layout">
                     <div class="setup-board-center">
                         <div class="setup-board-main">
@@ -1036,43 +1060,11 @@
                         </div>
                     </div>
                 </div>
-            </section>
-
-            <section id="panel-setup-hub" class="app-tab-panel" data-tab="setup-hub" role="tabpanel" aria-labelledby="zoneBtn-setup-hub" hidden>
-                <div id="setupHubToolbar" class="module-toolbar setup-hub-toolbar"></div>
-                <div class="setup-hub-layout">
-                    <aside class="setup-hub-board-pane" aria-label="Cohort board">
-                        <div class="setup-hub-board-toolbar">
-                            <input type="search" id="setupHubBoardSearch" class="module-list-search field-control--compact" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
-                            <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
-                                <button type="button" class="syllabus-segment-btn is-active" id="setupHubBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
-                                <button type="button" class="syllabus-segment-btn" id="setupHubBoardViewBtnTth" data-board-view="tth" data-i18n="setupBoardViewTth">Tue/Thu cohorts</button>
-                                <button type="button" class="syllabus-segment-btn" id="setupHubBoardViewBtnAll" data-board-view="all" data-i18n="setupBoardViewAll">View all</button>
-                            </div>
-                        </div>
-                        <div class="setup-board-layout setup-hub-board-layout">
-                            <div class="setup-board-center">
-                                <div class="setup-board-main">
-                                    <div id="setupHubBoardViewMwf" class="setup-board-canvas" data-board-canvas="mwf"></div>
-                                    <div id="setupHubBoardViewTth" class="setup-board-canvas" data-board-canvas="tth" hidden></div>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
-                    <div class="setup-hub-center-pane">
-                        <h2 class="setup-hub-panel-title" data-i18n="setupHubTimetableTitle">Weekly timetable</h2>
-                        <div id="setupHubTimetablePreview" class="setup-hub-timetable-preview"></div>
-                    </div>
-                    <aside class="setup-hub-detail-pane">
-                        <h2 class="setup-hub-panel-title" data-i18n="setupHubClassDetailTitle">Class details</h2>
-                        <div id="setupHubClassDetail" class="setup-hub-class-detail-mount"></div>
-                    </aside>
+                <aside class="cohorts-class-detail-pane" aria-label="Class details">
+                    <h2 class="setup-hub-panel-title" data-i18n="setupHubClassDetailTitle">Class details</h2>
+                    <div id="cohortsClassDetail" class="setup-hub-class-detail-mount"></div>
+                </aside>
                 </div>
-                <footer class="setup-hub-events-footer">
-                    <h2 class="setup-hub-panel-title" data-i18n="setupHubEventsTitle">Term events</h2>
-                    <p id="setupHubEventsEmpty" class="module-empty-hint" hidden></p>
-                    <ul id="setupHubEventsList" class="setup-hub-events-list"></ul>
-                </footer>
             </section>
 
             <section id="panel-teachers" class="app-tab-panel" data-tab="teachers" role="tabpanel" aria-labelledby="zoneBtn-classes" hidden>
@@ -1103,7 +1095,7 @@
                 </div>
             </section>
 
-            <section id="panel-data" class="app-tab-panel" data-tab="data" role="tabpanel" aria-labelledby="tabBtn-data" hidden>
+            <section id="panel-data" class="app-tab-panel" data-tab="data" role="tabpanel" aria-labelledby="zoneBtn-data" hidden>
                 <div class="print-data-layout">
                     <div class="print-data-section print-data-section--calendar-backup">
                         <h2 class="module-section-title" data-i18n="dataCalendarBackupHeading">Calendar backup</h2>
@@ -1246,7 +1238,7 @@
                 <h2 id="cohortEditorModalTitle" data-i18n="cohortEditorModalTitle">Edit cohort</h2>
                 <button type="button" class="modal-close" id="closeCohortEditorModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
-            <div id="cohortEditorToolbar" class="cohort-editor-toolbar cohort-management-actions" hidden></div>
+            <div id="cohortEditorToolbar" class="cohort-editor-toolbar cohort-management-actions form-actions" hidden></div>
             <div class="modal-body-scroll">
                 <p id="cohortsEditorEmpty" class="module-empty-hint" hidden data-i18n="cohortsEditorEmpty">Select a cohort from the list, or click + Add cohort.</p>
                 <div id="cohortsEditorMount" class="cohort-management-editor"></div>
@@ -1851,7 +1843,7 @@
                 <p id="classDayNoteMentionHint" class="section-hint day-note-mention-hint"></p>
                 <p id="classDayNoteReadOnly" class="section-hint day-note-readonly-hint" hidden data-i18n="dayNoteReadOnlyHint"></p>
                 <div class="form-actions">
-                    <button type="button" id="classDayNoteSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
+                    <button type="button" id="classDayNoteSaveBtn" class="btn btn-primary btn-small" data-i18n="dayNoteSave">Save note</button>
                 </div>
             </div>
         </div>
@@ -1948,11 +1940,13 @@
     <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
-    <script defer src="js/active-context.js?v=20260624-hw-date-fix"></script>
+    <script defer src="js/active-context.js?v=20260703-zone-context"></script>
+    <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
+    <script defer src="js/classroom-zone-context.js?v=20260703-design-fidelity"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260701-event-color-palette"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260622-teaching-workflow"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260703-autosave"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -1969,6 +1963,8 @@
     <script defer src="js/term-clone-wizard.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
+    <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
+    <script defer src="js/ui/classroom-autosave.js?v=20260703-autosave"></script>
     <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
     <script defer src="js/views/event-list-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/calendar-view.js?v=20260615-ui-refactor"></script>
@@ -2037,13 +2033,13 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260629-cohort-nav-clear"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260630-homework-copy-redesign"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260706-notes-filters-collapse-v5"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
-    <script defer src="app.js?v=20260702-essay-enhance"></script>
+    <script defer src="app.js?v=20260706-notes-filters-collapse-v5"></script>
 </body>
 </html>
 

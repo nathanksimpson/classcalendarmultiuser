@@ -12,6 +12,7 @@ For broader dev workflow (deploy, API, locks), see [DEVELOPER.md](DEVELOPER.md).
 |------|--------|
 | Buttons, forms, modals, tabs, toolbars, setup board, calendar chrome | **This file** |
 | AI design brief (colors, type, shell, components — paste into Claude Design) | [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) |
+| AI scenes & workflows (pages, zones, user flows — paste with design brief) | [CLAUDE_DESIGN_SCENES.md](CLAUDE_DESIGN_SCENES.md) |
 | Syllabus 진도표 print/PDF (two-table jindo layout, A4 fit) | [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
 | API, sync, locks, deploy | [DEVELOPER.md](DEVELOPER.md) / [AGENTS.md](AGENTS.md) |
 
@@ -329,6 +330,71 @@ name → colors → curriculum → term dates → period/level/grade → total l
 | Mobile touch pass | [`styles.css`](styles.css) — “UI tightening pass (2026-06)” section |
 | Page chrome / notices | [`js/page-chrome.js`](js/page-chrome.js) |
 | Help page (separate CSS) | `help.html`, `help.css`, `js/help-guide.js` |
+| Classroom sheet toolbar | [`index.html`](index.html) — `.module-toolbar.classroom-tab-toolbar` + `.toolbar-actions` |
+| List sidebar filters | [`index.html`](index.html) — homework tab `.list-filter-presets` |
+| Filter preset helper | [`js/ui/filter-presets.js`](js/ui/filter-presets.js) |
+| Popover multi-select filter | [`index.html`](index.html) — `#lessonFilterPopover` |
+
+---
+
+## Filter, save, and toolbar conventions
+
+Harmonization rules for filter bars, save buttons, and toolbars. Classroom batch sheets use **debounced auto-save** via [`js/ui/classroom-autosave.js`](js/ui/classroom-autosave.js) + **`saveClassroomPartial`**; calendar document uses **`scheduleSave`**; day notes use **`saveDayNotesOnly`** (manual).
+
+### Filter placement ladder
+
+| Surface type | Filter location | Classes |
+|--------------|-----------------|---------|
+| **List sidebar** | Top of `module-list-panel`: optional presets → `module-list-search` → `module-list` | `.list-filter-presets` (alias: `.homework-filter-panel`) |
+| **Multi-select class filter** | Toolbar button → `lesson-filter-popover` | Reuse popover CSS; do not invent new popover styles |
+| **Rich date/chip filters** (day notes) | Left column `class-notes-filters-panel` | Advanced filter column reference |
+| **Account/status filters** (admin) | Toolbar: search + chip row | `admin-accounts-toolbar` |
+| **In-table quick filters** (essay status) | Above sheet; header filter button for discoverability | `classroom-essay-stats-bar` |
+
+Search uses `module-list-search` (sidebar) or `lesson-filter-search` (popover). Preset checkboxes: `checkbox-label` inline, or `checkbox-label selection-chip` when bordered. Shared My-classes preset: `data-filter-preset="my-classes"` via [`js/ui/filter-presets.js`](js/ui/filter-presets.js).
+
+### Save placement ladder
+
+| Context | Placement | Button | Feedback |
+|---------|-----------|--------|----------|
+| **Modal form** | `form-actions` footer OR `editor-header-actions` (popout) — never both | `btn btn-primary` | `CCPNotice.show()` |
+| **Classroom batch sheet (auto-save)** | `module-toolbar classroom-tab-toolbar` — status pill + Save now in `.toolbar-actions` | `btn btn-outline btn-compact` (`classroomSaveNow`) | Status pill (`pending` / `saving` / `saved` / `error`); toast on manual Save now or error |
+| **Classroom immediate** (points) | Same toolbar; no Save all | Per-row / batch apply | Toast on batch |
+| **Sticky document editor** | Top `*-editor-actions-bar` sticky | `btn btn-primary btn-small` | Lock bar + toast |
+| **Day notes** | Form bottom `*-add-actions` | `btn btn-primary btn-small` | Toast |
+| **Auto-save fields** (homework tab textareas, calendar doc) | No button | — | `#teamSyncSavedDot` or inline status |
+
+### Classroom toolbar order (left → right)
+
+1. Context selectors (`js/classroom-header.js`)
+2. Batch / secondary actions
+3. `.toolbar-actions` (`margin-left: auto`) — status pill + Save now outline button
+
+**Auto-save tabs** (attendance, homework tracking, tests, ledger, essays): edits call `scheduleSave()`; debounced silent save (400–600 ms per tab); **`flushBeforeLeave()`** on tab exit in `app.js`. Points tab stays immediate per action.
+
+### Canonical markup
+
+**Classroom sheet toolbar (auto-save):**
+
+```html
+<div class="module-toolbar classroom-tab-toolbar">
+  <div class="classroom-batch-row">…</div>
+  <div class="toolbar-actions">
+    <span id="classroomExampleSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite"></span>
+    <button type="button" id="classroomExampleSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+  </div>
+</div>
+```
+
+Status classes: `.classroom-save-status--pending`, `--saving`, `--saved`, `--error`. i18n: `classroomSaveNow`, `classroomSaveSaved`, `classroomSaveSaving`, `classroomSavePending`, `classroomSaveError` (essays use `classroomEssaySave*` prefix).
+
+**List sidebar filters:**
+
+```html
+<div class="list-filter-presets">…</div>
+<input type="search" class="module-list-search" … />
+<div class="module-list" …></div>
+```
 
 ---
 
@@ -338,11 +404,12 @@ Before implementing a UI change:
 
 1. **Surface** — popout, full tab, modal, toolbar, or satellite page?
 2. **Existing class** — which cookbook entry applies (button, field, chip, modal)?
-3. **Viewport** — phone/tablet behavior? Need `data-viewport` or JS helper?
-4. **Theme** — works in light and dark (tokens only)?
-5. **Mount pattern** — new fields in movable form vs new shell?
-6. **Cache bust** — which `?v=` strings need bumping?
-7. **Print only?** — if yes, switch to [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md).
+3. **Harmonization** — which pattern from **Filter, save, and toolbar conventions** applies? Same placement as the reference tab?
+4. **Viewport** — phone/tablet behavior? Need `data-viewport` or JS helper?
+5. **Theme** — works in light and dark (tokens only)?
+6. **Mount pattern** — new fields in movable form vs new shell?
+7. **Cache bust** — which `?v=` strings need bumping?
+8. **Print only?** — if yes, switch to [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md).
 
 ---
 

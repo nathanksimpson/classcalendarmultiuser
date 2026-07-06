@@ -2,7 +2,7 @@
 
 **Purpose:** Detailed, codebase-derived snapshot of how the app looks and is structured today. Paste this into Claude Design (with or without [`CLAUDE_DESIGN_BRIEF.md`](CLAUDE_DESIGN_BRIEF.md)) when you want redesigns grounded in the **actual** UI — not screenshots.
 
-**Last aligned with codebase:** June 2026 (ClassManager redesign, zone navigation, token-driven CSS split).
+**Last aligned with codebase:** July 2026 (4-zone IA, classroom zone context bar, essay two-stage pipeline).
 
 **Companion docs:**
 
@@ -39,9 +39,8 @@ flowchart TB
   shell --> main[Main content panels]
     main --> schedule[Schedule zone]
     main --> classes[Class Setup zone]
-    main --> hub[Setup Hub zone]
     main --> classroom[Classroom zone]
-    main --> more[More zone]
+    main --> data[Data zone]
 ```
 
 ---
@@ -83,18 +82,12 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
 | All classes | `#panel-classes` | Split: class list \| class form |
-| Cohorts | `#panel-cohorts` | Collapsible info + floating toolbar + setup board canvas |
+| Cohorts | `#panel-cohorts` | Collapsible info + floating toolbar + setup board canvas + **class detail aside** (`#cohortsClassDetail`) |
 | Teachers | `#panel-teachers` | **Placeholder card only** (links to Timetable / Cohorts) |
 | Books | `#panel-curriculum` | Split: curriculum list \| book/session editor |
 | Syllabi | `#panel-syllabus` | Split: class/template list \| syllabus table editor |
 
-### Zone 3: Setup Hub (`data-zone="setup-hub"`)
-
-| Segment | Panel ID | Layout pattern |
-|---------|----------|----------------|
-| Setup Hub | `#panel-setup-hub` | 3-pane: cohort board \| weekly timetable preview \| class detail + term events footer |
-
-### Zone 4: Classroom (`data-zone="classroom"`)
+### Zone 3: Classroom (`data-zone="classroom"`)
 
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
@@ -107,13 +100,13 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 | Notes | `#panel-notes` | In-app class notes (desktop); phone redirects to `notes.html` |
 | Portfolio | — | **Disabled / coming soon** (hidden segment) |
 
-### Zone 5: More (`data-zone="more"`)
+### Zone 4: Data (`data-zone="more"` — internal id; tab label **Data**)
 
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
 | Data | `#panel-data` | Calendar backup export/import sections |
 
-**More zone rule:** Admin **Data** only — segment tabs are never moved into More.
+**Data zone rule:** Admin **Data** only — segment tabs are never moved into Data.
 
 ---
 
@@ -135,7 +128,7 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 │  │ 🔒 lock skeuo badge │ label │ action │ Details │ saved dot    │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 2 ZONES (.app-zone-nav) ────────────────────────────────┐ │
-│  │ Schedule │ Class Setup │ Setup Hub │ Classroom │ More         │ │
+│  │ Schedule │ Class Setup │ Classroom │ Data                              │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 3 SEGMENTS + TERM STRIP ─────────────────────────────────┐ │
 │  │ [segment pills for active zone]     Term name · dates · settings│ │
@@ -290,20 +283,7 @@ Field order: name → colors → curriculum → term dates → period/level/grad
 - **Floating toolbar:** + Add cohort, search, MWF | Tue/Thu | View all board switch.
 - Contextual Edit / Delete when cohort selected.
 - **Setup board canvas** (`#setupBoardViewMwf` / `#setupBoardViewTth`): draggable cohort columns, class cards, teacher assignment dropdowns, homeroom checkbox.
-
----
-
-### Setup Hub (`#panel-setup-hub`)
-
-**Three-pane layout:**
-
-| Pane | Content |
-|------|---------|
-| Left (board) | Cohort board (same canvas pattern as Cohorts tab) + search + view switch |
-| Center | “Weekly timetable” preview (`#setupHubTimetablePreview`) |
-| Right | “Class details” mount for selected card |
-
-**Footer:** Term events list (`#setupHubEventsList`).
+- **Class detail aside** (`#cohortsClassDetail`): period editor, print syllabus, open class editor — select a board card to populate. **Open timetable** link navigates to Schedule → Timetable (no embedded preview).
 
 ---
 
@@ -328,10 +308,14 @@ On-screen syllabus editor uses standard app tokens — **not** the A4 print layo
 
 Most classroom tabs share:
 
-- `#classroom*Header` — cohort/class/date context (rendered by JS).
-- `.module-toolbar.classroom-tab-toolbar` — primary actions (Save all, Mark all present, etc.).
+- `#classroomZoneContextBar` — **shared class picker + session date + My classes / Essays-only toggles** (`js/classroom-zone-context.js`); persists across Attendance → Notes.
+- `#classroom*Header` — tab-specific controls only (assignment picker, test fields, attendance stats); **no per-tab class or session date pickers**.
+- `.module-toolbar.classroom-tab-toolbar` — primary actions (Save all, Mark all present, etc.) in `.toolbar-actions` right-aligned.
 - `.classroom-sheet-panel` + `.classroom-sheet-scroll` — sticky-header tables.
-- `.classroom-sheet` variants: `--attendance`, `--ledger`, homework, points, tests.
+- `.classroom-sheet` variants: `--attendance`, `--ledger`, homework, points, tests, essays.
+- Row grammar: `.classroom-sheet-row` + optional `.classroom-sheet-row--status-rail` (3px left rail by status).
+
+**Essays** (`#panel-essays`): assignment bar, collapsible deadlines strip (overdue pills), pipeline stat bar (progress + filter chips), two-stage Submission → Evaluation cells, conditional retest on Resubmit rows only. Reference mockup: `design/mockups/essays-redesign.html`.
 
 **Students** uses **3-column** split: cohort list | student list (with bulk move) | student detail editor.
 

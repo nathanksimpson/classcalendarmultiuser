@@ -7,7 +7,8 @@
             'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/cohort-management.js?v=20260629-ui-fixes',
-            'js/setup-board.js?v=20260629-ui-fixes'
+            'js/setup-board.js?v=20260629-ui-fixes',
+            'js/cohorts-class-detail.js?v=20260703-design-fidelity'
         ],
         timetable: [
             'js/timetable-periods.js?v=20260619-term-flex',
@@ -37,14 +38,14 @@
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260630-header-i18n',
-            'js/classroom-attendance.js?v=20260610-boot-mentions'
+            'js/classroom-header.js?v=20260703-zone-context',
+            'js/classroom-attendance.js?v=20260703-zone-context'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260630-header-i18n',
-            'js/classroom-homework.js?v=20260610-boot-mentions'
+            'js/classroom-header.js?v=20260703-zone-context',
+            'js/classroom-homework.js?v=20260703-zone-context'
         ],
         essays: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -52,36 +53,28 @@
             'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
             'js/classroom-essay-progress.js?v=20260702-essay-enhance',
             'js/classroom-essay-progress-print.js?v=20260702-essay-enhance',
-            'js/classroom-header.js?v=20260702-essay-enhance',
-            'js/classroom-essays.js?v=20260702-essay-enhance2'
+            'js/classroom-header.js?v=20260703-design-fidelity',
+            'js/classroom-essays.js?v=20260703-essay-fidelity'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-ledger-bridge.js?v=20260619-ui-overhaul',
-            'js/classroom-ledger.js?v=20260619-ui-overhaul'
+            'js/classroom-ledger.js?v=20260703-zone-context'
         ],
         'command-center': [
-            'js/homework-tab.js?v=20260619-ui-overhaul',
-            'js/command-center.js?v=20260630-homework-copy-redesign'
-        ],
-        'setup-hub': [
-            'js/teacher-timetable.js?v=20260619-setup-hub',
-            'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260629-ui-fixes',
-            'js/setup-board.js?v=20260629-ui-fixes',
-            'js/setup-hub.js?v=20260619-setup-hub'
+            'js/command-center.js?v=20260703-design-fidelity'
         ],
         points: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
             'js/classroom-point-reasons.js?v=20260618-point-reasons',
-            'js/classroom-points.js?v=20260619-points-subtract'
+            'js/classroom-points.js?v=20260703-zone-context'
         ],
         tests: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260612-classroom-density',
-            'js/classroom-header.js?v=20260630-header-i18n',
-            'js/classroom-tests.js?v=20260612-phase2'
+            'js/classroom-header.js?v=20260703-zone-context',
+            'js/classroom-tests.js?v=20260703-zone-context'
         ]
     };
 
