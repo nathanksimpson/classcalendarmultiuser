@@ -242,6 +242,24 @@
         return enqueuePointsSave(() => savePointEntriesNow(panel, entries, options));
     }
 
+    function setPointsSaveStatus(panel, state) {
+        const el = panel && panel.querySelector('#classroomPointsSaveStatus');
+        if (!el) {
+            return;
+        }
+        el.classList.remove('classroom-save-status--saved', 'classroom-save-status--pending', 'classroom-save-status--saving', 'classroom-save-status--error');
+        if (state === 'saved') {
+            el.classList.add('classroom-save-status--saved');
+            el.textContent = t('classroomSaveSaved');
+        } else if (state === 'saving') {
+            el.classList.add('classroom-save-status--saving');
+            el.textContent = t('classroomSaveSaving');
+        } else if (state === 'error') {
+            el.classList.add('classroom-save-status--error');
+            el.textContent = t('classroomSaveError');
+        }
+    }
+
     async function savePointEntriesNow(panel, entries, options) {
         const d = domain();
         const appData = getAppData();
@@ -252,11 +270,14 @@
             ? d.appendPointEntries(appData.studentPoints, entries)
             : entries.reduce((list, entry) => d.appendPointEntry(list, entry), appData.studentPoints);
         try {
+            setPointsSaveStatus(panel, 'saving');
             await hooks.saveClassroom({ studentPoints: next }, { skipPointsNoteReconcile: true });
             if (typeof hooks.syncPointsDayNote === 'function') {
                 await hooks.syncPointsDayNote(classId, dateStr);
             }
+            setPointsSaveStatus(panel, 'saved');
         } catch (err) {
+            setPointsSaveStatus(panel, 'error');
             throw err;
         }
         const batchMode = options && options.batchMode;
@@ -293,39 +314,26 @@
             return;
         }
 
-        const classOptions = classes
-            .map((c) => {
-                const sel = c.id === classId ? ' selected' : '';
-                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
-            })
-            .join('');
-
         const studentLine = students.length
             ? t('classroomPointsStudentCount').replace('{n}', String(students.length))
             : t('classroomPointsEmptyNoStudents');
 
         mount.innerHTML = `
-            <div class="classroom-points-toolbar-row">
-                <label class="classroom-points-toolbar-field">
-                    <span class="classroom-points-toolbar-label">${escapeHtml(t('classroomPointsClassLabel'))}</span>
-                    <select id="classroomPointsClassSelect" class="field-select field-control--compact">${classOptions}</select>
-                </label>
-                <label class="classroom-points-toolbar-field">
-                    <span class="classroom-points-toolbar-label">${escapeHtml(t('classroomPointsDateLabel'))}</span>
-                    <input type="date" id="classroomPointsDateInput" class="field-input field-control--compact" value="${escapeHtml(dateStr)}" />
-                </label>
-                <button type="button" class="btn btn-outline btn-compact" id="classroomPointsTodayBtn">${escapeHtml(t('classroomPointsToday'))}</button>
+            <div class="classroom-points-toolbar-main">
+                <div class="classroom-points-batch-row">
+                    <label class="classroom-points-toolbar-field classroom-points-batch-delta-field">
+                        <span class="classroom-points-toolbar-label">${escapeHtml(t('classroomPointsBatchDelta'))}</span>
+                        <input type="number" id="classroomPointsBatchDelta" class="field-input field-control--compact" step="1" value="1" aria-label="${escapeHtml(t('classroomPointsBatchDelta'))}"${disabled} />
+                    </label>
+                    <div class="classroom-points-batch-reason-field">${buildReasonSelectHtml('batch', disabled)}</div>
+                    <button type="button" class="btn btn-primary btn-compact" id="classroomPointsBatchApplyBtn"${editable ? '' : ' disabled'}>${escapeHtml(t('classroomPointsBatchApply'))}</button>
+                    <button type="button" class="btn btn-outline btn-compact" id="classroomPointsBatchSubtractBtn"${editable ? '' : ' disabled'}>${escapeHtml(t('classroomPointsBatchSubtract'))}</button>
+                </div>
+                <p class="classroom-points-toolbar-meta section-hint">${escapeHtml(studentLine)}</p>
             </div>
-            <div class="classroom-points-batch-row">
-                <label class="classroom-points-toolbar-field classroom-points-batch-delta-field">
-                    <span class="classroom-points-toolbar-label">${escapeHtml(t('classroomPointsBatchDelta'))}</span>
-                    <input type="number" id="classroomPointsBatchDelta" class="field-input field-control--compact" step="1" value="1" aria-label="${escapeHtml(t('classroomPointsBatchDelta'))}"${disabled} />
-                </label>
-                <div class="classroom-points-batch-reason-field">${buildReasonSelectHtml('batch', disabled)}</div>
-                <button type="button" class="btn btn-primary btn-compact" id="classroomPointsBatchApplyBtn"${editable ? '' : ' disabled'}>${escapeHtml(t('classroomPointsBatchApply'))}</button>
-                <button type="button" class="btn btn-outline btn-compact" id="classroomPointsBatchSubtractBtn"${editable ? '' : ' disabled'}>${escapeHtml(t('classroomPointsBatchSubtract'))}</button>
-            </div>
-            <p class="classroom-points-toolbar-meta section-hint">${escapeHtml(studentLine)}</p>`;
+            <div class="toolbar-actions">
+                <span id="classroomPointsSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+            </div>`;
 
         const batchReasonWrap = mount.querySelector('.classroom-points-batch-reason-field');
         if (batchReasonWrap) {
@@ -335,18 +343,6 @@
             });
         }
 
-        mount.querySelector('#classroomPointsClassSelect')?.addEventListener('change', (e) => {
-            setClassId(e.target.value);
-            render(panel);
-        });
-        mount.querySelector('#classroomPointsDateInput')?.addEventListener('change', (e) => {
-            setDateStr(e.target.value);
-            render(panel);
-        });
-        mount.querySelector('#classroomPointsTodayBtn')?.addEventListener('click', () => {
-            setDateStr(today);
-            render(panel);
-        });
         mount.querySelector('#classroomPointsBatchApplyBtn')?.addEventListener('click', () => {
             void applyPointsToSelected(panel, 'add');
         });
@@ -609,25 +605,75 @@
         renderRows(panel);
     }
 
+    function syncFromActiveContext() {
+        if (typeof global.CCPActiveContext === 'undefined') {
+            return;
+        }
+        const ctx = global.CCPActiveContext.get();
+        if (ctx.classId) {
+            classId = ctx.classId;
+        }
+    }
+
     function initTab(h, options) {
         hooks = h;
         const data = getAppData();
         const d = domain();
-        classId =
-            (options && options.classId) ||
-            (data.ui && data.ui.classroomTabClassId) ||
-            '';
-        dateStr =
-            (options && options.date) ||
-            (data.ui && data.ui.classroomPointsDate) ||
-            (d ? d.todayISO() : '');
+        const visible = global.CCPClassroomZoneContext
+            ? global.CCPClassroomZoneContext.getVisibleClasses()
+            : (data.classes || []);
+        if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
+            classId = global.CCPActiveContext.resolveActiveClassId(data, {
+                classId: options && options.classId,
+                visibleClasses: visible
+            });
+        } else {
+            classId =
+                (options && options.classId) ||
+                (data.ui && data.ui.classroomTabClassId) ||
+                '';
+        }
+        if (typeof global.CCPActiveContext !== 'undefined') {
+            const ctx = global.CCPActiveContext.get();
+            dateStr =
+                (options && options.date) ||
+                ctx.sessionDate ||
+                (data.ui && data.ui.classroomTabDate) ||
+                (d ? d.todayISO() : '');
+        } else {
+            dateStr =
+                (options && options.date) ||
+                (data.ui && data.ui.classroomTabDate) ||
+                (data.ui && data.ui.classroomPointsDate) ||
+                (d ? d.todayISO() : '');
+        }
         ensureClassId();
         rollPointsDateToTodayIfStale();
         if (!dateStr && d) {
             dateStr = d.todayISO();
         }
         bindPointsDateRollListeners();
-        render(document.getElementById('panel-points'));
+        const panel = document.getElementById('panel-points');
+        render(panel);
+        if (typeof global.CCPActiveContext !== 'undefined' && !initTab._subscribed) {
+            initTab._subscribed = true;
+            global.CCPActiveContext.subscribe((detail) => {
+                if (!panel || panel.hidden || !detail) {
+                    return;
+                }
+                if (detail.classId !== undefined) {
+                    syncFromActiveContext();
+                    ensureClassId();
+                }
+                if (detail.sessionDate !== undefined) {
+                    const next = detail.sessionDate || (domain() ? domain().todayISO() : '');
+                    if (next && next !== dateStr) {
+                        setDateStr(next);
+                    }
+                }
+                render(panel);
+            });
+        }
     }
 
     global.CCPClassroomPoints = {

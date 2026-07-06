@@ -1325,7 +1325,7 @@
             </section>
             <div class="form-actions classroom-student-actions classroom-roster-student-actions">
             ${student ? `<button type="button" class="btn btn-outline" id="classroomStudentPrintTermSummary">${escapeHtml(t('termSummaryPrintStudent'))}</button>` : ''}
-            ${editable && !inArchive ? `<button type="button" class="btn btn-primary" id="classroomStudentSave">${escapeHtml(t('save'))}</button>` : ''}
+            ${editable && !inArchive ? `<button type="button" class="btn btn-primary btn-small" id="classroomStudentSave">${escapeHtml(t('save'))}</button>` : ''}
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentDeactivate">${escapeHtml(student.active ? t('classroomDeactivateStudent') : t('classroomActivateStudent'))}</button>` : ''}
             ${canArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentArchive">${escapeHtml(t('studentArchiveBtn'))}</button>` : ''}
             ${canRestore ? `<button type="button" class="btn btn-outline" id="classroomStudentRestore">${escapeHtml(t('studentRestoreBtn'))}</button>` : ''}

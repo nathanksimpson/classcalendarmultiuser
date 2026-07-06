@@ -2279,7 +2279,7 @@
         ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="${adoptLabelKey}">${escapeHtml(adoptDefault)}</button>`
         : ''}
               <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
-              <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
+              <button type="button" id="${saveId}" class="btn btn-primary btn-small" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
             </div>
             <div class="curriculum-editor-body">
               ${applicabilityHtml}

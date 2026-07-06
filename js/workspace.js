@@ -124,6 +124,7 @@
                 }
             });
         });
+        // Legacy workspace list search — host page redirects to main app; element may be absent.
         const booksSearch = document.getElementById('workspaceBooksListSearch');
         if (booksSearch && booksSearch.dataset.bound !== '1') {
             booksSearch.dataset.bound = '1';

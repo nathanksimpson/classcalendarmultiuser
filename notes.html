@@ -80,9 +80,9 @@
     </div>
 
     <main class="notes-main">
-        <label class="notes-filter-my-classes checkbox-label selection-chip" id="notesMyClassesOnlyLabel">
+        <label class="notes-filter-my-classes checkbox-label selection-chip" id="notesMyClassesOnlyLabel" data-filter-preset="my-classes">
             <input type="checkbox" id="notesMyClassesOnly">
-            <span data-i18n="notesMyClassesOnly">My classes only</span>
+            <span data-i18n="filterMyClassesOnly">My classes only</span>
         </label>
 
         <section class="notes-class-section" aria-labelledby="notesClassListHeading">
@@ -136,7 +136,7 @@
                     <textarea id="notesAddText" class="day-note-textarea notes-add-textarea" rows="4" spellcheck="true"></textarea>
                 </label>
                 <div class="notes-editor-actions">
-                    <button type="button" id="notesSaveBtn" class="btn btn-primary" data-i18n="dayNoteSave">Save note</button>
+                    <button type="button" id="notesSaveBtn" class="btn btn-primary btn-small" data-i18n="dayNoteSave">Save note</button>
                 </div>
                 <p id="notesStatus" class="notes-status visually-hidden" role="status" aria-live="polite" hidden></p>
             </div>

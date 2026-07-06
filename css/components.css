@@ -110,3 +110,31 @@
     font-weight: 500;
 }
 
+/* Harmonized toolbar clusters (UI_STYLE_GUIDE — filter/save conventions) */
+.module-toolbar.classroom-tab-toolbar {
+    align-items: center;
+}
+
+.toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+}
+
+.classroom-batch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.list-filter-presets {
+    margin-bottom: var(--space-2);
+}
+
+.list-filter-presets .checkbox-label + .checkbox-label {
+    margin-top: var(--space-1);
+}
+

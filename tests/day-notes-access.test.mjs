@@ -81,6 +81,82 @@ const editLegacy = DayNotesAccess.prepareDayNotesForSave(user2, calendarData, [
 ]);
 assert(editLegacy.error && editLegacy.error.includes('author tracking'), 'u2 cannot edit legacy note');
 
+const systemManagedCalendarData = {
+    classes: calendarData.classes,
+    dayNotes: [
+        {
+            id: 'sr1',
+            classId: 'c1',
+            date: '2026-06-01',
+            text: 'Essay resubmit old',
+            createdAt: '2026-06-01T10:00:00.000Z',
+            categoryId: 'essay-resubmit',
+            authorUserId: 'u1'
+        },
+        {
+            id: 'legacy-system',
+            classId: 'c1',
+            date: '2026-06-01',
+            text: 'Legacy system note',
+            createdAt: '2026-06-01T09:00:00.000Z',
+            categoryId: 'essay-resubmit'
+        }
+    ]
+};
+
+const editOtherSystemManaged = DayNotesAccess.prepareDayNotesForSave(user2, systemManagedCalendarData, [
+    {
+        id: 'sr1',
+        classId: 'c1',
+        date: '2026-06-01',
+        text: 'Essay resubmit updated',
+        createdAt: '2026-06-01T10:00:00.000Z',
+        categoryId: 'essay-resubmit',
+        authorUserId: 'u1'
+    },
+    systemManagedCalendarData.dayNotes[1]
+]);
+assert(!editOtherSystemManaged.error, 'u2 can edit another teacher system-managed note');
+assert(
+    editOtherSystemManaged.dayNotes.find((n) => n.id === 'sr1').authorUserId === 'u1',
+    'system-managed edit preserves original author'
+);
+
+const editLegacySystemManaged = DayNotesAccess.prepareDayNotesForSave(user2, systemManagedCalendarData, [
+    systemManagedCalendarData.dayNotes[0],
+    {
+        id: 'legacy-system',
+        classId: 'c1',
+        date: '2026-06-01',
+        text: 'Legacy system updated',
+        createdAt: '2026-06-01T09:00:00.000Z',
+        categoryId: 'essay-resubmit'
+    }
+]);
+assert(!editLegacySystemManaged.error, 'u2 can edit legacy system-managed note');
+
+const deleteLegacySystemManaged = DayNotesAccess.prepareDayNotesForSave(user2, systemManagedCalendarData, [
+    systemManagedCalendarData.dayNotes[0]
+]);
+assert(!deleteLegacySystemManaged.error, 'u2 can delete legacy system-managed note');
+
+const changeSystemManagedAuthor = DayNotesAccess.prepareDayNotesForSave(user2, systemManagedCalendarData, [
+    {
+        id: 'sr1',
+        classId: 'c1',
+        date: '2026-06-01',
+        text: 'Essay resubmit updated',
+        createdAt: '2026-06-01T10:00:00.000Z',
+        categoryId: 'essay-resubmit',
+        authorUserId: 'u9'
+    },
+    systemManagedCalendarData.dayNotes[1]
+]);
+assert(
+    changeSystemManagedAuthor.error && changeSystemManagedAuthor.error.includes('author'),
+    'system-managed note still cannot change author'
+);
+
 const addWithHr = DayNotesAccess.prepareDayNotesForSave(user2, calendarData, [
     ...calendarData.dayNotes,
     {

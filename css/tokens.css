@@ -4,6 +4,8 @@
     display: none !important;
 }
 
+@import url('css/design-fidelity-append.css');
+
 :root {
     color-scheme: light;
     --primary: #14b98f;
@@ -186,6 +188,18 @@
     --status-error-bg: #fef2f2;
     --status-error-color: #991b1b;
     --status-error-border: #fecaca;
+
+    /* Essay workflow status (SCENE-ESSAYS) */
+    --essay-status-not: #b6c0cf;
+    --essay-status-received: #3b82f6;
+    --essay-status-complete: var(--primary);
+    --essay-status-resubmit: #e0863b;
+    --essay-received-bg: var(--accent-muted);
+    --essay-received-border: #bfe6d8;
+    --essay-received-text: #0e7a5e;
+    --essay-overdue-bg: #fdecec;
+    --essay-overdue-text: #c0392b;
+    --essay-overdue-border: #f4c9c4;
 
     --badge-warn-bg: #fef3c7;
     --badge-warn-color: #b45309;

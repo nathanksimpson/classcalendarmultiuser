@@ -11,8 +11,40 @@
     let draftAttendance = null;
     let draftHomework = null;
     let dirty = false;
+    let panelRef = null;
+    let autosave = null;
+    let draftsLoaded = false;
+    const LEDGER_AUTOSAVE_DELAY_MS = 500;
     const ROW_HEIGHT = 48;
     const OVERSCAN = 6;
+
+    function ensureAutosave(panel) {
+        if (autosave || !global.CCPClassroomAutosave) {
+            return;
+        }
+        autosave = global.CCPClassroomAutosave.create({
+            delayMs: LEDGER_AUTOSAVE_DELAY_MS,
+            debounce: hooks && hooks.debounce ? hooks.debounce : null,
+            t,
+            getStatusEl: () => (panelRef || panel).querySelector('#classroomLedgerSaveStatus'),
+            saveAsync: (opts) => persistLedger(panelRef || panel, opts)
+        });
+    }
+
+    function scheduleSave() {
+        dirty = true;
+        ensureAutosave(panelRef);
+        if (autosave) {
+            autosave.scheduleSave();
+        }
+    }
+
+    async function flushBeforeLeave() {
+        ensureAutosave(panelRef || document.getElementById('panel-ledger'));
+        if (autosave) {
+            await autosave.flushBeforeLeave();
+        }
+    }
 
     function domain() {
         return global.CCPClassroomDomain;
@@ -123,6 +155,7 @@
                 records: []
             };
         dirty = false;
+        draftsLoaded = true;
     }
 
     function getStudents() {
@@ -134,50 +167,9 @@
 
     function renderHeader(panel) {
         const mount = panel.querySelector('#classroomLedgerHeader');
-        if (!mount) {
-            return;
+        if (mount) {
+            mount.innerHTML = '';
         }
-        const classes = getEditableClasses();
-        const classOptions = classes
-            .map((c) => {
-                const sel = c.id === classId ? ' selected' : '';
-                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
-            })
-            .join('');
-        const d = domain();
-        const today = d ? d.todayISO() : '';
-        mount.innerHTML = `
-            <div class="classroom-ledger-header">
-                <label class="classroom-header-field"><span>${escapeHtml(t('classroomClassLabel'))}</span>
-                <select id="classroomLedgerClassSelect" class="field-select field-control--compact">${classOptions}</select></label>
-                <label class="classroom-header-field"><span>${escapeHtml(t('classroomDateLabel'))}</span>
-                <input type="date" id="classroomLedgerDate" class="field-input field-control--compact" value="${escapeHtml(dateStr)}" /></label>
-                <button type="button" class="btn btn-outline btn-compact" id="classroomLedgerToday">${escapeHtml(t('classroomToday'))}</button>
-            </div>`;
-        mount.querySelector('#classroomLedgerClassSelect')?.addEventListener('change', (e) => {
-            classId = e.target.value;
-            if (typeof global.CCPActiveContext !== 'undefined') {
-                global.CCPActiveContext.set({ classId }, { source: 'ledger-header' });
-            }
-            loadDrafts();
-            render(panel);
-        });
-        mount.querySelector('#classroomLedgerDate')?.addEventListener('change', (e) => {
-            dateStr = e.target.value;
-            if (typeof global.CCPActiveContext !== 'undefined') {
-                global.CCPActiveContext.set({ sessionDate: dateStr }, { source: 'ledger-header' });
-            }
-            loadDrafts();
-            render(panel);
-        });
-        mount.querySelector('#classroomLedgerToday')?.addEventListener('click', () => {
-            dateStr = today;
-            if (typeof global.CCPActiveContext !== 'undefined') {
-                global.CCPActiveContext.set({ sessionDate: dateStr }, { source: 'ledger-header' });
-            }
-            loadDrafts();
-            render(panel);
-        });
     }
 
     function buildAttendanceToggles(studentId, editable) {
@@ -251,7 +243,7 @@
             .map((entry) => {
                 const sid = entry.student.id;
                 const name = escapeHtml(entry.student.name || sid);
-                return `<tr class="classroom-ledger-row" data-student-id="${escapeHtml(sid)}" style="height:${ROW_HEIGHT}px">
+                return `<tr class="classroom-sheet-row classroom-ledger-row" data-student-id="${escapeHtml(sid)}" style="height:${ROW_HEIGHT}px">
                 <td class="classroom-ledger-col-student">${name}</td>
                 <td class="classroom-ledger-col-att"><div class="classroom-ledger-toggles">${buildAttendanceToggles(sid, editable)}</div></td>
                 <td class="classroom-ledger-col-hw"><div class="classroom-ledger-toggles">${buildHomeworkToggles(sid, editable)}</div></td>
@@ -273,8 +265,8 @@
                 const sid = btn.getAttribute('data-student-id');
                 const status = btn.getAttribute('data-status');
                 draftAttendance = bridge.setAttendanceStatus(classId, dateStr, sid, status, draftAttendance);
-                dirty = true;
-                render(panel);
+                scheduleSave();
+                renderVirtualRows(panel, getStudents(), editable);
             });
         });
         body.querySelectorAll('.classroom-ledger-toggle--hw').forEach((btn) => {
@@ -289,8 +281,8 @@
                     grade,
                     draftHomework
                 );
-                dirty = true;
-                render(panel);
+                scheduleSave();
+                renderVirtualRows(panel, getStudents(), editable);
             });
         });
         body.querySelectorAll('.classroom-ledger-points').forEach((wrap) => {
@@ -322,10 +314,15 @@
         }
     }
 
-    async function saveAll(panel) {
+    async function persistLedger(panel, options) {
+        const opt = options || {};
         const editable = access() && access().canEditClass(getClassData());
         if (!editable || !dirty) {
             return;
+        }
+        const saveBtn = panel?.querySelector('#classroomLedgerSaveBtn');
+        if (saveBtn) {
+            saveBtn.disabled = true;
         }
         const d = domain();
         const data = getAppData();
@@ -340,23 +337,38 @@
             fields.homeworkCompletions = d.upsertHomeworkCompletion(data.homeworkCompletions, draftHomework);
         }
         if (!Object.keys(fields).length) {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+            }
             return;
         }
         try {
             await hooks.saveClassroom(fields);
-            hooks.showToast(t('saved'));
+            if (!opt.silent) {
+                hooks.showToast(t('saved'));
+            }
             dirty = false;
             loadDrafts();
-            render(panel);
+            if (!opt.silent) {
+                render(panel, { reloadDrafts: true });
+            } else {
+                renderVirtualRows(panel, getStudents(), editable);
+            }
         } catch (err) {
             hooks.showToast(err.message || String(err), true);
+            throw err;
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+            }
         }
     }
 
-    function render(panel) {
+    function render(panel, options) {
         if (!panel) {
             return;
         }
+        panelRef = panel;
         syncFromActiveContext();
         ensureClassId();
         const d = domain();
@@ -366,7 +378,9 @@
         if (!bridge) {
             bridge = global.CCPLedgerBridge.createBridge(hooks);
         }
-        loadDrafts();
+        if (!draftsLoaded || (options && options.reloadDrafts)) {
+            loadDrafts();
+        }
         renderHeader(panel);
         const editable = access() && access().canEditClass(getClassData());
         const students = getStudents();
@@ -376,25 +390,45 @@
             scroll.dataset.ledgerBound = '1';
             scroll.addEventListener('scroll', () => renderVirtualRows(panel, getStudents(), editable));
         }
-        panel.querySelector('#classroomLedgerSaveBtn')?.addEventListener('click', () => saveAll(panel), {
-            once: true
-        });
+
+        ensureAutosave(panel);
+        if (autosave) {
+            autosave.syncStatusDisplay();
+            autosave.bindManualSaveBtn(panel, '#classroomLedgerSaveBtn', () =>
+                access() && access().canEditClass(getClassData())
+            );
+        }
     }
 
-    function initTab(h, options) {
+    async function initTab(h, options) {
         hooks = h;
+        await flushBeforeLeave();
         bridge = global.CCPLedgerBridge.createBridge(hooks, options);
+        draftsLoaded = false;
         syncFromActiveContext();
-        if (options && options.classId) {
+        const data = getAppData();
+        const visible = global.CCPClassroomZoneContext
+            ? global.CCPClassroomZoneContext.getVisibleClasses()
+            : getEditableClasses();
+        if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
+            classId = global.CCPActiveContext.resolveActiveClassId(data, {
+                classId: options && options.classId,
+                visibleClasses: visible
+            });
+        } else if (options && options.classId) {
             classId = options.classId;
         }
+        ensureClassId();
         const panel = document.getElementById('panel-ledger');
-        render(panel);
+        render(panel, { reloadDrafts: true });
         if (typeof global.CCPActiveContext !== 'undefined' && !initTab._subscribed) {
             initTab._subscribed = true;
-            global.CCPActiveContext.subscribe(() => {
+            global.CCPActiveContext.subscribe(async () => {
                 if (panel && !panel.hidden) {
-                    render(panel);
+                    await flushBeforeLeave();
+                    syncFromActiveContext();
+                    ensureClassId();
+                    render(panel, { reloadDrafts: true });
                 }
             });
         }
@@ -402,6 +436,7 @@
 
     global.CCPClassroomLedger = {
         initTab,
-        render
+        render,
+        flushBeforeLeave
     };
 })(typeof window !== 'undefined' ? window : globalThis);

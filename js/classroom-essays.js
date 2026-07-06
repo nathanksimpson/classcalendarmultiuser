@@ -8,14 +8,36 @@
     let lessonDate = '';
     let draftSubmission = null;
     let currentFilter = 'all';
-    let classSearchQuery = '';
     const selectedStudentIds = new Set();
-    let saveStatus = 'saved';
-    let saveInFlight = null;
-    let debouncedSaveEssays = null;
     let panelRef = null;
+    let autosave = null;
+    const ESSAY_AUTOSAVE_DELAY_MS = 400;
     const progressReportSelectedKeys = new Set();
     let progressReportPendingOnly = false;
+    let resubmitDayNoteDirty = false;
+    let resubmitDayNoteSyncInFlight = false;
+    let deadlinesStripOpen = true;
+
+    function ensureAutosave(panel) {
+        if (autosave || !global.CCPClassroomAutosave) {
+            return;
+        }
+        autosave = global.CCPClassroomAutosave.create({
+            delayMs: ESSAY_AUTOSAVE_DELAY_MS,
+            debounce: hooks && hooks.debounce ? hooks.debounce : null,
+            t,
+            i18nPrefix: 'classroomEssaySave',
+            getStatusEl: () => (panelRef || panel).querySelector('#classroomEssaysSaveStatus'),
+            saveAsync: (opts) => persistEssays(panelRef || panel, opts)
+        });
+    }
+
+    function scheduleSave() {
+        ensureAutosave(panelRef);
+        if (autosave) {
+            autosave.scheduleSave();
+        }
+    }
 
     function domain() {
         return global.CCPClassroomDomain;
@@ -54,7 +76,13 @@
     }
 
     function getAppData() {
-        return hooks && hooks.getAppData ? hooks.getAppData() : {};
+        if (hooks && hooks.getAppData) {
+            return hooks.getAppData();
+        }
+        if (typeof global.appData !== 'undefined') {
+            return global.appData;
+        }
+        return {};
     }
 
     function getClassData() {
@@ -80,6 +108,105 @@
             );
         }
         return classes;
+    }
+
+    function getEssayVisibleClasses() {
+        if (global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getVisibleClasses) {
+            return global.CCPClassroomZoneContext.getVisibleClasses();
+        }
+        return getAccessibleClasses();
+    }
+
+    function syncClassIdFromContext() {
+        if (typeof global.CCPActiveContext !== 'undefined') {
+            const ctxId = global.CCPActiveContext.getActiveClassId();
+            if (ctxId) {
+                classId = ctxId;
+            }
+        } else {
+            const ui = getAppData().ui || {};
+            if (ui.classroomTabClassId) {
+                classId = ui.classroomTabClassId;
+            }
+        }
+    }
+
+    function getEssayAssignmentMap() {
+        const data = getAppData();
+        if (!data.ui) {
+            data.ui = {};
+        }
+        if (!data.ui.essayAssignmentByClassId || typeof data.ui.essayAssignmentByClassId !== 'object') {
+            data.ui.essayAssignmentByClassId = {};
+        }
+        return data.ui.essayAssignmentByClassId;
+    }
+
+    function rowExistsInClass(classData, rowId) {
+        const d = domain();
+        if (!classData || !d || !rowId) {
+            return false;
+        }
+        return d
+            .getEssayRowsFromSyllabus(classData.syllabusRows)
+            .some((r) => d.getSyllabusRowKey(r) === rowId);
+    }
+
+    function resolveEssayAssignmentForClass(classData) {
+        const d = domain();
+        if (!classData || !d) {
+            return null;
+        }
+        const map = getEssayAssignmentMap();
+        const savedId = map[classData.id] || '';
+        if (savedId && rowExistsInClass(classData, savedId)) {
+            return d
+                .getEssayRowsFromSyllabus(classData.syllabusRows)
+                .find((r) => d.getSyllabusRowKey(r) === savedId);
+        }
+        return d.pickDefaultEssaySyllabusRow(classData, lessonDate || d.todayISO());
+    }
+
+    function persistEssayAssignmentForClass(cId, rowId) {
+        const map = getEssayAssignmentMap();
+        map[cId] = rowId;
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref('classroomTabEssaySyllabusRowId', rowId);
+        }
+        if (typeof global.saveUiStateToLocalStorage === 'function') {
+            global.saveUiStateToLocalStorage();
+        }
+    }
+
+    function applyResolvedAssignment(classData) {
+        const d = domain();
+        const row = resolveEssayAssignmentForClass(classData);
+        if (row && d) {
+            syllabusRowId = d.getSyllabusRowKey(row);
+            lessonDate = row.date || '';
+        } else {
+            syllabusRowId = '';
+        }
+    }
+
+    function ensureClassVisibleAfterFilter(panel, options) {
+        const silent = options && options.silent;
+        const zone = global.CCPClassroomZoneContext;
+        if (zone && zone.ensureActiveClassVisible) {
+            const switched = zone.ensureActiveClassVisible();
+            if (switched) {
+                syncClassIdFromContext();
+                applyResolvedAssignment(getClassData());
+                selectedStudentIds.clear();
+                loadSubmission();
+                if (!silent && panel && hooks && hooks.showToast) {
+                    const cls = getClassData();
+                    hooks.showToast(tf('essayClassFilterSwitchedClass', { name: (cls && cls.name) || classId }));
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     function getAssignmentLabelForCurrent() {
@@ -108,6 +235,24 @@
             essaySubmission: draftSubmission,
             assignmentLabel: getAssignmentLabelForCurrent()
         });
+    }
+
+    function syncResubmitDayNoteIfNeeded() {
+        if (!resubmitDayNoteDirty || resubmitDayNoteSyncInFlight) {
+            return;
+        }
+        resubmitDayNoteDirty = false;
+        resubmitDayNoteSyncInFlight = true;
+        Promise.resolve(syncResubmitDayNote())
+            .catch(() => {
+                resubmitDayNoteDirty = true;
+            })
+            .finally(() => {
+                resubmitDayNoteSyncInFlight = false;
+                if (resubmitDayNoteDirty) {
+                    syncResubmitDayNoteIfNeeded();
+                }
+            });
     }
 
     function loadProgressReportSelection() {
@@ -139,7 +284,7 @@
             return [];
         }
         return progressApi.listEssayAssignments(getAppData(), {
-            classes: getAccessibleClasses(),
+            classes: getEssayVisibleClasses(),
             access: access()
         });
     }
@@ -386,13 +531,10 @@
     }
 
     function pickDefaultRow() {
-        const d = domain();
         const classData = getClassData();
-        if (!classData || !d) {
-            return null;
-        }
-        const row = d.pickDefaultEssaySyllabusRow(classData, lessonDate || d.todayISO());
-        if (row) {
+        const row = resolveEssayAssignmentForClass(classData);
+        const d = domain();
+        if (row && d) {
             syllabusRowId = d.getSyllabusRowKey(row);
             lessonDate = row.date || '';
         }
@@ -418,12 +560,19 @@
     function loadSubmission() {
         const d = domain();
         const data = getAppData();
+        const classData = getClassData();
+        if (!classData || !d) {
+            draftSubmission = null;
+            return;
+        }
+        if (!syllabusRowId || !rowExistsInClass(classData, syllabusRowId)) {
+            applyResolvedAssignment(classData);
+        }
         if (!syllabusRowId) {
             pickDefaultRow();
         }
         const students = getStudents();
         const existing = d.findEssaySubmission(data.essaySubmissions, classId, syllabusRowId);
-        const classData = getClassData();
         const row =
             classData &&
             d.getEssayRowsFromSyllabus(classData.syllabusRows).find((r) => d.getSyllabusRowKey(r) === syllabusRowId);
@@ -457,7 +606,7 @@
 
     function setRecord(studentId, patch) {
         if (!draftSubmission) {
-            return;
+            return { changed: false, prev: null, next: null };
         }
         const records = Array.isArray(draftSubmission.records) ? draftSubmission.records.slice() : [];
         const idx = records.findIndex((r) => r.studentId === studentId);
@@ -465,12 +614,52 @@
             ? records[idx]
             : { studentId, status: 'not_submitted', submittedRetest: false, note: '' };
         const next = Object.assign({}, base, patch);
+        const changed = JSON.stringify(base) !== JSON.stringify(next);
+        if (!changed) {
+            return { changed: false, prev: base, next };
+        }
         if (idx >= 0) {
             records[idx] = next;
         } else {
             records.push(next);
         }
         draftSubmission.records = records;
+        return { changed: true, prev: base, next };
+    }
+
+    function recordAffectsResubmitDayNote(prev, next) {
+        const before = prev || { status: 'not_submitted', note: '' };
+        const after = next || { status: 'not_submitted', note: '' };
+        const beforeResubmit = before.status === 'resubmit_required';
+        const afterResubmit = after.status === 'resubmit_required';
+        if (before.status !== after.status && (beforeResubmit || afterResubmit)) {
+            return true;
+        }
+        if ((beforeResubmit || afterResubmit) && String(before.note || '') !== String(after.note || '')) {
+            return true;
+        }
+        return false;
+    }
+
+    function markResubmitDayNoteDirty() {
+        resubmitDayNoteDirty = true;
+    }
+
+    function getDraftRenderSignature() {
+        if (!draftSubmission) {
+            return 'no-draft';
+        }
+        return JSON.stringify({
+            filter: currentFilter,
+            ssDueDate: draftSubmission.ssDueDate || '',
+            teacherEvalDueDate: draftSubmission.teacherEvalDueDate || '',
+            records: (draftSubmission.records || []).map((rec) => ({
+                studentId: rec.studentId || '',
+                status: rec.status || 'not_submitted',
+                submittedRetest: !!rec.submittedRetest,
+                note: rec.note || ''
+            }))
+        });
     }
 
     function getEssayStatusCounts() {
@@ -482,96 +671,34 @@
         return Object.assign({ total: students.length }, counts);
     }
 
-    function formatDeadlineHint(labelKey, isoDate) {
+    function isReceivedStatus(status) {
+        return status === 'submitted' || status === 'complete' || status === 'resubmit_required';
+    }
+
+    function buildOverduePill(isoDate) {
         const d = domain();
         if (!d || !isoDate) {
             return '';
         }
         const days = d.daysUntilISO(isoDate);
-        if (days == null) {
+        if (days == null || days > 0) {
             return '';
         }
-        const lang = hooks && hooks.getLang ? hooks.getLang() : 'en';
-        const formatted = new Date(isoDate + 'T00:00:00').toLocaleDateString(lang === 'ko' ? 'ko-KR' : undefined, {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-        const label = t(labelKey);
-        let hintKey = 'classroomEssayDeadlineLeft';
-        let vars = { label, date: formatted, days };
-        if (days < 0) {
-            hintKey = 'classroomEssayDeadlineOverdue';
-            vars = { label, date: formatted, days: Math.abs(days) };
-        } else if (days === 0) {
-            hintKey = 'classroomEssayDeadlineToday';
-            vars = { label, date: formatted };
-        }
-        const cls = days < 0 || days === 0 ? 'classroom-essay-deadline--overdue' : 'classroom-essay-deadline--ok';
-        return `<p class="classroom-essay-deadline ${cls}">${escapeHtml(tf(hintKey, vars))}</p>`;
+        const overdueDays = days === 0 ? 0 : Math.abs(days);
+        const label =
+            days === 0
+                ? t('classroomEssayOverdueToday')
+                : tf('classroomEssayOverdueDays', { days: overdueDays });
+        return `<span class="classroom-essay-overdue-pill" role="status"><span class="classroom-essay-overdue-pill-dot" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
     }
 
-    function buildDeadlineHintsHtml() {
-        if (!draftSubmission) {
-            return '';
-        }
-        const ss = draftSubmission.ssDueDate || '';
-        const te = draftSubmission.teacherEvalDueDate || '';
-        return formatDeadlineHint('classroomEssaySsDueShort', ss)
-            + formatDeadlineHint('classroomEssayTeacherEvalDueShort', te);
-    }
-
-    function updateSaveStatus(next) {
-        saveStatus = next;
-        const el = panelRef && panelRef.querySelector('#classroomEssaysSaveStatus');
-        if (!el) {
-            return;
-        }
-        let key = 'classroomEssaySaveSaved';
-        let cls = 'classroom-essay-save-status--saved';
-        if (next === 'saving') {
-            key = 'classroomEssaySaveSaving';
-            cls = 'classroom-essay-save-status--saving';
-        } else if (next === 'pending') {
-            key = 'classroomEssaySavePending';
-            cls = 'classroom-essay-save-status--pending';
-        } else if (next === 'error') {
-            key = 'classroomEssaySaveError';
-            cls = 'classroom-essay-save-status--error';
-        }
-        el.textContent = t(key);
-        el.className = `classroom-essay-save-status section-hint ${cls}`;
-    }
-
-    function ensureDebouncedSave() {
-        if (debouncedSaveEssays) {
-            return;
-        }
-        const debounceFn = hooks && hooks.debounce ? hooks.debounce : null;
-        if (debounceFn) {
-            debouncedSaveEssays = debounceFn(() => {
-                void saveAll(panelRef, { silent: true });
-            }, 600);
-        }
-    }
-
-    function scheduleSave() {
-        ensureDebouncedSave();
-        if (debouncedSaveEssays) {
-            updateSaveStatus('pending');
-            debouncedSaveEssays();
-        } else {
-            void saveAll(panelRef, { silent: true });
-        }
-    }
-
-    async function flushPendingSave() {
-        if (debouncedSaveEssays && debouncedSaveEssays.flush) {
-            debouncedSaveEssays.flush();
-        }
-        if (saveInFlight) {
-            await saveInFlight;
-        }
+    function statusFilterSegments() {
+        return [
+            { filter: 'not_submitted', labelKey: 'classroomEssayStatusNotSubmitted', cls: 'essay-status--not' },
+            { filter: 'submitted', labelKey: 'classroomEssayStatusReceived', cls: 'essay-status--submitted' },
+            { filter: 'complete', labelKey: 'classroomEssayStatusComplete', cls: 'essay-status--complete' },
+            { filter: 'resubmit_required', labelKey: 'classroomEssayStatusResubmit', cls: 'essay-status--resubmit' }
+        ];
     }
 
     function isTypingInEssayNote(panel) {
@@ -594,19 +721,13 @@
         }
     }
 
-    function syncPanelAfterSilentSave(panel) {
-        if (!panel || panel.hidden || isTypingInEssayNote(panel)) {
-            return;
-        }
-        renderStatsBar(panel);
-        renderRows(panel);
-        renderSaveStatus(panel);
-    }
-
     async function flushBeforeLeave() {
         const panel = panelRef || document.getElementById('panel-essays');
         blurActiveEssayNote(panel);
-        await flushPendingSave();
+        ensureAutosave(panel);
+        if (autosave) {
+            await autosave.flushBeforeLeave();
+        }
     }
 
     function essayStatsSegmentFlex(counts) {
@@ -620,15 +741,6 @@
             flex: counts[key] || 0,
             count: counts[key] || 0
         }));
-    }
-
-    function statusFilterSegments() {
-        return [
-            { filter: 'not_submitted', labelKey: 'classroomEssayStatusNotSubmitted', cls: 'essay-status--not' },
-            { filter: 'submitted', labelKey: 'classroomEssayStatusSubmitted', cls: 'essay-status--submitted' },
-            { filter: 'complete', labelKey: 'classroomEssayStatusComplete', cls: 'essay-status--complete' },
-            { filter: 'resubmit_required', labelKey: 'classroomEssayStatusResubmit', cls: 'essay-status--resubmit' }
-        ];
     }
 
     function renderStatsBar(panel) {
@@ -646,30 +758,39 @@
         const counts = d.countEssayByStatus(draftSubmission);
         const segments = essayStatsSegmentFlex(counts);
         const trackHtml = segments
+            .filter((seg) => seg.count > 0)
             .map((seg) => {
                 const meta = statusFilterSegments().find((s) => s.filter === seg.key);
                 const cls = meta ? meta.cls : '';
-                const pressed = currentFilter === seg.key ? 'true' : 'false';
-                const title = meta ? t(meta.labelKey) : seg.key;
                 const flex = seg.flex > 0 ? seg.flex : 0.001;
-                return `<button type="button" class="classroom-essay-stats-segment ${cls}${currentFilter === seg.key ? ' is-active' : ''}" data-filter="${escapeAttr(seg.key)}" style="flex-grow:${flex}" aria-pressed="${pressed}" title="${escapeAttr(title)} (${seg.count})"></button>`;
+                const active = currentFilter === seg.key ? ' is-active' : '';
+                const pressed = currentFilter === seg.key ? 'true' : 'false';
+                const label = meta ? t(meta.labelKey) : seg.key;
+                return `<button type="button" class="classroom-essay-stats-segment ${cls}${active}" style="flex-grow:${flex}" data-filter="${escapeAttr(seg.key)}" aria-pressed="${pressed}" aria-label="${escapeAttr(label)}"></button>`;
             })
             .join('');
-        const legendHtml = statusFilterSegments()
-            .map((seg) => {
-                const count = counts[seg.filter] || 0;
-                const active = currentFilter === seg.filter ? ' is-active' : '';
-                return `<button type="button" class="classroom-essay-stats-legend-item ${seg.cls}${active}" data-filter="${escapeAttr(seg.filter)}">${escapeHtml(t(seg.labelKey))} (${count})</button>`;
-            })
+        const allActive = currentFilter === 'all' ? ' is-active' : '';
+        const chipHtml = [
+            `<button type="button" class="classroom-essay-filter-chip${allActive}" data-filter="all" aria-pressed="${currentFilter === 'all' ? 'true' : 'false'}"><span class="classroom-essay-filter-count">${counts.total || 0}</span> ${escapeHtml(t('classroomEssayFilterAll'))}</button>`
+        ]
+            .concat(
+                statusFilterSegments().map((seg) => {
+                    const count = counts[seg.filter] || 0;
+                    const active = currentFilter === seg.filter ? ' is-active' : '';
+                    const pressed = currentFilter === seg.filter ? 'true' : 'false';
+                    return `<button type="button" class="classroom-essay-filter-chip ${seg.cls}${active}" data-filter="${escapeAttr(seg.filter)}" aria-pressed="${pressed}"><span class="classroom-essay-filter-dot" aria-hidden="true"></span>${escapeHtml(t(seg.labelKey))} <span class="classroom-essay-filter-count">${count}</span></button>`;
+                })
+            )
             .join('');
         mount.innerHTML = `
-            <div class="classroom-essay-stats-track">${trackHtml}</div>
-            <div class="classroom-essay-stats-legend">${legendHtml}</div>`;
+            <div class="classroom-essay-stats-track" role="group" aria-label="${escapeAttr(t('classroomEssayFilterLabel'))}">${trackHtml}</div>
+            <div class="classroom-essay-filter-chips" role="group" aria-label="${escapeAttr(t('classroomEssayFilterLabel'))}">${chipHtml}</div>`;
 
         const onSegmentClick = (filter) => {
             currentFilter = currentFilter === filter ? 'all' : filter;
             renderStatsBar(panel);
             renderRows(panel);
+            renderFooterHint(panel);
         };
 
         mount.querySelectorAll('[data-filter]').forEach((btn) => {
@@ -679,48 +800,154 @@
         });
     }
 
-    function applyBatchStatus(panel, status, setRetest) {
+    function renderFooterHint(panel) {
+        const mount = panel.querySelector('#classroomEssaysFooterHint');
+        if (!mount) {
+            return;
+        }
+        const students = getStudents();
+        const filtered =
+            currentFilter === 'all'
+                ? students
+                : students.filter((entry) => {
+                    const rec = getRecord(entry.student.id);
+                    const status = rec ? rec.status : 'not_submitted';
+                    return status === currentFilter;
+                });
+        mount.textContent = tf('classroomEssayFilterFooter', {
+            shown: String(filtered.length),
+            total: String(students.length)
+        });
+    }
+
+    function applyStagedBatchToRecord(rec, action, status, setRetest) {
+        if (action === 'submission') {
+            if (status === 'submitted') {
+                return Object.assign({}, rec, { status: 'submitted' });
+            }
+            if (status === 'not_submitted') {
+                return Object.assign({}, rec, { status: 'not_submitted', submittedRetest: false });
+            }
+            return rec;
+        }
+        if (action === 'evaluation') {
+            if (!isReceivedStatus(rec.status)) {
+                return rec;
+            }
+            const next = Object.assign({}, rec, { status });
+            if (status !== 'resubmit_required') {
+                next.submittedRetest = false;
+            } else if (setRetest != null) {
+                next.submittedRetest = !!setRetest;
+            }
+            return next;
+        }
+        return rec;
+    }
+
+    function recordPatchFromBatch(prev, next) {
+        const patch = {};
+        if (next.status !== prev.status) {
+            patch.status = next.status;
+        }
+        if (next.submittedRetest !== prev.submittedRetest) {
+            patch.submittedRetest = next.submittedRetest;
+        }
+        return patch;
+    }
+
+    function applyBatchActions(panel, submissionStatus, evaluationStatus, setRetest) {
         const editable = access() && access().canEditClass(getClassData());
         if (!editable || !draftSubmission || !selectedStudentIds.size) {
             return;
         }
+        const hasSubmission = submissionStatus && submissionStatus !== 'no_change';
+        const hasEvaluation = evaluationStatus && evaluationStatus !== 'no_change';
+        if (!hasSubmission && !hasEvaluation) {
+            return;
+        }
+        let skippedEvaluation = 0;
         selectedStudentIds.forEach((sid) => {
-            const patch = { status };
-            if (setRetest != null) {
-                patch.submittedRetest = !!setRetest;
+            const rec = getRecord(sid);
+            if (!rec) {
+                return;
             }
-            setRecord(sid, patch);
+            let next = Object.assign({}, rec);
+            if (hasSubmission) {
+                next = applyStagedBatchToRecord(next, 'submission', submissionStatus, null);
+            }
+            if (hasEvaluation) {
+                const beforeEval = next;
+                next = applyStagedBatchToRecord(next, 'evaluation', evaluationStatus, setRetest);
+                if (next === beforeEval && !isReceivedStatus(beforeEval.status)) {
+                    skippedEvaluation += 1;
+                }
+            }
+            const patch = recordPatchFromBatch(rec, next);
+            if (!Object.keys(patch).length) {
+                return;
+            }
+            const result = setRecord(sid, patch);
+            if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+                markResubmitDayNoteDirty();
+            }
         });
+        if (skippedEvaluation > 0 && hooks && hooks.showToast) {
+            hooks.showToast(tf('classroomEssayBatchSkippedNotice', { count: skippedEvaluation }));
+        }
         renderHeader(panel);
         renderStatsBar(panel);
         renderFilters(panel);
         renderRows(panel);
         scheduleSave();
-        void syncResubmitDayNote();
+    }
+
+    function syncBatchRetestVisibility(mount) {
+        const evalSelect = mount.querySelector('#classroomEssaysBatchEvaluation');
+        const retestLabel = mount.querySelector('.classroom-essay-batch-retest');
+        if (!evalSelect || !retestLabel) {
+            return;
+        }
+        const show = evalSelect.value === 'resubmit_required';
+        retestLabel.hidden = !show;
+        if (!show) {
+            const cb = retestLabel.querySelector('input');
+            if (cb) {
+                cb.checked = false;
+            }
+        }
     }
 
     function renderFilters(panel) {
-        const mount = panel.querySelector('#classroomEssaysFilters');
+        const mount = panel.querySelector('#classroomEssaysBatchActions');
         if (!mount || !draftSubmission) {
             return;
         }
         const editable = access() && access().canEditClass(getClassData());
         const disabled = editable ? '' : ' disabled';
-        const statusOpts = statusOptions()
-            .map((opt) => `<option value="${escapeAttr(opt.status)}">${escapeHtml(opt.label)}</option>`)
-            .join('');
+        const noChange = escapeHtml(t('classroomEssayBatchNoChange'));
 
         mount.innerHTML = `
-            <div class="classroom-essay-batch-row">
+            <div class="classroom-essay-batch-row classroom-batch-row">
                 <label class="classroom-essay-batch-field">
-                    <span class="section-hint">${escapeHtml(t('classroomEssayBatchStatusLabel'))}</span>
-                    <select id="classroomEssaysBatchStatus" class="field-select field-control--compact"${disabled}>
-                        ${statusOpts}
+                    <span class="section-hint">${escapeHtml(t('classroomEssayBatchSubmissionLabel'))}</span>
+                    <select id="classroomEssaysBatchSubmission" class="field-select field-control--compact"${disabled}>
+                        <option value="no_change">${noChange}</option>
+                        <option value="submitted">${escapeHtml(t('classroomEssayMarkReceived'))}</option>
+                        <option value="not_submitted">${escapeHtml(t('classroomEssayBatchSubmissionMarkNot'))}</option>
                     </select>
                 </label>
-                <label class="checkbox-label classroom-essay-batch-retest">
+                <label class="classroom-essay-batch-field">
+                    <span class="section-hint">${escapeHtml(t('classroomEssayBatchEvaluationLabel'))}</span>
+                    <select id="classroomEssaysBatchEvaluation" class="field-select field-control--compact"${disabled}>
+                        <option value="no_change">${noChange}</option>
+                        <option value="complete">${escapeHtml(t('classroomEssayStatusComplete'))}</option>
+                        <option value="resubmit_required">${escapeHtml(t('classroomEssayStatusResubmit'))}</option>
+                    </select>
+                </label>
+                <label class="checkbox-label classroom-essay-batch-retest" hidden>
                     <input type="checkbox" id="classroomEssaysBatchRetest"${disabled} />
-                    <span>${escapeHtml(t('classroomEssayBatchRetest'))}</span>
+                    <span>${escapeHtml(t('classroomEssayResubmissionReceived'))}</span>
                 </label>
                 <button type="button" id="classroomEssaysBatchApplyBtn" class="btn btn-primary btn-compact"${disabled}>${escapeHtml(t('classroomEssayBatchApply'))}</button>
                 <button type="button" id="classroomEssaysProgressReportBtn" class="btn btn-outline btn-compact">${escapeHtml(t('classroomEssayProgressReportBtn'))}</button>
@@ -730,11 +957,98 @@
             openProgressReportModal();
         });
 
+        mount.querySelector('#classroomEssaysBatchEvaluation')?.addEventListener('change', () => {
+            syncBatchRetestVisibility(mount);
+        });
+
         mount.querySelector('#classroomEssaysBatchApplyBtn')?.addEventListener('click', () => {
-            const status = mount.querySelector('#classroomEssaysBatchStatus')?.value || 'not_submitted';
+            const submissionStatus = mount.querySelector('#classroomEssaysBatchSubmission')?.value || 'no_change';
+            const evaluationStatus = mount.querySelector('#classroomEssaysBatchEvaluation')?.value || 'no_change';
             const retestCb = mount.querySelector('#classroomEssaysBatchRetest');
-            const setRetest = retestCb && retestCb.checked ? true : null;
-            applyBatchStatus(panel, status, setRetest);
+            const setRetest =
+                evaluationStatus === 'resubmit_required' && retestCb && retestCb.checked ? true : null;
+            applyBatchActions(panel, submissionStatus, evaluationStatus, setRetest);
+        });
+    }
+
+    function renderAssignmentBar(panel) {
+        const mount = panel.querySelector('#classroomEssaysAssignmentBar');
+        if (!mount) {
+            return;
+        }
+        const classData = getClassData();
+        const d = domain();
+        const editable = access() && access().canEditClass(classData);
+        const deadlineDisabled = editable ? '' : ' disabled';
+        const rows = classData && d ? d.getEssayRowsFromSyllabus(classData.syllabusRows) : [];
+        const rowOpts = rows
+            .map((row) => {
+                const key = d.getSyllabusRowKey(row);
+                const sel = key === syllabusRowId ? ' selected' : '';
+                const label = `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+                return `<option value="${escapeHtml(key)}" data-date="${escapeHtml(row.date || '')}"${sel}>${escapeHtml(label)}</option>`;
+            })
+            .join('');
+        const ss = draftSubmission ? draftSubmission.ssDueDate || '' : '';
+        const te = draftSubmission ? draftSubmission.teacherEvalDueDate || '' : '';
+        const toggleLabel = deadlinesStripOpen
+            ? t('classroomEssayHideDeadlines')
+            : t('classroomEssayShowDeadlines');
+        mount.innerHTML = `
+            <div class="classroom-essays-assignment-inner">
+                <label class="classroom-header-field classroom-header-field--assignment">
+                    <span>${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>
+                    <select id="classroomEssaysAssignmentSelect" class="field-select field-control--compact">${rowOpts}</select>
+                </label>
+                <button type="button" class="btn btn-outline btn-compact" id="classroomEssaysDeadlinesToggle">${escapeHtml(toggleLabel)}</button>
+            </div>
+            <div id="classroomEssaysDeadlinesStrip" class="classroom-essay-deadlines-strip"${deadlinesStripOpen ? '' : ' hidden'}>
+                <div class="classroom-essay-deadline-field">
+                    <span class="classroom-essay-deadline-label">${escapeHtml(t('classroomEssaySsDue'))}</span>
+                    <div class="classroom-essay-deadline-control">
+                        <input type="date" id="classroomEssaysSsDue" class="field-input field-control--compact" value="${escapeHtml(ss)}"${deadlineDisabled} />
+                        ${buildOverduePill(ss)}
+                    </div>
+                </div>
+                <div class="classroom-essay-deadline-field">
+                    <span class="classroom-essay-deadline-label">${escapeHtml(t('classroomEssayTeacherEvalDue'))}</span>
+                    <div class="classroom-essay-deadline-control">
+                        <input type="date" id="classroomEssaysTeacherEvalDue" class="field-input field-control--compact" value="${escapeHtml(te)}"${deadlineDisabled} />
+                        ${buildOverduePill(te)}
+                    </div>
+                </div>
+            </div>`;
+
+        mount.querySelector('#classroomEssaysDeadlinesToggle')?.addEventListener('click', () => {
+            deadlinesStripOpen = !deadlinesStripOpen;
+            renderAssignmentBar(panel);
+        });
+
+        mount.querySelector('#classroomEssaysAssignmentSelect')?.addEventListener('change', async (e) => {
+            await flushBeforeLeave();
+            const opt = e.target.selectedOptions[0];
+            syllabusRowId = e.target.value;
+            lessonDate = opt ? opt.getAttribute('data-date') || '' : '';
+            if (classId && syllabusRowId) {
+                persistEssayAssignmentForClass(classId, syllabusRowId);
+            }
+            selectedStudentIds.clear();
+            loadSubmission();
+            render(panel);
+        });
+        mount.querySelector('#classroomEssaysSsDue')?.addEventListener('change', (e) => {
+            if (draftSubmission) {
+                draftSubmission.ssDueDate = e.target.value;
+            }
+            scheduleSave();
+            renderAssignmentBar(panel);
+        });
+        mount.querySelector('#classroomEssaysTeacherEvalDue')?.addEventListener('change', (e) => {
+            if (draftSubmission) {
+                draftSubmission.teacherEvalDueDate = e.target.value;
+            }
+            scheduleSave();
+            renderAssignmentBar(panel);
         });
     }
 
@@ -744,143 +1058,79 @@
             return;
         }
         global.CCPClassroomHeader.setMode('essays');
-        const data = getAppData();
-        const editable = access() && access().canEditClass(getClassData());
-        let classes = getAccessibleClasses();
         global.CCPClassroomHeader.render(
             headerMount,
             {
                 classId,
                 classData: getClassData(),
-                classes,
-                syllabusRowId,
-                studentCount: getStudents().length,
-                essaySubmissions: data.essaySubmissions,
-                classSearchQuery,
-                essayStatusCounts: getEssayStatusCounts(),
-                essayDeadlines: draftSubmission
-                    ? {
-                        ssDueDate: draftSubmission.ssDueDate || '',
-                        teacherEvalDueDate: draftSubmission.teacherEvalDueDate || ''
-                    }
-                    : {},
-                essayDeadlinesReadOnly: !editable,
-                essayDeadlineHintsHtml: buildDeadlineHintsHtml()
+                studentCount: getStudents().length
             },
-            {
-                mode: 'essays',
-                onClassSearchChange: (query) => {
-                    classSearchQuery = query || '';
-                    if (hooks && hooks.setUiPref) {
-                        hooks.setUiPref('classroomEssayClassSearch', classSearchQuery);
-                    }
-                    global.CCPClassroomHeader.renderClassComboboxList(
-                        headerMount,
-                        {
-                            classId,
-                            classes,
-                            classSearchQuery,
-                            essaySubmissions: data.essaySubmissions
-                        },
-                        { onClassChange: async (id) => {
-                            await flushPendingSave();
-                            classId = id;
-                            classSearchQuery = '';
-                            if (hooks && hooks.setUiPref) {
-                                hooks.setUiPref('classroomTabClassId', id);
-                                hooks.setUiPref('classroomEssayClassSearch', '');
-                            }
-                            syllabusRowId = '';
-                            selectedStudentIds.clear();
-                            loadSubmission();
-                            render(panel);
-                        } }
-                    );
-                },
-                onClassChange: async (id) => {
-                    await flushPendingSave();
-                    classId = id;
-                    classSearchQuery = '';
-                    if (hooks && hooks.setUiPref) {
-                        hooks.setUiPref('classroomTabClassId', id);
-                        hooks.setUiPref('classroomEssayClassSearch', '');
-                    }
-                    syllabusRowId = '';
-                    selectedStudentIds.clear();
-                    loadSubmission();
-                    render(panel);
-                },
-                onAssignmentChange: async (rowId, date) => {
-                    await flushPendingSave();
-                    syllabusRowId = rowId;
-                    lessonDate = date || '';
-                    if (hooks && hooks.setUiPref) {
-                        hooks.setUiPref('classroomTabEssaySyllabusRowId', rowId);
-                    }
-                    selectedStudentIds.clear();
-                    loadSubmission();
-                    render(panel);
-                },
-                onEssaySsDueChange: (value) => {
-                    if (draftSubmission) {
-                        draftSubmission.ssDueDate = value;
-                    }
-                    renderHeader(panel);
-                    scheduleSave();
-                },
-                onEssayTeacherEvalDueChange: (value) => {
-                    if (draftSubmission) {
-                        draftSubmission.teacherEvalDueDate = value;
-                    }
-                    renderHeader(panel);
-                    scheduleSave();
-                }
-            }
+            { mode: 'essays' }
         );
     }
 
     function statusOptions() {
         return [
             { status: 'not_submitted', label: t('classroomEssayStatusNotSubmitted'), cls: 'essay-status--not' },
-            { status: 'submitted', label: t('classroomEssayStatusSubmitted'), cls: 'essay-status--submitted' },
+            { status: 'submitted', label: t('classroomEssayStatusReceived'), cls: 'essay-status--submitted' },
             { status: 'complete', label: t('classroomEssayStatusComplete'), cls: 'essay-status--complete' },
             { status: 'resubmit_required', label: t('classroomEssayStatusResubmit'), cls: 'essay-status--resubmit' }
         ];
     }
 
-    function buildStatusPills(studentId, editable) {
-        const rec = getRecord(studentId);
-        const current = rec ? rec.status : 'not_submitted';
-        const disabled = editable ? '' : ' disabled';
-        const pills = statusOptions()
-            .map((opt) => {
-                const active = current === opt.status ? ' essay-status-btn--active' : '';
-                const pressed = current === opt.status ? 'true' : 'false';
-                return `<button type="button" class="essay-status-btn ${opt.cls}${active}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(opt.status)}" aria-pressed="${pressed}"${disabled}>${escapeHtml(opt.label)}</button>`;
-            })
-            .join('');
-        return `<div class="classroom-essay-status-group" role="group" aria-label="${escapeAttr(t('classroomColEssayStatus'))}">${pills}</div>`;
+    function essayRowRailCls(status) {
+        const map = {
+            not_submitted: 'classroom-sheet-row--status-essay-not',
+            submitted: 'classroom-sheet-row--status-essay-received',
+            complete: 'classroom-sheet-row--status-essay-complete',
+            resubmit_required: 'classroom-sheet-row--status-essay-resubmit'
+        };
+        const modifier = map[status] || map.not_submitted;
+        return `classroom-sheet-row--status-rail ${modifier}`;
     }
 
-    function updateRowStatusUi(row, status) {
-        if (!row) {
-            return;
+    function buildSubmissionCell(studentId, editable) {
+        const rec = getRecord(studentId);
+        const status = rec ? rec.status : 'not_submitted';
+        const received = isReceivedStatus(status);
+        const disabled = editable ? '' : ' disabled';
+        if (received) {
+            return `<button type="button" class="btn btn-primary btn-compact btn-small classroom-essay-submission-btn classroom-essay-submission-btn--received" data-student-id="${escapeAttr(studentId)}" data-action="toggle-received"${disabled}>
+                <span class="classroom-essay-submission-check" aria-hidden="true"></span>
+                ${escapeHtml(t('classroomEssayStatusReceived'))}
+            </button>`;
         }
-        statusOptions().forEach((opt) => {
-            row.classList.remove(opt.cls);
-        });
-        const match = statusOptions().find((o) => o.status === status);
-        if (match) {
-            row.classList.add(match.cls);
-        }
-        const group = row.querySelector('.classroom-essay-status-group');
-        if (group) {
-            group.querySelectorAll('.essay-status-btn').forEach((btn) => {
-                const active = btn.getAttribute('data-status') === status;
-                btn.classList.toggle('essay-status-btn--active', active);
-                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
-        }
+        return `<button type="button" class="btn btn-outline btn-compact btn-small classroom-essay-submission-btn classroom-essay-submission-btn--pending" data-student-id="${escapeAttr(studentId)}" data-action="mark-received"${disabled}>
+            <span class="classroom-essay-submission-box" aria-hidden="true"></span>
+            ${escapeHtml(t('classroomEssayMarkReceived'))}
+        </button>`;
+    }
+
+    function buildEvaluationCell(studentId, editable) {
+        const rec = getRecord(studentId);
+        const status = rec ? rec.status : 'not_submitted';
+        const received = isReceivedStatus(status);
+        const disabledAttr = editable && received ? '' : ' disabled';
+        const completeActive = status === 'complete' ? ' is-active' : '';
+        const resubmitActive = status === 'resubmit_required' ? ' is-active' : '';
+        const retestHtml =
+            status === 'resubmit_required'
+                ? `<label class="classroom-essay-retest-toggle">
+                    <input type="checkbox" class="classroom-essay-retest" data-student-id="${escapeAttr(studentId)}" ${rec && rec.submittedRetest ? 'checked' : ''}${editable ? '' : ' disabled'} />
+                    <span>${escapeHtml(t('classroomEssayResubmissionReceived'))}</span>
+                </label>`
+                : '';
+        const hintHtml = received
+            ? ''
+            : `<span class="classroom-essay-eval-hint">${escapeHtml(t('classroomEssayGradingOpensOnceReceived'))}</span>`;
+        return `<div class="classroom-essay-evaluation-cell">
+            <div class="classroom-essay-eval-segments" role="group" aria-label="${escapeAttr(t('classroomColEvaluation'))}">
+                <button type="button" class="btn btn-small classroom-essay-eval-btn${completeActive}" data-student-id="${escapeAttr(studentId)}" data-status="complete"${disabledAttr}>${escapeHtml(t('classroomEssayStatusComplete'))}</button>
+                <button type="button" class="btn btn-small classroom-essay-eval-btn${resubmitActive}" data-student-id="${escapeAttr(studentId)}" data-status="resubmit_required"${disabledAttr}>${escapeHtml(t('classroomEssayStatusResubmit'))}</button>
+            </div>
+            ${retestHtml}
+            ${hintHtml}
+        </div>`;
     }
 
     function bindSelectionControls(panel, rowsMount, visibleStudents) {
@@ -932,11 +1182,13 @@
 
         if (!syllabusRowId) {
             rowsMount.innerHTML = `<tr><td colspan="6" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomEssayNoAssignment'))}</p></td></tr>`;
+            renderFooterHint(panel);
             return;
         }
 
         if (!students.length) {
             rowsMount.innerHTML = `<tr><td colspan="6" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
+            renderFooterHint(panel);
             return;
         }
 
@@ -951,6 +1203,7 @@
 
         if (!filtered.length) {
             rowsMount.innerHTML = `<tr><td colspan="6" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomEssayNoStudentsFilter'))}</p></td></tr>`;
+            renderFooterHint(panel);
             return;
         }
 
@@ -958,7 +1211,6 @@
             .map((entry, index) => {
                 const sid = entry.student.id;
                 const rec = getRecord(sid);
-                const retest = rec ? rec.submittedRetest : false;
                 const note = rec ? rec.note || '' : '';
                 const identity = rowApi
                     ? rowApi.formatStudentIdentityColumn(entry, t)
@@ -968,16 +1220,15 @@
                 const status = rec ? rec.status : 'not_submitted';
                 const statusCls = statusOptions().find((o) => o.status === status);
                 const rowStatusCls = statusCls ? statusCls.cls : 'essay-status--not';
-                return `<tr class="classroom-sheet-row classroom-essay-row ${rowStatusCls}" data-student-id="${escapeHtml(sid)}">
+                const railCls = essayRowRailCls(status);
+                return `<tr class="classroom-sheet-row classroom-essay-row ${rowStatusCls} ${railCls}" data-student-id="${escapeHtml(sid)}">
                 <td class="classroom-sheet-col-select">
                     <input type="checkbox" class="classroom-essay-select" data-student-id="${escapeHtml(sid)}" aria-label="${escapeHtml(t('classroomEssayBatchSelectCol'))}"${checked}${disabled} />
                 </td>
                 <td class="classroom-sheet-col-index">${index + 1}</td>
                 <td class="classroom-sheet-col-student">${identity}</td>
-                <td class="classroom-sheet-col-essay-status">${buildStatusPills(sid, editable)}</td>
-                <td class="classroom-sheet-col-retest">
-                    <input type="checkbox" class="classroom-essay-retest" data-student-id="${escapeHtml(sid)}" ${retest ? 'checked' : ''}${disabled} aria-label="${escapeHtml(t('classroomEssayRetest'))}" />
-                </td>
+                <td class="classroom-sheet-col-submission">${buildSubmissionCell(sid, editable)}</td>
+                <td class="classroom-sheet-col-evaluation">${buildEvaluationCell(sid, editable)}</td>
                 <td class="classroom-sheet-col-notes">
                     <input type="text" class="field-input field-control--compact classroom-essay-note" data-student-id="${escapeHtml(sid)}" value="${escapeHtml(note)}" placeholder="${escapeHtml(t('classroomEssayNote'))}" aria-label="${escapeHtml(t('classroomEssayNote'))}"${disabled} />
                 </td>
@@ -987,22 +1238,54 @@
 
         bindSelectionControls(panel, rowsMount, filtered);
 
-        rowsMount.querySelectorAll('.essay-status-btn').forEach((btn) => {
+        rowsMount.querySelectorAll('[data-action="mark-received"]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) {
+                    return;
+                }
+                const sid = btn.getAttribute('data-student-id');
+                const result = setRecord(sid, { status: 'submitted' });
+                if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+                    markResubmitDayNoteDirty();
+                }
+                renderStatsBar(panel);
+                renderRows(panel);
+                scheduleSave();
+            });
+        });
+        rowsMount.querySelectorAll('[data-action="toggle-received"]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) {
+                    return;
+                }
+                const sid = btn.getAttribute('data-student-id');
+                const result = setRecord(sid, { status: 'not_submitted', submittedRetest: false });
+                if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+                    markResubmitDayNoteDirty();
+                }
+                renderStatsBar(panel);
+                renderRows(panel);
+                scheduleSave();
+            });
+        });
+        rowsMount.querySelectorAll('.classroom-essay-eval-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 if (btn.disabled) {
                     return;
                 }
                 const status = btn.getAttribute('data-status');
                 const sid = btn.getAttribute('data-student-id');
-                setRecord(sid, { status });
-                renderStatsBar(panel);
-                if (currentFilter === 'all' || currentFilter === status) {
-                    updateRowStatusUi(btn.closest('tr'), status);
-                } else {
-                    renderRows(panel);
+                const patch = { status };
+                if (status !== 'resubmit_required') {
+                    patch.submittedRetest = false;
                 }
+                const result = setRecord(sid, patch);
+                if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+                    markResubmitDayNoteDirty();
+                }
+                renderStatsBar(panel);
+                renderRows(panel);
                 scheduleSave();
-                void syncResubmitDayNote();
             });
         });
         rowsMount.querySelectorAll('.classroom-essay-retest').forEach((cb) => {
@@ -1013,16 +1296,17 @@
         });
         rowsMount.querySelectorAll('.classroom-essay-note').forEach((input) => {
             input.addEventListener('input', () => {
-                setRecord(input.getAttribute('data-student-id'), { note: input.value });
-            });
-            input.addEventListener('blur', () => {
+                const result = setRecord(input.getAttribute('data-student-id'), { note: input.value });
+                if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+                    markResubmitDayNoteDirty();
+                }
                 scheduleSave();
-                void syncResubmitDayNote();
             });
         });
+        renderFooterHint(panel);
     }
 
-    async function saveAll(panel, options) {
+    async function persistEssays(panel, options) {
         const opt = options || {};
         const editable = access() && access().canEditClass(getClassData());
         if (!editable || !draftSubmission) {
@@ -1033,44 +1317,35 @@
         draftSubmission.syllabusRowId = syllabusRowId;
         draftSubmission.lessonDate = lessonDate;
         const submissions = d.upsertEssaySubmission(data.essaySubmissions, draftSubmission);
+        const preSaveRenderSignature = opt.silent ? getDraftRenderSignature() : '';
+        const saveBtn = panel && panel.querySelector('#classroomEssaysSaveBtn');
 
-        const run = async () => {
-            updateSaveStatus('saving');
-            try {
-                await hooks.saveClassroom({ essaySubmissions: submissions });
-                saveStatus = 'saved';
-                updateSaveStatus('saved');
-                if (!opt.silent) {
-                    hooks.showToast(t('saved'));
-                }
-                loadSubmission();
-                if (!opt.skipRender && !opt.silent) {
-                    render(panel);
-                } else if (opt.silent) {
-                    syncPanelAfterSilentSave(panel);
-                }
-                void syncResubmitDayNote();
-            } catch (err) {
-                saveStatus = 'error';
-                updateSaveStatus('error');
-                hooks.showToast(err.message || String(err), true);
-            }
-        };
-
-        saveInFlight = run();
+        if (saveBtn) {
+            saveBtn.disabled = true;
+        }
         try {
-            await saveInFlight;
+            await hooks.saveClassroom({ essaySubmissions: submissions });
+            if (!opt.silent) {
+                hooks.showToast(t('saved'));
+            }
+            loadSubmission();
+            if (!opt.skipRender && !opt.silent) {
+                render(panel);
+            } else if (opt.silent && panel && !panel.hidden && !isTypingInEssayNote(panel)) {
+                if (preSaveRenderSignature !== getDraftRenderSignature()) {
+                    renderStatsBar(panel);
+                    renderRows(panel);
+                }
+            }
+            syncResubmitDayNoteIfNeeded();
+        } catch (err) {
+            hooks.showToast(err.message || String(err), true);
+            throw err;
         } finally {
-            saveInFlight = null;
+            if (saveBtn) {
+                saveBtn.disabled = !(access() && access().canEditClass(getClassData()));
+            }
         }
-    }
-
-    function renderSaveStatus(panel) {
-        const mount = panel.querySelector('#classroomEssaysSaveStatus');
-        if (!mount) {
-            return;
-        }
-        updateSaveStatus(saveStatus === 'pending' ? 'pending' : saveStatus);
     }
 
     function render(panel) {
@@ -1078,57 +1353,81 @@
             return;
         }
         panelRef = panel;
+        syncClassIdFromContext();
         renderHeader(panel);
-        const deadlinesWrap = panel.querySelector('#classroomEssaysDeadlines');
-        if (deadlinesWrap) {
-            deadlinesWrap.innerHTML = '';
-            deadlinesWrap.hidden = true;
-        }
+        renderAssignmentBar(panel);
         renderStatsBar(panel);
         renderFilters(panel);
         renderRows(panel);
-        renderSaveStatus(panel);
+        renderFooterHint(panel);
+
+        ensureAutosave(panel);
+        if (autosave) {
+            autosave.syncStatusDisplay();
+            autosave.bindManualSaveBtn(panel, '#classroomEssaysSaveBtn', () =>
+                access() && access().canEditClass(getClassData())
+            );
+        }
+    }
+
+    async function onActiveContextChange() {
+        const panel = document.getElementById('panel-essays');
+        if (!panel || panel.hidden) {
+            return;
+        }
+        await flushBeforeLeave();
+        syncClassIdFromContext();
+        applyResolvedAssignment(getClassData());
+        selectedStudentIds.clear();
+        loadSubmission();
+        render(panel);
     }
 
     async function initTab(h, options) {
         hooks = h;
-        ensureDebouncedSave();
         await flushBeforeLeave();
         const data = getAppData();
         const d = domain();
-        classId =
-            (options && options.classId) ||
-            (data.ui && data.ui.classroomTabClassId) ||
-            (data.classes && data.classes[0] && data.classes[0].id) ||
-            '';
-        syllabusRowId =
-            (options && options.syllabusRowId) ||
-            (data.ui && data.ui.classroomTabEssaySyllabusRowId) ||
-            '';
-        classSearchQuery = (data.ui && data.ui.classroomEssayClassSearch) || '';
+        const visible = getEssayVisibleClasses();
+        if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
+            classId = global.CCPActiveContext.resolveActiveClassId(data, {
+                classId: options && options.classId,
+                visibleClasses: visible
+            });
+        } else {
+            classId =
+                (options && options.classId) ||
+                (data.ui && data.ui.classroomTabClassId) ||
+                (visible[0] && visible[0].id) ||
+                '';
+        }
         lessonDate = (data.ui && data.ui.classroomTabDate) || (d ? d.todayISO() : '');
         currentFilter = 'all';
         selectedStudentIds.clear();
-        saveStatus = 'saved';
-        if (!syllabusRowId) {
-            pickDefaultRow();
-        }
+        resubmitDayNoteDirty = false;
+        applyResolvedAssignment(getClassData());
         loadSubmission();
         bindProgressReportModal();
-        render(document.getElementById('panel-essays'));
+        ensureClassVisibleAfterFilter(document.getElementById('panel-essays'), { silent: true });
+        const panel = document.getElementById('panel-essays');
+        render(panel);
+        if (typeof global.CCPActiveContext !== 'undefined' && !initTab._subscribed) {
+            initTab._subscribed = true;
+            global.CCPActiveContext.subscribe((detail) => {
+                if (detail && detail.classId !== undefined) {
+                    void onActiveContextChange();
+                }
+            });
+        }
     }
 
-    function applyBatchStatusToRecords(records, studentIds, status, setRetest) {
+    function applyBatchStatusToRecords(records, studentIds, action, status, setRetest) {
         const idSet = new Set(studentIds);
         return records.map((rec) => {
             if (!idSet.has(rec.studentId)) {
                 return rec;
             }
-            const next = Object.assign({}, rec, { status });
-            if (setRetest != null) {
-                next.submittedRetest = !!setRetest;
-            }
-            return next;
+            return applyStagedBatchToRecord(rec, action, status, setRetest);
         });
     }
 
@@ -1136,7 +1435,15 @@
         initTab,
         render,
         flushBeforeLeave,
+        isReceivedStatus,
+        applyStagedBatchToRecord,
         applyBatchStatusToRecords,
-        essayStatsSegmentFlex
+        essayStatsSegmentFlex,
+        recordAffectsResubmitDayNote,
+        ESSAY_AUTOSAVE_DELAY_MS,
+        resolveEssayAssignmentForClass,
+        rowExistsInClass,
+        getEssayAssignmentMap,
+        persistEssayAssignmentForClass
     };
 })(typeof window !== 'undefined' ? window : globalThis);

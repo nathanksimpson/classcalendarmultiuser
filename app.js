@@ -768,13 +768,8 @@ function initAppStoreAndRenderOrchestrator() {
         if (typeof refreshCohortsSetupBoard === 'function') {
             refreshCohortsSetupBoard();
         }
-    });
-    CCPRenderOrchestrator.register('setup-hub', () => {
-        if (typeof CCPSetupHub !== 'undefined' && CCPSetupHub.refresh) {
-            CCPSetupHub.refresh();
-        }
-        if (typeof CCPSetupBoard !== 'undefined' && CCPSetupBoard.renderBoardForScope) {
-            CCPSetupBoard.renderBoardForScope('panel-setup-hub');
+        if (typeof CCPCohortsClassDetail !== 'undefined' && CCPCohortsClassDetail.refresh) {
+            CCPCohortsClassDetail.refresh();
         }
     });
     CCPRenderOrchestrator.register('homework', () => {
@@ -4952,6 +4947,9 @@ function ensureUiState() {
     if (appData.ui.cohortsExtraCollapsed === undefined) {
         appData.ui.cohortsExtraCollapsed = false;
     }
+    if (appData.ui.classNotesFiltersCollapsed === undefined) {
+        appData.ui.classNotesFiltersCollapsed = false;
+    }
     if (typeof appData.ui.teachersTabCatalogCategoryFilter !== 'string') {
         appData.ui.teachersTabCatalogCategoryFilter = 'all';
     }
@@ -4993,6 +4991,28 @@ function ensureUiState() {
             appData.ui.homeworkFilters.subjects = null;
         }
     }
+    if (typeof appData.ui.classroomZoneMyClassesOnly !== 'boolean') {
+        appData.ui.classroomZoneMyClassesOnly =
+            appData.ui.classroomZoneMyClassesOnly === '1' ||
+            appData.ui.classroomZoneMyClassesOnly === true ||
+            (appData.ui.essayClassFilters && appData.ui.essayClassFilters.myClassesOnly === true);
+    }
+    if (typeof appData.ui.classroomZoneEssaysOnly !== 'boolean') {
+        appData.ui.classroomZoneEssaysOnly =
+            appData.ui.classroomZoneEssaysOnly === '1' ||
+            appData.ui.classroomZoneEssaysOnly === true;
+    }
+    if (!appData.ui.essayAssignmentByClassId || typeof appData.ui.essayAssignmentByClassId !== 'object') {
+        appData.ui.essayAssignmentByClassId = {};
+    }
+    if (
+        appData.ui.classroomTabEssaySyllabusRowId &&
+        appData.ui.classroomTabClassId &&
+        !appData.ui.essayAssignmentByClassId[appData.ui.classroomTabClassId]
+    ) {
+        appData.ui.essayAssignmentByClassId[appData.ui.classroomTabClassId] =
+            appData.ui.classroomTabEssaySyllabusRowId;
+    }
     if (typeof appData.ui.homeworkHelpExpanded !== 'boolean') {
         appData.ui.homeworkHelpExpanded = false;
     }
@@ -5030,8 +5050,16 @@ function getSyllabusTemplatesApi() {
     return typeof window !== 'undefined' ? window.CCPSyllabusTemplates : null;
 }
 
-/** Homework sidebar height is CSS-only (sticky + max-height); kept for call-site compatibility. */
+/** Measure homework tab chrome for layout vars; reposition date popover when open. */
 function syncHomeworkSidebarChromeOffset() {
+    const panel = document.getElementById('panel-homework');
+    const chrome = panel && !panel.hidden ? panel.querySelector('.homework-tab-chrome') : null;
+    if (chrome) {
+        const chromeHeight = Math.ceil(chrome.getBoundingClientRect().height);
+        if (chromeHeight > 0) {
+            document.documentElement.style.setProperty('--homework-tab-chrome-height', `${chromeHeight}px`);
+        }
+    }
     if (isHomeworkReferenceDatePopoverOpen()) {
         positionHomeworkReferenceDatePopover();
     }
@@ -5072,7 +5100,7 @@ function syncAppChromeStickyTop() {
 
 const VIEWPORT_BP_PHONE = 640;
 const VIEWPORT_BP_TABLET = 1024;
-const APP_SETUP_PHONE_TAB_IDS = ['cohorts', 'setup-hub', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
+const APP_SETUP_PHONE_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
 let viewportTierResizeBound = false;
 
 function isViewportPhone() {
@@ -5129,6 +5157,7 @@ function syncViewportTier() {
     }
     syncMobileSetupLimitedBanner();
     syncNotesTabPhoneChrome();
+    syncClassNotesFiltersLayout();
     syncWorkspaceMobileLimitedBanner();
     syncHeaderCompactLabels();
     if (typeof renderTimetableView === 'function' && getActiveTab() === 'timetable') {
@@ -5865,6 +5894,157 @@ function setCohortsExtraCollapsed(collapsed) {
     appData.ui.cohortsExtraCollapsed = collapsed === true;
     applyCohortsExtraCollapsedState();
     saveUiStateToLocalStorage();
+}
+
+function isClassNotesFiltersCompactLayout() {
+    return isViewportTabletOrBelow();
+}
+
+let classNotesFiltersWasCompactLayout = null;
+
+function getClassNotesFiltersDateSummaryText() {
+    const fromVal = (document.getElementById('classNotesFilterFrom')?.value || '').trim();
+    const toVal = (document.getElementById('classNotesFilterTo')?.value || '').trim();
+    if (!fromVal && !toVal) {
+        return '';
+    }
+    const fromLabel = fromVal ? formatDateDisplay(fromVal) : '…';
+    const toLabel = toVal ? formatDateDisplay(toVal) : '…';
+    return `${fromLabel} – ${toLabel}`;
+}
+
+function updateClassNotesFiltersSummary() {
+    const summaryEl = document.getElementById('classNotesFiltersSummary');
+    if (!summaryEl) {
+        return;
+    }
+    ensureUiState();
+    const collapsed = isClassNotesFiltersCompactLayout() && appData.ui.classNotesFiltersCollapsed === true;
+    const summaryText = getClassNotesFiltersDateSummaryText();
+    if (collapsed && summaryText) {
+        summaryEl.textContent = summaryText;
+        summaryEl.hidden = false;
+    } else {
+        summaryEl.textContent = '';
+        summaryEl.hidden = true;
+    }
+}
+
+function applyClassNotesFiltersCollapsedState() {
+    const panel = document.getElementById('classNotesFiltersPanel');
+    const backdrop = document.getElementById('classNotesFiltersBackdrop');
+    if (!panel) {
+        return;
+    }
+    ensureUiState();
+    const compact = isClassNotesFiltersCompactLayout();
+    const expanded = compact && appData.ui.classNotesFiltersCollapsed !== true;
+    const collapsed = compact && !expanded;
+    panel.classList.toggle('class-notes-filters-panel--collapsed', collapsed);
+    panel.classList.toggle('class-notes-filters-panel--expanded', expanded);
+    document.body.classList.toggle('class-notes-filters-open', expanded);
+    if (backdrop) {
+        backdrop.hidden = !expanded;
+        backdrop.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+    }
+    const toggle = document.getElementById('classNotesFiltersToggle');
+    if (toggle) {
+        const ariaKey = collapsed ? 'classNotesFiltersShow' : 'classNotesFiltersHide';
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        toggle.setAttribute('aria-label', t(ariaKey));
+    }
+    updateClassNotesFiltersSummary();
+}
+
+function setClassNotesFiltersCollapsed(collapsed) {
+    ensureUiState();
+    appData.ui.classNotesFiltersCollapsed = collapsed === true;
+    applyClassNotesFiltersCollapsedState();
+}
+
+function syncClassNotesFiltersLayout() {
+    if (!document.getElementById('classNotesShell')) {
+        return;
+    }
+    ensureUiState();
+    const compact = isClassNotesFiltersCompactLayout();
+    if (!compact) {
+        classNotesFiltersWasCompactLayout = false;
+        appData.ui.classNotesFiltersCollapsed = false;
+        applyClassNotesFiltersCollapsedState();
+        return;
+    }
+    if (classNotesFiltersWasCompactLayout === false || classNotesFiltersWasCompactLayout === null) {
+        appData.ui.classNotesFiltersCollapsed = true;
+    }
+    classNotesFiltersWasCompactLayout = true;
+    applyClassNotesFiltersCollapsedState();
+}
+
+let classNotesFiltersEscapeBound = false;
+
+function initClassNotesFiltersToggle() {
+    const toggle = document.getElementById('classNotesFiltersToggle');
+    const header = document.querySelector('.class-notes-filters-header');
+    const backdrop = document.getElementById('classNotesFiltersBackdrop');
+    const closeBtn = document.getElementById('classNotesFiltersCloseBtn');
+    if (!toggle) {
+        syncClassNotesFiltersLayout();
+        return;
+    }
+    if (toggle.dataset.classNotesFiltersBound !== '1') {
+        toggle.dataset.classNotesFiltersBound = '1';
+        const onToggle = () => {
+            if (!isClassNotesFiltersCompactLayout()) {
+                return;
+            }
+            ensureUiState();
+            setClassNotesFiltersCollapsed(!appData.ui.classNotesFiltersCollapsed);
+        };
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onToggle();
+        });
+        if (header && header.dataset.classNotesFiltersHeaderBound !== '1') {
+            header.dataset.classNotesFiltersHeaderBound = '1';
+            header.addEventListener('click', (e) => {
+                if (!isClassNotesFiltersCompactLayout()) {
+                    return;
+                }
+                if (e.target === toggle || toggle.contains(e.target)) {
+                    return;
+                }
+                if (closeBtn && (e.target === closeBtn || closeBtn.contains(e.target))) {
+                    return;
+                }
+                onToggle();
+            });
+        }
+        backdrop?.addEventListener('click', () => {
+            if (isClassNotesFiltersCompactLayout()) {
+                setClassNotesFiltersCollapsed(true);
+            }
+        });
+        closeBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isClassNotesFiltersCompactLayout()) {
+                setClassNotesFiltersCollapsed(true);
+            }
+        });
+        if (!classNotesFiltersEscapeBound) {
+            classNotesFiltersEscapeBound = true;
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape' || !isClassNotesFiltersCompactLayout()) {
+                    return;
+                }
+                ensureUiState();
+                if (appData.ui.classNotesFiltersCollapsed !== true) {
+                    setClassNotesFiltersCollapsed(true);
+                }
+            });
+        }
+    }
+    syncClassNotesFiltersLayout();
 }
 
 function initCohortsExtraToggle() {
@@ -10355,7 +10535,17 @@ function ensureClassNotesShell() {
         return null;
     }
     mount.appendChild(tpl.content.cloneNode(true));
-    return document.getElementById('classNotesShell');
+    shell = document.getElementById('classNotesShell');
+    if (shell) {
+        const panel = document.getElementById('classNotesFiltersPanel');
+        if (panel) {
+            panel.classList.remove('class-notes-filters-panel--expanded');
+        }
+        requestAnimationFrame(() => {
+            initClassNotesFiltersToggle();
+        });
+    }
+    return shell;
 }
 
 function mountClassNotesShell(mountEl) {
@@ -10958,6 +11148,7 @@ function resetClassNotesFilters() {
     syncClassNotesTodayChipFromDates();
     renderClassNotesTab();
     saveClassNotesFiltersToUi();
+    updateClassNotesFiltersSummary();
 }
 
 function syncClassNotesTodayChipFromDates() {
@@ -11030,6 +11221,7 @@ function handleClassNotesDateFilterChange() {
     syncClassNotesTodayChipFromDates();
     renderClassNotesTab();
     saveClassNotesFiltersToUi();
+    updateClassNotesFiltersSummary();
 }
 
 function applyClassNotesClassSearch() {
@@ -11895,7 +12087,11 @@ function refreshClassNotesPanelIfMounted() {
 
 function initClassNotesPanelListeners() {
     const shell = document.getElementById('classNotesShell');
-    if (!shell || shell.dataset.classNotesListenersBound === '1') {
+    if (!shell) {
+        return;
+    }
+    if (shell.dataset.classNotesListenersBound === '1') {
+        initClassNotesFiltersToggle();
         return;
     }
     shell.dataset.classNotesListenersBound = '1';
@@ -11986,6 +12182,7 @@ function initClassNotesPanelListeners() {
         saveClassNotesSortToUi();
         renderClassNotesTab();
     });
+    initClassNotesFiltersToggle();
 }
 
 function initClassNotesTab() {
@@ -12014,6 +12211,7 @@ function initClassNotesTab() {
     }
     applyClassNotesFiltersFromUi();
     syncClassNotesTodayChipFromDates();
+    initClassNotesFiltersToggle();
 }
 
 function initClassesPanelSegments() {
@@ -12970,19 +13168,22 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'points',
     'tests'
 ];
-const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'setup-hub', 'teachers', 'curriculum', 'syllabus', 'data'];
+const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
-const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'setup-hub', 'teachers'];
+const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
 const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS];
 const APP_SETUP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
 const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP_SETUP_ONLY_TAB_IDS];
 
 const APP_ZONE_SCHEDULE = 'schedule';
 const APP_ZONE_CLASSES = 'classes';
-const APP_ZONE_SETUP_HUB = 'setup-hub';
 const APP_ZONE_CLASSROOM = 'classroom';
 const APP_ZONE_MORE = 'more';
-const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_SETUP_HUB, APP_ZONE_CLASSROOM, APP_ZONE_MORE];
+const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CLASSROOM, APP_ZONE_MORE];
+
+const DIRECT_ZONE_TAB = {
+    [APP_ZONE_MORE]: 'data'
+};
 
 const ZONE_SEGMENT_TO_TAB = {
     schedule: { calendar: 'calendar', events: 'events', homework: 'homework', timetable: 'timetable' },
@@ -12993,7 +13194,6 @@ const ZONE_SEGMENT_TO_TAB = {
         curriculum: 'curriculum',
         syllabus: 'syllabus'
     },
-    'setup-hub': { 'setup-hub': 'setup-hub' },
     classroom: {
         students: 'students',
         attendance: 'attendance',
@@ -13242,12 +13442,20 @@ function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
     if (segment === 'teachers' && zone === APP_ZONE_MORE) {
         zone = APP_ZONE_CLASSES;
     }
-    if (segment === 'setup-hub' && zone === APP_ZONE_CLASSES) {
-        zone = APP_ZONE_SETUP_HUB;
+    if (zone === 'setup-hub') {
+        zone = APP_ZONE_CLASSES;
+        segment = 'cohorts';
+    }
+    if (segment === 'setup-hub') {
+        zone = APP_ZONE_CLASSES;
+        segment = 'cohorts';
     }
     if (segment === 'command-center') {
         zone = APP_ZONE_SCHEDULE;
         segment = 'timetable';
+    }
+    if (zone === APP_ZONE_MORE && segment === 'data') {
+        segment = '';
     }
     return { zone, segment };
 }
@@ -13267,7 +13475,6 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     timetable: { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
     classes: { zone: APP_ZONE_CLASSES, segment: 'classes' },
     cohorts: { zone: APP_ZONE_CLASSES, segment: 'cohorts' },
-    'setup-hub': { zone: APP_ZONE_SETUP_HUB, segment: 'setup-hub' },
     homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
     'command-center': { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
     notes: { zone: APP_ZONE_CLASSROOM, segment: 'notes' },
@@ -13282,14 +13489,21 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
     teachers: { zone: APP_ZONE_CLASSES, segment: 'teachers' },
-    data: { zone: APP_ZONE_MORE, segment: 'data' }
+    data: { zone: APP_ZONE_MORE, segment: '' }
 };
 
 function getZoneInfoForTab(tabId) {
+    const directZoneId = Object.keys(DIRECT_ZONE_TAB).find((zoneId) => DIRECT_ZONE_TAB[zoneId] === tabId);
+    if (directZoneId) {
+        return { zone: directZoneId, segment: '' };
+    }
     return TAB_TO_ZONE_SEGMENT[tabId] || LEGACY_TAB_ZONE_REDIRECT[tabId] || { zone: APP_ZONE_SCHEDULE, segment: 'calendar' };
 }
 
 function getDefaultSegmentForZone(zoneId) {
+    if (DIRECT_ZONE_TAB[zoneId]) {
+        return '';
+    }
     const ordered = getOrderedSegmentsForZone(zoneId);
     if (ordered.length) {
         return ordered[0];
@@ -13303,6 +13517,9 @@ function getDefaultSegmentForZone(zoneId) {
 }
 
 function getTabIdForZoneSegment(zoneId, segmentId) {
+    if (DIRECT_ZONE_TAB[zoneId]) {
+        return DIRECT_ZONE_TAB[zoneId];
+    }
     const segments = ZONE_SEGMENT_TO_TAB[zoneId];
     if (!segments) {
         return 'calendar';
@@ -13317,9 +13534,6 @@ function canAccessZone(zoneId) {
     if (zoneId === APP_ZONE_MORE) {
         return canAccessSetupHost();
     }
-    if (zoneId === APP_ZONE_SETUP_HUB) {
-        return canAccessTeachersTab();
-    }
     if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_CLASSROOM) {
         return true;
     }
@@ -13327,7 +13541,10 @@ function canAccessZone(zoneId) {
 }
 
 function canAccessZoneSegment(zoneId, segmentId) {
-    if (segmentId === 'cohorts' || segmentId === 'teachers' || segmentId === 'setup-hub') {
+    if (!segmentId && DIRECT_ZONE_TAB[zoneId]) {
+        return canAccessSetupHost();
+    }
+    if (segmentId === 'cohorts' || segmentId === 'teachers') {
         return canAccessTeachersTab();
     }
     if (segmentId === 'data') {
@@ -13339,7 +13556,7 @@ function canAccessZoneSegment(zoneId, segmentId) {
 function syncZoneNavFromTab(tabId) {
     const { zone, segment } = getZoneInfoForTab(tabId);
     document.body.dataset.activeZone = zone;
-    document.body.dataset.activeSegment = segment;
+    document.body.dataset.activeSegment = segment || '';
 
     syncZoneNavPermissions();
 
@@ -13370,6 +13587,10 @@ function syncZoneNavFromTab(tabId) {
     syncAllZoneNavScrollAffordances();
     scrollActiveZoneNavIntoView();
 
+    if (typeof CCPClassroomZoneContext !== 'undefined' && CCPClassroomZoneContext.syncVisibility) {
+        CCPClassroomZoneContext.syncVisibility(tabId);
+    }
+
     updateContentPipelineStepper(tabId);
     updateContentExpandChrome();
     syncContentExpandToggleVisibility(tabId);
@@ -13380,10 +13601,6 @@ function syncZoneNavPermissions() {
     if (cohortsSeg) {
         cohortsSeg.hidden = !canAccessTeachersTab();
     }
-    const setupHubZoneBtn = document.getElementById('zoneBtn-setup-hub');
-    if (setupHubZoneBtn) {
-        setupHubZoneBtn.hidden = !canAccessTeachersTab();
-    }
     const commandCenterSeg = document.querySelector('.app-zone-segment-btn[data-segment="command-center"]');
     if (commandCenterSeg) {
         commandCenterSeg.hidden = true;
@@ -13392,12 +13609,6 @@ function syncZoneNavPermissions() {
     if (classesPanel) {
         classesPanel.querySelectorAll('.app-zone-segment-btn[data-segment="teachers"]').forEach((el) => {
             el.hidden = true;
-        });
-    }
-    const morePanel = document.getElementById('zoneSegments-more');
-    if (morePanel) {
-        morePanel.querySelectorAll('.app-zone-segment-btn[data-segment="data"]').forEach((el) => {
-            el.hidden = !canAccessSetupHost();
         });
     }
     const adminAcct = document.getElementById('teamAdminLink');
@@ -14735,13 +14946,17 @@ async function navigateToTabBody(tabId, options = {}) {
     }
     ensureUiState();
     const previousTab = appData.ui.activeTab;
-    if (
-        previousTab === 'essays'
-        && tabId !== 'essays'
-        && typeof CCPClassroomEssays !== 'undefined'
-        && CCPClassroomEssays.flushBeforeLeave
-    ) {
-        await CCPClassroomEssays.flushBeforeLeave();
+    const classroomFlushTabs = {
+        essays: typeof CCPClassroomEssays !== 'undefined' ? CCPClassroomEssays : null,
+        attendance: typeof CCPClassroomAttendance !== 'undefined' ? CCPClassroomAttendance : null,
+        'homework-tracking':
+            typeof CCPClassroomHomework !== 'undefined' ? CCPClassroomHomework : null,
+        tests: typeof CCPClassroomTests !== 'undefined' ? CCPClassroomTests : null,
+        ledger: typeof CCPClassroomLedger !== 'undefined' ? CCPClassroomLedger : null
+    };
+    const leavingModule = classroomFlushTabs[previousTab];
+    if (previousTab !== tabId && leavingModule && leavingModule.flushBeforeLeave) {
+        await leavingModule.flushBeforeLeave();
     }
     document.body.dataset.activeTab = tabId;
     if (tabId !== 'calendar' && isLessonFilterPopoverOpen()) {
@@ -14863,8 +15078,6 @@ async function navigateToTabBody(tabId, options = {}) {
         void initClassroomTabControls(tabId, options);
     } else if (tabId === 'command-center') {
         void initCommandCenterTabControls(options);
-    } else if (tabId === 'setup-hub') {
-        void initSetupHubTabControls(options);
     } else if (tabId === 'teachers') {
         void initTeachersTabControls(options);
     } else if (tabId === 'curriculum') {
@@ -15404,7 +15617,7 @@ function isHomeworkReferenceDatePopoverOpen() {
 function positionHomeworkReferenceDatePopover() {
     const trigger = document.getElementById('homeworkReferenceDateBtn');
     const popover = document.getElementById('homeworkReferenceDatePopover');
-    if (!trigger || !popover || popover.hidden) {
+    if (!trigger || !popover) {
         return;
     }
     const rect = trigger.getBoundingClientRect();
@@ -15439,6 +15652,7 @@ function openHomeworkReferenceDatePopover() {
         popover.setAttribute('aria-label', t(ariaLabel));
     }
     trigger.setAttribute('aria-expanded', 'true');
+    popover.hidden = false;
     positionHomeworkReferenceDatePopover();
 }
 
@@ -18969,34 +19183,18 @@ function getSetupBoardHooks() {
         refreshTimetablePanels,
         saveUiStateToLocalStorage,
         getActiveTab,
-        listTeachers: listTimetableTeachers
-    });
-}
-
-function getSetupHubBoardHooks() {
-    return Object.assign({}, getSetupBoardHooks(), {
-        getBoardScope() {
-            return {
-                panelId: 'panel-setup-hub',
-                mwfId: 'setupHubBoardViewMwf',
-                tthId: 'setupHubBoardViewTth',
-                searchId: 'setupHubBoardSearch',
-                mwfBtnId: 'setupHubBoardViewBtnMwf',
-                tthBtnId: 'setupHubBoardViewBtnTth',
-                allBtnId: 'setupHubBoardViewBtnAll'
-            };
-        },
+        listTeachers: listTimetableTeachers,
         onSelectClass(classId, cohortId) {
-            if (typeof CCPSetupHub !== 'undefined' && CCPSetupHub.selectClass) {
-                CCPSetupHub.selectClass(classId, cohortId);
+            if (typeof CCPCohortsClassDetail !== 'undefined' && CCPCohortsClassDetail.selectClass) {
+                CCPCohortsClassDetail.selectClass(classId, cohortId);
             } else if (typeof CCPActiveContext !== 'undefined') {
-                CCPActiveContext.set({ classId, cohortId }, { source: 'setup-hub-board' });
+                CCPActiveContext.set({ classId, cohortId }, { source: 'cohorts-board' });
             }
         }
     });
 }
 
-function getSetupHubHooks() {
+function getCohortsClassDetailHooks() {
     return {
         getAppData: () => appData,
         t,
@@ -19006,54 +19204,13 @@ function getSetupHubHooks() {
         saveData,
         isReadOnly: isTeamCalendarViewOnly,
         printClassSyllabus: printClassSyllabusByClassId,
-        renderCohortTimetablePreview: renderCohortTimetablePreviewInto,
-        getCohortEvents(cohortId) {
-            if (!cohortId || typeof CCPCohortSidebarFilter === 'undefined') {
-                return appData.events || [];
-            }
-            return CCPCohortSidebarFilter.filterEventsByCohort(
-                appData.events || [],
-                cohortId,
-                appData.classes || []
-            );
-        },
         openClassEditor(classId) {
             const cls = appData.classes.find((c) => c.id === classId);
             if (cls) {
                 openClassEditor(cls, 'tab', { host: 'setup' });
             }
-        },
-        openEventEditor(eventId) {
-            const ev = (appData.events || []).find((e) => e && e.id === eventId);
-            if (ev) {
-                openEventEditor(ev, 'tab');
-            }
         }
     };
-}
-
-async function initSetupHubTabControls(options = {}) {
-    await ensureExtensionScriptsLoaded();
-    if (typeof CCPTabScripts !== 'undefined') {
-        await CCPTabScripts.ensureTabScripts('setup-hub');
-    }
-    await ensureTeamTeacherAccountsLoaded();
-    initCohortManagementModule();
-    if (typeof CCPCohortManagement !== 'undefined') {
-        try {
-            CCPCohortManagement.initTab(getCohortManagementHooks(), options);
-        } catch (err) {
-            console.error('CCPCohortManagement.initTab failed', err);
-        }
-    }
-    if (typeof CCPSetupBoard !== 'undefined') {
-        CCPSetupBoard.initTab(getSetupHubBoardHooks());
-    }
-    if (typeof CCPSetupHub !== 'undefined') {
-        CCPSetupHub.initTab(getSetupHubHooks());
-    } else {
-        setAppStatusMessage(t('setupHubModuleMissing') || 'Setup Hub module missing', true);
-    }
 }
 
 function initSetupBoardModule() {
@@ -19163,6 +19320,16 @@ async function initCohortsTabControls(options = {}) {
     try {
         initSetupBoardModule();
     } finally {
+        if (typeof CCPCohortsClassDetail !== 'undefined') {
+            CCPCohortsClassDetail.initTab(getCohortsClassDetailHooks());
+        }
+        const timetableBtn = document.getElementById('cohortsOpenTimetableBtn');
+        if (timetableBtn && !timetableBtn.dataset.bound) {
+            timetableBtn.dataset.bound = '1';
+            timetableBtn.addEventListener('click', () => {
+                navigateToZone('schedule', 'timetable');
+            });
+        }
         updateSetupGuideBanner();
         requestAnimationFrame(() => {
             syncCohortsBoardStickyOffsets();
@@ -19261,6 +19428,9 @@ function getClassroomHooks() {
                     CCPActiveContext.set({ classId: appData.ui[key] }, { source: 'classroom-ui-pref' });
                 } else if (key === 'classroomTabDate' || key === 'homeworkReferenceDate') {
                     CCPActiveContext.set({ sessionDate: appData.ui[key] }, { source: 'classroom-ui-pref' });
+                } else if (key === 'classroomZoneMyClassesOnly' || key === 'classroomZoneEssaysOnly') {
+                    appData.ui[key] = value === true || value === '1' || value === 'true';
+                    saveUiStateToLocalStorage();
                 } else if (key === 'cohortsTabSelectedId') {
                     CCPActiveContext.set({ cohortId: appData.ui[key] }, { source: 'cohort-ui-pref' });
                 } else {
@@ -19306,7 +19476,23 @@ function getClassroomHooks() {
         printStudentTermSummary(studentId) {
             openStudentTermSummaryPrint(studentId);
         },
-        debounce
+        debounce,
+        formatClassLabelWithPeriod,
+        getClassLevelDisplay,
+        getEffectiveClassPeriodValues,
+        getClassTeachersList: getClassTeachersListForLessonFilter,
+        formatClassTypeFilterLabel(classTypeId) {
+            const def = getClassTypeDefinitionById(classTypeId);
+            return getClassTypeOptionLabel(def);
+        },
+        classIsMine(classData, userId) {
+            const uid = String(userId || '').trim();
+            if (!uid || !classData) {
+                return false;
+            }
+            return classMatchesLessonFilterTeachers(classData, [uid]);
+        },
+        classMatchesTeachers: classMatchesLessonFilterTeachers
     };
 }
 
@@ -19317,6 +19503,10 @@ async function initClassroomTabControls(tabId, options = {}) {
     }
     await ensureTeamTeacherAccountsLoaded();
     const hooks = getClassroomHooks();
+    if (typeof CCPClassroomZoneContext !== 'undefined') {
+        CCPClassroomZoneContext.init(hooks);
+        CCPClassroomZoneContext.syncVisibility(tabId);
+    }
     if (typeof CCPClassroomHeader !== 'undefined' && CCPClassroomHeader.initTab) {
         CCPClassroomHeader.initTab(hooks);
     }
@@ -31107,6 +31297,7 @@ function shouldAllowTeamViewOnlyInteraction(el) {
         el.id === 'openNotesAppHeaderBtn' ||
         el.id === 'openNotesAppTabBtn' ||
         el.id === 'openNotesAppLink' ||
+        el.id === 'homeworkReferenceDateBtn' ||
         el.id === 'homeworkReferenceTodayBtn' ||
         el.id === 'openPrintBtn' ||
         el.id === 'dataExportCalendarBtn' ||
@@ -32977,20 +33168,12 @@ function buildTabRestoreOptions(tabId) {
         const ctx = typeof CCPActiveContext !== 'undefined' ? CCPActiveContext.get() : {};
         return ctx.classId ? { classId: ctx.classId } : {};
     }
-    if (tabId === 'setup-hub') {
+    if (tabId === 'cohorts') {
         const ctx = typeof CCPActiveContext !== 'undefined' ? CCPActiveContext.get() : {};
         const opts = {};
         if (ctx.cohortId) {
             opts.cohortId = ctx.cohortId;
         }
-        if (ctx.classId) {
-            opts.classId = ctx.classId;
-        }
-        return opts;
-    }
-    if (tabId === 'ledger') {
-        const ctx = typeof CCPActiveContext !== 'undefined' ? CCPActiveContext.get() : {};
-        const opts = {};
         if (ctx.classId) {
             opts.classId = ctx.classId;
         }
