@@ -1161,6 +1161,49 @@
             : '';
     }
 
+    function getScrollSnapshot(panel) {
+        const doc = typeof document !== 'undefined' ? document : null;
+        const pageY =
+            typeof window !== 'undefined' && typeof window.scrollY === 'number'
+                ? window.scrollY
+                : doc && doc.documentElement
+                  ? doc.documentElement.scrollTop || 0
+                  : 0;
+        const scroller = panel && panel.querySelector('.classroom-essay-sheet-scroll');
+        return {
+            pageY,
+            scroller,
+            scrollerTop: scroller ? scroller.scrollTop : 0
+        };
+    }
+
+    function restoreScrollSnapshot(snapshot) {
+        if (!snapshot) {
+            return;
+        }
+        if (snapshot.scroller && typeof snapshot.scroller.scrollTop === 'number') {
+            snapshot.scroller.scrollTop = snapshot.scrollerTop;
+        }
+        if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+            window.scrollTo(window.scrollX || 0, snapshot.pageY || 0);
+        }
+    }
+
+    function updateCurrentClassPickerBadges(panel) {
+        const classData = getClassData();
+        const d = domain();
+        const data = getAppData();
+        const submissions = getEssaySubmissionsForAlerts();
+        const counts =
+            classData && d
+                ? d.essayAlertCountsForClass(submissions, classData, data.cohorts || [])
+                : { rs: 0, od: 0 };
+        const triggerBadges = panel && panel.querySelector('.classroom-essay-class-picker__badges');
+        if (triggerBadges) {
+            triggerBadges.innerHTML = buildAlertBadgesHtml(counts.rs || 0, counts.od || 0);
+        }
+    }
+
     function buildMiniTrackHtml(counts) {
         const segments = essayStatsSegmentFlex(counts || {});
         return segments
@@ -2019,15 +2062,17 @@
         // mid-handler (exception checkbox / status buttons). That pattern can throw
         // in the browser and white-screen the tab.
         const run = () => {
+            const scrollSnapshot = getScrollSnapshot(panel);
             try {
                 renderStatsBar(panel);
-                renderContextBar(panel);
                 if (!studentMatchesFilter(studentId)) {
                     renderRows(panel);
                 } else if (!opts.skipRowRebuild) {
+                    renderContextBar(panel);
                     updateEssayRow(panel, studentId);
                 } else {
-                    // Exception checkbox already reflects the new value; refresh due pill only.
+                    // Exception toggle should not rebuild the control that fired the event.
+                    // Only refresh the small pieces that actually changed.
                     const rowsMount = panel && panel.querySelector('#classroomEssaysRows');
                     const safeId =
                         typeof CSS !== 'undefined' && CSS.escape
@@ -2040,6 +2085,7 @@
                     if (dueCell) {
                         dueCell.innerHTML = buildDueCell(studentId);
                     }
+                    updateCurrentClassPickerBadges(panel);
                 }
                 refreshZoneContextBar();
             } catch (err) {
@@ -2047,6 +2093,7 @@
                     console.error('Essays afterEssayStatusChange failed', err);
                 }
             }
+            restoreScrollSnapshot(scrollSnapshot);
             scheduleStatusSave();
         };
         if (typeof queueMicrotask === 'function') {
