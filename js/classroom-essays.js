@@ -1137,9 +1137,20 @@
         return status === currentFilter;
     }
 
+    function getEssaySubmissionsForAlerts() {
+        const data = getAppData();
+        const list = Array.isArray(data.essaySubmissions) ? data.essaySubmissions.slice() : [];
+        const d = domain();
+        if (!draftSubmission || !d || !d.upsertEssaySubmission) {
+            return list;
+        }
+        return d.upsertEssaySubmission(list, draftSubmission);
+    }
+
     function filterClassesForAttention(classes) {
         const d = domain();
         const data = getAppData();
+        const submissions = getEssaySubmissionsForAlerts();
         const ui = getAppData().ui || {};
         const myClassesOnly =
             ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1';
@@ -1151,7 +1162,7 @@
             }
             const counts =
                 d && c
-                    ? d.essayAlertCountsForClass(data.essaySubmissions, c, data.cohorts || [])
+                    ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
                     : { rs: 0, od: 0 };
             if (essayClassAttentionFilter === 'resubmits' && !(counts.rs > 0)) {
                 return false;
@@ -1438,9 +1449,15 @@
     function refreshZoneContextBar() {
         const zone = global.CCPClassroomZoneContext;
         const mount = document.getElementById('classroomZoneContextBar');
-        if (zone && zone.render && mount) {
-            zone.render(mount);
+        if (!zone || !zone.render || !mount) {
+            return;
         }
+        const submissions = getEssaySubmissionsForAlerts();
+        if (typeof zone.withEssayAlertSubmissions === 'function') {
+            zone.withEssayAlertSubmissions(submissions, () => zone.render(mount));
+            return;
+        }
+        zone.render(mount);
     }
 
     function buildAlertBadgesHtml(rs, od) {
@@ -1535,9 +1552,10 @@
         const classData = getClassData();
         const d = domain();
         const data = getAppData();
+        const submissions = getEssaySubmissionsForAlerts();
         const currentCounts =
             classData && d
-                ? d.essayAlertCountsForClass(data.essaySubmissions, classData, data.cohorts || [])
+                ? d.essayAlertCountsForClass(submissions, classData, data.cohorts || [])
                 : { rs: 0, od: 0 };
         const currentName = classData ? classData.name || classData.id || '' : '';
         const currentBadges = buildAlertBadgesHtml(currentCounts.rs || 0, currentCounts.od || 0);
@@ -1558,7 +1576,7 @@
                     const label = c.name || c.id || '';
                     const counts =
                         d && c
-                            ? d.essayAlertCountsForClass(data.essaySubmissions, c, data.cohorts || [])
+                            ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
                             : { rs: 0, od: 0 };
                     const rs = counts.rs || 0;
                     const od = counts.od || 0;
@@ -2532,22 +2550,33 @@
             if (draftUnchanged) {
                 loadSubmission();
             }
+            const panelVisible = panel && !panel.hidden && !isTypingInEssayNote(panel);
             if (!opt.skipRender && !opt.silent) {
                 if (panel && isTypingInEssayNote(panel)) {
                     if (autosave) {
                         autosave.syncStatusDisplay();
                     }
+                } else if (draftUnchanged && panelVisible) {
+                    if (autosave) {
+                        autosave.syncStatusDisplay();
+                    }
+                    renderContextBar(panel);
+                    refreshZoneContextBar();
                 } else {
                     render(panel);
                 }
-            } else if (opt.silent && panel && !panel.hidden && !isTypingInEssayNote(panel) && !draftUnchanged) {
+            } else if (opt.silent && panelVisible) {
                 renderContextBar(panel);
-                renderStatsBar(panel);
-                renderRows(panel);
+                if (!draftUnchanged) {
+                    renderStatsBar(panel);
+                    renderRows(panel);
+                }
                 refreshZoneContextBar();
             }
             syncResubmitDayNoteIfNeeded();
-            refreshZoneContextBar();
+            if (!(opt.silent && panelVisible)) {
+                refreshZoneContextBar();
+            }
         } catch (err) {
             hooks.showToast(err.message || String(err), true);
             if (autosave && preSaveSignature !== getDraftRenderSignature()) {

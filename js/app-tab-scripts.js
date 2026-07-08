@@ -56,7 +56,7 @@
             'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260708-attention-persistent'
+            'js/classroom-essays.js?v=20260708-live-alerts'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
