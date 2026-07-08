@@ -87,6 +87,7 @@
                             : '';
                 const outstandingStudentCount =
                     (counts.not_submitted || 0) + (counts.resubmit_required || 0);
+                const isPastDueStrict = isOverdueISO(ssDue);
                 assignments.push({
                     key,
                     classId: classData.id,
@@ -100,6 +101,7 @@
                     teacherEvalDueDate: teDue,
                     ssOverdue: isOverdueISO(ssDue),
                     teOverdue: isOverdueISO(teDue),
+                    isPastDueStrict,
                     outstandingStudentCount,
                     hasOutstandingStudents: outstandingStudentCount > 0,
                     percentComplete:
@@ -129,7 +131,7 @@
         }
         const outstandingOnly = opts.outstandingOnly || opts.pendingOnly;
         if (outstandingOnly) {
-            list = list.filter((row) => row.hasOutstandingStudents);
+            list = list.filter((row) => row.hasOutstandingStudents && row.isPastDueStrict);
         }
         return list;
     }
