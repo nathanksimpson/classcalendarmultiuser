@@ -43,6 +43,13 @@ const classC = {
     syllabusRows: [{ kind: 'lesson', date: '2026-03-05', planTitle: 'Essay draft' }]
 };
 
+const classD = {
+    id: 'c4',
+    name: 'Delta',
+    classTeachers: [{ userId: 't1', name: 'Teacher One' }],
+    syllabusRows: [{ kind: 'lesson', date: '2026-03-06', planTitle: 'Lesson 3' }]
+};
+
 const ctx = {
     domain: CCPClassroomDomain,
     currentUserId: 't1',
@@ -73,6 +80,19 @@ const ctx = {
 {
     assert(CCPEssayClassFilter.classHasEssayAssignments(classA, CCPClassroomDomain), 'class A has essays');
     assert(!CCPEssayClassFilter.classHasEssayAssignments(classB, CCPClassroomDomain), 'class B no essays');
+    assert(!CCPEssayClassFilter.classHasEssayAssignments(classD, CCPClassroomDomain), 'class D generic lesson no essays');
+}
+
+{
+    const out = CCPEssayClassFilter.filterClassesForZoneContext(
+        [classA, classB, classC, classD],
+        { essaysOnly: true },
+        ctx
+    );
+    assert(
+        out.length === 2 && out.every((c) => c.id === 'c1' || c.id === 'c3'),
+        'essaysOnly excludes generic-lesson class'
+    );
 }
 
 console.log('essay-class-filter.test.mjs: all passed');

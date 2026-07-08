@@ -129,10 +129,19 @@
         }
         let label = classData.name || classData.id || '';
         if (mode === 'essays' && domain()) {
-            const resubmitBadge = domain().essayResubmitCountForClass(essaySubmissions, classData.id);
-            if (resubmitBadge > 0) {
-                label += ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`;
-            }
+            const data =
+                hooks && hooks.getAppData
+                    ? hooks.getAppData()
+                    : typeof global.appData !== 'undefined'
+                        ? global.appData
+                        : {};
+            const submissions = essaySubmissions || data.essaySubmissions;
+            const counts = domain().essayAlertCountsForClass(
+                submissions,
+                classData,
+                data.cohorts || []
+            );
+            label += domain().formatEssayClassAlertSuffix(counts);
         }
         return label;
     }

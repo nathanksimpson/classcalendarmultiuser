@@ -32,29 +32,31 @@
             'js/essay-tracker-import.js?v=20260630-essay-import',
             'js/roster-import.js?v=20260630-essay-import',
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-student-row.js?v=20260708-essays-visual',
             'js/classroom-roster.js?v=20260701-roster-ui'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-student-row.js?v=20260708-essays-visual',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-attendance.js?v=20260703-zone-context'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-student-row.js?v=20260708-essays-visual',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-homework.js?v=20260703-zone-context'
         ],
         essays: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-student-row.js?v=20260708-essays-visual',
             'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
-            'js/classroom-essay-progress.js?v=20260702-essay-enhance',
-            'js/classroom-essay-progress-print.js?v=20260702-essay-enhance',
-            'js/classroom-header.js?v=20260703-design-fidelity',
-            'js/classroom-essays.js?v=20260703-essay-fidelity'
+            'js/classroom-essay-progress.js?v=20260708-student-progress',
+            'js/classroom-essay-progress-print.js?v=20260708-student-progress',
+            'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
+            'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
+            'js/classroom-header.js?v=20260707-essay-context',
+            'js/classroom-essays.js?v=20260708-essays-visual'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -66,17 +68,35 @@
         ],
         points: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-student-row.js?v=20260708-essays-visual',
             'js/classroom-point-reasons.js?v=20260618-point-reasons',
             'js/classroom-points.js?v=20260703-zone-context'
         ],
         tests: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260612-classroom-density',
+            'js/classroom-student-row.js?v=20260708-essays-visual',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-tests.js?v=20260703-zone-context'
+        ],
+        'debate-teams': [
+            'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+            'js/debate/feedback-templates.js?v=20260708-debate-templates-reload',
+            'js/debate/debate-randomizer-core.js?v=20260708-debate-export-fix',
+            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-debate-teams.js?v=20260708-debate-core-ready2'
         ]
     };
+
+    const DEBATE_OPTIONAL_SCRIPTS = new Set([
+        'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+    ]);
+
+    const DEBATE_CORE_SCRIPTS = [
+        'js/debate/feedback-templates.js?v=20260708-debate-templates-reload',
+        'js/debate/debate-randomizer-core.js?v=20260708-debate-export-fix'
+    ];
 
     const loaded = new Set();
     const inflight = new Map();
@@ -112,7 +132,11 @@
             inflight.delete(marker);
         }
         if (loaded.has(marker)) {
-            return Promise.resolve();
+            if (marker.endsWith('debate-randomizer-core.js') && !isDebateCoreReady()) {
+                invalidateScript(src);
+            } else {
+                return Promise.resolve();
+            }
         }
         if (inflight.has(marker)) {
             return inflight.get(marker);
@@ -121,15 +145,21 @@
             const prior = document.querySelector('script[data-cc-tab-src="' + marker + '"]');
             if (prior) {
                 if (prior.dataset.ccLoaded === '1') {
-                    loaded.add(marker);
-                    resolve();
+                    if (marker.endsWith('debate-randomizer-core.js') && !isDebateCoreReady()) {
+                        prior.remove();
+                        loaded.delete(marker);
+                    } else {
+                        loaded.add(marker);
+                        resolve();
+                        return;
+                    }
+                } else {
+                    prior.addEventListener('load', () => resolve(), { once: true });
+                    prior.addEventListener('error', () => reject(new Error('Failed to load ' + src)), {
+                        once: true
+                    });
                     return;
                 }
-                prior.addEventListener('load', () => resolve(), { once: true });
-                prior.addEventListener('error', () => reject(new Error('Failed to load ' + src)), {
-                    once: true
-                });
-                return;
             }
             const script = document.createElement('script');
             script.src = src;
@@ -152,12 +182,49 @@
         return p;
     }
 
+    function invalidateScript(src) {
+        const marker = scriptMarker(src);
+        loaded.delete(marker);
+        inflight.delete(marker);
+        const existing = document.querySelector('script[data-cc-tab-src="' + marker + '"]');
+        if (existing) {
+            existing.remove();
+        }
+    }
+
+    function isDebateCoreReady() {
+        return !!(
+            global.CCPDebateRandomizerCore &&
+            global.CCPDebateRandomizerCore.importStudentsFromNames
+        );
+    }
+
+    async function ensureDebateCoreScripts() {
+        if (isDebateCoreReady()) {
+            return true;
+        }
+        await Promise.all(DEBATE_CORE_SCRIPTS.map(loadScript));
+        if (isDebateCoreReady()) {
+            return true;
+        }
+        DEBATE_CORE_SCRIPTS.forEach(invalidateScript);
+        await Promise.all(DEBATE_CORE_SCRIPTS.map(loadScript));
+        return isDebateCoreReady();
+    }
+
     async function ensureTabScripts(tabId) {
         const list = TAB_SCRIPTS[tabId];
         if (!list || !list.length) {
             return;
         }
         const unique = [...new Set(list)];
+        if (tabId === 'debate-teams') {
+            const required = unique.filter((src) => !DEBATE_OPTIONAL_SCRIPTS.has(src));
+            const optional = unique.filter((src) => DEBATE_OPTIONAL_SCRIPTS.has(src));
+            await Promise.all(required.map(loadScript));
+            await Promise.allSettled(optional.map(loadScript));
+            return;
+        }
         await Promise.all(unique.map(loadScript));
     }
 
@@ -168,6 +235,8 @@
 
     global.CCPTabScripts = {
         ensureTabScripts,
+        ensureDebateCoreScripts,
+        isDebateCoreReady,
         ensurePrintScripts,
         tabNeedsScripts
     };

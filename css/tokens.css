@@ -200,6 +200,17 @@
     --essay-overdue-bg: #fdecec;
     --essay-overdue-text: #c0392b;
     --essay-overdue-border: #f4c9c4;
+    --essay-context-bg: #f2f7f5;
+    --essay-context-border: #dbe8e2;
+    --essay-toolbar-bg: #fafbfc;
+    --essay-resubmit-tint-bg: #fdf1e5;
+    --essay-resubmit-tint-border: #f2d6b8;
+    --essay-resubmit-tint-text: #b45309;
+    --essay-submitted-tint-bg: #eef4ff;
+    --essay-submitted-tint-border: #c9dbfb;
+    --essay-submitted-tint-text: #1d4ed8;
+    --essay-branch-chip-bg: #f1f4f8;
+    --essay-sheet-header-bg: #f7f9fb;
 
     --badge-warn-bg: #fef3c7;
     --badge-warn-color: #b45309;
@@ -245,6 +256,8 @@
     /* Cohorts setup board: palette sticky top + viewport lock (set from JS) */
     --cohorts-palette-sticky-top: calc(var(--app-chrome-sticky-top) + 4.5rem);
     --cohorts-board-chrome-height: 12rem;
+    /* Homework copy tab: viewport offset to split layout (set from JS) */
+    --homework-sidebar-chrome-offset: 12rem;
     /* Calendar month headers: app bar + floating visibility dock (set from JS) */
     --calendar-month-sticky-top: var(--app-chrome-sticky-top);
     /* One month ≈ one viewport below sticky chrome on the calendar tab */

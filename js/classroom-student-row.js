@@ -80,11 +80,29 @@
         return `${nameLine}${metaLine}`;
     }
 
+    function formatEssayStudentCell(entry, t) {
+        const student = entry.student;
+        const ko = escapeHtml(student.name || student.id);
+        const en = student.nameEn
+            ? `<span class="classroom-essay-student-en">${escapeHtml(student.nameEn)}</span>`
+            : '';
+        const branch = student.locationTag
+            ? `<div class="classroom-essay-student-meta"><span class="classroom-essay-branch-chip">${escapeHtml(student.locationTag)}</span></div>`
+            : '';
+        return `<div class="classroom-essay-student-cell">
+            <div class="classroom-essay-student-name-line">
+                <span class="classroom-essay-student-ko">${ko}</span>${en}
+            </div>
+            ${branch}
+        </div>`;
+    }
+
     global.CCPClassroomStudentRow = {
         escapeHtml,
         buildTagBadges,
         buildPlaceholderActions,
         formatStudentLabel,
-        formatStudentIdentityColumn
+        formatStudentIdentityColumn,
+        formatEssayStudentCell
     };
 })(typeof window !== 'undefined' ? window : globalThis);

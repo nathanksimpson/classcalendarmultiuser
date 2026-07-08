@@ -1,0 +1,271 @@
+<div class="classroom-debate-panel">
+<details id="setup-details" class="setup-details" open>
+            <summary data-i18n="classroomDebateSetupSummary">Edit students &amp; settings</summary>
+
+        <div class="section">
+            <h2 class="form-section-title" data-i18n="classroomDebateModeTitle">Assignment Mode</h2>
+            <div class="mode-toggle">
+                <button type="button" id="mode-random" class="mode-btn active" onclick="setMode('random')">
+                    <span data-i18n="classroomDebateModeRandom">Random Assignment</span>
+                    <span class="mode-desc" data-i18n="classroomDebateModeRandomDesc">Add students, randomly assign to teams</span>
+                </button>
+                <button type="button" id="mode-teams" class="mode-btn" onclick="setMode('teams')">
+                    <span data-i18n="classroomDebateModeTeams">Pre-made Teams</span>
+                    <span class="mode-desc" data-i18n="classroomDebateModeTeamsDesc">Paste or manually enter teams; random or fixed sides</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="section" id="random-mode-section">
+            <h2 class="form-section-title" data-i18n="classroomDebateAddStudents">Add Students</h2>
+            <p class="section-hint" data-i18n="classroomDebateImportRosterHint">Load names from the class roster for the selected class above.</p>
+            <div class="classroom-debate-actions classroom-debate-import-actions">
+                <button type="button" id="classroomDebateImportRosterBtn" class="btn btn-primary btn-compact" data-i18n="classroomDebateImportRoster">Import from roster</button>
+            </div>
+
+            <div class="form-group">
+                <label for="paste-students" data-i18n="classroomDebatePasteLabel">Paste student names (one per line):</label>
+                <textarea id="paste-students" class="field-control" data-i18n-placeholder="classroomDebatePastePlaceholder" placeholder="Alice&#10;Bob&#10;Charlie&#10;Diana"></textarea>
+                <button type="button" class="btn btn-outline btn-compact classroom-debate-add-paste-btn" onclick="addStudentsFromPaste()" data-i18n="classroomDebateAddAllStudents">Add All Students</button>
+            </div>
+
+            <div class="form-group">
+                <label for="manual-student" data-i18n="classroomDebateManualLabel">Or add students one at a time:</label>
+                <div class="manual-entry">
+                    <input type="text" id="manual-student" class="field-input" data-i18n-placeholder="classroomDebateManualPlaceholder" placeholder="Enter student name" onkeypress="if(event.key === 'Enter') addStudent()">
+                    <button type="button" class="btn btn-outline btn-compact" onclick="addStudent()" data-i18n="classroomDebateAddStudent">Add Student</button>
+                </div>
+            </div>
+
+            <div id="student-list-container">
+                <div id="student-list" class="student-list"></div>
+                <div class="classroom-debate-actions">
+                    <button type="button" class="btn btn-outline btn-danger btn-compact" onclick="clearAllStudents()" data-i18n="classroomDebateClearAll">Clear All</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section hidden" id="teams-mode-section">
+            <h2 class="form-section-title" data-i18n="classroomDebatePremadeTitle">Input Pre-made Teams</h2>
+            <p class="section-hint" data-i18n="classroomDebatePremadeHint">Enter your existing teams below. You can paste a list or add members one at a time. Use the option below to randomize sides or keep Team A / Team B fixed.</p>
+
+            <div class="form-group classroom-debate-checkbox-group">
+                <label for="teams-randomize-sides" class="classroom-debate-checkbox-label">
+                    <input type="checkbox" id="teams-randomize-sides" checked>
+                    <span data-i18n="classroomDebateRandomizeSides">Randomize Proposition vs Opposition</span>
+                </label>
+                <p class="section-hint classroom-debate-checkbox-hint" data-i18n="classroomDebateRandomizeSidesHint">When this is off, Team A is always Proposition (Gov) and Team B is always Opposition.</p>
+            </div>
+
+            <div id="team-pairs-container"></div>
+
+            <div class="classroom-debate-actions">
+                <button type="button" onclick="addTeamPair()" class="btn btn-primary btn-compact" data-i18n="classroomDebateAddDebate">Add Another Debate</button>
+                <button type="button" onclick="clearAllTeamPairs()" class="btn btn-outline btn-compact" data-i18n="classroomDebateClearAll">Clear All</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="form-section-title" data-i18n="classroomDebateFormatTitle">Select Debate Format</h2>
+
+            <div class="format-selector">
+                <div class="form-group">
+                    <label for="debate-format" data-i18n="classroomDebateFormatLabel">Debate Format:</label>
+                    <select id="debate-format" class="field-select" onchange="onFormatChange()">
+                        <option value="ap">Asia Parliamentary (AP)</option>
+                        <option value="bp">British Parliamentary (BP)</option>
+                        <option value="wudc">WUDC (World Universities)</option>
+                        <option value="policy">Policy Debate (CX)</option>
+                        <option value="ld">Lincoln-Douglas (LD)</option>
+                        <option value="pf">Public Forum (PF)</option>
+                        <option value="bf">Balloon/Forum Debate (BF)</option>
+                        <option value="knc">KNC (Korea National Congress)</option>
+                        <option value="simson">Simson Format</option>
+                        <option value="simple">Simple (No Roles)</option>
+                        <option value="custom">Custom Format</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="include-reply" class="classroom-debate-checkbox-label">
+                        <input type="checkbox" id="include-reply">
+                        <span data-i18n="classroomDebateIncludeReply">Include Reply Speeches (if applicable)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="format-info" class="format-info"></div>
+
+            <div id="custom-format-builder" class="custom-format-builder hidden">
+                <h3 class="form-section-title" data-i18n="classroomDebateCustomBuilder">Build Your Custom Format</h3>
+
+                <div class="form-group">
+                    <label for="custom-format-name" data-i18n="classroomDebateCustomName">Format Name:</label>
+                    <input type="text" id="custom-format-name" class="field-input classroom-debate-field-narrow" data-i18n-placeholder="classroomDebateCustomNamePlaceholder" placeholder="My Custom Format">
+                </div>
+
+                <div class="custom-roles-input">
+                    <div class="form-group">
+                        <label data-i18n="classroomDebateGovRoles">Government/Proposition/Affirmative Roles:</label>
+                        <div class="manual-entry">
+                            <input type="text" id="custom-gov-role" class="field-input" data-i18n-placeholder="classroomDebateGovRolePlaceholder" placeholder="e.g., Prime Minister" onkeypress="if(event.key === 'Enter') addCustomRole('gov')">
+                            <button type="button" onclick="addCustomRole('gov')" class="btn btn-primary btn-compact" data-i18n="classroomDebateAdd">Add</button>
+                        </div>
+                        <div id="custom-gov-roles" class="role-list-display"></div>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="classroomDebateOppRoles">Opposition/Negative Roles:</label>
+                        <div class="manual-entry">
+                            <input type="text" id="custom-opp-role" class="field-input" data-i18n-placeholder="classroomDebateOppRolePlaceholder" placeholder="e.g., Leader of Opposition" onkeypress="if(event.key === 'Enter') addCustomRole('opp')">
+                            <button type="button" onclick="addCustomRole('opp')" class="btn btn-outline btn-compact" data-i18n="classroomDebateAdd">Add</button>
+                        </div>
+                        <div id="custom-opp-roles" class="role-list-display"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="classroomDebateTeamNames">Team Names:</label>
+                    <div class="form-row classroom-debate-team-names">
+                        <input type="text" id="custom-gov-name" class="field-input" data-i18n-placeholder="classroomDebateGovNamePlaceholder" placeholder="Gov team name (e.g., Government)">
+                        <input type="text" id="custom-opp-name" class="field-input" data-i18n-placeholder="classroomDebateOppNamePlaceholder" placeholder="Opp team name (e.g., Opposition)">
+                    </div>
+                </div>
+
+                <div class="classroom-debate-actions">
+                    <button type="button" onclick="saveCustomFormat()" class="btn btn-primary btn-compact" data-i18n="classroomDebateSaveCustom">Save Custom Format</button>
+                    <button type="button" onclick="loadSavedFormats()" class="btn btn-outline btn-compact" data-i18n="classroomDebateLoadSaved">Load Saved</button>
+                </div>
+
+                <div id="saved-formats-list" class="saved-formats-list hidden"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="form-section-title" data-i18n="classroomDebateGenerateTitle">Generate Teams</h2>
+            <div class="form-group">
+                <label for="class-title" data-i18n="classroomDebateClassTitle">Class name (debates &amp; score sheets):</label>
+                <input type="text" id="class-title" class="field-input classroom-debate-field-wide" data-i18n-placeholder="classroomDebateClassTitlePlaceholder" placeholder="e.g., Period 3 - US History" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="hr-teacher" data-i18n="classroomDebateHrTeacher">HR Teacher (score sheets):</label>
+                <input type="text" id="hr-teacher" class="field-input classroom-debate-field-wide" data-i18n-placeholder="classroomDebateHrTeacherPlaceholder" placeholder="e.g., Mr. Kim" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="limit-team-size" class="classroom-debate-checkbox-label">
+                    <input type="checkbox" id="limit-team-size" checked>
+                    <span data-i18n="classroomDebateLimitTeamSize">Limit Maximum Team Size</span>
+                </label>
+            </div>
+            <div class="form-group" id="max-team-size-group">
+                <label for="max-team-size" data-i18n="classroomDebateMaxTeamSize">Maximum Team Size:</label>
+                <input type="number" id="max-team-size" class="field-input classroom-debate-field-narrow" value="3" min="2" max="10">
+            </div>
+            <div class="classroom-debate-actions classroom-debate-generate-actions">
+                <button type="button" id="btn-generate" onclick="generateDebates()" class="btn btn-primary btn-compact" data-i18n="classroomDebateGenerate">Generate Debate Teams</button>
+                <button type="button" id="btn-regenerate" onclick="regenerateDebates()" class="btn btn-outline btn-compact" data-i18n="classroomDebateRegenerate">Regenerate</button>
+            </div>
+        </div>
+
+        <div class="section" id="backup-section">
+            <h2 class="form-section-title" data-i18n="classroomDebateBackupTitle">Save &amp; Restore</h2>
+            <p class="section-hint" data-i18n="classroomDebateBackupHint">Download a backup file with your students, teams, settings, and current debate assignments. Load it later on this or another computer to pick up where you left off.</p>
+            <div class="classroom-debate-actions">
+                <button type="button" onclick="exportStateJson()" class="btn btn-outline btn-compact" data-i18n="classroomDebateExportBackup">Export backup (JSON)</button>
+                <button type="button" onclick="triggerImportState()" class="btn btn-outline btn-compact" data-i18n="classroomDebateImportBackup">Load backup file…</button>
+                <input type="file" id="state-file-input" class="visually-hidden" accept=".json,application/json" onchange="handleStateFileSelected(event)">
+            </div>
+        </div>
+
+        </details>
+
+        <div class="section hidden" id="results-section">
+            <div id="stale-results-banner" class="stale-results-banner hidden" role="alert">
+                <span data-i18n="classroomDebateStaleBanner">Setup changed since last generation. Assignments below may be outdated.</span>
+                <div class="stale-actions classroom-debate-actions">
+                    <button type="button" onclick="regenerateDebates()" class="btn btn-primary btn-compact" data-i18n="classroomDebateRegenerateNow">Regenerate now</button>
+                    <button type="button" onclick="clearResultsStale()" class="btn btn-outline btn-compact" data-i18n="classroomDebateDismiss">Dismiss</button>
+                </div>
+            </div>
+            <div class="classroom-debate-results-header">
+                <h2 class="form-section-title" data-i18n="classroomDebateAssignmentsTitle">Debate Assignments</h2>
+                <button type="button" onclick="clearAssignments()" class="btn btn-outline btn-danger btn-compact" data-i18n="classroomDebateClearAssignments">Clear assignments</button>
+            </div>
+            <p id="role-edit-hint" class="role-edit-hint section-hint" data-i18n="classroomDebateRoleEditHint"><strong>Switch side:</strong> use the side buttons on each row. Reassign roles with the Role menu. Copy uses speaking order when defined; Print uses the lists below.</p>
+
+            <div class="print-title" id="print-title"></div>
+            <div class="print-date" id="print-date"></div>
+
+            <div class="stats" id="stats"></div>
+
+            <div class="print-running-header" id="print-running-header">
+                <div class="running-header-content">
+                    <span class="running-title" id="running-title"></span>
+                    <span class="running-date" id="running-date"></span>
+                </div>
+            </div>
+
+            <div class="print-table">
+                <div class="print-header">
+                    <div class="print-header-content">
+                        <div class="print-header-title" id="print-header-title"></div>
+                        <div class="print-header-date" id="print-header-date"></div>
+                    </div>
+                </div>
+                <div class="print-body">
+                    <div class="debates-container" id="debates-container"></div>
+                </div>
+            </div>
+
+            <div class="classroom-debate-actions classroom-debate-results-actions">
+                <button type="button" onclick="copyResults()" class="btn btn-outline btn-compact" data-i18n="classroomDebateCopyResults">Copy Results</button>
+                <button type="button" onclick="window.print()" class="btn btn-outline btn-compact" data-i18n="classroomDebatePrint">Print</button>
+                <button type="button" onclick="exportStateJson()" class="btn btn-outline btn-compact" data-i18n="classroomDebateExportBackupShort">Export backup</button>
+            </div>
+
+            <div class="feedback-export-bar" aria-label="Download feedback sheet">
+                <div class="form-group">
+                    <label for="feedback-export-class" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</label>
+                    <select id="feedback-export-class" class="field-select">
+                        <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae</option>
+                        <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="visually-hidden" data-i18n="classroomDebateDownloadWord">Download score sheet (Word)</label>
+                    <button type="button" onclick="exportFeedbackWord()" class="btn btn-outline btn-compact" data-i18n="classroomDebateDownloadWord">Download score sheet (Word)</button>
+                </div>
+                <div class="form-group">
+                    <label class="visually-hidden" data-i18n="classroomDebateDownloadPdf">Download PDF copy</label>
+                    <button type="button" onclick="exportFeedbackPdf()" class="btn btn-outline btn-compact" data-i18n="classroomDebateDownloadPdf">Download PDF copy</button>
+                </div>
+                <div class="form-group">
+                    <label class="visually-hidden" data-i18n="classroomDebatePrintScoreSheets">Print score sheets</label>
+                    <button type="button" onclick="printFeedbackScoreSheets()" class="btn btn-outline btn-compact" data-i18n="classroomDebatePrintScoreSheets">Print score sheets</button>
+                </div>
+                <p class="section-hint feedback-export-note" data-i18n="classroomDebateExportNote">Uses the class name and HR Teacher from Generate Teams above on every page of the score sheet.</p>
+            </div>
+            <div id="feedback-sheet-mount" aria-hidden="true"></div>
+        </div>
+
+        <div id="word-template-modal" class="modal classroom-debate-word-modal" role="dialog" aria-modal="true" aria-labelledby="word-template-modal-title" hidden>
+            <div class="modal-content modal-small">
+                <div class="modal-header">
+                    <h2 id="word-template-modal-title" data-i18n="classroomDebateChooseTemplate">Choose score sheet template</h2>
+                </div>
+                <div class="modal-body">
+                    <p class="section-hint" data-i18n="classroomDebateChooseTemplateHint">Select which school Word template to use for this download.</p>
+                    <div class="classroom-debate-actions word-template-modal-actions">
+                        <button type="button" id="word-template-pick-garam" class="btn btn-outline btn-compact" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae</button>
+                        <button type="button" id="word-template-pick-yeoul" class="btn btn-outline btn-compact" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul</button>
+                        <button type="button" id="word-template-cancel" class="btn btn-outline btn-compact" data-i18n="cancel">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <nav id="results-sticky-bar" class="results-sticky-bar hidden" aria-label="Quick actions">
+            <button type="button" onclick="scrollToSetup()" class="btn btn-outline btn-compact" data-i18n="classroomDebateEditSetup">Edit setup</button>
+            <button type="button" onclick="regenerateDebates()" class="btn btn-primary btn-compact" data-i18n="classroomDebateRegenerate">Regenerate</button>
+            <button type="button" onclick="copyResults()" class="btn btn-outline btn-compact" data-i18n="classroomDebateCopy">Copy</button>
+            <button type="button" onclick="window.print()" class="btn btn-outline btn-compact" data-i18n="classroomDebatePrint">Print</button>
+        </nav>
+</div>

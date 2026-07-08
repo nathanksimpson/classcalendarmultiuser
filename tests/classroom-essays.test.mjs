@@ -360,6 +360,20 @@ const { CCPClassroomEssays } = sandbox.window;
 
 
 
+{
+
+    const rec = { studentId: 's1', status: 'submitted', submittedRetest: false, note: '' };
+
+    const next = CCPClassroomEssays.applyStagedBatchToRecord(rec, 'status', 'complete', null);
+
+    assert(next.status === 'complete', 'status batch action sets complete');
+
+    assert(next.submittedRetest === false, 'status batch clears retest when leaving resubmit');
+
+}
+
+
+
 console.log('classroom-essays.test.mjs: all passed');
 
 

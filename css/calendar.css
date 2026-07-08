@@ -1170,6 +1170,20 @@
     min-width: 8rem;
 }
 
+.syllabus-editor-table .syllabus-col-essay {
+    width: 3.5rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.syllabus-editor-table .syllabus-ed-essay-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-target-min, 44px);
+    margin: 0;
+}
+
 .syllabus-editor-table .syllabus-col-actions {
     width: 2.75rem;
 }

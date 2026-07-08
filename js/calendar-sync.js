@@ -433,6 +433,8 @@
         merged.essaySubmissions = mergeArrayById(local.essaySubmissions, server.essaySubmissions);
         merged.studentPoints = mergeArrayById(local.studentPoints, server.studentPoints, 'id');
         merged.studentTests = mergeArrayById(local.studentTests, server.studentTests);
+        merged.debateTeamSessions = mergeArrayById(local.debateTeamSessions, server.debateTeamSessions);
+        merged.debateCustomFormats = mergeArrayById(local.debateCustomFormats, server.debateCustomFormats);
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -903,6 +905,12 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentTests')) {
                 body.studentTests = fields.studentTests;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateTeamSessions')) {
+                body.debateTeamSessions = fields.debateTeamSessions;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateCustomFormats')) {
+                body.debateCustomFormats = fields.debateCustomFormats;
+            }
             setStatus('saving');
             state.saving = true;
             let retried409 = false;
@@ -922,10 +930,18 @@
                     retried409 = true;
                     state.revision = err.body.document.revision;
                     setStatus('saving');
+                    const serverData = err.body.document.data || {};
+                    const retryBody = Object.assign({}, body, { revision: state.revision });
+                    if (Array.isArray(body.essaySubmissions) && Array.isArray(serverData.essaySubmissions)) {
+                        retryBody.essaySubmissions = mergeArrayById(
+                            body.essaySubmissions,
+                            serverData.essaySubmissions
+                        );
+                    }
                     try {
                         const retryDoc = await apiFetch('/calendars/' + encodeURIComponent(id), {
                             method: 'PUT',
-                            body: Object.assign({}, body, { revision: state.revision })
+                            body: retryBody
                         });
                         state.revision = retryDoc.revision || state.revision;
                         setStatus('saved');
