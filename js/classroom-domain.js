@@ -735,8 +735,7 @@
             studentId: normalizeStr(raw.studentId),
             status: validStatus,
             submittedRetest: Boolean(raw.submittedRetest),
-            note: normalizeStr(raw.note),
-            exception: raw.exception === true || raw.exception === '1'
+            note: normalizeStr(raw.note)
         };
     }
 
@@ -813,8 +812,7 @@
                 studentId: sid,
                 status: 'not_submitted',
                 submittedRetest: false,
-                note: '',
-                exception: false
+                note: ''
             });
             seen.add(sid);
         });
@@ -822,20 +820,12 @@
         return base;
     }
 
-    function isEssayExceptionRecord(record) {
-        return !!(record && record.exception === true);
-    }
-
-    function countEssayByStatus(submission, options) {
-        const opts = options || {};
+    function countEssayByStatus(submission) {
         const counts = { not_submitted: 0, submitted: 0, complete: 0, resubmit_required: 0 };
         if (!submission || !Array.isArray(submission.records)) {
             return counts;
         }
         submission.records.forEach((r) => {
-            if (opts.excludeExceptions && isEssayExceptionRecord(r)) {
-                return;
-            }
             const status = r && ESSAY_STATUSES.includes(r.status) ? r.status : 'not_submitted';
             counts[status] += 1;
         });
@@ -843,7 +833,7 @@
     }
 
     function essayResubmitCount(submission) {
-        return countEssayByStatus(submission, { excludeExceptions: true }).resubmit_required;
+        return countEssayByStatus(submission).resubmit_required;
     }
 
     function essayResubmitCountForClass(submissions, classId) {
@@ -870,11 +860,11 @@
         if (!submission || !Array.isArray(submission.records)) {
             return Math.max(0, studentCount || 0);
         }
-        return countEssayByStatus(submission, { excludeExceptions: true }).not_submitted;
+        return countEssayByStatus(submission).not_submitted;
     }
 
     function essayPendingTeacherEvalCount(submission) {
-        return countEssayByStatus(submission, { excludeExceptions: true }).submitted || 0;
+        return countEssayByStatus(submission).submitted || 0;
     }
 
     function isEssayTeacherEvalOverdue(submission, teacherEvalDueDate) {
@@ -886,7 +876,7 @@
 
     function essayAlertCountsForAssignment(submission, ssDueDate, studentCount) {
         const counts = submission
-            ? countEssayByStatus(submission, { excludeExceptions: true })
+            ? countEssayByStatus(submission)
             : {
                 not_submitted: Math.max(0, studentCount || 0),
                 submitted: 0,
@@ -1058,7 +1048,7 @@
                 }
                 const assignmentLabel = getEssayAssignmentLabel(row);
                 submission.records.forEach((rec) => {
-                    if (!rec || rec.status !== 'resubmit_required' || isEssayExceptionRecord(rec)) {
+                    if (!rec || rec.status !== 'resubmit_required') {
                         return;
                     }
                     const studentId = normalizeStr(rec.studentId);
@@ -1144,9 +1134,6 @@
                         return;
                     }
                     const rec = getEssayRecordForStudent(submission, studentId);
-                    if (isEssayExceptionRecord(rec)) {
-                        return;
-                    }
                     const status =
                         rec && ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
                     if (!statusFilter.includes(status)) {
@@ -1171,7 +1158,6 @@
                         status,
                         note: rec ? normalizeStr(rec.note) : '',
                         submittedRetest: rec ? Boolean(rec.submittedRetest) : false,
-                        exception: rec ? Boolean(rec.exception) : false,
                         ssDueDate: ssDue,
                         ssOverdue
                     });
@@ -1631,7 +1617,6 @@
         getEssayRecordForStudent,
         ensureEssayRecordsForStudents,
         countEssayByStatus,
-        isEssayExceptionRecord,
         essayResubmitCount,
         essayResubmitCountForClass,
         isEssaySsOverdueISO,

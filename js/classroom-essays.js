@@ -21,6 +21,16 @@
     let essayClassAttentionFilter = 'all';
     let classPickerOpen = false;
     let reportsMenuOpen = false;
+    const resubmitSummarySelectedClassIds = new Set();
+    let resubmitSummaryFilters = {
+        search: '',
+        classTypeId: '',
+        grade: '',
+        levelLabel: '',
+        subject: '',
+        myClassesOnly: false,
+        hasResubmitsOnly: true
+    };
     let noteDebouncedSave = null;
 
     const ESSAY_STATUS_META = {
@@ -664,65 +674,27 @@
 
     function getResubmitPrintLabels() {
         return {
-            title: t('classroomEssayOdRsTitle'),
-            noRows: t('classroomEssayOdRsNoRows'),
-            sectionOverdue: t('classroomEssayOdRsSectionOverdue'),
-            sectionResubmit: t('classroomEssayOdRsSectionResubmit'),
-            noStudentsInSection: t('classroomEssayOdRsNoStudentsInSection'),
-            exception: t('classroomEssayExceptionLabel'),
-            overdue: t('classroomEssayProgressOverdue'),
+            title: t('classroomEssayResubmitSummaryTitle'),
+            noRows: t('classroomEssayResubmitNoRows'),
             noReason: t('classroomEssayResubmitNoReason'),
             retestReceived: t('classroomEssayResubmitRetestReceived'),
-            generatedAt: t('classroomEssayOdRsGeneratedAt')
+            generatedAt: t('classroomEssayResubmitGeneratedAt')
         };
     }
 
-    function getCurrentClassOdRsGroups() {
-        const d = domain();
-        const progressApi = global.CCPClassroomEssayProgress;
-        if (!d || !progressApi || !progressApi.groupStudentProgressForReport || !classId) {
-            return [];
-        }
-        const rows = d.listEssayOutstandingStudentRows(getAppData(), {
-            classes: getEssayVisibleClasses(),
-            classId
-        });
-        return progressApi.groupStudentProgressForReport(rows);
-    }
-
-    function convertResubmitRowsToOdRsGroups(rows) {
-        const d = domain();
-        if (!d || !d.groupEssayStudentRowsByClass) {
-            return [];
-        }
-        return d.groupEssayStudentRowsByClass(rows).map((group) => ({
-            classId: group.classId,
-            className: group.className,
-            classTypeLabel: group.classTypeLabel,
-            levelLabel: group.levelLabel,
-            assignments: (group.assignments || []).map((assignment) => ({
-                key: assignment.key,
-                syllabusRowId: assignment.syllabusRowId,
-                assignmentLabel: assignment.assignmentLabel,
-                lessonDate: assignment.lessonDate,
-                notSubmitted: [],
-                resubmit: assignment.students || []
-            }))
-        }));
-    }
-
-    function openOdRsPrint(groups) {
+    function openResubmitPrint(rows) {
         const printApi = global.CCPClassroomEssayResubmitPrint;
         const d = domain();
-        if (!printApi || !d) {
+        if (!printApi || !d || !d.groupEssayStudentRowsByClass) {
             return;
         }
-        if (!groups.length) {
+        if (!rows.length) {
             if (hooks && hooks.showToast) {
-                hooks.showToast(t('classroomEssayOdRsNoRows'), true);
+                hooks.showToast(t('classroomEssayResubmitNoRows'), true);
             }
             return;
         }
+        const groups = d.groupEssayStudentRowsByClass(rows);
         const labels = getResubmitPrintLabels();
         const data = getAppData();
         const bodyHtml = printApi.renderDocumentHtml(
@@ -760,15 +732,374 @@
         printWin.print();
     }
 
-    function openResubmitPrint(rows) {
-        openOdRsPrint(convertResubmitRowsToOdRsGroups(rows));
-    }
-
     function printCurrentClassResubmits() {
-        if (!classId) {
+        const d = domain();
+        if (!d || !classId) {
             return;
         }
-        openOdRsPrint(getCurrentClassOdRsGroups());
+        const rows = d.listEssayResubmitRows(getAppData(), {
+            classes: getAccessibleClasses(),
+            classId
+        });
+        openResubmitPrint(rows);
+    }
+
+    function loadResubmitSummaryFilters() {
+        const ui = getAppData().ui || {};
+        const saved = ui.essayResubmitSummaryFilters;
+        if (saved && typeof saved === 'object') {
+            resubmitSummaryFilters = Object.assign(resubmitSummaryFilters, {
+                search: saved.search || '',
+                classTypeId: saved.classTypeId || '',
+                grade: saved.grade || '',
+                levelLabel: saved.levelLabel || '',
+                subject: saved.subject || '',
+                myClassesOnly: saved.myClassesOnly === true || saved.myClassesOnly === '1',
+                hasResubmitsOnly: saved.hasResubmitsOnly !== false && saved.hasResubmitsOnly !== '0'
+            });
+        }
+        resubmitSummarySelectedClassIds.clear();
+        if (saved && Array.isArray(saved.selectedClassIds)) {
+            saved.selectedClassIds.forEach((id) => {
+                if (id) {
+                    resubmitSummarySelectedClassIds.add(id);
+                }
+            });
+        }
+    }
+
+    function saveResubmitSummaryFilters() {
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref('essayResubmitSummaryFilters', {
+                search: resubmitSummaryFilters.search,
+                classTypeId: resubmitSummaryFilters.classTypeId,
+                grade: resubmitSummaryFilters.grade,
+                levelLabel: resubmitSummaryFilters.levelLabel,
+                subject: resubmitSummaryFilters.subject,
+                myClassesOnly: resubmitSummaryFilters.myClassesOnly,
+                hasResubmitsOnly: resubmitSummaryFilters.hasResubmitsOnly,
+                selectedClassIds: Array.from(resubmitSummarySelectedClassIds)
+            });
+        }
+    }
+
+    function getResubmitSummaryApi() {
+        return global.CCPClassroomEssayResubmitSummary;
+    }
+
+    function getResubmitSummaryFilterPayload() {
+        return Object.assign({}, resubmitSummaryFilters, {
+            currentUserId: hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : ''
+        });
+    }
+
+    function getFilteredResubmitClasses() {
+        const api = getResubmitSummaryApi();
+        if (!api) {
+            return [];
+        }
+        return api.filterClassesForSummary(
+            getEssayVisibleClasses(),
+            getAppData(),
+            getResubmitSummaryFilterPayload()
+        );
+    }
+
+    function getSelectedResubmitRows() {
+        const api = getResubmitSummaryApi();
+        if (!api) {
+            return [];
+        }
+        const allRows = api.listResubmitRows(getAppData(), { classes: getEssayVisibleClasses() });
+        return api.filterResubmitRows(allRows, { selectedClassIds: resubmitSummarySelectedClassIds });
+    }
+
+    function renderResubmitPreviewHtml(rows) {
+        const api = getResubmitSummaryApi();
+        if (!api) {
+            return '';
+        }
+        if (!rows.length) {
+            return `<p class="section-hint">${escapeHtml(t('classroomEssayResubmitNoRows'))}</p>`;
+        }
+        const groups = api.groupResubmitRowsByClass(rows);
+        return groups
+            .map((group) => {
+                const meta = [group.classTypeLabel, group.levelLabel].filter(Boolean).join(' · ');
+                const title = meta ? `${group.className} (${meta})` : group.className || '';
+                const assignmentBlocks = (group.assignments || [])
+                    .map((assign) => {
+                        const studentRows = (assign.students || [])
+                            .map((row) => {
+                                const note =
+                                    String(row.note || '').trim() || t('classroomEssayResubmitNoReason');
+                                return `<tr>
+                                    <td>${escapeHtml(row.studentName || '')}</td>
+                                    <td>${escapeHtml(note)}</td>
+                                    <td>${row.submittedRetest ? escapeHtml(t('classroomEssayResubmitRetestReceived')) : '—'}</td>
+                                </tr>`;
+                            })
+                            .join('');
+                        return `<div class="classroom-essay-resubmit-preview-assignment">
+                            <h5 class="classroom-essay-resubmit-preview-assignment-title">${escapeHtml(assign.assignmentLabel || '')}</h5>
+                            <table class="classroom-essay-resubmit-preview-table">
+                                <thead><tr>
+                                    <th>${escapeHtml(t('classroomEssayResubmitColStudent'))}</th>
+                                    <th>${escapeHtml(t('classroomEssayResubmitColNote'))}</th>
+                                    <th>${escapeHtml(t('classroomEssayResubmitColRetest'))}</th>
+                                </tr></thead>
+                                <tbody>${studentRows}</tbody>
+                            </table>
+                        </div>`;
+                    })
+                    .join('');
+                return `<div class="classroom-essay-resubmit-preview-class">
+                    <h4 class="classroom-essay-resubmit-preview-class-title">${escapeHtml(title)}</h4>
+                    ${assignmentBlocks}
+                </div>`;
+            })
+            .join('');
+    }
+
+    function populateResubmitFilterSelects(modal) {
+        const api = getResubmitSummaryApi();
+        const classes = getEssayVisibleClasses();
+        const appData = getAppData();
+        const d = domain();
+        if (!api || !modal) {
+            return;
+        }
+        const allOpt = `<option value="">${escapeHtml(t('classroomEssayResubmitFilterAll'))}</option>`;
+        const typeSelect = modal.querySelector('#essayResubmitClassTypeFilter');
+        const gradeSelect = modal.querySelector('#essayResubmitGradeFilter');
+        const levelSelect = modal.querySelector('#essayResubmitLevelFilter');
+        const subjectSelect = modal.querySelector('#essayResubmitSubjectFilter');
+
+        if (typeSelect) {
+            const types = api.uniqueClassTypeOptions(classes, appData);
+            typeSelect.innerHTML =
+                allOpt +
+                types
+                    .map(
+                        (typeRow) =>
+                            `<option value="${escapeAttr(typeRow.id)}"${typeRow.id === resubmitSummaryFilters.classTypeId ? ' selected' : ''}>${escapeHtml(typeRow.label)}</option>`
+                    )
+                    .join('');
+        }
+        if (gradeSelect) {
+            const grades = new Set();
+            classes.forEach((classData) => {
+                const grade = normalizeStr(classData && classData.grade);
+                if (grade) {
+                    grades.add(grade);
+                }
+            });
+            gradeSelect.innerHTML =
+                allOpt +
+                Array.from(grades)
+                    .sort((a, b) => String(a).localeCompare(String(b)))
+                    .map(
+                        (grade) =>
+                            `<option value="${escapeAttr(grade)}"${grade === resubmitSummaryFilters.grade ? ' selected' : ''}>${escapeHtml(grade)}</option>`
+                    )
+                    .join('');
+        }
+        if (levelSelect) {
+            const levels = new Set();
+            classes.forEach((classData) => {
+                const level = d && d.resolveClassLevelLabel ? d.resolveClassLevelLabel(classData) : '';
+                if (level) {
+                    levels.add(level);
+                }
+            });
+            levelSelect.innerHTML =
+                allOpt +
+                Array.from(levels)
+                    .sort((a, b) => String(a).localeCompare(String(b)))
+                    .map(
+                        (level) =>
+                            `<option value="${escapeAttr(level)}"${level === resubmitSummaryFilters.levelLabel ? ' selected' : ''}>${escapeHtml(level)}</option>`
+                    )
+                    .join('');
+        }
+        if (subjectSelect) {
+            const subjects = new Set();
+            classes.forEach((classData) => {
+                const subject = normalizeStr(classData && classData.subject);
+                if (subject) {
+                    subjects.add(subject);
+                }
+            });
+            subjectSelect.innerHTML =
+                allOpt +
+                Array.from(subjects)
+                    .sort((a, b) => String(a).localeCompare(String(b)))
+                    .map(
+                        (subject) =>
+                            `<option value="${escapeAttr(subject)}"${subject === resubmitSummaryFilters.subject ? ' selected' : ''}>${escapeHtml(subject)}</option>`
+                    )
+                    .join('');
+        }
+    }
+
+    function syncResubmitFiltersFromModal() {
+        const modal = document.getElementById('essayResubmitSummaryModal');
+        if (!modal) {
+            return;
+        }
+        const searchInput = modal.querySelector('#essayResubmitClassSearch');
+        resubmitSummaryFilters.search = searchInput ? searchInput.value : '';
+        resubmitSummaryFilters.classTypeId =
+            modal.querySelector('#essayResubmitClassTypeFilter')?.value || '';
+        resubmitSummaryFilters.grade = modal.querySelector('#essayResubmitGradeFilter')?.value || '';
+        resubmitSummaryFilters.levelLabel =
+            modal.querySelector('#essayResubmitLevelFilter')?.value || '';
+        resubmitSummaryFilters.subject = modal.querySelector('#essayResubmitSubjectFilter')?.value || '';
+        resubmitSummaryFilters.myClassesOnly = !!modal.querySelector('#essayResubmitMyClassesOnly')?.checked;
+        resubmitSummaryFilters.hasResubmitsOnly = !!modal.querySelector(
+            '#essayResubmitHasResubmitsOnly'
+        )?.checked;
+        saveResubmitSummaryFilters();
+    }
+
+    function renderResubmitSummaryModal() {
+        const modal = document.getElementById('essayResubmitSummaryModal');
+        const listEl = document.getElementById('essayResubmitClassList');
+        const previewEl = document.getElementById('essayResubmitPreview');
+        if (!listEl) {
+            return;
+        }
+        populateResubmitFilterSelects(modal);
+        const filteredClasses = getFilteredResubmitClasses();
+        const saved = getAppData().ui && getAppData().ui.essayResubmitSummaryFilters;
+        const neverSavedSelection =
+            !saved ||
+            !Array.isArray(saved.selectedClassIds) ||
+            !saved.selectedClassIds.length;
+        if (neverSavedSelection && !resubmitSummarySelectedClassIds.size && filteredClasses.length) {
+            filteredClasses.forEach((classData) => resubmitSummarySelectedClassIds.add(classData.id));
+        }
+
+        listEl.innerHTML = filteredClasses.length
+            ? filteredClasses
+                .map((classData) => {
+                    const checked = resubmitSummarySelectedClassIds.has(classData.id) ? ' checked' : '';
+                    const d = domain();
+                    const typeLabel = d ? d.resolveClassTypeLabel(classData, getAppData()) : '';
+                    const meta = [
+                        typeLabel,
+                        classData.grade,
+                        d ? d.resolveClassLevelLabel(classData) : ''
+                    ]
+                        .filter(Boolean)
+                        .join(' · ');
+                    return `<label class="classroom-essay-resubmit-class-row checkbox-label">
+                        <input type="checkbox" data-class-id="${escapeAttr(classData.id)}"${checked} />
+                        <span>${escapeHtml(classData.name || classData.id)}${meta ? ` <span class="section-hint">(${escapeHtml(meta)})</span>` : ''}</span>
+                    </label>`;
+                })
+                .join('')
+            : `<p class="section-hint">${escapeHtml(t('classroomEssayResubmitNoRows'))}</p>`;
+
+        listEl.querySelectorAll('input[data-class-id]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const id = input.getAttribute('data-class-id');
+                if (!id) {
+                    return;
+                }
+                if (input.checked) {
+                    resubmitSummarySelectedClassIds.add(id);
+                } else {
+                    resubmitSummarySelectedClassIds.delete(id);
+                }
+                saveResubmitSummaryFilters();
+                if (previewEl) {
+                    previewEl.innerHTML = renderResubmitPreviewHtml(getSelectedResubmitRows());
+                }
+            });
+        });
+
+        if (modal) {
+            const searchInput = modal.querySelector('#essayResubmitClassSearch');
+            if (searchInput && searchInput.value !== resubmitSummaryFilters.search) {
+                searchInput.value = resubmitSummaryFilters.search;
+            }
+            const myCb = modal.querySelector('#essayResubmitMyClassesOnly');
+            if (myCb) {
+                myCb.checked = resubmitSummaryFilters.myClassesOnly;
+            }
+            const hasCb = modal.querySelector('#essayResubmitHasResubmitsOnly');
+            if (hasCb) {
+                hasCb.checked = resubmitSummaryFilters.hasResubmitsOnly;
+            }
+        }
+        if (previewEl) {
+            previewEl.innerHTML = renderResubmitPreviewHtml(getSelectedResubmitRows());
+        }
+    }
+
+    function openResubmitSummaryModal() {
+        const modal = document.getElementById('essayResubmitSummaryModal');
+        if (!modal) {
+            return;
+        }
+        loadResubmitSummaryFilters();
+        renderResubmitSummaryModal();
+        if (hooks && hooks.openModal) {
+            hooks.openModal(modal);
+        } else {
+            modal.classList.add('active');
+            modal.hidden = false;
+        }
+    }
+
+    function bindResubmitSummaryModal() {
+        const modal = document.getElementById('essayResubmitSummaryModal');
+        if (!modal || modal.dataset.bound === '1') {
+            return;
+        }
+        modal.dataset.bound = '1';
+        document.getElementById('essayResubmitSummaryClose')?.addEventListener('click', () => {
+            if (hooks && hooks.closeModal) {
+                hooks.closeModal(modal);
+            }
+        });
+        document.getElementById('essayResubmitSelectAll')?.addEventListener('click', () => {
+            getFilteredResubmitClasses().forEach((classData) =>
+                resubmitSummarySelectedClassIds.add(classData.id)
+            );
+            saveResubmitSummaryFilters();
+            renderResubmitSummaryModal();
+        });
+        document.getElementById('essayResubmitClearAll')?.addEventListener('click', () => {
+            resubmitSummarySelectedClassIds.clear();
+            saveResubmitSummaryFilters();
+            renderResubmitSummaryModal();
+        });
+        modal.querySelector('#essayResubmitClassSearch')?.addEventListener('input', (e) => {
+            resubmitSummaryFilters.search = e.target.value;
+            saveResubmitSummaryFilters();
+            renderResubmitSummaryModal();
+        });
+        ['#essayResubmitClassTypeFilter', '#essayResubmitGradeFilter', '#essayResubmitLevelFilter', '#essayResubmitSubjectFilter'].forEach(
+            (selector) => {
+                modal.querySelector(selector)?.addEventListener('change', () => {
+                    syncResubmitFiltersFromModal();
+                    renderResubmitSummaryModal();
+                });
+            }
+        );
+        modal.querySelector('#essayResubmitMyClassesOnly')?.addEventListener('change', () => {
+            syncResubmitFiltersFromModal();
+            renderResubmitSummaryModal();
+        });
+        modal.querySelector('#essayResubmitHasResubmitsOnly')?.addEventListener('change', () => {
+            syncResubmitFiltersFromModal();
+            renderResubmitSummaryModal();
+        });
+        document.getElementById('essayResubmitPrintBtn')?.addEventListener('click', () => {
+            openResubmitPrint(getSelectedResubmitRows());
+        });
     }
 
     function getAttentionCounts() {
@@ -792,38 +1123,23 @@
         const d = domain();
         const rec = getRecord(studentId);
         const status = rec ? rec.status : 'not_submitted';
-        const isException = !!(rec && rec.exception);
         if (currentFilter === 'all') {
             return true;
         }
         if (currentFilter === 'overdue_sub') {
             const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
-            return !isException && status === 'not_submitted' && d && d.isEssaySsOverdueISO(ssDue);
+            return status === 'not_submitted' && d && d.isEssaySsOverdueISO(ssDue);
         }
         if (currentFilter === 'eval_overdue') {
             const teDue = draftSubmission ? draftSubmission.teacherEvalDueDate || '' : '';
-            return !isException && status === 'submitted' && d && d.isEssaySsOverdueISO(teDue);
-        }
-        if (currentFilter === 'resubmit_required') {
-            return !isException && status === currentFilter;
+            return status === 'submitted' && d && d.isEssaySsOverdueISO(teDue);
         }
         return status === currentFilter;
-    }
-
-    function getEssaySubmissionsForAlerts() {
-        const data = getAppData();
-        const list = Array.isArray(data.essaySubmissions) ? data.essaySubmissions.slice() : [];
-        const d = domain();
-        if (!draftSubmission || !d || !d.upsertEssaySubmission) {
-            return list;
-        }
-        return d.upsertEssaySubmission(list, draftSubmission);
     }
 
     function filterClassesForAttention(classes) {
         const d = domain();
         const data = getAppData();
-        const submissions = getEssaySubmissionsForAlerts();
         const ui = getAppData().ui || {};
         const myClassesOnly =
             ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1';
@@ -835,7 +1151,7 @@
             }
             const counts =
                 d && c
-                    ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
+                    ? d.essayAlertCountsForClass(data.essaySubmissions, c, data.cohorts || [])
                     : { rs: 0, od: 0 };
             if (essayClassAttentionFilter === 'resubmits' && !(counts.rs > 0)) {
                 return false;
@@ -952,7 +1268,7 @@
         const idx = records.findIndex((r) => r.studentId === studentId);
         const base = idx >= 0
             ? records[idx]
-            : { studentId, status: 'not_submitted', submittedRetest: false, note: '', exception: false };
+            : { studentId, status: 'not_submitted', submittedRetest: false, note: '' };
         const next = Object.assign({}, base, patch);
         const changed = JSON.stringify(base) !== JSON.stringify(next);
         if (!changed) {
@@ -968,14 +1284,11 @@
     }
 
     function recordAffectsResubmitDayNote(prev, next) {
-        const before = prev || { status: 'not_submitted', note: '', exception: false };
-        const after = next || { status: 'not_submitted', note: '', exception: false };
-        const beforeResubmit = before.status === 'resubmit_required' && !before.exception;
-        const afterResubmit = after.status === 'resubmit_required' && !after.exception;
+        const before = prev || { status: 'not_submitted', note: '' };
+        const after = next || { status: 'not_submitted', note: '' };
+        const beforeResubmit = before.status === 'resubmit_required';
+        const afterResubmit = after.status === 'resubmit_required';
         if (before.status !== after.status && (beforeResubmit || afterResubmit)) {
-            return true;
-        }
-        if (!!before.exception !== !!after.exception && (before.status === 'resubmit_required' || after.status === 'resubmit_required')) {
             return true;
         }
         if ((beforeResubmit || afterResubmit) && String(before.note || '') !== String(after.note || '')) {
@@ -1000,8 +1313,7 @@
                 studentId: rec.studentId || '',
                 status: rec.status || 'not_submitted',
                 submittedRetest: !!rec.submittedRetest,
-                note: rec.note || '',
-                exception: !!rec.exception
+                note: rec.note || ''
             }))
         });
     }
@@ -1124,23 +1436,10 @@
     }
 
     function refreshZoneContextBar() {
-        try {
-            const zone = global.CCPClassroomZoneContext;
-            const doc = typeof document !== 'undefined' ? document : null;
-            const mount = doc && doc.getElementById('classroomZoneContextBar');
-            if (!zone || !zone.render || !mount) {
-                return;
-            }
-            const submissions = getEssaySubmissionsForAlerts();
-            if (typeof zone.withEssayAlertSubmissions === 'function') {
-                zone.withEssayAlertSubmissions(submissions, () => zone.render(mount));
-                return;
-            }
+        const zone = global.CCPClassroomZoneContext;
+        const mount = document.getElementById('classroomZoneContextBar');
+        if (zone && zone.render && mount) {
             zone.render(mount);
-        } catch (err) {
-            if (typeof console !== 'undefined' && console.error) {
-                console.error('Essays refreshZoneContextBar failed', err);
-            }
         }
     }
 
@@ -1159,65 +1458,6 @@
         return parts.length
             ? `<span class="classroom-essay-alert-badges">${parts.join('')}</span>`
             : '';
-    }
-
-    function getScrollSnapshot(panel) {
-        const doc = typeof document !== 'undefined' ? document : null;
-        const pageY =
-            typeof window !== 'undefined' && typeof window.scrollY === 'number'
-                ? window.scrollY
-                : doc && doc.documentElement
-                  ? doc.documentElement.scrollTop || 0
-                  : 0;
-        const scroller = panel && panel.querySelector('.classroom-essay-sheet-scroll');
-        return {
-            pageY,
-            scroller,
-            scrollerTop: scroller ? scroller.scrollTop : 0
-        };
-    }
-
-    function restoreScrollSnapshot(snapshot) {
-        if (!snapshot) {
-            return;
-        }
-        if (snapshot.scroller && typeof snapshot.scroller.scrollTop === 'number') {
-            snapshot.scroller.scrollTop = snapshot.scrollerTop;
-        }
-        if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-            window.scrollTo(window.scrollX || 0, snapshot.pageY || 0);
-        }
-    }
-
-    function updateCurrentClassPickerBadges(panel) {
-        const classData = getClassData();
-        const d = domain();
-        const data = getAppData();
-        const submissions = getEssaySubmissionsForAlerts();
-        const counts =
-            classData && d
-                ? d.essayAlertCountsForClass(submissions, classData, data.cohorts || [])
-                : { rs: 0, od: 0 };
-        const triggerBadges = panel && panel.querySelector('.classroom-essay-class-picker__badges');
-        if (triggerBadges) {
-            triggerBadges.innerHTML = buildAlertBadgesHtml(counts.rs || 0, counts.od || 0);
-        }
-    }
-
-    function updateExceptionToggleUi(panel, studentId) {
-        const rowsMount = panel && panel.querySelector('#classroomEssaysRows');
-        const safeId =
-            typeof CSS !== 'undefined' && CSS.escape
-                ? CSS.escape(studentId)
-                : String(studentId).replace(/"/g, '\\"');
-        const row =
-            rowsMount &&
-            rowsMount.querySelector(`tr.classroom-essay-row[data-student-id="${safeId}"]`);
-        const dueCell = row && row.querySelector('.classroom-sheet-col-due');
-        if (dueCell) {
-            dueCell.innerHTML = buildDueCell(studentId);
-        }
-        updateCurrentClassPickerBadges(panel);
     }
 
     function buildMiniTrackHtml(counts) {
@@ -1295,10 +1535,9 @@
         const classData = getClassData();
         const d = domain();
         const data = getAppData();
-        const submissions = getEssaySubmissionsForAlerts();
         const currentCounts =
             classData && d
-                ? d.essayAlertCountsForClass(submissions, classData, data.cohorts || [])
+                ? d.essayAlertCountsForClass(data.essaySubmissions, classData, data.cohorts || [])
                 : { rs: 0, od: 0 };
         const currentName = classData ? classData.name || classData.id || '' : '';
         const currentBadges = buildAlertBadgesHtml(currentCounts.rs || 0, currentCounts.od || 0);
@@ -1319,7 +1558,7 @@
                     const label = c.name || c.id || '';
                     const counts =
                         d && c
-                            ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
+                            ? d.essayAlertCountsForClass(data.essaySubmissions, c, data.cohorts || [])
                             : { rs: 0, od: 0 };
                     const rs = counts.rs || 0;
                     const od = counts.od || 0;
@@ -1588,8 +1827,7 @@
     }
 
     async function flushBeforeLeave() {
-        const doc = typeof document !== 'undefined' ? document : null;
-        const panel = panelRef || (doc && doc.getElementById('panel-essays'));
+        const panel = panelRef || document.getElementById('panel-essays');
         blurActiveEssayNote(panel);
         flushNoteSave();
         ensureAutosave(panel);
@@ -1659,7 +1897,11 @@
             </button>`;
         };
 
-        const tilesHtml = `<div class="classroom-essay-attention-tiles">
+        const allCaughtUp =
+            attention.overdueSub === 0 && attention.evalOverdue === 0 && attention.resubmit === 0;
+        const tilesHtml = allCaughtUp
+            ? `<p class="classroom-essay-attention-calm section-hint">${escapeHtml(t('classroomEssayAllCaughtUp'))}</p>`
+            : `<div class="classroom-essay-attention-tiles">
                 ${tile('overdue_sub', attention.overdueSub, 'classroomEssayAttentionOverdueSub', 'classroomEssayAttentionOverdueSubHint', 'overdue')}
                 ${tile('eval_overdue', attention.evalOverdue, 'classroomEssayAttentionEvalOverdue', 'classroomEssayAttentionEvalOverdueHint', 'eval')}
                 ${tile('resubmit_required', attention.resubmit, 'classroomEssayAttentionResubmits', 'classroomEssayAttentionResubmitsHint', 'resubmit')}
@@ -1697,12 +1939,11 @@
             mount.hidden = true;
             return;
         }
+        mount.hidden = false;
         if (currentFilter === 'all') {
-            mount.textContent = '';
-            mount.hidden = true;
+            mount.textContent = t('classroomEssayToolbarAllStudents');
             return;
         }
-        mount.hidden = false;
         const labels = {
             overdue_sub: t('classroomEssayAttentionOverdueSub'),
             eval_overdue: t('classroomEssayAttentionEvalOverdue'),
@@ -1876,7 +2117,8 @@
                 </button>
                 <div id="classroomEssaysReportsDropdown" class="classroom-essay-reports-dropdown"${menuHidden} role="menu">
                     <button type="button" class="classroom-essay-reports-item" data-report-action="progress" role="menuitem">${escapeHtml(t('classroomEssayProgressReportBtn'))}</button>
-                    <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-print" role="menuitem">${escapeHtml(t('classroomEssayOdRsPrintBtn'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-summary" role="menuitem">${escapeHtml(t('classroomEssayResubmitSummaryBtn'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-print" role="menuitem">${escapeHtml(t('classroomEssayResubmitPrintBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="rescan" role="menuitem">${escapeHtml(t('classroomEssayRescanBtn'))}</button>
                 </div>
             </div>`;
@@ -1891,6 +2133,11 @@
             closeReportsMenu();
             renderReportsMenu(panel);
             openProgressReportModal();
+        });
+        mount.querySelector('[data-report-action="resubmit-summary"]')?.addEventListener('click', () => {
+            closeReportsMenu();
+            renderReportsMenu(panel);
+            openResubmitSummaryModal();
         });
         mount.querySelector('[data-report-action="resubmit-print"]')?.addEventListener('click', () => {
             closeReportsMenu();
@@ -1910,7 +2157,7 @@
             return;
         }
         renderReportsMenu(panel);
-        if (!draftSubmission) {
+        if (!draftSubmission || !selectedStudentIds.size) {
             mount.innerHTML = '';
             mount.hidden = true;
             renderToolbarHint(panel);
@@ -1918,8 +2165,7 @@
         }
         mount.hidden = false;
         const editable = access() && access().canEditClass(getClassData());
-        const hasSelection = selectedStudentIds.size > 0;
-        const disabled = editable && hasSelection ? '' : ' disabled';
+        const disabled = editable ? '' : ' disabled';
         const batchBtn = (status, labelKey, cls) =>
             `<button type="button" class="btn btn-small classroom-essay-batch-status-btn ${cls}" data-batch-status="${escapeAttr(status)}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
 
@@ -2004,7 +2250,6 @@
     function buildStatusCell(studentId, editable) {
         const rec = getRecord(studentId);
         const status = rec ? rec.status : 'not_submitted';
-        const exceptionChecked = rec && rec.exception ? ' checked' : '';
         const retestHtml =
             status === 'resubmit_required'
                 ? `<label class="classroom-essay-retest-toggle">
@@ -2013,11 +2258,6 @@
                     <span>${escapeHtml(t('classroomEssayResubmissionReceived'))}</span>
                 </label>`
                 : '';
-        const exceptionHtml = `<label class="classroom-essay-retest-toggle classroom-essay-retest-toggle--exception">
-                    <input type="checkbox" class="classroom-essay-exception" data-student-id="${escapeAttr(studentId)}"${exceptionChecked}${editable ? '' : ' disabled'} />
-                    <span class="classroom-essay-retest-toggle__box" aria-hidden="true"><svg class="classroom-essay-retest-toggle__check" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
-                    <span>${escapeHtml(t('classroomEssayExceptionLabel'))}</span>
-                </label>`;
         return `<div class="classroom-essay-status-selector">
             <div class="classroom-essay-status-selector__row" role="group" aria-label="${escapeAttr(t('classroomEssayColStatus'))}">
                 <div class="classroom-essay-status-selector__group">
@@ -2030,7 +2270,6 @@
                     ${buildStageButton(studentId, 'resubmit_required', status, editable)}
                 </div>
             </div>
-            ${exceptionHtml}
             ${retestHtml}
         </div>`;
     }
@@ -2039,9 +2278,6 @@
         const d = domain();
         const rec = getRecord(studentId);
         const status = rec ? rec.status : 'not_submitted';
-        if (rec && rec.exception) {
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--muted">${escapeHtml(t('classroomEssayExceptionDueVoid'))}</span>`;
-        }
         const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
         const teDue = draftSubmission ? draftSubmission.teacherEvalDueDate || '' : '';
         if (!d) {
@@ -2072,75 +2308,16 @@
         return '';
     }
 
-    function afterEssayStatusChange(panel, studentId, options) {
-        const opts = options || {};
-        // Defer DOM rebuild so we never replace the control that fired this event
-        // mid-handler (exception checkbox / status buttons). That pattern can throw
-        // in the browser and white-screen the tab.
-        const run = () => {
-            const scrollSnapshot = getScrollSnapshot(panel);
-            try {
-                renderStatsBar(panel);
-                if (!studentMatchesFilter(studentId)) {
-                    renderRows(panel);
-                } else if (!opts.skipRowRebuild) {
-                    renderContextBar(panel);
-                    updateEssayRow(panel, studentId);
-                } else {
-                    // Exception toggle should not rebuild the control that fired the event.
-                    // Only refresh the small pieces that actually changed.
-                    const rowsMount = panel && panel.querySelector('#classroomEssaysRows');
-                    const safeId =
-                        typeof CSS !== 'undefined' && CSS.escape
-                            ? CSS.escape(studentId)
-                            : String(studentId).replace(/"/g, '\\"');
-                    const row =
-                        rowsMount &&
-                        rowsMount.querySelector(`tr.classroom-essay-row[data-student-id="${safeId}"]`);
-                    const dueCell = row && row.querySelector('.classroom-sheet-col-due');
-                    if (dueCell) {
-                        dueCell.innerHTML = buildDueCell(studentId);
-                    }
-                    updateCurrentClassPickerBadges(panel);
-                }
-                refreshZoneContextBar();
-            } catch (err) {
-                if (typeof console !== 'undefined' && console.error) {
-                    console.error('Essays afterEssayStatusChange failed', err);
-                }
-            }
-            restoreScrollSnapshot(scrollSnapshot);
-            scheduleStatusSave();
-        };
-        if (typeof queueMicrotask === 'function') {
-            queueMicrotask(run);
+    function afterEssayStatusChange(panel, studentId) {
+        renderStatsBar(panel);
+        renderContextBar(panel);
+        if (!studentMatchesFilter(studentId)) {
+            renderRows(panel);
         } else {
-            setTimeout(run, 0);
+            updateEssayRow(panel, studentId);
         }
-    }
-
-    function afterEssayExceptionChange(panel, studentId) {
-        const run = () => {
-            const scrollSnapshot = getScrollSnapshot(panel);
-            try {
-                if (!studentMatchesFilter(studentId)) {
-                    renderRows(panel);
-                } else {
-                    updateExceptionToggleUi(panel, studentId);
-                }
-            } catch (err) {
-                if (typeof console !== 'undefined' && console.error) {
-                    console.error('Essays afterEssayExceptionChange failed', err);
-                }
-            }
-            restoreScrollSnapshot(scrollSnapshot);
-            scheduleStatusSave();
-        };
-        if (typeof queueMicrotask === 'function') {
-            queueMicrotask(run);
-        } else {
-            setTimeout(run, 0);
-        }
+        refreshZoneContextBar();
+        scheduleStatusSave();
     }
 
     function bindEssayRowHandlers(panel, row, studentId) {
@@ -2169,13 +2346,6 @@
         row.querySelector('.classroom-essay-retest')?.addEventListener('change', (event) => {
             setRecord(sid, { submittedRetest: event.currentTarget.checked });
             scheduleStatusSave();
-        });
-        row.querySelector('.classroom-essay-exception')?.addEventListener('change', (event) => {
-            const result = setRecord(sid, { exception: !!event.currentTarget.checked });
-            if (recordAffectsResubmitDayNote(result.prev, result.next)) {
-                markResubmitDayNoteDirty();
-            }
-            afterEssayExceptionChange(panel, sid);
         });
         const noteInput = row.querySelector('.classroom-essay-note');
         if (noteInput) {
@@ -2365,33 +2535,22 @@
             if (draftUnchanged) {
                 loadSubmission();
             }
-            const panelVisible = panel && !panel.hidden && !isTypingInEssayNote(panel);
             if (!opt.skipRender && !opt.silent) {
                 if (panel && isTypingInEssayNote(panel)) {
                     if (autosave) {
                         autosave.syncStatusDisplay();
                     }
-                } else if (draftUnchanged && panelVisible) {
-                    if (autosave) {
-                        autosave.syncStatusDisplay();
-                    }
-                    renderContextBar(panel);
-                    refreshZoneContextBar();
                 } else {
                     render(panel);
                 }
-            } else if (opt.silent && panelVisible) {
+            } else if (opt.silent && panel && !panel.hidden && !isTypingInEssayNote(panel) && !draftUnchanged) {
                 renderContextBar(panel);
-                if (!draftUnchanged) {
-                    renderStatsBar(panel);
-                    renderRows(panel);
-                }
+                renderStatsBar(panel);
+                renderRows(panel);
                 refreshZoneContextBar();
             }
             syncResubmitDayNoteIfNeeded();
-            if (!(opt.silent && panelVisible)) {
-                refreshZoneContextBar();
-            }
+            refreshZoneContextBar();
         } catch (err) {
             hooks.showToast(err.message || String(err), true);
             if (autosave && preSaveSignature !== getDraftRenderSignature()) {
@@ -2467,6 +2626,7 @@
         applyResolvedAssignment(getClassData());
         loadSubmission();
         bindProgressReportModal();
+        bindResubmitSummaryModal();
         ensureEssaysOnlyDefault();
         ensureClassVisibleAfterFilter(document.getElementById('panel-essays'), { silent: true });
         const panel = document.getElementById('panel-essays');
