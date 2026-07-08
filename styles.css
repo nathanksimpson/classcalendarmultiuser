@@ -16286,10 +16286,10 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     border: none;
     border-radius: 0;
     background: transparent;
-}
-
-#panel-essays:has(.classroom-header--collapsed) .classroom-essay-sheet-scroll {
-    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--classroom-sheet-chrome-offset-collapsed, 130px));
+    /* Essays chrome is taller than Attendance; do not inherit the shared
+       170px viewport max/min-height math that leaves blank page space. */
+    min-height: 0;
+    max-height: none;
 }
 
 #panel-essays .classroom-sheet tbody tr.classroom-essay-row {
@@ -16936,16 +16936,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-essay-summary {
     margin: 0;
-}
-
-.classroom-essay-sheet-scroll {
-    border: none;
-    border-radius: var(--border-radius);
-    background: transparent;
-}
-
-#panel-essays:has(.classroom-header--collapsed) .classroom-essay-sheet-scroll {
-    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--classroom-sheet-chrome-offset-collapsed, 130px));
 }
 
 @media (max-width: 1024px) {
