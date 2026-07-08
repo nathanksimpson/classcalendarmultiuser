@@ -12945,6 +12945,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     --essay-workspace-border: var(--border-color);
     --essay-batch-strip-bg: var(--accent-muted);
     --essay-context-sticky-top: calc(var(--app-chrome-sticky-top, 72px) + var(--space-2));
+    font-family: var(--font-main), 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+}
+
+#panel-essays button,
+#panel-essays input,
+#panel-essays select,
+#panel-essays textarea {
+    font-family: inherit;
 }
 
 .classroom-essays-split.module-split-layout--essays {
@@ -13671,7 +13679,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-attention-strip-inner {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-3);
 }
 
@@ -13735,15 +13743,25 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-essay-attention-progress {
-    margin-left: auto;
-    flex: 1 1 220px;
-    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex: 1 1 360px;
+    min-width: min(100%, 320px);
+    max-width: 480px;
+}
+
+.classroom-essay-attention-progress .classroom-essay-stats-track {
+    width: 100%;
+    min-height: 18px;
 }
 
 .classroom-essay-attention-progress-label {
     margin-top: var(--space-1);
     font-family: var(--font-mono);
-    font-size: 0.71875rem;
+    font-size: 0.8125rem;
+    text-align: left;
 }
 
 .classroom-essay-attention-calm {
@@ -13853,8 +13871,10 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-essay-batch-label {
+    flex: 0 0 100%;
     font-size: 0.8125rem;
     font-weight: 600;
+    line-height: 1.3;
 }
 
 .classroom-essay-batch-status-btn.essay-status--not {
@@ -14102,7 +14122,8 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     cursor: pointer;
 }
 
-.classroom-essay-retest-toggle input.classroom-essay-retest {
+.classroom-essay-retest-toggle input.classroom-essay-retest,
+.classroom-essay-retest-toggle input.classroom-essay-exception {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -14128,6 +14149,19 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box {
     background: var(--essay-status-resubmit);
     border-color: var(--essay-status-resubmit);
+}
+
+.classroom-essay-retest-toggle--exception {
+    color: var(--text-secondary);
+}
+
+.classroom-essay-retest-toggle--exception .classroom-essay-retest-toggle__box {
+    border-color: var(--border-strong);
+}
+
+.classroom-essay-retest-toggle--exception input:checked + .classroom-essay-retest-toggle__box {
+    background: var(--text-secondary);
+    border-color: var(--text-secondary);
 }
 
 .classroom-essay-retest-toggle__check {

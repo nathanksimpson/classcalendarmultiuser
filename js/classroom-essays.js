@@ -155,10 +155,40 @@
     }
 
     function getEssayVisibleClasses() {
-        if (global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getVisibleClasses) {
-            return global.CCPClassroomZoneContext.getVisibleClasses();
+        // Do NOT rely on CCPClassroomZoneContext here.
+        // In production the zone context is not active for Essays, so its internal activeTabId
+        // may not be 'essays' and non-essay classes can leak into the Essays tab/report flows.
+        const base = getAccessibleClasses();
+        const api = global.CCPEssayClassFilter;
+        const d = domain();
+        const ui = getAppData().ui || {};
+        const myClassesOnly = ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1';
+        const ctx = {
+            domain: d,
+            currentUserId: hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
+            deps: {
+                classIsMine:
+                    hooks && hooks.classIsMine
+                        ? (c, userId) => hooks.classIsMine(c, userId)
+                        : undefined
+            }
+        };
+        if (api && typeof api.filterClassesForZoneContext === 'function') {
+            return api.filterClassesForZoneContext(base, { myClassesOnly, essaysOnly: true }, ctx);
         }
-        return getAccessibleClasses();
+        if (api && typeof api.classHasEssayAssignments === 'function') {
+            const filtered = base.filter((c) => api.classHasEssayAssignments(c, d));
+            return myClassesOnly && ctx.deps.classIsMine
+                ? filtered.filter((c) => ctx.deps.classIsMine(c, ctx.currentUserId))
+                : filtered;
+        }
+        if (d && typeof d.getEssayRowsFromSyllabus === 'function') {
+            const filtered = base.filter((c) => d.getEssayRowsFromSyllabus(c && c.syllabusRows).length > 0);
+            return myClassesOnly && ctx.deps.classIsMine
+                ? filtered.filter((c) => ctx.deps.classIsMine(c, ctx.currentUserId))
+                : filtered;
+        }
+        return base;
     }
 
     function syncClassIdFromContext() {
@@ -654,7 +684,7 @@
             return [];
         }
         const rows = d.listEssayOutstandingStudentRows(getAppData(), {
-            classes: getAccessibleClasses(),
+            classes: getEssayVisibleClasses(),
             classId
         });
         return progressApi.groupStudentProgressForReport(rows);
@@ -1833,19 +1863,13 @@
 
     function renderHeader(panel) {
         const headerMount = panel.querySelector('#classroomEssaysHeader');
-        if (!headerMount || !global.CCPClassroomHeader) {
+        if (!headerMount) {
             return;
         }
-        global.CCPClassroomHeader.setMode('essays');
-        global.CCPClassroomHeader.render(
-            headerMount,
-            {
-                classId,
-                classData: getClassData(),
-                studentCount: getStudents().length
-            },
-            { mode: 'essays' }
-        );
+        // Essays uses its own context + stats bars; the shared classroom header renders
+        // an empty collapsible shell in essays mode, so keep it removed.
+        headerMount.innerHTML = '';
+        headerMount.hidden = true;
     }
 
     function statusOptions() {
