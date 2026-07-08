@@ -1124,17 +1124,24 @@
     }
 
     function refreshZoneContextBar() {
-        const zone = global.CCPClassroomZoneContext;
-        const mount = document.getElementById('classroomZoneContextBar');
-        if (!zone || !zone.render || !mount) {
-            return;
+        try {
+            const zone = global.CCPClassroomZoneContext;
+            const doc = typeof document !== 'undefined' ? document : null;
+            const mount = doc && doc.getElementById('classroomZoneContextBar');
+            if (!zone || !zone.render || !mount) {
+                return;
+            }
+            const submissions = getEssaySubmissionsForAlerts();
+            if (typeof zone.withEssayAlertSubmissions === 'function') {
+                zone.withEssayAlertSubmissions(submissions, () => zone.render(mount));
+                return;
+            }
+            zone.render(mount);
+        } catch (err) {
+            if (typeof console !== 'undefined' && console.error) {
+                console.error('Essays refreshZoneContextBar failed', err);
+            }
         }
-        const submissions = getEssaySubmissionsForAlerts();
-        if (typeof zone.withEssayAlertSubmissions === 'function') {
-            zone.withEssayAlertSubmissions(submissions, () => zone.render(mount));
-            return;
-        }
-        zone.render(mount);
     }
 
     function buildAlertBadgesHtml(rs, od) {
@@ -1522,7 +1529,8 @@
     }
 
     async function flushBeforeLeave() {
-        const panel = panelRef || document.getElementById('panel-essays');
+        const doc = typeof document !== 'undefined' ? document : null;
+        const panel = panelRef || (doc && doc.getElementById('panel-essays'));
         blurActiveEssayNote(panel);
         flushNoteSave();
         ensureAutosave(panel);
@@ -2005,16 +2013,47 @@
         return '';
     }
 
-    function afterEssayStatusChange(panel, studentId) {
-        renderStatsBar(panel);
-        renderContextBar(panel);
-        if (!studentMatchesFilter(studentId)) {
-            renderRows(panel);
+    function afterEssayStatusChange(panel, studentId, options) {
+        const opts = options || {};
+        // Defer DOM rebuild so we never replace the control that fired this event
+        // mid-handler (exception checkbox / status buttons). That pattern can throw
+        // in the browser and white-screen the tab.
+        const run = () => {
+            try {
+                renderStatsBar(panel);
+                renderContextBar(panel);
+                if (!studentMatchesFilter(studentId)) {
+                    renderRows(panel);
+                } else if (!opts.skipRowRebuild) {
+                    updateEssayRow(panel, studentId);
+                } else {
+                    // Exception checkbox already reflects the new value; refresh due pill only.
+                    const rowsMount = panel && panel.querySelector('#classroomEssaysRows');
+                    const safeId =
+                        typeof CSS !== 'undefined' && CSS.escape
+                            ? CSS.escape(studentId)
+                            : String(studentId).replace(/"/g, '\\"');
+                    const row =
+                        rowsMount &&
+                        rowsMount.querySelector(`tr.classroom-essay-row[data-student-id="${safeId}"]`);
+                    const dueCell = row && row.querySelector('.classroom-sheet-col-due');
+                    if (dueCell) {
+                        dueCell.innerHTML = buildDueCell(studentId);
+                    }
+                }
+                refreshZoneContextBar();
+            } catch (err) {
+                if (typeof console !== 'undefined' && console.error) {
+                    console.error('Essays afterEssayStatusChange failed', err);
+                }
+            }
+            scheduleStatusSave();
+        };
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(run);
         } else {
-            updateEssayRow(panel, studentId);
+            setTimeout(run, 0);
         }
-        refreshZoneContextBar();
-        scheduleStatusSave();
     }
 
     function bindEssayRowHandlers(panel, row, studentId) {
@@ -2049,7 +2088,7 @@
             if (recordAffectsResubmitDayNote(result.prev, result.next)) {
                 markResubmitDayNoteDirty();
             }
-            afterEssayStatusChange(panel, sid);
+            afterEssayStatusChange(panel, sid, { skipRowRebuild: true });
         });
         const noteInput = row.querySelector('.classroom-essay-note');
         if (noteInput) {
