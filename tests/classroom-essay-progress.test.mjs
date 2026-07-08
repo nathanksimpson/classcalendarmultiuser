@@ -23,6 +23,10 @@ vm.runInNewContext(progressCode, sandbox);
 const { CCPClassroomEssayProgress } = sandbox.window;
 const d = sandbox.window.CCPClassroomDomain;
 
+const today = d.todayISO();
+const pastDate = d.addDaysISO(today, -10);
+const futureDate = d.addDaysISO(today, 10);
+
 {
     const appData = {
         classes: [
@@ -33,8 +37,15 @@ const d = sandbox.window.CCPClassroomDomain;
                     {
                         id: 'r1',
                         kind: 'lesson',
-                        date: '2026-06-25',
+                        date: pastDate,
                         planTitle: 'Essay Day 1',
+                        homework: 'essay draft'
+                    },
+                    {
+                        id: 'rFuture',
+                        kind: 'lesson',
+                        date: futureDate,
+                        planTitle: 'Essay Future',
                         homework: 'essay draft'
                     }
                 ]
@@ -69,17 +80,20 @@ const d = sandbox.window.CCPClassroomDomain;
         classes: appData.classes,
         access: { canEditClass: () => true, canBypass: () => false }
     });
-    assert(rows.length === 1, 'one assignment row');
-    assert(rows[0].counts.complete === 1, 'complete count');
-    assert(rows[0].counts.submitted === 1, 'submitted count');
-    assert(rows[0].hasOutstandingStudents === true, 'has outstanding students');
-    assert(rows[0].outstandingStudentCount === 1, 'one resubmit outstanding');
+        assert(rows.length === 2, 'two assignment rows (past + future)');
+        const pastRow = rows.find((r) => r.isPastDueStrict === true);
+        assert(!!pastRow, 'found past-due assignment row');
+        assert(pastRow.counts.complete === 1, 'complete count on past row');
+        assert(pastRow.counts.submitted === 1, 'submitted count on past row');
+        assert(pastRow.hasOutstandingStudents === true, 'past row has outstanding students');
+        assert(pastRow.outstandingStudentCount === 1, 'past row has exactly one outstanding resubmit');
 
     const filtered = CCPClassroomEssayProgress.filterAssignments(rows, {
-        selectedKeys: new Set([rows[0].key]),
+            selectedKeys: new Set(rows.map((r) => r.key)),
         outstandingOnly: true
     });
-    assert(filtered.length === 1, 'selected filter');
+        assert(filtered.length === 1, 'outstanding-only + past-due filters out future rows');
+        assert(filtered[0].key === pastRow.key, 'filtered row is the past-due one');
 
     const studentRows = CCPClassroomEssayProgress.listStudentProgressForAssignments(
         appData,
