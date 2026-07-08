@@ -161,8 +161,8 @@
         const base = getAccessibleClasses();
         const api = global.CCPEssayClassFilter;
         const d = domain();
-        const ui = getAppData().ui || {};
-        const myClassesOnly = ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1';
+        // Essays is always teacher-scoped: only the current teacher's classes should appear.
+        const myClassesOnly = true;
         const ctx = {
             domain: d,
             currentUserId: hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
