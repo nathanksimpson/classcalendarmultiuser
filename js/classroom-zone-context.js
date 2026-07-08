@@ -19,7 +19,6 @@
     let outsideBound = false;
     let mountEventsBound = false;
     let contextSubscribed = false;
-    let essayAlertSubmissionsOverride = null;
 
     function t(key) {
         return hooks && hooks.t ? hooks.t(key) : key;
@@ -160,24 +159,6 @@
         }
     }
 
-    function getEssayAlertSubmissions() {
-        if (Array.isArray(essayAlertSubmissionsOverride)) {
-            return essayAlertSubmissionsOverride;
-        }
-        const data = getAppData();
-        return Array.isArray(data.essaySubmissions) ? data.essaySubmissions : [];
-    }
-
-    function withEssayAlertSubmissions(submissions, fn) {
-        const prev = essayAlertSubmissionsOverride;
-        essayAlertSubmissionsOverride = Array.isArray(submissions) ? submissions : null;
-        try {
-            return typeof fn === 'function' ? fn() : undefined;
-        } finally {
-            essayAlertSubmissionsOverride = prev;
-        }
-    }
-
     function getEssayClassDisplayLabel(classData) {
         if (!classData) {
             return '';
@@ -186,7 +167,7 @@
         if (domain()) {
             const data = getAppData();
             const counts = domain().essayAlertCountsForClass(
-                getEssayAlertSubmissions(),
+                data.essaySubmissions,
                 classData,
                 data.cohorts || []
             );
@@ -632,7 +613,6 @@
         getSessionDate,
         setSessionDate,
         getEssayClassDisplayLabel,
-        withEssayAlertSubmissions,
         filterClassesForSearch
     };
 })(typeof window !== 'undefined' ? window : globalThis);

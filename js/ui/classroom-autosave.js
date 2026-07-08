@@ -113,10 +113,8 @@
             }
             btn.dataset.ccpAutosaveBound = '1';
             btn.addEventListener('click', () => {
-                // Single flight: cancel pending silent debounce and save once as manual.
-                // Do not flush silent then invoke non-silent (that caused two PUTs).
-                if (debouncedSave && debouncedSave.cancel) {
-                    debouncedSave.cancel();
+                if (debouncedSave && debouncedSave.flush) {
+                    debouncedSave.flush();
                 }
                 void invokeSave({ silent: false });
             });

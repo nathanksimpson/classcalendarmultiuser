@@ -35,7 +35,7 @@
         if (!submission || !Array.isArray(submission.records)) {
             return [];
         }
-        return submission.records.filter((rec) => rec && rec.status === 'resubmit_required' && rec.exception !== true);
+        return submission.records.filter((rec) => rec && rec.status === 'resubmit_required');
     }
 
     /**

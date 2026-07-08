@@ -13903,55 +13903,6 @@ function initAppShellFromTemplates() {
     mountTemplateInto('printFormTemplate', 'printFormMountModal');
 }
 
-function runTemplateDependentBootstrap() {
-    initAppShellFromTemplates();
-    refreshMountedFormElementRefs();
-    ensureClassFormExtendedMarkup();
-    setupSchoolGradeControls();
-    setupSimsonLevelControls();
-    setupClassMeetingDaysUI();
-    bindClassScheduleInputsForSyllabusDistribute();
-}
-
-function scheduleDeferredTemplateBootstrap() {
-    if (typeof CCPTemplateLoader === 'undefined' || !CCPTemplateLoader.ensureTemplatesLoaded) {
-        runTemplateDependentBootstrap();
-        return;
-    }
-    void CCPTemplateLoader.ensureTemplatesLoaded()
-        .then(() => {
-            runTemplateDependentBootstrap();
-        })
-        .catch((err) => {
-            console.error('Template load failed:', err);
-        });
-}
-
-function scheduleDeferredTeacherAccountsLinking() {
-    const run = async () => {
-        if (typeof TeamAuth === 'undefined' || location.protocol === 'file:') {
-            return;
-        }
-        try {
-            await ensureTeamTeacherAccountsLoaded();
-            if (linkClassTeachersToTeamAccounts()) {
-                saveData();
-            }
-        } catch (_) {
-            /* accounts list optional */
-        }
-    };
-    if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(() => {
-            void run();
-        }, { timeout: 3000 });
-    } else {
-        setTimeout(() => {
-            void run();
-        }, 1200);
-    }
-}
-
 /** Re-bind form refs after async templates mount (elements{} is built at script load). */
 function refreshMountedFormElementRefs() {
     elements.classForm = document.getElementById('classForm');
@@ -22489,11 +22440,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const useTeamSync = hasTeamSyncStatusEl();
     try {
-        scheduleDeferredTemplateBootstrap();
+        try {
+            if (typeof CCPTemplateLoader !== 'undefined' && CCPTemplateLoader.ensureTemplatesLoaded) {
+                await CCPTemplateLoader.ensureTemplatesLoaded();
+            }
+            initAppShellFromTemplates();
+            refreshMountedFormElementRefs();
+        } catch (err) {
+            console.error('Template load failed:', err);
+            if (useTeamSync) {
+                updateTeamSyncStatus('error', t('errorReadingFile'));
+            }
+            alert(t('errorReadingFile') || 'Could not load editor templates. Check your connection and refresh.');
+            return;
+        }
         if (useTeamSync) {
             updateTeamSyncStatus('connecting');
             scheduleTeamSyncBootWatchdog();
         }
+        ensureClassFormExtendedMarkup();
         repairCorruptedLangToggleButton();
         setupTeamLockButtons();
         setupTeamLockPendingButtons();
@@ -22518,6 +22483,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
+        setupSchoolGradeControls();
+        setupSimsonLevelControls();
+        setupClassMeetingDaysUI();
+        bindClassScheduleInputsForSyllabusDistribute();
         initAppStoreAndRenderOrchestrator();
         initListViewModules();
         initActiveContextUi();
@@ -22526,7 +22495,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof CCPActiveContext !== 'undefined' && CCPActiveContext.resolveDefaults) {
             CCPActiveContext.resolveDefaults(appData);
         }
-        scheduleDeferredTeacherAccountsLinking();
+        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+            try {
+                await ensureTeamTeacherAccountsLoaded();
+                if (linkClassTeachersToTeamAccounts()) {
+                    saveData();
+                }
+            } catch (_) {
+                /* accounts list optional */
+            }
+        }
         initializeTermStart();
         cleanupMisplacedKrHolidayControls();
         ensureKrHolidaysImportButton();
@@ -29936,17 +29914,12 @@ function scheduleCalendarTileTypographyFit() {
         return;
     }
     calendarTileTypographyFitScheduled = true;
-    const runLater = () => {
+    requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             calendarTileTypographyFitScheduled = false;
             runCalendarTileTypographyFit();
         });
-    };
-    if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(runLater, { timeout: 1200 });
-    } else {
-        setTimeout(runLater, 180);
-    }
+    });
 }
 
 function setupCalendarTileTypographyObserver() {
@@ -34030,9 +34003,7 @@ async function runTeamSyncBoot() {
         await initTeamSync();
         ensureTermStartData();
         initializeTermStart();
-        if (isCalendarContainerEmpty()) {
-            renderCalendarNow({ forceFull: true });
-        }
+        renderCalendarNow({ forceFull: true });
         if (teamSyncEnabled && isCalendarContainerEmpty()) {
             try {
                 await reloadActiveCalendarFromServer();
@@ -34042,7 +34013,7 @@ async function runTeamSyncBoot() {
                 console.warn('Post-boot calendar reload failed:', reloadErr);
             }
         }
-        if (!teamSyncEnabled && isCalendarContainerEmpty()) {
+        if (!teamSyncEnabled) {
             renderCalendar();
         }
         requestAnimationFrame(syncAppChromeStickyTop);
