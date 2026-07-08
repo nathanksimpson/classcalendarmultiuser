@@ -35,6 +35,11 @@ function debounce(fn, wait) {
             }
         }
     };
+    debounced.cancel = () => {
+        clearTimeout(timer);
+        timer = null;
+        pending = null;
+    };
     return debounced;
 }
 
@@ -100,6 +105,45 @@ const { CCPClassroomAutosave } = sandbox.window;
 
     autosave.updateStatus('saving');
     assert(statusEl.textContent === 'classroomEssaySaveSaving', 'custom i18n prefix');
+}
+
+{
+    const statusEl = { textContent: '', className: '' };
+    const listeners = [];
+    const realBtn = {
+        disabled: false,
+        dataset: {},
+        addEventListener(type, fn) {
+            if (type === 'click') listeners.push(fn);
+        }
+    };
+    const panel = {
+        querySelector(sel) {
+            return sel === '#saveBtn' ? realBtn : null;
+        }
+    };
+    let saveCount = 0;
+    let lastSilent = null;
+    const saves = [];
+    const autosave = CCPClassroomAutosave.create({
+        delayMs: 1000,
+        debounce,
+        t: (key) => key,
+        getStatusEl: () => statusEl,
+        saveAsync: async (opts) => {
+            saveCount += 1;
+            lastSilent = opts.silent;
+            saves.push(!!opts.silent);
+            await new Promise((r) => setTimeout(r, 20));
+        }
+    });
+    autosave.bindManualSaveBtn(panel, '#saveBtn', () => true);
+    autosave.scheduleSave();
+    listeners.forEach((fn) => fn());
+    await new Promise((r) => setTimeout(r, 60));
+    assert(saveCount === 1, 'manual save with pending debounce is single-flight');
+    assert(lastSilent === false, 'manual save is non-silent');
+    assert(saves.length === 1 && saves[0] === false, 'no silent flush before manual save');
 }
 
 console.log('classroom-autosave.test.mjs: all passed');
