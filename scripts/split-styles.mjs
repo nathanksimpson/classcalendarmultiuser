@@ -17,7 +17,7 @@ const SECTION_FILES = [
 ];
 
 function splitStyles() {
-    const content = readFileSync(stylesPath, 'utf8');
+    const content = readFileSync(stylesPath, 'utf8').replace(/\r\n/g, '\n');
     const parts = content.split(/\/\* ={10,}\n   ([^\n]+)\n   ={10,} \*\//);
     if (parts.length < 2) {
         console.error('Could not parse styles.css sections');
