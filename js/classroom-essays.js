@@ -1204,6 +1204,22 @@
         }
     }
 
+    function updateExceptionToggleUi(panel, studentId) {
+        const rowsMount = panel && panel.querySelector('#classroomEssaysRows');
+        const safeId =
+            typeof CSS !== 'undefined' && CSS.escape
+                ? CSS.escape(studentId)
+                : String(studentId).replace(/"/g, '\\"');
+        const row =
+            rowsMount &&
+            rowsMount.querySelector(`tr.classroom-essay-row[data-student-id="${safeId}"]`);
+        const dueCell = row && row.querySelector('.classroom-sheet-col-due');
+        if (dueCell) {
+            dueCell.innerHTML = buildDueCell(studentId);
+        }
+        updateCurrentClassPickerBadges(panel);
+    }
+
     function buildMiniTrackHtml(counts) {
         const segments = essayStatsSegmentFlex(counts || {});
         return segments
@@ -2103,6 +2119,30 @@
         }
     }
 
+    function afterEssayExceptionChange(panel, studentId) {
+        const run = () => {
+            const scrollSnapshot = getScrollSnapshot(panel);
+            try {
+                if (!studentMatchesFilter(studentId)) {
+                    renderRows(panel);
+                } else {
+                    updateExceptionToggleUi(panel, studentId);
+                }
+            } catch (err) {
+                if (typeof console !== 'undefined' && console.error) {
+                    console.error('Essays afterEssayExceptionChange failed', err);
+                }
+            }
+            restoreScrollSnapshot(scrollSnapshot);
+            scheduleStatusSave();
+        };
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(run);
+        } else {
+            setTimeout(run, 0);
+        }
+    }
+
     function bindEssayRowHandlers(panel, row, studentId) {
         const sid = studentId || row.getAttribute('data-student-id');
         if (!sid || !row) {
@@ -2135,7 +2175,7 @@
             if (recordAffectsResubmitDayNote(result.prev, result.next)) {
                 markResubmitDayNoteDirty();
             }
-            afterEssayStatusChange(panel, sid, { skipRowRebuild: true });
+            afterEssayExceptionChange(panel, sid);
         });
         const noteInput = row.querySelector('.classroom-essay-note');
         if (noteInput) {
