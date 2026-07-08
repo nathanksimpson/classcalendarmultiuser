@@ -15339,7 +15339,9 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     font-family: var(--font-main), 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
     display: flex;
     flex-direction: column;
-    min-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 220px);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-anchor: none;
 }
 
 #panel-essays button,
@@ -15905,6 +15907,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     padding: var(--space-4);
     background: var(--essay-context-bg);
     border-bottom: 1px solid var(--essay-context-border);
+    overflow-anchor: none;
 }
 
 .classroom-essays-context-bar-inner {
@@ -16074,6 +16077,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-attention-strip {
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border-color);
+    overflow-anchor: none;
 }
 
 .classroom-essay-attention-strip-inner {
@@ -16597,6 +16601,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     padding: var(--space-3) var(--space-4);
     border-top: 1px solid var(--border-color);
     margin: 0;
+    overflow-anchor: none;
 }
 
 .classroom-essay-deadline-field {
