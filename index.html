@@ -1341,50 +1341,6 @@
         </div>
     </div>
 
-    <div id="essayResubmitSummaryModal" class="modal" role="dialog" aria-labelledby="essayResubmitSummaryTitle" aria-modal="true" hidden>
-        <div class="modal-content modal-medium">
-            <div class="modal-header">
-                <h2 id="essayResubmitSummaryTitle" data-i18n="classroomEssayResubmitSummaryTitle">Essay resubmit summary</h2>
-                <button type="button" class="modal-close" id="essayResubmitSummaryClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body classroom-essay-resubmit-summary-modal-body">
-                <div class="classroom-essay-resubmit-summary-filters">
-                    <input type="search" id="essayResubmitClassSearch" class="field-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="classroomEssayResubmitFilterSearch" placeholder="Search classes…" />
-                    <label class="classroom-essay-resubmit-filter-field">
-                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterClassType">Class type</span>
-                        <select id="essayResubmitClassTypeFilter" class="field-select field-control--compact"></select>
-                    </label>
-                    <label class="classroom-essay-resubmit-filter-field">
-                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterGrade">Grade</span>
-                        <select id="essayResubmitGradeFilter" class="field-select field-control--compact"></select>
-                    </label>
-                    <label class="classroom-essay-resubmit-filter-field">
-                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterLevel">Level</span>
-                        <select id="essayResubmitLevelFilter" class="field-select field-control--compact"></select>
-                    </label>
-                    <label class="classroom-essay-resubmit-filter-field">
-                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterSubject">Subject</span>
-                        <select id="essayResubmitSubjectFilter" class="field-select field-control--compact"></select>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="essayResubmitMyClassesOnly" />
-                        <span data-i18n="classroomEssayResubmitFilterMyClasses">My classes only</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="essayResubmitHasResubmitsOnly" checked />
-                        <span data-i18n="classroomEssayResubmitFilterHasResubmits">Only classes with resubmits</span>
-                    </label>
-                    <button type="button" id="essayResubmitSelectAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayResubmitSelectAll">Select all</button>
-                    <button type="button" id="essayResubmitClearAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayResubmitClearAll">Clear all</button>
-                </div>
-                <div id="essayResubmitClassList" class="classroom-essay-resubmit-class-list"></div>
-                <div id="essayResubmitPreview" class="classroom-essay-resubmit-preview" aria-live="polite"></div>
-                <div class="form-actions">
-                    <button type="button" id="essayResubmitPrintBtn" class="btn btn-primary" data-i18n="classroomEssayResubmitPrint">Print / PDF</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div id="essayProgressReportModal" class="modal" role="dialog" aria-labelledby="essayProgressReportTitle" aria-modal="true" hidden>
         <div class="modal-content modal-medium">
@@ -2049,7 +2005,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260708-essay-sidebar"></script>
+    <script defer src="js/classroom-domain.js?v=20260708-essay-odrs-exception"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
