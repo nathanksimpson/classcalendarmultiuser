@@ -16062,7 +16062,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-attention-strip-inner {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-3);
 }
 
@@ -16126,15 +16126,25 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-essay-attention-progress {
-    margin-left: auto;
-    flex: 1 1 220px;
-    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex: 1 1 360px;
+    min-width: min(100%, 320px);
+    max-width: 480px;
+}
+
+.classroom-essay-attention-progress .classroom-essay-stats-track {
+    width: 100%;
+    min-height: 18px;
 }
 
 .classroom-essay-attention-progress-label {
     margin-top: var(--space-1);
     font-family: var(--font-mono);
-    font-size: 0.71875rem;
+    font-size: 0.8125rem;
+    text-align: left;
 }
 
 .classroom-essay-attention-calm {
