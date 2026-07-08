@@ -12943,14 +12943,481 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 #panel-essays {
     --essay-track-bg: var(--bg-hover);
     --essay-workspace-border: var(--border-color);
+    --essay-batch-strip-bg: var(--accent-muted);
+    --essay-context-sticky-top: calc(var(--app-chrome-sticky-top, 72px) + var(--space-2));
 }
 
-#panel-essays .classroom-sheet-panel.classroom-essays-main {
-    border: 1px solid var(--essay-workspace-border);
-    border-radius: var(--radius-lg);
+.classroom-essays-split.module-split-layout--essays {
+    --split-sidebar-min: 280px;
+    --split-sidebar-max: 340px;
+    align-items: start;
+    gap: var(--space-3);
+}
+
+.classroom-essays-assignment-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    width: 100%;
+    position: sticky;
+    top: var(--essay-context-sticky-top);
+    align-self: start;
+    max-height: calc(100dvh - var(--essay-context-sticky-top) - var(--space-4));
     overflow: hidden;
-    padding: 0;
+    z-index: var(--z-sticky-header);
+}
+
+.classroom-essays-assignment-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.classroom-essays-assignment-panel-title {
+    margin: 0;
+    font-size: var(--text-body-sm);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.classroom-essays-sidebar-section-title {
+    margin: 0;
+    font-size: var(--text-body-sm);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.classroom-essays-sidebar-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: var(--space-1);
+}
+
+.classroom-essays-sidebar-section-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.classroom-essays-sidebar-section-head .classroom-essays-sidebar-section-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.classroom-essays-sidebar-section-count {
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.classroom-essays-section-toggle-icon {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 6px 5px 0 5px;
+    border-color: currentColor transparent transparent transparent;
+    font-size: 0;
+    line-height: 0;
+    transition: transform 0.2s ease;
+}
+
+.classroom-essays-class-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-height: 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.classroom-essays-class-section--collapsed .classroom-essays-class-section-body {
+    display: none;
+}
+
+.classroom-essays-class-section--collapsed .classroom-essays-section-toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.classroom-essays-sidebar-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.classroom-essays-sidebar-toggle.selection-chip {
+    min-height: var(--touch-target-min, 44px);
+    flex: 1 1 calc(50% - var(--space-1));
+}
+
+.classroom-essays-class-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+    border: none;
+    background: transparent;
+}
+
+.classroom-essays-class-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    min-height: var(--touch-target-min, 44px);
+    padding: var(--space-2) var(--space-3);
+}
+
+.classroom-essays-class-item__head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    min-width: 0;
+}
+
+.classroom-essays-class-item__label {
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.35;
+    flex: 1;
+    min-width: 0;
+}
+
+.classroom-essays-class-item.is-selected {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+    box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.classroom-essays-class-item__head .classroom-essay-alert-badges {
+    flex-shrink: 0;
+}
+
+.classroom-essays-assignment-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+.classroom-essays-assignment-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+    border: none;
+    background: transparent;
+}
+
+.classroom-essays-sidebar-deadlines {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-color);
+}
+
+.classroom-essays-sidebar-deadlines[hidden] {
+    display: none;
+}
+
+.classroom-essays-deadlines-toggle {
+    width: 100%;
+}
+
+.classroom-essay-deadlines-strip--sidebar {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+.classroom-essays-context-sticky-inner--slim {
+    gap: var(--space-2);
+}
+
+.classroom-essays-assignment-panel--collapsed {
+    width: var(--space-12);
+    min-width: var(--space-12);
+    padding-inline: var(--space-1);
+}
+
+.classroom-essays-assignment-panel--collapsed .classroom-essays-assignment-panel-title,
+.classroom-essays-assignment-panel--collapsed .classroom-essays-sidebar-body,
+.classroom-essays-assignment-panel--collapsed .classroom-essays-sidebar-deadlines {
+    display: none;
+}
+
+.classroom-essays-assignment-panel--collapsed .classroom-essays-assignment-panel-toggle {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    min-height: var(--touch-target-min, 44px);
+}
+
+.classroom-essays-assignment-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    text-align: left;
+    min-height: var(--touch-target-min, 44px);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
     background: var(--bg-card);
+}
+
+.classroom-essays-assignment-card.is-selected {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+    box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.classroom-essays-assignment-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.classroom-essays-assignment-card__meta .classroom-essay-alert-badges {
+    flex-shrink: 0;
+}
+
+.classroom-essays-assignment-card__date {
+    font-size: var(--text-body-sm);
+    font-weight: 700;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.classroom-essays-assignment-card__title {
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.classroom-essays-assignment-card__track {
+    min-height: var(--space-2);
+}
+
+.classroom-essay-alert-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.classroom-essay-alert-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-body-sm);
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.classroom-essay-alert-rs {
+    color: var(--essay-status-resubmit);
+    background: color-mix(in srgb, var(--essay-status-resubmit) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--essay-status-resubmit) 35%, transparent);
+}
+
+.classroom-essay-alert-od {
+    color: var(--essay-overdue-text);
+    background: var(--essay-overdue-bg);
+    border: 1px solid var(--essay-overdue-border);
+}
+
+.classroom-essays-main {
+    min-width: 0;
+}
+
+.classroom-essays-context-sticky {
+    position: sticky;
+    top: var(--essay-context-sticky-top);
+    z-index: var(--z-sticky-header);
+    background: var(--surface-muted);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+}
+
+.classroom-essays-context-sticky[hidden] {
+    display: none;
+}
+
+.classroom-essays-context-sticky-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+}
+
+.classroom-essays-context-sticky-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.classroom-essays-context-sticky-title {
+    margin: 0;
+    font-size: var(--text-body-lg);
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.classroom-essays-context-sticky-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.classroom-essays-context-sticky-progress {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.classroom-essays-context-sticky-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.classroom-essay-warn-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--essay-overdue-border);
+    border-radius: var(--radius-md);
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.classroom-essay-warn-bar:hover {
+    filter: brightness(0.98);
+}
+
+.classroom-essay-resubmit-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 0;
+}
+
+.classroom-essay-resubmit-filter-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-bottom: var(--space-1);
+}
+
+.classroom-essay-resubmit-search {
+    min-width: 12rem;
+    flex: 1 1 12rem;
+}
+
+.classroom-essay-resubmit-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 0 0 auto;
+    min-width: 8rem;
+}
+
+.classroom-essay-resubmit-filter-field > span {
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.classroom-essay-resubmit-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+}
+
+.classroom-essay-resubmit-class-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 10rem;
+    overflow-y: auto;
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-muted);
+}
+
+.classroom-essay-resubmit-class-row {
+    margin: 0;
+}
+
+.classroom-essay-resubmit-preview {
+    max-height: 16rem;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    background: var(--bg-card);
+}
+
+.classroom-essay-resubmit-preview-class-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-body-md);
+}
+
+.classroom-essay-resubmit-preview-assignment-title {
+    margin: var(--space-2) 0 var(--space-1);
+    font-size: var(--text-body-sm);
+    color: var(--text-secondary);
+}
+
+.classroom-essay-resubmit-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-body-sm);
+}
+
+.classroom-essay-resubmit-preview-table th,
+.classroom-essay-resubmit-preview-table td {
+    border: 1px solid var(--border-color);
+    padding: var(--space-1) var(--space-2);
+    text-align: left;
+    vertical-align: top;
 }
 
 .classroom-essay-workspace {
@@ -12964,14 +13431,735 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     min-width: 0;
 }
 
-.classroom-essay-deadlines-strip {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--space-4);
+#panel-essays .classroom-sheet-panel.classroom-essays-main {
+    border: 1px solid var(--essay-workspace-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    padding: 0;
+    background: var(--bg-card);
+}
+
+.classroom-sheet--essays {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-select {
+    width: 40px;
+    text-align: center;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-index {
+    width: 34px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.classroom-sheet--essays .classroom-sheet-col-student {
+    width: auto;
+    min-width: 150px;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-status {
+    width: 384px;
+    min-width: 280px;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-due {
+    width: 126px;
+    min-width: 100px;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-feedback {
+    width: auto;
+    min-width: 180px;
+}
+
+#panel-essays .classroom-sheet thead th {
+    background: var(--essay-sheet-header-bg);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#panel-essays .classroom-sheet tbody td {
+    padding: var(--space-3) var(--space-4);
+    vertical-align: middle;
+}
+
+.classroom-essays-context-bar {
     padding: var(--space-4);
-    background: var(--surface-muted);
+    background: var(--essay-context-bg);
+    border-bottom: 1px solid var(--essay-context-border);
+}
+
+.classroom-essays-context-bar-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.classroom-essay-context-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.classroom-essay-context-field--grow {
+    flex: 1 1 240px;
+}
+
+.classroom-essay-context-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.classroom-essay-class-picker {
+    position: relative;
+    flex: 0 1 250px;
+    min-width: 220px;
+}
+
+.classroom-essay-class-picker__trigger {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: var(--touch-min);
+    justify-content: flex-start;
+    text-align: left;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-card);
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+}
+
+.classroom-essay-class-picker__trigger:hover {
+    background: var(--bg-hover);
+}
+
+.classroom-essay-class-picker__name {
+    font-weight: 600;
+}
+
+.classroom-essay-class-picker__badges {
+    display: inline-flex;
+    gap: var(--space-1);
+}
+
+.classroom-essay-class-picker__chevron {
+    margin-left: auto;
+    color: var(--text-muted);
+}
+
+.classroom-essay-class-picker__popover {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: var(--z-popover, 1000);
+    width: min(340px, 92vw);
+    padding: var(--space-3);
+}
+
+.classroom-essay-datefield {
+    width: 100%;
+    min-height: var(--touch-min);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+#panel-essays .classroom-essay-alert-badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+#panel-essays .classroom-essay-alert-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+#panel-essays .classroom-essay-alert-rs {
+    color: var(--essay-resubmit-tint-text);
+    background: var(--essay-resubmit-tint-bg);
+    border: 1px solid var(--essay-resubmit-tint-border);
+}
+
+#panel-essays .classroom-essay-alert-od {
+    color: var(--essay-overdue-text);
+    background: var(--essay-overdue-bg);
+    border: 1px solid var(--essay-overdue-border);
+}
+
+.classroom-essay-class-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: var(--space-2) 0;
+}
+
+.classroom-essay-class-filter-chip {
+    padding: 5px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: 0.71875rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+.classroom-essay-class-filter-chip.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+.classroom-essay-class-picker-list {
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.classroom-essay-class-picker-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: var(--touch-min);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    background: var(--bg-card);
+    text-align: left;
+    cursor: pointer;
+}
+
+.classroom-essay-class-picker-item.is-selected {
+    background: var(--accent-muted);
+    border-color: var(--essay-received-border);
+}
+
+.classroom-essay-attention-strip {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.classroom-essay-attention-strip-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.classroom-essay-attention-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.classroom-essay-attention-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.classroom-essay-attention-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    background: var(--bg-card);
+    min-height: var(--touch-min);
+    cursor: pointer;
+    color: inherit;
+}
+
+.classroom-essay-attention-tile--overdue.is-active,
+.classroom-essay-attention-tile--eval.is-active {
+    background: var(--essay-overdue-bg);
+    border-color: var(--essay-overdue-border);
+    color: var(--essay-overdue-text);
+}
+
+.classroom-essay-attention-tile--resubmit.is-active {
+    background: var(--essay-resubmit-tint-bg);
+    border-color: var(--essay-resubmit-tint-border);
+    color: var(--essay-resubmit-tint-text);
+}
+
+.classroom-essay-attention-tile__count {
+    font-family: var(--font-mono);
+    font-size: 1.375rem;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.classroom-essay-attention-tile__text {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.classroom-essay-attention-tile__title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.classroom-essay-attention-progress {
+    margin-left: auto;
+    flex: 1 1 220px;
+    max-width: 300px;
+}
+
+.classroom-essay-attention-progress-label {
+    margin-top: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: 0.71875rem;
+}
+
+.classroom-essay-attention-calm {
+    margin: 0;
+}
+
+.classroom-essay-toolbar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    min-height: 56px;
+    background: var(--essay-toolbar-bg);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+}
+
+.classroom-essay-toolbar-hint {
+    margin: 0;
+    flex: 1 1 auto;
+}
+
+.classroom-essay-reports-menu {
+    position: relative;
+}
+
+.classroom-essay-reports-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.classroom-essay-reports-icon {
+    flex-shrink: 0;
+}
+
+.classroom-essay-reports-dropdown {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    right: 0;
+    z-index: var(--z-popover, 1000);
+    min-width: 200px;
+    padding: var(--space-1);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-md);
+}
+
+.classroom-essay-reports-item {
+    display: block;
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    text-align: left;
+    min-height: var(--touch-min);
+    cursor: pointer;
+}
+
+.classroom-essay-reports-item:hover {
+    background: var(--bg-hover);
+}
+
+.classroom-essay-save-status,
+.classroom-save-status {
+    margin: 0;
+    flex-shrink: 0;
+    font-weight: 500;
+}
+
+.classroom-essay-save-status--saved,
+.classroom-save-status--saved {
+    color: var(--text-secondary);
+}
+
+.classroom-essay-save-status--pending,
+.classroom-essay-save-status--saving,
+.classroom-save-status--pending,
+.classroom-save-status--saving {
+    color: var(--primary-color);
+}
+
+.classroom-essay-save-status--error,
+.classroom-save-status--error {
+    color: var(--danger);
+}
+
+.classroom-essay-filters {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+}
+
+.classroom-essay-batch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.classroom-essay-batch-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.classroom-essay-batch-status-btn.essay-status--not {
+    border-color: var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+.classroom-essay-batch-status-btn.essay-status--submitted {
+    border-color: var(--essay-submitted-tint-border);
+    background: var(--essay-submitted-tint-bg);
+    color: var(--essay-submitted-tint-text);
+}
+
+.classroom-essay-batch-status-btn.essay-status--complete {
+    border-color: var(--essay-received-border);
+    background: var(--essay-received-bg);
+    color: var(--essay-received-text);
+}
+
+.classroom-essay-batch-status-btn.essay-status--resubmit {
+    border-color: var(--essay-resubmit-tint-border);
+    background: var(--essay-resubmit-tint-bg);
+    color: var(--essay-resubmit-tint-text);
+}
+
+.classroom-essay-sheet-scroll {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+#panel-essays:has(.classroom-header--collapsed) .classroom-essay-sheet-scroll {
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--classroom-sheet-chrome-offset-collapsed, 130px));
+}
+
+#panel-essays .classroom-sheet tbody tr.classroom-essay-row {
+    border-left: 3px solid var(--classroom-row-rail);
+}
+
+.classroom-sheet-row--status-essay-not {
+    --classroom-row-rail: var(--essay-status-not);
+}
+
+.classroom-sheet-row--status-essay-received {
+    --classroom-row-rail: var(--essay-status-received);
+}
+
+.classroom-sheet-row--status-essay-complete {
+    --classroom-row-rail: var(--essay-status-complete);
+}
+
+.classroom-sheet-row--status-essay-resubmit {
+    --classroom-row-rail: var(--essay-status-resubmit);
+}
+
+#panel-essays .classroom-sheet tbody tr.classroom-essay-row:nth-child(even) {
+    background: var(--surface-muted);
+}
+
+#panel-essays .classroom-sheet tbody tr.classroom-essay-row:nth-child(even):hover,
+#panel-essays .classroom-sheet tbody tr.classroom-essay-row:hover {
+    background: var(--accent-muted);
+}
+
+.classroom-essay-student-cell {
+    min-width: 0;
+}
+
+.classroom-essay-student-name-line {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.classroom-essay-student-ko {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.classroom-essay-student-en {
+    font-size: 0.78125rem;
+    color: var(--text-muted);
+}
+
+.classroom-essay-student-meta {
+    margin-top: var(--space-1);
+}
+
+.classroom-essay-branch-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    background: var(--essay-branch-chip-bg);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+}
+
+.classroom-essay-status-selector__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-wrap: wrap;
+}
+
+.classroom-essay-status-selector__group {
+    display: inline-flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.classroom-essay-status-selector__arrow {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.classroom-essay-stage {
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    min-height: 32px;
+    cursor: pointer;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.classroom-essay-stage--available {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+.classroom-essay-stage--active.essay-status--not {
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--bg-card);
+}
+
+.classroom-essay-stage--active.essay-status--submitted {
+    background: var(--essay-status-received);
+    border-color: var(--essay-status-received);
+    color: var(--bg-card);
+}
+
+.classroom-essay-stage--active.essay-status--complete {
+    background: var(--essay-status-complete);
+    border-color: var(--essay-status-complete);
+    color: var(--bg-card);
+}
+
+.classroom-essay-stage--active.essay-status--resubmit {
+    background: var(--essay-status-resubmit);
+    border-color: var(--essay-status-resubmit);
+    color: var(--bg-card);
+}
+
+.classroom-essay-stage--done.essay-status--not {
+    background: var(--surface-muted);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+.classroom-essay-stage--done.essay-status--submitted {
+    background: var(--essay-submitted-tint-bg);
+    border-color: var(--essay-submitted-tint-border);
+    color: var(--essay-submitted-tint-text);
+}
+
+.classroom-essay-due-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border-radius: var(--radius-full);
+    font-size: 0.71875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.classroom-essay-due-pill--danger {
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
+    border-color: var(--essay-overdue-border);
+}
+
+.classroom-essay-due-pill--muted {
+    background: var(--essay-branch-chip-bg);
+    color: var(--text-muted);
+    border-color: var(--border-color);
+}
+
+.classroom-essay-due-pill--submitted {
+    background: var(--essay-submitted-tint-bg);
+    color: var(--essay-submitted-tint-text);
+    border-color: var(--essay-submitted-tint-border);
+}
+
+.classroom-essay-due-pill--complete {
+    background: var(--essay-received-bg);
+    color: var(--essay-received-text);
+    border-color: var(--essay-received-border);
+}
+
+.classroom-essay-due-pill--resubmit {
+    background: var(--essay-resubmit-tint-bg);
+    color: var(--essay-resubmit-tint-text);
+    border-color: var(--essay-resubmit-tint-border);
+}
+
+.classroom-essay-feedback,
+.classroom-essay-note {
+    width: 100%;
+    min-height: 56px;
+    resize: vertical;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) 11px;
+    font-size: 0.78125rem;
+    line-height: 1.45;
+    color: var(--text-primary);
+    background: var(--bg-card);
+}
+
+.classroom-essay-feedback::placeholder,
+.classroom-essay-note::placeholder {
+    color: var(--text-muted);
+}
+
+.classroom-essay-retest-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.71875rem;
+    font-weight: 600;
+    color: var(--essay-resubmit-tint-text);
+    min-height: var(--touch-min);
+    cursor: pointer;
+}
+
+.classroom-essay-retest-toggle input.classroom-essay-retest {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.classroom-essay-retest-toggle__box {
+    width: 15px;
+    height: 15px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--essay-status-resubmit);
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box {
+    background: var(--essay-status-resubmit);
+    border-color: var(--essay-status-resubmit);
+}
+
+.classroom-essay-retest-toggle__check {
+    display: none;
+    width: 9px;
+    height: 9px;
+}
+
+.classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box .classroom-essay-retest-toggle__check {
+    display: block;
+}
+
+.classroom-essay-clear-filter {
+    margin-left: var(--space-1);
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--primary-dark, var(--primary));
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.classroom-essay-clear-filter:hover {
+    color: var(--primary);
+}
+
+.classroom-essay-footer-hint {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border-color);
+    margin: 0;
 }
 
 .classroom-essay-deadline-field {
@@ -13127,14 +14315,12 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-toolbar {
     flex-wrap: wrap;
     gap: var(--space-2);
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     margin: 0;
-    padding: var(--space-2) var(--space-4);
-    min-height: 56px;
-    background: var(--essay-toolbar-bg);
-    border-bottom: 1px solid var(--border-color);
-    border-radius: 0;
+    padding: var(--space-2) var(--space-3);
+    background: var(--essay-batch-strip-bg);
+    border-radius: var(--border-radius);
 }
 
 .classroom-essay-save-status {
@@ -13361,583 +14547,58 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--classroom-sheet-chrome-offset-collapsed, 130px));
 }
 
-.classroom-sheet--essays {
-    table-layout: fixed;
-    width: 100%;
-}
-
-.classroom-sheet--essays .classroom-sheet-col-select {
-    width: 40px;
-    text-align: center;
-}
-
-.classroom-sheet--essays .classroom-sheet-col-index {
-    width: 34px;
-    text-align: center;
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--text-muted);
-}
-
-.classroom-sheet--essays .classroom-sheet-col-student {
-    width: auto;
-    min-width: 150px;
-}
-
-.classroom-sheet--essays .classroom-sheet-col-status {
-    width: 384px;
-    min-width: 280px;
-}
-
-.classroom-sheet--essays .classroom-sheet-col-due {
-    width: 126px;
-    min-width: 100px;
-}
-
-.classroom-sheet--essays .classroom-sheet-col-feedback {
-    width: auto;
-    min-width: 180px;
-}
-
-#panel-essays .classroom-sheet thead th {
-    background: var(--essay-sheet-header-bg);
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--border-color);
-}
-
-#panel-essays .classroom-sheet tbody td {
-    padding: var(--space-3) var(--space-4);
-    vertical-align: middle;
-}
-
-.classroom-essays-context-bar {
-    padding: var(--space-4) var(--space-4);
-    background: var(--essay-context-bg);
-    border-bottom: 1px solid var(--essay-context-border);
-}
-
-.classroom-essays-context-bar-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: var(--space-3);
-}
-
-.classroom-essay-context-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 0;
-}
-
-.classroom-essay-context-field--grow {
-    flex: 1 1 240px;
-}
-
-.classroom-essay-context-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-
-.classroom-essay-class-picker {
-    position: relative;
-    flex: 0 1 250px;
-    min-width: 220px;
-}
-
-.classroom-essay-class-picker__trigger {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    min-height: var(--touch-min);
-    justify-content: flex-start;
-    text-align: left;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    background: var(--bg-card);
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
-}
-
-.classroom-essay-class-picker__trigger:hover {
-    background: var(--bg-hover);
-}
-
-.classroom-essay-datefield {
-    font-weight: 600;
-    font-size: 0.875rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    width: 100%;
-    min-height: var(--touch-min);
-}
-
-#panel-essays .classroom-essay-alert-badges {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-}
-
-#panel-essays .classroom-essay-alert-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-full);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    line-height: 1.2;
-}
-
-#panel-essays .classroom-essay-alert-rs {
-    color: var(--essay-resubmit-tint-text);
-    background: var(--essay-resubmit-tint-bg);
-    border: 1px solid var(--essay-resubmit-tint-border);
-}
-
-#panel-essays .classroom-essay-alert-od {
-    color: var(--essay-overdue-text);
-    background: var(--essay-overdue-bg);
-    border: 1px solid var(--essay-overdue-border);
-}
-
-.classroom-essay-class-filter-chip {
-    padding: 5px var(--space-2);
-    border-radius: var(--radius-full);
-    font-size: 0.71875rem;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-}
-
-.classroom-essay-class-filter-chip.is-active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: var(--text-on-primary);
-}
-
-.classroom-essay-class-picker-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    width: 100%;
-    min-height: var(--touch-min);
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    padding: var(--space-2);
-    background: var(--bg-card);
-    text-align: left;
-    cursor: pointer;
-}
-
-.classroom-essay-class-picker-item.is-selected {
-    background: var(--accent-muted);
-    border-color: var(--essay-received-border);
-}
-
-.classroom-essay-class-picker__name {
-    font-weight: 600;
-}
-
-.classroom-essay-class-picker__badges {
-    display: inline-flex;
-    gap: var(--space-1);
-}
-
-.classroom-essay-class-picker__chevron {
-    margin-left: auto;
-    color: var(--text-muted);
-}
-
-.classroom-essay-class-picker__popover {
-    position: absolute;
-    top: calc(100% + var(--space-1));
-    left: 0;
-    z-index: var(--z-popover, 1000);
-    width: min(340px, 92vw);
-    padding: var(--space-3);
-}
-
-.classroom-essay-class-filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    margin: var(--space-2) 0;
-}
-
-.classroom-essay-class-picker-list {
-    max-height: 260px;
-    overflow-y: auto;
-}
-
-.classroom-essay-attention-strip {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.classroom-essay-attention-strip-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-3);
-}
-
-.classroom-essay-attention-label {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-
-.classroom-essay-attention-tiles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-}
-
-.classroom-essay-attention-tile {
-    display: inline-flex;
-    align-items: center;
-    gap: 11px;
-    padding: 9px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-card);
-    background: var(--bg-card);
-    min-height: var(--touch-min);
-    cursor: pointer;
-    color: inherit;
-}
-
-.classroom-essay-attention-tile--overdue.is-active,
-.classroom-essay-attention-tile--eval.is-active {
-    background: var(--essay-overdue-bg);
-    border-color: var(--essay-overdue-border);
-    color: var(--essay-overdue-text);
-}
-
-.classroom-essay-attention-tile--resubmit.is-active {
-    background: var(--essay-resubmit-tint-bg);
-    border-color: var(--essay-resubmit-tint-border);
-    color: var(--essay-resubmit-tint-text);
-}
-
-.classroom-essay-attention-tile__count {
-    font-family: var(--font-mono);
-    font-size: 1.375rem;
-    font-weight: 600;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-}
-
-.classroom-essay-attention-tile__text {
-    display: flex;
-    flex-direction: column;
-    text-align: left;
-}
-
-.classroom-essay-attention-tile__title {
-    font-size: 0.8125rem;
-    font-weight: 600;
-}
-
-.classroom-essay-attention-progress {
-    margin-left: auto;
-    flex: 1 1 220px;
-    max-width: 300px;
-}
-
-.classroom-essay-attention-progress-label {
-    margin-top: var(--space-1);
-    font-family: var(--font-mono);
-    font-size: 0.71875rem;
-}
-
-.classroom-essay-attention-calm {
-    margin: 0;
-}
-
-.classroom-essay-toolbar-hint {
-    margin: 0;
-    flex: 1 1 auto;
-}
-
-.classroom-essay-reports-menu {
-    position: relative;
-}
-
-.classroom-essay-reports-dropdown {
-    position: absolute;
-    top: calc(100% + var(--space-1));
-    right: 0;
-    z-index: var(--z-popover, 1000);
-    min-width: 200px;
-    padding: var(--space-1);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
-    box-shadow: var(--shadow-md);
-}
-
-.classroom-essay-reports-item {
-    display: block;
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    text-align: left;
-    min-height: var(--touch-min);
-    cursor: pointer;
-}
-
-.classroom-essay-reports-item:hover {
-    background: var(--bg-hover);
-}
-
-.classroom-essay-status-selector__row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    flex-wrap: wrap;
-}
-
-.classroom-essay-status-selector__group {
-    display: inline-flex;
-    gap: 3px;
-    flex-shrink: 0;
-}
-
-.classroom-essay-status-selector__arrow {
-    color: var(--text-muted);
-    flex-shrink: 0;
-}
-
-.classroom-essay-reports-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-}
-
-.classroom-essay-reports-icon {
-    flex-shrink: 0;
-}
-
-.classroom-essay-stage {
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 6px 10px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    min-height: 32px;
-    cursor: pointer;
-    background: var(--bg-card);
-    color: var(--text-muted);
-    white-space: nowrap;
-    line-height: 1;
-}
-
-.classroom-essay-stage--available {
-    background: var(--bg-card);
-    border-color: var(--border-color);
-    color: var(--text-muted);
-}
-
-.classroom-essay-stage--active.essay-status--not {
-    background: var(--text-muted);
-    border-color: var(--text-muted);
-    color: var(--bg-card);
-}
-
-.classroom-essay-stage--active.essay-status--submitted {
-    background: var(--essay-status-received);
-    border-color: var(--essay-status-received);
-    color: var(--bg-card);
-}
-
-.classroom-essay-stage--active.essay-status--complete {
-    background: var(--essay-status-complete);
-    border-color: var(--essay-status-complete);
-    color: var(--bg-card);
-}
-
-.classroom-essay-stage--active.essay-status--resubmit {
-    background: var(--essay-status-resubmit);
-    border-color: var(--essay-status-resubmit);
-    color: var(--bg-card);
-}
-
-.classroom-essay-stage--done.essay-status--not {
-    background: var(--surface-muted);
-    border-color: var(--border-color);
-    color: var(--text-muted);
-}
-
-.classroom-essay-stage--done.essay-status--submitted {
-    background: color-mix(in srgb, var(--essay-status-received) 12%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--essay-status-received) 35%, var(--border-color));
-    color: var(--essay-status-received);
-}
-
-.classroom-essay-stage--done.essay-status--complete {
-    background: var(--essay-received-bg);
-    border-color: var(--essay-received-border);
-    color: var(--essay-received-text);
-}
-
-.classroom-essay-stage--done.essay-status--resubmit {
-    background: var(--essay-resubmit-tint-bg);
-    border-color: var(--essay-resubmit-tint-border);
-    color: var(--essay-resubmit-tint-text);
-}
-
-.classroom-essay-due-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 9px;
-    border-radius: var(--radius-full);
-    font-size: 0.71875rem;
-    font-weight: 600;
-    white-space: nowrap;
-    border: 1px solid transparent;
-}
-
-.classroom-essay-due-pill--danger {
-    background: var(--essay-overdue-bg);
-    color: var(--essay-overdue-text);
-    border-color: var(--essay-overdue-border);
-}
-
-.classroom-essay-due-pill--muted {
-    color: var(--text-muted);
-    background: var(--essay-branch-chip-bg);
-    border-color: var(--border-color);
-}
-
-.classroom-essay-due-pill--submitted {
-    background: var(--essay-submitted-tint-bg);
-    color: var(--essay-submitted-tint-text);
-    border-color: var(--essay-submitted-tint-border);
-}
-
-.classroom-essay-due-pill--complete {
-    background: var(--essay-received-bg);
-    color: var(--essay-received-text);
-    border-color: var(--essay-received-border);
-}
-
-.classroom-essay-due-pill--resubmit {
-    background: var(--essay-resubmit-tint-bg);
-    color: var(--essay-resubmit-tint-text);
-    border-color: var(--essay-resubmit-tint-border);
-}
-
-.classroom-essay-feedback,
-.classroom-essay-note {
-    width: 100%;
-    min-height: 56px;
-    resize: vertical;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) 11px;
-    font-size: 0.78125rem;
-    line-height: 1.45;
-    color: var(--text-primary);
-    background: var(--bg-card);
-}
-
-.classroom-essay-feedback::placeholder,
-.classroom-essay-note::placeholder {
-    color: var(--text-muted);
-}
-
-.classroom-essay-batch-label {
-    font-size: 0.8125rem;
-    font-weight: 600;
-}
-
-.classroom-essay-batch-status-btn.essay-status--not {
-    border-color: var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-}
-
-.classroom-essay-batch-status-btn.essay-status--submitted {
-    border-color: var(--essay-submitted-tint-border);
-    background: var(--essay-submitted-tint-bg);
-    color: var(--essay-submitted-tint-text);
-}
-
-.classroom-essay-batch-status-btn.essay-status--complete {
-    border-color: var(--essay-received-border);
-    background: var(--essay-received-bg);
-    color: var(--essay-received-text);
-}
-
-.classroom-essay-batch-status-btn.essay-status--resubmit {
-    border-color: var(--essay-resubmit-tint-border);
-    background: var(--essay-resubmit-tint-bg);
-    color: var(--essay-resubmit-tint-text);
-}
-
-.classroom-essay-resubmit-summary-modal-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-}
-
-.classroom-essay-resubmit-summary-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: flex-end;
-}
-
-.classroom-essay-resubmit-filter-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 120px;
-}
-
-.classroom-essay-resubmit-class-list {
-    max-height: 220px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-}
-
-.classroom-essay-resubmit-class-row {
-    min-height: var(--touch-min);
-}
-
 @media (max-width: 1024px) {
-    .classroom-essay-stage,
-    .classroom-essay-attention-tile,
-    .classroom-essay-class-picker__trigger {
-        min-height: var(--touch-min);
+    .classroom-essays-split.module-split-layout--essays {
+        flex-direction: column;
+    }
+
+    .classroom-essays-assignment-panel {
+        position: static;
+        max-height: none;
+        width: 100%;
+    }
+
+    .classroom-essays-assignment-panel--collapsed {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .classroom-essays-assignment-panel--collapsed .classroom-essays-assignment-panel-toggle {
+        writing-mode: horizontal-tb;
+        transform: none;
     }
 }
 
-#panel-essays .classroom-sheet tbody tr.classroom-essay-row {
-    border-left: 3px solid var(--classroom-row-rail);
+.classroom-sheet--essays .classroom-sheet-col-index {
+    width: 3%;
+    text-align: center;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-select {
+    width: 3%;
+    text-align: center;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-student {
+    width: 18%;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-submission {
+    width: 14%;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-evaluation {
+    width: 22%;
+}
+
+.classroom-sheet--essays .classroom-sheet-col-notes {
+    width: 24%;
+}
+
+#panel-essays .classroom-sheet tbody tr.classroom-essay-row.classroom-sheet-row--status-rail {
+    border-left-width: 3px;
+    border-left-style: solid;
+    border-left-color: var(--classroom-row-rail);
 }
 
 .classroom-sheet-row--status-essay-not {
@@ -13954,58 +14615,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-sheet-row--status-essay-resubmit {
     --classroom-row-rail: var(--essay-status-resubmit);
-}
-
-.classroom-essay-student-cell {
-    min-width: 0;
-}
-
-.classroom-essay-student-name-line {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-}
-
-.classroom-essay-student-ko {
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.classroom-essay-student-en {
-    font-size: 0.78125rem;
-    color: var(--text-muted);
-}
-
-.classroom-essay-student-meta {
-    margin-top: var(--space-1);
-}
-
-.classroom-essay-branch-chip {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.6875rem;
-    color: var(--text-secondary);
-    background: var(--essay-branch-chip-bg);
-    border: 1px solid var(--border-color);
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-full);
-}
-
-.classroom-essay-clear-filter {
-    margin-left: var(--space-1);
-    padding: 0;
-    border: none;
-    background: none;
-    font: inherit;
-    font-weight: 600;
-    color: var(--primary-dark, var(--primary));
-    cursor: pointer;
-    text-decoration: underline;
-}
-
-.classroom-essay-clear-filter:hover {
-    color: var(--primary);
 }
 
 #panel-essays .classroom-sheet tbody tr.classroom-essay-row:nth-child(even) {
@@ -14102,61 +14711,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-eval-hint {
     font-size: var(--text-body-sm);
     color: var(--essay-status-not);
-}
-
-.classroom-essay-retest-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 0.71875rem;
-    font-weight: 600;
-    color: var(--essay-resubmit-tint-text);
-    min-height: var(--touch-min);
-    cursor: pointer;
-}
-
-.classroom-essay-retest-toggle input.classroom-essay-retest {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
-
-.classroom-essay-retest-toggle__box {
-    width: 15px;
-    height: 15px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid var(--essay-status-resubmit);
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box {
-    background: var(--essay-status-resubmit);
-    border-color: var(--essay-status-resubmit);
-}
-
-.classroom-essay-retest-toggle__check {
-    display: none;
-    width: 9px;
-    height: 9px;
-}
-
-.classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box .classroom-essay-retest-toggle__check {
-    display: block;
-}
-
-.classroom-essay-footer-hint {
-    padding: var(--space-3) var(--space-4);
-    border-top: 1px solid var(--border-color);
-    margin: 0;
 }
 
 .classroom-header-body--essays:empty {
@@ -16013,35 +16567,7 @@ html[data-viewport="tablet"] .app-top-bar-row--nav {
     white-space: nowrap;
 }
 
-/* Classroom → Debate Teams (scoped port of Debate Team Randomizer) */
-.classroom-debate-shell {
-    padding: var(--space-3);
-}
-
-.classroom-debate-mount {
-    margin-top: var(--space-3);
-}
-
-.classroom-debate-header-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-}
-
-.classroom-debate-book-chip {
-    flex-shrink: 0;
-}
-
-.classroom-debate-panel .section {
-    margin-bottom: var(--space-4);
-    padding: var(--space-3);
-    background: var(--surface-muted, var(--bg-subtle));
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-}
-
+/* Classroom → Debate Teams — interactive field surfaces */
 .classroom-debate-panel input:not([type='checkbox']):not([type='file']):not([type='button']):not([type='submit']),
 .classroom-debate-panel textarea,
 .classroom-debate-panel select,
@@ -16053,441 +16579,4 @@ body[data-active-tab='debate-teams'] .classroom-zone-context-bar .field-input,
 body[data-active-tab='debate-teams'] .classroom-zone-context-bar .module-list-search,
 body[data-active-tab='debate-teams'] .classroom-zone-context-bar .classroom-zone-class-input {
     background: var(--surface);
-}
-
-.classroom-debate-panel .setup-details > summary {
-    cursor: pointer;
-    font-weight: 600;
-    padding: var(--space-2) 0;
-    list-style: none;
-}
-
-.classroom-debate-panel .mode-toggle {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-2);
-}
-
-.classroom-debate-panel .mode-btn {
-    min-height: 44px;
-    text-align: left;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--surface, #fff);
-    padding: var(--space-2) var(--space-3);
-    cursor: pointer;
-}
-
-.classroom-debate-panel .mode-btn.active {
-    border-color: var(--primary);
-    background: var(--accent-muted, rgba(20, 185, 143, 0.08));
-}
-
-.classroom-debate-panel .student-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-}
-
-.classroom-debate-panel .student-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-pill, 999px);
-    background: var(--surface, #fff);
-    min-height: 36px;
-}
-
-.classroom-debate-panel .debate-card {
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    margin-bottom: var(--space-3);
-    background: var(--surface, #fff);
-}
-
-.classroom-debate-panel .teams {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--space-3);
-}
-
-.classroom-debate-panel .teams.four-teams {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.classroom-debate-panel .team-header {
-    font-weight: 600;
-    margin-bottom: var(--space-2);
-}
-
-.classroom-debate-panel .role-badge {
-    display: inline-block;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-    background: var(--accent-muted);
-    color: var(--primary);
-    font-size: var(--text-body-xs);
-    font-weight: 600;
-}
-
-.classroom-debate-panel .role-badge.whip {
-    background: var(--warning-muted);
-    color: var(--warning-text);
-}
-
-.classroom-debate-panel .stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    margin-bottom: var(--space-3);
-}
-
-.classroom-debate-panel .stat-item {
-    min-width: 88px;
-    text-align: center;
-    padding: var(--space-2);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-}
-
-.classroom-debate-panel .stat-value {
-    font-weight: 700;
-    font-size: var(--text-body-lg);
-}
-
-.classroom-debate-panel .stat-label {
-    font-size: var(--text-body-xs);
-    color: var(--text-muted);
-}
-
-.classroom-debate-panel .classroom-debate-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .classroom-debate-results-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-}
-
-.classroom-debate-panel .debate-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    font-weight: 600;
-    margin-bottom: var(--space-2);
-}
-
-.classroom-debate-panel .format-badge {
-    font-size: var(--text-body-xs);
-    font-weight: 500;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-pill, 999px);
-    border: 1px solid var(--border-color);
-    background: var(--surface-muted, var(--bg-subtle));
-    color: var(--text-muted);
-}
-
-.classroom-debate-panel .team-members {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.classroom-debate-panel .team-members > li {
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.classroom-debate-panel .team-members > li:last-child {
-    border-bottom: none;
-}
-
-.classroom-debate-panel .student-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-}
-
-.classroom-debate-panel .role-controls {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-.classroom-debate-panel .member-actions {
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .switch-side-btn {
-    min-height: var(--touch-min, 44px);
-}
-
-.classroom-debate-panel .student-arguments {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .debate-notes textarea {
-    min-height: 72px;
-}
-
-.classroom-debate-panel .format-info {
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .format-details {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .detail-item--full {
-    grid-column: 1 / -1;
-}
-
-.classroom-debate-panel .detail-label {
-    font-size: var(--text-body-xs);
-    color: var(--text-muted);
-    margin-bottom: var(--space-1);
-}
-
-.classroom-debate-panel .roles-preview-grid,
-.classroom-debate-panel .roles-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .roles-column ul {
-    margin: var(--space-1) 0 0;
-    padding-left: var(--space-4);
-}
-
-.classroom-debate-panel .role-abbr {
-    font-weight: 600;
-    color: var(--primary);
-}
-
-.classroom-debate-panel .custom-format-builder {
-    margin-top: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--border-color);
-}
-
-.classroom-debate-panel .role-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-pill, 999px);
-    background: var(--accent-muted);
-    color: var(--primary);
-    margin: var(--space-1);
-    min-height: 36px;
-}
-
-.classroom-debate-panel .role-tag--opp {
-    background: var(--danger-muted, var(--accent-muted));
-    color: var(--danger-text, var(--primary));
-}
-
-.classroom-debate-panel .remove-role {
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    color: inherit;
-    font-size: var(--text-body-lg);
-    line-height: 1;
-    padding: 0 var(--space-1);
-    min-width: var(--touch-min, 44px);
-    min-height: var(--touch-min, 44px);
-}
-
-.classroom-debate-panel .saved-format-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-2);
-    margin-bottom: var(--space-2);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--surface, var(--bg-card));
-}
-
-.classroom-debate-panel .saved-format-meta {
-    display: inline;
-}
-
-.classroom-debate-panel .team-pair {
-    margin-bottom: var(--space-3);
-    padding: var(--space-3);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--surface, var(--bg-card));
-}
-
-.classroom-debate-panel .team-pair-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-}
-
-.classroom-debate-panel .team-pair-inputs {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--space-3);
-}
-
-.classroom-debate-panel .team-input-box textarea {
-    min-height: 120px;
-}
-
-.classroom-debate-panel .manual-entry {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-
-.classroom-debate-panel .manual-entry .field-input {
-    flex: 1 1 160px;
-}
-
-.classroom-debate-panel .classroom-debate-checkbox-group {
-    margin-bottom: var(--space-2);
-}
-
-.classroom-debate-panel .classroom-debate-checkbox-label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: var(--touch-min, 44px);
-}
-
-.classroom-debate-panel .classroom-debate-field-wide {
-    max-width: 480px;
-}
-
-.classroom-debate-panel .classroom-debate-field-narrow {
-    max-width: 120px;
-}
-
-.classroom-debate-panel .empty-state {
-    padding: var(--space-2) 0;
-}
-
-.classroom-debate-panel .mode-desc {
-    display: block;
-    font-size: var(--text-body-xs);
-    color: var(--text-muted);
-    font-weight: 400;
-    margin-top: var(--space-1);
-}
-
-.classroom-debate-panel .template-pick-default {
-    border-color: var(--primary);
-    background: var(--accent-muted);
-}
-
-#panel-debate-teams .classroom-debate-generate-actions,
-#panel-debate-teams .classroom-debate-results-actions {
-    display: none;
-}
-
-@media (max-width: 1024px) {
-    .classroom-debate-panel .mode-btn,
-    .classroom-debate-panel .student-tag,
-    .classroom-debate-panel .remove-btn {
-        min-height: var(--touch-min, 44px);
-    }
-}
-
-.classroom-debate-panel .hidden {
-    display: none !important;
-}
-
-.classroom-debate-panel .stale-results-banner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    margin-bottom: var(--space-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--warning-border);
-    background: var(--warning-muted);
-}
-
-.classroom-debate-panel .results-sticky-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: var(--z-sticky-chrome);
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2);
-    background: var(--surface, var(--bg-card));
-    border-top: 1px solid var(--border-color);
-}
-
-.classroom-debate-panel.classroom-debate-has-sticky-bar {
-    padding-bottom: calc(var(--space-6) + var(--space-2));
-}
-
-.classroom-debate-panel .feedback-export-bar {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-3);
-}
-
-.classroom-debate-panel .classroom-debate-word-modal.modal.active {
-    display: flex;
-}
-
-@media print {
-    body[data-active-tab='debate-teams'] .app-header,
-    body[data-active-tab='debate-teams'] .app-zone-nav,
-    body[data-active-tab='debate-teams'] .app-zone-segment-nav,
-    body[data-active-tab='debate-teams'] #classroomZoneContextBar,
-    body[data-active-tab='debate-teams'] .classroom-tab-toolbar,
-    body[data-active-tab='debate-teams'] .classroom-debate-panel .setup-details,
-    body[data-active-tab='debate-teams'] .classroom-debate-panel .section:not(#results-section),
-    body[data-active-tab='debate-teams'] .classroom-debate-panel .classroom-debate-actions,
-    body[data-active-tab='debate-teams'] .classroom-debate-panel .feedback-export-bar,
-    body[data-active-tab='debate-teams'] .classroom-debate-panel .results-sticky-bar,
-    body[data-active-tab='debate-teams'] .classroom-debate-panel #stale-results-banner {
-        display: none !important;
-    }
-
-    body[data-active-tab='debate-teams'] #results-section {
-        display: block !important;
-    }
 }

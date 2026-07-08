@@ -15,6 +15,7 @@ const SKIP_DIRS = new Set([
     'node_modules',
     '.git',
     '.cursor',
+    '.prod-recovery',
     '.wrangler',
     'dist',
     'data',
@@ -46,6 +47,9 @@ function shouldSkipFile(name) {
         return true;
     }
     if (name.endsWith('.bat') || name.startsWith('.tmp')) {
+        return true;
+    }
+    if (name.endsWith('.log') || name.endsWith('.patch')) {
         return true;
     }
     if (name.endsWith('.md') && !name.startsWith('FOR TEACHERS')) {

@@ -1545,7 +1545,7 @@
             : `<p class="section-hint classroom-essay-class-picker-empty">${escapeHtml(t('classroomEssayClassComboboxEmpty'))}</p>`;
 
         const pickerPopover = classPickerOpen
-            ? `<div id="classroomEssaysClassPickerPopover" class="classroom-essay-class-picker__popover lesson-filter-popover" role="dialog" aria-label="${escapeAttr(t('classroomEssaySidebarClassTitle'))}">
+            ? `<div id="classroomEssaysClassPickerPopover" class="classroom-essay-class-picker__popover lesson-filter-popover lesson-filter-popover-panel" role="dialog" aria-label="${escapeAttr(t('classroomEssaySidebarClassTitle'))}">
                 <input type="search" id="classroomEssaysClassSearch" class="field-input module-list-search" autocomplete="off" spellcheck="false" value="${escapeAttr(essayClassSearchQuery)}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" data-i18n-placeholder="classListSearchPlaceholder" />
                 <div class="classroom-essay-class-filter-chips" role="group">
                     ${chip('all', 'classroomEssayFilterAll')}
