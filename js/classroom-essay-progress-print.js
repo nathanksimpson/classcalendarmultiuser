@@ -1,5 +1,5 @@
 /**
- * Printable HTML for essay grading progress report.
+ * Printable HTML for essay student progress report.
  */
 (function (global) {
     function escapeHtml(text) {
@@ -10,44 +10,67 @@
             .replace(/"/g, '&quot;');
     }
 
-    function renderAssignmentRow(row, labels) {
+    function renderNotSubmittedLine(row, labels) {
         const r = row || {};
-        const c = r.counts || {};
-        const ssFlag = r.ssOverdue ? labels.overdue : '';
-        const teFlag = r.teOverdue ? labels.overdue : '';
-        return `<tr>
-            <td>${escapeHtml(r.assignmentLabel || '')}</td>
-            <td>${escapeHtml(r.lessonDate || '')}</td>
-            <td>${escapeHtml(String(r.totalStudents || 0))}</td>
-            <td>${escapeHtml(String(c.not_submitted || 0))}</td>
-            <td>${escapeHtml(String(c.submitted || 0))}</td>
-            <td>${escapeHtml(String(c.complete || 0))}</td>
-            <td>${escapeHtml(String(c.resubmit_required || 0))}</td>
-            <td>${escapeHtml(r.ssDueDate || '')}${ssFlag ? ` <span class="essay-progress-overdue">${escapeHtml(ssFlag)}</span>` : ''}</td>
-            <td>${escapeHtml(r.teacherEvalDueDate || '')}${teFlag ? ` <span class="essay-progress-overdue">${escapeHtml(teFlag)}</span>` : ''}</td>
-            <td>${escapeHtml(String(r.percentComplete != null ? r.percentComplete : 0))}%</td>
-        </tr>`;
+        const overdue =
+            r.ssOverdue && labels.overdue
+                ? ` <span class="essay-progress-overdue">(${escapeHtml(labels.overdue)})</span>`
+                : '';
+        return `<li class="essay-progress-student-line">${escapeHtml(r.studentName || '')}${overdue}</li>`;
+    }
+
+    function renderResubmitLine(row, labels) {
+        const r = row || {};
+        const note = String(r.note || '').trim() || labels.noReason;
+        const retest = r.submittedRetest
+            ? ` <span class="essay-progress-retest">[${escapeHtml(labels.retestReceived)}]</span>`
+            : '';
+        return `<li class="essay-progress-student-line"><strong>${escapeHtml(r.studentName || '')}</strong> — ${escapeHtml(note)}${retest}</li>`;
+    }
+
+    function renderStudentSection(title, lines, emptyLabel) {
+        if (!lines) {
+            return '';
+        }
+        const body = lines || `<li class="essay-progress-student-line essay-progress-student-line--empty">${escapeHtml(emptyLabel)}</li>`;
+        return `<div class="essay-progress-student-section">
+            <h4 class="essay-progress-student-section-title">${escapeHtml(title)}</h4>
+            <ul class="essay-progress-student-list">${body}</ul>
+        </div>`;
+    }
+
+    function renderAssignmentBlock(assignment, labels) {
+        const a = assignment || {};
+        const notSubmitted = (a.notSubmitted || [])
+            .map((row) => renderNotSubmittedLine(row, labels))
+            .join('');
+        const resubmit = (a.resubmit || [])
+            .map((row) => renderResubmitLine(row, labels))
+            .join('');
+        const sections = [
+            renderStudentSection(
+                labels.sectionNotSubmitted,
+                notSubmitted,
+                labels.noStudentsInSection
+            ),
+            renderStudentSection(labels.sectionResubmit, resubmit, labels.noStudentsInSection)
+        ].join('');
+        return `<div class="essay-progress-assignment-block">
+            <h3 class="essay-progress-assignment-title">${escapeHtml(a.assignmentLabel || '')}</h3>
+            ${sections}
+        </div>`;
     }
 
     function renderClassSection(group, labels) {
-        const rows = (group.rows || []).map((row) => renderAssignmentRow(row, labels)).join('');
+        const g = group || {};
+        const meta = [g.classTypeLabel, g.levelLabel].filter(Boolean).join(' · ');
+        const title = meta ? `${g.className || ''} (${meta})` : g.className || '';
+        const assignments = (g.assignments || [])
+            .map((a) => renderAssignmentBlock(a, labels))
+            .join('');
         return `<section class="essay-progress-class-block">
-            <h2 class="essay-progress-class-title">${escapeHtml(group.className || '')}</h2>
-            <table class="essay-progress-table">
-                <thead><tr>
-                    <th>${escapeHtml(labels.colAssignment)}</th>
-                    <th>${escapeHtml(labels.colLessonDate)}</th>
-                    <th>${escapeHtml(labels.colTotal)}</th>
-                    <th>${escapeHtml(labels.colNotSubmitted)}</th>
-                    <th>${escapeHtml(labels.colSubmitted)}</th>
-                    <th>${escapeHtml(labels.colComplete)}</th>
-                    <th>${escapeHtml(labels.colResubmit)}</th>
-                    <th>${escapeHtml(labels.colSsDue)}</th>
-                    <th>${escapeHtml(labels.colTeDue)}</th>
-                    <th>${escapeHtml(labels.colPercentComplete)}</th>
-                </tr></thead>
-                <tbody>${rows || `<tr><td colspan="10">${escapeHtml(labels.noAssignments)}</td></tr>`}</tbody>
-            </table>
+            <h2 class="essay-progress-class-title">${escapeHtml(title)}</h2>
+            ${assignments}
         </section>`;
     }
 
@@ -55,7 +78,7 @@
         const p = payload || {};
         const groups = Array.isArray(p.groups) ? p.groups : [];
         const generatedAt = p.generatedAt || '';
-        const title = labels.title || 'Essay grading progress';
+        const title = labels.title || 'Essay student progress';
         const sections = groups.map((g) => renderClassSection(g, labels)).join('');
         return `<div class="essay-progress-root">
             <header class="essay-progress-header">
@@ -63,7 +86,7 @@
                 ${p.calendarName ? `<p class="essay-progress-meta">${escapeHtml(p.calendarName)}</p>` : ''}
                 ${generatedAt ? `<p class="essay-progress-meta">${escapeHtml(labels.generatedAt)}: ${escapeHtml(generatedAt)}</p>` : ''}
             </header>
-            ${sections || `<p class="essay-progress-empty">${escapeHtml(labels.noAssignments)}</p>`}
+            ${sections || `<p class="essay-progress-empty">${escapeHtml(labels.noStudents)}</p>`}
         </div>`;
     }
 
@@ -73,11 +96,16 @@
 .essay-progress-title { margin: 0 0 0.25rem; font-size: 16pt; }
 .essay-progress-meta { margin: 0.15rem 0; color: #444; font-size: 10pt; }
 .essay-progress-class-block { margin: 0 0 1.25rem; page-break-inside: avoid; }
-.essay-progress-class-title { margin: 0 0 0.35rem; font-size: 12pt; }
-.essay-progress-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-.essay-progress-table th, .essay-progress-table td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
-.essay-progress-table th { background: #f4f4f4; }
+.essay-progress-class-title { margin: 0 0 0.5rem; font-size: 12pt; border-bottom: 1px solid #ddd; padding-bottom: 0.25rem; }
+.essay-progress-assignment-block { margin: 0 0 0.75rem 0.5rem; }
+.essay-progress-assignment-title { margin: 0 0 0.35rem; font-size: 10.5pt; color: #333; }
+.essay-progress-student-section { margin: 0 0 0.5rem 0.25rem; }
+.essay-progress-student-section-title { margin: 0 0 0.15rem; font-size: 10pt; color: #444; }
+.essay-progress-student-list { margin: 0; padding-left: 1.25rem; }
+.essay-progress-student-line { margin: 0.15rem 0; }
+.essay-progress-student-line--empty { color: #666; font-style: italic; list-style: none; margin-left: -1.25rem; }
 .essay-progress-overdue { color: #c92a2a; font-weight: 600; }
+.essay-progress-retest { color: #555; font-weight: 600; }
 .essay-progress-empty { color: #666; }
 `;
 

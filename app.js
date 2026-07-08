@@ -671,6 +671,8 @@ function getDefaultAppData() {
         essaySubmissions: [],
         studentPoints: [],
         studentTests: [],
+        debateTeamSessions: [],
+        debateCustomFormats: [],
         portfolioRecordings: [],
         portfolioEntries: [],
         smsLog: [],
@@ -5053,13 +5055,28 @@ function getSyllabusTemplatesApi() {
 /** Measure homework tab chrome for layout vars; reposition date popover when open. */
 function syncHomeworkSidebarChromeOffset() {
     const panel = document.getElementById('panel-homework');
-    const chrome = panel && !panel.hidden ? panel.querySelector('.homework-tab-chrome') : null;
-    if (chrome) {
-        const chromeHeight = Math.ceil(chrome.getBoundingClientRect().height);
-        if (chromeHeight > 0) {
-            document.documentElement.style.setProperty('--homework-tab-chrome-height', `${chromeHeight}px`);
+    const root = document.documentElement;
+    if (!panel || panel.hidden) {
+        return;
+    }
+
+    const layout = panel.querySelector('.homework-layout');
+    if (layout) {
+        const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+        const chrome = Math.ceil(layout.getBoundingClientRect().top + scrollY);
+        if (chrome > 0) {
+            root.style.setProperty('--homework-sidebar-chrome-offset', `${chrome}px`);
         }
     }
+
+    const tabChrome = panel.querySelector('.homework-tab-chrome');
+    if (tabChrome) {
+        const chromeHeight = Math.ceil(tabChrome.getBoundingClientRect().height);
+        if (chromeHeight > 0) {
+            root.style.setProperty('--homework-tab-chrome-height', `${chromeHeight}px`);
+        }
+    }
+
     if (isHomeworkReferenceDatePopoverOpen()) {
         positionHomeworkReferenceDatePopover();
     }
@@ -5496,6 +5513,7 @@ function syncCohortsBoardStickyOffsets() {
 
 let appChromeStickyResizeObserver = null;
 let cohortsBoardStickyResizeObserver = null;
+let homeworkSidebarLayoutResizeObserver = null;
 
 function initCohortsBoardStickyOffsets() {
     const panel = document.getElementById('panel-cohorts');
@@ -5521,6 +5539,31 @@ function initCohortsBoardStickyOffsets() {
     }
 }
 
+function initHomeworkSidebarLayoutObserver() {
+    const panel = document.getElementById('panel-homework');
+    if (!panel) {
+        return;
+    }
+    syncHomeworkSidebarChromeOffset();
+
+    if (typeof ResizeObserver === 'undefined') {
+        return;
+    }
+    if (homeworkSidebarLayoutResizeObserver) {
+        homeworkSidebarLayoutResizeObserver.disconnect();
+    }
+    homeworkSidebarLayoutResizeObserver = new ResizeObserver(() => syncHomeworkSidebarChromeOffset());
+    const tabChrome = panel.querySelector('.homework-tab-chrome');
+    if (tabChrome) {
+        homeworkSidebarLayoutResizeObserver.observe(tabChrome);
+    }
+    const layout = panel.querySelector('.homework-layout');
+    if (layout) {
+        homeworkSidebarLayoutResizeObserver.observe(layout);
+    }
+    homeworkSidebarLayoutResizeObserver.observe(panel);
+}
+
 function initAppChromeStickyTop() {
     const topBar = document.getElementById('appTopBar');
     if (!topBar) {
@@ -5528,6 +5571,7 @@ function initAppChromeStickyTop() {
     }
     syncAppChromeStickyTop();
     initCohortsBoardStickyOffsets();
+    initHomeworkSidebarLayoutObserver();
     if (typeof ResizeObserver !== 'undefined') {
         if (appChromeStickyResizeObserver) {
             appChromeStickyResizeObserver.disconnect();
@@ -13166,7 +13210,8 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'homework-tracking',
     'essays',
     'points',
-    'tests'
+    'tests',
+    'debate-teams'
 ];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
@@ -13202,6 +13247,7 @@ const ZONE_SEGMENT_TO_TAB = {
         essays: 'essays',
         points: 'points',
         tests: 'tests',
+        'debate-teams': 'debate-teams',
         notes: 'notes'
     },
     more: { data: 'data' }
@@ -13485,6 +13531,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     essays: { zone: APP_ZONE_CLASSROOM, segment: 'essays' },
     points: { zone: APP_ZONE_CLASSROOM, segment: 'points' },
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
+    'debate-teams': { zone: APP_ZONE_CLASSROOM, segment: 'debate-teams' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
@@ -14952,6 +14999,8 @@ async function navigateToTabBody(tabId, options = {}) {
         'homework-tracking':
             typeof CCPClassroomHomework !== 'undefined' ? CCPClassroomHomework : null,
         tests: typeof CCPClassroomTests !== 'undefined' ? CCPClassroomTests : null,
+        'debate-teams':
+            typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null,
         ledger: typeof CCPClassroomLedger !== 'undefined' ? CCPClassroomLedger : null
     };
     const leavingModule = classroomFlushTabs[previousTab];
@@ -15074,6 +15123,7 @@ async function navigateToTabBody(tabId, options = {}) {
         || tabId === 'essays'
         || tabId === 'points'
         || tabId === 'tests'
+        || tabId === 'debate-teams'
     ) {
         void initClassroomTabControls(tabId, options);
     } else if (tabId === 'command-center') {
@@ -15110,6 +15160,9 @@ async function navigateToTabBody(tabId, options = {}) {
         syncAppChromeStickyTop();
         if (tabId === 'cohorts') {
             requestAnimationFrame(syncCohortsBoardStickyOffsets);
+        }
+        if (tabId === 'homework') {
+            requestAnimationFrame(syncHomeworkSidebarChromeOffset);
         }
     });
     syncMobileSetupLimitedBanner();
@@ -15195,6 +15248,7 @@ function setupContentExpandToggle() {
             document.documentElement.setAttribute('data-content-expanded', '1');
         }
         updateContentExpandChrome();
+        requestAnimationFrame(syncHomeworkSidebarChromeOffset);
     });
 }
 
@@ -19362,6 +19416,12 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.studentTests)) {
         appData.studentTests = serverData.studentTests;
     }
+    if (Array.isArray(serverData.debateTeamSessions)) {
+        appData.debateTeamSessions = serverData.debateTeamSessions;
+    }
+    if (Array.isArray(serverData.debateCustomFormats)) {
+        appData.debateCustomFormats = serverData.debateCustomFormats;
+    }
 }
 
 async function saveClassroomPartial(fields, options) {
@@ -19382,6 +19442,12 @@ async function saveClassroomPartial(fields, options) {
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentTests')) {
         appData.studentTests = fields.studentTests;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateTeamSessions')) {
+        appData.debateTeamSessions = fields.debateTeamSessions;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateCustomFormats')) {
+        appData.debateCustomFormats = fields.debateCustomFormats;
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'ui')) {
         Object.assign(appData.ui, fields.ui);
@@ -19525,6 +19591,8 @@ async function initClassroomTabControls(tabId, options = {}) {
             CCPClassroomPoints.initTab(hooks, options);
         } else if (tabId === 'tests' && typeof CCPClassroomTests !== 'undefined') {
             CCPClassroomTests.initTab(hooks, options);
+        } else if (tabId === 'debate-teams' && typeof CCPClassroomDebateTeams !== 'undefined') {
+            await CCPClassroomDebateTeams.initTab(hooks, options);
         } else {
             setAppStatusMessage(t('classroomModuleMissing'), true);
         }
@@ -24634,12 +24702,21 @@ function renderSyllabusEditorTable(rows) {
         const weekDisplay = row.weekLabel || (row.date && mod ? mod.getSchoolWeekLabel(row.date) : '');
         const isNote = row.kind === 'note';
         const titleReadonly = !isNote;
+        const isEssayTrackable = rowKind === 'lesson' || rowKind === 'overflow';
+        const domainApi = typeof CCPClassroomDomain !== 'undefined' ? CCPClassroomDomain : null;
+        const essayChecked =
+            row.trackEssay === true ||
+            (row.trackEssay !== false && domainApi && domainApi.isEssaySyllabusRow(row));
+        const essayCell = isEssayTrackable
+            ? `<td class="syllabus-col-essay"><label class="checkbox-label syllabus-ed-essay-label"><input type="checkbox" class="syllabus-ed-track-essay"${essayChecked ? ' checked' : ''} /><span class="sr-only">${escapeHtml(t('syllabusEssayAssignmentLabel'))}</span></label></td>`
+            : '<td class="syllabus-col-essay"></td>';
         tr.innerHTML = `
             <td class="syllabus-ed-week syllabus-col-week">${escapeHtml(weekDisplay)}</td>
             <td class="syllabus-ed-num syllabus-col-num">${row.sessionNumber > 0 ? row.sessionNumber : ''}</td>
             <td class="syllabus-col-plan"><input type="text" class="syllabus-ed-title" value="${escapeAttr(row.planTitle || '')}" ${titleReadonly ? 'readonly' : ''}></td>
             <td class="syllabus-col-pages"><textarea class="syllabus-ed-detail" rows="4"></textarea></td>
             <td class="syllabus-col-note"><textarea class="syllabus-ed-note" rows="2"></textarea></td>
+            ${essayCell}
             <td class="syllabus-col-actions"><button type="button" class="btn btn-outline btn-small syllabus-row-remove" aria-label="Remove">×</button></td>
         `;
         const detailEl = tr.querySelector('.syllabus-ed-detail');
@@ -24733,6 +24810,10 @@ function collectSyllabusRowsFromForm() {
         }
         if (tr.dataset.eventType) {
             row.eventType = tr.dataset.eventType;
+        }
+        const essayCb = tr.querySelector('.syllabus-ed-track-essay');
+        if (essayCb) {
+            row.trackEssay = essayCb.checked === true;
         }
         return row;
     });
@@ -33752,6 +33833,7 @@ function refreshActiveTabAfterHydration() {
         || tab === 'essays'
         || tab === 'points'
         || tab === 'tests'
+        || tab === 'debate-teams'
     ) {
         void initClassroomTabControls(tab);
     } else if (tab === 'timetable') {
@@ -35160,7 +35242,7 @@ function migrateData(data) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateCustomFormats', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;

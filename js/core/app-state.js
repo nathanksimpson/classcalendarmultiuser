@@ -68,6 +68,8 @@
             essaySubmissions: [],
             studentPoints: [],
             studentTests: [],
+            debateTeamSessions: [],
+            debateCustomFormats: [],
             portfolioRecordings: [],
             portfolioEntries: [],
             smsLog: [],

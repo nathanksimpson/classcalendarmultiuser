@@ -6,9 +6,9 @@
         'attendance',
         'ledger',
         'homework-tracking',
-        'essays',
         'points',
-        'tests'
+        'tests',
+        'debate-teams'
     ]);
 
     let hooks = null;
@@ -70,9 +70,20 @@
 
     function getUiToggles() {
         const ui = getAppData().ui || {};
+        const essaysPref = ui.classroomZoneEssaysOnly;
+        let essaysOnly = essaysPref === true || essaysPref === '1';
+        if (
+            activeTabId === 'essays' &&
+            essaysPref !== true &&
+            essaysPref !== '1' &&
+            essaysPref !== false &&
+            essaysPref !== '0'
+        ) {
+            essaysOnly = true;
+        }
         return {
             myClassesOnly: ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1',
-            essaysOnly: ui.classroomZoneEssaysOnly === true || ui.classroomZoneEssaysOnly === '1'
+            essaysOnly
         };
     }
 
@@ -148,17 +159,30 @@
         }
     }
 
+    function getEssayClassDisplayLabel(classData) {
+        if (!classData) {
+            return '';
+        }
+        let label = classData.name || classData.id || '';
+        if (domain()) {
+            const data = getAppData();
+            const counts = domain().essayAlertCountsForClass(
+                data.essaySubmissions,
+                classData,
+                data.cohorts || []
+            );
+            label += domain().formatEssayClassAlertSuffix(counts);
+        }
+        return label;
+    }
+
     function getClassDisplayLabel(classData) {
         if (!classData) {
             return '';
         }
         let label = classData.name || classData.id || '';
-        if (activeTabId === 'essays' && domain()) {
-            const data = getAppData();
-            const resubmitBadge = domain().essayResubmitCountForClass(data.essaySubmissions, classData.id);
-            if (resubmitBadge > 0) {
-                label += ` (${resubmitBadge} ${t('classroomEssayResubmitBadge')})`;
-            }
+        if (activeTabId === 'essays') {
+            return getEssayClassDisplayLabel(classData);
         }
         return label;
     }
@@ -587,6 +611,8 @@
         isClassScopedTab,
         getActiveClassId,
         getSessionDate,
-        setSessionDate
+        setSessionDate,
+        getEssayClassDisplayLabel,
+        filterClassesForSearch
     };
 })(typeof window !== 'undefined' ? window : globalThis);

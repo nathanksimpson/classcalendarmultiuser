@@ -655,10 +655,74 @@
         return hay.includes('essay') || hay.includes('에세이');
     }
 
+    function isEssayTrackableSyllabusRow(row) {
+        if (!row) {
+            return false;
+        }
+        const kind = normalizeStr(row.kind) || 'lesson';
+        return kind === 'lesson' || kind === 'overflow';
+    }
+
+    function isEssayAssignmentRow(row) {
+        if (!row || !isEssayTrackableSyllabusRow(row)) {
+            return false;
+        }
+        if (row.trackEssay === true) {
+            return true;
+        }
+        if (row.trackEssay === false) {
+            return false;
+        }
+        return isEssaySyllabusRow(row);
+    }
+
     function getEssayRowsFromSyllabus(rows) {
         const lessons = getLessonRowsFromSyllabus(rows);
-        const essayRows = lessons.filter(isEssaySyllabusRow);
-        return essayRows.length ? essayRows : lessons;
+        return lessons.filter(isEssayAssignmentRow);
+    }
+
+    function reparseEssayFlagsForClass(classData) {
+        if (!classData || !Array.isArray(classData.syllabusRows)) {
+            return { rows: [], rowsUpdated: 0, essayRowsFound: 0 };
+        }
+        let rowsUpdated = 0;
+        let essayRowsFound = 0;
+        const rows = classData.syllabusRows.map((row) => {
+            if (!row || !isEssayTrackableSyllabusRow(row)) {
+                return row;
+            }
+            const nextFlag = isEssaySyllabusRow(row);
+            if (nextFlag) {
+                essayRowsFound += 1;
+            }
+            if (row.trackEssay === nextFlag) {
+                return row;
+            }
+            rowsUpdated += 1;
+            return Object.assign({}, row, { trackEssay: nextFlag });
+        });
+        return { rows, rowsUpdated, essayRowsFound };
+    }
+
+    function pruneOrphanEssaySubmissions(appData, classData) {
+        if (!appData || !classData || !classData.id) {
+            return 0;
+        }
+        const essayRowIds = new Set(
+            getEssayRowsFromSyllabus(classData.syllabusRows)
+                .map((row) => getSyllabusRowKey(row))
+                .filter(Boolean)
+        );
+        const cid = normalizeStr(classData.id);
+        const list = Array.isArray(appData.essaySubmissions) ? appData.essaySubmissions : [];
+        const before = list.length;
+        appData.essaySubmissions = list.filter((entry) => {
+            if (!entry || normalizeStr(entry.classId) !== cid) {
+                return true;
+            }
+            return essayRowIds.has(normalizeStr(entry.syllabusRowId));
+        });
+        return before - appData.essaySubmissions.length;
     }
 
     function normalizeEssayRecord(raw) {
@@ -782,6 +846,375 @@
             }
         });
         return total;
+    }
+
+    function isEssaySsOverdueISO(isoDate) {
+        const days = daysUntilISO(isoDate);
+        return days != null && days < 0;
+    }
+
+    function essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount) {
+        if (!isEssaySsOverdueISO(ssDueDate)) {
+            return 0;
+        }
+        if (!submission || !Array.isArray(submission.records)) {
+            return Math.max(0, studentCount || 0);
+        }
+        return countEssayByStatus(submission).not_submitted;
+    }
+
+    function essayPendingTeacherEvalCount(submission) {
+        return countEssayByStatus(submission).submitted || 0;
+    }
+
+    function isEssayTeacherEvalOverdue(submission, teacherEvalDueDate) {
+        if (!isEssaySsOverdueISO(teacherEvalDueDate)) {
+            return false;
+        }
+        return essayPendingTeacherEvalCount(submission) > 0;
+    }
+
+    function essayAlertCountsForAssignment(submission, ssDueDate, studentCount) {
+        const counts = submission
+            ? countEssayByStatus(submission)
+            : {
+                not_submitted: Math.max(0, studentCount || 0),
+                submitted: 0,
+                complete: 0,
+                resubmit_required: 0
+            };
+        return {
+            rs: counts.resubmit_required || 0,
+            od: essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount),
+            counts
+        };
+    }
+
+    function essayAlertCountsForClass(submissions, classData, cohorts) {
+        if (!classData || !classData.id) {
+            return { rs: 0, od: 0 };
+        }
+        const students = resolveStudentsForClass(classData, cohorts);
+        const totalStudents = students.length;
+        let rs = 0;
+        let od = 0;
+        getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+            const syllabusRowId = getSyllabusRowKey(row);
+            if (!syllabusRowId) {
+                return;
+            }
+            const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
+            const ssDue =
+                submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+            const alerts = essayAlertCountsForAssignment(submission, ssDue, totalStudents);
+            rs += alerts.rs;
+            od += alerts.od;
+        });
+        return { rs, od };
+    }
+
+    function formatEssayClassAlertSuffix(counts) {
+        const c = counts || {};
+        const parts = [];
+        if (c.rs > 0) {
+            parts.push(`RS:${c.rs}`);
+        }
+        if (c.od > 0) {
+            parts.push(`OD:${c.od}`);
+        }
+        return parts.length ? ` ${parts.join(' ')}` : '';
+    }
+
+    function getEssayAssignmentLabel(row) {
+        if (!row) {
+            return '';
+        }
+        return `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+    }
+
+    function resolveClassTypeLabel(classData, appData) {
+        if (!classData) {
+            return '';
+        }
+        const typeId = normalizeStr(classData.classTypeId);
+        const editor = global.CCPDefaultClassEditor;
+        if (typeId && editor && typeof editor.getById === 'function') {
+            const def = editor.getById(typeId, appData);
+            if (def && typeof editor.getOptionLabel === 'function') {
+                return editor.getOptionLabel(def);
+            }
+            if (def && def.name) {
+                return normalizeStr(def.name);
+            }
+        }
+        if (typeId) {
+            const custom = (appData && Array.isArray(appData.customClassTypes) ? appData.customClassTypes : [])
+                .find((ct) => ct && ct.id === typeId);
+            if (custom && custom.name) {
+                return normalizeStr(custom.name);
+            }
+        }
+        return typeId;
+    }
+
+    function resolveClassLevelLabel(classData) {
+        if (!classData) {
+            return '';
+        }
+        return normalizeStr(classData.levelCustom) || normalizeStr(classData.levelPreset);
+    }
+
+    function listEssayAssignmentsForClass(classData, appData) {
+        if (!classData || !classData.id) {
+            return [];
+        }
+        const submissions = Array.isArray(appData && appData.essaySubmissions)
+            ? appData.essaySubmissions
+            : [];
+        const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
+        const students = resolveStudentsForClass(classData, cohorts);
+        const totalStudents = students.length;
+        return getEssayRowsFromSyllabus(classData.syllabusRows).map((row) => {
+            const syllabusRowId = getSyllabusRowKey(row);
+            const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
+            const ssDue =
+                submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+            const teDue =
+                submission && submission.teacherEvalDueDate
+                    ? submission.teacherEvalDueDate
+                    : ssDue && addDaysISO
+                        ? addDaysISO(ssDue, 2)
+                        : '';
+            const alerts = essayAlertCountsForAssignment(submission, ssDue, totalStudents);
+            return {
+                key: `${classData.id}|${syllabusRowId}`,
+                classId: classData.id,
+                syllabusRowId,
+                lessonDate: row.date || '',
+                assignmentLabel: getEssayAssignmentLabel(row),
+                planTitle: normalizeStr(row.planTitle || row.planDetail || ''),
+                totalStudents,
+                counts: alerts.counts,
+                rs: alerts.rs,
+                od: alerts.od,
+                ssDueDate: ssDue,
+                teacherEvalDueDate: teDue,
+                ssOverdue: isEssaySsOverdueISO(ssDue),
+                percentComplete:
+                    totalStudents > 0
+                        ? Math.round(((alerts.counts.complete || 0) / totalStudents) * 100)
+                        : 0
+            };
+        });
+    }
+
+    function listEssayResubmitRows(appData, options) {
+        const opts = options || {};
+        const data = appData || {};
+        let classes = Array.isArray(opts.classes)
+            ? opts.classes
+            : Array.isArray(data.classes)
+                ? data.classes
+                : [];
+        const classIdFilter = normalizeStr(opts.classId);
+        if (classIdFilter) {
+            classes = classes.filter((c) => c && c.id === classIdFilter);
+        }
+        const submissions = Array.isArray(data.essaySubmissions) ? data.essaySubmissions : [];
+        const cohorts = Array.isArray(data.cohorts) ? data.cohorts : [];
+        const rows = [];
+
+        classes.forEach((classData) => {
+            if (!classData || !classData.id) {
+                return;
+            }
+            const students = resolveStudentsForClass(classData, cohorts);
+            const nameMap = new Map();
+            students.forEach((entry) => {
+                if (entry && entry.student && entry.student.id) {
+                    nameMap.set(entry.student.id, String(entry.student.name || entry.student.id).trim());
+                }
+            });
+            const classTypeLabel = resolveClassTypeLabel(classData, data);
+            const levelLabel = resolveClassLevelLabel(classData);
+            getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+                const syllabusRowId = getSyllabusRowKey(row);
+                if (!syllabusRowId) {
+                    return;
+                }
+                const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
+                if (!submission || !Array.isArray(submission.records)) {
+                    return;
+                }
+                const assignmentLabel = getEssayAssignmentLabel(row);
+                submission.records.forEach((rec) => {
+                    if (!rec || rec.status !== 'resubmit_required') {
+                        return;
+                    }
+                    const studentId = normalizeStr(rec.studentId);
+                    if (!studentId) {
+                        return;
+                    }
+                    rows.push({
+                        key: `${classData.id}|${syllabusRowId}|${studentId}`,
+                        classId: classData.id,
+                        className: classData.name || classData.id,
+                        classTypeId: normalizeStr(classData.classTypeId),
+                        classTypeLabel,
+                        grade: normalizeStr(classData.grade),
+                        levelLabel,
+                        subject: normalizeStr(classData.subject),
+                        syllabusRowId,
+                        assignmentLabel,
+                        lessonDate: row.date || '',
+                        studentId,
+                        studentName: nameMap.get(studentId) || studentId,
+                        note: normalizeStr(rec.note),
+                        submittedRetest: Boolean(rec.submittedRetest)
+                    });
+                });
+            });
+        });
+
+        rows.sort((a, b) => {
+            const byClass = String(a.className).localeCompare(String(b.className));
+            if (byClass !== 0) {
+                return byClass;
+            }
+            const byAssignment = String(a.lessonDate).localeCompare(String(b.lessonDate));
+            if (byAssignment !== 0) {
+                return byAssignment;
+            }
+            return String(a.studentName).localeCompare(String(b.studentName));
+        });
+        return rows;
+    }
+
+    function listEssayOutstandingStudentRows(appData, options) {
+        const opts = options || {};
+        const data = appData || {};
+        let classes = Array.isArray(opts.classes)
+            ? opts.classes
+            : Array.isArray(data.classes)
+                ? data.classes
+                : [];
+        const classIdFilter = normalizeStr(opts.classId);
+        if (classIdFilter) {
+            classes = classes.filter((c) => c && c.id === classIdFilter);
+        }
+        const statusFilter = Array.isArray(opts.statuses) && opts.statuses.length
+            ? opts.statuses.filter((s) => ESSAY_STATUSES.includes(s))
+            : ['not_submitted', 'resubmit_required'];
+        const submissions = Array.isArray(data.essaySubmissions) ? data.essaySubmissions : [];
+        const cohorts = Array.isArray(data.cohorts) ? data.cohorts : [];
+        const rows = [];
+
+        classes.forEach((classData) => {
+            if (!classData || !classData.id) {
+                return;
+            }
+            const students = resolveStudentsForClass(classData, cohorts);
+            const classTypeLabel = resolveClassTypeLabel(classData, data);
+            const levelLabel = resolveClassLevelLabel(classData);
+            getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+                const syllabusRowId = getSyllabusRowKey(row);
+                if (!syllabusRowId) {
+                    return;
+                }
+                const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
+                const assignmentLabel = getEssayAssignmentLabel(row);
+                const ssDue =
+                    submission && submission.ssDueDate
+                        ? submission.ssDueDate
+                        : row.date || '';
+                const ssOverdue = isEssaySsOverdueISO(ssDue);
+                students.forEach((entry) => {
+                    const studentId = entry && entry.student && normalizeStr(entry.student.id);
+                    if (!studentId) {
+                        return;
+                    }
+                    const rec = getEssayRecordForStudent(submission, studentId);
+                    const status =
+                        rec && ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
+                    if (!statusFilter.includes(status)) {
+                        return;
+                    }
+                    rows.push({
+                        key: `${classData.id}|${syllabusRowId}|${studentId}`,
+                        classId: classData.id,
+                        className: classData.name || classData.id,
+                        classTypeId: normalizeStr(classData.classTypeId),
+                        classTypeLabel,
+                        grade: normalizeStr(classData.grade),
+                        levelLabel,
+                        subject: normalizeStr(classData.subject),
+                        syllabusRowId,
+                        assignmentLabel,
+                        lessonDate: row.date || '',
+                        studentId,
+                        studentName: String(
+                            (entry.student && entry.student.name) || studentId
+                        ).trim(),
+                        status,
+                        note: rec ? normalizeStr(rec.note) : '',
+                        submittedRetest: rec ? Boolean(rec.submittedRetest) : false,
+                        ssDueDate: ssDue,
+                        ssOverdue
+                    });
+                });
+            });
+        });
+
+        rows.sort((a, b) => {
+            const byClass = String(a.className).localeCompare(String(b.className));
+            if (byClass !== 0) {
+                return byClass;
+            }
+            const byAssignment = String(a.lessonDate).localeCompare(String(b.lessonDate));
+            if (byAssignment !== 0) {
+                return byAssignment;
+            }
+            return String(a.studentName).localeCompare(String(b.studentName));
+        });
+        return rows;
+    }
+
+    function groupEssayStudentRowsByClass(rows) {
+        const groups = new Map();
+        (rows || []).forEach((row) => {
+            if (!row || !row.classId) {
+                return;
+            }
+            if (!groups.has(row.classId)) {
+                groups.set(row.classId, {
+                    classId: row.classId,
+                    className: row.className || row.classId,
+                    classTypeLabel: row.classTypeLabel || '',
+                    levelLabel: row.levelLabel || '',
+                    assignments: new Map()
+                });
+            }
+            const group = groups.get(row.classId);
+            const assignKey = row.syllabusRowId || row.assignmentLabel || '';
+            if (!group.assignments.has(assignKey)) {
+                group.assignments.set(assignKey, {
+                    syllabusRowId: row.syllabusRowId,
+                    assignmentLabel: row.assignmentLabel || '',
+                    lessonDate: row.lessonDate || '',
+                    students: []
+                });
+            }
+            group.assignments.get(assignKey).students.push(row);
+        });
+        return Array.from(groups.values()).map((group) => ({
+            classId: group.classId,
+            className: group.className,
+            classTypeLabel: group.classTypeLabel,
+            levelLabel: group.levelLabel,
+            assignments: Array.from(group.assignments.values()).sort((a, b) =>
+                String(a.lessonDate).localeCompare(String(b.lessonDate))
+            )
+        }));
     }
 
     function daysUntilISO(dateStr) {
@@ -995,6 +1428,71 @@
             .sort((a, b) => compareDateStr(b.testDate, a.testDate) || a.testName.localeCompare(b.testName));
     }
 
+    function debateTeamSessionKey(classId, date) {
+        return `${normalizeStr(classId)}|${normalizeStr(date)}`;
+    }
+
+    function normalizeDebateCustomFormat(raw) {
+        if (!raw || !raw.id) {
+            return null;
+        }
+        const govRoles = Array.isArray(raw.govRoles) ? raw.govRoles.filter(Boolean) : [];
+        const oppRoles = Array.isArray(raw.oppRoles) ? raw.oppRoles.filter(Boolean) : [];
+        return {
+            id: normalizeStr(raw.id),
+            name: normalizeStr(raw.name) || 'Custom Format',
+            govName: normalizeStr(raw.govName) || 'Government',
+            oppName: normalizeStr(raw.oppName) || 'Opposition',
+            govRoles,
+            oppRoles,
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function normalizeDebateTeamSession(raw) {
+        if (!raw || !raw.id || !raw.classId) {
+            return null;
+        }
+        const date = normalizeStr(raw.date);
+        if (!date) {
+            return null;
+        }
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            date,
+            sessionState: raw.sessionState && typeof raw.sessionState === 'object' ? raw.sessionState : null,
+            studentIds: Array.isArray(raw.studentIds)
+                ? raw.studentIds.map((id) => normalizeStr(id)).filter(Boolean)
+                : [],
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function findDebateTeamSession(sessions, classId, date) {
+        const list = Array.isArray(sessions) ? sessions : [];
+        const key = debateTeamSessionKey(classId, date);
+        return list.find((s) => s && debateTeamSessionKey(s.classId, s.date) === key) || null;
+    }
+
+    function upsertDebateTeamSession(sessions, entry) {
+        const normalized = normalizeDebateTeamSession(entry);
+        if (!normalized) {
+            return Array.isArray(sessions) ? sessions.slice() : [];
+        }
+        const list = Array.isArray(sessions) ? sessions.filter(Boolean).slice() : [];
+        const key = debateTeamSessionKey(normalized.classId, normalized.date);
+        const idx = list.findIndex((s) => s && debateTeamSessionKey(s.classId, s.date) === key);
+        if (idx >= 0) {
+            list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
+        } else {
+            list.push(normalized);
+        }
+        return list;
+    }
+
     function migrateClassroomData(data) {
         if (!data || typeof data !== 'object') {
             return false;
@@ -1018,6 +1516,14 @@
         }
         if (!Array.isArray(data.studentTests)) {
             data.studentTests = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.debateTeamSessions)) {
+            data.debateTeamSessions = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.debateCustomFormats)) {
+            data.debateCustomFormats = [];
             migrated = true;
         }
         if (!Array.isArray(data.portfolioRecordings)) {
@@ -1113,6 +1619,24 @@
         countEssayByStatus,
         essayResubmitCount,
         essayResubmitCountForClass,
+        isEssaySsOverdueISO,
+        isEssaySyllabusRow,
+        isEssayAssignmentRow,
+        essayOverdueNotSubmittedCount,
+        essayPendingTeacherEvalCount,
+        isEssayTeacherEvalOverdue,
+        reparseEssayFlagsForClass,
+        pruneOrphanEssaySubmissions,
+        essayAlertCountsForAssignment,
+        essayAlertCountsForClass,
+        formatEssayClassAlertSuffix,
+        getEssayAssignmentLabel,
+        resolveClassTypeLabel,
+        resolveClassLevelLabel,
+        listEssayAssignmentsForClass,
+        listEssayResubmitRows,
+        listEssayOutstandingStudentRows,
+        groupEssayStudentRowsByClass,
         daysUntilISO,
         getEssayRowsFromSyllabus,
         pickDefaultEssaySyllabusRow,
@@ -1130,6 +1654,11 @@
         getTestRecordForStudent,
         listTestsForClass,
         studentTestKey,
+        normalizeDebateTeamSession,
+        normalizeDebateCustomFormat,
+        findDebateTeamSession,
+        upsertDebateTeamSession,
+        debateTeamSessionKey,
         migrateClassroomData,
         newId
     };

@@ -1788,6 +1788,12 @@ export default {
                     if (Object.prototype.hasOwnProperty.call(body, 'studentTests')) {
                         payload.studentTests = body.studentTests;
                     }
+                    if (Object.prototype.hasOwnProperty.call(body, 'debateTeamSessions')) {
+                        payload.debateTeamSessions = body.debateTeamSessions;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'debateCustomFormats')) {
+                        payload.debateCustomFormats = body.debateCustomFormats;
+                    }
                     const prepared = prepareClassroomForSave(user, existingData, payload);
                     if (prepared.error) {
                         return json({ error: prepared.error }, 403);

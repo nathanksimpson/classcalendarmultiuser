@@ -1448,7 +1448,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         homeworkCompletions,
         essaySubmissions,
         studentPoints,
-        studentTests
+        studentTests,
+        debateTeamSessions,
+        debateCustomFormats
     } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
     if (classroomOnly) {
@@ -1470,6 +1472,12 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'studentTests')) {
             payload.studentTests = studentTests;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateTeamSessions')) {
+            payload.debateTeamSessions = debateTeamSessions;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateCustomFormats')) {
+            payload.debateCustomFormats = debateCustomFormats;
         }
         const result = calendars.updateCalendarClassroom(
             req.params.id,

@@ -4,14 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260706-notes-filters-collapse-v5">
+    <link rel="stylesheet" href="styles.css?v=20260708-essays-visual">
+    <link rel="stylesheet" href="css/features.css?v=20260708-essays-visual">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260706-notes-filters-collapse-v5';
+        window.CCP_I18N_VERSION = '20260708-essays-visual';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -156,6 +157,7 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="essays" data-i18n="classroomTabEssays">Essays</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="points" data-i18n="classroomTabPoints">Points</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
                             <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
                         </div>
@@ -483,19 +485,29 @@
 
             <section id="panel-essays" class="app-tab-panel classroom-essays-layout" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomEssaysHeader"></div>
-                <div id="classroomEssaysAssignmentBar" class="classroom-essays-assignment-bar"></div>
-                <div class="classroom-sheet-panel">
+                <div class="classroom-sheet-panel classroom-essays-main">
                     <div class="classroom-essay-workspace">
-                        <div id="classroomEssaysStatsBar" class="classroom-essay-stats-bar" role="group" aria-label="Essay status summary" data-i18n-aria-label="classroomEssayFilterLabel"></div>
+                        <div id="classroomEssaysContextBar" class="classroom-essays-context-bar"></div>
+                        <div id="classroomEssaysStatsBar" class="classroom-essay-attention-strip" role="group" aria-label="Essay attention summary" data-i18n-aria-label="classroomEssayAttentionLabel"></div>
                         <div class="module-toolbar classroom-tab-toolbar classroom-essay-toolbar">
                             <div id="classroomEssaysBatchActions" class="classroom-essay-filters classroom-batch-row"></div>
+                            <p id="classroomEssaysToolbarHint" class="classroom-essay-toolbar-hint section-hint" role="status"></p>
                             <div class="toolbar-actions">
+                                <div id="classroomEssaysReportsWrap" class="classroom-essay-reports-menu"></div>
                                 <span id="classroomEssaysSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
-                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomEssaySaveAll">Save all</button>
                             </div>
                         </div>
                         <div class="classroom-sheet-scroll classroom-essay-sheet-scroll" tabindex="0">
                             <table class="classroom-sheet classroom-sheet--essays">
+                            <colgroup>
+                                <col class="classroom-sheet-col-select" />
+                                <col class="classroom-sheet-col-index" />
+                                <col class="classroom-sheet-col-student" />
+                                <col class="classroom-sheet-col-status" />
+                                <col class="classroom-sheet-col-due" />
+                                <col class="classroom-sheet-col-feedback" />
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th scope="col" class="classroom-sheet-col-select">
@@ -503,9 +515,9 @@
                                     </th>
                                     <th scope="col" class="classroom-sheet-col-index">#</th>
                                     <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
-                                    <th scope="col" class="classroom-sheet-col-submission" data-i18n="classroomColSubmission">Submission</th>
-                                    <th scope="col" class="classroom-sheet-col-evaluation" data-i18n="classroomColEvaluation">Evaluation</th>
-                                    <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
+                                    <th scope="col" class="classroom-sheet-col-status" data-i18n="classroomEssayColStatus">Status</th>
+                                    <th scope="col" class="classroom-sheet-col-due" data-i18n="classroomEssayColDue">Due</th>
+                                    <th scope="col" class="classroom-sheet-col-feedback" data-i18n="classroomEssayColFeedback">Feedback</th>
                                 </tr>
                             </thead>
                             <tbody id="classroomEssaysRows"></tbody>
@@ -562,6 +574,24 @@
                             <tbody id="classroomTestsRows"></tbody>
                         </table>
                     </div>
+                </div>
+            </section>
+
+            <section id="panel-debate-teams" class="app-tab-panel" data-tab="debate-teams" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+                <div id="classroomDebateTeamsHeader"></div>
+                <div class="classroom-sheet-panel classroom-debate-shell">
+                    <div class="module-toolbar classroom-tab-toolbar">
+                        <div class="toolbar-actions">
+                            <button type="button" id="classroomDebateGenerateBtn" class="btn btn-primary btn-compact" data-i18n="classroomDebateGenerate">Generate Debate Teams</button>
+                            <button type="button" id="classroomDebateRegenerateBtn" class="btn btn-outline btn-compact hidden" data-i18n="classroomDebateRegenerate">Regenerate</button>
+                            <button type="button" id="classroomDebateCopyBtn" class="btn btn-outline btn-compact hidden" data-i18n="classroomDebateCopyResults">Copy Results</button>
+                            <button type="button" id="classroomDebatePrintBtn" class="btn btn-outline btn-compact hidden" data-i18n="classroomDebatePrint">Print</button>
+                            <button type="button" id="classroomDebateRefreshRosterBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateRefreshRoster">Refresh roster</button>
+                            <span id="classroomDebateSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomDebateSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
+                    </div>
+                    <div id="classroomDebateTeamsMount" class="classroom-debate-mount"></div>
                 </div>
             </section>
 
@@ -1312,10 +1342,55 @@
         </div>
     </div>
 
+    <div id="essayResubmitSummaryModal" class="modal" role="dialog" aria-labelledby="essayResubmitSummaryTitle" aria-modal="true" hidden>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2 id="essayResubmitSummaryTitle" data-i18n="classroomEssayResubmitSummaryTitle">Essay resubmit summary</h2>
+                <button type="button" class="modal-close" id="essayResubmitSummaryClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body classroom-essay-resubmit-summary-modal-body">
+                <div class="classroom-essay-resubmit-summary-filters">
+                    <input type="search" id="essayResubmitClassSearch" class="field-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="classroomEssayResubmitFilterSearch" placeholder="Search classes…" />
+                    <label class="classroom-essay-resubmit-filter-field">
+                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterClassType">Class type</span>
+                        <select id="essayResubmitClassTypeFilter" class="field-select field-control--compact"></select>
+                    </label>
+                    <label class="classroom-essay-resubmit-filter-field">
+                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterGrade">Grade</span>
+                        <select id="essayResubmitGradeFilter" class="field-select field-control--compact"></select>
+                    </label>
+                    <label class="classroom-essay-resubmit-filter-field">
+                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterLevel">Level</span>
+                        <select id="essayResubmitLevelFilter" class="field-select field-control--compact"></select>
+                    </label>
+                    <label class="classroom-essay-resubmit-filter-field">
+                        <span class="section-hint" data-i18n="classroomEssayResubmitFilterSubject">Subject</span>
+                        <select id="essayResubmitSubjectFilter" class="field-select field-control--compact"></select>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="essayResubmitMyClassesOnly" />
+                        <span data-i18n="classroomEssayResubmitFilterMyClasses">My classes only</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="essayResubmitHasResubmitsOnly" checked />
+                        <span data-i18n="classroomEssayResubmitFilterHasResubmits">Only classes with resubmits</span>
+                    </label>
+                    <button type="button" id="essayResubmitSelectAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayResubmitSelectAll">Select all</button>
+                    <button type="button" id="essayResubmitClearAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayResubmitClearAll">Clear all</button>
+                </div>
+                <div id="essayResubmitClassList" class="classroom-essay-resubmit-class-list"></div>
+                <div id="essayResubmitPreview" class="classroom-essay-resubmit-preview" aria-live="polite"></div>
+                <div class="form-actions">
+                    <button type="button" id="essayResubmitPrintBtn" class="btn btn-primary" data-i18n="classroomEssayResubmitPrint">Print / PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="essayProgressReportModal" class="modal" role="dialog" aria-labelledby="essayProgressReportTitle" aria-modal="true" hidden>
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2 id="essayProgressReportTitle" data-i18n="classroomEssayProgressReportTitle">Essay grading progress</h2>
+                <h2 id="essayProgressReportTitle" data-i18n="classroomEssayProgressReportTitle">Essay student progress</h2>
                 <button type="button" class="modal-close" id="essayProgressReportClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body classroom-essay-progress-modal-body">
@@ -1324,7 +1399,7 @@
                     <button type="button" id="essayProgressClearAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayProgressClearAll">Clear all</button>
                     <label class="checkbox-label">
                         <input type="checkbox" id="essayProgressPendingOnly" />
-                        <span data-i18n="classroomEssayProgressPendingOnly">Only assignments with pending grading</span>
+                        <span data-i18n="classroomEssayProgressPendingOnly">Only assignments with outstanding student work</span>
                     </label>
                 </div>
                 <div id="essayProgressAssignmentList" class="classroom-essay-progress-assignment-list"></div>
@@ -1942,11 +2017,11 @@
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
     <script defer src="js/active-context.js?v=20260703-zone-context"></script>
     <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
-    <script defer src="js/classroom-zone-context.js?v=20260703-design-fidelity"></script>
+    <script defer src="js/classroom-zone-context.js?v=20260708-essay-rules"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260701-event-color-palette"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260703-autosave"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260708-debate-export-fix"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -1964,7 +2039,7 @@
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
-    <script defer src="js/ui/classroom-autosave.js?v=20260703-autosave"></script>
+    <script defer src="js/ui/classroom-autosave.js?v=20260706-autosave"></script>
     <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
     <script defer src="js/views/event-list-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/calendar-view.js?v=20260615-ui-refactor"></script>
@@ -1975,7 +2050,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260612-classroom-mvp"></script>
+    <script defer src="js/classroom-domain.js?v=20260708-essay-sidebar"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>

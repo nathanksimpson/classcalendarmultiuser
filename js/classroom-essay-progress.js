@@ -1,5 +1,5 @@
 /**
- * Cross-class essay grading progress aggregation.
+ * Cross-class essay student progress aggregation.
  */
 (function (global) {
     function domain() {
@@ -75,23 +75,18 @@
                 const submission = d.findEssaySubmission(submissions, classData.id, syllabusRowId);
                 const students = d.resolveStudentsForClass(classData, appData.cohorts || []);
                 const totalStudents = students.length;
-                const counts = submission
-                    ? d.countEssayByStatus(submission)
-                    : {
-                        not_submitted: totalStudents,
-                        submitted: 0,
-                        complete: 0,
-                        resubmit_required: 0
-                    };
-                const ssDue = submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+                const submissionWithRecords = d.ensureEssayRecordsForStudents(submission, students);
+                const counts = d.countEssayByStatus(submissionWithRecords);
+                const ssDue =
+                    submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
                 const teDue =
                     submission && submission.teacherEvalDueDate
                         ? submission.teacherEvalDueDate
                         : ssDue && d.addDaysISO
                             ? d.addDaysISO(ssDue, 2)
                             : '';
-                const graded = (counts.complete || 0) + (counts.resubmit_required || 0);
-                const pending = totalStudents - graded - (counts.submitted || 0);
+                const outstandingStudentCount =
+                    (counts.not_submitted || 0) + (counts.resubmit_required || 0);
                 assignments.push({
                     key,
                     classId: classData.id,
@@ -105,11 +100,12 @@
                     teacherEvalDueDate: teDue,
                     ssOverdue: isOverdueISO(ssDue),
                     teOverdue: isOverdueISO(teDue),
+                    outstandingStudentCount,
+                    hasOutstandingStudents: outstandingStudentCount > 0,
                     percentComplete:
                         totalStudents > 0
                             ? Math.round(((counts.complete || 0) / totalStudents) * 100)
-                            : 0,
-                    hasPendingGrading: pending > 0 || (counts.submitted || 0) > 0
+                            : 0
                 });
             });
         });
@@ -131,8 +127,9 @@
         if (selectedKeys && selectedKeys.size) {
             list = list.filter((row) => selectedKeys.has(row.key));
         }
-        if (opts.pendingOnly) {
-            list = list.filter((row) => row.hasPendingGrading);
+        const outstandingOnly = opts.outstandingOnly || opts.pendingOnly;
+        if (outstandingOnly) {
+            list = list.filter((row) => row.hasOutstandingStudents);
         }
         return list;
     }
@@ -152,11 +149,86 @@
         return Array.from(groups.values());
     }
 
+    function listStudentProgressForAssignments(appData, assignments, options) {
+        const d = domain();
+        if (!d || !d.listEssayOutstandingStudentRows) {
+            return [];
+        }
+        const opts = options || {};
+        const assignmentList = Array.isArray(assignments) ? assignments : [];
+        const keySet = new Set(assignmentList.map((row) => row && row.key).filter(Boolean));
+        if (!keySet.size) {
+            return [];
+        }
+        const classes = [];
+        const classIds = new Set();
+        assignmentList.forEach((row) => {
+            if (row && row.classId && !classIds.has(row.classId)) {
+                classIds.add(row.classId);
+                classes.push({ id: row.classId, className: row.className });
+            }
+        });
+        const allClasses = Array.isArray(appData && appData.classes) ? appData.classes : [];
+        const classFilter = allClasses.filter((c) => c && classIds.has(c.id));
+        const rows = d.listEssayOutstandingStudentRows(appData, {
+            classes: classFilter.length ? classFilter : classes,
+            statuses: opts.statuses
+        });
+        return rows.filter((row) => keySet.has(normalizeKey(row.classId, row.syllabusRowId)));
+    }
+
+    function groupStudentProgressForReport(rows) {
+        const classGroups = new Map();
+        (rows || []).forEach((row) => {
+            if (!row || !row.classId) {
+                return;
+            }
+            const assignKey = normalizeKey(row.classId, row.syllabusRowId);
+            if (!classGroups.has(row.classId)) {
+                classGroups.set(row.classId, {
+                    classId: row.classId,
+                    className: row.className || row.classId,
+                    classTypeLabel: row.classTypeLabel || '',
+                    levelLabel: row.levelLabel || '',
+                    assignments: new Map()
+                });
+            }
+            const classGroup = classGroups.get(row.classId);
+            if (!classGroup.assignments.has(assignKey)) {
+                classGroup.assignments.set(assignKey, {
+                    key: assignKey,
+                    syllabusRowId: row.syllabusRowId,
+                    assignmentLabel: row.assignmentLabel || '',
+                    lessonDate: row.lessonDate || '',
+                    notSubmitted: [],
+                    resubmit: []
+                });
+            }
+            const assignGroup = classGroup.assignments.get(assignKey);
+            if (row.status === 'resubmit_required') {
+                assignGroup.resubmit.push(row);
+            } else {
+                assignGroup.notSubmitted.push(row);
+            }
+        });
+        return Array.from(classGroups.values()).map((group) => ({
+            classId: group.classId,
+            className: group.className,
+            classTypeLabel: group.classTypeLabel,
+            levelLabel: group.levelLabel,
+            assignments: Array.from(group.assignments.values()).sort((a, b) =>
+                String(a.lessonDate).localeCompare(String(b.lessonDate))
+            )
+        }));
+    }
+
     global.CCPClassroomEssayProgress = {
         normalizeKey,
         parseAssignmentKey,
         listEssayAssignments,
         filterAssignments,
-        groupAssignmentsByClass
+        groupAssignmentsByClass,
+        listStudentProgressForAssignments,
+        groupStudentProgressForReport
     };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -821,7 +821,8 @@ Practice your assigned speech(es).`,
 See P. ${essayPages} for a good example essay.
 
 ${DEBATE_PREVIEW_BLOCK}`,
-                note: 'NOTE: Provide brainstorming + structure support.'
+                note: 'NOTE: Provide brainstorming + structure support.',
+                trackEssay: true
             }
         ];
     }

@@ -108,16 +108,16 @@
             }
             const editable = typeof canSave === 'function' ? canSave() : !!canSave;
             btn.disabled = !editable;
-            btn.addEventListener(
-                'click',
-                () => {
-                    if (debouncedSave && debouncedSave.flush) {
-                        debouncedSave.flush();
-                    }
-                    void invokeSave({ silent: false });
-                },
-                { once: true }
-            );
+            if (btn.dataset.ccpAutosaveBound === '1') {
+                return;
+            }
+            btn.dataset.ccpAutosaveBound = '1';
+            btn.addEventListener('click', () => {
+                if (debouncedSave && debouncedSave.flush) {
+                    debouncedSave.flush();
+                }
+                void invokeSave({ silent: false });
+            });
         }
 
         function syncStatusDisplay() {
@@ -130,7 +130,8 @@
             flushBeforeLeave,
             bindManualSaveBtn,
             syncStatusDisplay,
-            updateStatus
+            updateStatus,
+            invokeSave
         };
     }
 
