@@ -1897,11 +1897,8 @@
             </button>`;
         };
 
-        const allCaughtUp =
-            attention.overdueSub === 0 && attention.evalOverdue === 0 && attention.resubmit === 0;
-        const tilesHtml = allCaughtUp
-            ? `<p class="classroom-essay-attention-calm section-hint">${escapeHtml(t('classroomEssayAllCaughtUp'))}</p>`
-            : `<div class="classroom-essay-attention-tiles">
+        // Keep warning tiles visible even when counts are zero so filters stay discoverable.
+        const tilesHtml = `<div class="classroom-essay-attention-tiles">
                 ${tile('overdue_sub', attention.overdueSub, 'classroomEssayAttentionOverdueSub', 'classroomEssayAttentionOverdueSubHint', 'overdue')}
                 ${tile('eval_overdue', attention.evalOverdue, 'classroomEssayAttentionEvalOverdue', 'classroomEssayAttentionEvalOverdueHint', 'eval')}
                 ${tile('resubmit_required', attention.resubmit, 'classroomEssayAttentionResubmits', 'classroomEssayAttentionResubmitsHint', 'resubmit')}
