@@ -15644,6 +15644,12 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     border: 1px solid var(--essay-overdue-border);
 }
 
+.classroom-essay-alert-ae {
+    color: var(--essay-submitted-tint-text);
+    background: var(--essay-submitted-tint-bg);
+    border: 1px solid var(--essay-submitted-tint-border);
+}
+
 .classroom-essays-main {
     min-width: 0;
 }
@@ -16003,6 +16009,12 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     color: var(--essay-overdue-text);
     background: var(--essay-overdue-bg);
     border: 1px solid var(--essay-overdue-border);
+}
+
+#panel-essays .classroom-essay-alert-ae {
+    color: var(--essay-submitted-tint-text);
+    background: var(--essay-submitted-tint-bg);
+    border: 1px solid var(--essay-submitted-tint-border);
 }
 
 .classroom-essay-class-filter-chips {

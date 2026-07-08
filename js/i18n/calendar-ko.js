@@ -594,6 +594,7 @@
         classroomEssayProgressOverdue: '지남',
         classroomEssayAlertRs: 'RS:{count}',
         classroomEssayAlertOd: 'OD:{count}',
+        classroomEssayAlertAe: 'AE:{count}',
         classroomEssayOverdueNotSubmittedWarn: '{count}명 미제출 (기한 경과)',
         classroomEssayAssignmentPanelTitle: '과제',
         classroomEssaySidebarPanelLabel: '에세이 수업 및 과제',
