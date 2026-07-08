@@ -886,7 +886,7 @@
 
     function essayAlertCountsForAssignment(submission, ssDueDate, studentCount) {
         const counts = submission
-            ? countEssayByStatus(submission)
+            ? countEssayByStatus(submission, { excludeExceptions: true })
             : {
                 not_submitted: Math.max(0, studentCount || 0),
                 submitted: 0,

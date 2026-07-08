@@ -55,7 +55,7 @@
             'js/classroom-essay-progress-print.js?v=20260708-student-progress',
             'js/classroom-essay-resubmit-print.js?v=20260708-essay-odrs-exception',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260708-essay-odrs-exception'
+            'js/classroom-essays.js?v=20260708-exception-crash-fix'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
