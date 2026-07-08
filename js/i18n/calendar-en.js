@@ -594,6 +594,7 @@
         classroomEssayProgressOverdue: 'overdue',
         classroomEssayAlertRs: 'RS:{count}',
         classroomEssayAlertOd: 'OD:{count}',
+        classroomEssayAlertAe: 'AE:{count}',
         classroomEssayOverdueNotSubmittedWarn: '{count} student(s) have not submitted (past due)',
         classroomEssayAssignmentPanelTitle: 'Assignments',
         classroomEssaySidebarPanelLabel: 'Essay classes and assignments',

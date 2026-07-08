@@ -886,18 +886,20 @@
         return {
             rs: counts.resubmit_required || 0,
             od: essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount),
+            ae: essayPendingTeacherEvalCount(submission),
             counts
         };
     }
 
     function essayAlertCountsForClass(submissions, classData, cohorts) {
         if (!classData || !classData.id) {
-            return { rs: 0, od: 0 };
+            return { rs: 0, od: 0, ae: 0 };
         }
         const students = resolveStudentsForClass(classData, cohorts);
         const totalStudents = students.length;
         let rs = 0;
         let od = 0;
+        let ae = 0;
         getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
             const syllabusRowId = getSyllabusRowKey(row);
             if (!syllabusRowId) {
@@ -909,8 +911,9 @@
             const alerts = essayAlertCountsForAssignment(submission, ssDue, totalStudents);
             rs += alerts.rs;
             od += alerts.od;
+            ae += alerts.ae;
         });
-        return { rs, od };
+        return { rs, od, ae };
     }
 
     function formatEssayClassAlertSuffix(counts) {
@@ -921,6 +924,9 @@
         }
         if (c.od > 0) {
             parts.push(`OD:${c.od}`);
+        }
+        if (c.ae > 0) {
+            parts.push(`AE:${c.ae}`);
         }
         return parts.length ? ` ${parts.join(' ')}` : '';
     }

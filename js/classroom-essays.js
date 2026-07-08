@@ -1460,7 +1460,7 @@
         zone.render(mount);
     }
 
-    function buildAlertBadgesHtml(rs, od) {
+    function buildAlertBadgesHtml(rs, od, ae) {
         const parts = [];
         if (rs > 0) {
             parts.push(
@@ -1470,6 +1470,11 @@
         if (od > 0) {
             parts.push(
                 `<span class="classroom-essay-alert-badge classroom-essay-alert-od">${escapeHtml(tf('classroomEssayAlertOd', { count: od }))}</span>`
+            );
+        }
+        if (ae > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-ae">${escapeHtml(tf('classroomEssayAlertAe', { count: ae }))}</span>`
             );
         }
         return parts.length
@@ -1556,9 +1561,13 @@
         const currentCounts =
             classData && d
                 ? d.essayAlertCountsForClass(submissions, classData, data.cohorts || [])
-                : { rs: 0, od: 0 };
+                : { rs: 0, od: 0, ae: 0 };
         const currentName = classData ? classData.name || classData.id || '' : '';
-        const currentBadges = buildAlertBadgesHtml(currentCounts.rs || 0, currentCounts.od || 0);
+        const currentBadges = buildAlertBadgesHtml(
+            currentCounts.rs || 0,
+            currentCounts.od || 0,
+            currentCounts.ae || 0
+        );
 
         const chip = (filter, labelKey) => {
             const active = essayClassAttentionFilter === filter ? ' is-active' : '';
@@ -1577,12 +1586,13 @@
                     const counts =
                         d && c
                             ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
-                            : { rs: 0, od: 0 };
+                            : { rs: 0, od: 0, ae: 0 };
                     const rs = counts.rs || 0;
                     const od = counts.od || 0;
+                    const ae = counts.ae || 0;
                     const badgeHtml =
-                        rs > 0 || od > 0
-                            ? buildAlertBadgesHtml(rs, od)
+                        rs > 0 || od > 0 || ae > 0
+                            ? buildAlertBadgesHtml(rs, od, ae)
                             : `<span class="classroom-essay-class-clear section-hint">${escapeHtml(t('classroomEssayClassClear'))}</span>`;
                     return `<button type="button" class="module-list-item classroom-essay-class-picker-item${selected}" role="option" aria-selected="${c.id === classId ? 'true' : 'false'}" data-class-id="${escapeAttr(c.id)}">
                         <span class="classroom-essay-class-picker-item__label">${escapeHtml(label)}</span>

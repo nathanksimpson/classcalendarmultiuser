@@ -146,6 +146,15 @@ assert(
 const classAlerts = d.essayAlertCountsForClass([essaySubmissionPastDue], essayClass, cohorts);
 assert(classAlerts.od === 1, 'class OD aggregates assignment');
 assert(classAlerts.rs === 0, 'class RS zero without resubmits');
+assert(classAlerts.ae === 1, 'class AE counts submitted awaiting eval');
+
+const assignmentAlerts = d.essayAlertCountsForAssignment(essaySubmissionPastDue, yesterday, 2);
+assert(assignmentAlerts.ae === 1, 'assignment AE counts submitted status');
+assert(assignmentAlerts.od === 1, 'assignment OD still counts overdue not_submitted');
+assert(
+    d.essayAlertCountsForAssignment(null, yesterday, 2).ae === 0,
+    'assignment AE is zero with no submission'
+);
 
 const resubmitSubmission = {
     id: 'es2',
@@ -174,10 +183,14 @@ assert(resubmitRows[0].note === 'Fix intro', 'resubmit row includes note');
 assert(resubmitRows[0].submittedRetest === true, 'resubmit row includes retest flag');
 
 assert(
-    d.formatEssayClassAlertSuffix({ rs: 1, od: 3 }) === ' RS:1 OD:3',
-    'formatEssayClassAlertSuffix builds RS/OD suffix'
+    d.formatEssayClassAlertSuffix({ rs: 1, od: 3, ae: 2 }) === ' RS:1 OD:3 AE:2',
+    'formatEssayClassAlertSuffix builds RS/OD/AE suffix'
 );
-assert(d.formatEssayClassAlertSuffix({ rs: 0, od: 0 }) === '', 'formatEssayClassAlertSuffix omits zeros');
+assert(d.formatEssayClassAlertSuffix({ rs: 0, od: 0, ae: 0 }) === '', 'formatEssayClassAlertSuffix omits zeros');
+assert(
+    d.formatEssayClassAlertSuffix({ rs: 0, od: 0, ae: 4 }) === ' AE:4',
+    'formatEssayClassAlertSuffix can show AE alone'
+);
 
 const assignments = d.listEssayAssignmentsForClass(
     essayClass,
