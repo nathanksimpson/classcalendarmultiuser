@@ -307,6 +307,33 @@ assert(outstandingRows.length === 1, 'outstanding rows exclude submitted student
 assert(outstandingRows[0].status === 'resubmit_required', 'only resubmit student is outstanding');
 assert(outstandingRows[0].studentName === 'Kim', 'outstanding row resolves student name');
 
+const exceptionSubmission = {
+    id: 'es-exception',
+    classId: 'cls-essay',
+    syllabusRowId: 'row1',
+    records: [
+        { studentId: 's1', status: 'not_submitted', submittedRetest: false, note: 'medical', exception: true },
+        { studentId: 's2', status: 'resubmit_required', submittedRetest: true, note: 'redo body', exception: true }
+    ]
+};
+assert(
+    d.essayOverdueNotSubmittedCount(exceptionSubmission, yesterday, 2) === 0,
+    'exception students do not count as overdue not submitted'
+);
+assert(
+    d.essayResubmitCount(exceptionSubmission) === 0,
+    'exception students do not count as resubmits'
+);
+const exceptionRows = d.listEssayOutstandingStudentRows(
+    {
+        classes: [essayClass],
+        cohorts,
+        essaySubmissions: [exceptionSubmission]
+    },
+    { classes: [essayClass] }
+);
+assert(exceptionRows.length === 0, 'exception students are excluded from outstanding rows');
+
 const grouped = d.groupEssayStudentRowsByClass(resubmitRows);
 assert(grouped.length === 1, 'groupEssayStudentRowsByClass returns one class');
 assert(grouped[0].assignments.length === 1, 'grouped class has one assignment');
