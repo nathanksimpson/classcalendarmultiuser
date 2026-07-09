@@ -102,6 +102,61 @@
         };
     }
 
+    function getIndividualDayTemplateDetail(indexes, dayNum) {
+        if (!indexes || !dayNum) {
+            return '';
+        }
+        const tpl = templateByTitle(indexes, debateDayTitle(dayNum))
+            || indexes.bySession.get(dayNum);
+        return tpl && tpl.planDetail ? String(tpl.planDetail).trim() : '';
+    }
+
+    /** True when combined template text covers all days (not first-day-only). */
+    function combinedTemplateCoversAllDays(combinedDetail, indexes, start, end) {
+        const combined = String(combinedDetail || '').trim();
+        if (!combined) {
+            return false;
+        }
+        const dayDetails = [];
+        for (let n = start; n <= end; n += 1) {
+            const dayDetail = getIndividualDayTemplateDetail(indexes, n);
+            if (dayDetail) {
+                dayDetails.push(dayDetail);
+            }
+        }
+        if (!dayDetails.length) {
+            return true;
+        }
+        const allKeysPresent = dayDetails.every((part) => {
+            const key = part.slice(0, Math.min(16, part.length));
+            return key && combined.includes(key);
+        });
+        if (allKeysPresent) {
+            return true;
+        }
+        if (combined === dayDetails[0].trim()) {
+            return false;
+        }
+        const paragraphs = combined.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+        if (paragraphs.length >= dayDetails.length) {
+            return true;
+        }
+        const matchesSingleDayOnly = dayDetails.some((d) => combined === d.trim());
+        if (!matchesSingleDayOnly) {
+            return true;
+        }
+        return false;
+    }
+
+    function resolveDay2And3CombinedTemplate(indexes) {
+        const combined = templateByTitle(indexes, 'Day 2 & 3 Combined');
+        const combinedDetail = combined ? String(combined.planDetail || '').trim() : '';
+        if (combinedDetail && combinedTemplateCoversAllDays(combinedDetail, indexes, 2, 3)) {
+            return combined;
+        }
+        return mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+    }
+
     /**
      * Debate monthly: merged calendar slots and month-bridge days use combined templates.
      */
@@ -111,8 +166,7 @@
         }
         const key = row.debateTemplateKey;
         if (key === 'day2and3combined') {
-            return templateByTitle(indexes, 'Day 2 & 3 Combined')
-                || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+            return resolveDay2And3CombinedTemplate(indexes);
         }
         if (key === 'day4and1bridge') {
             return mergeDebateTemplates(
@@ -125,8 +179,7 @@
             const start = row.debateGroupStart;
             const end = row.debateGroupEnd;
             if (start === 2 && end === 3) {
-                return templateByTitle(indexes, 'Day 2 & 3 Combined')
-                    || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+                return resolveDay2And3CombinedTemplate(indexes);
             }
             const dayTitles = [];
             for (let d = start; d <= end; d += 1) {
@@ -137,8 +190,7 @@
         const title = (row.planTitle || '').trim().toLowerCase();
         if (/combined/.test(title) || (/day\s*2/.test(title) && /day\s*3/.test(title))
             || (/merge/.test(title) && /2/.test(title) && /3/.test(title))) {
-            return templateByTitle(indexes, 'Day 2 & 3 Combined')
-                || mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
+            return resolveDay2And3CombinedTemplate(indexes);
         }
         return resolveRowTemplate(indexes, row, { skipDebate: true });
     }
@@ -171,6 +223,12 @@
             if (merged) {
                 return merged;
             }
+        }
+        if (row.scheduleCompressed
+            && row.compressedGroupStart != null
+            && row.compressedGroupEnd != null
+            && row.compressedGroupEnd > row.compressedGroupStart) {
+            return null;
         }
         const title = (row.planTitle || '').trim();
         if (title) {
@@ -331,6 +389,8 @@
         templateByTitle,
         mergeTemplatesBySessionRange,
         mergeDebateTemplates,
+        combinedTemplateCoversAllDays,
+        resolveDay2And3CombinedTemplate,
         resolveDebateRowTemplate,
         resolveRowTemplate,
         applyTemplateToRow,

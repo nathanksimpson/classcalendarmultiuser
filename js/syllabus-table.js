@@ -771,6 +771,23 @@
                     }
                 }
             }
+            if (isCompressed && hooks.templateIndexes) {
+                const slotRow = {
+                    ...rowForTemplate,
+                    planDetail,
+                    scheduleCompressed: true,
+                    compressedGroupStart: groupStart,
+                    compressedGroupEnd: groupEnd
+                };
+                const slotParts = buildCompressedPlanDetailSlots(slotRow, [], [], {
+                    templateIndexes: hooks.templateIndexes,
+                    classData
+                });
+                const slotMerged = joinPlanDetailParts(slotParts);
+                if (slotMerged) {
+                    planDetail = slotMerged;
+                }
+            }
             let kind = 'lesson';
             let colors = null;
 
@@ -884,9 +901,372 @@
         return gen != null ? gen : '';
     }
 
+    function isCompressedLessonRow(row) {
+        return !!(row && row.kind === 'lesson' && row.scheduleCompressed === true
+            && row.compressedGroupStart != null
+            && row.compressedGroupEnd != null
+            && row.compressedGroupEnd > row.compressedGroupStart);
+    }
+
+    function joinPlanDetailParts(parts) {
+        const seen = new Set();
+        const unique = [];
+        (parts || []).forEach((p) => {
+            const t = String(p || '').trim();
+            if (t && !seen.has(t)) {
+                seen.add(t);
+                unique.push(t);
+            }
+        });
+        return unique.join('\n\n');
+    }
+
+    /** planDetail fragments from saved lesson rows in a compression group (any date). */
+    function collectGroupPlanDetailsFromRows(rows, start, end) {
+        const byLesson = new Map();
+        (rows || []).forEach((r) => {
+            if (!r || r.kind !== 'lesson') {
+                return;
+            }
+            const ln = getCurriculumLessonNumber(r);
+            if (ln >= start && ln <= end) {
+                const t = (r.planDetail || '').trim();
+                if (t) {
+                    byLesson.set(ln, t);
+                }
+            }
+        });
+        const parts = [];
+        for (let n = start; n <= end; n += 1) {
+            if (byLesson.has(n)) {
+                parts.push(byLesson.get(n));
+            }
+        }
+        return parts;
+    }
+
+    function debateDayTitleForSlot(dayNum) {
+        return dayNum === 4 ? 'Day 4 / Preview' : `Day ${dayNum}`;
+    }
+
+    function getIndividualDayTemplateDetail(dayNum, options, isDebate) {
+        const templatesApi = typeof global !== 'undefined' ? global.CCPSyllabusTemplates : null;
+        if (!templatesApi || !options || !options.templateIndexes) {
+            return '';
+        }
+        const indexes = options.templateIndexes;
+        let tpl = null;
+        if (isDebate) {
+            tpl = templatesApi.templateByTitle(indexes, debateDayTitleForSlot(dayNum))
+                || indexes.bySession.get(dayNum);
+        } else {
+            tpl = indexes.bySession.get(dayNum);
+        }
+        return tpl && tpl.planDetail ? String(tpl.planDetail).trim() : '';
+    }
+
+    /** True when a combined debate template covers all days (not first-day-only). */
+    function combinedTemplateCoversAllDays(combinedDetail, options, start, end, isDebate) {
+        const combined = String(combinedDetail || '').trim();
+        if (!combined) {
+            return false;
+        }
+        const dayDetails = [];
+        for (let n = start; n <= end; n += 1) {
+            const dayDetail = getIndividualDayTemplateDetail(n, options, isDebate);
+            if (dayDetail) {
+                dayDetails.push(dayDetail);
+            }
+        }
+        if (!dayDetails.length) {
+            return true;
+        }
+        const allKeysPresent = dayDetails.every((part) => {
+            const key = part.slice(0, Math.min(16, part.length));
+            return key && combined.includes(key);
+        });
+        if (allKeysPresent) {
+            return true;
+        }
+        if (combined === dayDetails[0].trim()) {
+            return false;
+        }
+        const paragraphs = combined.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+        if (paragraphs.length >= dayDetails.length) {
+            return true;
+        }
+        const matchesSingleDayOnly = dayDetails.some((d) => combined === d.trim());
+        if (!matchesSingleDayOnly) {
+            return true;
+        }
+        return false;
+    }
+
+    function assignCurrentTextToCompressionSlots(current, slots, start, end, options, isDebate) {
+        const text = String(current || '').trim();
+        if (!text) {
+            return;
+        }
+        const partCount = end - start + 1;
+        const textParts = text.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+        if ((combinedTemplateCoversAllDays(text, options, start, end, isDebate)
+            || textParts.length >= partCount)
+            && partCount > 1) {
+            fillSlotsFromGeneratedDetail(slots, text, start, end, options, isDebate);
+            const covered = [];
+            for (let n = start; n <= end; n += 1) {
+                if (slots.has(n)) {
+                    covered.push(String(slots.get(n) || '').trim());
+                }
+            }
+            if (covered.length >= partCount && joinPlanDetailParts(covered) === joinPlanDetailParts(textParts)) {
+                return;
+            }
+        }
+        if ([...slots.values()].some((v) => v === text)) {
+            return;
+        }
+        for (let n = start; n <= end; n += 1) {
+            const dayTpl = getIndividualDayTemplateDetail(n, options, isDebate);
+            if (dayTpl && (text === dayTpl || text.includes(dayTpl) || dayTpl.includes(text))) {
+                slots.set(n, text);
+                return;
+            }
+        }
+        for (let n = start; n <= end; n += 1) {
+            if (!slots.has(n)) {
+                slots.set(n, text);
+                return;
+            }
+        }
+        const startTpl = getIndividualDayTemplateDetail(start, options, isDebate);
+        const endTpl = getIndividualDayTemplateDetail(end, options, isDebate);
+        const startVal = slots.get(start);
+        if (endTpl && text !== startVal && text !== startTpl && (!startTpl || !text.includes(startTpl))) {
+            slots.set(end, text);
+            return;
+        }
+        if (text !== startVal) {
+            slots.set(end, text);
+        }
+    }
+
+    function fillSlotsFromGeneratedDetail(slots, genDetail, start, end, options, isDebate) {
+        const detail = String(genDetail || '').trim();
+        if (!detail) {
+            return;
+        }
+        if (combinedTemplateCoversAllDays(detail, options, start, end, isDebate)) {
+            const parts = detail.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+            if (parts.length >= end - start + 1) {
+                for (let i = 0; i <= end - start; i += 1) {
+                    const n = start + i;
+                    if (!slots.has(n) && parts[i]) {
+                        slots.set(n, parts[i]);
+                    }
+                }
+                return;
+            }
+            for (let n = start; n <= end; n += 1) {
+                if (!slots.has(n)) {
+                    slots.set(n, detail);
+                    return;
+                }
+            }
+            return;
+        }
+        const parts = detail.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+        if (parts.length >= end - start + 1) {
+            for (let i = 0; i <= end - start; i += 1) {
+                const n = start + i;
+                if (!slots.has(n) && parts[i]) {
+                    slots.set(n, parts[i]);
+                }
+            }
+        }
+    }
+
+    /**
+     * One planDetail fragment per curriculum day in a compressed group (lesson-number order).
+     */
+    function buildCompressedPlanDetailSlots(row, existingRows, generatedRows, options) {
+        options = options || {};
+        const start = row.compressedGroupStart;
+        const end = row.compressedGroupEnd;
+        if (start == null || end == null || end <= start) {
+            return [];
+        }
+        const slots = new Map();
+        const isDebate = row.debateCompressed === true
+            || (options.classData && options.classData.scheduleModel === 'debateMonthly');
+
+        (existingRows || []).forEach((r) => {
+            if (!r || r.kind !== 'lesson') {
+                return;
+            }
+            // Standalone lesson rows can fill missing day slots; aggregate compressed rows cannot.
+            if (isCompressedLessonRow(r)) {
+                return;
+            }
+            const ln = getCurriculumLessonNumber(r);
+            if (ln >= start && ln <= end) {
+                const t = (r.planDetail || '').trim();
+                if (t) {
+                    slots.set(ln, t);
+                }
+            }
+        });
+
+        for (let n = start; n <= end; n += 1) {
+            if (!slots.has(n)) {
+                const tplDetail = getIndividualDayTemplateDetail(n, options, isDebate);
+                if (tplDetail) {
+                    slots.set(n, tplDetail);
+                }
+            }
+        }
+
+        const genRow = (generatedRows || []).find((g) => rowKey(g) === rowKey(row));
+        const genDetail = genRow ? String(genRow.planDetail || '').trim() : '';
+        fillSlotsFromGeneratedDetail(slots, genDetail, start, end, options, isDebate);
+
+        assignCurrentTextToCompressionSlots(
+            row.planDetail,
+            slots,
+            start,
+            end,
+            options,
+            isDebate
+        );
+
+        const parts = [];
+        for (let n = start; n <= end; n += 1) {
+            if (slots.has(n)) {
+                parts.push(slots.get(n));
+            }
+        }
+        return parts;
+    }
+
+    function resolveDebateCompressedPlanDetailFromTemplates(row, templateOpts) {
+        const templatesApi = typeof global !== 'undefined' ? global.CCPSyllabusTemplates : null;
+        if (!templatesApi || !templateOpts || !templateOpts.templateIndexes) {
+            return '';
+        }
+        const start = row.debateGroupStart != null ? row.debateGroupStart : row.compressedGroupStart;
+        const end = row.debateGroupEnd != null ? row.debateGroupEnd : row.compressedGroupEnd;
+        if (start == null || end == null || end <= start) {
+            return '';
+        }
+        if (start === 2 && end === 3) {
+            const combined = templatesApi.templateByTitle(templateOpts.templateIndexes, 'Day 2 & 3 Combined');
+            const combinedDetail = combined ? String(combined.planDetail || '').trim() : '';
+            if (combinedDetail
+                && combinedTemplateCoversAllDays(combinedDetail, templateOpts, start, end, true)) {
+                return combinedDetail;
+            }
+            const merged = templatesApi.mergeDebateTemplates(
+                templateOpts.templateIndexes,
+                ['Day 2', 'Day 3'],
+                'Day 2 & 3 Combined'
+            );
+            if (merged && merged.planDetail) {
+                return String(merged.planDetail).trim();
+            }
+        }
+        const dayTitles = [];
+        for (let d = start; d <= end; d += 1) {
+            dayTitles.push(debateDayTitleForSlot(d));
+        }
+        const merged = templatesApi.mergeDebateTemplates(templateOpts.templateIndexes, dayTitles);
+        return merged && merged.planDetail ? String(merged.planDetail).trim() : '';
+    }
+
+    /**
+     * Full planDetail for a compressed syllabus row (homework copy / sync).
+     * Merges per-day slots from orphans, templates, generated, and current row text.
+     */
+    function resolveCompressedPlanDetail(row, existingRows, generatedRows, options) {
+        if (!isCompressedLessonRow(row)) {
+            return (row && row.planDetail) ? String(row.planDetail).trim() : '';
+        }
+        options = options || {};
+        const parts = buildCompressedPlanDetailSlots(row, existingRows, generatedRows, options);
+        const merged = joinPlanDetailParts(parts);
+        if (merged) {
+            return merged;
+        }
+        const isDebate = row.debateCompressed === true
+            || (options.classData && options.classData.scheduleModel === 'debateMonthly');
+        if (isDebate) {
+            const fromTemplates = resolveDebateCompressedPlanDetailFromTemplates(row, options);
+            if (fromTemplates) {
+                return fromTemplates;
+            }
+        }
+        const genRow = (generatedRows || []).find((g) => rowKey(g) === rowKey(row));
+        const genDetail = genRow ? String(genRow.planDetail || '').trim() : '';
+        return String(row.planDetail || '').trim() || genDetail;
+    }
+
+    /**
+     * Patch compressed lesson rows (syllabus display, homework, print).
+     */
+    function resolveCompressedSyllabusRows(mergedRows, existingRows, generatedRows, classData, options) {
+        options = options || {};
+        const resolveOpts = {
+            ...options,
+            classData: classData || options.classData
+        };
+        return (mergedRows || []).map((row) => {
+            if (!isCompressedLessonRow(row)) {
+                return row;
+            }
+            const resolved = resolveCompressedPlanDetail(row, existingRows, generatedRows, resolveOpts);
+            if (!resolved || resolved === String(row.planDetail || '').trim()) {
+                return row;
+            }
+            return { ...row, planDetail: resolved };
+        });
+    }
+
+    function mergeCompressedPlanDetailPreserve(prev, gen, existingList, keepEdits, forceDetail, mergeOptions) {
+        if (!gen.scheduleCompressed || forceDetail) {
+            return forceDetail
+                ? gen.planDetail
+                : preserveText(prev && prev.planDetail, gen.planDetail, keepEdits);
+        }
+        const start = gen.compressedGroupStart;
+        const end = gen.compressedGroupEnd;
+        if (start == null || end == null || end <= start) {
+            return preserveText(prev && prev.planDetail, gen.planDetail, keepEdits);
+        }
+        const currentRow = {
+            ...gen,
+            planDetail: keepEdits && prev && prev.planDetail
+                ? prev.planDetail
+                : preserveText(prev && prev.planDetail, gen.planDetail, keepEdits)
+        };
+        const parts = buildCompressedPlanDetailSlots(
+            currentRow,
+            existingList,
+            [gen],
+            mergeOptions || {}
+        );
+        const merged = joinPlanDetailParts(parts);
+        if (merged) {
+            return merged;
+        }
+        return preserveText(prev && prev.planDetail, gen.planDetail, keepEdits);
+    }
+
     function mergeSyllabusRows(existing, generated, options) {
         options = options || {};
         const refreshScheduleTitles = options.refreshScheduleTitles === true;
+        const mergeContext = {
+            templateIndexes: options.templateIndexes,
+            classData: options.classData
+        };
         const existingList = Array.isArray(existing) ? existing : [];
         const isTailRow = g => g.kind === 'overflow' || g.kind === 'extra' || g.kind === 'skipped'
             || g.overflowIntro === true;
@@ -915,6 +1295,19 @@
             const key = rowKey(gen);
             const prev = byKey.get(key);
             if (!prev) {
+                if (gen.scheduleCompressed) {
+                    return {
+                        ...gen,
+                        planDetail: mergeCompressedPlanDetailPreserve(
+                            null,
+                            gen,
+                            existingList,
+                            false,
+                            false,
+                            mergeContext
+                        )
+                    };
+                }
                 return { ...gen };
             }
             const keepEdits = prev.source === 'manual' || prev.source === 'imported';
@@ -931,9 +1324,14 @@
                     : (keepEdits && (prev.planTitle || '').trim()
                         ? prev.planTitle
                         : gen.planTitle),
-                planDetail: forceDetail
-                    ? gen.planDetail
-                    : preserveText(prev.planDetail, gen.planDetail, keepEdits),
+                planDetail: mergeCompressedPlanDetailPreserve(
+                    prev,
+                    gen,
+                    existingList,
+                    keepEdits,
+                    forceDetail,
+                    mergeContext
+                ),
                 note: preserveText(prev.note, gen.note, keepEdits),
                 weekLabel: gen.weekLabel || prev.weekLabel,
                 source: keepEdits ? prev.source : 'generated',
@@ -3743,6 +4141,12 @@ body.syllabus-a4-export { font-family: Arial, Helvetica, sans-serif; font-size: 
         planDetailFromUnits,
         planDetailFromUnitRange,
         mergeSyllabusRows,
+        isCompressedLessonRow,
+        joinPlanDetailParts,
+        collectGroupPlanDetailsFromRows,
+        buildCompressedPlanDetailSlots,
+        resolveCompressedPlanDetail,
+        resolveCompressedSyllabusRows,
         filterRowsForPdfPrint,
         filterRowsForDebatePeriod,
         normalizeRows,

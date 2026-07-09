@@ -269,6 +269,7 @@
         zoneClassSetup: 'Class Setup',
         zoneSetupHub: 'Setup Hub',
         zoneClassroom: 'Classroom',
+        zoneTools: 'Tools',
         zoneData: 'Data',
         zoneMoreOverflowLabel: 'More sections',
         navReorderHint: 'Drag a tab to reorder (or long-press on touch)',

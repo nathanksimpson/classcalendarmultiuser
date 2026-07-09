@@ -269,6 +269,7 @@
         zoneClassSetup: '수업 설정',
         zoneSetupHub: '설정 허브',
         zoneClassroom: '수업관리',
+        zoneTools: '도구',
         zoneData: '데이터',
         zoneMoreOverflowLabel: '추가 메뉴',
         navReorderHint: '탭을 끌어 순서 변경 (터치: 길게 누르기)',
