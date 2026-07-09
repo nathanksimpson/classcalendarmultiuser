@@ -395,6 +395,109 @@ function assert(cond, msg) {
     assert(bridgeRow.planDetail.includes('HW-DAY-1'), 'march bridge day 1');
 }
 
+// Debate: incomplete combined template at generation → row merges Day 2 + Day 3
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' },
+        { planTitle: 'Day 2 & 3 Combined', planDetail: 'HW-DAY-2' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const lessons = [
+        { date: '2026-03-04', monthKey: '2026-03', label: 'Day 1', group: { days: [1], start: 1, end: 1 } },
+        { date: '2026-03-11', monthKey: '2026-03', label: 'Merge Day 2+3', compressed: true,
+            group: { days: [2, 3], start: 2, end: 3 } },
+        { date: '2026-03-18', monthKey: '2026-03', label: 'Day 4', group: { days: [4], start: 4, end: 4 } }
+    ];
+    lessons[1].__debateTemplateKey = 'day2and3combined';
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(
+        { scheduleModel: 'debateMonthly', totalLessons: 4 },
+        lessons,
+        { isHolidayForClass: () => false, rowTemplates: templates, templateIndexes: indexes }
+    );
+    const mergeRow = rows.find((r) => r.date === '2026-03-11');
+    assert(mergeRow && mergeRow.planDetail.includes('HW-DAY-2'), 'generation: day 2 in compressed row');
+    assert(mergeRow.planDetail.includes('HW-DAY-3'), 'generation: day 3 in compressed row');
+}
+
+// mergeSyllabusRows with templateIndexes fills compressed planDetail on sync
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const existing = [{
+        id: 'r2', kind: 'lesson', date: '2026-03-04', lessonNumber: 2, planDetail: 'HW-DAY-2'
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-2',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, {
+        templateIndexes: indexes,
+        classData: { scheduleModel: 'debateMonthly' }
+    });
+    assert(merged[0].planDetail.includes('HW-DAY-2'), 'merge sync: day 2');
+    assert(merged[0].planDetail.includes('HW-DAY-3'), 'merge sync: day 3 from templates');
+}
+
+// mergeSyllabusRows ignores saved compressed aggregate rows as slot seeds
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const existing = [{
+        id: 'saved-compressed',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3,
+        source: 'manual'
+    }];
+    const generated = [{
+        id: 'g-compressed',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-2\n\nHW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, {
+        templateIndexes: indexes,
+        classData: { scheduleModel: 'debateMonthly' }
+    });
+    assert(merged[0].planDetail === 'HW-DAY-2\n\nHW-DAY-3', 'saved compressed row does not duplicate day 3');
+}
+
 // Debate: last class of term (no following month) still gets Day 4 + Day 1
 {
     const templates = [
@@ -623,6 +726,204 @@ function assert(cond, msg) {
     const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
     assert(merged[0].planTitle.includes('+'), 'compressed title refreshed');
     assert(merged[0].planDetail.includes('12-15'), 'compressed planDetail refreshed');
+}
+
+// mergeSyllabusRows: orphan Day 2 row merges into compressed Day 2+3 when prev is Day-3-only
+{
+    const existing = [
+        {
+            id: 'r2',
+            kind: 'lesson',
+            date: '2026-03-04',
+            sessionNumber: 2,
+            lessonNumber: 2,
+            planTitle: 'Day 2',
+            planDetail: 'HW-DAY-2',
+            source: 'manual'
+        },
+        {
+            id: 'r3',
+            kind: 'lesson',
+            date: '2026-03-11',
+            sessionNumber: 3,
+            lessonNumber: 3,
+            planTitle: 'Day 3',
+            planDetail: 'HW-DAY-3',
+            source: 'manual'
+        }
+    ];
+    const generated = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-2\n\nHW-DAY-3',
+        source: 'generated',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated);
+    const row = merged.find((r) => r.date === '2026-03-11');
+    assert(row && row.planDetail.includes('HW-DAY-2'), 'orphan day 2 merged into compressed row');
+    assert(row.planDetail.includes('HW-DAY-3'), 'day 3 homework kept');
+}
+
+// resolveCompressedPlanDetail: Day-3-only saved row + generated merge
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const row = {
+        kind: 'lesson',
+        date: '2026-03-11',
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const generated = [{
+        ...row,
+        planDetail: 'HW-DAY-2\n\nHW-DAY-3'
+    }];
+    const detail = CCPSyllabus.resolveCompressedPlanDetail(
+        row,
+        [],
+        generated,
+        { classData: { scheduleModel: 'debateMonthly' }, templateIndexes: indexes }
+    );
+    assert(detail.includes('HW-DAY-2'), 'resolver adds day 2 from generated/templates');
+    assert(detail.includes('HW-DAY-3'), 'resolver keeps day 3');
+}
+
+// resolveCompressedSyllabusRows patches compressed rows for homework read
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const existing = [
+        {
+            id: 'r2', kind: 'lesson', date: '2026-03-04', lessonNumber: 2, planDetail: 'HW-DAY-2'
+        }
+    ];
+    const merged = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    }];
+    const generated = [{ ...merged[0], planDetail: 'HW-DAY-2\n\nHW-DAY-3' }];
+    const resolved = CCPSyllabus.resolveCompressedSyllabusRows(
+        merged,
+        existing,
+        generated,
+        { scheduleModel: 'debateMonthly' },
+        { templateIndexes: indexes }
+    );
+    assert(resolved[0].planDetail.includes('HW-DAY-2'), 'homework rows include day 2');
+    assert(resolved[0].planDetail.includes('HW-DAY-3'), 'homework rows include day 3');
+}
+
+// Regression: incomplete combined template (Day 2 only) + current Day 3 → both days
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' },
+        { planTitle: 'Day 2 & 3 Combined', planDetail: 'HW-DAY-2' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const row = {
+        kind: 'lesson',
+        date: '2026-03-11',
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const existing = [
+        { id: 'r2', kind: 'lesson', date: '2026-03-04', lessonNumber: 2, planDetail: 'HW-DAY-2' }
+    ];
+    const generated = [{ ...row, planDetail: 'HW-DAY-2' }];
+    const detail = CCPSyllabus.resolveCompressedPlanDetail(
+        row,
+        existing,
+        generated,
+        { classData: { scheduleModel: 'debateMonthly' }, templateIndexes: indexes }
+    );
+    assert(detail.includes('HW-DAY-2'), 'regression: day 2 from orphan/template');
+    assert(detail.includes('HW-DAY-3'), 'regression: day 3 from current row preserved');
+}
+
+// Regression: already-merged current row should not re-add Day 3
+{
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const row = {
+        kind: 'lesson',
+        date: '2026-03-11',
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-2\n\nHW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const detail = CCPSyllabus.resolveCompressedPlanDetail(
+        row,
+        [],
+        [{ ...row }],
+        { classData: { scheduleModel: 'debateMonthly' }, templateIndexes: indexes }
+    );
+    assert(detail === 'HW-DAY-2\n\nHW-DAY-3', 'already-merged current row stays deduped');
+}
+
+// Idempotent: already-merged compressed detail unchanged
+{
+    const mergedText = 'HW-DAY-2\n\nHW-DAY-3';
+    const row = {
+        kind: 'lesson',
+        date: '2026-03-11',
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: mergedText,
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true
+    };
+    const detail = CCPSyllabus.resolveCompressedPlanDetail(row, [], [row], {});
+    assert(detail.includes('HW-DAY-2') && detail.includes('HW-DAY-3'), 'already merged stays complete');
 }
 
 // stripRedundantPlanDetailLines: Write Now style duplicate title line

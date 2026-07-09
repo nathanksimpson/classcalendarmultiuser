@@ -1,21 +1,32 @@
 import { readFileSync } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import vm from 'vm';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
-function loadHomeworkTab() {
-    const utilsCode = readFileSync(path.join(root, 'js', 'utils.js'), 'utf8');
-    const tabCode = readFileSync(path.join(root, 'js', 'homework-tab.js'), 'utf8');
-    const sandbox = { window: {}, globalThis: {} };
-    vm.runInNewContext(utilsCode, sandbox);
+async function loadHomeworkTestModules() {
+    const utilsPath = path.join(root, 'js', 'utils.js');
+    const templatesPath = path.join(root, 'js', 'syllabus-templates.js');
+    const syllabusPath = path.join(root, 'js', 'syllabus-table.js');
+    const tabPath = path.join(root, 'js', 'homework-tab.js');
+
+    await import(pathToFileURL(utilsPath).href);
+    await import(pathToFileURL(templatesPath).href);
+    await import(pathToFileURL(syllabusPath).href);
+
+    const tabCode = readFileSync(tabPath, 'utf8');
+    const sandbox = { window: globalThis, globalThis };
     vm.runInNewContext(tabCode, sandbox);
-    return sandbox.window.CCPHomeworkTab;
+    return {
+        HT: sandbox.window.CCPHomeworkTab,
+        CCPSyllabus: globalThis.CCPSyllabus,
+        CCPSyllabusTemplates: globalThis.CCPSyllabusTemplates
+    };
 }
 
-const HT = loadHomeworkTab();
+const { HT, CCPSyllabus, CCPSyllabusTemplates } = await loadHomeworkTestModules();
 
 function assert(cond, msg) {
     if (!cond) {
@@ -92,6 +103,192 @@ const rows = [
         hooks
     });
     assert(pkt.targetLessonDate === '2026-05-08', 'between classes, target upcoming lesson');
+}
+
+// Debate compressed Day 2+3: assign homework merges both days when saved row is Day-3-only
+{
+    const debateClass = { scheduleModel: 'debateMonthly', startDate: '2026-03-01', endDate: '2026-06-30', meetingDays: [3] };
+    const templates = [
+        { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' },
+        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4' }
+    ];
+    const indexes = CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const existing = [
+        { id: 'r2', kind: 'lesson', date: '2026-03-04', lessonNumber: 2, planDetail: 'HW-DAY-2' }
+    ];
+    const compressedRow = {
+        id: 'g-compressed',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const generated = [{ ...compressedRow, planDetail: 'HW-DAY-2\n\nHW-DAY-3' }];
+    const resolved = CCPSyllabus.resolveCompressedSyllabusRows(
+        [compressedRow],
+        existing,
+        generated,
+        debateClass,
+        { templateIndexes: indexes }
+    );
+    const syllabusRows = [
+        { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
+        resolved[0],
+        { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planTitle: 'Day 4', planDetail: 'HW-DAY-4' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: debateClass,
+        syllabusRows,
+        referenceDate: '2026-03-11',
+        hooks
+    });
+    assert(pkt.targetLessonDate === '2026-03-11', 'targets compressed calendar date');
+    assert(pkt.assignHomework.includes('HW-DAY-2'), 'assign includes day 2 homework');
+    assert(pkt.assignHomework.includes('HW-DAY-3'), 'assign includes day 3 homework');
+    assert(pkt.gradingHomework.includes('HW-DAY-1'), 'grading from previous session unchanged');
+}
+
+// Regression: incomplete combined template must not drop saved Day 3 homework
+{
+    const debateClass = { scheduleModel: 'debateMonthly', startDate: '2026-03-01', endDate: '2026-06-30', meetingDays: [3] };
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' },
+        { planTitle: 'Day 2 & 3 Combined', planDetail: 'HW-DAY-2' }
+    ];
+    const indexes = CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const compressedRow = {
+        id: 'g-compressed',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const generated = [{ ...compressedRow, planDetail: 'HW-DAY-2' }];
+    const resolved = CCPSyllabus.resolveCompressedSyllabusRows(
+        [compressedRow],
+        [{ id: 'r2', kind: 'lesson', date: '2026-03-04', lessonNumber: 2, planDetail: 'HW-DAY-2' }],
+        generated,
+        debateClass,
+        { templateIndexes: indexes }
+    );
+    const pkt = HT.computeHomeworkForClass({
+        classData: debateClass,
+        syllabusRows: [
+            { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planDetail: 'HW-DAY-1' },
+            resolved[0],
+            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planDetail: 'HW-DAY-4' }
+        ],
+        referenceDate: '2026-03-11',
+        hooks
+    });
+    assert(pkt.assignHomework.includes('HW-DAY-2'), 'regression: assign includes day 2');
+    assert(pkt.assignHomework.includes('HW-DAY-3'), 'regression: assign includes day 3');
+}
+
+// Saved compressed rows should not duplicate Day 3 when homework reads merged syllabus
+{
+    const debateClass = { scheduleModel: 'debateMonthly', startDate: '2026-03-01', endDate: '2026-06-30', meetingDays: [3] };
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const savedCompressed = {
+        id: 'saved-compressed',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const generated = [{ ...savedCompressed, id: 'g-compressed', planDetail: 'HW-DAY-2\n\nHW-DAY-3' }];
+    const resolved = CCPSyllabus.resolveCompressedSyllabusRows(
+        [savedCompressed],
+        [savedCompressed],
+        generated,
+        debateClass,
+        { templateIndexes: indexes }
+    );
+    const pkt = HT.computeHomeworkForClass({
+        classData: debateClass,
+        syllabusRows: [
+            { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planDetail: 'HW-DAY-1' },
+            resolved[0],
+            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planDetail: 'HW-DAY-4' }
+        ],
+        referenceDate: '2026-03-11',
+        hooks
+    });
+    assert(pkt.assignHomework === 'HW-DAY-2\n\nHW-DAY-3', 'homework auto-read uses merged compressed detail');
+}
+
+// Already-merged saved compressed rows should stay deduped in homework
+{
+    const debateClass = { scheduleModel: 'debateMonthly', startDate: '2026-03-01', endDate: '2026-06-30', meetingDays: [3] };
+    const templates = [
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: 'HW-DAY-2' },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: 'HW-DAY-3' }
+    ];
+    const indexes = CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const savedCompressed = {
+        id: 'saved-compressed',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-2\n\nHW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const resolved = CCPSyllabus.resolveCompressedSyllabusRows(
+        [savedCompressed],
+        [savedCompressed],
+        [{ ...savedCompressed }],
+        debateClass,
+        { templateIndexes: indexes }
+    );
+    const pkt = HT.computeHomeworkForClass({
+        classData: debateClass,
+        syllabusRows: [
+            { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planDetail: 'HW-DAY-1' },
+            resolved[0],
+            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planDetail: 'HW-DAY-4' }
+        ],
+        referenceDate: '2026-03-11',
+        hooks
+    });
+    assert(pkt.assignHomework === 'HW-DAY-2\n\nHW-DAY-3', 'already merged saved row stays deduped');
 }
 
 console.log('homework-tab.test.mjs: all passed');

@@ -4,7 +4,7 @@
  */
 (function (global) {
     const EXTENSION_SCRIPTS = [
-        'js/syllabus-table.js?v=20260629-print-modal',
+        'js/syllabus-table.js?v=20260709-compressed-dedupe-v6',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
         'js/syllabus-curricula-data.js?v=20260602-tab-fast',
@@ -14,7 +14,7 @@
         'js/books-editor.js?v=20260609-inline-warn-badge',
         'js/homework-import.js?v=20260606-clipboard-dash',
         'js/homework-tab.js?v=20260619-ui-overhaul',
-        'js/syllabus-templates.js?v=20260603-curriculum-notes'
+        'js/syllabus-templates.js?v=20260709-compressed-dedupe-v6'
     ];
 
     let extensionPromise = null;

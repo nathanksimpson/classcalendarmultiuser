@@ -13223,8 +13223,9 @@ const APP_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS, ...APP
 const APP_ZONE_SCHEDULE = 'schedule';
 const APP_ZONE_CLASSES = 'classes';
 const APP_ZONE_CLASSROOM = 'classroom';
+const APP_ZONE_TOOLS = 'tools';
 const APP_ZONE_MORE = 'more';
-const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CLASSROOM, APP_ZONE_MORE];
+const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CLASSROOM, APP_ZONE_TOOLS, APP_ZONE_MORE];
 
 const DIRECT_ZONE_TAB = {
     [APP_ZONE_MORE]: 'data'
@@ -13244,11 +13245,13 @@ const ZONE_SEGMENT_TO_TAB = {
         attendance: 'attendance',
         ledger: 'ledger',
         homework: 'homework-tracking',
-        essays: 'essays',
         points: 'points',
         tests: 'tests',
-        'debate-teams': 'debate-teams',
         notes: 'notes'
+    },
+    tools: {
+        essays: 'essays',
+        'debate-teams': 'debate-teams'
     },
     more: { data: 'data' }
 };
@@ -13485,6 +13488,12 @@ function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
     if (segment === 'events' && zone === APP_ZONE_CLASSES) {
         zone = APP_ZONE_SCHEDULE;
     }
+    if (zone === APP_ZONE_CLASSROOM && segment === 'essays') {
+        zone = APP_ZONE_TOOLS;
+    }
+    if (zone === APP_ZONE_CLASSROOM && segment === 'debate-teams') {
+        zone = APP_ZONE_TOOLS;
+    }
     if (segment === 'teachers' && zone === APP_ZONE_MORE) {
         zone = APP_ZONE_CLASSES;
     }
@@ -13528,10 +13537,10 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
     ledger: { zone: APP_ZONE_CLASSROOM, segment: 'ledger' },
     'homework-tracking': { zone: APP_ZONE_CLASSROOM, segment: 'homework' },
-    essays: { zone: APP_ZONE_CLASSROOM, segment: 'essays' },
+    essays: { zone: APP_ZONE_TOOLS, segment: 'essays' },
     points: { zone: APP_ZONE_CLASSROOM, segment: 'points' },
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
-    'debate-teams': { zone: APP_ZONE_CLASSROOM, segment: 'debate-teams' },
+    'debate-teams': { zone: APP_ZONE_TOOLS, segment: 'debate-teams' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
@@ -13581,7 +13590,7 @@ function canAccessZone(zoneId) {
     if (zoneId === APP_ZONE_MORE) {
         return canAccessSetupHost();
     }
-    if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_CLASSROOM) {
+    if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_CLASSROOM || zoneId === APP_ZONE_TOOLS) {
         return true;
     }
     return canAccessSetupHost();
@@ -16309,6 +16318,57 @@ function initHomeworkTabControls() {
     }
 }
 
+function getSyllabusMergeOptions(classData, options = {}) {
+    const templates = getSyllabusRowTemplatesForClass(classData);
+    const api = typeof window !== 'undefined' ? window.CCPSyllabusTemplates : null;
+    const mergeOpts = {
+        refreshScheduleTitles: options.refreshScheduleTitles === true,
+        classData
+    };
+    if (api && templates.length) {
+        mergeOpts.templateIndexes = api.buildTemplateIndexes(templates);
+    }
+    return mergeOpts;
+}
+
+function applyCompressedSyllabusRowMerge(classData, rows, saved, generated, mergeOpts) {
+    const syllabusMod = getSyllabusModule();
+    if (!syllabusMod || typeof syllabusMod.resolveCompressedSyllabusRows !== 'function') {
+        return rows;
+    }
+    return syllabusMod.resolveCompressedSyllabusRows(
+        rows,
+        saved,
+        generated,
+        classData,
+        mergeOpts
+    );
+}
+
+function resolveSyllabusRows(classData, options = {}) {
+    invalidateScheduleCache();
+    const generated = buildGeneratedSyllabusRows(classData);
+    const saved = Array.isArray(options.savedRowsOverride)
+        ? options.savedRowsOverride
+        : (Array.isArray(classData?.syllabusRows) ? classData.syllabusRows : []);
+    const mergeOpts = getSyllabusMergeOptions(classData, options);
+    const mod = getSyllabusModule();
+    let rows;
+    if (options.preferMerged && saved.length > 0) {
+        rows = mod ? mod.mergeSyllabusRows(saved, generated, mergeOpts) : saved;
+    } else if (saved.length > 0 && !options.preferFresh) {
+        rows = saved;
+    } else {
+        rows = generated;
+    }
+    return {
+        rows: applyCompressedSyllabusRowMerge(classData, rows, saved, generated, mergeOpts),
+        saved,
+        generated,
+        mergeOpts
+    };
+}
+
 function computeHomeworkPacketForClassOnDate(classData, dateStr) {
     const mod = getHomeworkTabModule();
     if (!mod) {
@@ -16320,7 +16380,7 @@ function computeHomeworkPacketForClassOnDate(classData, dateStr) {
         rows = syncClassSyllabusRowsFromCalendar(classData, { refreshScheduleTitles: true })
             || getSyllabusRowsForClass(classData, { preferMerged: true });
     } else {
-        rows = getSyllabusRowsForClass(classData, { preferMerged: true });
+        rows = resolveSyllabusRows(classData, { preferMerged: true }).rows;
     }
     return mod.computeHomeworkForClass({
         classData,
@@ -16424,18 +16484,13 @@ function renderHomeworkClassList() {
 let homeworkEditorState = null;
 
 function ensureClassSyllabusRowsForHomeworkEdit(classData) {
-    const mod = getSyllabusModule();
-    const generated = buildGeneratedSyllabusRows(classData);
-    let saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
-    if (!saved.length && generated.length) {
+    const { rows, generated } = resolveSyllabusRows(classData, { preferMerged: true });
+    if (!rows.length && generated.length) {
         classData.syllabusRows = generated.map((r) => ({ ...r }));
         return classData.syllabusRows;
     }
-    if (mod && generated.length) {
-        classData.syllabusRows = mod.mergeSyllabusRows(saved, generated);
-        return classData.syllabusRows;
-    }
-    return saved;
+    classData.syllabusRows = rows.map((r) => ({ ...r }));
+    return classData.syllabusRows;
 }
 
 function findSyllabusRowInClass(classData, rowId) {
@@ -24210,23 +24265,7 @@ function localizeSyllabusRowsForCurrentLanguage(rows, classData) {
 }
 
 function getSyllabusRowsForClass(classData, options = {}) {
-    invalidateScheduleCache();
-    const generated = buildGeneratedSyllabusRows(classData);
-    const saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
-    const mergeOpts = options.refreshScheduleTitles ? { refreshScheduleTitles: true } : undefined;
-    let rows;
-    if (options.preferMerged && saved.length > 0) {
-        const mod = getSyllabusModule();
-        if (mod) {
-            rows = mod.mergeSyllabusRows(saved, generated, mergeOpts);
-        } else {
-            rows = saved;
-        }
-    } else if (saved.length > 0 && !options.preferFresh) {
-        rows = saved;
-    } else {
-        rows = generated;
-    }
+    const { rows } = resolveSyllabusRows(classData, options);
     return enrichSyllabusRowColors(
         localizeSyllabusRowsForCurrentLanguage(rows, classData),
         classData
@@ -24240,9 +24279,11 @@ function resolveSyllabusRowsForPrint(snapshot) {
         return [];
     }
     if (elements.syllabusTableBody) {
-        const formRows = collectSyllabusRowsFromForm();
-        const generated = buildGeneratedSyllabusRows(snapshot);
-        return enrichSyllabusRowColors(mod.mergeSyllabusRows(formRows, generated), snapshot);
+        const { rows } = resolveSyllabusRows(snapshot, {
+            preferMerged: true,
+            savedRowsOverride: collectSyllabusRowsFromForm()
+        });
+        return enrichSyllabusRowColors(rows, snapshot);
     }
     return getSyllabusRowsForClass(snapshot, { preferMerged: true });
 }
@@ -24841,28 +24882,24 @@ function syncAllClassSyllabusRowsFromCalendar() {
 }
 
 function syncClassSyllabusRowsFromCalendar(classData, options = {}) {
-    const mod = getSyllabusModule();
-    if (!mod || !classData || !classData.id) {
+    if (!getSyllabusModule() || !classData || !classData.id) {
         return null;
     }
-    invalidateScheduleCache();
-    const generated = buildGeneratedSyllabusRows(classData);
+    const { rows, generated } = resolveSyllabusRows(classData, {
+        preferMerged: true,
+        refreshScheduleTitles: options.refreshScheduleTitles !== false
+    });
     if (!generated.length) {
         return Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
     }
-    const saved = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
-    const mergeOpts = { refreshScheduleTitles: options.refreshScheduleTitles !== false };
-    const merged = saved.length > 0
-        ? mod.mergeSyllabusRows(saved, generated, mergeOpts)
-        : generated;
     const idx = appData.classes.findIndex(c => c.id === classData.id);
     if (idx >= 0) {
-        appData.classes[idx].syllabusRows = merged;
+        appData.classes[idx].syllabusRows = rows;
         appData.classes[idx]._syllabusNeedsCalendarSync = false;
-        classData.syllabusRows = merged;
+        classData.syllabusRows = rows;
         classData._syllabusNeedsCalendarSync = false;
     }
-    return merged;
+    return rows;
 }
 
 function refreshSyllabusFromCalendar() {
@@ -24907,8 +24944,11 @@ function refreshSyllabusFromCalendar() {
         }
     }
     const existing = collectSyllabusRowsFromForm();
-    const generated = buildGeneratedSyllabusRows(snapshot);
-    const merged = mod.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
+    const { rows: merged } = resolveSyllabusRows(snapshot, {
+        preferMerged: true,
+        refreshScheduleTitles: true,
+        savedRowsOverride: existing
+    });
     renderSyllabusEditorTable(merged);
 
     if (classId) {

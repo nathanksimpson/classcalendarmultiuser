@@ -129,6 +129,7 @@
                         <button type="button" class="app-zone-btn is-active" role="tab" id="zoneBtn-schedule" data-zone="schedule" aria-selected="true" data-i18n="zoneSchedule">Schedule</button>
                         <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classes" data-zone="classes" aria-selected="false" data-i18n="zoneClassSetup">Class Setup</button>
                         <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classroom" data-zone="classroom" aria-selected="false" data-i18n="zoneClassroom">Classroom</button>
+                        <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-tools" data-zone="tools" aria-selected="false" data-i18n="zoneTools">Tools</button>
                         <button type="button" class="app-zone-btn app-zone-btn--more" role="tab" id="zoneBtn-data" data-zone="more" aria-selected="false" data-i18n="zoneData">Data</button>
                     </div>
                 </div>
@@ -153,12 +154,14 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-i18n="classroomTabLedger">Ledger</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="classroomTabHomework">Homework</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="essays" data-i18n="classroomTabEssays">Essays</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="points" data-i18n="classroomTabPoints">Points</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
                             <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
+                        </div>
+                        <div id="zoneSegments-tools" class="app-zone-segment-panel" data-zone="tools" hidden>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="essays" data-i18n="classroomTabEssays">Essays</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
                         </div>
                     </nav>
                     <div id="termSummaryStrip" class="term-summary-strip" hidden>
@@ -482,7 +485,7 @@
                 </div>
             </section>
 
-            <section id="panel-essays" class="app-tab-panel classroom-essays-layout" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+            <section id="panel-essays" class="app-tab-panel classroom-essays-layout" data-tab="essays" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
                 <div id="classroomEssaysHeader"></div>
                 <div class="classroom-sheet-panel classroom-essays-main">
                     <div class="classroom-essay-workspace">
@@ -576,7 +579,7 @@
                 </div>
             </section>
 
-            <section id="panel-debate-teams" class="app-tab-panel" data-tab="debate-teams" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+            <section id="panel-debate-teams" class="app-tab-panel" data-tab="debate-teams" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
                 <div id="classroomDebateTeamsHeader"></div>
                 <div class="classroom-sheet-panel classroom-debate-shell">
                     <div class="module-toolbar classroom-tab-toolbar">
@@ -2113,7 +2116,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
-    <script defer src="app.js?v=20260706-notes-filters-collapse-v5"></script>
+    <script defer src="app.js?v=20260709-compressed-dedupe-v6"></script>
 </body>
 </html>
 
