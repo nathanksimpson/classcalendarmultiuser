@@ -183,6 +183,17 @@
             govRoles: [],
             oppRoles: [],
             order: []
+        },
+        purple: {
+            name: 'Purple (PM / LO only)',
+            min: 1,
+            fixedTeamSize: 1,
+            allowSoloDebate: true,
+            govName: 'Proposition',
+            oppName: 'Opposition',
+            govRoles: [{ abbr: 'PM', name: 'Prime Minister' }],
+            oppRoles: [{ abbr: 'LO', name: 'Leader of Opposition' }],
+            order: ['PM', 'LO']
         }
     };
 
@@ -214,8 +225,41 @@
         hrTeacher: '',
         topic: '',
         sheetTemplate: 'garam',
+        purpleMode: false,
         debates: []
     };
+
+    function effectiveFormatId() {
+        return state.purpleMode ? 'purple' : state.formatId;
+    }
+
+    function activeFormatLabel() {
+        return state.purpleMode ? FORMATS.purple.name : baseFmt(state.formatId).name;
+    }
+
+    function applyPurpleModeSettings(on) {
+        if (!on) {
+            return;
+        }
+        state.maxTeamSize = 1;
+        state.includeReply = false;
+        state.sheetTemplate = 'yeoul';
+    }
+
+    function normalizePurpleSession(session) {
+        const s = session || {};
+        if (s.purpleMode === true || s.purpleMode === '1') {
+            s.purpleMode = true;
+            return s;
+        }
+        if (s.formatId === 'purple') {
+            s.purpleMode = true;
+            s.formatId = 'ap';
+        } else {
+            s.purpleMode = false;
+        }
+        return s;
+    }
 
     function t(key) {
         return bridge && bridge.t ? bridge.t(key) : key;
@@ -316,6 +360,9 @@
     }
 
     function fmt() {
+        if (state.purpleMode) {
+            return Object.assign({}, FORMATS.purple);
+        }
         const base = baseFmt(state.formatId);
         const f = Object.assign({}, base);
         if (state.includeReply && base.reply) {
@@ -340,6 +387,9 @@
     }
 
     function effMax(f) {
+        if (f.fixedTeamSize) {
+            return f.fixedTeamSize;
+        }
         if (f.fourTeam) {
             return 2;
         }
@@ -361,23 +411,26 @@
 
     function genTwo(list, f) {
         const maxPer = effMax(f) * 2;
+        const minDebateSize = f.allowSoloDebate ? 1 : 2;
         const d = Math.max(1, Math.ceil(list.length / maxPer));
         const sizes = Array(d).fill(0);
         for (let i = 0; i < list.length; i++) {
             sizes[i % d]++;
         }
-        for (let i = 0; i < sizes.length; i++) {
-            for (let j = i + 1; j < sizes.length; j++) {
-                if (sizes[i] % 2 === 1 && sizes[j] % 2 === 1 && sizes[i] + 1 <= maxPer && sizes[j] - 1 >= 2) {
-                    sizes[i]++;
-                    sizes[j]--;
+        if (!f.allowSoloDebate) {
+            for (let i = 0; i < sizes.length; i++) {
+                for (let j = i + 1; j < sizes.length; j++) {
+                    if (sizes[i] % 2 === 1 && sizes[j] % 2 === 1 && sizes[i] + 1 <= maxPer && sizes[j] - 1 >= 2) {
+                        sizes[i]++;
+                        sizes[j]--;
+                    }
                 }
             }
         }
         let idx = 0;
         const out = [];
         sizes.forEach((sz) => {
-            if (sz < 2) {
+            if (sz < minDebateSize) {
                 return;
             }
             const chunk = list.slice(idx, idx + sz);
@@ -396,7 +449,7 @@
             });
             out.push({
                 number: out.length + 1,
-                formatId: state.formatId,
+                formatId: effectiveFormatId(),
                 fourTeam: false,
                 notes: '',
                 order: effOrder(f),
@@ -407,6 +460,12 @@
             });
         });
         return out;
+    }
+
+    function assignDebates() {
+        const f = fmt();
+        const shuffled = shuffle(state.students);
+        return f.fourTeam ? genFour(shuffled, f) : genTwo(shuffled, f);
     }
 
     function genFour(list, f) {
@@ -499,7 +558,7 @@
             }
         }
         const shuffled = shuffle(state.students);
-        state.debates = f.fourTeam ? genFour(shuffled, f) : genTwo(shuffled, f);
+        state.debates = assignDebates();
         notifySave();
         render();
     }
@@ -570,7 +629,7 @@
         return {
             classTitle: state.classTitle.trim(),
             hrTeacher: state.hrTeacher.trim(),
-            formatName: baseFmt(state.formatId).name,
+            formatName: activeFormatLabel(),
             sheetTemplate: state.sheetTemplate,
             speakers: speakers()
         };
@@ -588,7 +647,11 @@
         if (!f.govRoles.length) {
             return 'Two teams, no assigned roles · min ' + f.min;
         }
-        return f.govRoles.length + ' v ' + f.oppRoles.length + ' · ' + g + ' / ' + o + ' · min ' + f.min;
+        let summary = f.govRoles.length + ' v ' + f.oppRoles.length + ' · ' + g + ' / ' + o + ' · min ' + f.min;
+        if (f.allowSoloDebate) {
+            summary += ' · odd student solo PM';
+        }
+        return summary;
     }
 
     function parseRoster(text) {
@@ -659,7 +722,7 @@
         if (state.topic.trim()) {
             text += 'Motion: ' + state.topic.trim() + '\n';
         }
-        text += 'Format: ' + baseFmt(state.formatId).name + '\n' + '='.repeat(40) + '\n\n';
+        text += 'Format: ' + activeFormatLabel() + '\n' + '='.repeat(40) + '\n\n';
         state.debates.forEach((d) => {
             text += 'DEBATE ' + d.number + '\n' + '-'.repeat(20) + '\n';
             d.benches.forEach((b) => {
@@ -692,6 +755,7 @@
             exportedAt: new Date().toISOString(),
             students: state.students,
             formatId: state.formatId,
+            purpleMode: state.purpleMode,
             includeReply: state.includeReply,
             maxTeamSize: state.maxTeamSize,
             classTitle: state.classTitle,
@@ -761,8 +825,10 @@
     }
 
     function applyV2Payload(data) {
+        normalizePurpleSession(data);
         state.students = Array.isArray(data.students) ? data.students.slice() : [];
         state.formatId = FORMATS[data.formatId] ? data.formatId : 'ap';
+        state.purpleMode = !!data.purpleMode;
         state.includeReply = !!data.includeReply;
         state.maxTeamSize = data.maxTeamSize || 3;
         state.classTitle = data.classTitle || '';
@@ -954,20 +1020,28 @@
         if (formatSel) {
             formatSel.value = state.formatId;
         }
+        const purpleModeEl = el('debateV2PurpleMode');
+        if (purpleModeEl) {
+            purpleModeEl.checked = state.purpleMode;
+        }
+        const standardFormatWrap = el('debateV2StandardFormatWrap');
+        if (standardFormatWrap) {
+            standardFormatWrap.hidden = state.purpleMode;
+        }
         const summary = el('debateV2FormatSummary');
         if (summary) {
             summary.textContent = formatSummary(f);
         }
         const replyWrap = el('debateV2ReplyWrap');
         if (replyWrap) {
-            replyWrap.hidden = !baseFmt(state.formatId).reply;
+            replyWrap.hidden = state.purpleMode || !baseFmt(state.formatId).reply;
         }
         if (reply) {
             reply.checked = state.includeReply;
         }
         const maxWrap = el('debateV2MaxSizeWrap');
         if (maxWrap) {
-            maxWrap.hidden = !!(f.fourTeam || f.oneVsOne);
+            maxWrap.hidden = !!(f.fourTeam || f.oneVsOne || f.fixedTeamSize);
         }
         if (maxSize) {
             maxSize.value = state.maxTeamSize;
@@ -1023,7 +1097,7 @@
                     ' students · ' +
                     state.debates.length +
                     (state.debates.length === 1 ? ' debate · ' : ' debates · ') +
-                    baseFmt(state.formatId).name;
+                    activeFormatLabel();
             }
             const motionBanner = el('debateV2MotionBanner');
             const motionText = el('debateV2MotionText');
@@ -1048,7 +1122,7 @@
                     day: 'numeric'
                 }) +
                 ' · ' +
-                baseFmt(state.formatId).name;
+                activeFormatLabel();
         }
         if (bridge && bridge.onResultsVisibility) {
             bridge.onResultsVisibility(hasDebates);
@@ -1291,6 +1365,19 @@
             'change',
             (e) => {
                 const id = e.target.id;
+                if (id === 'debateV2PurpleMode') {
+                    if (!guardEdit()) {
+                        e.target.checked = state.purpleMode;
+                        return;
+                    }
+                    state.purpleMode = e.target.checked;
+                    if (state.purpleMode) {
+                        applyPurpleModeSettings(true);
+                    }
+                    notifySave();
+                    render();
+                    return;
+                }
                 if (id === 'debateV2Format') {
                     if (!guardEdit()) {
                         e.target.value = state.formatId;
@@ -1358,8 +1445,10 @@
     function loadState(sessionState) {
         const migrated = migrateOldSession(sessionState);
         if (migrated) {
+            normalizePurpleSession(migrated);
             state.students = migrated.students || [];
             state.formatId = FORMATS[migrated.formatId] ? migrated.formatId : 'ap';
+            state.purpleMode = !!migrated.purpleMode;
             state.includeReply = !!migrated.includeReply;
             state.maxTeamSize = migrated.maxTeamSize || 3;
             state.classTitle = migrated.classTitle || '';
@@ -1376,6 +1465,7 @@
             version: 2,
             students: state.students.slice(),
             formatId: state.formatId,
+            purpleMode: state.purpleMode,
             includeReply: state.includeReply,
             maxTeamSize: state.maxTeamSize,
             classTitle: state.classTitle,
@@ -1422,6 +1512,42 @@
         return { ok: true, reason: 'imported', count: list.length, debatesCleared };
     }
 
+    function isPurpleDebateClass(classData, debateBook) {
+        if (!classData) {
+            return false;
+        }
+        const preset = String(classData.levelPreset || '').trim();
+        const custom = String(classData.levelCustom || classData.level || '').trim();
+        if (preset === 'Purple' || custom === 'Purple') {
+            return true;
+        }
+        const book = String(debateBook || classData.book || '').trim();
+        return /purple/i.test(book);
+    }
+
+    function applyClassFormatDefaults(classData, options) {
+        options = options || {};
+        if (!isPurpleDebateClass(classData, options.debateBook)) {
+            return;
+        }
+        if (options.onlyIfPristine) {
+            const pristine =
+                state.debates.length === 0 &&
+                !state.purpleMode &&
+                state.formatId === 'ap' &&
+                !state.includeReply &&
+                state.sheetTemplate === 'garam';
+            if (!pristine) {
+                return;
+            }
+        } else if (state.debates.length > 0) {
+            return;
+        }
+        state.purpleMode = true;
+        applyPurpleModeSettings(true);
+        render();
+    }
+
     function applyMetadataDefaults(classTitle, hrTeacher) {
         if (classTitle && !state.classTitle.trim()) {
             state.classTitle = classTitle;
@@ -1458,7 +1584,10 @@
         collectState,
         importRoster,
         render,
+        assignDebates,
         applyMetadataDefaults,
+        applyClassFormatDefaults,
+        isPurpleDebateClass,
         setEditEnabled,
         migrateOldSession
     };

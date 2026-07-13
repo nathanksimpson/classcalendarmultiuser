@@ -282,6 +282,14 @@
         }
         const title = classData ? String(classData.name || classData.displayName || '').trim() : '';
         eng.applyMetadataDefaults(title, getHomeroomLabel());
+        if (eng.applyClassFormatDefaults) {
+            const stored = findStoredSession();
+            const pristine = !(stored && stored.sessionState);
+            eng.applyClassFormatDefaults(classData, {
+                debateBook: getDebateBookChip(),
+                onlyIfPristine: pristine
+            });
+        }
     }
 
     function bootstrapStudentsFromRosterIfEmpty() {

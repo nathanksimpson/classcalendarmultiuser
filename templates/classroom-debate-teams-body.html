@@ -36,19 +36,25 @@
       </div>
 
       <div class="debate-v2-field-group form-group">
-        <span class="debate-v2-label" data-i18n="classroomDebateFormatTitle">Format</span>
-        <select id="debateV2Format" class="field-select">
-          <option value="ap">Asia Parliamentary (AP)</option>
-          <option value="bp">British Parliamentary (BP)</option>
-          <option value="wudc">WUDC (World Universities)</option>
-          <option value="policy">Policy Debate (CX)</option>
-          <option value="ld">Lincoln-Douglas (LD)</option>
-          <option value="pf">Public Forum (PF)</option>
-          <option value="bf">Balloon/Forum Debate (BF)</option>
-          <option value="knc">KNC (Korea National Congress)</option>
-          <option value="simson">Simson Format</option>
-          <option value="simple">Simple (No Roles)</option>
-        </select>
+        <label id="debateV2PurpleModeWrap" class="debate-v2-check-label checkbox-label">
+          <input type="checkbox" id="debateV2PurpleMode">
+          <span data-i18n="classroomDebatePurpleMode">Purple mode (PM / LO only)</span>
+        </label>
+        <div id="debateV2StandardFormatWrap">
+          <span class="debate-v2-label" data-i18n="classroomDebateFormatTitle">Format</span>
+          <select id="debateV2Format" class="field-select">
+            <option value="ap">Asia Parliamentary (AP)</option>
+            <option value="bp">British Parliamentary (BP)</option>
+            <option value="wudc">WUDC (World Universities)</option>
+            <option value="policy">Policy Debate (CX)</option>
+            <option value="ld">Lincoln-Douglas (LD)</option>
+            <option value="pf">Public Forum (PF)</option>
+            <option value="bf">Balloon/Forum Debate (BF)</option>
+            <option value="knc">KNC (Korea National Congress)</option>
+            <option value="simson">Simson Format</option>
+            <option value="simple">Simple (No Roles)</option>
+          </select>
+        </div>
         <div id="debateV2FormatSummary" class="debate-v2-format-summary section-hint"></div>
         <label id="debateV2ReplyWrap" class="debate-v2-check-label checkbox-label" hidden>
           <input type="checkbox" id="debateV2IncludeReply">

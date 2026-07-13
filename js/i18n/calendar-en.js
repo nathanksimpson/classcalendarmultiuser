@@ -336,6 +336,7 @@
         classroomDebateRandomizeSidesHint: 'When this is off, Team A is always Proposition (Gov) and Team B is always Opposition.',
         classroomDebateAddDebate: 'Add Another Debate',
         classroomDebateFormatTitle: 'Select Debate Format',
+        classroomDebatePurpleMode: 'Purple mode (PM / LO only)',
         classroomDebateFormatLabel: 'Debate Format:',
         classroomDebateIncludeReply: 'Include Reply Speeches (if applicable)',
         classroomDebateCustomBuilder: 'Build Your Custom Format',

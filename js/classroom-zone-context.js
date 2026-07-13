@@ -247,6 +247,55 @@
         return filtered;
     }
 
+    function findClassData(classId, classes) {
+        if (!classId) {
+            return null;
+        }
+        const fromList = Array.isArray(classes)
+            ? classes.find((c) => c && c.id === classId)
+            : null;
+        if (fromList) {
+            return fromList;
+        }
+        return (getAppData().classes || []).find((c) => c && c.id === classId) || null;
+    }
+
+    function applyComboboxClassColors(mountEl, state) {
+        const tile = global.CCPClassColorTile;
+        if (!tile || !mountEl) {
+            return;
+        }
+        const s = state || {};
+        const list = mountEl.querySelector('#classroomZoneClassList');
+        if (list) {
+            list.querySelectorAll('.classroom-zone-combobox-item[data-class-id]').forEach((btn) => {
+                const id = btn.getAttribute('data-class-id');
+                const classData = findClassData(id, s.classes);
+                if (!classData) {
+                    tile.clear(btn);
+                    delete btn.dataset.classId;
+                    return;
+                }
+                btn.dataset.classId = classData.id;
+                tile.apply(btn, classData, { selected: btn.classList.contains('is-selected') });
+            });
+        }
+        const input = mountEl.querySelector('#classroomZoneClassInput');
+        if (!input) {
+            return;
+        }
+        if (!comboboxOpen && s.classId) {
+            const classData = findClassData(s.classId, s.classes);
+            if (classData) {
+                input.dataset.classId = classData.id;
+                tile.apply(input, classData, { selected: true });
+                return;
+            }
+        }
+        tile.clear(input);
+        delete input.dataset.classId;
+    }
+
     function buildComboboxListHtml(state) {
         const s = state || {};
         const classes = Array.isArray(s.classes) ? s.classes : [];
@@ -289,6 +338,7 @@
             return;
         }
         list.innerHTML = buildComboboxListHtml(state);
+        applyComboboxClassColors(mountEl, state);
         const highlighted = list.querySelector('.classroom-zone-combobox-item.is-highlighted');
         if (highlighted && typeof highlighted.scrollIntoView === 'function') {
             highlighted.scrollIntoView({ block: 'nearest' });
@@ -311,6 +361,8 @@
         }
         if (comboboxOpen) {
             updateComboboxListDom(mountEl, state, options);
+        } else {
+            applyComboboxClassColors(mountEl, state);
         }
     }
 

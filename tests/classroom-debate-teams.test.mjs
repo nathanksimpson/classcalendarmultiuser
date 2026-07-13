@@ -318,4 +318,98 @@ function loadDebateEngine() {
     assert(shell && shell.className.includes('debate-v2--readonly'), 'readonly shell class applied when not editable');
 }
 
+{
+    const { api } = loadDebateEngine();
+    assert(api.FORMATS.purple, 'purple format exists');
+    assert(api.FORMATS.purple.govRoles.length === 1 && api.FORMATS.purple.govRoles[0].abbr === 'PM', 'purple gov is PM only');
+    assert(api.FORMATS.purple.oppRoles.length === 1 && api.FORMATS.purple.oppRoles[0].abbr === 'LO', 'purple opp is LO only');
+    assert(api.FORMATS.purple.fixedTeamSize === 1, 'purple fixed team size is 1');
+    assert(api.FORMATS.purple.min === 1, 'purple allows solo student');
+    assert(api.FORMATS.purple.allowSoloDebate, 'purple allows solo debate');
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Purple' }, { debateBook: 'Debate Purple', onlyIfPristine: true });
+    const st = api.collectState();
+    assert(st.purpleMode, 'purple class defaults to purple mode checkbox');
+    assert(st.formatId === 'ap', 'purple mode keeps standard format id in state');
+    assert(st.maxTeamSize === 1, 'purple defaults max team size to 1');
+    assert(st.sheetTemplate === 'yeoul', 'purple defaults to yeoul score sheet');
+    assert(!api.isPurpleDebateClass({ levelPreset: 'Garam' }, ''), 'garam class is not purple debate');
+    assert(api.isPurpleDebateClass({ levelPreset: 'Purple' }, ''), 'purple preset detected');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['Solo'],
+        formatId: 'ap',
+        purpleMode: true,
+        includeReply: false,
+        maxTeamSize: 1,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    const debates = api.assignDebates();
+    assert(debates.length === 1, 'one student creates one purple debate');
+    assert(debates[0].benches[0].members.length === 1, 'solo student on gov bench');
+    assert(debates[0].benches[0].members[0].role.abbr === 'PM', 'solo student is PM');
+    assert(debates[0].benches[1].members.length === 0, 'solo debate has empty opposition');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['Ann', 'Ben', 'Cal'],
+        formatId: 'ap',
+        purpleMode: true,
+        includeReply: false,
+        maxTeamSize: 1,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    const debates = api.assignDebates();
+    assert(debates.length === 2, 'three purple students yield pair + solo debates');
+    const paired = debates.find((d) => d.benches[0].members.length && d.benches[1].members.length);
+    const solo = debates.find((d) => d.benches[0].members.length === 1 && !d.benches[1].members.length);
+    assert(paired, 'purple odd count includes one PM vs LO debate');
+    assert(solo && solo.benches[0].members[0].role.abbr === 'PM', 'leftover purple student is solo PM');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['One'],
+        formatId: 'purple',
+        includeReply: false,
+        maxTeamSize: 1,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    const st = api.collectState();
+    assert(st.purpleMode, 'legacy purple formatId migrates to purpleMode');
+    assert(st.formatId === 'ap', 'legacy purple formatId resets format dropdown to ap');
+}
+
 console.log('classroom-debate-teams.test.mjs: all passed');
