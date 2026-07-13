@@ -33876,6 +33876,13 @@ function refreshActiveTabAfterHydration() {
         || tab === 'debate-teams'
     ) {
         void initClassroomTabControls(tab);
+        if (
+            tab === 'debate-teams'
+            && typeof CCPClassroomDebateTeams !== 'undefined'
+            && CCPClassroomDebateTeams.refreshIfActive
+        ) {
+            void CCPClassroomDebateTeams.refreshIfActive();
+        }
     } else if (tab === 'timetable') {
         initTimetableTabControls();
     } else if (tab === 'calendar') {

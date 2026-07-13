@@ -81,10 +81,11 @@
         'debate-teams': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
             'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
-            'js/debate/feedback-templates.js?v=20260708-debate-templates-reload',
-            'js/debate/debate-randomizer-core.js?v=20260708-debate-export-fix',
+            'js/debate/feedback-templates.js?v=20260710-debate-v2',
+            'js/debate/debate-scoresheet-export.js?v=20260713-debate-roster-bootstrap',
+            'js/debate/debate-teams-v2.js?v=20260713-debate-roster-bootstrap',
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-debate-teams.js?v=20260708-debate-core-ready2'
+            'js/classroom-debate-teams.js?v=20260713-debate-roster-bootstrap'
         ]
     };
 
@@ -94,8 +95,9 @@
     ]);
 
     const DEBATE_CORE_SCRIPTS = [
-        'js/debate/feedback-templates.js?v=20260708-debate-templates-reload',
-        'js/debate/debate-randomizer-core.js?v=20260708-debate-export-fix'
+        'js/debate/feedback-templates.js?v=20260710-debate-v2',
+        'js/debate/debate-scoresheet-export.js?v=20260713-debate-roster-bootstrap',
+        'js/debate/debate-teams-v2.js?v=20260713-debate-roster-bootstrap'
     ];
 
     const loaded = new Set();
@@ -132,7 +134,7 @@
             inflight.delete(marker);
         }
         if (loaded.has(marker)) {
-            if (marker.endsWith('debate-randomizer-core.js') && !isDebateCoreReady()) {
+            if (marker.endsWith('debate-teams-v2.js') && !isDebateCoreReady()) {
                 invalidateScript(src);
             } else {
                 return Promise.resolve();
@@ -145,7 +147,7 @@
             const prior = document.querySelector('script[data-cc-tab-src="' + marker + '"]');
             if (prior) {
                 if (prior.dataset.ccLoaded === '1') {
-                    if (marker.endsWith('debate-randomizer-core.js') && !isDebateCoreReady()) {
+                    if (marker.endsWith('debate-teams-v2.js') && !isDebateCoreReady()) {
                         prior.remove();
                         loaded.delete(marker);
                     } else {
@@ -193,10 +195,7 @@
     }
 
     function isDebateCoreReady() {
-        return !!(
-            global.CCPDebateRandomizerCore &&
-            global.CCPDebateRandomizerCore.importStudentsFromNames
-        );
+        return !!(global.CCPDebateTeamsV2 && global.CCPDebateTeamsV2.collectState);
     }
 
     async function ensureDebateCoreScripts() {

@@ -938,6 +938,18 @@
                             serverData.essaySubmissions
                         );
                     }
+                    if (Array.isArray(body.debateTeamSessions) && Array.isArray(serverData.debateTeamSessions)) {
+                        retryBody.debateTeamSessions = mergeArrayById(
+                            body.debateTeamSessions,
+                            serverData.debateTeamSessions
+                        );
+                    }
+                    if (Array.isArray(body.debateCustomFormats) && Array.isArray(serverData.debateCustomFormats)) {
+                        retryBody.debateCustomFormats = mergeArrayById(
+                            body.debateCustomFormats,
+                            serverData.debateCustomFormats
+                        );
+                    }
                     try {
                         const retryDoc = await apiFetch('/calendars/' + encodeURIComponent(id), {
                             method: 'PUT',

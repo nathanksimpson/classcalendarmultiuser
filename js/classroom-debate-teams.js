@@ -1,5 +1,5 @@
 /**
- * Classroom → Debate Teams (port of Debate Team Randomizer with team-sync persistence).
+ * Classroom → Debate Teams (v2 sidebar UI with team-sync persistence).
  */
 (function (global) {
     let hooks = null;
@@ -10,8 +10,15 @@
     let autosave = null;
     let contextSubscribed = false;
     let renderGeneration = 0;
+    let hydratedSessionKey = '';
+    let studentsListTouchedByUser = false;
+    let rosterAutoImported = false;
     let nameToStudentId = Object.create(null);
     const DEBATE_AUTOSAVE_DELAY_MS = 800;
+
+    function sessionKey() {
+        return classId && sessionDate ? `${classId}|${sessionDate}` : '';
+    }
 
     function domain() {
         return global.CCPClassroomDomain;
@@ -21,8 +28,8 @@
         return global.CCPClassroomAccess;
     }
 
-    function core() {
-        return global.CCPDebateRandomizerCore;
+    function engine() {
+        return global.CCPDebateTeamsV2;
     }
 
     function t(key) {
@@ -109,7 +116,20 @@
     function canEdit() {
         const classData = getClassData();
         const a = access();
-        return !!(a && classData && a.canEditClass && a.canEditClass(classData));
+        if (a && classData && a.canEditClass && a.canEditClass(classData)) {
+            return true;
+        }
+        if (a && a.canBypass && a.canBypass()) {
+            return true;
+        }
+        if (global.TeamAuth && global.TeamAuth.getUser) {
+            const user = global.TeamAuth.getUser();
+            const role = user && user.role ? String(user.role) : '';
+            if (role === 'admin' || role === 'super_admin') {
+                return true;
+            }
+        }
+        return false;
     }
 
     function ensureAutosave(panel) {
@@ -127,8 +147,19 @@
 
     function scheduleSave() {
         if (autosave) {
-            autosave.schedule();
+            autosave.scheduleSave();
         }
+    }
+
+    async function flushStudentsListSave() {
+        if (autosave && autosave.flushBeforeLeave) {
+            await autosave.flushBeforeLeave();
+        }
+    }
+
+    function resetSessionEditFlags() {
+        studentsListTouchedByUser = false;
+        rosterAutoImported = false;
     }
 
     function findStoredSession() {
@@ -156,41 +187,25 @@
 
     function importRosterToEngine(options) {
         options = options || {};
-        const c = core();
-        if (!c || !c.importStudentsFromNames) {
+        const eng = engine();
+        if (!eng || !eng.importRoster) {
             return { ok: false, reason: 'core' };
         }
         const names = rosterStudentNames();
         if (!names.length) {
             return { ok: false, reason: 'empty' };
         }
-        const current = c.collectAppState ? (c.collectAppState().students || []) : [];
-        const unchanged = names.length === current.length && names.every((name, idx) => name === current[idx]);
-        if (unchanged) {
-            if (c.updateStudentList) {
-                c.updateStudentList();
-            }
-            updateRosterHint(names.length);
-            return { ok: true, reason: 'unchanged', count: names.length };
-        }
-        if (options.confirm && current.length > 0) {
-            if (!confirm(t('classroomDebateImportRosterConfirm'))) {
-                return { ok: false, reason: 'cancelled' };
-            }
-        }
-        const result = c.importStudentsFromNames(names, { mode: 'replace' });
-        updateRosterHint(result.count);
-        return { ok: true, reason: 'imported', count: result.count };
+        return eng.importRoster(names, options);
     }
 
     async function ensureCoreReady() {
-        if (core() && core().importStudentsFromNames) {
+        if (engine() && engine().collectState) {
             return true;
         }
         if (global.CCPTabScripts && global.CCPTabScripts.ensureDebateCoreScripts) {
             const ready = await global.CCPTabScripts.ensureDebateCoreScripts();
             if (!ready) {
-                console.error('Debate core failed to initialize: importStudentsFromNames missing');
+                console.error('Debate v2 failed to initialize');
             }
             return ready;
         }
@@ -202,7 +217,7 @@
                 return false;
             }
         }
-        return !!(core() && core().importStudentsFromNames);
+        return !!(engine() && engine().collectState);
     }
 
     async function importFromRoster(options) {
@@ -236,7 +251,13 @@
             return false;
         }
         applyMetadataDefaults();
+        rosterAutoImported = true;
+        studentsListTouchedByUser = false;
         scheduleSave();
+        if (outcome.debatesCleared && autosave && autosave.flushBeforeLeave) {
+            await autosave.flushBeforeLeave();
+        }
+        updateSidebarMeta();
         if (hooks && hooks.showToast) {
             if (outcome.reason === 'unchanged') {
                 hooks.showToast(t('classroomDebateImportRosterUpToDate'), false);
@@ -246,49 +267,142 @@
                     false
                 );
             }
+            if (outcome.debatesCleared) {
+                hooks.showToast(t('classroomDebateRosterRefreshedAssignmentsCleared'), false);
+            }
         }
         return true;
     }
 
     function applyMetadataDefaults() {
         const classData = getClassData();
-        const titleEl = document.getElementById('class-title');
-        const hrEl = document.getElementById('hr-teacher');
-        if (titleEl && classData && !titleEl.value.trim()) {
-            titleEl.value = String(classData.name || classData.displayName || '').trim();
+        const eng = engine();
+        if (!eng || !eng.applyMetadataDefaults) {
+            return;
         }
-        if (hrEl && !hrEl.value.trim()) {
-            hrEl.value = getHomeroomLabel();
-        }
+        const title = classData ? String(classData.name || classData.displayName || '').trim() : '';
+        eng.applyMetadataDefaults(title, getHomeroomLabel());
     }
 
-    function loadSessionIntoEngine() {
-        const c = core();
-        if (!c || !c.importStateFromJson) {
+    function bootstrapStudentsFromRosterIfEmpty() {
+        return syncStudentsFromRosterIfNeeded();
+    }
+
+    function syncStudentsFromRosterIfNeeded() {
+        if (studentsListTouchedByUser || rosterAutoImported) {
+            return false;
+        }
+        const eng = engine();
+        if (!eng || !eng.collectState || !eng.importRoster) {
+            return false;
+        }
+        const students = eng.collectState().students || [];
+        const names = rosterStudentNames();
+        if (students.length > 0 || names.length === 0) {
+            if (students.length > 0) {
+                rosterAutoImported = true;
+            }
+            return false;
+        }
+        const outcome = eng.importRoster(names, { confirm: false, clearDebates: false });
+        if (outcome && outcome.ok) {
+            rosterAutoImported = true;
+            scheduleSave();
+            if (hooks && hooks.showToast && outcome.reason === 'imported') {
+                hooks.showToast(
+                    t('classroomDebateImportRosterSuccess').replace('{count}', String(outcome.count)),
+                    false
+                );
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function canMarkSessionHydrated() {
+        const eng = engine();
+        if (!eng || !eng.collectState) {
+            return false;
+        }
+        const students = eng.collectState().students || [];
+        const roster = rosterStudentNames();
+        if (students.length > 0) {
+            return true;
+        }
+        if (roster.length === 0) {
+            return true;
+        }
+        if (studentsListTouchedByUser) {
+            return true;
+        }
+        return false;
+    }
+
+    function hydrateSessionIfNeeded(options) {
+        options = options || {};
+        const eng = engine();
+        if (!eng || !eng.loadState) {
+            return;
+        }
+        const key = sessionKey();
+        if (!key) {
+            return;
+        }
+        if (!options.force && key === hydratedSessionKey) {
+            syncStudentsFromRosterIfNeeded();
             return;
         }
         const stored = findStoredSession();
         if (stored && stored.sessionState) {
-            c.importStateFromJson(stored.sessionState, { silent: true });
-            if (stored.sessionState.debates && stored.sessionState.debates.length && c.displayResults) {
-                c.displayResults({ scroll: false });
+            eng.loadState(stored.sessionState);
+            if (stored.sessionState.studentsManual) {
+                studentsListTouchedByUser = true;
             }
-            return;
+            if ((eng.collectState().students || []).length > 0) {
+                rosterAutoImported = true;
+            }
+        } else {
+            const outcome = importRosterToEngine({ confirm: false, clearDebates: false });
+            if (outcome && outcome.ok) {
+                rosterAutoImported = true;
+            }
         }
-        importRosterToEngine({ confirm: false });
+        syncStudentsFromRosterIfNeeded();
         applyMetadataDefaults();
+        if (canMarkSessionHydrated()) {
+            hydratedSessionKey = key;
+        }
+    }
+
+    async function reloadSessionFromStore(options) {
+        options = options || {};
+        if (autosave && autosave.flushBeforeLeave && !options.skipFlush) {
+            await autosave.flushBeforeLeave();
+        }
+        hydratedSessionKey = '';
+        hydrateSessionIfNeeded({ force: true });
+        const panel = panelRef || document.getElementById('panel-debate-teams');
+        if (panel) {
+            updateSidebarMeta();
+            const hasDebates = !!(engine() && engine().collectState && engine().collectState().debates.length);
+            syncShellToolbar(hasDebates);
+            setEditEnabled(panel, canEdit());
+        }
     }
 
     async function persistSession() {
-        const c = core();
+        const eng = engine();
         const d = domain();
-        if (!c || !d || !hooks || !classId || !sessionDate) {
+        if (!eng || !d || !hooks || !classId || !sessionDate) {
             return;
         }
-        const appState = c.collectAppState ? c.collectAppState() : null;
+        const appState = eng.collectState ? eng.collectState() : null;
         if (!appState) {
             return;
         }
+        const sessionState = Object.assign({}, appState, {
+            studentsManual: studentsListTouchedByUser
+        });
         rebuildNameMap();
         const studentIds = (appState.students || [])
             .map((name) => nameToStudentId[name])
@@ -299,75 +413,73 @@
             id: existing && existing.id ? existing.id : d.newId('dts'),
             classId,
             date: sessionDate,
-            sessionState: appState,
+            sessionState: sessionState,
             studentIds,
             authorUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
             updatedAt: new Date().toISOString()
         };
         const nextSessions = d.upsertDebateTeamSession(data.debateTeamSessions, entry);
         const fields = { debateTeamSessions: nextSessions };
-        if (Array.isArray(appState.savedCustomFormats)) {
-            fields.debateCustomFormats = appState.savedCustomFormats.map((fmt) =>
-                d.normalizeDebateCustomFormat(
-                    Object.assign({}, fmt, {
-                        id: fmt.id || d.newId('dcf'),
-                        authorUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
-                        updatedAt: new Date().toISOString()
-                    })
-                )
-            ).filter(Boolean);
-        }
         if (hooks.saveClassroom) {
             await hooks.saveClassroom(fields);
         }
     }
 
     function updateRosterHint(count) {
-        const el = panelRef && panelRef.querySelector('#classroomDebateRosterHint');
-        if (!el) {
+        const panel = panelRef || document.getElementById('panel-debate-teams');
+        const elNode = panel && panel.querySelector('#debateV2RosterHint');
+        if (!elNode) {
             return;
         }
         const n = Number.isFinite(count) ? count : rosterStudentNames().length;
-        el.textContent = t('classroomDebateRosterHint').replace('{count}', String(n));
+        if (n > 0) {
+            elNode.textContent = t('classroomDebateRosterHint').replace('{count}', String(n));
+            elNode.hidden = false;
+        } else {
+            elNode.textContent = '';
+            elNode.hidden = true;
+        }
     }
 
-    function renderHeader(panel) {
-        const mount = panel.querySelector('#classroomDebateTeamsHeader');
-        if (!mount) {
+    function updateSidebarMeta() {
+        const panel = panelRef || document.getElementById('panel-debate-teams');
+        if (!panel) {
             return;
         }
-        const book = getDebateBookChip();
-        const bookHtml = book
-            ? `<span class="lesson-filter-chip classroom-debate-book-chip">${escapeHtml(book)}</span>`
-            : '';
-        mount.innerHTML = `
-            <div class="classroom-debate-header-meta">
-                <p id="classroomDebateRosterHint" class="section-hint"></p>
-                ${bookHtml}
-            </div>`;
         updateRosterHint();
+        const bookEl = panel.querySelector('#debateV2BookChip');
+        if (bookEl) {
+            const book = getDebateBookChip();
+            if (book) {
+                bookEl.textContent = book;
+                bookEl.hidden = false;
+            } else {
+                bookEl.textContent = '';
+                bookEl.hidden = true;
+            }
+        }
     }
 
     function applyPanelI18n(root) {
         if (!root) {
             return;
         }
-        root.querySelectorAll('[data-i18n]').forEach((el) => {
-            const key = el.getAttribute('data-i18n');
+        root.querySelectorAll('[data-i18n]').forEach((elNode) => {
+            const key = elNode.getAttribute('data-i18n');
             if (key) {
-                el.textContent = t(key);
+                elNode.textContent = t(key);
             }
         });
-        root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-            const key = el.getAttribute('data-i18n-placeholder');
+        root.querySelectorAll('[data-i18n-placeholder]').forEach((elNode) => {
+            const key = elNode.getAttribute('data-i18n-placeholder');
             if (key) {
-                el.placeholder = t(key);
+                elNode.placeholder = t(key);
             }
         });
-        root.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
-            const key = el.getAttribute('data-i18n-aria-label');
+        root.querySelectorAll('[data-i18n-aria-label]').forEach((elNode) => {
+            const key = elNode.getAttribute('data-i18n-aria-label');
             if (key) {
-                el.setAttribute('aria-label', t(key));
+                elNode.setAttribute('aria-label', t(key));
             }
         });
     }
@@ -377,65 +489,37 @@
         if (!panel) {
             return;
         }
-        const regenBtn = panel.querySelector('#classroomDebateRegenerateBtn');
-        const copyBtn = panel.querySelector('#classroomDebateCopyBtn');
-        const printBtn = panel.querySelector('#classroomDebatePrintBtn');
-        [regenBtn, copyBtn, printBtn].forEach((btn) => {
-            if (btn) {
-                btn.classList.toggle('hidden', !hasResults);
-            }
-        });
+        const saveBtn = panel.querySelector('#classroomDebateSaveBtn');
+        if (saveBtn) {
+            saveBtn.disabled = !canEdit();
+        }
+        if (typeof hasResults === 'boolean' && engine() && engine().render) {
+            // toolbar state only; results visibility handled via bridge
+        }
     }
 
     function setEditEnabled(panel, enabled) {
-        panel.querySelectorAll('input, textarea, select, button').forEach((el) => {
-            if (el.id === 'classroomDebateRefreshRosterBtn') {
-                return;
-            }
-            if (el.closest('.classroom-tab-toolbar')) {
-                return;
-            }
-            el.disabled = !enabled;
-        });
+        const eng = engine();
+        if (eng && eng.setEditEnabled) {
+            eng.setEditEnabled(enabled);
+        }
     }
 
     function installSessionBridge() {
         global.CCPDebateSessionBridge = {
-            getCustomFormats() {
-                const data = getAppData();
-                return Array.isArray(data.debateCustomFormats) ? data.debateCustomFormats : [];
-            },
-            saveCustomFormats(formats) {
-                const d = domain();
-                if (!d || !hooks || !hooks.saveClassroom) {
-                    return;
-                }
-                const normalized = (Array.isArray(formats) ? formats : [])
-                    .map((fmt) =>
-                        d.normalizeDebateCustomFormat(
-                            Object.assign({}, fmt, {
-                                id: fmt.id || d.newId('dcf'),
-                                authorUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
-                                updatedAt: new Date().toISOString()
-                            })
-                        )
-                    )
-                    .filter(Boolean);
-                void hooks.saveClassroom({ debateCustomFormats: normalized });
-            },
-            onRosterChange() {
+            onSave() {
                 scheduleSave();
             },
-            onSave(state) {
-                const c = core();
-                if (c && c.collectAppState) {
-                    scheduleSave();
-                } else if (state) {
-                    scheduleSave();
-                }
+            onStudentsEdited() {
+                studentsListTouchedByUser = true;
+                scheduleSave();
+                void flushStudentsListSave();
             },
             t(key) {
                 return t(key);
+            },
+            canEdit() {
+                return canEdit();
             },
             onResultsVisibility(visible) {
                 syncShellToolbar(!!visible);
@@ -444,19 +528,28 @@
     }
 
     async function ensureMount(panel) {
-        if (mountReady && core() && core().importStudentsFromNames) {
-            return true;
-        }
-        mountReady = false;
         const mount = panel.querySelector('#classroomDebateTeamsMount');
         if (!mount) {
             return false;
         }
+        if (mountReady && engine() && engine().collectState && mount.querySelector('.classroom-debate-v2')) {
+            installSessionBridge();
+            const eng = engine();
+            if (eng && eng.setBridge) {
+                eng.setBridge(global.CCPDebateSessionBridge);
+            }
+            if (eng && eng.hasLiveDom && !eng.hasLiveDom() && eng.init) {
+                eng.init(mount, global.CCPDebateSessionBridge);
+            }
+            return true;
+        }
+        mountReady = false;
         if (!(await ensureCoreReady())) {
             mount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomDebateMountError'))}</p>`;
             return false;
         }
-        if (!mount.querySelector('.classroom-debate-panel')) {
+        const hasExistingPanel = !!mount.querySelector('.classroom-debate-v2');
+        if (!hasExistingPanel) {
             try {
                 const res = await fetch('templates/classroom-debate-teams-body.html', { cache: 'no-store' });
                 if (res.ok) {
@@ -473,92 +566,37 @@
         }
         installSessionBridge();
         applyPanelI18n(mount);
-        const c = core();
-        if (c && c.initDebateRandomizerDom) {
+        const eng = engine();
+        if (eng && eng.init && mount.querySelector('.classroom-debate-v2')) {
             try {
-                c.initDebateRandomizerDom();
+                eng.init(mount, global.CCPDebateSessionBridge);
             } catch (err) {
-                console.error('Debate randomizer init failed', err);
+                console.error('Debate v2 init failed', err);
                 mount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomDebateMountError'))}</p>`;
                 return false;
             }
+        } else if (!mount.querySelector('.classroom-debate-v2')) {
+            mount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomDebateMountError'))}</p>`;
+            return false;
         }
         mountReady = true;
         return true;
     }
 
-    function ensureMountDelegatedEvents(panel) {
-        const mount = panel.querySelector('#classroomDebateTeamsMount');
-        if (!mount || mount.dataset.debateBound === '1') {
-            return;
-        }
-        mount.dataset.debateBound = '1';
-        mount.addEventListener('click', (e) => {
-            const importBtn = e.target.closest('#classroomDebateImportRosterBtn');
-            if (!importBtn) {
-                return;
-            }
-            e.preventDefault();
-            if (!canEdit()) {
-                if (hooks && hooks.showToast) {
-                    hooks.showToast(t('classroomDebateViewOnly'), true);
-                }
-                return;
-            }
-            void importFromRoster({ confirm: true });
-        });
-    }
-
     function bindToolbar(panel) {
-        const generateBtn = panel.querySelector('#classroomDebateGenerateBtn');
-        if (generateBtn && !generateBtn.dataset.bound) {
-            generateBtn.dataset.bound = '1';
-            generateBtn.addEventListener('click', () => {
-                if (!canEdit() || typeof global.generateDebates !== 'function') {
-                    return;
-                }
-                global.generateDebates();
-            });
-        }
-        const regenBtn = panel.querySelector('#classroomDebateRegenerateBtn');
-        if (regenBtn && !regenBtn.dataset.bound) {
-            regenBtn.dataset.bound = '1';
-            regenBtn.addEventListener('click', () => {
-                if (!canEdit() || typeof global.regenerateDebates !== 'function') {
-                    return;
-                }
-                global.regenerateDebates();
-            });
-        }
-        const copyBtn = panel.querySelector('#classroomDebateCopyBtn');
-        if (copyBtn && !copyBtn.dataset.bound) {
-            copyBtn.dataset.bound = '1';
-            copyBtn.addEventListener('click', () => {
-                if (typeof global.copyResults === 'function') {
-                    global.copyResults();
-                }
-            });
-        }
-        const printBtn = panel.querySelector('#classroomDebatePrintBtn');
-        if (printBtn && !printBtn.dataset.bound) {
-            printBtn.dataset.bound = '1';
-            printBtn.addEventListener('click', () => {
-                global.print();
-            });
-        }
         const refreshBtn = panel.querySelector('#classroomDebateRefreshRosterBtn');
         if (refreshBtn && !refreshBtn.dataset.bound) {
             refreshBtn.dataset.bound = '1';
             refreshBtn.addEventListener('click', () => {
-                void importFromRoster({ confirm: false, allowViewOnly: true });
+                void importFromRoster({ confirm: false, allowViewOnly: true, clearDebates: true });
             });
         }
         const saveBtn = panel.querySelector('#classroomDebateSaveBtn');
         if (saveBtn && !saveBtn.dataset.bound) {
             saveBtn.dataset.bound = '1';
             saveBtn.addEventListener('click', () => {
-                if (autosave) {
-                    void autosave.flush({ reason: 'manual' });
+                if (autosave && autosave.invokeSave) {
+                    void autosave.invokeSave({ silent: false });
                 }
             });
         }
@@ -573,23 +611,25 @@
                 mount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomDebateSelectClassDate'))}</p>`;
             }
             mountReady = false;
+            hydratedSessionKey = '';
+            resetSessionEditFlags();
             return;
         }
         const mounted = await ensureMount(panel);
         if (!mounted || gen !== renderGeneration) {
             return;
         }
-        ensureMountDelegatedEvents(panel);
-        renderHeader(panel);
         bindToolbar(panel);
-        loadSessionIntoEngine();
+        ensureAutosave(panel);
+        hydrateSessionIfNeeded();
+        syncStudentsFromRosterIfNeeded();
+        updateSidebarMeta();
         if (gen !== renderGeneration) {
             return;
         }
-        const resultsEl = panel.querySelector('#results-section');
-        syncShellToolbar(!!(resultsEl && !resultsEl.classList.contains('hidden')));
+        const hasDebates = !!(engine() && engine().collectState && engine().collectState().debates.length);
+        syncShellToolbar(hasDebates);
         setEditEnabled(panel, canEdit());
-        ensureAutosave(panel);
     }
 
     function syncActiveContext(options) {
@@ -598,7 +638,7 @@
         const d = domain();
         const visible = global.CCPClassroomZoneContext
             ? global.CCPClassroomZoneContext.getVisibleClasses()
-            : (data.classes || []);
+            : data.classes || [];
 
         if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
             classId = global.CCPActiveContext.resolveActiveClassId(data, {
@@ -607,14 +647,14 @@
             });
         } else {
             classId =
-                (options.classId) ||
+                options.classId ||
                 (data.ui && data.ui.classroomTabClassId) ||
                 (visible[0] && visible[0].id) ||
                 '';
         }
 
         sessionDate =
-            (options.date) ||
+            options.date ||
             (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.get().sessionDate) ||
             (data.ui && data.ui.classroomTabDate) ||
             (d ? d.todayISO() : '');
@@ -635,6 +675,8 @@
             }
             if (prevClass !== classId || prevDate !== sessionDate) {
                 void flushBeforeLeave().then(() => {
+                    hydratedSessionKey = '';
+                    resetSessionEditFlags();
                     mountReady = false;
                     if (panelRef) {
                         void render(panelRef);
@@ -660,15 +702,31 @@
     }
 
     async function flushBeforeLeave() {
-        if (autosave && autosave.flush) {
-            await autosave.flush({ reason: 'tab-leave' });
+        if (autosave && autosave.flushBeforeLeave) {
+            await autosave.flushBeforeLeave();
         }
+    }
+
+    async function refreshIfActive() {
+        const panel = document.getElementById('panel-debate-teams');
+        if (!panel || panel.hidden || !hooks) {
+            return;
+        }
+        ensureAutosave(panel);
+        syncStudentsFromRosterIfNeeded();
+        updateSidebarMeta();
+        setEditEnabled(panel, canEdit());
+        syncShellToolbar(
+            !!(engine() && engine().collectState && engine().collectState().debates.length)
+        );
     }
 
     global.CCPClassroomDebateTeams = {
         initTab,
         render,
         flushBeforeLeave,
-        importFromRoster
+        importFromRoster,
+        refreshIfActive,
+        reloadSessionFromStore
     };
 })(typeof window !== 'undefined' ? window : globalThis);
