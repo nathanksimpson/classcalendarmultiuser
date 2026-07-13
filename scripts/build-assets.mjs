@@ -196,17 +196,12 @@ async function main() {
     rmDist();
     fs.mkdirSync(dist, { recursive: true });
     copyRecursive(root, dist);
-    // styles.css at repo root is the source of truth (AGENTS.md). copyRecursive already
-    // copies it into dist/ — do not replace with css/index.css, which can lag styles.css
-    // when css:split was not run after an edit.
-    const bundledCssPath = path.join(root, 'css', 'index.css');
-    if (!fs.existsSync(path.join(dist, 'styles.css')) && fs.existsSync(bundledCssPath)) {
-        try {
-            const bundled = concatCssForDist('css/index.css');
-            fs.writeFileSync(path.join(dist, 'styles.css'), bundled, 'utf8');
-        } catch (err) {
-            console.warn('CSS bundle from css/index.css failed, using styles.css copy:', err.message);
-        }
+    // Flatten styles.css @imports into a single file for production (no nested @import).
+    try {
+        const flat = concatCssForDist('styles.css');
+        fs.writeFileSync(path.join(dist, 'styles.css'), flat, 'utf8');
+    } catch (err) {
+        console.warn('CSS flatten from styles.css failed, using copied styles.css:', err.message);
     }
     await minifyFiles();
     let bytes = 0;

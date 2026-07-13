@@ -32,7 +32,9 @@ const calendarData = {
     attendanceSessions: [],
     homeworkCompletions: [],
     studentPoints: [],
-    studentTests: []
+    studentTests: [],
+    debateTeamSessions: [],
+    debateCustomFormats: []
 };
 
 assert(Auth.hasPermission(admin, Auth.PERMS.FORCE_SAVE), 'admin force save');
@@ -65,5 +67,18 @@ const allowed = Classroom.prepareClassroomForSave(teacher, calendarData, {
 assert(!allowed.error, 'points save allowed for assigned class');
 assert(allowed.merged.studentPoints.length === 1, 'points merged');
 assert(allowed.merged.studentPoints[0].authorUserId === 't1', 'author stamped');
+
+const debateAllowed = Classroom.prepareClassroomForSave(teacher, calendarData, {
+    debateTeamSessions: [
+        {
+            id: 'deb1',
+            classId: 'cls1',
+            date: '2026-06-01',
+            sessionState: { students: ['A'], debates: [] }
+        }
+    ]
+});
+assert(!debateAllowed.error, 'debate save allowed for assigned class');
+assert(debateAllowed.merged.debateTeamSessions[0].authorUserId === 't1', 'debate author stamped');
 
 console.log('api-lock-contract.test.mjs: all passed');

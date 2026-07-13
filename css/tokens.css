@@ -1,10 +1,11 @@
+@import url('css/design-fidelity-append.css');
+@import url('css/debate-teams-v2.css');
+
 /* CSS Variables & Reset */
 
 [hidden] {
     display: none !important;
 }
-
-@import url('css/design-fidelity-append.css');
 
 :root {
     color-scheme: light;

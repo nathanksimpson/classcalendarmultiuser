@@ -1,21 +1,75 @@
+/**
+ * Extract debate UI from Debate Teams.dc.html (Claude handoff).
+ * Usage: node scripts/extract-debate-html.mjs [path-to-Debate Teams.dc.html]
+ */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const refPath =
-    '\\\\simson-jsl\\simson-jsl\\잠실르엘\\2. 교수팀개인\\심나단 (Nathan)\\Apps In Development\\Cursor Builds\\Debate Team Randomizer\\index.html';
-const outPath = path.join(__dirname, '..', 'templates', 'classroom-debate-teams-body.html');
+const root = path.join(__dirname, '..');
 
-const html = fs.readFileSync(refPath, 'utf8');
-const start = html.indexOf('<details id="setup-details"');
-const end = html.indexOf('</nav>', start);
-if (start < 0 || end < 0) {
-    console.error('markers not found');
+const refPath =
+    process.argv[2] ||
+    path.join(root, 'design_handoff_debate_teams', 'Debate Teams.dc.html');
+
+if (!fs.existsSync(refPath)) {
+    console.error('Reference HTML not found:', refPath);
     process.exit(1);
 }
-const fragment = html.slice(start, end + '</nav>'.length);
-const wrapped = `<div class="classroom-debate-panel">\n${fragment}\n</div>\n`;
-fs.mkdirSync(path.dirname(outPath), { recursive: true });
-fs.writeFileSync(outPath, wrapped);
-console.log('Wrote', outPath, wrapped.length);
+
+const html = fs.readFileSync(refPath, 'utf8');
+
+const scriptMatch = html.match(
+    /<script[^>]*type="text\/x-dc"[^>]*data-dc-script[^>]*>([\s\S]*?)<\/script>/i
+);
+if (!scriptMatch) {
+    console.error('Could not find data-dc-script block');
+    process.exit(1);
+}
+
+const scriptBody = scriptMatch[1];
+const componentStart = scriptBody.indexOf('class Component extends DCLogic');
+if (componentStart < 0) {
+    console.error('Component class not found');
+    process.exit(1);
+}
+
+let depth = 0;
+let componentEnd = -1;
+let inClass = false;
+for (let i = componentStart; i < scriptBody.length; i++) {
+    const ch = scriptBody[i];
+    if (ch === '{') {
+        depth++;
+        inClass = true;
+    } else if (ch === '}') {
+        depth--;
+        if (inClass && depth === 0) {
+            componentEnd = i + 1;
+            break;
+        }
+    }
+}
+
+if (componentEnd < 0) {
+    console.error('Could not find end of Component class');
+    process.exit(1);
+}
+
+const componentSource = scriptBody.slice(componentStart, componentEnd);
+const componentOut = path.join(root, 'js', 'debate', 'debate-teams-v2-source.js');
+fs.writeFileSync(
+    componentOut,
+    `// Auto-extracted from design_handoff_debate_teams/Debate Teams.dc.html\n${componentSource}\n`
+);
+console.log('Wrote', componentOut, componentSource.length, 'chars');
+
+const helmetMatch = html.match(/<helmet[^>]*>[\s\S]*?<style>([\s\S]*?)<\/style>/i);
+if (helmetMatch) {
+    const helmetCssPath = path.join(root, 'scripts', '_extracted-debate-helmet.css');
+    fs.writeFileSync(helmetCssPath, helmetMatch[1].trim() + '\n');
+    console.log('Wrote helmet CSS reference:', helmetCssPath);
+}
+
+console.log('Template and debate-teams-v2.css are maintained in-repo; compare against .dc.html inline styles.');

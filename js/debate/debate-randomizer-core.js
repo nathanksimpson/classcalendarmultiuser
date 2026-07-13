@@ -28,6 +28,14 @@ let students = [];
             return text;
         }
 
+        function alertT(key, vars) {
+            alert(debateT(key, vars));
+        }
+
+        function confirmT(key, vars) {
+            return confirm(debateT(key, vars));
+        }
+
         function notifyResultsVisibility() {
             if (global.CCPDebateSessionBridge && typeof global.CCPDebateSessionBridge.onResultsVisibility === 'function') {
                 const results = document.getElementById('results-section');
@@ -491,7 +499,7 @@ let students = [];
         }
 
         function clearAssignments() {
-            if (debates.length && !confirm('Clear all debate assignments? Your student list and settings will stay.')) return;
+            if (debates.length && !confirmT('classroomDebateConfirmClearAssignments')) return;
             debates = [];
             clearResultsStale();
             document.getElementById('results-section')?.classList.add('hidden');
@@ -508,11 +516,7 @@ let students = [];
                 return;
             }
             if (hasDebateUiEdits()) {
-                if (!confirm(
-                    'Regenerate will create new random teams and reset role history.\n\n' +
-                    'Notes and argument fields you entered may be lost. Export a backup first if you need to keep them.\n\n' +
-                    'Click OK to regenerate, or Cancel to keep current assignments.'
-                )) return;
+                if (!confirmT('classroomDebateConfirmRegenerateLossy')) return;
             }
             generateDebates();
         }
@@ -539,7 +543,7 @@ let students = [];
                 if (!raw) return;
                 const data = JSON.parse(raw);
                 if (!data.debates || !data.debates.length) return;
-                if (!confirm('Resume your last debate session from this browser?')) return;
+                if (!confirmT('classroomDebateResumeBrowserSession')) return;
                 importStateFromJson(data, { silent: true });
             } catch (e) {}
         }
@@ -579,17 +583,6 @@ let students = [];
             // Show/hide sections
             document.getElementById('random-mode-section').classList.toggle('hidden', mode !== 'random');
             document.getElementById('teams-mode-section').classList.toggle('hidden', mode !== 'teams');
-            
-            // Update generate button text
-            const generateSection = document.querySelector('.section:has(#class-title)');
-            if (generateSection) {
-                const h2 = generateSection.querySelector('h2');
-                if (mode === 'teams') {
-                    h2.textContent = 'Randomize Sides & Generate';
-                } else {
-                    h2.textContent = 'Generate Teams';
-                }
-            }
             markResultsStale();
         }
 
@@ -611,7 +604,7 @@ let students = [];
         function removeTeamPair(pairId) {
             syncTeamPairsFromDom();
             if (teamPairs.length <= 1) {
-                alert('You need at least one debate!');
+                alertT('classroomDebateNeedAtLeastOneDebate');
                 return;
             }
             teamPairs = teamPairs.filter(p => p.id !== pairId);
@@ -620,7 +613,7 @@ let students = [];
 
         function clearAllTeamPairs() {
             syncTeamPairsFromDom();
-            if (confirm('Are you sure you want to clear all team pairs?')) {
+            if (confirmT('classroomDebateConfirmClearTeamPairs')) {
                 teamPairs = [];
                 addTeamPair();
             }
@@ -710,7 +703,7 @@ let students = [];
             const validPairs = pairs.filter(p => p.teamA.members.length > 0 && p.teamB.members.length > 0);
             
             if (validPairs.length === 0) {
-                alert('Please add members to both teams in at least one debate.');
+                alertT('classroomDebateNeedMembersBothTeams');
                 return;
             }
 
@@ -879,7 +872,7 @@ let students = [];
             const oppName = document.getElementById('custom-opp-name').value.trim() || 'Opposition';
 
             if (customGovRoles.length === 0 && customOppRoles.length === 0) {
-                alert('Please add at least one role before saving.');
+                alertT('classroomDebateNeedAtLeastOneRole');
                 return;
             }
 
@@ -895,7 +888,7 @@ let students = [];
             savedCustomFormats.push(customFormat);
             persistCustomFormats();
             
-            alert(`Custom format "${formatName}" saved!`);
+            alertT('classroomDebateCustomFormatSaved', { name: formatName });
             loadSavedFormats();
         }
 
@@ -944,11 +937,11 @@ let students = [];
             document.getElementById('custom-gov-name').value = format.govName;
             document.getElementById('custom-opp-name').value = format.oppName;
             updateCustomRolesDisplay();
-            alert(`Loaded "${format.name}" format!`);
+            alertT('classroomDebateCustomFormatLoaded', { name: format.name });
         }
 
         function deleteSavedFormat(index) {
-            if (confirm(`Delete "${savedCustomFormats[index].name}"?`)) {
+            if (confirmT('classroomDebateDeleteFormatConfirm', { name: savedCustomFormats[index].name })) {
                 savedCustomFormats.splice(index, 1);
                 persistCustomFormats();
                 loadSavedFormats();
@@ -969,7 +962,7 @@ let students = [];
                 saveStudents();
                 markResultsStale();
             } else if (students.includes(name)) {
-                alert('This student is already in the list!');
+                alertT('classroomDebateStudentDuplicate');
             }
         }
 
@@ -993,9 +986,9 @@ let students = [];
                 updateStudentList();
                 saveStudents();
                 markResultsStale();
-                alert(`Added ${added} student(s)!`);
+                alertT('classroomDebateAddedStudents', { count: added });
             } else {
-                alert('No new students to add. All names are already in the list.');
+                alertT('classroomDebateNoNewStudents');
             }
         }
 
@@ -1007,7 +1000,7 @@ let students = [];
         }
 
         function clearAllStudents() {
-            if (confirm('Are you sure you want to clear all students?')) {
+            if (confirmT('classroomDebateConfirmClearStudents')) {
                 students = [];
                 updateStudentList();
                 saveStudents();
@@ -1376,7 +1369,7 @@ let students = [];
             const format = getCurrentFormat();
             
             if (students.length < format.minStudents) {
-                alert(`Please add at least ${format.minStudents} students for ${format.name} format.`);
+                alertT('classroomDebateNeedMinStudents', { count: format.minStudents, format: format.name });
                 return;
             }
 
@@ -1388,7 +1381,7 @@ let students = [];
             if (limitEnabled) {
                 maxTeamSize = parseInt(maxTeamSizeInput.value, 10);
                 if (isNaN(maxTeamSize) || maxTeamSize < 1) {
-                    alert('Maximum team size must be at least 1.');
+                    alertT('classroomDebateMaxTeamSizeInvalid');
                     return;
                 }
             } else {

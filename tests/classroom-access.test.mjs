@@ -31,7 +31,9 @@ const calendarData = {
         }
     ],
     attendanceSessions: [],
-    homeworkCompletions: []
+    homeworkCompletions: [],
+    debateTeamSessions: [],
+    debateCustomFormats: []
 };
 
 const homeroom = { id: 'homeroom1', role: 'teacher' };
@@ -92,5 +94,43 @@ const adminRoster = ClassroomAccess.prepareClassroomForSave(admin, calendarData,
     cohorts: calendarData.cohorts
 });
 assert(!adminRoster.error, 'admin bypass for roster');
+
+const debateSessionOk = ClassroomAccess.prepareClassroomForSave(teacher, calendarData, {
+    debateTeamSessions: [
+        {
+            id: 'dts1',
+            classId: 'class1',
+            date: '2026-06-09',
+            sessionState: { students: ['Kim'], debates: [] }
+        }
+    ]
+});
+assert(!debateSessionOk.error, 'assigned teacher can save debate sessions');
+assert(debateSessionOk.merged.debateTeamSessions[0].authorUserId === 'teacher1', 'debate session stamped author');
+
+const debateSessionDenied = ClassroomAccess.prepareClassroomForSave(other, calendarData, {
+    debateTeamSessions: [
+        {
+            id: 'dts1',
+            classId: 'class1',
+            date: '2026-06-09',
+            sessionState: { students: ['Kim'], debates: [] }
+        }
+    ]
+});
+assert(debateSessionDenied.error && debateSessionDenied.error.includes('teach'), 'other teacher blocked from debate sessions');
+
+const debateFormatOk = ClassroomAccess.prepareClassroomForSave(teacher, calendarData, {
+    debateCustomFormats: [
+        {
+            id: 'fmt1',
+            name: 'Custom AP',
+            govRoles: ['PM'],
+            oppRoles: ['LO']
+        }
+    ]
+});
+assert(!debateFormatOk.error, 'debate custom formats save allowed');
+assert(debateFormatOk.merged.debateCustomFormats[0].authorUserId === 'teacher1', 'debate format stamped author');
 
 console.log('classroom-access.test.mjs: all passed');

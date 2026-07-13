@@ -65,7 +65,8 @@ function splitStyles() {
         'calendar.css',
         'class-notes.css',
         'page-shell.css',
-        'features.css'
+        'features.css',
+        'debate-teams-v2.css'
     ]
         .filter((f) => existsSync(path.join(cssDir, f)))
         .map((f) => `@import url('./${f}');`)
@@ -76,18 +77,18 @@ function splitStyles() {
     console.log('Split styles.css into css/ (' + imports.split('\n').length + ' partials)');
 }
 
-function concatCssForDist(entryRel, outRel) {
+function concatCssForDist(entryRel) {
     const visited = new Set();
     function resolve(filePath) {
         const abs = path.join(root, filePath);
         let css = readFileSync(abs, 'utf8');
-        return css.replace(/@import\s+url\(['"]?\.\/([^'")]+)['"]?\)\s*;/g, (_, rel) => {
-            const importPath = path.join(path.dirname(abs), rel).replace(/\\/g, '/');
-            const key = importPath;
-            if (visited.has(key)) {
+        return css.replace(/@import\s+url\(['"]?([^'")]+)['"]?\)\s*;/g, (_, relImport) => {
+            const baseDir = path.dirname(abs);
+            const importPath = path.resolve(baseDir, relImport).replace(/\\/g, '/');
+            if (visited.has(importPath)) {
                 return '';
             }
-            visited.add(key);
+            visited.add(importPath);
             const relFromRoot = path.relative(root, importPath).replace(/\\/g, '/');
             return resolve(relFromRoot);
         });

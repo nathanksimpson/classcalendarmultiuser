@@ -285,6 +285,39 @@ function stampTests(tests, userId) {
     return stampHomework(tests, userId);
 }
 
+function validateDebateSessionsChange(user, calendarData, prevList, nextList) {
+    const prev = Array.isArray(prevList) ? prevList : [];
+    const next = Array.isArray(nextList) ? nextList : [];
+    const prevByKey = new Map(prev.filter(Boolean).map((s) => [`${s.classId}|${s.date}`, s]));
+    const nextByKey = new Map(next.filter(Boolean).map((s) => [`${s.classId}|${s.date}`, s]));
+    const touchedClassIds = new Set();
+    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
+        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
+            const classId =
+                (nextByKey.get(key) && nextByKey.get(key).classId) ||
+                (prevByKey.get(key) && prevByKey.get(key).classId);
+            if (classId) {
+                touchedClassIds.add(classId);
+            }
+        }
+    }
+    for (const classId of touchedClassIds) {
+        const err = assertCanEditClass(user, calendarData, classId);
+        if (err) {
+            return err;
+        }
+    }
+    return null;
+}
+
+function stampDebateSessions(sessions, userId) {
+    return stampHomework(sessions, userId);
+}
+
+function stampDebateFormats(formats, userId) {
+    return stampHomework(formats, userId);
+}
+
 function prepareClassroomForSave(user, calendarData, payload) {
     const data = calendarData || {};
     const body = payload || {};
@@ -295,8 +328,19 @@ function prepareClassroomForSave(user, calendarData, payload) {
     const hasEssays = Object.prototype.hasOwnProperty.call(body, 'essaySubmissions');
     const hasPoints = Object.prototype.hasOwnProperty.call(body, 'studentPoints');
     const hasTests = Object.prototype.hasOwnProperty.call(body, 'studentTests');
+    const hasDebateSessions = Object.prototype.hasOwnProperty.call(body, 'debateTeamSessions');
+    const hasDebateFormats = Object.prototype.hasOwnProperty.call(body, 'debateCustomFormats');
 
-    if (!hasCohorts && !hasAttendance && !hasHomework && !hasEssays && !hasPoints && !hasTests) {
+    if (
+        !hasCohorts &&
+        !hasAttendance &&
+        !hasHomework &&
+        !hasEssays &&
+        !hasPoints &&
+        !hasTests &&
+        !hasDebateSessions &&
+        !hasDebateFormats
+    ) {
         return { error: 'No classroom fields to save', merged: {} };
     }
 
@@ -351,6 +395,19 @@ function prepareClassroomForSave(user, calendarData, payload) {
             return { error: err, merged: {} };
         }
         merged.studentTests = nextTests;
+    }
+
+    if (hasDebateSessions) {
+        const nextSessions = stampDebateSessions(body.debateTeamSessions, user.id);
+        const err = validateDebateSessionsChange(user, data, data.debateTeamSessions, nextSessions);
+        if (err) {
+            return { error: err, merged: {} };
+        }
+        merged.debateTeamSessions = nextSessions;
+    }
+
+    if (hasDebateFormats) {
+        merged.debateCustomFormats = stampDebateFormats(body.debateCustomFormats, user.id);
     }
 
     return { error: null, merged };
