@@ -336,6 +336,7 @@
         classroomDebateRandomizeSidesHint: '해제 시 A팀은 항상 찬성(정부), B팀은 항상 반대입니다.',
         classroomDebateAddDebate: '토론 추가',
         classroomDebateFormatTitle: '토론 형식 선택',
+        classroomDebatePurpleMode: 'Purple 모드 (PM / LO만)',
         classroomDebateFormatLabel: '토론 형식:',
         classroomDebateIncludeReply: '리플라이 스피치 포함 (해당 시)',
         classroomDebateCustomBuilder: '맞춤 형식 만들기',
