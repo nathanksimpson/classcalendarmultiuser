@@ -7,6 +7,7 @@ import * as ActivityLog from './activity-log.js';
 import * as Presence from './presence.js';
 import * as Suggestions from './suggestions.js';
 import * as NotificationMeta from './notification-meta.js';
+import * as UiPrefs from './ui-prefs.js';
 import * as AccessRequests from './access-requests.js';
 import * as AdminUserPolicy from './admin-user-policy.js';
 import * as ViewAs from './view-as.js';
@@ -1455,6 +1456,25 @@ export default {
             }
         }
 
+        const uiPrefsMatch = path.match(/^\/api\/calendars\/([^/]+)\/ui-prefs$/);
+        if (uiPrefsMatch) {
+            const calId = uiPrefsMatch[1];
+            if (!(await CalAccess.canAccessCalendar(env, user, calId))) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
+            if (request.method === 'GET') {
+                return json(await UiPrefs.getPrefs(env, user.id, calId));
+            }
+            if (request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
+                const body = await readJson(request);
+                return json(await UiPrefs.putPrefs(env, user.id, calId, body || {}));
+            }
+        }
+
         const suggestionMatch = path.match(
             /^\/api\/calendars\/([^/]+)\/suggestions(?:\/([^/]+)(\/apply|\/dismiss)?)?$/
         );
@@ -1791,8 +1811,14 @@ export default {
                     if (Object.prototype.hasOwnProperty.call(body, 'debateTeamSessions')) {
                         payload.debateTeamSessions = body.debateTeamSessions;
                     }
+                    if (Object.prototype.hasOwnProperty.call(body, 'debateScores')) {
+                        payload.debateScores = body.debateScores;
+                    }
                     if (Object.prototype.hasOwnProperty.call(body, 'debateCustomFormats')) {
                         payload.debateCustomFormats = body.debateCustomFormats;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'speakingTestRecords')) {
+                        payload.speakingTestRecords = body.speakingTestRecords;
                     }
                     const prepared = prepareClassroomForSave(user, existingData, payload);
                     if (prepared.error) {

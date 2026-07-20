@@ -87,6 +87,7 @@ assert(Array.isArray(migrated.attendanceSessions), 'attendanceSessions init');
 assert(Array.isArray(migrated.cohorts[0].students), 'cohort students init');
 assert(Array.isArray(migrated.debateTeamSessions), 'debateTeamSessions init');
 assert(Array.isArray(migrated.debateCustomFormats), 'debateCustomFormats init');
+assert(Array.isArray(migrated.speakingTestRecords), 'speakingTestRecords init');
 
 let debateSessions = [];
 const debateEntry = {
@@ -105,6 +106,35 @@ assert(debateSessions.length === 1, 'upsert debate session replaces same class+d
 assert(debateSessions[0].sessionState.settings.formatId === 'ap', 'debate session updated');
 const found = d.findDebateTeamSession(debateSessions, 'cls1', '2026-07-07');
 assert(found && found.id === 'dts1', 'findDebateTeamSession by class+date');
+
+let speakingRecords = [];
+const speakingEntry = {
+    id: 'spk1',
+    classId: 'cls1',
+    settings: { studentSortMode: 'pasteOrder' },
+    assignments: [{ id: 'spa1', title: 'Unit 1', date: '2026-03-01' }],
+    scores: {
+        s1: {
+            spa1: [{ pronunciation: 'A', speed: 'B', intonation: 'A', grammar: 'C', content: 'A' }]
+        }
+    }
+};
+speakingRecords = d.upsertSpeakingTestRecord(speakingRecords, speakingEntry);
+speakingRecords = d.upsertSpeakingTestRecord(speakingRecords, {
+    ...speakingEntry,
+    settings: { studentSortMode: 'alphabetical' },
+    assignments: [
+        { id: 'spa1', title: 'Unit 1', date: '2026-03-01' },
+        { id: 'spa2', title: 'Unit 2', date: '2026-03-15' }
+    ]
+});
+assert(speakingRecords.length === 1, 'upsert speaking record replaces same class');
+assert(speakingRecords[0].settings.studentSortMode === 'alphabetical', 'speaking settings updated');
+assert(speakingRecords[0].assignments.length === 2, 'speaking assignments updated');
+const foundSpeaking = d.findSpeakingTestRecord(speakingRecords, 'cls1');
+assert(foundSpeaking && foundSpeaking.id === 'spk1', 'findSpeakingTestRecord by classId');
+const badSpeaking = d.normalizeSpeakingTestRecord({ id: 'x', classId: '' });
+assert(badSpeaking === null, 'speaking record requires classId');
 
 const customFmt = d.normalizeDebateCustomFormat({
     id: 'dcf1',
@@ -344,5 +374,62 @@ const grouped = d.groupEssayStudentRowsByClass(resubmitRows);
 assert(grouped.length === 1, 'groupEssayStudentRowsByClass returns one class');
 assert(grouped[0].assignments.length === 1, 'grouped class has one assignment');
 assert(grouped[0].assignments[0].students.length === 1, 'grouped assignment has one student');
+
+const debateClass = {
+    id: 'cls-debate',
+    name: 'Debate A',
+    scheduleModel: 'debateMonthly',
+    syllabusRows: [
+        { id: 'd1', kind: 'lesson', date: '2026-03-03', planTitle: 'Day 1', sessionNumber: 1 },
+        { id: 'd2', kind: 'lesson', date: '2026-03-10', planTitle: 'Day 2', sessionNumber: 2 },
+        { id: 'd3', kind: 'lesson', date: '2026-03-17', planTitle: 'Day 3', sessionNumber: 3 },
+        { id: 'd4', kind: 'lesson', date: '2026-03-24', planTitle: 'Day 4 / Preview', sessionNumber: 4 },
+        {
+            id: 'd4b',
+            kind: 'lesson',
+            date: '2026-04-28',
+            planTitle: 'Day 4 / Preview & Day 1 (month bridge)',
+            sessionNumber: 4
+        }
+    ]
+};
+assert(d.classUsesDebateTeamAssignments(debateClass), 'debateMonthly class uses debate team assignments');
+assert(!d.classUsesDebateTeamAssignments(genericClass), 'non-debate class does not use assignment picker');
+assert(d.isDebateTeamAssignmentRow(debateClass.syllabusRows[3]), 'Day 4 row is debate team assignment');
+assert(!d.isDebateTeamAssignmentRow(debateClass.syllabusRows[0]), 'Day 1 row is not debate team assignment');
+assert(
+    d.getDebateTeamRowsFromSyllabus(debateClass.syllabusRows).length === 2,
+    'two Day 4 rows found for debate class'
+);
+const debateAssignments = d.listDebateTeamAssignmentsForClass(debateClass);
+assert(debateAssignments.length === 2, 'listDebateTeamAssignmentsForClass returns two Day 4s');
+assert(debateAssignments[0].date === '2026-03-24', 'first debate assignment is March Day 4');
+assert(
+    debateAssignments[0].assignmentLabel.includes('Day 4'),
+    'debate assignment label includes Day 4'
+);
+assert(
+    d.pickDefaultDebateTeamDate(debateClass, '2026-03-01') === '2026-03-24',
+    'default debate date picks soonest Day 4 on or after ref'
+);
+assert(
+    d.pickDefaultDebateTeamDate(debateClass, '2026-05-01') === '2026-04-28',
+    'default debate date falls back to last Day 4 when all past'
+);
+
+const emptySyllabusDebate = {
+    id: 'cls-debate-empty',
+    scheduleModel: 'debateMonthly',
+    syllabusRows: []
+};
+const scheduledFallback = d.listDebateTeamAssignmentsForClass(emptySyllabusDebate, {
+    scheduledLessons: [
+        { date: '2026-05-05', label: 'Day 1', group: { days: [1] } },
+        { date: '2026-05-26', label: 'Day 4', group: { days: [4] } },
+        { date: '2026-06-23', label: 'Day 4 / Preview', group: { days: [4] } }
+    ]
+});
+assert(scheduledFallback.length === 2, 'scheduled lesson fallback lists Day 4 dates');
+assert(scheduledFallback[0].date === '2026-05-26', 'fallback first Day 4 date');
 
 console.log('classroom-domain.test.mjs: all passed');

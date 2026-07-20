@@ -314,8 +314,39 @@ function stampDebateSessions(sessions, userId) {
     return stampHomework(sessions, userId);
 }
 
+function stampDebateScores(sessions, userId) {
+    return stampHomework(sessions, userId);
+}
+
 function stampDebateFormats(formats, userId) {
     return stampHomework(formats, userId);
+}
+
+function validateSpeakingTestRecordsChange(user, calendarData, prevList, nextList) {
+    const prev = Array.isArray(prevList) ? prevList : [];
+    const next = Array.isArray(nextList) ? nextList : [];
+    const prevByKey = new Map(prev.filter(Boolean).map((r) => [normalizeStr(r.classId), r]));
+    const nextByKey = new Map(next.filter(Boolean).map((r) => [normalizeStr(r.classId), r]));
+    const touchedClassIds = new Set();
+    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
+        if (!key) {
+            continue;
+        }
+        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
+            touchedClassIds.add(key);
+        }
+    }
+    for (const classId of touchedClassIds) {
+        const err = assertCanEditClass(user, calendarData, classId);
+        if (err) {
+            return err;
+        }
+    }
+    return null;
+}
+
+function stampSpeakingTestRecords(records, userId) {
+    return stampHomework(records, userId);
 }
 
 function prepareClassroomForSave(user, calendarData, payload) {
@@ -329,7 +360,9 @@ function prepareClassroomForSave(user, calendarData, payload) {
     const hasPoints = Object.prototype.hasOwnProperty.call(body, 'studentPoints');
     const hasTests = Object.prototype.hasOwnProperty.call(body, 'studentTests');
     const hasDebateSessions = Object.prototype.hasOwnProperty.call(body, 'debateTeamSessions');
+    const hasDebateScores = Object.prototype.hasOwnProperty.call(body, 'debateScores');
     const hasDebateFormats = Object.prototype.hasOwnProperty.call(body, 'debateCustomFormats');
+    const hasSpeakingTestRecords = Object.prototype.hasOwnProperty.call(body, 'speakingTestRecords');
 
     if (
         !hasCohorts &&
@@ -339,7 +372,9 @@ function prepareClassroomForSave(user, calendarData, payload) {
         !hasPoints &&
         !hasTests &&
         !hasDebateSessions &&
-        !hasDebateFormats
+        !hasDebateScores &&
+        !hasDebateFormats &&
+        !hasSpeakingTestRecords
     ) {
         return { error: 'No classroom fields to save', merged: {} };
     }
@@ -406,8 +441,31 @@ function prepareClassroomForSave(user, calendarData, payload) {
         merged.debateTeamSessions = nextSessions;
     }
 
+    if (hasDebateScores) {
+        const nextScores = stampDebateScores(body.debateScores, user.id);
+        const err = validateDebateSessionsChange(user, data, data.debateScores, nextScores);
+        if (err) {
+            return { error: err, merged: {} };
+        }
+        merged.debateScores = nextScores;
+    }
+
     if (hasDebateFormats) {
         merged.debateCustomFormats = stampDebateFormats(body.debateCustomFormats, user.id);
+    }
+
+    if (hasSpeakingTestRecords) {
+        const nextRecords = stampSpeakingTestRecords(body.speakingTestRecords, user.id);
+        const err = validateSpeakingTestRecordsChange(
+            user,
+            data,
+            data.speakingTestRecords,
+            nextRecords
+        );
+        if (err) {
+            return { error: err, merged: {} };
+        }
+        merged.speakingTestRecords = nextRecords;
     }
 
     return { error: null, merged };

@@ -14,6 +14,7 @@
     let studentsListTouchedByUser = false;
     let rosterAutoImported = false;
     let nameToStudentId = Object.create(null);
+    let applyingAssignment = false;
     const DEBATE_AUTOSAVE_DELAY_MS = 800;
 
     function sessionKey() {
@@ -53,6 +54,159 @@
     function getClassData() {
         const data = getAppData();
         return (data.classes || []).find((c) => c && c.id === classId) || null;
+    }
+
+    function getDebateAssignmentMap() {
+        const data = getAppData();
+        if (!data.ui) {
+            data.ui = {};
+        }
+        if (!data.ui.debateAssignmentByClassId || typeof data.ui.debateAssignmentByClassId !== 'object') {
+            data.ui.debateAssignmentByClassId = {};
+        }
+        return data.ui.debateAssignmentByClassId;
+    }
+
+    function getScheduledLessonsForClass(classData) {
+        if (!classData || !hooks || typeof hooks.getLessonDates !== 'function') {
+            return [];
+        }
+        try {
+            const schedule = hooks.getLessonDates(classData);
+            return schedule && Array.isArray(schedule.lessons) ? schedule.lessons : [];
+        } catch (err) {
+            console.warn('Debate assignment lesson dates failed', err);
+            return [];
+        }
+    }
+
+    function listAssignmentsForClass(classData) {
+        const d = domain();
+        if (!d || !classData || !d.listDebateTeamAssignmentsForClass) {
+            return [];
+        }
+        return d.listDebateTeamAssignmentsForClass(classData, {
+            scheduledLessons: getScheduledLessonsForClass(classData)
+        });
+    }
+
+    function persistDebateAssignmentDate(cId, dateStr) {
+        if (!cId || !dateStr) {
+            return;
+        }
+        const map = getDebateAssignmentMap();
+        map[cId] = dateStr;
+        if (typeof global.saveUiStateToLocalStorage === 'function') {
+            global.saveUiStateToLocalStorage();
+        }
+    }
+
+    function pushSessionDateToContext(dateStr, source) {
+        const next = String(dateStr || '').trim();
+        if (!next) {
+            return;
+        }
+        applyingAssignment = true;
+        try {
+            if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.set) {
+                global.CCPActiveContext.set({ sessionDate: next }, { source: source || 'debate-assignment' });
+            } else if (hooks && hooks.setUiPref) {
+                hooks.setUiPref('classroomTabDate', next);
+            }
+        } finally {
+            applyingAssignment = false;
+        }
+    }
+
+    function resolveDebateAssignmentDate(classData, preferredDate) {
+        const d = domain();
+        if (!d || !classData || !d.classUsesDebateTeamAssignments || !d.classUsesDebateTeamAssignments(classData)) {
+            return preferredDate || '';
+        }
+        const assignments = listAssignmentsForClass(classData);
+        if (!assignments.length) {
+            return preferredDate || '';
+        }
+        const map = getDebateAssignmentMap();
+        const saved = map[classData.id] || '';
+        if (saved && assignments.some((a) => a.date === saved)) {
+            return saved;
+        }
+        const preferred = String(preferredDate || '').trim();
+        if (preferred && assignments.some((a) => a.date === preferred)) {
+            return preferred;
+        }
+        return (
+            d.pickDefaultDebateTeamDate(classData, preferred || d.todayISO(), {
+                scheduledLessons: getScheduledLessonsForClass(classData)
+            }) || assignments[assignments.length - 1].date
+        );
+    }
+
+    function syncAssignmentPicker(panel) {
+        const wrap = panel && panel.querySelector('#classroomDebateAssignmentWrap');
+        const select = panel && panel.querySelector('#classroomDebateAssignmentSelect');
+        const emptyEl = panel && panel.querySelector('#classroomDebateAssignmentEmpty');
+        if (!wrap || !select) {
+            return;
+        }
+        const d = domain();
+        const classData = getClassData();
+        const isDebate =
+            !!(d && classData && d.classUsesDebateTeamAssignments && d.classUsesDebateTeamAssignments(classData));
+        if (!isDebate) {
+            wrap.hidden = true;
+            if (emptyEl) {
+                emptyEl.hidden = true;
+            }
+            return;
+        }
+        const assignments = listAssignmentsForClass(classData);
+        if (!assignments.length) {
+            wrap.hidden = true;
+            if (emptyEl) {
+                emptyEl.hidden = false;
+                emptyEl.textContent = t('classroomDebateAssignmentEmpty');
+            }
+            return;
+        }
+        if (emptyEl) {
+            emptyEl.hidden = true;
+        }
+        wrap.hidden = false;
+        const labelEl = wrap.querySelector('[data-i18n="classroomDebateAssignmentLabel"]');
+        if (labelEl) {
+            labelEl.textContent = t('classroomDebateAssignmentLabel');
+        }
+        const current = sessionDate;
+        select.innerHTML = assignments
+            .map((a) => {
+                const selected = a.date === current ? ' selected' : '';
+                return `<option value="${escapeHtml(a.date)}"${selected}>${escapeHtml(a.assignmentLabel)}</option>`;
+            })
+            .join('');
+        if (current && !assignments.some((a) => a.date === current)) {
+            select.value = assignments[0].date;
+        } else {
+            select.value = current;
+        }
+    }
+
+    function onAssignmentSelectChange(e) {
+        const nextDate = e && e.target ? String(e.target.value || '').trim() : '';
+        if (!nextDate || nextDate === sessionDate) {
+            return;
+        }
+        void flushBeforeLeave().then(() => {
+            sessionDate = nextDate;
+            persistDebateAssignmentDate(classId, nextDate);
+            pushSessionDateToContext(nextDate, 'debate-assignment-select');
+            hydratedSessionKey = '';
+            resetSessionEditFlags();
+            if (panelRef) {
+                void render(panelRef);
+            }
+        });
     }
 
     function unwrapStudentEntry(entry) {
@@ -608,11 +762,17 @@
                 }
             });
         }
+        const assignmentSelect = panel.querySelector('#classroomDebateAssignmentSelect');
+        if (assignmentSelect && !assignmentSelect.dataset.bound) {
+            assignmentSelect.dataset.bound = '1';
+            assignmentSelect.addEventListener('change', onAssignmentSelectChange);
+        }
     }
 
     async function render(panel) {
         const gen = ++renderGeneration;
         panelRef = panel;
+        syncAssignmentPicker(panel);
         if (!classId || !sessionDate) {
             const mount = panel.querySelector('#classroomDebateTeamsMount');
             if (mount) {
@@ -661,11 +821,28 @@
                 '';
         }
 
-        sessionDate =
+        let nextDate =
             options.date ||
             (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.get().sessionDate) ||
             (data.ui && data.ui.classroomTabDate) ||
             (d ? d.todayISO() : '');
+
+        const classData = getClassData();
+        if (d && classData && d.classUsesDebateTeamAssignments && d.classUsesDebateTeamAssignments(classData)) {
+            const resolved = resolveDebateAssignmentDate(classData, nextDate);
+            if (resolved) {
+                nextDate = resolved;
+                persistDebateAssignmentDate(classId, resolved);
+                if (
+                    !options.date &&
+                    (typeof global.CCPActiveContext === 'undefined' ||
+                        global.CCPActiveContext.get().sessionDate !== resolved)
+                ) {
+                    pushSessionDateToContext(resolved, 'debate-assignment-default');
+                }
+            }
+        }
+        sessionDate = nextDate;
     }
 
     function subscribeContext() {
@@ -674,6 +851,9 @@
         }
         contextSubscribed = true;
         global.CCPActiveContext.subscribe((detail) => {
+            if (applyingAssignment) {
+                return;
+            }
             const prevClass = classId;
             const prevDate = sessionDate;
             syncActiveContext({});

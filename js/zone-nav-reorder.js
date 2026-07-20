@@ -1,5 +1,6 @@
 /**
  * Long-press (touch) or click-drag (mouse) reorder for zone + segment nav tabs.
+ * Supports within-row reorder and cross-zone segment moves (tabId identity).
  */
 (function zoneNavReorderModule(global) {
     'use strict';
@@ -8,6 +9,8 @@
     const TOUCH_MOVE_CANCEL_PX = 8;
     const MOUSE_DRAG_START_PX = 6;
     const ARCHIVED_SEGMENT_IDS = new Set(['command-center']);
+    const FIXED_SEGMENT_TAB_IDS = new Set(['teachers', 'portfolio', 'command-center', 'data']);
+    const NO_SEGMENT_ZONES = new Set(['more']);
 
     let hooks = null;
     let bound = false;
@@ -52,14 +55,24 @@
             return false;
         }
         const segment = el.dataset.segment;
+        const tabId = el.dataset.tab || '';
         if (segment && ARCHIVED_SEGMENT_IDS.has(segment)) {
             return false;
         }
-        return !!(el.dataset.zone || el.dataset.segment);
+        if (tabId && FIXED_SEGMENT_TAB_IDS.has(tabId)) {
+            return false;
+        }
+        return !!(el.dataset.zone || el.dataset.segment || el.dataset.tab);
     }
 
     function getNavItemId(el) {
-        return el.dataset.zone || el.dataset.segment || '';
+        if (!el) {
+            return '';
+        }
+        if (el.dataset.zone) {
+            return el.dataset.zone;
+        }
+        return el.dataset.tab || el.dataset.segment || '';
     }
 
     function normalizeOrder(order, defaults) {
@@ -134,16 +147,45 @@
         sortChildren(container, hooks.getZoneOrder(), getNavItemId);
     }
 
+    function findSegmentButtonByTabId(tabId) {
+        if (!tabId) {
+            return null;
+        }
+        return document.querySelector(`.app-zone-segment-btn[data-tab="${tabId}"]`);
+    }
+
     function applySegmentOrders() {
-        if (!hooks || typeof hooks.getSegmentOrder !== 'function') {
+        if (!hooks) {
             return;
         }
-        document.querySelectorAll('.app-zone-segment-panel').forEach((panel) => {
+        const tabZone = typeof hooks.getTabZoneMap === 'function' ? hooks.getTabZoneMap() : {};
+        const panels = Array.from(document.querySelectorAll('.app-zone-segment-panel'));
+        const panelByZone = new Map(panels.map((p) => [p.dataset.zone, p]));
+
+        Object.keys(tabZone || {}).forEach((tabId) => {
+            const zoneId = tabZone[tabId];
+            if (!zoneId || NO_SEGMENT_ZONES.has(zoneId)) {
+                return;
+            }
+            const panel = panelByZone.get(zoneId);
+            const btn = findSegmentButtonByTabId(tabId);
+            if (panel && btn && btn.parentElement !== panel) {
+                panel.appendChild(btn);
+            }
+        });
+
+        panels.forEach((panel) => {
             const zoneId = panel.dataset.zone;
             if (!zoneId) {
                 return;
             }
-            sortChildren(panel, hooks.getSegmentOrder(zoneId), getNavItemId);
+            let orderedIds = [];
+            if (typeof hooks.getTabOrder === 'function') {
+                orderedIds = hooks.getTabOrder(zoneId) || [];
+            } else if (typeof hooks.getSegmentOrder === 'function') {
+                orderedIds = hooks.getSegmentOrder(zoneId) || [];
+            }
+            sortChildren(panel, orderedIds, getNavItemId);
         });
     }
 
@@ -196,6 +238,9 @@
         el.style.width = '';
         el.style.height = '';
         el.style.zIndex = '';
+        el.style.margin = '';
+        el.style.touchAction = '';
+        el.style.transform = '';
     }
 
     function clearSiblingShiftStyles(container) {
@@ -244,7 +289,160 @@
         return lastEligible && placeholder.previousElementSibling === lastEligible;
     }
 
-    function movePlaceholder(state, pointerX) {
+    function resolveDropZone(clientX, clientY) {
+        const stack = document.elementsFromPoint
+            ? document.elementsFromPoint(clientX, clientY)
+            : [];
+        for (const el of stack) {
+            if (!el || !el.closest) {
+                continue;
+            }
+            const zoneBtn = el.closest('.app-zone-btn');
+            if (zoneBtn && zoneBtn.dataset.zone) {
+                const zoneId = zoneBtn.dataset.zone;
+                if (NO_SEGMENT_ZONES.has(zoneId)) {
+                    return { zoneId, panel: null, zoneBtn, blocked: true };
+                }
+                const panel = document.querySelector(`.app-zone-segment-panel[data-zone="${zoneId}"]`);
+                return { zoneId, panel, zoneBtn, blocked: false };
+            }
+            const panel = el.closest('.app-zone-segment-panel');
+            if (panel && panel.dataset.zone) {
+                const zoneId = panel.dataset.zone;
+                if (NO_SEGMENT_ZONES.has(zoneId)) {
+                    return { zoneId, panel: null, zoneBtn: null, blocked: true };
+                }
+                const btn = document.querySelector(`.app-zone-btn[data-zone="${zoneId}"]`);
+                return { zoneId, panel, zoneBtn: btn, blocked: false };
+            }
+        }
+        return null;
+    }
+
+    function resolveDropContainer(clientX, clientY, kind, fallbackContainer, state) {
+        if (kind !== 'segment') {
+            return fallbackContainer;
+        }
+        const dropInfo = resolveDropZone(clientX, clientY);
+        if (!dropInfo) {
+            if (state && state.sourceContainer) {
+                setDragPreviewZone(state, {
+                    zoneId: state.sourceZoneId,
+                    panel: state.sourceContainer,
+                    blocked: false
+                });
+                state.dropBlocked = false;
+                return state.sourceContainer;
+            }
+            return fallbackContainer;
+        }
+        if (dropInfo.blocked) {
+            markDropZoneBlocked(state);
+            return state ? state.container : null;
+        }
+        clearDropZoneBlocked();
+        setDragPreviewZone(state, dropInfo);
+        state.dropBlocked = false;
+        return dropInfo.panel || fallbackContainer;
+    }
+
+    function clearDropZoneBlocked() {
+        document.querySelectorAll('.app-zone-btn.is-nav-drop-blocked').forEach((btn) => {
+            btn.classList.remove('is-nav-drop-blocked');
+        });
+    }
+
+    function markDropZoneBlocked(state) {
+        clearDropZoneBlocked();
+        const dataBtn = document.querySelector('.app-zone-btn[data-zone="more"]');
+        if (dataBtn) {
+            dataBtn.classList.add('is-nav-drop-blocked');
+        }
+        if (state) {
+            state.dropBlocked = true;
+        }
+    }
+
+    function setDragPreviewZone(state, dropInfo) {
+        if (!state || state.kind !== 'segment' || !dropInfo || dropInfo.blocked) {
+            return;
+        }
+        const zoneId = dropInfo.zoneId;
+        const panel = dropInfo.panel;
+        if (!zoneId || !panel) {
+            return;
+        }
+        if (state.previewZoneId === zoneId) {
+            return;
+        }
+        state.previewZoneId = zoneId;
+
+        document.querySelectorAll('.app-zone-btn').forEach((btn) => {
+            const isTarget = btn.dataset.zone === zoneId;
+            btn.classList.toggle('is-nav-drop-target', isTarget);
+        });
+
+        document.querySelectorAll('.app-zone-segment-panel').forEach((segmentPanel) => {
+            const show = segmentPanel.dataset.zone === zoneId;
+            segmentPanel.hidden = !show;
+            segmentPanel.classList.toggle('is-nav-drop-preview-row', show);
+            segmentPanel.classList.toggle('is-active', show);
+        });
+
+        syncZoneNavScrollAffordance(panel);
+    }
+
+    function clearDragPreview(state) {
+        document.body.classList.remove('is-nav-cross-zone-drag', 'is-nav-drop-preview');
+        clearDropZoneBlocked();
+        document.querySelectorAll('.app-zone-btn').forEach((btn) => {
+            btn.classList.remove('is-nav-drop-target');
+        });
+        document.querySelectorAll('.app-zone-segment-panel').forEach((segmentPanel) => {
+            segmentPanel.classList.remove('is-nav-drop-preview-row');
+        });
+        const segmentNav = document.getElementById('appZoneSegmentNav');
+        if (segmentNav && state && state.segmentNavTitleBackup !== undefined) {
+            if (state.segmentNavTitleBackup) {
+                segmentNav.title = state.segmentNavTitleBackup;
+            } else {
+                segmentNav.removeAttribute('title');
+            }
+        }
+        if (typeof hooks?.onPreviewEnd === 'function') {
+            hooks.onPreviewEnd();
+        }
+    }
+
+    function syncZoneNavScrollAffordance(scrollEl) {
+        if (!scrollEl || typeof hooks?.syncZoneNavScrollAffordance !== 'function') {
+            return;
+        }
+        hooks.syncZoneNavScrollAffordance(scrollEl);
+    }
+
+    function movePlaceholder(state, pointerX, pointerY) {
+        const dropContainer = resolveDropContainer(
+            pointerX,
+            pointerY,
+            state.kind,
+            state.container,
+            state
+        );
+        if (!dropContainer) {
+            state.dropBlocked = true;
+            return;
+        }
+        if (dropContainer !== state.container) {
+            // Cross-panel: move placeholder into the target panel.
+            clearSiblingShiftStyles(state.container);
+            state.container.classList.remove('is-reorder-active');
+            state.container = dropContainer;
+            dropContainer.classList.add('is-reorder-active');
+            if (state.placeholder && state.placeholder.parentNode !== dropContainer) {
+                dropContainer.appendChild(state.placeholder);
+            }
+        }
         const { container, placeholder, draggingEl } = state;
         const insertBefore = getInsertBeforeElement(container, pointerX, placeholder, draggingEl);
         if (placeholderSlotUnchanged(container, placeholder, insertBefore, draggingEl)) {
@@ -269,9 +467,12 @@
         });
     }
 
-    function updateFloaterPosition(state, clientX) {
+    function updateFloaterPosition(state, clientX, clientY) {
         state.draggingEl.style.left = `${clientX - state.floatOffsetX}px`;
-        state.draggingEl.style.top = `${state.lockedTop}px`;
+        const y = clientY != null ? clientY - state.floatOffsetY : state.lockedTop;
+        // Keep a soft vertical follow so the chip feels lifted, not stuck on one row.
+        const lift = prefersReducedMotion() ? 0 : 8;
+        state.draggingEl.style.top = `${y - lift}px`;
     }
 
     function cancelPendingDrag(state) {
@@ -293,7 +494,13 @@
         state.draggingEl.classList.remove('is-nav-dragging');
         state.draggingEl.removeAttribute('aria-grabbed');
         state.container.classList.remove('is-reorder-active');
+        if (state.sourceContainer) {
+            state.sourceContainer.classList.remove('is-reorder-active');
+        }
         clearSiblingShiftStyles(state.container);
+        if (state.sourceContainer && state.sourceContainer !== state.container) {
+            clearSiblingShiftStyles(state.sourceContainer);
+        }
 
         if (state.placeholder && state.placeholder.parentNode) {
             state.container.insertBefore(state.draggingEl, state.placeholder);
@@ -309,14 +516,79 @@
             }
         }
 
-        if (commit && state.didDrag) {
-            const newOrder = readOrderFromContainer(state.container, getNavItemId);
+        if (commit && state.didDrag && !state.dropBlocked) {
             if (state.kind === 'zone' && typeof hooks.setZoneOrder === 'function') {
+                const newOrder = readOrderFromContainer(state.container, getNavItemId);
                 hooks.setZoneOrder(newOrder);
-            } else if (state.kind === 'segment' && typeof hooks.setSegmentOrder === 'function') {
-                const zoneId = state.container.dataset.zone;
-                if (zoneId) {
-                    hooks.setSegmentOrder(zoneId, newOrder);
+            } else if (state.kind === 'segment') {
+                const movingTabId = getNavItemId(state.draggingEl);
+                const targetZoneId = state.container.dataset.zone;
+                const sourceZoneId = state.sourceContainer && state.sourceContainer.dataset.zone;
+                const insertBeforeEl = state.draggingEl.nextElementSibling
+                    && isDraggableNavButton(state.draggingEl.nextElementSibling)
+                    ? state.draggingEl.nextElementSibling
+                    : null;
+                const insertBeforeTabId = insertBeforeEl ? getNavItemId(insertBeforeEl) : '';
+
+                if (
+                    typeof hooks.setTabLayout === 'function'
+                    && typeof hooks.getTabZoneMap === 'function'
+                    && typeof hooks.getTabOrder === 'function'
+                ) {
+                    const currentLayout = {
+                        navTabZone: hooks.getTabZoneMap(),
+                        navTabOrder: {}
+                    };
+                    document.querySelectorAll('.app-zone-segment-panel').forEach((panel) => {
+                        const zid = panel.dataset.zone;
+                        if (zid) {
+                            currentLayout.navTabOrder[zid] = (hooks.getTabOrder(zid) || []).slice();
+                        }
+                    });
+
+                    if (sourceZoneId === targetZoneId) {
+                        currentLayout.navTabOrder[targetZoneId] = readOrderFromContainer(
+                            state.container,
+                            getNavItemId
+                        );
+                        hooks.setTabLayout(currentLayout);
+                        applyOrder();
+                    } else if (global.CCPNavTabLayout && global.CCPNavTabLayout.applyCrossZoneMove) {
+                        const result = global.CCPNavTabLayout.applyCrossZoneMove(
+                            currentLayout,
+                            movingTabId,
+                            targetZoneId,
+                            insertBeforeTabId
+                        );
+                        if (!result.ok) {
+                            if (typeof hooks.onIllegalDrop === 'function') {
+                                hooks.onIllegalDrop(result.reason);
+                            }
+                            applyOrder();
+                        } else {
+                            // Ensure insert position matches DOM drop slot.
+                            const ordered = readOrderFromContainer(state.container, getNavItemId);
+                            if (!ordered.includes(movingTabId)) {
+                                const withMoving = ordered.slice();
+                                let at = withMoving.length;
+                                if (insertBeforeTabId) {
+                                    const idx = withMoving.indexOf(insertBeforeTabId);
+                                    if (idx >= 0) {
+                                        at = idx;
+                                    }
+                                }
+                                withMoving.splice(at, 0, movingTabId);
+                                result.layout.navTabOrder[targetZoneId] = withMoving;
+                            } else {
+                                result.layout.navTabOrder[targetZoneId] = ordered;
+                            }
+                            hooks.setTabLayout(result.layout);
+                            applyOrder();
+                        }
+                    }
+                } else if (typeof hooks.setSegmentOrder === 'function' && targetZoneId) {
+                    const newOrder = readOrderFromContainer(state.container, getNavItemId);
+                    hooks.setSegmentOrder(targetZoneId, newOrder);
                 }
             }
             if (typeof hooks.saveUiState === 'function') {
@@ -325,6 +597,11 @@
             if (typeof hooks.showSavedToast === 'function') {
                 hooks.showSavedToast();
             }
+        } else if (commit && state.didDrag && state.dropBlocked) {
+            if (typeof hooks.onIllegalDrop === 'function') {
+                hooks.onIllegalDrop('illegal-drop');
+            }
+            applyOrder();
         }
 
         if (state.suppressClick) {
@@ -339,6 +616,7 @@
                 el.removeEventListener('click', suppress, true);
             }, 0);
         }
+        clearDragPreview(state);
         unbindDocumentPointerListeners();
     }
 
@@ -367,8 +645,8 @@
         e.preventDefault();
         dragState.didDrag = true;
         dragState.suppressClick = true;
-        updateFloaterPosition(dragState, e.clientX);
-        movePlaceholder(dragState, e.clientX);
+        updateFloaterPosition(dragState, e.clientX, e.clientY);
+        movePlaceholder(dragState, e.clientX, e.clientY);
     }
 
     function onPointerUp(e) {
@@ -376,6 +654,12 @@
             return;
         }
         const wasActive = dragState.active;
+        if (!wasActive) {
+            cancelPendingDrag(dragState);
+            dragState = null;
+            unbindDocumentPointerListeners();
+            return;
+        }
         finishDrag(wasActive);
     }
 
@@ -404,7 +688,9 @@
         state.draggingEl.style.top = `${rect.top}px`;
         state.draggingEl.style.width = `${rect.width}px`;
         state.draggingEl.style.height = `${rect.height}px`;
-        state.draggingEl.style.zIndex = '1200';
+        state.draggingEl.style.zIndex = '';
+        state.draggingEl.style.margin = '0';
+        state.draggingEl.style.touchAction = 'none';
 
         if (state.draggingEl.setPointerCapture) {
             try {
@@ -415,7 +701,29 @@
             }
         }
 
-        updateFloaterPosition(state, point.clientX);
+        updateFloaterPosition(state, point.clientX, point.clientY);
+
+        if (state.kind === 'segment') {
+            state.sourceZoneId = state.sourceContainer.dataset.zone || '';
+            state.previewZoneId = state.sourceZoneId;
+            state.contentTabId = typeof hooks?.getActiveTabId === 'function' ? hooks.getActiveTabId() : '';
+            document.body.classList.add('is-nav-cross-zone-drag', 'is-nav-drop-preview');
+            const segmentNav = document.getElementById('appZoneSegmentNav');
+            if (segmentNav) {
+                state.segmentNavTitleBackup = segmentNav.getAttribute('title') || '';
+                const hint = typeof hooks?.t === 'function'
+                    ? (hooks.t('navReorderCrossZoneHint') || hooks.t('navReorderHint'))
+                    : '';
+                if (hint) {
+                    segmentNav.title = hint;
+                }
+            }
+            setDragPreviewZone(state, {
+                zoneId: state.sourceZoneId,
+                panel: state.sourceContainer,
+                blocked: false
+            });
+        }
     }
 
     function onPointerDown(e) {
@@ -432,6 +740,11 @@
         const state = {
             kind,
             container,
+            sourceContainer: container,
+            sourceZoneId: container.dataset.zone || '',
+            previewZoneId: '',
+            contentTabId: '',
+            segmentNavTitleBackup: undefined,
             draggingEl,
             pointerId: e.pointerId,
             startX: e.clientX,
@@ -445,7 +758,8 @@
             placeholder: null,
             floatOffsetX: 0,
             floatOffsetY: 0,
-            lockedTop: 0
+            lockedTop: 0,
+            dropBlocked: false
         };
         if (!useMouseDrag) {
             draggingEl.classList.add('is-nav-reorder-pending');
@@ -464,7 +778,8 @@
         if (!container || container.dataset.navReorderBound === '1') {
             return;
         }
-        if (getEligibleChildren(container).length < 2) {
+        // Segment panels may start with <2 visible children but still accept cross-zone drops.
+        if (kind === 'zone' && getEligibleChildren(container).length < 2) {
             return;
         }
         container.dataset.navReorderBound = '1';
@@ -488,7 +803,7 @@
             }
         }
         if (segmentNav && typeof hooks.t === 'function') {
-            const hint = hooks.t('navReorderHint');
+            const hint = hooks.t('navReorderCrossZoneHint') || hooks.t('navReorderHint');
             if (hint) {
                 segmentNav.title = hint;
             }

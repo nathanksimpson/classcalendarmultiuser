@@ -672,7 +672,9 @@ function getDefaultAppData() {
         studentPoints: [],
         studentTests: [],
         debateTeamSessions: [],
+        debateScores: [],
         debateCustomFormats: [],
+        speakingTestRecords: [],
         portfolioRecordings: [],
         portfolioEntries: [],
         smsLog: [],
@@ -4945,6 +4947,7 @@ function ensureUiState() {
     Object.keys(DEFAULT_SEGMENT_ORDER).forEach((zoneId) => {
         appData.ui.navSegmentOrder[zoneId] = normalizeNavSegmentOrder(zoneId, appData.ui.navSegmentOrder[zoneId]);
     });
+    ensureNavTabLayoutState(appData.ui);
     appData.ui.cohortsUsageTipsDismissed = !!appData.ui.cohortsUsageTipsDismissed;
     if (appData.ui.cohortsExtraCollapsed === undefined) {
         appData.ui.cohortsExtraCollapsed = false;
@@ -5006,6 +5009,9 @@ function ensureUiState() {
     }
     if (!appData.ui.essayAssignmentByClassId || typeof appData.ui.essayAssignmentByClassId !== 'object') {
         appData.ui.essayAssignmentByClassId = {};
+    }
+    if (!appData.ui.debateAssignmentByClassId || typeof appData.ui.debateAssignmentByClassId !== 'object') {
+        appData.ui.debateAssignmentByClassId = {};
     }
     if (
         appData.ui.classroomTabEssaySyllabusRowId &&
@@ -13211,7 +13217,9 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'essays',
     'points',
     'tests',
-    'debate-teams'
+    'debate-teams',
+    'debate-scores',
+    'speaking-test'
 ];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
@@ -13251,7 +13259,9 @@ const ZONE_SEGMENT_TO_TAB = {
     },
     tools: {
         essays: 'essays',
-        'debate-teams': 'debate-teams'
+        'debate-teams': 'debate-teams',
+        'debate-scores': 'debate-scores',
+        'speaking-test': 'speaking-test'
     },
     more: { data: 'data' }
 };
@@ -13262,6 +13272,60 @@ const DEFAULT_SEGMENT_ORDER = Object.fromEntries(
 );
 
 const NAV_ARCHIVED_SEGMENT_IDS = new Set(['command-center']);
+
+function getNavLayoutApi() {
+    return typeof CCPNavTabLayout !== 'undefined' ? CCPNavTabLayout : null;
+}
+
+function ensureNavTabLayoutState(ui) {
+    const api = getNavLayoutApi();
+    if (!ui || typeof ui !== 'object') {
+        return;
+    }
+    if (!ui.navTabOrder || typeof ui.navTabOrder !== 'object' || !ui.navTabZone || typeof ui.navTabZone !== 'object') {
+        if (api && api.migrateSegmentOrderToTabOrder) {
+            ui.navTabOrder = api.migrateSegmentOrderToTabOrder(ui.navSegmentOrder, ZONE_SEGMENT_TO_TAB);
+            ui.navTabZone = api.buildDefaultTabZone(ZONE_SEGMENT_TO_TAB);
+        } else {
+            ui.navTabOrder = {};
+            ui.navTabZone = {};
+            Object.keys(ZONE_SEGMENT_TO_TAB).forEach((zoneId) => {
+                const segs = ZONE_SEGMENT_TO_TAB[zoneId] || {};
+                ui.navTabOrder[zoneId] = Object.keys(segs)
+                    .filter((id) => !NAV_ARCHIVED_SEGMENT_IDS.has(id))
+                    .map((id) => segs[id]);
+                Object.keys(segs).forEach((segmentId) => {
+                    const tabId = segs[segmentId];
+                    if (tabId && !NAV_ARCHIVED_SEGMENT_IDS.has(segmentId)) {
+                        ui.navTabZone[tabId] = zoneId;
+                    }
+                });
+            });
+        }
+    }
+    if (api && api.normalizeTabLayout) {
+        const normalized = api.normalizeTabLayout(
+            { navTabZone: ui.navTabZone, navTabOrder: ui.navTabOrder },
+            ZONE_SEGMENT_TO_TAB,
+            APP_ZONE_IDS
+        );
+        ui.navTabZone = normalized.navTabZone;
+        ui.navTabOrder = normalized.navTabOrder;
+    }
+    // Keep legacy segment-order mirror in sync for any leftover readers.
+    if (!ui.navSegmentOrder || typeof ui.navSegmentOrder !== 'object') {
+        ui.navSegmentOrder = {};
+    }
+    Object.keys(ui.navTabOrder || {}).forEach((zoneId) => {
+        const tabIds = ui.navTabOrder[zoneId] || [];
+        ui.navSegmentOrder[zoneId] = tabIds.map((tabId) => {
+            if (api && api.segmentForTab) {
+                return api.segmentForTab(tabId, ZONE_SEGMENT_TO_TAB);
+            }
+            return tabId;
+        });
+    });
+}
 
 function normalizeNavZoneOrder(order) {
     if (typeof CCPZoneNavReorder !== 'undefined' && CCPZoneNavReorder.normalizeZoneOrder) {
@@ -13283,25 +13347,172 @@ function getStoredNavZoneOrder() {
     return normalizeNavZoneOrder(appData.ui.navZoneOrder);
 }
 
-function getStoredNavSegmentOrder(zoneId) {
+function getStoredNavTabOrder(zoneId) {
     ensureUiState();
-    const stored = appData.ui.navSegmentOrder && typeof appData.ui.navSegmentOrder === 'object'
-        ? appData.ui.navSegmentOrder[zoneId]
-        : null;
-    return normalizeNavSegmentOrder(zoneId, stored);
+    ensureNavTabLayoutState(appData.ui);
+    const order = appData.ui.navTabOrder && appData.ui.navTabOrder[zoneId];
+    return Array.isArray(order) ? order.slice() : [];
+}
+
+function getStoredNavSegmentOrder(zoneId) {
+    const api = getNavLayoutApi();
+    return getStoredNavTabOrder(zoneId).map((tabId) => {
+        if (api && api.segmentForTab) {
+            return api.segmentForTab(tabId, ZONE_SEGMENT_TO_TAB);
+        }
+        return tabId;
+    });
 }
 
 function setStoredNavZoneOrder(order) {
     ensureUiState();
     appData.ui.navZoneOrder = normalizeNavZoneOrder(order);
+    appData.ui.navLayoutUpdatedAt = new Date().toISOString();
+}
+
+function setStoredNavTabLayout(layout) {
+    ensureUiState();
+    const api = getNavLayoutApi();
+    const next = layout && typeof layout === 'object' ? layout : {};
+    if (api && api.normalizeTabLayout) {
+        const normalized = api.normalizeTabLayout(
+            { navTabZone: next.navTabZone, navTabOrder: next.navTabOrder },
+            ZONE_SEGMENT_TO_TAB,
+            APP_ZONE_IDS
+        );
+        appData.ui.navTabZone = normalized.navTabZone;
+        appData.ui.navTabOrder = normalized.navTabOrder;
+    } else {
+        appData.ui.navTabZone = next.navTabZone || {};
+        appData.ui.navTabOrder = next.navTabOrder || {};
+    }
+    appData.ui.navLayoutUpdatedAt = new Date().toISOString();
+    ensureNavTabLayoutState(appData.ui);
 }
 
 function setStoredNavSegmentOrder(zoneId, order) {
     ensureUiState();
-    if (!appData.ui.navSegmentOrder || typeof appData.ui.navSegmentOrder !== 'object') {
-        appData.ui.navSegmentOrder = {};
+    ensureNavTabLayoutState(appData.ui);
+    const api = getNavLayoutApi();
+    const segmentIds = Array.isArray(order) ? order : [];
+    const tabIds = segmentIds.map((segmentId) => {
+        if (api && api.tabForZoneSegment) {
+            return api.tabForZoneSegment(zoneId, segmentId, ZONE_SEGMENT_TO_TAB, appData.ui.navTabZone);
+        }
+        const segs = ZONE_SEGMENT_TO_TAB[zoneId] || {};
+        return segs[segmentId] || null;
+    }).filter(Boolean);
+    if (!appData.ui.navTabOrder || typeof appData.ui.navTabOrder !== 'object') {
+        appData.ui.navTabOrder = {};
     }
-    appData.ui.navSegmentOrder[zoneId] = normalizeNavSegmentOrder(zoneId, order);
+    appData.ui.navTabOrder[zoneId] = tabIds;
+    tabIds.forEach((tabId) => {
+        appData.ui.navTabZone[tabId] = zoneId;
+    });
+    ensureNavTabLayoutState(appData.ui);
+}
+
+function resetNavTabLayoutToDefaults() {
+    ensureUiState();
+    const api = getNavLayoutApi();
+    if (api && api.buildDefaultTabZone && api.buildDefaultTabOrder) {
+        appData.ui.navTabZone = api.buildDefaultTabZone(ZONE_SEGMENT_TO_TAB);
+        appData.ui.navTabOrder = api.buildDefaultTabOrder(ZONE_SEGMENT_TO_TAB);
+    } else {
+        appData.ui.navTabZone = {};
+        appData.ui.navTabOrder = {};
+    }
+    appData.ui.navZoneOrder = DEFAULT_ZONE_ORDER.slice();
+    appData.ui.navLayoutUpdatedAt = new Date().toISOString();
+    ensureNavTabLayoutState(appData.ui);
+    applyZoneNavOrderFromUi();
+    syncPanelAriaLabelledByFromLayout();
+    saveUiStateToLocalStorage();
+    if (typeof CCPUiPrefsSync !== 'undefined' && CCPUiPrefsSync.schedulePush) {
+        CCPUiPrefsSync.schedulePush();
+    }
+}
+
+function getUiPrefsSyncHooks() {
+    return {
+        getCalendarId() {
+            return typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId
+                ? CalendarSync.getActiveCalendarId()
+                : '';
+        },
+        getLocalPrefs() {
+            ensureUiState();
+            ensureNavTabLayoutState(appData.ui);
+            return {
+                navZoneOrder: Array.isArray(appData.ui.navZoneOrder) ? appData.ui.navZoneOrder.slice() : null,
+                navTabZone: Object.assign({}, appData.ui.navTabZone || {}),
+                navTabOrder: Object.assign({}, appData.ui.navTabOrder || {}),
+                updatedAt: appData.ui.navLayoutUpdatedAt || null
+            };
+        },
+        applyCloudPrefs(prefs) {
+            ensureUiState();
+            if (prefs && Array.isArray(prefs.navZoneOrder)) {
+                appData.ui.navZoneOrder = normalizeNavZoneOrder(prefs.navZoneOrder);
+            }
+            if (prefs && prefs.navTabZone && typeof prefs.navTabZone === 'object') {
+                appData.ui.navTabZone = Object.assign({}, prefs.navTabZone);
+            }
+            if (prefs && prefs.navTabOrder && typeof prefs.navTabOrder === 'object') {
+                appData.ui.navTabOrder = Object.assign({}, prefs.navTabOrder);
+            }
+            if (prefs && prefs.updatedAt) {
+                appData.ui.navLayoutUpdatedAt = prefs.updatedAt;
+            }
+            ensureNavTabLayoutState(appData.ui);
+            applyZoneNavOrderFromUi();
+            syncPanelAriaLabelledByFromLayout();
+            saveUiStateToLocalStorage();
+            if (typeof syncZoneNavFromTab === 'function') {
+                syncZoneNavFromTab(getActiveTab());
+            }
+        },
+        setLocalUpdatedAt(iso) {
+            ensureUiState();
+            appData.ui.navLayoutUpdatedAt = iso || new Date().toISOString();
+            saveUiStateToLocalStorage();
+        }
+    };
+}
+
+function initUiPrefsSync() {
+    if (typeof CCPUiPrefsSync === 'undefined' || !CCPUiPrefsSync.init) {
+        return;
+    }
+    CCPUiPrefsSync.init(getUiPrefsSyncHooks());
+}
+
+async function loadAndMergeUiPrefs() {
+    if (typeof CCPUiPrefsSync === 'undefined' || !CCPUiPrefsSync.loadAndMerge) {
+        return;
+    }
+    initUiPrefsSync();
+    await CCPUiPrefsSync.loadAndMerge();
+}
+
+function syncPanelAriaLabelledByFromLayout() {
+    ensureUiState();
+    ensureNavTabLayoutState(appData.ui);
+    const zone = appData.ui.navTabZone || {};
+    Object.keys(zone).forEach((tabId) => {
+        const zoneId = zone[tabId];
+        const panel = document.getElementById(`panel-${tabId}`);
+        const zoneBtnId = zoneId === 'more' ? 'zoneBtn-data' : `zoneBtn-${zoneId}`;
+        const zoneBtn = document.getElementById(zoneBtnId);
+        if (panel && zoneBtn) {
+            panel.setAttribute('aria-labelledby', zoneBtn.id);
+        }
+    });
+    const dataPanel = document.getElementById('panel-data');
+    const dataBtn = document.getElementById('zoneBtn-data');
+    if (dataPanel && dataBtn) {
+        dataPanel.setAttribute('aria-labelledby', dataBtn.id);
+    }
 }
 
 /** Events segment moved from Class Setup zone to Schedule zone (Jun 2026). */
@@ -13329,11 +13540,21 @@ function isNavSegmentVisibleInDom(zoneId, segmentId) {
     if (NAV_ARCHIVED_SEGMENT_IDS.has(segmentId)) {
         return false;
     }
-    const panel = document.querySelector(`.app-zone-segment-panel[data-zone="${zoneId}"]`);
-    if (!panel) {
-        return true;
+    let btn = null;
+    const api = getNavLayoutApi();
+    if (api && api.tabForZoneSegment && appData && appData.ui) {
+        const tabId = api.tabForZoneSegment(zoneId, segmentId, ZONE_SEGMENT_TO_TAB, appData.ui.navTabZone);
+        if (tabId) {
+            btn = document.querySelector(`.app-zone-segment-btn[data-tab="${tabId}"]`);
+        }
     }
-    const btn = panel.querySelector(`.app-zone-segment-btn[data-segment="${segmentId}"]`);
+    if (!btn) {
+        const panel = document.querySelector(`.app-zone-segment-panel[data-zone="${zoneId}"]`);
+        if (!panel) {
+            return true;
+        }
+        btn = panel.querySelector(`.app-zone-segment-btn[data-segment="${segmentId}"]`);
+    }
     if (!btn) {
         return false;
     }
@@ -13343,9 +13564,6 @@ function isNavSegmentVisibleInDom(zoneId, segmentId) {
 function getOrderedSegmentsForZone(zoneId) {
     const order = getStoredNavSegmentOrder(zoneId);
     return order.filter((segmentId) => {
-        if (!ZONE_SEGMENT_TO_TAB[zoneId] || !ZONE_SEGMENT_TO_TAB[zoneId][segmentId]) {
-            return false;
-        }
         if (NAV_ARCHIVED_SEGMENT_IDS.has(segmentId)) {
             return false;
         }
@@ -13370,9 +13588,22 @@ function getZoneNavReorderHooks() {
         t,
         getZoneOrder: getStoredNavZoneOrder,
         getSegmentOrder: getStoredNavSegmentOrder,
+        getTabOrder: getStoredNavTabOrder,
+        getTabZoneMap() {
+            ensureUiState();
+            ensureNavTabLayoutState(appData.ui);
+            return Object.assign({}, appData.ui.navTabZone || {});
+        },
+        getZoneSegmentToTab: () => ZONE_SEGMENT_TO_TAB,
         setZoneOrder: setStoredNavZoneOrder,
         setSegmentOrder: setStoredNavSegmentOrder,
-        saveUiState: saveUiStateToLocalStorage,
+        setTabLayout: setStoredNavTabLayout,
+        saveUiState() {
+            saveUiStateToLocalStorage();
+            if (typeof CCPUiPrefsSync !== 'undefined' && CCPUiPrefsSync.schedulePush) {
+                CCPUiPrefsSync.schedulePush();
+            }
+        },
         showSavedToast() {
             const msg = t('navReorderSaved');
             if (msg) {
@@ -13381,7 +13612,23 @@ function getZoneNavReorderHooks() {
         },
         onOrderApplied() {
             syncAllZoneNavScrollAffordances();
-        }
+            syncPanelAriaLabelledByFromLayout();
+        },
+        onIllegalDrop(reason) {
+            if (reason === 'empty-zone') {
+                showSyncToast(t('navReorderEmptyZoneBlocked'), true);
+            } else if (reason === 'illegal-drop') {
+                showSyncToast(t('navReorderIllegalDrop'), true);
+            }
+        },
+        getActiveTabId() {
+            return getActiveTab();
+        },
+        onPreviewEnd() {
+            syncZoneNavFromTab(getActiveTab());
+            syncAllZoneNavScrollAffordances();
+        },
+        syncZoneNavScrollAffordance
     };
 }
 
@@ -13488,11 +13735,18 @@ function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
     if (segment === 'events' && zone === APP_ZONE_CLASSES) {
         zone = APP_ZONE_SCHEDULE;
     }
-    if (zone === APP_ZONE_CLASSROOM && segment === 'essays') {
-        zone = APP_ZONE_TOOLS;
-    }
-    if (zone === APP_ZONE_CLASSROOM && segment === 'debate-teams') {
-        zone = APP_ZONE_TOOLS;
+    if (zone === APP_ZONE_CLASSROOM && (segment === 'essays' || segment === 'debate-teams')) {
+        const tabId = segment === 'essays' ? 'essays' : 'debate-teams';
+        const api = getNavLayoutApi();
+        let assigned = APP_ZONE_TOOLS;
+        if (api && api.getZoneForTab && typeof appData !== 'undefined' && appData && appData.ui) {
+            ensureNavTabLayoutState(appData.ui);
+            assigned = api.getZoneForTab(tabId, appData.ui.navTabZone, ZONE_SEGMENT_TO_TAB) || APP_ZONE_TOOLS;
+        }
+        // Only bounce old Classroom bookmarks to Tools when the tab still lives in Tools.
+        if (assigned === APP_ZONE_TOOLS) {
+            zone = APP_ZONE_TOOLS;
+        }
     }
     if (segment === 'teachers' && zone === APP_ZONE_MORE) {
         zone = APP_ZONE_CLASSES;
@@ -13541,6 +13795,8 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     points: { zone: APP_ZONE_CLASSROOM, segment: 'points' },
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
     'debate-teams': { zone: APP_ZONE_TOOLS, segment: 'debate-teams' },
+    'debate-scores': { zone: APP_ZONE_TOOLS, segment: 'debate-scores' },
+    'speaking-test': { zone: APP_ZONE_TOOLS, segment: 'speaking-test' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
@@ -13552,6 +13808,15 @@ function getZoneInfoForTab(tabId) {
     const directZoneId = Object.keys(DIRECT_ZONE_TAB).find((zoneId) => DIRECT_ZONE_TAB[zoneId] === tabId);
     if (directZoneId) {
         return { zone: directZoneId, segment: '' };
+    }
+    const api = getNavLayoutApi();
+    if (api && typeof appData !== 'undefined' && appData && appData.ui) {
+        ensureNavTabLayoutState(appData.ui);
+        const zone = api.getZoneForTab(tabId, appData.ui.navTabZone, ZONE_SEGMENT_TO_TAB);
+        const segment = api.segmentForTab(tabId, ZONE_SEGMENT_TO_TAB);
+        if (zone && segment) {
+            return { zone, segment };
+        }
     }
     return TAB_TO_ZONE_SEGMENT[tabId] || LEGACY_TAB_ZONE_REDIRECT[tabId] || { zone: APP_ZONE_SCHEDULE, segment: 'calendar' };
 }
@@ -13576,14 +13841,26 @@ function getTabIdForZoneSegment(zoneId, segmentId) {
     if (DIRECT_ZONE_TAB[zoneId]) {
         return DIRECT_ZONE_TAB[zoneId];
     }
+    if (!segmentId) {
+        const def = getDefaultSegmentForZone(zoneId);
+        return getTabIdForZoneSegment(zoneId, def);
+    }
+    const api = getNavLayoutApi();
+    if (api && api.tabForZoneSegment && typeof appData !== 'undefined' && appData && appData.ui) {
+        ensureNavTabLayoutState(appData.ui);
+        const tabId = api.tabForZoneSegment(zoneId, segmentId, ZONE_SEGMENT_TO_TAB, appData.ui.navTabZone);
+        if (tabId) {
+            return tabId;
+        }
+    }
     const segments = ZONE_SEGMENT_TO_TAB[zoneId];
     if (!segments) {
         return 'calendar';
     }
-    if (segmentId && segments[segmentId]) {
+    if (segments[segmentId]) {
         return segments[segmentId];
     }
-    return segments[getDefaultSegmentForZone(zoneId)];
+    return segments[getDefaultSegmentForZone(zoneId)] || 'calendar';
 }
 
 function canAccessZone(zoneId) {
@@ -15010,6 +15287,10 @@ async function navigateToTabBody(tabId, options = {}) {
         tests: typeof CCPClassroomTests !== 'undefined' ? CCPClassroomTests : null,
         'debate-teams':
             typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null,
+        'debate-scores':
+            typeof CCPClassroomDebateScores !== 'undefined' ? CCPClassroomDebateScores : null,
+        'speaking-test':
+            typeof CCPClassroomSpeakingTest !== 'undefined' ? CCPClassroomSpeakingTest : null,
         ledger: typeof CCPClassroomLedger !== 'undefined' ? CCPClassroomLedger : null
     };
     const leavingModule = classroomFlushTabs[previousTab];
@@ -15133,6 +15414,8 @@ async function navigateToTabBody(tabId, options = {}) {
         || tabId === 'points'
         || tabId === 'tests'
         || tabId === 'debate-teams'
+        || tabId === 'debate-scores'
+        || tabId === 'speaking-test'
     ) {
         void initClassroomTabControls(tabId, options);
     } else if (tabId === 'command-center') {
@@ -15394,6 +15677,16 @@ function initAppTabs() {
     if (typeof CCPZoneNavReorder !== 'undefined') {
         CCPZoneNavReorder.init(getZoneNavReorderHooks());
         CCPZoneNavReorder.applyOrder();
+        syncPanelAriaLabelledByFromLayout();
+    }
+    initUiPrefsSync();
+    const resetNavLayoutBtn = document.getElementById('dataResetNavLayoutBtn');
+    if (resetNavLayoutBtn && !resetNavLayoutBtn.dataset.bound) {
+        resetNavLayoutBtn.dataset.bound = '1';
+        resetNavLayoutBtn.addEventListener('click', () => {
+            resetNavTabLayoutToDefaults();
+            showSyncToast(t('navReorderResetDone'), false);
+        });
     }
     const classSearch = document.getElementById('classListSearch');
     if (classSearch) {
@@ -19474,8 +19767,14 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.debateTeamSessions)) {
         appData.debateTeamSessions = serverData.debateTeamSessions;
     }
+    if (Array.isArray(serverData.debateScores)) {
+        appData.debateScores = serverData.debateScores;
+    }
     if (Array.isArray(serverData.debateCustomFormats)) {
         appData.debateCustomFormats = serverData.debateCustomFormats;
+    }
+    if (Array.isArray(serverData.speakingTestRecords)) {
+        appData.speakingTestRecords = serverData.speakingTestRecords;
     }
 }
 
@@ -19501,8 +19800,14 @@ async function saveClassroomPartial(fields, options) {
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateTeamSessions')) {
         appData.debateTeamSessions = fields.debateTeamSessions;
     }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateScores')) {
+        appData.debateScores = fields.debateScores;
+    }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateCustomFormats')) {
         appData.debateCustomFormats = fields.debateCustomFormats;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'speakingTestRecords')) {
+        appData.speakingTestRecords = fields.speakingTestRecords;
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'ui')) {
         Object.assign(appData.ui, fields.ui);
@@ -19512,12 +19817,31 @@ async function saveClassroomPartial(fields, options) {
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.saveClassroomData) {
         return null;
     }
-    const doc = await CalendarSync.saveClassroomData(fields);
-    if (doc && doc.data) {
-        mergeClassroomFieldsFromServer(doc.data, options);
-        saveDataToLocalCache();
+    const activeCalId =
+        typeof CalendarSync.getActiveCalendarId === 'function' ? CalendarSync.getActiveCalendarId() : '';
+    if (!activeCalId) {
+        // Local cache already written — allow offline / no-calendar testing.
+        return null;
     }
-    return doc;
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
+        return null;
+    }
+    try {
+        const doc = await CalendarSync.saveClassroomData(fields);
+        if (doc && doc.data) {
+            mergeClassroomFieldsFromServer(doc.data, options);
+            saveDataToLocalCache();
+        }
+        return doc;
+    } catch (err) {
+        // Local write already succeeded. Keep it when team sync is unavailable or fails
+        // for non-conflict reasons (auth, network, missing calendar).
+        if (err && Number(err.status) === 409) {
+            throw err;
+        }
+        console.warn('Classroom team sync failed after local save', err);
+        return null;
+    }
 }
 
 function getClassroomHooks() {
@@ -19538,9 +19862,17 @@ function getClassroomHooks() {
             return user && user.id != null ? String(user.id) : '';
         },
         isViewOnly: isTeamCalendarViewOnly,
+        hasTeamSync: () =>
+            Boolean(
+                teamSyncEnabled &&
+                    typeof CalendarSync !== 'undefined' &&
+                    CalendarSync.getActiveCalendarId &&
+                    CalendarSync.getActiveCalendarId()
+            ),
         openModal,
         closeModal,
         showToast: (msg, isError) => showSyncToast(msg, isError),
+        navigateToZone,
         setUiPref(key, value) {
             ensureUiState();
             appData.ui[key] = value == null ? '' : String(value);
@@ -19563,6 +19895,9 @@ function getClassroomHooks() {
         },
         async saveClassroom(fields, options) {
             return saveClassroomPartial(fields, options);
+        },
+        getLessonDates(classData, options) {
+            return calculateLessonDates(classData, options);
         },
         async syncPointsDayNote(classId, dateStr) {
             return syncPointsDayNoteForClassDate(classId, dateStr);
@@ -19648,6 +19983,10 @@ async function initClassroomTabControls(tabId, options = {}) {
             CCPClassroomTests.initTab(hooks, options);
         } else if (tabId === 'debate-teams' && typeof CCPClassroomDebateTeams !== 'undefined') {
             await CCPClassroomDebateTeams.initTab(hooks, options);
+        } else if (tabId === 'debate-scores' && typeof CCPClassroomDebateScores !== 'undefined') {
+            await CCPClassroomDebateScores.initTab(hooks, options);
+        } else if (tabId === 'speaking-test' && typeof CCPClassroomSpeakingTest !== 'undefined') {
+            await CCPClassroomSpeakingTest.initTab(hooks, options);
         } else {
             setAppStatusMessage(t('classroomModuleMissing'), true);
         }
@@ -33603,6 +33942,7 @@ function applyLoadedAppData(data) {
         const calId = CalendarSync.getActiveCalendarId();
         if (calId) {
             void CalendarSync.loadNotificationMeta(calId).catch(() => {});
+            void loadAndMergeUiPrefs().catch(() => {});
         }
     }
 }
@@ -33874,6 +34214,8 @@ function refreshActiveTabAfterHydration() {
         || tab === 'points'
         || tab === 'tests'
         || tab === 'debate-teams'
+        || tab === 'debate-scores'
+        || tab === 'speaking-test'
     ) {
         void initClassroomTabControls(tab);
         if (
@@ -33882,6 +34224,13 @@ function refreshActiveTabAfterHydration() {
             && CCPClassroomDebateTeams.refreshIfActive
         ) {
             void CCPClassroomDebateTeams.refreshIfActive();
+        }
+        if (
+            tab === 'speaking-test'
+            && typeof CCPClassroomSpeakingTest !== 'undefined'
+            && CCPClassroomSpeakingTest.refreshIfActive
+        ) {
+            void CCPClassroomSpeakingTest.refreshIfActive();
         }
     } else if (tab === 'timetable') {
         initTimetableTabControls();
@@ -33924,6 +34273,11 @@ async function ensureActiveCalendarLoaded(options) {
         if (hydratedId && teamSyncEnabled) {
             try {
                 await CalendarSync.loadNotificationMeta(hydratedId);
+            } catch (_) {
+                /* offline or API unavailable */
+            }
+            try {
+                await loadAndMergeUiPrefs();
             } catch (_) {
                 /* offline or API unavailable */
             }
@@ -34277,6 +34631,11 @@ async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
             pendingEditRequest: CalendarSync.state.pendingEditRequest
         });
         applyServerDocument(doc, switchOpts);
+        try {
+            await loadAndMergeUiPrefs();
+        } catch (_) {
+            /* offline or API unavailable */
+        }
         initializeTermStart();
         renderCalendar();
         updateTeamSyncStatus('saved');
@@ -35289,7 +35648,7 @@ function migrateData(data) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateCustomFormats', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'speakingTestRecords', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;
