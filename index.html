@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260713-zone-class-popover">
-    <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-print-cards-popup">
+    <link rel="stylesheet" href="styles.css?v=20260720-speaking-modal">
+    <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260720-introduce-rebut';
+        window.CCP_I18N_VERSION = '20260720-speaking-modal';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -137,32 +137,34 @@
                 <div class="app-top-bar-row app-top-bar-row--nav">
                     <nav class="app-zone-segment-nav" id="appZoneSegmentNav" aria-label="Section">
                         <div id="zoneSegments-schedule" class="app-zone-segment-panel is-active" data-zone="schedule">
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="calendar" data-i18n="tabCalendar">Calendar</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="events" data-i18n="tabEvents">Events</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="tabHomework">Homework copy</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="timetable" data-i18n="tabTimetable">Timetable</button>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="events" data-tab="events" data-i18n="tabEvents">Events</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="command-center" data-tab="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-tab="homework" data-i18n="tabHomework">Homework copy</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
                         </div>
                         <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="cohorts" data-i18n="tabCohorts">Cohorts</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-i18n="tabCurriculum">Books</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-i18n="tabSyllabus">Syllabi</button>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="classes" data-tab="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="cohorts" data-tab="cohorts" data-i18n="tabCohorts">Cohorts</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-tab="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Books</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabi</button>
                         </div>
                         <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-i18n="classroomTabStudents">Students</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-i18n="classroomTabAttendance">Attendance</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-i18n="classroomTabLedger">Ledger</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-i18n="classroomTabHomework">Homework</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="points" data-i18n="classroomTabPoints">Points</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="tests" data-i18n="classroomTabTests">Tests</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="notes" data-i18n="tabNotes">Notes</button>
-                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-tab="students" data-i18n="classroomTabStudents">Students</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-tab="attendance" data-i18n="classroomTabAttendance">Attendance</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-tab="ledger" data-i18n="classroomTabLedger">Ledger</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-tab="homework-tracking" data-i18n="classroomTabHomework">Homework</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="points" data-tab="points" data-i18n="classroomTabPoints">Points</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="tests" data-tab="tests" data-i18n="classroomTabTests">Tests</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
+                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" data-tab="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
                         </div>
                         <div id="zoneSegments-tools" class="app-zone-segment-panel" data-zone="tools" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="essays" data-i18n="classroomTabEssays">Essays</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
+                            <button type="button" class="app-zone-segment-btn is-active" data-segment="essays" data-tab="essays" data-i18n="classroomTabEssays">Essays</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-tab="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="debate-scores" data-tab="debate-scores" data-i18n="classroomTabDebateScores">Debate Scores</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="speaking-test" data-tab="speaking-test" data-i18n="classroomTabSpeakingTest">Speaking Test</button>
                         </div>
                     </nav>
                     <div id="termSummaryStrip" class="term-summary-strip" hidden>
@@ -583,12 +585,81 @@
             <section id="panel-debate-teams" class="app-tab-panel debate-teams-panel" data-tab="debate-teams" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div class="module-toolbar classroom-tab-toolbar" data-noprint>
                     <button type="button" id="classroomDebateRefreshRosterBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateRefreshRoster">Refresh roster</button>
+                    <label id="classroomDebateAssignmentWrap" class="classroom-debate-assignment-field" hidden>
+                        <span class="classroom-debate-assignment-label" data-i18n="classroomDebateAssignmentLabel">Debate assignment</span>
+                        <select id="classroomDebateAssignmentSelect" class="field-select field-control"></select>
+                    </label>
+                    <p id="classroomDebateAssignmentEmpty" class="section-hint classroom-debate-assignment-empty" hidden data-i18n="classroomDebateAssignmentEmpty">No Day 4 debate dates in this term.</p>
                     <div class="toolbar-actions">
                         <span id="classroomDebateSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                         <button type="button" id="classroomDebateSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
                     </div>
                 </div>
                 <div id="classroomDebateTeamsMount" class="classroom-debate-mount"></div>
+            </section>
+
+            <section id="panel-speaking-test" class="app-tab-panel speaking-test-panel" data-tab="speaking-test" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
+                <div class="module-toolbar classroom-tab-toolbar" data-noprint>
+                    <button type="button" id="speakingTestPrintBlankBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestPrintBlank" disabled>Print blank sheets</button>
+                    <button type="button" id="speakingTestPrintAllBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestPrintAll" disabled>Print all summaries</button>
+                    <div class="toolbar-actions">
+                        <span id="speakingTestSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                        <button type="button" id="speakingTestSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                    </div>
+                </div>
+                <div id="speakingTestLocalImportBanner" class="speaking-test-import-banner" hidden>
+                    <p class="section-hint" data-i18n="speakingTestLocalImportHint">Offline speaking tracker data was found on this device. Import matching students into this class?</p>
+                    <div class="speaking-test-import-banner-actions">
+                        <button type="button" id="speakingTestLocalImportBtn" class="btn btn-primary btn-compact" data-i18n="speakingTestLocalImport">Import</button>
+                        <button type="button" id="speakingTestLocalImportDismissBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestLocalImportDismiss">Dismiss</button>
+                    </div>
+                </div>
+                <div id="classroomSpeakingTestMount" class="speaking-test-mount"></div>
+            </section>
+
+            <section id="panel-debate-scores" class="app-tab-panel" data-tab="debate-scores" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
+                <div class="module-toolbar classroom-tab-toolbar classroom-debate-scores-toolbar" data-noprint>
+                    <div class="classroom-debate-scores-toolbar-row">
+                        <label id="classroomDebateScoresAssignmentWrap" class="classroom-debate-assignment-field" hidden>
+                            <span class="classroom-debate-assignment-label" data-i18n="classroomDebateAssignmentLabel">Debate assignment</span>
+                            <select id="classroomDebateScoresAssignmentSelect" class="field-select field-control"></select>
+                        </label>
+                        <p id="classroomDebateScoresAssignmentEmpty" class="section-hint classroom-debate-assignment-empty" hidden data-i18n="classroomDebateAssignmentEmpty">No Day 4 debate dates in this term.</p>
+                        <label class="classroom-debate-assignment-field" for="classroomDebateScoresTemplate">
+                            <span class="classroom-debate-assignment-label" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</span>
+                            <select id="classroomDebateScoresTemplate" class="field-select field-control">
+                                <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae</option>
+                                <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul</option>
+                            </select>
+                        </label>
+                        <span id="classroomDebateScoresBookChip" class="section-hint classroom-debate-scores-book-chip" hidden></span>
+                        <div class="toolbar-actions">
+                            <span id="classroomDebateScoresSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomDebateScoresSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
+                    </div>
+                    <div class="classroom-debate-scores-toolbar-row classroom-debate-scores-export-row">
+                        <button type="button" id="classroomDebateScoresWordBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadWord">Download Word</button>
+                        <button type="button" id="classroomDebateScoresPdfBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadPdf">Download PDF</button>
+                        <button type="button" id="classroomDebateScoresPrintBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresPrint">Print</button>
+                    </div>
+                </div>
+                <p id="classroomDebateScoresHint" class="section-hint" data-i18n="classroomDebateScoresSelectClassDate">Select a class and Day 4 date above to record debate scores.</p>
+                <div class="classroom-sheet-panel">
+                    <div class="classroom-sheet-scroll" tabindex="0">
+                        <table class="classroom-sheet classroom-sheet--debate-scores">
+                            <thead>
+                                <tr id="classroomDebateScoresHeadRow">
+                                    <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
+                                    <th scope="col" data-i18n="classroomDebateScoresColRole">Role</th>
+                                    <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classroomDebateScoresRows"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="debate-scores-sheet-mount" aria-hidden="true" hidden></div>
             </section>
 
             <section id="panel-notes" class="app-tab-panel" data-tab="notes" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
@@ -1134,6 +1205,13 @@
                         <div class="print-data-actions">
                             <button type="button" id="dataExportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataExportCalendar">Export calendar</button>
                             <button type="button" id="dataImportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataImportCalendar">Import calendar</button>
+                        </div>
+                    </div>
+                    <div class="print-data-section print-data-section--nav-layout">
+                        <h2 class="module-section-title" data-i18n="navLayoutHeading">Tab layout</h2>
+                        <p class="section-hint" data-i18n="navLayoutHint">Drag zone or section tabs to reorder. Drag a section tab onto another zone to move it. Your layout syncs to your account on this calendar.</p>
+                        <div class="print-data-actions">
+                            <button type="button" id="dataResetNavLayoutBtn" class="btn btn-outline btn-small" data-i18n="navReorderReset">Reset tab layout</button>
                         </div>
                     </div>
                     <div class="print-data-section print-data-section--curriculum-link" hidden>
@@ -2017,14 +2095,14 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260701-event-color-palette"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260720-print-cards-only"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260720-debate-scores-local"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
     <script defer src="js/team-auth.js?v=20260608-i18n-audit"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-mutations.js?v=20260623-atomic-cas"></script>
-    <script defer src="js/calendar-sync.js?v=20260623-atomic-cas"></script>
+    <script defer src="js/calendar-sync.js?v=20260720-debate-scores"></script>
     <script defer src="js/conflict-merge.js?v=20260619-delta-sync"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
@@ -2046,7 +2124,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260708-essay-ae-badge"></script>
+    <script defer src="js/classroom-domain.js?v=20260720-debate-scores"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
@@ -2104,13 +2182,15 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260629-cohort-nav-clear"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260720-introduce-rebut"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260720-speaking-modal"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
-    <script defer src="js/zone-nav-reorder.js?v=20260619-nav-drag-last"></script>
+    <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
+    <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
+    <script defer src="js/ui-prefs-sync.js?v=20260720-ui-prefs-v1"></script>
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
-    <script defer src="app.js?v=20260709-compressed-dedupe-v6"></script>
+    <script defer src="app.js?v=20260720-debate-scores-local"></script>
 </body>
 </html>
 

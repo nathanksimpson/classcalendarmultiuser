@@ -69,6 +69,7 @@
             studentPoints: [],
             studentTests: [],
             debateTeamSessions: [],
+            debateScores: [],
             debateCustomFormats: [],
             portfolioRecordings: [],
             portfolioEntries: [],

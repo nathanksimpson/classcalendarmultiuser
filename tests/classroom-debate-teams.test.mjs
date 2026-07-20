@@ -14,7 +14,7 @@ function assert(cond, msg) {
     }
 }
 
-function loadDebateEngine() {
+function loadDebateEngine(options = {}) {
     const utilsCode = readFileSync(path.join(root, 'js', 'utils.js'), 'utf8');
     const engineCode = readFileSync(path.join(root, 'js', 'debate', 'debate-teams-v2.js'), 'utf8');
     const mountHtml = readFileSync(
@@ -58,7 +58,9 @@ function loadDebateEngine() {
         },
         console,
         setTimeout,
-        clearTimeout
+        clearTimeout,
+        alert() {},
+        confirm: options.confirm || (() => true)
     };
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
@@ -440,6 +442,48 @@ function loadDebateEngine() {
     st = api.collectState();
     assert(st.classTitle === 'Kept Class', 'force updates title when HR empty');
     assert(st.hrTeacher === '', 'force clears HR when class has none');
+}
+
+{
+    let confirmCalls = 0;
+    let confirmResult = false;
+    const { api } = loadDebateEngine({
+        confirm() {
+            confirmCalls += 1;
+            return confirmResult;
+        }
+    });
+    api.loadState({
+        version: 2,
+        students: ['Alice', 'Bob', 'Carol', 'Dave'],
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                notes: '',
+                benches: [
+                    { id: 'gov', label: 'Gov', members: [{ name: 'Alice', present: '', rebut: '' }] },
+                    { id: 'opp', label: 'Opp', members: [{ name: 'Bob', present: '', rebut: '' }] }
+                ]
+            }
+        ]
+    });
+    const before = JSON.stringify(api.collectState().debates);
+    api.generateDebates();
+    assert(confirmCalls === 1, 'regenerate confirms even without notes/args edits');
+    assert(JSON.stringify(api.collectState().debates) === before, 'cancel leaves existing teams unchanged');
+
+    confirmResult = true;
+    api.generateDebates();
+    assert(confirmCalls === 2, 'regenerate confirms again when accepted');
+    assert(api.collectState().debates.length >= 1, 'accepted regenerate still produces debates');
 }
 
 console.log('classroom-debate-teams.test.mjs: all passed');

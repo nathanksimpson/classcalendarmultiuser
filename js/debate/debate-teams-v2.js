@@ -644,7 +644,7 @@
             );
             return;
         }
-        if (state.debates.length && hasEdits()) {
+        if (state.debates.length) {
             if (!confirm(t('classroomDebateV2RegenerateConfirm') || t('classroomDebateConfirmRegenerateLossy'))) {
                 return;
             }
@@ -1824,6 +1824,7 @@
         importRoster,
         render,
         assignDebates,
+        generateDebates,
         applyMetadataDefaults,
         applyClassFormatDefaults,
         isPurpleDebateClass,

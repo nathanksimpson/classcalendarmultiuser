@@ -15,6 +15,7 @@ const ActivityLog = require('./activity-log');
 const Presence = require('./presence');
 const Suggestions = require('./suggestions');
 const NotificationMeta = require('./notification-meta');
+const UiPrefs = require('./ui-prefs');
 const CalendarMeta = require('./calendar-meta');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
@@ -1177,6 +1178,25 @@ app.patch('/api/calendars/:id/notification-meta/:notificationId/dismiss', requir
     res.json(NotificationMeta.dismissOne(req.user.id, calId, notificationId, dismissedAt));
 });
 
+app.get('/api/calendars/:id/ui-prefs', requireUser, (req, res) => {
+    const calId = req.params.id;
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    res.json(UiPrefs.getPrefs(req.user.id, calId));
+});
+
+app.put('/api/calendars/:id/ui-prefs', requireUser, rejectViewAsWrites, (req, res) => {
+    const calId = req.params.id;
+    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+        res.status(404).json({ error: 'Calendar not found' });
+        return;
+    }
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    res.json(UiPrefs.putPrefs(req.user.id, calId, body));
+});
+
 app.get('/api/calendars/:id', requireUser, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -1450,7 +1470,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         studentPoints,
         studentTests,
         debateTeamSessions,
-        debateCustomFormats
+        debateScores,
+        debateCustomFormats,
+        speakingTestRecords
     } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
     if (classroomOnly) {
@@ -1476,8 +1498,14 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateTeamSessions')) {
             payload.debateTeamSessions = debateTeamSessions;
         }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateScores')) {
+            payload.debateScores = debateScores;
+        }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateCustomFormats')) {
             payload.debateCustomFormats = debateCustomFormats;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'speakingTestRecords')) {
+            payload.speakingTestRecords = speakingTestRecords;
         }
         const result = calendars.updateCalendarClassroom(
             req.params.id,

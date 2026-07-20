@@ -1,0 +1,105 @@
+<div class="speaking-test-layout module-split-layout">
+  <aside class="module-list-panel speaking-test-sidebar">
+    <label class="form-group" for="speakingTestSortMode">
+      <span data-i18n="speakingTestSortTitle">Student sort order</span>
+      <select id="speakingTestSortMode" class="field-select field-control">
+        <option value="alphabetical" data-i18n="speakingTestSortAlphabetical">Alphabetical (Korean → English)</option>
+        <option value="pasteOrder" data-i18n="speakingTestSortPasteOrder">Paste order</option>
+        <option value="entryOrder" data-i18n="speakingTestSortEntryOrder">Entry order</option>
+      </select>
+    </label>
+
+    <form id="speakingTestAddAssignmentForm" class="speaking-test-assignment-form">
+      <p class="speaking-test-sidebar-heading" data-i18n="speakingTestAddAssignment">Add assignment</p>
+      <label class="form-group" for="speakingTestAssignmentTitle">
+        <span data-i18n="speakingTestAssignmentTitle">Title</span>
+        <input type="text" id="speakingTestAssignmentTitle" class="field-input field-control" required>
+      </label>
+      <label class="form-group" for="speakingTestAssignmentDate">
+        <span data-i18n="speakingTestAssignmentDate">Date</span>
+        <input type="date" id="speakingTestAssignmentDate" class="field-input field-control" required>
+      </label>
+      <button type="submit" class="btn btn-primary btn-compact" data-i18n="speakingTestAssignmentAdd">Add</button>
+    </form>
+
+    <div class="speaking-test-roster-block">
+      <p class="speaking-test-sidebar-heading" data-i18n="speakingTestRosterTitle">Class roster</p>
+      <p class="section-hint" data-i18n="speakingTestRosterHint">From Classroom → Students. Paste updates the linked cohort.</p>
+      <button type="button" id="speakingTestOpenStudentsBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestOpenStudents">Open Students tab</button>
+      <ul id="speakingTestRosterList" class="speaking-test-roster-list"></ul>
+      <details class="speaking-test-paste-details">
+        <summary data-i18n="speakingTestPasteImport">Import from paste</summary>
+        <div class="speaking-test-paste-body">
+          <p class="section-hint" data-i18n="speakingTestPasteHint">Paste academy roster text with numbered student blocks.</p>
+          <textarea id="speakingTestPasteText" class="field-input field-control" rows="5" data-i18n-placeholder="speakingTestPastePlaceholder" placeholder="Paste roster text here…"></textarea>
+          <div class="speaking-test-paste-actions">
+            <button type="button" id="speakingTestPasteParseBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestPasteParse">Parse</button>
+            <button type="button" id="speakingTestPasteImportBtn" class="btn btn-primary btn-compact" data-i18n="speakingTestPasteImportAction" disabled>Import</button>
+          </div>
+          <p id="speakingTestPasteError" class="section-hint speaking-test-paste-error" hidden></p>
+          <div id="speakingTestPastePreview" class="speaking-test-paste-preview" hidden>
+            <p class="section-hint"><span id="speakingTestPasteCount">0</span> <span data-i18n="speakingTestPasteFound">students found</span></p>
+            <ol id="speakingTestPasteList" class="speaking-test-paste-list"></ol>
+          </div>
+        </div>
+      </details>
+    </div>
+  </aside>
+
+  <div class="speaking-test-workspace">
+    <div class="speaking-test-main classroom-sheet-panel">
+      <p id="speakingTestEmptyState" class="section-hint speaking-test-empty" data-i18n="speakingTestSelectClass">Select a class above to manage speaking scores.</p>
+      <div class="classroom-sheet-scroll" id="speakingTestSheetScroll" hidden>
+        <table class="classroom-sheet speaking-test-sheet" id="speakingTestTable">
+          <thead>
+            <tr id="speakingTestHeaderRow"></tr>
+          </thead>
+          <tbody id="speakingTestBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="speakingTestScorerModal" class="modal speaking-test-scorer-modal" hidden>
+  <div class="modal-content speaking-test-scorer-panel" role="dialog" aria-modal="true" aria-labelledby="speakingTestScorerTitle">
+    <header class="speaking-test-scorer-header modal-header">
+      <div class="speaking-test-scorer-heading">
+        <h3 id="speakingTestScorerTitle" class="speaking-test-scorer-title modal-title"></h3>
+        <p id="speakingTestScorerAssignment" class="section-hint"></p>
+        <p id="speakingTestScorerAverage" class="speaking-test-scorer-average"></p>
+      </div>
+      <div class="speaking-test-scorer-nav">
+        <button type="button" id="speakingTestScorerPrevBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestScorerPrev">Prev</button>
+        <button type="button" id="speakingTestScorerNextBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestScorerNext">Next</button>
+        <button type="button" id="speakingTestScorerCloseBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestScorerClose">Close</button>
+      </div>
+    </header>
+    <div id="speakingTestScorerQuestions" class="speaking-test-scorer-questions modal-body"></div>
+    <footer class="speaking-test-scorer-footer modal-footer">
+      <div id="speakingTestScorerSummaryAverages" class="speaking-test-scorer-summary-grid"></div>
+      <p id="speakingTestScorerSummaryTotal" class="speaking-test-scorer-summary-total"></p>
+      <p class="section-hint" data-i18n="speakingTestScorerAutosaveHint">Changes save automatically.</p>
+    </footer>
+  </div>
+</div>
+
+<div id="speakingTestImportConfirmModal" class="modal" hidden>
+  <div class="modal-content speaking-test-import-modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3 class="modal-title" data-i18n="speakingTestImportConfirmTitle">Import students</h3>
+    </div>
+    <div class="modal-body">
+      <p class="section-hint">
+        <span id="speakingTestImportConfirmCount">0</span>
+        <span data-i18n="speakingTestImportConfirmReady">students ready to import. How should they be added?</span>
+      </p>
+      <p class="section-hint speaking-test-import-warn" data-i18n="speakingTestImportReplaceWarn">Replace will update the cohort roster. Scores for removed students stay orphaned until cleaned up.</p>
+    </div>
+    <div class="modal-footer speaking-test-import-modal-footer">
+      <button type="button" id="speakingTestImportMergeBtn" class="btn btn-primary" data-i18n="speakingTestImportMerge">Merge — keep existing, add new</button>
+      <button type="button" id="speakingTestImportReplaceBtn" class="btn btn-outline" data-i18n="speakingTestImportReplace">Replace roster</button>
+      <button type="button" id="speakingTestImportCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+    </div>
+  </div>
+</div>

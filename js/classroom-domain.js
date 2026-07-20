@@ -381,6 +381,16 @@
                 });
             });
         }
+        if (Array.isArray(next.debateScores)) {
+            next.debateScores = next.debateScores.map((session) => {
+                if (!session || !Array.isArray(session.records)) {
+                    return session;
+                }
+                return Object.assign({}, session, {
+                    records: session.records.filter((r) => normalizeStr(r.studentId) !== sid)
+                });
+            });
+        }
         return next;
     }
 
@@ -1266,6 +1276,122 @@
         return rows[rows.length - 1];
     }
 
+    function isDebateDayFourTitle(title) {
+        const text = normalizeStr(title).toLowerCase();
+        if (!text) {
+            return false;
+        }
+        return /\bday\s*4\b/.test(text);
+    }
+
+    function isDebateTeamAssignmentRow(row) {
+        if (!row || !isEssayTrackableSyllabusRow(row)) {
+            return false;
+        }
+        const sessionNum = Number(row.sessionNumber || row.lessonNumber || 0);
+        if (sessionNum === 4) {
+            return true;
+        }
+        return isDebateDayFourTitle(row.planTitle || row.label || '');
+    }
+
+    function getDebateTeamRowsFromSyllabus(rows) {
+        const lessons = getLessonRowsFromSyllabus(rows);
+        return lessons.filter(isDebateTeamAssignmentRow);
+    }
+
+    function getDebateTeamAssignmentLabel(rowOrLesson) {
+        if (!rowOrLesson) {
+            return '';
+        }
+        const date = normalizeStr(rowOrLesson.date);
+        const title = normalizeStr(
+            rowOrLesson.planTitle || rowOrLesson.label || rowOrLesson.planDetail || 'Day 4'
+        );
+        return `${date} — ${title}`.trim();
+    }
+
+    function isDebateTeamScheduledLesson(lesson) {
+        if (!lesson || !normalizeStr(lesson.date)) {
+            return false;
+        }
+        const group = lesson.group;
+        if (group && Array.isArray(group.days) && group.days.map(Number).includes(4)) {
+            return true;
+        }
+        return isDebateDayFourTitle(lesson.label || '');
+    }
+
+    function classUsesDebateTeamAssignments(classData) {
+        if (!classData) {
+            return false;
+        }
+        return normalizeStr(classData.scheduleModel) === 'debateMonthly';
+    }
+
+    function listDebateTeamAssignmentsForClass(classData, options) {
+        if (!classData || !classData.id) {
+            return [];
+        }
+        const opts = options || {};
+        const seenDates = new Set();
+        const out = [];
+
+        function pushAssignment(date, planTitle, syllabusRowId, labelSource) {
+            const dateStr = normalizeStr(date);
+            if (!dateStr || seenDates.has(dateStr)) {
+                return;
+            }
+            seenDates.add(dateStr);
+            out.push({
+                key: `${classData.id}|${dateStr}`,
+                classId: classData.id,
+                date: dateStr,
+                syllabusRowId: normalizeStr(syllabusRowId),
+                assignmentLabel: getDebateTeamAssignmentLabel(labelSource || { date: dateStr, planTitle }),
+                planTitle: normalizeStr(planTitle) || 'Day 4'
+            });
+        }
+
+        getDebateTeamRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+            pushAssignment(
+                row.date,
+                row.planTitle || row.planDetail || 'Day 4',
+                getSyllabusRowKey(row),
+                row
+            );
+        });
+
+        if (!out.length) {
+            const lessons = Array.isArray(opts.scheduledLessons) ? opts.scheduledLessons : [];
+            lessons.filter(isDebateTeamScheduledLesson).forEach((lesson) => {
+                pushAssignment(
+                    lesson.date,
+                    lesson.label || 'Day 4',
+                    '',
+                    { date: lesson.date, planTitle: lesson.label || 'Day 4' }
+                );
+            });
+        }
+
+        out.sort((a, b) => compareDateStr(a.date, b.date));
+        return out;
+    }
+
+    function pickDefaultDebateTeamDate(classData, refDate, options) {
+        const assignments = listDebateTeamAssignmentsForClass(classData, options);
+        if (!assignments.length) {
+            return null;
+        }
+        const ref = normalizeStr(refDate) || todayISO();
+        for (let i = 0; i < assignments.length; i += 1) {
+            if (compareDateStr(assignments[i].date, ref) >= 0) {
+                return assignments[i].date;
+            }
+        }
+        return assignments[assignments.length - 1].date;
+    }
+
     function getLessonRowsFromSyllabus(rows) {
         if (global.CCPHomeworkTab && global.CCPHomeworkTab.getLessonRowsFromSyllabus) {
             return global.CCPHomeworkTab.getLessonRowsFromSyllabus(rows);
@@ -1454,6 +1580,138 @@
         return `${normalizeStr(classId)}|${normalizeStr(date)}`;
     }
 
+    const DEBATE_SCORE_CRITERIA = {
+        garam: ['eyeContact', 'voice', 'fluency', 'content', 'logic', 'confidence'],
+        yeoul: ['eyeContact', 'voice', 'fluency', 'confidence']
+    };
+
+    const DEBATE_SCORE_MAX = 5;
+
+    function normalizeDebateSheetTemplate(raw) {
+        return normalizeStr(raw) === 'yeoul' ? 'yeoul' : 'garam';
+    }
+
+    function normalizeDebateScoreValue(raw) {
+        if (raw == null || raw === '') {
+            return null;
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) {
+            return null;
+        }
+        const clamped = Math.max(0, Math.min(DEBATE_SCORE_MAX, Math.round(n * 10) / 10));
+        return clamped;
+    }
+
+    function emptyDebateScoresObject() {
+        return {
+            eyeContact: null,
+            voice: null,
+            fluency: null,
+            content: null,
+            logic: null,
+            confidence: null
+        };
+    }
+
+    function computeDebateScoreTotal(scores, sheetTemplate) {
+        const tpl = normalizeDebateSheetTemplate(sheetTemplate);
+        const keys = DEBATE_SCORE_CRITERIA[tpl] || DEBATE_SCORE_CRITERIA.garam;
+        const src = scores && typeof scores === 'object' ? scores : {};
+        let sum = 0;
+        let any = false;
+        keys.forEach((key) => {
+            const v = normalizeDebateScoreValue(src[key]);
+            if (v != null) {
+                sum += v;
+                any = true;
+            }
+        });
+        return any ? Math.round(sum * 10) / 10 : null;
+    }
+
+    function normalizeDebateScoreRecord(raw, sheetTemplate) {
+        if (!raw || !raw.studentId) {
+            return null;
+        }
+        const tpl = normalizeDebateSheetTemplate(sheetTemplate);
+        const srcScores = raw.scores && typeof raw.scores === 'object' ? raw.scores : {};
+        const scores = emptyDebateScoresObject();
+        Object.keys(scores).forEach((key) => {
+            scores[key] = normalizeDebateScoreValue(srcScores[key]);
+        });
+        const debateNumberRaw = raw.debateNumber;
+        const debateNumber =
+            debateNumberRaw == null || debateNumberRaw === ''
+                ? null
+                : Number(debateNumberRaw);
+        return {
+            studentId: normalizeStr(raw.studentId),
+            roleAbbr: normalizeStr(raw.roleAbbr),
+            roleName: normalizeStr(raw.roleName),
+            debateNumber: Number.isFinite(debateNumber) ? debateNumber : null,
+            bench: normalizeStr(raw.bench),
+            scores,
+            total: computeDebateScoreTotal(scores, tpl),
+            note: normalizeStr(raw.note)
+        };
+    }
+
+    function normalizeDebateScoreSession(raw) {
+        if (!raw || !raw.id || !raw.classId) {
+            return null;
+        }
+        const date = normalizeStr(raw.date);
+        if (!date) {
+            return null;
+        }
+        const sheetTemplate = normalizeDebateSheetTemplate(raw.sheetTemplate);
+        const records = Array.isArray(raw.records)
+            ? raw.records.map((r) => normalizeDebateScoreRecord(r, sheetTemplate)).filter(Boolean)
+            : [];
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            date,
+            sheetTemplate,
+            sessionId: normalizeStr(raw.sessionId) || null,
+            records,
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function findDebateScoreSession(sessions, classId, date) {
+        const list = Array.isArray(sessions) ? sessions : [];
+        const key = debateTeamSessionKey(classId, date);
+        return list.find((s) => s && debateTeamSessionKey(s.classId, s.date) === key) || null;
+    }
+
+    function upsertDebateScoreSession(sessions, entry) {
+        const normalized = normalizeDebateScoreSession(entry);
+        if (!normalized) {
+            return Array.isArray(sessions) ? sessions.slice() : [];
+        }
+        const list = Array.isArray(sessions) ? sessions.filter(Boolean).slice() : [];
+        const key = debateTeamSessionKey(normalized.classId, normalized.date);
+        const idx = list.findIndex((s) => s && debateTeamSessionKey(s.classId, s.date) === key);
+        if (idx >= 0) {
+            list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
+        } else {
+            list.push(normalized);
+        }
+        return list;
+    }
+
+    function getDebateScoreCriteria(sheetTemplate) {
+        const tpl = normalizeDebateSheetTemplate(sheetTemplate);
+        return (DEBATE_SCORE_CRITERIA[tpl] || DEBATE_SCORE_CRITERIA.garam).slice();
+    }
+
+    function getDebateScoreMaxTotal(sheetTemplate) {
+        return normalizeDebateSheetTemplate(sheetTemplate) === 'yeoul' ? 20 : 30;
+    }
+
     function normalizeDebateCustomFormat(raw) {
         if (!raw || !raw.id) {
             return null;
@@ -1515,6 +1773,119 @@
         return list;
     }
 
+    const SPEAKING_TEST_SORT_MODES = new Set(['alphabetical', 'pasteOrder', 'entryOrder']);
+    const SPEAKING_TEST_GRADES = new Set(['A', 'B', 'C', 'D']);
+    const SPEAKING_TEST_RUBRIC_KEYS = ['pronunciation', 'speed', 'intonation', 'grammar', 'content'];
+
+    function normalizeSpeakingTestSortMode(raw) {
+        const mode = normalizeStr(raw);
+        return SPEAKING_TEST_SORT_MODES.has(mode) ? mode : 'alphabetical';
+    }
+
+    function normalizeSpeakingTestGrade(raw) {
+        const g = normalizeStr(raw).toUpperCase();
+        return SPEAKING_TEST_GRADES.has(g) ? g : 'A';
+    }
+
+    function normalizeSpeakingTestQuestion(raw) {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        const out = {};
+        SPEAKING_TEST_RUBRIC_KEYS.forEach((key) => {
+            out[key] = normalizeSpeakingTestGrade(src[key]);
+        });
+        out.note = normalizeStr(src.note);
+        return out;
+    }
+
+    function normalizeSpeakingTestAssignment(raw) {
+        if (!raw || !raw.id) {
+            return null;
+        }
+        const title = normalizeStr(raw.title);
+        const date = normalizeStr(raw.date);
+        if (!title || !date) {
+            return null;
+        }
+        return {
+            id: normalizeStr(raw.id),
+            title,
+            date
+        };
+    }
+
+    function normalizeSpeakingTestScores(raw) {
+        const out = {};
+        if (!raw || typeof raw !== 'object') {
+            return out;
+        }
+        Object.keys(raw).forEach((studentId) => {
+            const sid = normalizeStr(studentId);
+            if (!sid) {
+                return;
+            }
+            const byAssignment = raw[studentId];
+            if (!byAssignment || typeof byAssignment !== 'object') {
+                return;
+            }
+            const studentScores = {};
+            Object.keys(byAssignment).forEach((assignmentId) => {
+                const aid = normalizeStr(assignmentId);
+                if (!aid) {
+                    return;
+                }
+                const questions = Array.isArray(byAssignment[assignmentId])
+                    ? byAssignment[assignmentId].map(normalizeSpeakingTestQuestion)
+                    : [];
+                studentScores[aid] = questions;
+            });
+            out[sid] = studentScores;
+        });
+        return out;
+    }
+
+    function normalizeSpeakingTestRecord(raw) {
+        if (!raw || !raw.id || !raw.classId) {
+            return null;
+        }
+        const settingsRaw = raw.settings && typeof raw.settings === 'object' ? raw.settings : {};
+        const assignments = Array.isArray(raw.assignments)
+            ? raw.assignments.map(normalizeSpeakingTestAssignment).filter(Boolean)
+            : [];
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            settings: {
+                studentSortMode: normalizeSpeakingTestSortMode(settingsRaw.studentSortMode)
+            },
+            assignments,
+            scores: normalizeSpeakingTestScores(raw.scores),
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function findSpeakingTestRecord(records, classId) {
+        const list = Array.isArray(records) ? records : [];
+        const cid = normalizeStr(classId);
+        return list.find((r) => r && normalizeStr(r.classId) === cid) || null;
+    }
+
+    function upsertSpeakingTestRecord(records, entry) {
+        const normalized = normalizeSpeakingTestRecord(entry);
+        if (!normalized) {
+            return Array.isArray(records) ? records.slice() : [];
+        }
+        const list = Array.isArray(records) ? records.filter(Boolean).slice() : [];
+        const cid = normalized.classId;
+        const idx = list.findIndex((r) => r && normalizeStr(r.classId) === cid);
+        if (idx >= 0) {
+            list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
+        } else {
+            list.push(normalized);
+        }
+        return list;
+    }
+
     function migrateClassroomData(data) {
         if (!data || typeof data !== 'object') {
             return false;
@@ -1544,8 +1915,16 @@
             data.debateTeamSessions = [];
             migrated = true;
         }
+        if (!Array.isArray(data.debateScores)) {
+            data.debateScores = [];
+            migrated = true;
+        }
         if (!Array.isArray(data.debateCustomFormats)) {
             data.debateCustomFormats = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.speakingTestRecords)) {
+            data.speakingTestRecords = [];
             migrated = true;
         }
         if (!Array.isArray(data.portfolioRecordings)) {
@@ -1663,6 +2042,14 @@
         daysUntilISO,
         getEssayRowsFromSyllabus,
         pickDefaultEssaySyllabusRow,
+        isDebateDayFourTitle,
+        isDebateTeamAssignmentRow,
+        getDebateTeamRowsFromSyllabus,
+        getDebateTeamAssignmentLabel,
+        isDebateTeamScheduledLesson,
+        classUsesDebateTeamAssignments,
+        listDebateTeamAssignmentsForClass,
+        pickDefaultDebateTeamDate,
         getLessonRowsFromSyllabus,
         getSyllabusRowKey,
         pickDefaultSyllabusRow,
@@ -1682,6 +2069,22 @@
         findDebateTeamSession,
         upsertDebateTeamSession,
         debateTeamSessionKey,
+        normalizeSpeakingTestRecord,
+        findSpeakingTestRecord,
+        upsertSpeakingTestRecord,
+        normalizeSpeakingTestSortMode,
+        DEBATE_SCORE_CRITERIA,
+        DEBATE_SCORE_MAX,
+        normalizeDebateSheetTemplate,
+        normalizeDebateScoreValue,
+        emptyDebateScoresObject,
+        computeDebateScoreTotal,
+        normalizeDebateScoreRecord,
+        normalizeDebateScoreSession,
+        findDebateScoreSession,
+        upsertDebateScoreSession,
+        getDebateScoreCriteria,
+        getDebateScoreMaxTotal,
         migrateClassroomData,
         newId
     };

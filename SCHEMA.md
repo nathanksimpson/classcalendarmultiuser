@@ -31,6 +31,8 @@
 | `essaySubmissions` | array | Per-assignment essay submission status (see below) — schema v3 |
 | `studentPoints` | array | Phase 2 stub — point ledger entries (empty on migrate) |
 | `studentTests` | array | Phase 2 stub — test scores |
+| `debateTeamSessions` | array | Debate Teams session state per class+date |
+| `speakingTestRecords` | array | Speaking Test scores per class (Tools → Speaking Test) |
 | `portfolioRecordings` | array | Phase 2 stub — lesson recordings |
 | `portfolioEntries` | array | Phase 2 stub — portfolio essays / news |
 | `smsLog` | array | Phase 2 stub — SMS send log |

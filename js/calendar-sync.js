@@ -434,7 +434,9 @@
         merged.studentPoints = mergeArrayById(local.studentPoints, server.studentPoints, 'id');
         merged.studentTests = mergeArrayById(local.studentTests, server.studentTests);
         merged.debateTeamSessions = mergeArrayById(local.debateTeamSessions, server.debateTeamSessions);
+        merged.debateScores = mergeArrayById(local.debateScores, server.debateScores);
         merged.debateCustomFormats = mergeArrayById(local.debateCustomFormats, server.debateCustomFormats);
+        merged.speakingTestRecords = mergeArrayById(local.speakingTestRecords, server.speakingTestRecords);
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -798,6 +800,37 @@
             return result || { meta: {} };
         },
 
+        async loadUiPrefs(calendarId) {
+            const calId = calendarId || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                return {
+                    navZoneOrder: null,
+                    navTabZone: null,
+                    navTabOrder: null,
+                    updatedAt: null
+                };
+            }
+            debugLog('api', 'GET /ui-prefs', { calendarId: calId });
+            const result = await apiFetch(
+                '/calendars/' + encodeURIComponent(calId) + '/ui-prefs'
+            );
+            return result && typeof result === 'object'
+                ? result
+                : { navZoneOrder: null, navTabZone: null, navTabOrder: null, updatedAt: null };
+        },
+
+        async putUiPrefs(calendarId, body) {
+            const calId = calendarId || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                return null;
+            }
+            debugLog('api', 'PUT /ui-prefs', { calendarId: calId });
+            return apiFetch('/calendars/' + encodeURIComponent(calId) + '/ui-prefs', {
+                method: 'PUT',
+                body: body && typeof body === 'object' ? body : {}
+            });
+        },
+
         async dismissNotification(calendarId, notificationId, dismissedAt) {
             const calId = calendarId || CalendarSync.getActiveCalendarId();
             const nid = String(notificationId || '').trim();
@@ -908,8 +941,14 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateTeamSessions')) {
                 body.debateTeamSessions = fields.debateTeamSessions;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateScores')) {
+                body.debateScores = fields.debateScores;
+            }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateCustomFormats')) {
                 body.debateCustomFormats = fields.debateCustomFormats;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'speakingTestRecords')) {
+                body.speakingTestRecords = fields.speakingTestRecords;
             }
             setStatus('saving');
             state.saving = true;
@@ -944,10 +983,22 @@
                             serverData.debateTeamSessions
                         );
                     }
+                    if (Array.isArray(body.debateScores) && Array.isArray(serverData.debateScores)) {
+                        retryBody.debateScores = mergeArrayById(
+                            body.debateScores,
+                            serverData.debateScores
+                        );
+                    }
                     if (Array.isArray(body.debateCustomFormats) && Array.isArray(serverData.debateCustomFormats)) {
                         retryBody.debateCustomFormats = mergeArrayById(
                             body.debateCustomFormats,
                             serverData.debateCustomFormats
+                        );
+                    }
+                    if (Array.isArray(body.speakingTestRecords) && Array.isArray(serverData.speakingTestRecords)) {
+                        retryBody.speakingTestRecords = mergeArrayById(
+                            body.speakingTestRecords,
+                            serverData.speakingTestRecords
                         );
                     }
                     try {

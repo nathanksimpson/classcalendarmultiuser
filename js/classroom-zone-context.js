@@ -8,7 +8,9 @@
         'homework-tracking',
         'points',
         'tests',
-        'debate-teams'
+        'debate-teams',
+        'debate-scores',
+        'speaking-test'
     ]);
 
     let hooks = null;

@@ -20,7 +20,8 @@
                 'Logic (/5)',
                 'Confidence & Posture (/5)',
                 'Total (/30)'
-            ]
+            ],
+            scoreKeys: ['eyeContact', 'voice', 'fluency', 'content', 'logic', 'confidence', 'total']
         },
         yeoul: {
             key: 'yeoul',
@@ -36,7 +37,8 @@
                 'Fluency (/5)',
                 'Confidence & Posture (/5)',
                 'Total (/20)'
-            ]
+            ],
+            scoreKeys: ['eyeContact', 'voice', 'fluency', 'confidence', 'total']
         }
     };
 
@@ -217,13 +219,51 @@
         return xml;
     }
 
-    function fillStudentScoreBlock(filledRows, startIdx, speaker) {
+    function formatScoreCellValue(value) {
+        if (value == null || value === '') {
+            return '';
+        }
+        const n = Number(value);
+        if (!Number.isFinite(n)) {
+            return String(value);
+        }
+        return String(Math.round(n * 10) / 10);
+    }
+
+    function speakerScoreValue(speaker, key) {
+        if (!speaker) {
+            return '';
+        }
+        if (key === 'total') {
+            return formatScoreCellValue(speaker.total);
+        }
+        const scores = speaker.scores && typeof speaker.scores === 'object' ? speaker.scores : {};
+        return formatScoreCellValue(scores[key]);
+    }
+
+    function fillStudentScoreBlock(filledRows, startIdx, speaker, template) {
         const name = speaker ? speaker.name : '';
         const roleLabel = speaker ? speaker.roleAbbr || '' : '';
         filledRows[startIdx] = setRowMiddleCell(filledRows[startIdx], name);
         if (filledRows[startIdx + 1]) {
             filledRows[startIdx + 1] = setRowMiddleCell(filledRows[startIdx + 1], roleLabel);
         }
+        // Name row may include a Comments column — fill when speaker.note is set.
+        if (speaker && speaker.note && filledRows[startIdx]) {
+            const cells = getRowCells(filledRows[startIdx]);
+            if (cells.length >= 3) {
+                const commentCell = setTableCellText(cells[2], speaker.note);
+                filledRows[startIdx] = filledRows[startIdx].replace(cells[2], commentCell);
+            }
+        }
+        const keys = (template && template.scoreKeys) || [];
+        keys.forEach((key, i) => {
+            const rowIdx = startIdx + 2 + i;
+            if (!filledRows[rowIdx]) {
+                return;
+            }
+            filledRows[rowIdx] = setRowMiddleCell(filledRows[rowIdx], speakerScoreValue(speaker, key));
+        });
     }
 
     function replaceDocxFieldAfterLabel(documentXml, label, value) {
@@ -334,7 +374,7 @@
         blockStarts.forEach((startIdx, blockIdx) => {
             const speakerIdx = speakerIndexForBlock(blockIdx, perPage);
             const sp = speakerIdx < speakers.length ? speakers[speakerIdx] : null;
-            fillStudentScoreBlock(filledRows, startIdx, sp);
+            fillStudentScoreBlock(filledRows, startIdx, sp, template);
         });
 
         const filledXml = applyFilledTableRowsToDocument(documentXml, filledRows);
@@ -375,15 +415,19 @@
 
     function buildScoreSheetStudentCardHtml(t, sp) {
         const roleLabel = sp.roleAbbr || '';
+        const keys = t.scoreKeys || [];
         let criteriaHtml = '';
-        t.scoreRows.forEach((label) => {
-            criteriaHtml += `<div style="display:grid;grid-template-columns:1fr 48px;gap:6px;margin:2px 0;"><span>${escapeHtml(label)}</span><span style="border-bottom:1px solid #999;min-height:14px;"></span></div>`;
+        t.scoreRows.forEach((label, i) => {
+            const key = keys[i];
+            const value = speakerScoreValue(sp, key);
+            criteriaHtml += `<div style="display:grid;grid-template-columns:1fr 48px;gap:6px;margin:2px 0;"><span>${escapeHtml(label)}</span><span style="border-bottom:1px solid #999;min-height:14px;text-align:center;">${escapeHtml(value)}</span></div>`;
         });
+        const comments = sp.note ? escapeHtml(sp.note) : '';
         return `
             <div class="score-student-card" style="border:2px solid ${t.primary};border-radius:4px;padding:8px 10px;margin-bottom:10px;font-size:9.5pt;page-break-inside:avoid;">
                 <div style="font-size:8pt;color:#666;margin-bottom:4px;">Debate ${escapeHtml(sp.debate)} · ${escapeHtml(sp.bench)}</div>
                 <div style="display:grid;grid-template-columns:52px 1fr 72px;gap:4px 8px;margin-bottom:4px;">
-                    <span style="font-weight:600;">Name</span><span style="font-weight:600;">${escapeHtml(sp.name)}</span><span style="font-weight:600;">Comments</span>
+                    <span style="font-weight:600;">Name</span><span style="font-weight:600;">${escapeHtml(sp.name)}</span><span style="font-weight:600;font-size:8.5pt;">${comments || 'Comments'}</span>
                 </div>
                 <div style="display:grid;grid-template-columns:52px 1fr;gap:4px 8px;margin-bottom:6px;">
                     <span style="font-weight:600;">Role</span><span>${escapeHtml(roleLabel)}</span>
@@ -431,17 +475,20 @@
 
     function buildPrintScoreSheetStudentBlock(t, sp) {
         const roleLabel = sp.roleAbbr || '';
+        const keys = t.scoreKeys || [];
         let rows = '';
-        t.scoreRows.forEach((label) => {
-            rows += `<tr><td style="text-align:left;font-weight:600;width:42%;">${escapeHtml(label)}</td><td></td><td style="width:28%;"></td></tr>`;
+        t.scoreRows.forEach((label, i) => {
+            const value = speakerScoreValue(sp, keys[i]);
+            rows += `<tr><td style="text-align:left;font-weight:600;width:42%;">${escapeHtml(label)}</td><td style="text-align:center;">${escapeHtml(value)}</td><td style="width:28%;"></td></tr>`;
         });
+        const comments = sp.note ? escapeHtml(sp.note) : '';
         return `
             <div class="student-block" style="margin-bottom:0.75rem;">
                 <table style="width:100%;border-collapse:collapse;font-size:10pt;">
                     <tr>
                         <th style="width:18%;border:1px solid #999;padding:6px;background:#f4f4f4;">Name</th>
                         <th style="width:42%;border:1px solid #999;padding:6px;text-align:left;">${escapeHtml(sp.name)}</th>
-                        <th style="border:1px solid #999;padding:6px;background:#f4f4f4;">Comments</th>
+                        <th style="border:1px solid #999;padding:6px;background:#f4f4f4;vertical-align:top;">${comments || 'Comments'}</th>
                     </tr>
                     <tr>
                         <th style="border:1px solid #999;padding:6px;background:#f4f4f4;">Role</th>
@@ -529,7 +576,7 @@
         );
     }
 
-    async function exportPdf(ctx) {
+    async function exportPdf(ctx, options) {
         if (typeof html2pdf === 'undefined') {
             throw new Error('PDF library did not load. Check your connection and refresh.');
         }
@@ -537,9 +584,16 @@
         if (!speakers.length) {
             throw new Error('No student names to print. Generate assignments with named students first.');
         }
-        const mount = document.getElementById('feedback-sheet-mount');
+        const opts = options || {};
+        let mount = document.getElementById(opts.mountId || 'feedback-sheet-mount');
+        let createdMount = false;
         if (!mount) {
-            throw new Error('Score sheet mount not found.');
+            mount = document.createElement('div');
+            mount.id = 'feedback-sheet-mount-temp';
+            mount.setAttribute('aria-hidden', 'true');
+            mount.hidden = true;
+            document.body.appendChild(mount);
+            createdMount = true;
         }
         const prevHtml = mount.innerHTML;
         mount.innerHTML = buildScoreSheetPdfHtml(ctx);
@@ -557,6 +611,9 @@
                 .save();
         } finally {
             mount.innerHTML = prevHtml;
+            if (createdMount && mount.parentNode) {
+                mount.parentNode.removeChild(mount);
+            }
         }
     }
 
