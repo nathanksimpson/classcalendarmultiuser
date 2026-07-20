@@ -427,6 +427,8 @@
         classroomDebateV2EmptyBody: 'Add your students on the left, pick a debate format, and press Generate teams. Assignments appear here, ready to edit, print, and export as score sheets.',
         classroomDebateV2Present: 'Present',
         classroomDebateV2Rebut: 'Rebut',
+        classroomDebateV2Introduce: 'Introduce',
+        classroomDebateV2RebutTarget: 'Rebut {name} ({role})',
         classroomDebateV2NoNewNames: 'No new names to add',
         classroomDebateV2BackupSaved: 'Backup downloaded',
         classroomDebateV2BackupLoaded: 'Backup loaded',

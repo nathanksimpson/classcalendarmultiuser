@@ -82,10 +82,10 @@
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
             'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
-            'js/debate/debate-scoresheet-export.js?v=20260713-debate-roster-bootstrap',
-            'js/debate/debate-teams-v2.js?v=20260713-purple-checkbox',
+            'js/debate/debate-scoresheet-export.js?v=20260720-introduce-rebut',
+            'js/debate/debate-teams-v2.js?v=20260720-print-cards-popup',
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-debate-teams.js?v=20260713-purple-checkbox'
+            'js/classroom-debate-teams.js?v=20260720-roster-meta'
         ]
     };
 
@@ -96,8 +96,8 @@
 
     const DEBATE_CORE_SCRIPTS = [
         'js/debate/feedback-templates.js?v=20260710-debate-v2',
-        'js/debate/debate-scoresheet-export.js?v=20260713-debate-roster-bootstrap',
-        'js/debate/debate-teams-v2.js?v=20260713-purple-checkbox'
+        'js/debate/debate-scoresheet-export.js?v=20260720-introduce-rebut',
+        'js/debate/debate-teams-v2.js?v=20260720-print-cards-popup'
     ];
 
     const loaded = new Set();

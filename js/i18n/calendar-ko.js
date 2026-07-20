@@ -427,6 +427,8 @@
         classroomDebateV2EmptyBody: '왼쪽에 학생을 추가하고 토론 형식을 선택한 뒤 팀 생성을 누르세요. 배정이 여기에 표시되며 편집, 인쇄, 채점표보내기가 가능합니다.',
         classroomDebateV2Present: 'Present',
         classroomDebateV2Rebut: 'Rebut',
+        classroomDebateV2Introduce: '소개',
+        classroomDebateV2RebutTarget: '반박 {name} ({role})',
         classroomDebateV2NoNewNames: '추가할 새 이름이 없습니다',
         classroomDebateV2BackupSaved: '백업을 다운로드했습니다',
         classroomDebateV2BackupLoaded: '백업을 불러왔습니다',

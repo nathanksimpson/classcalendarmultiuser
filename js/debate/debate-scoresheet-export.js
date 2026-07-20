@@ -533,15 +533,16 @@
         if (typeof html2pdf === 'undefined') {
             throw new Error('PDF library did not load. Check your connection and refresh.');
         }
+        const speakers = normalizeSpeakers(ctx);
+        if (!speakers.length) {
+            throw new Error('No student names to print. Generate assignments with named students first.');
+        }
         const mount = document.getElementById('feedback-sheet-mount');
         if (!mount) {
             throw new Error('Score sheet mount not found.');
         }
-        const el = document.createElement('div');
-        el.style.cssText =
-            'position:fixed;left:-9999px;top:0;width:210mm;pointer-events:none;z-index:-1;background:#fff';
-        el.innerHTML = buildScoreSheetPdfHtml(ctx);
-        document.body.appendChild(el);
+        const prevHtml = mount.innerHTML;
+        mount.innerHTML = buildScoreSheetPdfHtml(ctx);
         try {
             await html2pdf()
                 .set({
@@ -552,10 +553,10 @@
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                     pagebreak: { mode: ['css', 'legacy'] }
                 })
-                .from(el)
+                .from(mount)
                 .save();
         } finally {
-            document.body.removeChild(el);
+            mount.innerHTML = prevHtml;
         }
     }
 
