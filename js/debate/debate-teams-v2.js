@@ -212,6 +212,9 @@
     let eventsAbort = null;
     let toastTimer = null;
     let pasteOpen = false;
+    const PRINT_CARDS_CLASS = 'print-debate-cards-only';
+    let printCardsCleanupTimer = null;
+    let printHooksBound = false;
     const showArguments = true;
     const showNotes = true;
 
@@ -384,6 +387,95 @@
             const base = String(token).replace('*', '');
             return has.has((f.aliases && f.aliases[base]) || base);
         });
+    }
+
+    function roleAbbrKey(f, token) {
+        const base = String(token || '').replace('*', '');
+        return (f && f.aliases && f.aliases[base]) || base;
+    }
+
+    function findMemberByRoleAbbr(debate, abbr) {
+        if (!debate || !abbr || !Array.isArray(debate.benches)) {
+            return null;
+        }
+        for (let bi = 0; bi < debate.benches.length; bi++) {
+            const members = debate.benches[bi].members || [];
+            for (let mi = 0; mi < members.length; mi++) {
+                const m = members[mi];
+                if (m.role && m.role.abbr === abbr) {
+                    return m;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Index in speaking order, or -1 if missing. */
+    function speakingIndex(debate, memberRoleAbbr) {
+        if (!debate || !memberRoleAbbr) {
+            return -1;
+        }
+        const f = baseFmt(debate.formatId);
+        const order = debate.order || f.order || [];
+        const myKey = roleAbbrKey(f, memberRoleAbbr);
+        for (let i = 0; i < order.length; i++) {
+            if (roleAbbrKey(f, order[i]) === myKey) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Previous speaker in debate order, or null if this role opens (index 0) / unknown.
+     * Returns { name, roleAbbr } when a prior slot exists.
+     */
+    function previousSpeaker(debate, memberRoleAbbr) {
+        const idx = speakingIndex(debate, memberRoleAbbr);
+        if (idx <= 0) {
+            return null;
+        }
+        const f = baseFmt(debate.formatId);
+        const order = debate.order || f.order || [];
+        const priorAbbr = roleAbbrKey(f, order[idx - 1]);
+        const prior = findMemberByRoleAbbr(debate, priorAbbr);
+        return {
+            name: (prior && prior.name) || priorAbbr,
+            roleAbbr: (prior && prior.role && prior.role.abbr) || priorAbbr
+        };
+    }
+
+    /** Left arg field: Introduce (first speaker) or Rebut {name} ({role}). */
+    function leftArgMeta(debate, member) {
+        if (!member || !member.role) {
+            return {
+                kind: 'rebut',
+                label: t('classroomDebateV2Rebut') || 'Rebut',
+                placeholder: 'Arguments to rebut'
+            };
+        }
+        const idx = speakingIndex(debate, member.role.abbr);
+        if (idx === 0) {
+            return {
+                kind: 'introduce',
+                label: t('classroomDebateV2Introduce') || 'Introduce',
+                placeholder: 'Arguments to introduce'
+            };
+        }
+        const prior = previousSpeaker(debate, member.role.abbr);
+        if (prior) {
+            const template = t('classroomDebateV2RebutTarget') || 'Rebut {name} ({role})';
+            return {
+                kind: 'rebut',
+                label: template.replace('{name}', prior.name).replace('{role}', prior.roleAbbr),
+                placeholder: 'Arguments to rebut'
+            };
+        }
+        return {
+            kind: 'rebut',
+            label: t('classroomDebateV2Rebut') || 'Rebut',
+            placeholder: 'Arguments to rebut'
+        };
     }
 
     function effMax(f) {
@@ -729,11 +821,12 @@
                 text += b.label + ':\n';
                 b.members.forEach((m) => {
                     text += '  * ' + m.name + (m.role ? ' (' + m.role.abbr + ')' : '') + '\n';
+                    const left = leftArgMeta(d, m);
+                    if (m.rebut && m.rebut.trim()) {
+                        text += '    ' + left.label + ': ' + m.rebut.trim() + '\n';
+                    }
                     if (m.present && m.present.trim()) {
                         text += '    Present: ' + m.present.trim() + '\n';
-                    }
-                    if (m.rebut && m.rebut.trim()) {
-                        text += '    Rebut: ' + m.rebut.trim() + '\n';
                     }
                 });
             });
@@ -962,14 +1055,15 @@
                     }
                     html += `</div>`;
                     if (showArguments && !d.fourTeam) {
+                        const left = leftArgMeta(d, m);
                         html += `<div class="debate-v2-args">
+                            <div>
+                                <label class="debate-v2-arg-label">${escapeHtml(left.label)}</label>
+                                <textarea class="field-input debate-v2-arg-input" data-field="rebut" rows="2" placeholder="${escapeHtml(left.placeholder)}">${escapeHtml(m.rebut || '')}</textarea>
+                            </div>
                             <div>
                                 <label class="debate-v2-arg-label">${escapeHtml(t('classroomDebateV2Present') || 'Present')}</label>
                                 <textarea class="field-input debate-v2-arg-input" data-field="present" rows="2" placeholder="Arguments to present">${escapeHtml(m.present || '')}</textarea>
-                            </div>
-                            <div>
-                                <label class="debate-v2-arg-label">${escapeHtml(t('classroomDebateV2Rebut') || 'Rebut')}</label>
-                                <textarea class="field-input debate-v2-arg-input" data-field="rebut" rows="2" placeholder="Arguments to rebut">${escapeHtml(m.rebut || '')}</textarea>
                             </div>
                         </div>`;
                     }
@@ -1184,7 +1278,11 @@
             const ctx = exp.buildExportContext(exportContext());
             await exp.exportPdf(ctx);
         } catch (err) {
-            alert('PDF export failed: ' + (err && err.message ? err.message : err));
+            alert(
+                'PDF export failed: ' +
+                    (err && err.message ? err.message : err) +
+                    '\n\nTip: use Download Word for the exact school score sheet.'
+            );
         }
     }
 
@@ -1204,6 +1302,135 @@
         } catch (err) {
             alert(err && err.message ? err.message : String(err));
         }
+    }
+
+    function isDebateTeamsTabActive() {
+        return !!(document.body && document.body.getAttribute('data-active-tab') === 'debate-teams');
+    }
+
+    function beginDebateCardsPrintMode() {
+        if (!document.body) {
+            return;
+        }
+        document.body.classList.add(PRINT_CARDS_CLASS);
+    }
+
+    function endDebateCardsPrintMode() {
+        if (printCardsCleanupTimer) {
+            clearTimeout(printCardsCleanupTimer);
+            printCardsCleanupTimer = null;
+        }
+        if (!document.body) {
+            return;
+        }
+        document.body.classList.remove(PRINT_CARDS_CLASS);
+    }
+
+    function assignmentCardsPrintMeta() {
+        return (
+            new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) +
+            ' · ' +
+            activeFormatLabel()
+        );
+    }
+
+    /** Popup print — reliable; avoids app chrome / term-summary fighting in-page print CSS. */
+    function printAssignmentCards() {
+        if (!state.debates.length) {
+            alert('Generate assignments first.');
+            return;
+        }
+        const cardsEl = el('debateV2Cards');
+        if (!cardsEl || !cardsEl.innerHTML.trim()) {
+            alert('Generate assignments first.');
+            return;
+        }
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) {
+            alert('Allow pop-ups for this page to print assignment cards.');
+            return;
+        }
+        const title = state.classTitle.trim() || 'Debate Team Assignments';
+        const meta = assignmentCardsPrintMeta();
+        const topic = state.topic.trim();
+        win.document.open();
+        win.document.write(
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+                escapeHtml(title) +
+                '</title><style>' +
+                'body{font-family:Calibri,"Segoe UI",Arial,sans-serif;margin:16px;color:#1e293b;background:#fff;line-height:1.35;}' +
+                'h1{font-size:18pt;margin:0 0 4px;}' +
+                '.meta{font-size:10pt;color:#64748b;margin:0 0 12px;}' +
+                '.motion{font-size:11pt;margin:0 0 16px;padding:8px 12px;border-left:3px solid #0f766e;background:#f0fdfa;}' +
+                '.debate-v2-cards{display:flex;flex-direction:column;gap:14px;}' +
+                '.debate-v2-card{border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;break-inside:avoid;page-break-inside:avoid;}' +
+                '.debate-v2-card-header{margin-bottom:10px;}' +
+                '.debate-v2-card-title{font-size:13pt;font-weight:700;}' +
+                '.debate-v2-card-format,.debate-v2-card-order{font-size:9.5pt;color:#64748b;}' +
+                '.debate-v2-benches{display:grid;grid-template-columns:1fr 1fr;gap:12px;}' +
+                '.debate-v2-bench-label{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;gap:6px;}' +
+                '.debate-v2-bench-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}' +
+                '.debate-v2-members{display:flex;flex-direction:column;gap:8px;}' +
+                '.debate-v2-member{border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;background:#f8fafc;}' +
+                '.debate-v2-member-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}' +
+                '.debate-v2-member-name{font-weight:600;font-size:11pt;}' +
+                '.debate-v2-role-chip{font-size:8.5pt;font-weight:700;padding:2px 6px;border-radius:4px;background:#e2e8f0;}' +
+                '.debate-v2-args{display:grid;grid-template-columns:1fr 1fr;gap:8px;}' +
+                '.debate-v2-arg-label{display:block;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:2px;}' +
+                '.debate-v2-arg-input,.debate-v2-notes-input{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:10pt;border:1px solid #cbd5e1;border-radius:4px;padding:6px 8px;min-height:2.6em;resize:none;background:#fff;}' +
+                '.debate-v2-card-notes{margin-top:10px;padding-top:8px;border-top:1px dashed #cbd5e1;}' +
+                '@media print{body{margin:0.4in;} .debate-v2-card{box-shadow:none;}}' +
+                '@media (max-width:700px){.debate-v2-benches,.debate-v2-args{grid-template-columns:1fr;}}' +
+                '</style></head><body>' +
+                '<h1>' +
+                escapeHtml(title) +
+                '</h1><p class="meta">' +
+                escapeHtml(meta) +
+                '</p>' +
+                (topic ? '<p class="motion"><strong>Motion:</strong> ' + escapeHtml(topic) + '</p>' : '') +
+                '<div class="debate-v2-cards">' +
+                cardsEl.innerHTML +
+                '</div>' +
+                '</body></html>'
+        );
+        win.document.close();
+        try {
+            win.focus();
+        } catch (err) {
+            /* ignore */
+        }
+        // Let the popup finish layout before opening the print dialog.
+        setTimeout(() => {
+            try {
+                win.print();
+            } catch (err) {
+                /* ignore */
+            }
+        }, 50);
+    }
+
+    function ensurePrintHooks() {
+        if (printHooksBound) {
+            return;
+        }
+        if (typeof window.addEventListener !== 'function') {
+            return;
+        }
+        printHooksBound = true;
+        // Ctrl+P while Debate Teams is active should not pull syllabus/calendar summary.
+        window.addEventListener('beforeprint', () => {
+            if (isDebateTeamsTabActive()) {
+                beginDebateCardsPrintMode();
+            }
+        });
+        window.addEventListener('afterprint', () => {
+            endDebateCardsPrintMode();
+        });
     }
 
     function bindEvents() {
@@ -1261,7 +1488,7 @@
                     return;
                 }
                 if (target.closest('#debateV2PrintCards')) {
-                    window.print();
+                    printAssignmentCards();
                     return;
                 }
                 if (target.closest('#debateV2Word')) {
@@ -1433,6 +1660,7 @@
         mountElRef = mountEl;
         root = resolveShell(mountEl);
         bridge = bridgeApi || null;
+        ensurePrintHooks();
         bindEvents();
         render();
     }
@@ -1548,12 +1776,23 @@
         render();
     }
 
-    function applyMetadataDefaults(classTitle, hrTeacher) {
-        if (classTitle && !state.classTitle.trim()) {
-            state.classTitle = classTitle;
-        }
-        if (hrTeacher && !state.hrTeacher.trim()) {
-            state.hrTeacher = hrTeacher;
+    function applyMetadataDefaults(classTitle, hrTeacher, options) {
+        options = options || {};
+        const force = !!options.force;
+        const nextTitle = classTitle != null ? String(classTitle).trim() : '';
+        const nextHr = hrTeacher != null ? String(hrTeacher).trim() : '';
+        if (force) {
+            if (nextTitle) {
+                state.classTitle = nextTitle;
+            }
+            state.hrTeacher = nextHr;
+        } else {
+            if (nextTitle && !state.classTitle.trim()) {
+                state.classTitle = nextTitle;
+            }
+            if (nextHr && !state.hrTeacher.trim()) {
+                state.hrTeacher = nextHr;
+            }
         }
         render();
     }

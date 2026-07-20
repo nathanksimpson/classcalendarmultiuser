@@ -460,12 +460,30 @@
     letter-spacing: 0.06em;
     color: var(--text-muted);
     margin-bottom: var(--space-1);
+    white-space: normal;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 #panel-debate-teams .classroom-debate-v2 .debate-v2-arg-input,
 #panel-debate-teams .classroom-debate-v2 .debate-v2-notes-input {
     font-size: var(--text-body-sm);
     resize: vertical;
+}
+
+/* PDF capture target — keep in-flow for html2canvas; hide when empty */
+#panel-debate-teams #feedback-sheet-mount:empty {
+    display: none;
+}
+
+#panel-debate-teams #feedback-sheet-mount:not(:empty) {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    background: #fff;
+    z-index: 1;
+    pointer-events: none;
 }
 
 #panel-debate-teams .classroom-debate-v2 .debate-v2-card-notes {
@@ -582,5 +600,83 @@
         break-inside: avoid;
         page-break-inside: avoid;
         box-shadow: none !important;
+    }
+
+    /*
+     * Print cards only — seal off calendar/syllabus term summary and app chrome.
+     * Body class is set by debate-teams-v2.js around window.print() / Ctrl+P.
+     */
+    body.print-debate-cards-only .app-top-bar,
+    body.print-debate-cards-only .app-header,
+    body.print-debate-cards-only .app-header-unified,
+    body.print-debate-cards-only .app-zone-nav,
+    body.print-debate-cards-only .app-zone-segment-nav,
+    body.print-debate-cards-only #teamLockSyncBar,
+    body.print-debate-cards-only .team-lock-sync-bar,
+    body.print-debate-cards-only .classroom-zone-context-bar,
+    body.print-debate-cards-only .module-toolbar.classroom-tab-toolbar,
+    body.print-debate-cards-only .app-tab-panel:not(#panel-debate-teams),
+    body.print-debate-cards-only #printSummary,
+    body.print-debate-cards-only .print-summary,
+    body.print-debate-cards-only .calendar-container,
+    body.print-debate-cards-only #appNoticeRail,
+    body.print-debate-cards-only .modal,
+    body.print-debate-cards-only .class-popup,
+    body.print-debate-cards-only #feedback-sheet-mount {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        page-break-after: avoid !important;
+    }
+
+    body.print-debate-cards-only .app-container,
+    body.print-debate-cards-only .app-main,
+    body.print-debate-cards-only #panel-debate-teams,
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-mount,
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2,
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-shell,
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-main {
+        display: block !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        position: static !important;
+        box-shadow: none !important;
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams {
+        width: 100% !important;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-shell {
+        display: block !important;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-sidebar {
+        display: none !important;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-main {
+        width: 100% !important;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-cards {
+        display: block !important;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        margin-bottom: 12pt;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-toast {
+        display: none !important;
     }
 }

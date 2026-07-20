@@ -250,7 +250,7 @@
             }
             return false;
         }
-        applyMetadataDefaults();
+        applyMetadataDefaults({ force: true });
         rosterAutoImported = true;
         studentsListTouchedByUser = false;
         scheduleSave();
@@ -274,14 +274,14 @@
         return true;
     }
 
-    function applyMetadataDefaults() {
+    function applyMetadataDefaults(options) {
         const classData = getClassData();
         const eng = engine();
         if (!eng || !eng.applyMetadataDefaults) {
             return;
         }
         const title = classData ? String(classData.name || classData.displayName || '').trim() : '';
-        eng.applyMetadataDefaults(title, getHomeroomLabel());
+        eng.applyMetadataDefaults(title, getHomeroomLabel(), options || {});
         if (eng.applyClassFormatDefaults) {
             const stored = findStoredSession();
             const pristine = !(stored && stored.sessionState);

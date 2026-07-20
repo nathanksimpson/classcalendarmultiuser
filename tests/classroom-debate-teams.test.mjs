@@ -412,4 +412,34 @@ function loadDebateEngine() {
     assert(st.formatId === 'ap', 'legacy purple formatId resets format dropdown to ap');
 }
 
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['A', 'B'],
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: 'Old Class',
+        hrTeacher: 'Old Teacher',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyMetadataDefaults('New Class', 'New Teacher');
+    let st = api.collectState();
+    assert(st.classTitle === 'Old Class', 'defaults leave existing class title');
+    assert(st.hrTeacher === 'Old Teacher', 'defaults leave existing HR teacher');
+
+    api.applyMetadataDefaults('New Class', 'New Teacher', { force: true });
+    st = api.collectState();
+    assert(st.classTitle === 'New Class', 'force updates class title from class');
+    assert(st.hrTeacher === 'New Teacher', 'force updates HR teacher from class');
+
+    api.applyMetadataDefaults('Kept Class', '', { force: true });
+    st = api.collectState();
+    assert(st.classTitle === 'Kept Class', 'force updates title when HR empty');
+    assert(st.hrTeacher === '', 'force clears HR when class has none');
+}
+
 console.log('classroom-debate-teams.test.mjs: all passed');
