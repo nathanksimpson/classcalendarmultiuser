@@ -1399,7 +1399,7 @@
                 );
                 selectedStudentId = id;
             }
-            cohort.students = students;
+            cohort.students = d.normalizeCohortStudents({ students });
         });
         try {
             await saveCohorts(cohorts);

@@ -39,7 +39,27 @@ const classCombined = { id: 'cls2', cohortIds: ['c1', 'c2'] };
 
 const singleStudents = d.resolveStudentsForClass(classSingle, cohorts);
 assert(singleStudents.length === 2, 'single cohort resolves 2 students');
-assert(singleStudents[0].student.name === 'Kim', 'sorted by sortOrder');
+assert(singleStudents[0].student.name === 'Kim', 'sorted by Korean/English name (Kim before Lee)');
+
+const hangulCohorts = [
+    {
+        id: 'c-ko',
+        name: 'Hangul',
+        students: [
+            { id: 'h3', name: '이다은', sortOrder: 0, active: true },
+            { id: 'h1', name: '김민지', sortOrder: 1, active: true },
+            { id: 'h2', name: '박서준', sortOrder: 2, active: true }
+        ]
+    }
+];
+const hangulSorted = d.normalizeCohortStudents(hangulCohorts[0]);
+assert(hangulSorted.map((s) => s.name).join(',') === '김민지,박서준,이다은', 'Hangul 가나다 order ignores sortOrder');
+const hangulResolved = d.resolveStudentsForClass({ id: 'cls-ko', cohortIds: ['c-ko'] }, hangulCohorts);
+assert(
+    hangulResolved.map((e) => e.student.name).join(',') === '김민지,박서준,이다은',
+    'resolveStudentsForClass uses Korean name order'
+);
+assert(d.compareStudentNames({ name: '김' }, { name: '이' }) < 0, 'compareStudentNames 김 before 이');
 
 const combined = d.resolveStudentsForClass(classCombined, cohorts);
 assert(combined.length === 2, 'combined cohorts dedupe by student id');

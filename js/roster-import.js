@@ -693,9 +693,12 @@
         normImported.forEach((s) => {
             byId.set(s.id, s);
         });
-        return Array.from(byId.values()).sort(
-            (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
-        );
+        return Array.from(byId.values()).sort((a, b) => {
+            if (global.CCPClassroomDomain && global.CCPClassroomDomain.compareStudentNames) {
+                return global.CCPClassroomDomain.compareStudentNames(a, b);
+            }
+            return String(a.name || '').localeCompare(String(b.name || ''), 'ko', { sensitivity: 'base' });
+        });
     }
 
     function applyRosterImport(calendarCohorts, plan, options) {

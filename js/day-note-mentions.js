@@ -80,10 +80,14 @@
                     }
                 });
         });
-        return Array.from(byId.values()).sort(
-            (a, b) => a.student.sortOrder - b.student.sortOrder
-                || String(a.student.name || '').localeCompare(String(b.student.name || ''))
-        );
+        return Array.from(byId.values()).sort((a, b) => {
+            if (domain.compareStudentNames) {
+                return domain.compareStudentNames(a.student, b.student);
+            }
+            return String(a.student.name || '').localeCompare(String(b.student.name || ''), 'ko', {
+                sensitivity: 'base'
+            });
+        });
     }
 
     function buildMentionEntry(row, nameCounts, tier) {

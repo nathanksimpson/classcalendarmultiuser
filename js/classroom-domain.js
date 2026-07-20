@@ -19,6 +19,23 @@
         return normalizeStr(a).localeCompare(normalizeStr(b));
     }
 
+    /** Korean-name (가나다) order; English name then id as stable tie-breaks. */
+    function compareStudentNames(a, b) {
+        const byKo = normalizeStr(a && a.name).localeCompare(normalizeStr(b && b.name), 'ko', {
+            sensitivity: 'base'
+        });
+        if (byKo !== 0) {
+            return byKo;
+        }
+        const byEn = normalizeStr(a && a.nameEn).localeCompare(normalizeStr(b && b.nameEn), 'en', {
+            sensitivity: 'base'
+        });
+        if (byEn !== 0) {
+            return byEn;
+        }
+        return normalizeStr(a && a.id).localeCompare(normalizeStr(b && b.id));
+    }
+
     function parseISODateLocal(dateStr) {
         if (global.CCPUtils && global.CCPUtils.parseISODateLocal) {
             return global.CCPUtils.parseISODateLocal(dateStr);
@@ -416,7 +433,7 @@
         return list
             .map(normalizeStudent)
             .filter(Boolean)
-            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+            .sort(compareStudentNames);
     }
 
     /**
@@ -447,9 +464,8 @@
                     }
                 });
         });
-        return Array.from(byId.values()).sort(
-            (a, b) => a.student.sortOrder - b.student.sortOrder
-                || a.student.name.localeCompare(b.student.name)
+        return Array.from(byId.values()).sort((a, b) =>
+            compareStudentNames(a.student, b.student)
         );
     }
 
@@ -1603,6 +1619,7 @@
         addDaysISO,
         getCohortIdsForClass,
         normalizeStudent,
+        compareStudentNames,
         normalizeCohortStudents,
         resolveStudentsForClass,
         findStudentInCohorts,
