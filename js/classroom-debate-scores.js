@@ -626,21 +626,85 @@
         scoreNumpadEl.style.top = `${Math.round(top)}px`;
     }
 
-    function focusNextScoreInput(fromInput) {
-        if (!fromInput || !panelRef) {
+    function focusScoreField(input) {
+        if (!input || input.disabled) {
             return;
         }
-        const inputs = Array.from(panelRef.querySelectorAll('.classroom-debate-score-input:not([disabled])'));
-        const idx = inputs.indexOf(fromInput);
-        if (idx >= 0 && idx < inputs.length - 1) {
-            const next = inputs[idx + 1];
-            next.focus();
-            if (prefersScoreNumpad()) {
-                openScoreNumpad(next);
+        input.focus();
+        if (prefersScoreNumpad()) {
+            openScoreNumpad(input);
+        } else {
+            closeScoreNumpad();
+        }
+    }
+
+    function focusNoteForStudent(studentId) {
+        if (!panelRef || !studentId) {
+            closeScoreNumpad();
+            return;
+        }
+        const note = Array.from(panelRef.querySelectorAll('.classroom-debate-score-note')).find(
+            (el) => el.getAttribute('data-student-id') === studentId
+        );
+        closeScoreNumpad();
+        if (note && !note.disabled) {
+            note.focus();
+        }
+    }
+
+    function focusFirstScoreForStudent(studentId) {
+        if (!panelRef || !studentId) {
+            return;
+        }
+        const first = Array.from(panelRef.querySelectorAll('.classroom-debate-score-input:not([disabled])')).find(
+            (el) => el.getAttribute('data-student-id') === studentId
+        );
+        if (first) {
+            focusScoreField(first);
+        }
+    }
+
+    function focusNextAfterScore(fromInput) {
+        if (!fromInput || !panelRef) {
+            closeScoreNumpad();
+            return;
+        }
+        const sid = fromInput.getAttribute('data-student-id');
+        const row = fromInput.closest('tr');
+        if (row) {
+            const rowScores = Array.from(row.querySelectorAll('.classroom-debate-score-input:not([disabled])'));
+            const idx = rowScores.indexOf(fromInput);
+            if (idx >= 0 && idx < rowScores.length - 1) {
+                focusScoreField(rowScores[idx + 1]);
+                return;
             }
+            // Last criterion for this student → Notes / Comments.
+            focusNoteForStudent(sid);
             return;
         }
         closeScoreNumpad();
+    }
+
+    function focusNextAfterNote(fromNote) {
+        if (!fromNote || !panelRef) {
+            return;
+        }
+        const row = fromNote.closest('tr');
+        if (!row) {
+            return;
+        }
+        let nextRow = row.nextElementSibling;
+        while (nextRow && nextRow.tagName !== 'TR') {
+            nextRow = nextRow.nextElementSibling;
+        }
+        if (!nextRow) {
+            fromNote.blur();
+            return;
+        }
+        const nextSid = nextRow.getAttribute('data-student-id');
+        if (nextSid) {
+            focusFirstScoreForStudent(nextSid);
+        }
     }
 
     function ensureScoreNumpad() {
@@ -680,7 +744,7 @@
             const action = btn.getAttribute('data-score-action');
             if (action === 'done') {
                 applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
-                focusNextScoreInput(scoreNumpadAnchor);
+                focusNextAfterScore(scoreNumpadAnchor);
                 return;
             }
             if (action === 'clear') {
@@ -853,6 +917,14 @@
             input.addEventListener('change', () => {
                 applyScoreFromInput(input, { allowClear: true });
             });
+            input.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') {
+                    return;
+                }
+                e.preventDefault();
+                applyScoreFromInput(input, { allowClear: true });
+                focusNextAfterScore(input);
+            });
             input.addEventListener('focus', () => {
                 if (useNumpad) {
                     openScoreNumpad(input);
@@ -868,6 +940,18 @@
             input.addEventListener('input', () => {
                 setRecordNote(input.getAttribute('data-student-id'), input.value);
                 scheduleSave();
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') {
+                    return;
+                }
+                e.preventDefault();
+                setRecordNote(input.getAttribute('data-student-id'), input.value);
+                scheduleSave();
+                focusNextAfterNote(input);
+            });
+            input.addEventListener('focus', () => {
+                closeScoreNumpad();
             });
         });
     }
