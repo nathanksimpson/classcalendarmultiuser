@@ -149,4 +149,64 @@ const futureDate = d.addDaysISO(today, 10);
     assert(outstanding[0].studentName === 'Zoe', 'student name resolved');
 }
 
+{
+    const appData = {
+        classes: [
+            {
+                id: 'c3',
+                name: 'Gamma',
+                cohortIds: ['coh3'],
+                syllabusRows: [
+                    {
+                        id: 'r3',
+                        kind: 'lesson',
+                        date: pastDate,
+                        planTitle: 'Essay Closed',
+                        homework: 'essay draft'
+                    }
+                ]
+            }
+        ],
+        cohorts: [
+            {
+                id: 'coh3',
+                students: [
+                    { id: 'a1', name: 'Ann', sortOrder: 0, active: true },
+                    { id: 'a2', name: 'Bob', sortOrder: 1, active: true },
+                    { id: 'a3', name: 'Cat', sortOrder: 2, active: true },
+                    { id: 'a4', name: 'Dan', sortOrder: 3, active: true }
+                ]
+            }
+        ],
+        essaySubmissions: [
+            {
+                id: 'e3',
+                classId: 'c3',
+                syllabusRowId: 'r3',
+                ssDueDate: pastDate,
+                records: [
+                    { studentId: 'a1', status: 'complete' },
+                    { studentId: 'a2', status: 'incomplete' },
+                    { studentId: 'a3', status: 'exempt' },
+                    { studentId: 'a4', status: 'not_submitted' }
+                ]
+            }
+        ]
+    };
+
+    const rows = CCPClassroomEssayProgress.listEssayAssignments(appData, {
+        classes: appData.classes,
+        access: { canEditClass: () => true, canBypass: () => false }
+    });
+    assert(rows.length === 1, 'one closed-status assignment');
+    assert(rows[0].outstandingStudentCount === 1, 'only not_submitted is outstanding');
+    assert(rows[0].percentComplete === 33, 'percent = complete / (total - exempt) → 1/3');
+    assert(rows[0].counts.incomplete === 1, 'incomplete counted');
+    assert(rows[0].counts.exempt === 1, 'exempt counted');
+
+    const studentRows = CCPClassroomEssayProgress.listStudentProgressForAssignments(appData, rows);
+    assert(studentRows.length === 1, 'outstanding list omits incomplete and exempt');
+    assert(studentRows[0].studentId === 'a4', 'remaining outstanding is not_submitted');
+}
+
 console.log('classroom-essay-progress.test.mjs: all passed');

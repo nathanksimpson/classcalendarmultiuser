@@ -5,7 +5,14 @@
     const ATTENDANCE_STATUSES = ['present', 'late', 'absent', 'early_leave'];
     const HOMEWORK_GRADES = ['A', 'B', 'C', 'N', 'F', 'X'];
     const HOMEWORK_SELF_CHECKS = ['none', 'not_checked', 'satisfied'];
-    const ESSAY_STATUSES = ['not_submitted', 'submitted', 'complete', 'resubmit_required'];
+    const ESSAY_STATUSES = [
+        'not_submitted',
+        'submitted',
+        'complete',
+        'resubmit_required',
+        'incomplete',
+        'exempt'
+    ];
     const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon'];
     const ARCHIVE_REASONS = ['break', 'new', 'left', 'starting_soon'];
     const ARCHIVE_COHORT_ID = 'cohort-student-archive';
@@ -846,8 +853,19 @@
         return base;
     }
 
+    function emptyEssayStatusCounts() {
+        return {
+            not_submitted: 0,
+            submitted: 0,
+            complete: 0,
+            resubmit_required: 0,
+            incomplete: 0,
+            exempt: 0
+        };
+    }
+
     function countEssayByStatus(submission) {
-        const counts = { not_submitted: 0, submitted: 0, complete: 0, resubmit_required: 0 };
+        const counts = emptyEssayStatusCounts();
         if (!submission || !Array.isArray(submission.records)) {
             return counts;
         }
@@ -856,6 +874,21 @@
             counts[status] += 1;
         });
         return counts;
+    }
+
+    /** Denominator for % complete: roster size minus exempt students. */
+    function essayProgressDenominator(counts, studentCount) {
+        const total = Math.max(0, studentCount || 0);
+        const exempt = counts && counts.exempt ? counts.exempt : 0;
+        return Math.max(0, total - exempt);
+    }
+
+    function essayPercentComplete(counts, studentCount) {
+        const denom = essayProgressDenominator(counts, studentCount);
+        if (denom <= 0) {
+            return 0;
+        }
+        return Math.round(((counts && counts.complete ? counts.complete : 0) / denom) * 100);
     }
 
     function essayResubmitCount(submission) {
@@ -903,12 +936,9 @@
     function essayAlertCountsForAssignment(submission, ssDueDate, studentCount) {
         const counts = submission
             ? countEssayByStatus(submission)
-            : {
-                not_submitted: Math.max(0, studentCount || 0),
-                submitted: 0,
-                complete: 0,
-                resubmit_required: 0
-            };
+            : Object.assign(emptyEssayStatusCounts(), {
+                not_submitted: Math.max(0, studentCount || 0)
+            });
         return {
             rs: counts.resubmit_required || 0,
             od: essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount),
@@ -2019,6 +2049,9 @@
         getEssayRecordForStudent,
         ensureEssayRecordsForStudents,
         countEssayByStatus,
+        emptyEssayStatusCounts,
+        essayProgressDenominator,
+        essayPercentComplete,
         essayResubmitCount,
         essayResubmitCountForClass,
         isEssaySsOverdueISO,

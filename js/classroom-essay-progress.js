@@ -104,9 +104,14 @@
                     isPastDueStrict,
                     outstandingStudentCount,
                     hasOutstandingStudents: outstandingStudentCount > 0,
-                    percentComplete:
-                        totalStudents > 0
-                            ? Math.round(((counts.complete || 0) / totalStudents) * 100)
+                    percentComplete: d.essayPercentComplete
+                        ? d.essayPercentComplete(counts, totalStudents)
+                        : totalStudents > 0
+                            ? Math.round(
+                                  ((counts.complete || 0) /
+                                      Math.max(1, totalStudents - (counts.exempt || 0))) *
+                                      100
+                              )
                             : 0
                 });
             });

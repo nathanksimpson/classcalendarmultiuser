@@ -206,6 +206,49 @@ assert(
     'assignment AE is zero with no submission'
 );
 
+{
+    const closedSubmission = {
+        id: 'es-closed',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        lessonDate: yesterday,
+        ssDueDate: yesterday,
+        records: [
+            { studentId: 's1', status: 'incomplete', submittedRetest: false, note: '' },
+            { studentId: 's2', status: 'exempt', submittedRetest: false, note: '' }
+        ]
+    };
+    assert(
+        d.normalizeEssaySubmission(closedSubmission).records[0].status === 'incomplete',
+        'normalize keeps incomplete'
+    );
+    assert(
+        d.normalizeEssaySubmission(closedSubmission).records[1].status === 'exempt',
+        'normalize keeps exempt'
+    );
+    assert(
+        d.essayOverdueNotSubmittedCount(closedSubmission, yesterday, 2) === 0,
+        'OD excludes incomplete and exempt'
+    );
+    assert(
+        d.essayAlertCountsForAssignment(closedSubmission, yesterday, 2).od === 0,
+        'assignment OD zero when overdue rows are closed'
+    );
+    const counts = d.countEssayByStatus(closedSubmission);
+    assert(counts.incomplete === 1 && counts.exempt === 1, 'counts incomplete and exempt');
+    assert(d.essayProgressDenominator(counts, 2) === 1, 'percent denom excludes exempt');
+    assert(d.essayPercentComplete(counts, 2) === 0, 'percent complete zero with no complete');
+    const outstanding = d.listEssayOutstandingStudentRows(
+        {
+            classes: [essayClass],
+            cohorts,
+            essaySubmissions: [closedSubmission]
+        },
+        { classes: [essayClass] }
+    );
+    assert(outstanding.length === 0, 'incomplete and exempt are not outstanding');
+}
+
 const resubmitSubmission = {
     id: 'es2',
     classId: 'cls-essay',

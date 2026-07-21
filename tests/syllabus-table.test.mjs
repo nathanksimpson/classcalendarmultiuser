@@ -97,6 +97,20 @@ function assert(cond, msg) {
     assert((rows[0].planDetail || '').length > 0, 'holiday has subline detail');
 }
 
+// Holiday meeting day consumes scheduled lesson (no orphan lesson slot)
+{
+    const lessons = [
+        { date: '2026-03-02', monthKey: '2026-03', label: 'Unit 1' }
+    ];
+    const meetingDates = ['2026-03-02'];
+    const slots = CCPSyllabus.buildTimelineSlotsFromLessons(lessons, meetingDates, {
+        isHoliday: (dateStr) => dateStr === '2026-03-02'
+    });
+    assert(slots.length === 1, 'one slot when lesson date is holiday');
+    assert(slots[0].kind === 'holiday', 'slot is holiday');
+    assert(!slots.some((s) => s.kind === 'lesson'), 'no orphan lesson slot');
+}
+
 // Unscheduled lessons append at end with overflow kind
 {
     const classData = { syllabusUnits: [] };

@@ -195,6 +195,14 @@
     --essay-status-received: #3b82f6;
     --essay-status-complete: var(--primary);
     --essay-status-resubmit: #e0863b;
+    --essay-status-incomplete: #64748b;
+    --essay-status-exempt: #8b9aab;
+    --essay-incomplete-tint-bg: #eef1f5;
+    --essay-incomplete-tint-border: #cfd5de;
+    --essay-incomplete-tint-text: #475569;
+    --essay-exempt-tint-bg: #f3f5f7;
+    --essay-exempt-tint-border: #d5dbe4;
+    --essay-exempt-tint-text: #64748b;
     --essay-received-bg: var(--accent-muted);
     --essay-received-border: #bfe6d8;
     --essay-received-text: #0e7a5e;

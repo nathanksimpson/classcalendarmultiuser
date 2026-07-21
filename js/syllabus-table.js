@@ -587,6 +587,9 @@
             const monthKey = dateStr.slice(0, 7);
             const isHol = typeof isHolidayFn === 'function' && isHolidayFn(dateStr);
             if (isHol) {
+                if (lessonsByDate.has(dateStr)) {
+                    usedDates.add(dateStr);
+                }
                 slots.push({ date: dateStr, monthKey, kind: 'holiday' });
             } else if (lessonsByDate.has(dateStr)) {
                 const lesson = lessonsByDate.get(dateStr);

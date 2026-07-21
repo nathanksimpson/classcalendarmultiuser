@@ -37,8 +37,36 @@
         not_submitted: { order: 0, cls: 'essay-status--not' },
         submitted: { order: 1, cls: 'essay-status--submitted' },
         complete: { order: 2, cls: 'essay-status--complete' },
-        resubmit_required: { order: 2, cls: 'essay-status--resubmit' }
+        resubmit_required: { order: 2, cls: 'essay-status--resubmit' },
+        incomplete: { order: 3, cls: 'essay-status--incomplete' },
+        exempt: { order: 3, cls: 'essay-status--exempt' }
     };
+
+    function essayStatusLabelKey(statusKey) {
+        if (statusKey === 'submitted') {
+            return 'classroomEssayStatusReceived';
+        }
+        if (statusKey === 'not_submitted') {
+            return 'classroomEssayStatusNotSubmitted';
+        }
+        if (statusKey === 'complete') {
+            return 'classroomEssayStatusComplete';
+        }
+        if (statusKey === 'resubmit_required') {
+            return 'classroomEssayStatusResubmit';
+        }
+        if (statusKey === 'incomplete') {
+            return 'classroomEssayStatusIncomplete';
+        }
+        if (statusKey === 'exempt') {
+            return 'classroomEssayStatusExempt';
+        }
+        return 'classroomEssayStatusNotSubmitted';
+    }
+
+    function isEssayOutcomeStatus(status) {
+        return status === 'incomplete' || status === 'exempt';
+    }
 
     function ensureAutosave(panel) {
         if (autosave || !global.CCPClassroomAutosave) {
@@ -1334,7 +1362,7 @@
         const students = getStudents();
         const counts = d && draftSubmission
             ? d.countEssayByStatus(draftSubmission)
-            : { not_submitted: 0, submitted: 0, complete: 0, resubmit_required: 0 };
+            : { not_submitted: 0, submitted: 0, complete: 0, resubmit_required: 0, incomplete: 0, exempt: 0 };
         return Object.assign({ total: students.length }, counts);
     }
 
@@ -1825,7 +1853,9 @@
             { filter: 'not_submitted', labelKey: 'classroomEssayStatusNotSubmitted', cls: 'essay-status--not' },
             { filter: 'submitted', labelKey: 'classroomEssayStatusReceived', cls: 'essay-status--submitted' },
             { filter: 'complete', labelKey: 'classroomEssayStatusComplete', cls: 'essay-status--complete' },
-            { filter: 'resubmit_required', labelKey: 'classroomEssayStatusResubmit', cls: 'essay-status--resubmit' }
+            { filter: 'resubmit_required', labelKey: 'classroomEssayStatusResubmit', cls: 'essay-status--resubmit' },
+            { filter: 'incomplete', labelKey: 'classroomEssayStatusIncomplete', cls: 'essay-status--incomplete' },
+            { filter: 'exempt', labelKey: 'classroomEssayStatusExempt', cls: 'essay-status--exempt' }
         ];
     }
 
@@ -1865,7 +1895,14 @@
     }
 
     function essayStatsSegmentFlex(counts) {
-        const keys = ['not_submitted', 'submitted', 'complete', 'resubmit_required'];
+        const keys = [
+            'not_submitted',
+            'submitted',
+            'complete',
+            'resubmit_required',
+            'incomplete',
+            'exempt'
+        ];
         const total = keys.reduce((sum, key) => sum + (counts[key] || 0), 0);
         if (total === 0) {
             return keys.map((key) => ({ key, flex: 1, count: 0 }));
@@ -1899,20 +1936,31 @@
         const d = domain();
         const counts = d.countEssayByStatus(draftSubmission);
         const attention = getAttentionCounts();
-        const progressKeys = ['complete', 'submitted', 'resubmit_required', 'not_submitted'];
+        const progressKeys = [
+            'complete',
+            'submitted',
+            'resubmit_required',
+            'not_submitted',
+            'incomplete',
+            'exempt'
+        ];
         const progressTotal = progressKeys.reduce((sum, key) => sum + (counts[key] || 0), 0);
         const trackHtml = progressKeys
             .map((key) => {
                 const meta = statusFilterSegments().find((s) => s.filter === key);
                 const cls = meta ? meta.cls : '';
                 const count = counts[key] || 0;
-                const widthPct = progressTotal > 0 ? (count / progressTotal) * 100 : 25;
+                const widthPct = progressTotal > 0 ? (count / progressTotal) * 100 : 100 / progressKeys.length;
                 const flex = count > 0 ? count : 0.001;
                 return `<span class="classroom-essay-stats-segment ${cls}" style="flex: ${flex} 1 0; width: ${widthPct.toFixed(2)}%;" aria-hidden="true"></span>`;
             })
             .join('');
         const complete = counts.complete || 0;
-        const total = counts.total || getStudents().length;
+        const rosterTotal = getStudents().length;
+        const total =
+            d.essayProgressDenominator
+                ? d.essayProgressDenominator(counts, rosterTotal)
+                : Math.max(0, rosterTotal - (counts.exempt || 0));
 
         const tile = (filter, count, titleKey, subtitleKey, modifier) => {
             const active = currentFilter === filter ? ' is-active' : '';
@@ -1975,7 +2023,9 @@
             resubmit_required: t('classroomEssayAttentionResubmits'),
             not_submitted: t('classroomEssayStatusNotSubmitted'),
             submitted: t('classroomEssayStatusReceived'),
-            complete: t('classroomEssayStatusComplete')
+            complete: t('classroomEssayStatusComplete'),
+            incomplete: t('classroomEssayStatusIncomplete'),
+            exempt: t('classroomEssayStatusExempt')
         };
         mount.textContent = tf('classroomEssayToolbarFilterActive', {
             label: labels[currentFilter] || currentFilter
@@ -2201,6 +2251,8 @@
                 ${batchBtn('submitted', 'classroomEssayStatusReceived', 'essay-status--submitted')}
                 ${batchBtn('complete', 'classroomEssayStatusComplete', 'essay-status--complete')}
                 ${batchBtn('resubmit_required', 'classroomEssayStatusResubmit', 'essay-status--resubmit')}
+                ${batchBtn('incomplete', 'classroomEssayStatusIncomplete', 'essay-status--incomplete')}
+                ${batchBtn('exempt', 'classroomEssayStatusExempt', 'essay-status--exempt')}
                 <button type="button" id="classroomEssaysBatchClearBtn" class="btn btn-outline btn-compact btn-small"${disabled}>${escapeHtml(t('classroomEssayBatchClear'))}</button>
             </div>`;
 
@@ -2233,7 +2285,9 @@
             { status: 'not_submitted', label: t('classroomEssayStatusNotSubmitted'), cls: 'essay-status--not' },
             { status: 'submitted', label: t('classroomEssayStatusReceived'), cls: 'essay-status--submitted' },
             { status: 'complete', label: t('classroomEssayStatusComplete'), cls: 'essay-status--complete' },
-            { status: 'resubmit_required', label: t('classroomEssayStatusResubmit'), cls: 'essay-status--resubmit' }
+            { status: 'resubmit_required', label: t('classroomEssayStatusResubmit'), cls: 'essay-status--resubmit' },
+            { status: 'incomplete', label: t('classroomEssayStatusIncomplete'), cls: 'essay-status--incomplete' },
+            { status: 'exempt', label: t('classroomEssayStatusExempt'), cls: 'essay-status--exempt' }
         ];
     }
 
@@ -2242,7 +2296,9 @@
             not_submitted: 'classroom-sheet-row--status-essay-not',
             submitted: 'classroom-sheet-row--status-essay-received',
             complete: 'classroom-sheet-row--status-essay-complete',
-            resubmit_required: 'classroom-sheet-row--status-essay-resubmit'
+            resubmit_required: 'classroom-sheet-row--status-essay-resubmit',
+            incomplete: 'classroom-sheet-row--status-essay-incomplete',
+            exempt: 'classroom-sheet-row--status-essay-exempt'
         };
         const modifier = map[status] || map.not_submitted;
         return `classroom-sheet-row--status-rail ${modifier}`;
@@ -2256,19 +2312,14 @@
         if (statusKey === curStatus) {
             stateMod = '--active';
         } else if (
+            !isEssayOutcomeStatus(curStatus) &&
             (statusKey === 'not_submitted' || statusKey === 'submitted') &&
+            meta &&
             meta.order < curMeta.order
         ) {
             stateMod = '--done';
         }
-        const labelKey =
-            statusKey === 'submitted'
-                ? 'classroomEssayStatusReceived'
-                : statusKey === 'not_submitted'
-                    ? 'classroomEssayStatusNotSubmitted'
-                    : statusKey === 'complete'
-                        ? 'classroomEssayStatusComplete'
-                        : 'classroomEssayStatusResubmit';
+        const labelKey = essayStatusLabelKey(statusKey);
         return `<button type="button" class="classroom-essay-stage ${meta.cls} classroom-essay-stage${stateMod}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(statusKey)}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
     }
 
@@ -2295,6 +2346,12 @@
                     ${buildStageButton(studentId, 'resubmit_required', status, editable)}
                 </div>
             </div>
+            <div class="classroom-essay-status-selector__row classroom-essay-status-selector__row--outcomes" role="group" aria-label="${escapeAttr(t('classroomEssayOutcomesLabel'))}">
+                <div class="classroom-essay-status-selector__group">
+                    ${buildStageButton(studentId, 'incomplete', status, editable)}
+                    ${buildStageButton(studentId, 'exempt', status, editable)}
+                </div>
+            </div>
             ${retestHtml}
         </div>`;
     }
@@ -2307,6 +2364,12 @@
         const teDue = draftSubmission ? draftSubmission.teacherEvalDueDate || '' : '';
         if (!d) {
             return '';
+        }
+        if (status === 'incomplete') {
+            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--incomplete">${escapeHtml(t('classroomEssayStatusIncomplete'))}</span>`;
+        }
+        if (status === 'exempt') {
+            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--exempt">${escapeHtml(t('classroomEssayStatusExempt'))}</span>`;
         }
         if (status === 'not_submitted') {
             if (d.isEssaySsOverdueISO(ssDue)) {
