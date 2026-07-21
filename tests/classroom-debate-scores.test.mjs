@@ -27,6 +27,19 @@ assert(d.computeDebateScoreTotal({ eyeContact: 5, voice: 4, fluency: 3, content:
 assert(d.computeDebateScoreTotal({ eyeContact: 5, voice: 4, fluency: 3, content: 2, logic: 1, confidence: 5 }, 'yeoul') === 17, 'yeoul ignores content/logic');
 assert(d.computeDebateScoreTotal({}, 'garam') === null, 'empty total is null');
 
+assert(d.normalizeDebateScoreValue(3.5) === 3.5, 'half point kept');
+assert(d.normalizeDebateScoreValue(3.2) === 3, '3.2 snaps down to 3');
+assert(d.normalizeDebateScoreValue(3.3) === 3.5, '3.3 snaps up to 3.5');
+assert(d.normalizeDebateScoreValue(5.4) === 5, 'clamp max 5');
+assert(d.normalizeDebateScoreValue(-1) === 0, 'clamp min 0');
+assert(
+    d.computeDebateScoreTotal(
+        { eyeContact: 3.5, voice: 4.5, fluency: 5, content: 2.5, logic: 1.5, confidence: 4 },
+        'garam'
+    ) === 21,
+    'garam total with halves'
+);
+
 const record = d.normalizeDebateScoreRecord(
     {
         studentId: 's1',
