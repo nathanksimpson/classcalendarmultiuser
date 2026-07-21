@@ -15093,6 +15093,8 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     z-index: var(--z-popover);
     min-width: 15rem;
     max-width: calc(100vw - 1rem);
+    max-height: min(70vh, 24rem);
+    overflow: auto;
     padding: var(--space-2);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
