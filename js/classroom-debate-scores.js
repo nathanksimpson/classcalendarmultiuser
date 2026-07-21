@@ -656,16 +656,17 @@
         return criterion === criteria[criteria.length - 1];
     }
 
-    function focusScoreField(input) {
+    function focusScoreField(input, opts) {
         if (!input || input.disabled) {
             return;
         }
-        if (isScoreNavSuppressed()) {
+        const force = !!(opts && opts.force);
+        if (!force && isScoreNavSuppressed()) {
             return;
         }
         input.focus();
         if (prefersScoreNumpad()) {
-            openScoreNumpad(input);
+            openScoreNumpad(input, opts);
         } else {
             closeScoreNumpad();
         }
@@ -693,18 +694,19 @@
         }, 0);
     }
 
-    function focusFirstScoreForStudent(studentId) {
+    function focusFirstScoreForStudent(studentId, opts) {
         if (!panelRef || !studentId) {
             return;
         }
-        if (isScoreNavSuppressed()) {
+        const force = !!(opts && opts.force);
+        if (!force && isScoreNavSuppressed()) {
             return;
         }
         const first = Array.from(panelRef.querySelectorAll('.classroom-debate-score-input:not([disabled])')).find(
             (el) => el.getAttribute('data-student-id') === studentId
         );
         if (first) {
-            focusScoreField(first);
+            focusScoreField(first, opts);
         }
     }
 
@@ -723,7 +725,7 @@
             const rowScores = Array.from(row.querySelectorAll('.classroom-debate-score-input:not([disabled])'));
             const idx = rowScores.indexOf(fromInput);
             if (idx >= 0 && idx < rowScores.length - 1) {
-                focusScoreField(rowScores[idx + 1]);
+                focusScoreField(rowScores[idx + 1], { force: true });
                 return;
             }
             // Fallback: last score in the row → Notes.
@@ -733,29 +735,31 @@
         closeScoreNumpad();
     }
 
+    function listStudentIdsInSheetOrder() {
+        return getStudents()
+            .map((entry) => {
+                const student = unwrapStudentEntry(entry);
+                return student && student.id ? String(student.id) : '';
+            })
+            .filter(Boolean);
+    }
+
     function focusNextAfterNote(fromNote) {
         if (!fromNote || !panelRef) {
             return;
         }
-        if (isScoreNavSuppressed()) {
-            return;
-        }
-        const row = fromNote.closest('tr');
-        if (!row) {
-            return;
-        }
-        let nextRow = row.nextElementSibling;
-        while (nextRow && nextRow.tagName !== 'TR') {
-            nextRow = nextRow.nextElementSibling;
-        }
-        if (!nextRow) {
+        // Intentional Enter must always advance — clear ghost-click suppress from Done→Notes.
+        suppressScoreNavUntil = 0;
+        const sid = String(fromNote.getAttribute('data-student-id') || '');
+        const ids = listStudentIdsInSheetOrder();
+        const idx = ids.indexOf(sid);
+        const nextSid = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : '';
+        if (!nextSid) {
             fromNote.blur();
+            closeScoreNumpad();
             return;
         }
-        const nextSid = nextRow.getAttribute('data-student-id');
-        if (nextSid) {
-            focusFirstScoreForStudent(nextSid);
-        }
+        focusFirstScoreForStudent(nextSid, { force: true });
     }
 
     function ensureScoreNumpad() {
@@ -877,11 +881,12 @@
         return scoreNumpadEl;
     }
 
-    function openScoreNumpad(input) {
+    function openScoreNumpad(input, opts) {
         if (!input || input.disabled || !prefersScoreNumpad()) {
             return;
         }
-        if (isScoreNavSuppressed()) {
+        const force = !!(opts && opts.force);
+        if (!force && isScoreNavSuppressed()) {
             return;
         }
         ensureScoreNumpad();
@@ -996,18 +1001,18 @@
         });
         rowsMount.querySelectorAll('.classroom-debate-score-note').forEach((input) => {
             input.addEventListener('input', () => {
+                // User is editing notes — allow Enter to advance (clear Done→Notes suppress).
+                suppressScoreNavUntil = 0;
                 setRecordNote(input.getAttribute('data-student-id'), input.value);
                 scheduleSave();
             });
             input.addEventListener('keydown', (e) => {
-                if (e.key !== 'Enter') {
-                    return;
-                }
-                if (isScoreNavSuppressed()) {
-                    e.preventDefault();
+                const isEnter = e.key === 'Enter' || e.keyCode === 13;
+                if (!isEnter) {
                     return;
                 }
                 e.preventDefault();
+                e.stopPropagation();
                 setRecordNote(input.getAttribute('data-student-id'), input.value);
                 scheduleSave();
                 focusNextAfterNote(input);
