@@ -196,6 +196,14 @@
     --essay-status-received: #3b82f6;
     --essay-status-complete: var(--primary);
     --essay-status-resubmit: #e0863b;
+    --essay-status-incomplete: #64748b;
+    --essay-status-exempt: #8b9aab;
+    --essay-incomplete-tint-bg: #eef1f5;
+    --essay-incomplete-tint-border: #cfd5de;
+    --essay-incomplete-tint-text: #475569;
+    --essay-exempt-tint-bg: #f3f5f7;
+    --essay-exempt-tint-border: #d5dbe4;
+    --essay-exempt-tint-text: #64748b;
     --essay-received-bg: var(--accent-muted);
     --essay-received-border: #bfe6d8;
     --essay-received-text: #0e7a5e;
@@ -16444,6 +16452,18 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     color: var(--essay-resubmit-tint-text);
 }
 
+.classroom-essay-batch-status-btn.essay-status--incomplete {
+    border-color: var(--essay-incomplete-tint-border);
+    background: var(--essay-incomplete-tint-bg);
+    color: var(--essay-incomplete-tint-text);
+}
+
+.classroom-essay-batch-status-btn.essay-status--exempt {
+    border-color: var(--essay-exempt-tint-border);
+    background: var(--essay-exempt-tint-bg);
+    color: var(--essay-exempt-tint-text);
+}
+
 .classroom-essay-sheet-scroll {
     border: none;
     border-radius: 0;
@@ -16472,6 +16492,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-sheet-row--status-essay-resubmit {
     --classroom-row-rail: var(--essay-status-resubmit);
+}
+
+.classroom-sheet-row--status-essay-incomplete {
+    --classroom-row-rail: var(--essay-status-incomplete);
+}
+
+.classroom-sheet-row--status-essay-exempt {
+    --classroom-row-rail: var(--essay-status-exempt);
 }
 
 #panel-essays .classroom-sheet tbody tr.classroom-essay-row:nth-child(even) {
@@ -16524,6 +16552,10 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     align-items: center;
     gap: var(--space-1);
     flex-wrap: wrap;
+}
+
+.classroom-essay-status-selector__row--outcomes {
+    margin-top: var(--space-1);
 }
 
 .classroom-essay-status-selector__group {
@@ -16581,6 +16613,18 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     color: var(--bg-card);
 }
 
+.classroom-essay-stage--active.essay-status--incomplete {
+    background: var(--essay-status-incomplete);
+    border-color: var(--essay-status-incomplete);
+    color: var(--bg-card);
+}
+
+.classroom-essay-stage--active.essay-status--exempt {
+    background: var(--essay-status-exempt);
+    border-color: var(--essay-status-exempt);
+    color: var(--bg-card);
+}
+
 .classroom-essay-stage--done.essay-status--not {
     background: var(--surface-muted);
     border-color: var(--border-color);
@@ -16633,6 +16677,18 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     background: var(--essay-resubmit-tint-bg);
     color: var(--essay-resubmit-tint-text);
     border-color: var(--essay-resubmit-tint-border);
+}
+
+.classroom-essay-due-pill--incomplete {
+    background: var(--essay-incomplete-tint-bg);
+    color: var(--essay-incomplete-tint-text);
+    border-color: var(--essay-incomplete-tint-border);
+}
+
+.classroom-essay-due-pill--exempt {
+    background: var(--essay-exempt-tint-bg);
+    color: var(--essay-exempt-tint-text);
+    border-color: var(--essay-exempt-tint-border);
 }
 
 .classroom-essay-feedback,
@@ -16809,6 +16865,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     background: var(--essay-status-resubmit);
 }
 
+.classroom-essay-stats-segment.essay-status--incomplete {
+    background: var(--essay-status-incomplete);
+}
+
+.classroom-essay-stats-segment.essay-status--exempt {
+    background: var(--essay-status-exempt);
+}
+
 .classroom-essay-stats-segment.is-active {
     box-shadow: inset 0 0 0 2px var(--text-primary);
 }
@@ -16868,6 +16932,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-essay-filter-chip.essay-status--resubmit .classroom-essay-filter-dot {
     background: var(--essay-status-resubmit);
+}
+
+.classroom-essay-filter-chip.essay-status--incomplete .classroom-essay-filter-dot {
+    background: var(--essay-status-incomplete);
+}
+
+.classroom-essay-filter-chip.essay-status--exempt .classroom-essay-filter-dot {
+    background: var(--essay-status-exempt);
 }
 
 .classroom-essay-filter-count {
@@ -17168,6 +17240,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-sheet-row--status-essay-resubmit {
     --classroom-row-rail: var(--essay-status-resubmit);
+}
+
+.classroom-sheet-row--status-essay-incomplete {
+    --classroom-row-rail: var(--essay-status-incomplete);
+}
+
+.classroom-sheet-row--status-essay-exempt {
+    --classroom-row-rail: var(--essay-status-exempt);
 }
 
 #panel-essays .classroom-sheet tbody tr.classroom-essay-row:nth-child(even) {

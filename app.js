@@ -175,6 +175,7 @@ function applyLanguage() {
     updateTermSettingsToggleSummary();
     updateSetupChecklistBanner();
     refreshCurriculumUpdatedBanner();
+    refreshEventSyllabiUpdateBanner();
 
     document.documentElement.lang = currentLanguage === 'ko' ? 'ko' : 'en';
     const titleBase = (appData.calendarName && appData.calendarName.trim())
@@ -4917,6 +4918,21 @@ function ensureUiState() {
     if (typeof appData.ui.pendingCurriculumSyllabiUpdateId !== 'string') {
         appData.ui.pendingCurriculumSyllabiUpdateId = '';
     }
+    if (!appData.ui.pendingEventSyllabiUpdate || typeof appData.ui.pendingEventSyllabiUpdate !== 'object') {
+        appData.ui.pendingEventSyllabiUpdate = null;
+    } else {
+        const pending = appData.ui.pendingEventSyllabiUpdate;
+        const eventId = typeof pending.eventId === 'string' ? pending.eventId.trim() : '';
+        const classIds = Array.isArray(pending.classIds)
+            ? pending.classIds.map((id) => String(id || '').trim()).filter(Boolean)
+            : [];
+        const eventName = typeof pending.eventName === 'string' ? pending.eventName.trim() : '';
+        if (!eventId || !classIds.length) {
+            appData.ui.pendingEventSyllabiUpdate = null;
+        } else {
+            appData.ui.pendingEventSyllabiUpdate = { eventId, classIds, eventName };
+        }
+    }
     migrateLegacyDismissedToNavNotificationMeta(appData.ui);
     if (!appData.ui.navNotificationMeta || typeof appData.ui.navNotificationMeta !== 'object') {
         appData.ui.navNotificationMeta = {};
@@ -6705,22 +6721,46 @@ function positionFixedPopoverBelowTrigger(trigger, popover, options = {}) {
     const align = options.align === 'right' ? 'right' : 'left';
     const minMaxHeight = options.minMaxHeight ?? 120;
     const viewportHeight = getFixedAnchorViewportHeight();
-    const top = rect.bottom + margin;
-    const maxHeight = Math.max(minMaxHeight, viewportHeight - top - margin);
+    const spaceBelow = Math.max(0, viewportHeight - rect.bottom - margin);
+    const spaceAbove = Math.max(0, rect.top - margin);
+    // Prefer below when it fits a usable height; otherwise use the side with more room.
+    const placeBelow = spaceBelow >= minMaxHeight || spaceBelow >= spaceAbove;
+    const available = placeBelow ? spaceBelow : spaceAbove;
+    // Hard-cap to available space so the panel never spills off-screen.
+    const maxHeight = available;
     popover.style.position = 'fixed';
-    popover.style.top = `${top}px`;
     popover.style.maxHeight = '';
     popover.style.overflow = 'visible';
     popover.style.overflowY = 'visible';
     popover.style.left = '0';
     popover.style.right = 'auto';
+    popover.style.bottom = 'auto';
+    const innerPanel = popover.querySelector('.lesson-filter-popover-panel');
+    if (innerPanel) {
+        innerPanel.style.maxHeight = `${maxHeight}px`;
+    }
+    if (placeBelow) {
+        popover.style.top = `${rect.bottom + margin}px`;
+    } else {
+        // Place above: pin bottom edge just above the trigger, then clamp top into the viewport.
+        popover.style.top = 'auto';
+        popover.style.bottom = `${viewportHeight - rect.top + margin}px`;
+    }
     const panelRect = popover.getBoundingClientRect();
     let left = align === 'left' ? rect.left : rect.right - panelRect.width;
     left = Math.max(margin, Math.min(left, window.innerWidth - panelRect.width - margin));
     popover.style.left = `${left}px`;
-    const innerPanel = popover.querySelector('.lesson-filter-popover-panel');
-    if (innerPanel) {
-        innerPanel.style.maxHeight = `${maxHeight}px`;
+    if (!placeBelow) {
+        // If the panel is shorter than available space, bottom-anchoring is enough.
+        // If top still clips (rare), convert to an explicit top clamp.
+        if (panelRect.top < margin) {
+            popover.style.bottom = 'auto';
+            popover.style.top = `${margin}px`;
+            if (innerPanel) {
+                const clamped = Math.max(0, rect.top - margin - margin);
+                innerPanel.style.maxHeight = `${clamped}px`;
+            }
+        }
     }
     return true;
 }
@@ -6912,14 +6952,16 @@ function clearAllLessonFiltersInPopover() {
 // ============================================
 // Event applicability filter (event editor — same UX as lesson filter)
 // ============================================
-const EMPTY_EVENT_APPLICABILITY = {
-    grades: [],
-    classNames: [],
-    sectionLevels: [],
-    allElementary: false,
-    allMiddleSchool: false
-};
-let eventApplicabilityDraft = { ...EMPTY_EVENT_APPLICABILITY };
+function createEmptyEventApplicability() {
+    return {
+        grades: [],
+        classNames: [],
+        sectionLevels: [],
+        allElementary: false,
+        allMiddleSchool: false
+    };
+}
+let eventApplicabilityDraft = createEmptyEventApplicability();
 
 function getEventApplicabilityOptionGroups() {
     const seenNames = new Set();
@@ -6978,7 +7020,7 @@ function countEventApplicabilitySelected(draft = eventApplicabilityDraft) {
 
 function loadEventApplicabilityDraftFromHoliday(holidayData) {
     if (!holidayData || !holidayHasAnyTargetFilter(holidayData)) {
-        eventApplicabilityDraft = { ...EMPTY_EVENT_APPLICABILITY };
+        eventApplicabilityDraft = createEmptyEventApplicability();
         return;
     }
     eventApplicabilityDraft = {
@@ -6991,7 +7033,7 @@ function loadEventApplicabilityDraftFromHoliday(holidayData) {
 }
 
 function readEventApplicabilityFromPopoverDom() {
-    const draft = { ...EMPTY_EVENT_APPLICABILITY };
+    const draft = createEmptyEventApplicability();
     document.querySelectorAll('#eventApplicabilityPopoverBody input[data-event-filter]').forEach(cb => {
         if (!cb.checked) {
             return;
@@ -7196,6 +7238,9 @@ function closeEventApplicabilityPopover() {
     const btn = document.getElementById('eventApplicabilityFilterBtn');
     if (!popover) {
         return;
+    }
+    if (!popover.hidden) {
+        commitEventApplicabilityFromPopover();
     }
     popover.hidden = true;
     clearFixedAnchorPopoverRectCache('eventApplicabilityPopover');
@@ -14159,6 +14204,8 @@ function navigateToHost(hostId, options = {}) {
 let curriculumTabSelectedId = null;
 /** Set when Curriculum tab saves; drives “update syllabi” banner for linked classes. */
 let pendingCurriculumBannerId = null;
+/** Set when a blocking event saves/deletes; drives “refresh syllabi” banner for affected classes. */
+let pendingEventSyllabiBanner = null;
 let classEditorMount = 'modal';
 let eventEditorMount = 'modal';
 /** When true, calendar cells use print visibility checkboxes instead of screen filters. */
@@ -15594,6 +15641,12 @@ function scheduleCurriculumSyllabiUpdateNotification() {
     });
 }
 
+function scheduleEventSyllabiUpdateNotification() {
+    scheduleTabWarningsRefresh({
+        openPopoverForWarningId: 'ui:event_syllabi_update'
+    });
+}
+
 function initTabWarningsModule() {
     if (typeof CCPTabWarnings === 'undefined') {
         return;
@@ -15632,6 +15685,7 @@ function initTabWarningsModule() {
         getUiInboxWarningsForBell,
         onNotificationDismissed: onTabWarningDismissed,
         runCurriculumSyllabiBatchUpdate: () => handleCurriculumUpdatedBannerAction(),
+        runEventSyllabiBatchUpdate: () => handleEventSyllabiUpdateAction(),
         focusDayNoteInNotesTab,
         reloadActiveCalendarFromServer,
         showNavWarningToast: (msg) => showSyncToast(msg, false)
@@ -19663,6 +19717,7 @@ function shouldShowSetupGuideBanner() {
 function updateSetupGuideBanner() {
     scheduleTabWarningsRefresh();
     refreshCurriculumUpdatedBanner();
+    refreshEventSyllabiUpdateBanner();
 }
 
 function setupCohortsUsageTips() {
@@ -23421,7 +23476,7 @@ function setupEventListeners() {
     elements.holidayAllClasses?.addEventListener('change', (e) => {
         if (e.target.checked) {
             closeEventApplicabilityPopover();
-            eventApplicabilityDraft = { ...EMPTY_EVENT_APPLICABILITY };
+            eventApplicabilityDraft = createEmptyEventApplicability();
         } else if (!holidayHasAnyTargetFilter(eventApplicabilityDraft)) {
             eventApplicabilityDraft = getDefaultAllSelectedEventApplicability();
         }
@@ -24977,6 +25032,132 @@ function handleCurriculumUpdatedBannerAction() {
     );
 }
 
+function getClassesAffectedByBlockingEvent(event) {
+    if (!event || !eventTypeBlocksClass(event.type)) {
+        return [];
+    }
+    return getClassesInDisplayOrder().filter((classData) => eventAppliesToClass(event, classData));
+}
+
+function getClassesAffectedByBlockingEventChange(previousEvent, newEvent) {
+    const seen = new Set();
+    const classes = [];
+    [previousEvent, newEvent].forEach((event) => {
+        if (!event || !eventTypeBlocksClass(event.type)) {
+            return;
+        }
+        getClassesAffectedByBlockingEvent(event).forEach((classData) => {
+            if (!seen.has(classData.id)) {
+                seen.add(classData.id);
+                classes.push(classData);
+            }
+        });
+    });
+    return classes;
+}
+
+function hideEventSyllabiUpdateBanner(options = {}) {
+    const persist = options.persist !== false;
+    pendingEventSyllabiBanner = null;
+    ensureUiState();
+    appData.ui.pendingEventSyllabiUpdate = null;
+    if (persist) {
+        saveData();
+    }
+    scheduleTabWarningsRefresh();
+}
+
+function showEventSyllabiUpdateBanner(eventId, classIds, eventName) {
+    const id = (eventId || '').trim();
+    const ids = Array.isArray(classIds)
+        ? [...new Set(classIds.map((classId) => String(classId || '').trim()).filter(Boolean))]
+        : [];
+    if (!id || !ids.length) {
+        hideEventSyllabiUpdateBanner({ persist: false });
+        return;
+    }
+    const name = String(eventName || '').trim();
+    pendingEventSyllabiBanner = { eventId: id, classIds: ids, eventName: name };
+    ensureUiState();
+    const prev = appData.ui.pendingEventSyllabiUpdate;
+    appData.ui.pendingEventSyllabiUpdate = { eventId: id, classIds: ids, eventName: name };
+    const prevJson = prev ? JSON.stringify(prev) : '';
+    const nextJson = JSON.stringify(appData.ui.pendingEventSyllabiUpdate);
+    if (prevJson !== nextJson) {
+        saveData();
+    }
+    scheduleEventSyllabiUpdateNotification();
+}
+
+function refreshEventSyllabiUpdateBanner() {
+    ensureUiState();
+    const pending = appData.ui.pendingEventSyllabiUpdate;
+    if (!pending || !pending.eventId || !Array.isArray(pending.classIds) || !pending.classIds.length) {
+        pendingEventSyllabiBanner = null;
+        scheduleTabWarningsRefresh();
+        return;
+    }
+    showEventSyllabiUpdateBanner(pending.eventId, pending.classIds, pending.eventName);
+}
+
+function getPendingEventSyllabiClasses() {
+    const pending = pendingEventSyllabiBanner || appData.ui.pendingEventSyllabiUpdate;
+    if (!pending || !Array.isArray(pending.classIds) || !pending.classIds.length) {
+        return [];
+    }
+    const idSet = new Set(pending.classIds);
+    return getClassesInDisplayOrder().filter((classData) => idSet.has(classData.id));
+}
+
+function getPendingEventSyllabiDisplayName() {
+    const pending = pendingEventSyllabiBanner || appData.ui.pendingEventSyllabiUpdate;
+    if (!pending) {
+        return '';
+    }
+    if (pending.eventName) {
+        return pending.eventName;
+    }
+    const ev = (appData.events || []).find((event) => event.id === pending.eventId);
+    return ev ? getEventDisplayName(ev) : t('eventTypeHoliday');
+}
+
+function handleEventSyllabiUpdateAction() {
+    const classes = getPendingEventSyllabiClasses();
+    if (!classes.length) {
+        hideEventSyllabiUpdateBanner();
+        return;
+    }
+    if (!confirm(t('eventUpdatedBatchConfirm').replace('{n}', String(classes.length)))) {
+        return;
+    }
+    invalidateScheduleCache();
+    syncHolidaysFromEvents();
+    let updatedClassCount = 0;
+    classes.forEach((classData) => {
+        const merged = syncClassSyllabusRowsFromCalendar(classData, { refreshScheduleTitles: true });
+        if (merged && merged.length) {
+            updatedClassCount += 1;
+        }
+    });
+    hideEventSyllabiUpdateBanner({ persist: false });
+    saveData();
+    renderCalendar();
+    renderClassList();
+    if (getActiveTab() === 'homework') {
+        renderHomeworkEditor();
+    }
+    if (getActiveTab() === 'syllabus') {
+        const selected = getSelectedSyllabusClass();
+        if (selected) {
+            renderSyllabusEditorTable(selected.syllabusRows || []);
+        }
+    }
+    setAppStatusMessage(
+        t('eventUpdatedBatchDone').replace('{n}', String(updatedClassCount)),
+        false
+    );
+}
+
 function buildClassSnapshotForSyllabusContext() {
     if (getActiveTab() === 'syllabus' && syllabusEditorMode === 'class') {
         const classData = getSelectedSyllabusClass();
@@ -26054,7 +26235,7 @@ function populateHolidayForm(holidayData = null, options = {}) {
         elements.holidaySingleDate.style.display = 'block';
         elements.holidayDateRange.style.display = 'none';
         elements.holidayAllClasses.checked = true;
-        eventApplicabilityDraft = { ...EMPTY_EVENT_APPLICABILITY };
+        eventApplicabilityDraft = createEmptyEventApplicability();
         syncDeleteHolidayButtonVisibility(false);
         applyEventTypeDefaultColors();
         if (options.defaultDate) {
@@ -26768,6 +26949,16 @@ function handleHolidaySubmit(e) {
 
     syncHolidaysFromEvents();
     saveData();
+    if (eventTypeBlocksClass(eventData.type)) {
+        const affected = getClassesAffectedByBlockingEventChange(existingEv, eventData);
+        if (affected.length) {
+            showEventSyllabiUpdateBanner(
+                eventData.id,
+                affected.map((classData) => classData.id),
+                getEventDisplayName(eventData)
+            );
+        }
+    }
     if (eventEditorMount === 'tab') {
         updateEventEditorEmptyState();
     } else {
@@ -26778,9 +26969,20 @@ function handleHolidaySubmit(e) {
 function deleteHoliday() {
     const id = elements.holidayId.value;
     if (id && confirm(t('confirmDeleteEvent') || t('confirmDeleteHoliday'))) {
+        const existingEv = (appData.events || []).find((ev) => ev.id === id);
         dispatchEventsRemove(id);
         syncHolidaysFromEvents();
         saveData();
+        if (existingEv && eventTypeBlocksClass(existingEv.type)) {
+            const affected = getClassesAffectedByBlockingEvent(existingEv);
+            if (affected.length) {
+                showEventSyllabiUpdateBanner(
+                    id,
+                    affected.map((classData) => classData.id),
+                    getEventDisplayName(existingEv)
+                );
+            }
+        }
         if (eventEditorMount === 'tab') {
             elements.holidayForm.reset();
             elements.holidayId.value = '';
@@ -32815,7 +33017,8 @@ const UI_NOTIFICATION_IDS = {
     setupChecklist: 'ui:setup_checklist',
     setupGuideBanner: 'ui:setup_guide_banner',
     cohortsUsageTips: 'ui:cohorts_usage_tips',
-    curriculumSyllabiUpdate: 'ui:curriculum_syllabi_update'
+    curriculumSyllabiUpdate: 'ui:curriculum_syllabi_update',
+    eventSyllabiUpdate: 'ui:event_syllabi_update'
 };
 const MS_PER_DAY = 86400000;
 const UI_STORAGE_LOCAL_ID = 'local';
@@ -33366,6 +33569,25 @@ function getUiInboxWarningsForBell() {
         }
     }
 
+    const eventPending = pendingEventSyllabiBanner || appData.ui.pendingEventSyllabiUpdate;
+    if (eventPending && eventPending.eventId && Array.isArray(eventPending.classIds) && eventPending.classIds.length) {
+        const classes = getPendingEventSyllabiClasses();
+        if (classes.length > 0) {
+            warnings.push({
+                id: UI_NOTIFICATION_IDS.eventSyllabiUpdate,
+                tabId: 'events',
+                severity: 'info',
+                messageKey: 'eventUpdatedBanner',
+                params: {
+                    name: getPendingEventSyllabiDisplayName(),
+                    count: classes.length
+                },
+                actionLabelKey: 'eventUpdatedBannerAction',
+                navigate: { type: 'event_syllabi_update', eventId: eventPending.eventId }
+            });
+        }
+    }
+
     return warnings;
 }
 
@@ -33392,6 +33614,10 @@ function onTabWarningDismissed(warningId) {
     }
     if (id === UI_NOTIFICATION_IDS.curriculumSyllabiUpdate) {
         hideCurriculumUpdatedBanner();
+        return;
+    }
+    if (id === UI_NOTIFICATION_IDS.eventSyllabiUpdate) {
+        hideEventSyllabiUpdateBanner();
     }
 }
 

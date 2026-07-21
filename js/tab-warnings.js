@@ -769,6 +769,12 @@
             if (typeof hooks.runCurriculumSyllabiBatchUpdate === 'function') {
                 hooks.runCurriculumSyllabiBatchUpdate(nav.curriculumId);
             }
+            return;
+        }
+        if (nav.type === 'event_syllabi_update') {
+            if (typeof hooks.runEventSyllabiBatchUpdate === 'function') {
+                hooks.runEventSyllabiBatchUpdate(nav.eventId);
+            }
         }
     }
 

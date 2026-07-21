@@ -214,11 +214,15 @@ const { CCPClassroomEssays } = sandbox.window;
 
         complete: 5,
 
-        resubmit_required: 1
+        resubmit_required: 1,
+
+        incomplete: 0,
+
+        exempt: 0
 
     });
 
-    assert(segments.length === 4, 'four segments');
+    assert(segments.length === 6, 'six segments');
 
     assert(segments[0].flex === 3 && segments[2].flex === 5, 'proportional flex');
 
@@ -230,7 +234,11 @@ const { CCPClassroomEssays } = sandbox.window;
 
         complete: 0,
 
-        resubmit_required: 0
+        resubmit_required: 0,
+
+        incomplete: 0,
+
+        exempt: 0
 
     });
 
@@ -369,6 +377,33 @@ const { CCPClassroomEssays } = sandbox.window;
     assert(next.status === 'complete', 'status batch action sets complete');
 
     assert(next.submittedRetest === false, 'status batch clears retest when leaving resubmit');
+
+}
+
+
+
+{
+
+    const incomplete = CCPClassroomEssays.applyStagedBatchToRecord(
+        { studentId: 's1', status: 'not_submitted', submittedRetest: true, note: '' },
+        'status',
+        'incomplete',
+        null
+    );
+    assert(incomplete.status === 'incomplete', 'status batch can set incomplete');
+    assert(incomplete.submittedRetest === false, 'incomplete clears retest');
+
+    const exempt = CCPClassroomEssays.applyStagedBatchToRecord(
+        { studentId: 's2', status: 'resubmit_required', submittedRetest: true, note: 'x' },
+        'status',
+        'exempt',
+        null
+    );
+    assert(exempt.status === 'exempt', 'status batch can set exempt');
+    assert(exempt.submittedRetest === false, 'exempt clears retest');
+
+    assert(!CCPClassroomEssays.isReceivedStatus('incomplete'), 'incomplete is not received');
+    assert(!CCPClassroomEssays.isReceivedStatus('exempt'), 'exempt is not received');
 
 }
 

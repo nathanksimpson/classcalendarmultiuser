@@ -1765,6 +1765,26 @@
         });
     }
 
+    function fillColumnLinesInTbody(tbody, selector, lines) {
+        if (!tbody || !selector || !Array.isArray(lines)) {
+            return;
+        }
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((tr, index) => {
+            if (index >= lines.length) return;
+            setColumnFieldValue(tr.querySelector(selector), lines[index]);
+        });
+    }
+
+    function splitClipboardIntoColumnLines(text) {
+        return String(text ?? '')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .map((line) => line.replace(/\t/g, ' ').trimEnd())
+            .filter((line, index, arr) => !(index === arr.length - 1 && line === ''));
+    }
+
     async function pasteColumnInTbody(tbody, selector) {
         if (!tbody || !selector) {
             return;
@@ -1782,7 +1802,7 @@
             const promptLabel = hooks.t('booksEditorColPasteAll');
             const msg = failedHint && failedHint !== 'booksEditorClipboardFailed'
                 ? failedHint
-                : (promptLabel && promptLabel !== 'booksEditorColPasteAll' ? promptLabel : 'Paste to all');
+                : (promptLabel && promptLabel !== 'booksEditorColPasteAll' ? promptLabel : 'Paste column');
             const entered = prompt(msg, '');
             if (entered === null) {
                 return;
@@ -1797,7 +1817,15 @@
                 .replace(/\u2013/g, '-')
                 .replace(/\u2212/g, '-');
         }
-        fillColumnInTbody(tbody, selector, text);
+        const lines = splitClipboardIntoColumnLines(text);
+        if (!lines.length) {
+            return;
+        }
+        if (lines.length === 1) {
+            fillColumnInTbody(tbody, selector, lines[0]);
+            return;
+        }
+        fillColumnLinesInTbody(tbody, selector, lines);
     }
 
     function renderEditableColumnHeader(columnKey, labelKey, labelDefault) {
@@ -2067,6 +2095,13 @@
             const tbodyId = `${prefix}EditorTableBody`;
             const clearBtn = e.target.closest('[data-books-col-clear]');
             if (clearBtn) {
+                const confirmMsg = hooks.t('booksEditorColClearConfirm');
+                const msg = confirmMsg && confirmMsg !== 'booksEditorColClearConfirm'
+                    ? confirmMsg
+                    : 'Clear all cells in this column?';
+                if (typeof confirm === 'function' && !confirm(msg)) {
+                    return;
+                }
                 const selector = getSessionColumnSelector(clearBtn.getAttribute('data-books-col-clear'));
                 const tbody = document.getElementById(tbodyId);
                 if (selector && tbody) {
@@ -2279,7 +2314,7 @@
         ? `<button type="button" id="${adoptId}" class="btn btn-outline" data-i18n="${adoptLabelKey}">${escapeHtml(adoptDefault)}</button>`
         : ''}
               <button type="button" id="${duplicateId}" class="btn btn-outline" data-i18n="curriculumDuplicateBtn">Duplicate curriculum</button>
-              <button type="button" id="${saveId}" class="btn btn-primary btn-small" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
+              <button type="button" id="${saveId}" class="btn btn-primary" data-i18n="booksEditorSaveCurriculum">Save curriculum</button>
             </div>
             <div class="curriculum-editor-body">
               ${applicabilityHtml}
@@ -2574,6 +2609,7 @@
         collectEditorRowsFromTbody,
         clearColumnInTbody,
         fillColumnInTbody,
+        fillColumnLinesInTbody,
         pasteColumnInTbody,
         getSessionColumnSelector,
         normalizeRowTemplates
