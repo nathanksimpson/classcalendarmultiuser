@@ -384,6 +384,7 @@
         classroomDebateScoresNumpadLabel: '점수 키패드',
         classroomDebateScoresNumpadClear: '지우기',
         classroomDebateScoresNumpadDone: '완료',
+        classroomDebateScoresNumpadBackspace: '한 글자 지움',
         classroomDebateRefreshRoster: '명단 새로고침',
         classroomDebateImportRoster: '명단에서 가져오기',
         classroomDebateImportRosterHint: '위에서 선택한 반의 명단에서 이름을 불러옵니다.',

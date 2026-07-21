@@ -16,7 +16,20 @@
     let scoreNumpadAnchor = null;
     let scoreNumpadDocBound = false;
     const SCORES_AUTOSAVE_DELAY_MS = 700;
-    const SCORE_NUMPAD_VALUES = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+    const SCORE_NUMPAD_KEYS = [
+        { digit: '1' },
+        { digit: '2' },
+        { digit: '3' },
+        { digit: '4' },
+        { digit: '5' },
+        { digit: '6' },
+        { digit: '7' },
+        { digit: '8' },
+        { digit: '9' },
+        { digit: '.', label: '.' },
+        { digit: '0' },
+        { action: 'backspace', label: '⌫' }
+    ];
 
     const CRITERION_I18N = {
         eyeContact: 'classroomDebateScoresCriterionEye',
@@ -640,12 +653,14 @@
         el.setAttribute('role', 'dialog');
         el.setAttribute('aria-label', t('classroomDebateScoresNumpadLabel'));
         el.hidden = true;
-        const valuesHtml = SCORE_NUMPAD_VALUES.map(
-            (v) =>
-                `<button type="button" class="btn btn-outline btn-compact classroom-debate-score-numpad__key" data-score-value="${v}">${v}</button>`
-        ).join('');
+        const keysHtml = SCORE_NUMPAD_KEYS.map((key) => {
+            if (key.action === 'backspace') {
+                return `<button type="button" class="btn btn-outline btn-compact classroom-debate-score-numpad__key" data-score-action="backspace" aria-label="${escapeHtml(t('classroomDebateScoresNumpadBackspace'))}">${key.label}</button>`;
+            }
+            return `<button type="button" class="btn btn-outline btn-compact classroom-debate-score-numpad__key" data-score-digit="${key.digit}">${key.label != null ? key.label : key.digit}</button>`;
+        }).join('');
         el.innerHTML = `
-            <div class="classroom-debate-score-numpad__grid">${valuesHtml}</div>
+            <div class="classroom-debate-score-numpad__grid">${keysHtml}</div>
             <div class="classroom-debate-score-numpad__actions">
                 <button type="button" class="btn btn-secondary btn-compact classroom-debate-score-numpad__clear" data-score-action="clear">${escapeHtml(t('classroomDebateScoresNumpadClear'))}</button>
                 <button type="button" class="btn btn-primary btn-compact classroom-debate-score-numpad__done" data-score-action="done">${escapeHtml(t('classroomDebateScoresNumpadDone'))}</button>
@@ -655,13 +670,17 @@
             e.preventDefault();
         });
         el.addEventListener('click', (e) => {
-            const btn = e.target && e.target.closest ? e.target.closest('button[data-score-value], button[data-score-action]') : null;
+            const btn =
+                e.target && e.target.closest
+                    ? e.target.closest('button[data-score-digit], button[data-score-action]')
+                    : null;
             if (!btn || !scoreNumpadAnchor) {
                 return;
             }
             const action = btn.getAttribute('data-score-action');
             if (action === 'done') {
-                closeScoreNumpad();
+                applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
+                focusNextScoreInput(scoreNumpadAnchor);
                 return;
             }
             if (action === 'clear') {
@@ -669,10 +688,36 @@
                 applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
                 return;
             }
-            const rawVal = btn.getAttribute('data-score-value');
-            scoreNumpadAnchor.value = rawVal != null ? String(rawVal) : '';
+            if (action === 'backspace') {
+                const cur = String(scoreNumpadAnchor.value || '');
+                scoreNumpadAnchor.value = cur.slice(0, -1);
+                applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
+                return;
+            }
+            const digit = btn.getAttribute('data-score-digit');
+            if (digit == null) {
+                return;
+            }
+            let next = String(scoreNumpadAnchor.value || '');
+            if (digit === '.') {
+                if (next.includes('.')) {
+                    return;
+                }
+                if (next === '') {
+                    next = '0.';
+                } else {
+                    next += '.';
+                }
+            } else {
+                // Cap length so scores stay within 0–5 (e.g. "3.5", "5").
+                if (next.replace('.', '').length >= 3) {
+                    return;
+                }
+                next += digit;
+            }
+            scoreNumpadAnchor.value = next;
+            // Live total only when the typed value is a complete number (not "3.").
             applyScoreFromInput(scoreNumpadAnchor, { allowClear: false });
-            focusNextScoreInput(scoreNumpadAnchor);
         });
         document.body.appendChild(el);
         scoreNumpadEl = el;
@@ -686,11 +731,14 @@
                 if (scoreNumpadEl.contains(target)) {
                     return;
                 }
-                if (scoreNumpadAnchor && scoreNumpadAnchor.contains && scoreNumpadAnchor.contains(target)) {
+                if (scoreNumpadAnchor && scoreNumpadAnchor === target) {
                     return;
                 }
                 if (target && target.classList && target.classList.contains('classroom-debate-score-input')) {
                     return;
+                }
+                if (scoreNumpadAnchor) {
+                    applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
                 }
                 closeScoreNumpad();
             });
@@ -699,11 +747,15 @@
                     positionScoreNumpad(scoreNumpadAnchor);
                 }
             });
-            document.addEventListener('scroll', () => {
-                if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
-                    positionScoreNumpad(scoreNumpadAnchor);
-                }
-            }, true);
+            document.addEventListener(
+                'scroll',
+                () => {
+                    if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
+                        positionScoreNumpad(scoreNumpadAnchor);
+                    }
+                },
+                true
+            );
         }
         return scoreNumpadEl;
     }

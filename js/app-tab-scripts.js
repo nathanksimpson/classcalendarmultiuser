@@ -94,7 +94,7 @@
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260720-debate-assign',
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-debate-scores.js?v=20260721-score-numpad'
+            'js/classroom-debate-scores.js?v=20260721-score-digit-pad'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',
