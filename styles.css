@@ -15102,7 +15102,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 
 .classroom-debate-score-numpad__grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(2.75rem, 1fr));
+    grid-template-columns: repeat(3, minmax(2.75rem, 1fr));
     gap: var(--space-2);
 }
 

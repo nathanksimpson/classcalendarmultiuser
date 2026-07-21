@@ -384,6 +384,7 @@
         classroomDebateScoresNumpadLabel: 'Score pad',
         classroomDebateScoresNumpadClear: 'Clear',
         classroomDebateScoresNumpadDone: 'Done',
+        classroomDebateScoresNumpadBackspace: 'Backspace',
         classroomDebateRefreshRoster: 'Refresh roster',
         classroomDebateImportRoster: 'Import from roster',
         classroomDebateImportRosterHint: 'Load names from the class roster for the selected class above.',
