@@ -609,25 +609,89 @@
         scoreNumpadAnchor = null;
     }
 
+    function getVisibleViewportRect() {
+        const margin = 8;
+        const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+        if (vv && typeof vv.width === 'number' && vv.width > 0) {
+            return {
+                left: (vv.offsetLeft || 0) + margin,
+                top: (vv.offsetTop || 0) + margin,
+                right: (vv.offsetLeft || 0) + vv.width - margin,
+                bottom: (vv.offsetTop || 0) + vv.height - margin,
+                width: Math.max(0, vv.width - margin * 2),
+                height: Math.max(0, vv.height - margin * 2)
+            };
+        }
+        const w = window.innerWidth || document.documentElement.clientWidth || 0;
+        const h = window.innerHeight || document.documentElement.clientHeight || 0;
+        return {
+            left: margin,
+            top: margin,
+            right: w - margin,
+            bottom: h - margin,
+            width: Math.max(0, w - margin * 2),
+            height: Math.max(0, h - margin * 2)
+        };
+    }
+
+    function repositionOpenScoreNumpad() {
+        if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
+            positionScoreNumpad(scoreNumpadAnchor);
+        }
+    }
+
     function positionScoreNumpad(anchor) {
         if (!scoreNumpadEl || !anchor) {
             return;
         }
-        const rect = anchor.getBoundingClientRect();
-        const margin = 8;
         const gap = 6;
         scoreNumpadEl.hidden = false;
+        // Cap height to the visible area so keys stay reachable (scroll inside if needed).
+        const view = getVisibleViewportRect();
+        scoreNumpadEl.style.maxHeight = `${Math.max(120, Math.floor(view.height))}px`;
         const popW = scoreNumpadEl.offsetWidth || 240;
         const popH = scoreNumpadEl.offsetHeight || 200;
-        const viewportW = window.innerWidth || document.documentElement.clientWidth;
-        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        const rect = anchor.getBoundingClientRect();
+
+        // Horizontal: prefer align to cell left; shift only as needed; keep overlap with cell.
         let left = rect.left;
-        left = Math.max(margin, Math.min(left, viewportW - margin - popW));
-        let top = rect.bottom + gap;
-        if (top + popH > viewportH - margin) {
-            top = rect.top - gap - popH;
+        const maxLeft = view.right - popW;
+        if (left > maxLeft) {
+            left = maxLeft;
         }
-        top = Math.max(margin, Math.min(top, viewportH - margin - popH));
+        if (left < view.left) {
+            left = view.left;
+        }
+        // If still wider than view, pin to view.left (overflow:auto on pad handles the rest).
+        if (popW > view.width) {
+            left = view.left;
+        } else {
+            // Prefer keeping the pad overlapping the anchor horizontally.
+            const padRight = left + popW;
+            if (padRight < rect.left) {
+                left = Math.min(rect.left, maxLeft);
+            } else if (left > rect.right) {
+                left = Math.max(view.left, Math.min(rect.right - popW, maxLeft));
+            }
+        }
+
+        const spaceBelow = view.bottom - (rect.bottom + gap);
+        const spaceAbove = rect.top - gap - view.top;
+        let top;
+        if (spaceBelow >= popH) {
+            top = rect.bottom + gap;
+        } else if (spaceAbove >= popH) {
+            top = rect.top - gap - popH;
+        } else if (spaceBelow >= spaceAbove) {
+            top = rect.bottom + gap;
+            top = Math.min(top, view.bottom - Math.min(popH, view.height));
+            top = Math.max(view.top, top);
+        } else {
+            top = rect.top - gap - popH;
+            top = Math.max(view.top, top);
+            top = Math.min(top, view.bottom - Math.min(popH, view.height));
+        }
+
         scoreNumpadEl.style.left = `${Math.round(left)}px`;
         scoreNumpadEl.style.top = `${Math.round(top)}px`;
     }
@@ -863,20 +927,12 @@
                 }
                 closeScoreNumpad();
             });
-            window.addEventListener('resize', () => {
-                if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
-                    positionScoreNumpad(scoreNumpadAnchor);
-                }
-            });
-            document.addEventListener(
-                'scroll',
-                () => {
-                    if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
-                        positionScoreNumpad(scoreNumpadAnchor);
-                    }
-                },
-                true
-            );
+            window.addEventListener('resize', repositionOpenScoreNumpad);
+            document.addEventListener('scroll', repositionOpenScoreNumpad, true);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', repositionOpenScoreNumpad);
+                window.visualViewport.addEventListener('scroll', repositionOpenScoreNumpad);
+            }
         }
         return scoreNumpadEl;
     }
