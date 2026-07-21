@@ -1629,8 +1629,9 @@
         if (!Number.isFinite(n)) {
             return null;
         }
-        const clamped = Math.max(0, Math.min(DEBATE_SCORE_MAX, Math.round(n * 10) / 10));
-        return clamped;
+        // Snap to nearest 0.5, then clamp 0–5.
+        const snapped = Math.round(n * 2) / 2;
+        return Math.max(0, Math.min(DEBATE_SCORE_MAX, snapped));
     }
 
     function emptyDebateScoresObject() {

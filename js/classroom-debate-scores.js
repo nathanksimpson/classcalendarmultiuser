@@ -11,7 +11,12 @@
     let draftSession = null;
     let applyingAssignment = false;
     let boundPanel = null;
+    let draftEpoch = 0;
+    let scoreNumpadEl = null;
+    let scoreNumpadAnchor = null;
+    let scoreNumpadDocBound = false;
     const SCORES_AUTOSAVE_DELAY_MS = 700;
+    const SCORE_NUMPAD_VALUES = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
     const CRITERION_I18N = {
         eyeContact: 'classroomDebateScoresCriterionEye',
@@ -365,16 +370,21 @@
         if (saveBtn) {
             saveBtn.disabled = true;
         }
+        const epochAtStart = draftEpoch;
         draftSession.updatedAt = new Date().toISOString();
         draftSession.authorUserId = hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
         const data = getAppData();
+        // Snapshot current draft at save start (do not rebuild draft from appData after).
         const next = d.upsertDebateScoreSession(data.debateScores, draftSession);
         try {
             await hooks.saveClassroom({ debateScores: next });
             if (!opt.silent) {
                 hooks.showToast(t('saved'));
             }
-            ensureDraftSession();
+            // Edits during the await must not be wiped — schedule another save instead.
+            if (draftEpoch !== epochAtStart) {
+                scheduleSave();
+            }
         } catch (err) {
             hooks.showToast(err.message || String(err), true);
             throw err;
@@ -461,6 +471,10 @@
         }
     }
 
+    function bumpDraftEpoch() {
+        draftEpoch += 1;
+    }
+
     function setRecordScore(studentId, criterion, value) {
         if (!draftSession || !Array.isArray(draftSession.records)) {
             return;
@@ -475,6 +489,7 @@
         }
         rec.scores[criterion] = d.normalizeDebateScoreValue(value);
         rec.total = d.computeDebateScoreTotal(rec.scores, draftSession.sheetTemplate);
+        bumpDraftEpoch();
     }
 
     function setRecordNote(studentId, note) {
@@ -486,6 +501,229 @@
             return;
         }
         rec.note = String(note || '');
+        bumpDraftEpoch();
+    }
+
+    function prefersScoreNumpad() {
+        try {
+            return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function formatScoreDisplay(value) {
+        if (value == null || value === '') {
+            return '';
+        }
+        const n = Number(value);
+        if (!Number.isFinite(n)) {
+            return '';
+        }
+        return String(n);
+    }
+
+    function parseScoreInputValue(input, opts) {
+        const allowClear = !!(opts && opts.allowClear);
+        if (!input) {
+            return { skip: true };
+        }
+        const raw = String(input.value || '').trim();
+        if (raw === '') {
+            if (allowClear) {
+                return { value: null };
+            }
+            return { skip: true };
+        }
+        if (typeof input.valueAsNumber === 'number' && Number.isFinite(input.valueAsNumber)) {
+            return { value: input.valueAsNumber };
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) {
+            if (allowClear) {
+                return { value: null };
+            }
+            return { skip: true };
+        }
+        return { value: n };
+    }
+
+    function updateRowTotalDisplay(rowsMount, studentId) {
+        if (!rowsMount || !studentId || !draftSession) {
+            return;
+        }
+        const row = rowsMount.querySelector(`tr[data-student-id="${studentId}"]`);
+        const totalEl = row && row.querySelector('.classroom-debate-score-total');
+        const rec = (draftSession.records || []).find((r) => r.studentId === studentId);
+        if (totalEl) {
+            totalEl.textContent = rec && rec.total != null ? String(rec.total) : '';
+        }
+    }
+
+    function applyScoreFromInput(input, opts) {
+        if (!input || input.disabled) {
+            return false;
+        }
+        const parsed = parseScoreInputValue(input, opts);
+        if (parsed.skip) {
+            return false;
+        }
+        const sid = input.getAttribute('data-student-id');
+        const criterion = input.getAttribute('data-criterion');
+        if (!sid || !criterion) {
+            return false;
+        }
+        const d = domain();
+        const normalized = d ? d.normalizeDebateScoreValue(parsed.value) : parsed.value;
+        setRecordScore(sid, criterion, parsed.value);
+        input.value = formatScoreDisplay(normalized);
+        const rowsMount = input.closest('tbody') || (panelRef && panelRef.querySelector('#classroomDebateScoresRows'));
+        updateRowTotalDisplay(rowsMount, sid);
+        scheduleSave();
+        return true;
+    }
+
+    function closeScoreNumpad() {
+        if (scoreNumpadEl) {
+            scoreNumpadEl.hidden = true;
+        }
+        scoreNumpadAnchor = null;
+    }
+
+    function positionScoreNumpad(anchor) {
+        if (!scoreNumpadEl || !anchor) {
+            return;
+        }
+        const rect = anchor.getBoundingClientRect();
+        const margin = 8;
+        const gap = 6;
+        scoreNumpadEl.hidden = false;
+        const popW = scoreNumpadEl.offsetWidth || 240;
+        const popH = scoreNumpadEl.offsetHeight || 200;
+        const viewportW = window.innerWidth || document.documentElement.clientWidth;
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        let left = rect.left;
+        left = Math.max(margin, Math.min(left, viewportW - margin - popW));
+        let top = rect.bottom + gap;
+        if (top + popH > viewportH - margin) {
+            top = rect.top - gap - popH;
+        }
+        top = Math.max(margin, Math.min(top, viewportH - margin - popH));
+        scoreNumpadEl.style.left = `${Math.round(left)}px`;
+        scoreNumpadEl.style.top = `${Math.round(top)}px`;
+    }
+
+    function focusNextScoreInput(fromInput) {
+        if (!fromInput || !panelRef) {
+            return;
+        }
+        const inputs = Array.from(panelRef.querySelectorAll('.classroom-debate-score-input:not([disabled])'));
+        const idx = inputs.indexOf(fromInput);
+        if (idx >= 0 && idx < inputs.length - 1) {
+            const next = inputs[idx + 1];
+            next.focus();
+            if (prefersScoreNumpad()) {
+                openScoreNumpad(next);
+            }
+            return;
+        }
+        closeScoreNumpad();
+    }
+
+    function ensureScoreNumpad() {
+        if (scoreNumpadEl) {
+            return scoreNumpadEl;
+        }
+        const el = document.createElement('div');
+        el.id = 'classroomDebateScoreNumpad';
+        el.className = 'classroom-debate-score-numpad';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-label', t('classroomDebateScoresNumpadLabel'));
+        el.hidden = true;
+        const valuesHtml = SCORE_NUMPAD_VALUES.map(
+            (v) =>
+                `<button type="button" class="btn btn-outline btn-compact classroom-debate-score-numpad__key" data-score-value="${v}">${v}</button>`
+        ).join('');
+        el.innerHTML = `
+            <div class="classroom-debate-score-numpad__grid">${valuesHtml}</div>
+            <div class="classroom-debate-score-numpad__actions">
+                <button type="button" class="btn btn-secondary btn-compact classroom-debate-score-numpad__clear" data-score-action="clear">${escapeHtml(t('classroomDebateScoresNumpadClear'))}</button>
+                <button type="button" class="btn btn-primary btn-compact classroom-debate-score-numpad__done" data-score-action="done">${escapeHtml(t('classroomDebateScoresNumpadDone'))}</button>
+            </div>`;
+        el.addEventListener('mousedown', (e) => {
+            // Keep focus on the score field; avoid iOS keyboard flicker.
+            e.preventDefault();
+        });
+        el.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('button[data-score-value], button[data-score-action]') : null;
+            if (!btn || !scoreNumpadAnchor) {
+                return;
+            }
+            const action = btn.getAttribute('data-score-action');
+            if (action === 'done') {
+                closeScoreNumpad();
+                return;
+            }
+            if (action === 'clear') {
+                scoreNumpadAnchor.value = '';
+                applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
+                return;
+            }
+            const rawVal = btn.getAttribute('data-score-value');
+            scoreNumpadAnchor.value = rawVal != null ? String(rawVal) : '';
+            applyScoreFromInput(scoreNumpadAnchor, { allowClear: false });
+            focusNextScoreInput(scoreNumpadAnchor);
+        });
+        document.body.appendChild(el);
+        scoreNumpadEl = el;
+        if (!scoreNumpadDocBound) {
+            scoreNumpadDocBound = true;
+            document.addEventListener('pointerdown', (e) => {
+                if (!scoreNumpadEl || scoreNumpadEl.hidden) {
+                    return;
+                }
+                const target = e.target;
+                if (scoreNumpadEl.contains(target)) {
+                    return;
+                }
+                if (scoreNumpadAnchor && scoreNumpadAnchor.contains && scoreNumpadAnchor.contains(target)) {
+                    return;
+                }
+                if (target && target.classList && target.classList.contains('classroom-debate-score-input')) {
+                    return;
+                }
+                closeScoreNumpad();
+            });
+            window.addEventListener('resize', () => {
+                if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
+                    positionScoreNumpad(scoreNumpadAnchor);
+                }
+            });
+            document.addEventListener('scroll', () => {
+                if (scoreNumpadAnchor && scoreNumpadEl && !scoreNumpadEl.hidden) {
+                    positionScoreNumpad(scoreNumpadAnchor);
+                }
+            }, true);
+        }
+        return scoreNumpadEl;
+    }
+
+    function openScoreNumpad(input) {
+        if (!input || input.disabled || !prefersScoreNumpad()) {
+            return;
+        }
+        ensureScoreNumpad();
+        scoreNumpadEl.setAttribute('aria-label', t('classroomDebateScoresNumpadLabel'));
+        const clearBtn = scoreNumpadEl.querySelector('[data-score-action="clear"]');
+        const doneBtn = scoreNumpadEl.querySelector('[data-score-action="done"]');
+        if (clearBtn) {
+            clearBtn.textContent = t('classroomDebateScoresNumpadClear');
+        }
+        if (doneBtn) {
+            doneBtn.textContent = t('classroomDebateScoresNumpadDone');
+        }
+        scoreNumpadAnchor = input;
+        positionScoreNumpad(input);
     }
 
     function renderHeader(panel) {
@@ -526,6 +764,8 @@
                 byId[r.studentId] = r;
             }
         });
+        const useNumpad = prefersScoreNumpad();
+        const readonlyAttr = useNumpad ? ' readonly' : '';
         rowsMount.innerHTML = students
             .map((entry) => {
                 const student = unwrapStudentEntry(entry);
@@ -536,7 +776,7 @@
                 const scoreCells = criteria
                     .map((key) => {
                         const val = rec.scores && rec.scores[key] != null ? rec.scores[key] : '';
-                        return `<td class="classroom-sheet-col-test-score"><input type="number" min="0" max="5" step="0.5" class="field-input field-control--compact classroom-debate-score-input" data-student-id="${escapeHtml(sid)}" data-criterion="${escapeHtml(key)}" value="${escapeHtml(val)}"${disabled} /></td>`;
+                        return `<td class="classroom-sheet-col-test-score"><input type="text" inputmode="decimal" autocomplete="off" class="field-input field-control--compact classroom-debate-score-input" data-student-id="${escapeHtml(sid)}" data-criterion="${escapeHtml(key)}" value="${escapeHtml(formatScoreDisplay(val))}"${readonlyAttr}${disabled} /></td>`;
                     })
                     .join('');
                 const total = rec.total != null ? rec.total : '';
@@ -552,16 +792,24 @@
 
         rowsMount.querySelectorAll('.classroom-debate-score-input').forEach((input) => {
             input.addEventListener('input', () => {
-                const sid = input.getAttribute('data-student-id');
-                const criterion = input.getAttribute('data-criterion');
-                setRecordScore(sid, criterion, input.value === '' ? null : Number(input.value));
-                const row = rowsMount.querySelector(`tr[data-student-id="${sid}"]`);
-                const totalEl = row && row.querySelector('.classroom-debate-score-total');
-                const rec = (draftSession.records || []).find((r) => r.studentId === sid);
-                if (totalEl) {
-                    totalEl.textContent = rec && rec.total != null ? String(rec.total) : '';
+                if (useNumpad) {
+                    return;
                 }
-                scheduleSave();
+                // Mid-edit (e.g. "3.") — skip incomplete values; do not clear existing score.
+                applyScoreFromInput(input, { allowClear: false });
+            });
+            input.addEventListener('change', () => {
+                applyScoreFromInput(input, { allowClear: true });
+            });
+            input.addEventListener('focus', () => {
+                if (useNumpad) {
+                    openScoreNumpad(input);
+                }
+            });
+            input.addEventListener('click', () => {
+                if (useNumpad) {
+                    openScoreNumpad(input);
+                }
             });
         });
         rowsMount.querySelectorAll('.classroom-debate-score-note').forEach((input) => {

@@ -12688,6 +12688,41 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     margin-inline: auto;
 }
 
+.classroom-debate-score-numpad {
+    position: fixed;
+    z-index: var(--z-popover);
+    min-width: 15rem;
+    max-width: calc(100vw - 1rem);
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+.classroom-debate-score-numpad__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(2.75rem, 1fr));
+    gap: var(--space-2);
+}
+
+.classroom-debate-score-numpad__key {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+}
+
+.classroom-debate-score-numpad__actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.classroom-debate-score-numpad__actions .btn {
+    flex: 1;
+    min-height: 2.75rem;
+}
+
 .classroom-points-toolbar {
     display: flex;
     flex-direction: column;

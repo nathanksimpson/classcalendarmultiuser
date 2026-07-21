@@ -248,12 +248,13 @@
         if (filledRows[startIdx + 1]) {
             filledRows[startIdx + 1] = setRowMiddleCell(filledRows[startIdx + 1], roleLabel);
         }
-        // Name row may include a Comments column — fill when speaker.note is set.
-        if (speaker && speaker.note && filledRows[startIdx]) {
-            const cells = getRowCells(filledRows[startIdx]);
+        // Comments title stays on the Name row (cell 2). Note text goes in the
+        // tall Comments column that starts on the Role row (vMerge restart).
+        if (speaker && speaker.note && filledRows[startIdx + 1]) {
+            const cells = getRowCells(filledRows[startIdx + 1]);
             if (cells.length >= 3) {
                 const commentCell = setTableCellText(cells[2], speaker.note);
-                filledRows[startIdx] = filledRows[startIdx].replace(cells[2], commentCell);
+                filledRows[startIdx + 1] = filledRows[startIdx + 1].replace(cells[2], commentCell);
             }
         }
         const keys = (template && template.scoreKeys) || [];
@@ -424,15 +425,20 @@
         });
         const comments = sp.note ? escapeHtml(sp.note) : '';
         return `
-            <div class="score-student-card" style="border:2px solid ${t.primary};border-radius:4px;padding:8px 10px;margin-bottom:10px;font-size:9.5pt;page-break-inside:avoid;">
+            <div class="score-student-card" style="border:2px solid ${t.primary};border-radius:4px;padding:8px 10px;margin-bottom:10px;font-size:9.5pt;page-break-inside:avoid;break-inside:avoid;">
                 <div style="font-size:8pt;color:#666;margin-bottom:4px;">Debate ${escapeHtml(sp.debate)} · ${escapeHtml(sp.bench)}</div>
-                <div style="display:grid;grid-template-columns:52px 1fr 72px;gap:4px 8px;margin-bottom:4px;">
-                    <span style="font-weight:600;">Name</span><span style="font-weight:600;">${escapeHtml(sp.name)}</span><span style="font-weight:600;font-size:8.5pt;">${comments || 'Comments'}</span>
+                <div style="display:grid;grid-template-columns:52px 1fr 28%;gap:4px 8px;margin-bottom:4px;">
+                    <span style="font-weight:600;">Name</span><span style="font-weight:600;">${escapeHtml(sp.name)}</span><span style="font-weight:600;font-size:8.5pt;">Comments</span>
                 </div>
-                <div style="display:grid;grid-template-columns:52px 1fr;gap:4px 8px;margin-bottom:6px;">
-                    <span style="font-weight:600;">Role</span><span>${escapeHtml(roleLabel)}</span>
+                <div style="display:grid;grid-template-columns:1fr 28%;gap:8px;align-items:stretch;">
+                    <div>
+                        <div style="display:grid;grid-template-columns:52px 1fr;gap:4px 8px;margin-bottom:6px;">
+                            <span style="font-weight:600;">Role</span><span>${escapeHtml(roleLabel)}</span>
+                        </div>
+                        ${criteriaHtml}
+                    </div>
+                    <div style="border:1px solid #ccc;padding:4px 6px;font-size:8.5pt;white-space:pre-wrap;min-height:100%;">${comments}</div>
                 </div>
-                ${criteriaHtml}
             </div>`;
     }
 
@@ -476,23 +482,26 @@
     function buildPrintScoreSheetStudentBlock(t, sp) {
         const roleLabel = sp.roleAbbr || '';
         const keys = t.scoreKeys || [];
+        const scoreCount = t.scoreRows.length;
+        const commentsRowspan = 1 + scoreCount;
+        const comments = sp.note ? escapeHtml(sp.note) : '';
         let rows = '';
         t.scoreRows.forEach((label, i) => {
             const value = speakerScoreValue(sp, keys[i]);
-            rows += `<tr><td style="text-align:left;font-weight:600;width:42%;">${escapeHtml(label)}</td><td style="text-align:center;">${escapeHtml(value)}</td><td style="width:28%;"></td></tr>`;
+            rows += `<tr><td style="text-align:left;font-weight:600;width:42%;padding:5px 6px;">${escapeHtml(label)}</td><td style="text-align:center;padding:5px 6px;">${escapeHtml(value)}</td></tr>`;
         });
-        const comments = sp.note ? escapeHtml(sp.note) : '';
         return `
-            <div class="student-block" style="margin-bottom:0.75rem;">
+            <div class="student-block" style="margin-bottom:0.75rem;page-break-inside:avoid;break-inside:avoid;">
                 <table style="width:100%;border-collapse:collapse;font-size:10pt;">
                     <tr>
                         <th style="width:18%;border:1px solid #999;padding:6px;background:#f4f4f4;">Name</th>
                         <th style="width:42%;border:1px solid #999;padding:6px;text-align:left;">${escapeHtml(sp.name)}</th>
-                        <th style="border:1px solid #999;padding:6px;background:#f4f4f4;vertical-align:top;">${comments || 'Comments'}</th>
+                        <th style="width:28%;border:1px solid #999;padding:6px;background:#f4f4f4;">Comments</th>
                     </tr>
                     <tr>
                         <th style="border:1px solid #999;padding:6px;background:#f4f4f4;">Role</th>
-                        <th colspan="2" style="border:1px solid #999;padding:6px;text-align:left;">${escapeHtml(roleLabel)}</th>
+                        <td style="border:1px solid #999;padding:6px;text-align:left;">${escapeHtml(roleLabel)}</td>
+                        <td rowspan="${commentsRowspan}" style="border:1px solid #999;padding:6px;vertical-align:top;width:28%;white-space:pre-wrap;">${comments}</td>
                     </tr>
                     ${rows}
                 </table>
@@ -531,9 +540,10 @@
                 body{font-family:Calibri,'Segoe UI',Arial,sans-serif;line-height:1.4;padding:20px;color:#111;}
                 .sheet-page{border:2px solid ${borderColor};padding:1.25rem;border-radius:6px;margin-bottom:2rem;}
                 .sheet-page:last-child{page-break-after:auto;}
+                .student-block{page-break-inside:avoid;break-inside:avoid;}
                 .header-info div{margin:0.25rem 0;}
                 th,td{border:1px solid #999;}
-                @media print{body{padding:0.4in;} .sheet-page{border-width:1px;margin-bottom:0;}}
+                @media print{body{padding:0.4in;} .sheet-page{border-width:1px;margin-bottom:0;} .student-block{page-break-inside:avoid;break-inside:avoid;}}
             </style></head><body>${body}</body></html>`;
     }
 
