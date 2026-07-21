@@ -15,7 +15,9 @@
     let scoreNumpadEl = null;
     let scoreNumpadAnchor = null;
     let scoreNumpadDocBound = false;
+    let suppressScoreNavUntil = 0;
     const SCORES_AUTOSAVE_DELAY_MS = 700;
+    const SCORE_NAV_SUPPRESS_MS = 400;
     const SCORE_NUMPAD_KEYS = [
         { digit: '1' },
         { digit: '2' },
@@ -548,8 +550,9 @@
             }
             return { skip: true };
         }
-        if (typeof input.valueAsNumber === 'number' && Number.isFinite(input.valueAsNumber)) {
-            return { value: input.valueAsNumber };
+        // Still typing a decimal (e.g. "3.") — do not commit or rewrite the field.
+        if (raw.endsWith('.')) {
+            return { skip: true };
         }
         const n = Number(raw);
         if (!Number.isFinite(n)) {
@@ -589,7 +592,10 @@
         const d = domain();
         const normalized = d ? d.normalizeDebateScoreValue(parsed.value) : parsed.value;
         setRecordScore(sid, criterion, parsed.value);
-        input.value = formatScoreDisplay(normalized);
+        // Snap display only on commit/clear (Done, change, Clear) — not mid-keystroke.
+        if (opts && opts.allowClear) {
+            input.value = formatScoreDisplay(normalized);
+        }
         const rowsMount = input.closest('tbody') || (panelRef && panelRef.querySelector('#classroomDebateScoresRows'));
         updateRowTotalDisplay(rowsMount, sid);
         scheduleSave();
@@ -626,8 +632,35 @@
         scoreNumpadEl.style.top = `${Math.round(top)}px`;
     }
 
+    function isScoreNavSuppressed() {
+        return Date.now() < suppressScoreNavUntil;
+    }
+
+    function armScoreNavSuppress() {
+        suppressScoreNavUntil = Date.now() + SCORE_NAV_SUPPRESS_MS;
+    }
+
+    function isLastScoreCriterion(fromInput) {
+        if (!fromInput || !draftSession) {
+            return false;
+        }
+        const d = domain();
+        if (!d || !d.getDebateScoreCriteria) {
+            return false;
+        }
+        const criteria = d.getDebateScoreCriteria(draftSession.sheetTemplate) || [];
+        if (!criteria.length) {
+            return false;
+        }
+        const criterion = fromInput.getAttribute('data-criterion');
+        return criterion === criteria[criteria.length - 1];
+    }
+
     function focusScoreField(input) {
         if (!input || input.disabled) {
+            return;
+        }
+        if (isScoreNavSuppressed()) {
             return;
         }
         input.focus();
@@ -646,14 +679,25 @@
         const note = Array.from(panelRef.querySelectorAll('.classroom-debate-score-note')).find(
             (el) => el.getAttribute('data-student-id') === studentId
         );
+        armScoreNavSuppress();
         closeScoreNumpad();
-        if (note && !note.disabled) {
+        // Defer focus so the Done tap does not fall through onto the next score cell.
+        window.setTimeout(() => {
+            if (!note || note.disabled) {
+                return;
+            }
             note.focus();
-        }
+            if (typeof note.scrollIntoView === 'function') {
+                note.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+        }, 0);
     }
 
     function focusFirstScoreForStudent(studentId) {
         if (!panelRef || !studentId) {
+            return;
+        }
+        if (isScoreNavSuppressed()) {
             return;
         }
         const first = Array.from(panelRef.querySelectorAll('.classroom-debate-score-input:not([disabled])')).find(
@@ -670,6 +714,10 @@
             return;
         }
         const sid = fromInput.getAttribute('data-student-id');
+        if (isLastScoreCriterion(fromInput)) {
+            focusNoteForStudent(sid);
+            return;
+        }
         const row = fromInput.closest('tr');
         if (row) {
             const rowScores = Array.from(row.querySelectorAll('.classroom-debate-score-input:not([disabled])'));
@@ -678,7 +726,7 @@
                 focusScoreField(rowScores[idx + 1]);
                 return;
             }
-            // Last criterion for this student → Notes / Comments.
+            // Fallback: last score in the row → Notes.
             focusNoteForStudent(sid);
             return;
         }
@@ -687,6 +735,9 @@
 
     function focusNextAfterNote(fromNote) {
         if (!fromNote || !panelRef) {
+            return;
+        }
+        if (isScoreNavSuppressed()) {
             return;
         }
         const row = fromNote.closest('tr');
@@ -743,6 +794,8 @@
             }
             const action = btn.getAttribute('data-score-action');
             if (action === 'done') {
+                e.preventDefault();
+                e.stopPropagation();
                 applyScoreFromInput(scoreNumpadAnchor, { allowClear: true });
                 focusNextAfterScore(scoreNumpadAnchor);
                 return;
@@ -828,6 +881,9 @@
         if (!input || input.disabled || !prefersScoreNumpad()) {
             return;
         }
+        if (isScoreNavSuppressed()) {
+            return;
+        }
         ensureScoreNumpad();
         scoreNumpadEl.setAttribute('aria-label', t('classroomDebateScoresNumpadLabel'));
         const clearBtn = scoreNumpadEl.querySelector('[data-score-action="clear"]');
@@ -881,7 +937,6 @@
             }
         });
         const useNumpad = prefersScoreNumpad();
-        const readonlyAttr = useNumpad ? ' readonly' : '';
         rowsMount.innerHTML = students
             .map((entry) => {
                 const student = unwrapStudentEntry(entry);
@@ -892,7 +947,7 @@
                 const scoreCells = criteria
                     .map((key) => {
                         const val = rec.scores && rec.scores[key] != null ? rec.scores[key] : '';
-                        return `<td class="classroom-sheet-col-test-score"><input type="text" inputmode="decimal" autocomplete="off" class="field-input field-control--compact classroom-debate-score-input" data-student-id="${escapeHtml(sid)}" data-criterion="${escapeHtml(key)}" value="${escapeHtml(formatScoreDisplay(val))}"${readonlyAttr}${disabled} /></td>`;
+                        return `<td class="classroom-sheet-col-test-score"><input type="text" inputmode="decimal" autocomplete="off" class="field-input field-control--compact classroom-debate-score-input" data-student-id="${escapeHtml(sid)}" data-criterion="${escapeHtml(key)}" value="${escapeHtml(formatScoreDisplay(val))}"${disabled} /></td>`;
                     })
                     .join('');
                 const total = rec.total != null ? rec.total : '';
@@ -908,10 +963,7 @@
 
         rowsMount.querySelectorAll('.classroom-debate-score-input').forEach((input) => {
             input.addEventListener('input', () => {
-                if (useNumpad) {
-                    return;
-                }
-                // Mid-edit (e.g. "3.") — skip incomplete values; do not clear existing score.
+                // System keyboard and numpad share this field — update totals while typing.
                 applyScoreFromInput(input, { allowClear: false });
             });
             input.addEventListener('change', () => {
@@ -926,11 +978,17 @@
                 focusNextAfterScore(input);
             });
             input.addEventListener('focus', () => {
+                if (isScoreNavSuppressed()) {
+                    return;
+                }
                 if (useNumpad) {
                     openScoreNumpad(input);
                 }
             });
             input.addEventListener('click', () => {
+                if (isScoreNavSuppressed()) {
+                    return;
+                }
                 if (useNumpad) {
                     openScoreNumpad(input);
                 }
@@ -943,6 +1001,10 @@
             });
             input.addEventListener('keydown', (e) => {
                 if (e.key !== 'Enter') {
+                    return;
+                }
+                if (isScoreNavSuppressed()) {
+                    e.preventDefault();
                     return;
                 }
                 e.preventDefault();
