@@ -262,6 +262,8 @@
 
     /* Sticky offsets: set from JS to match #appTopBar height */
     --app-chrome-sticky-top: 72px;
+    /* Classroom class+date bar under the sticky chrome (set from JS when visible) */
+    --classroom-zone-context-height: 56px;
     /* Cohorts setup board: palette sticky top + viewport lock (set from JS) */
     --cohorts-palette-sticky-top: calc(var(--app-chrome-sticky-top) + 4.5rem);
     --cohorts-board-chrome-height: 12rem;

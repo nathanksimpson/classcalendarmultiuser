@@ -25,11 +25,35 @@ function eventAppliesToClass(event, classData) {
     if (!event || !classData) {
         return false;
     }
+    const classId = String(classData.id || '').trim();
+    const excludedClassIds = Array.isArray(event.excludedClassIds) ? event.excludedClassIds : [];
+    if (classId && excludedClassIds.includes(classId)) {
+        return false;
+    }
+    const classIds = Array.isArray(event.classIds) ? event.classIds : [];
     const hasClassNames = event.classNames && event.classNames.length > 0;
-    if (!hasClassNames) {
+    const hasClassIds = classIds.length > 0;
+    const hasGrades = event.grades && event.grades.length > 0;
+    const hasSections = event.sectionLevels && event.sectionLevels.length > 0;
+    const hasBroadFilters = hasGrades || hasSections
+        || event.allElementary === true
+        || event.allMiddleSchool === true;
+    if (!hasClassIds && !hasClassNames && !hasBroadFilters) {
         return true;
     }
-    return event.classNames.includes(classData.name);
+    if (hasClassIds && classId && classIds.includes(classId)) {
+        return true;
+    }
+    if (!hasClassIds && hasClassNames && event.classNames.includes(classData.name)) {
+        return true;
+    }
+    if (!hasBroadFilters) {
+        return false;
+    }
+    if (hasGrades && event.grades.includes(classData.grade)) {
+        return true;
+    }
+    return false;
 }
 
 function isHolidayForClassOnDay(eventsOnDay) {
@@ -61,7 +85,7 @@ const evalPeriodDay = [
 ];
 assert(isHolidayForClassOnDay(evalPeriodDay), 'evaluation period blocks class on day');
 
-const classData = { name: 'Navy 7A' };
+const classData = { id: 'navy-7a', name: 'Navy 7A' };
 const lessonDay = '2026-03-02';
 const eventsOnDay = [
     {
@@ -83,6 +107,34 @@ const holidayDay = [
     }
 ];
 assert(isHolidayForClassOnDay(holidayDay), 'holiday blocks class');
+
+const blueP1 = { id: 'blue-p1', name: 'Blue', grade: '중1' };
+const blueP2 = { id: 'blue-p2', name: 'Blue', grade: '중1' };
+const broadBlueExceptP2 = {
+    type: 'holiday',
+    grades: ['중1'],
+    classIds: [],
+    classNames: [],
+    excludedClassIds: ['blue-p2'],
+    sectionLevels: [],
+    allElementary: false,
+    allMiddleSchool: false
+};
+assert(eventAppliesToClass(broadBlueExceptP2, blueP1), 'broad include still applies to Blue P1');
+assert(!eventAppliesToClass(broadBlueExceptP2, blueP2), 'class-specific exclusion removes Blue P2');
+
+const explicitOnlyP2 = {
+    type: 'holiday',
+    classIds: ['blue-p2'],
+    classNames: ['Blue'],
+    excludedClassIds: [],
+    grades: [],
+    sectionLevels: [],
+    allElementary: false,
+    allMiddleSchool: false
+};
+assert(!eventAppliesToClass(explicitOnlyP2, blueP1), 'same-name sibling not matched when ids differ');
+assert(eventAppliesToClass(explicitOnlyP2, blueP2), 'explicit class id targets intended class instance');
 
 const mixedDay = [
     { type: 'other', name: 'Reminder', date: lessonDay },

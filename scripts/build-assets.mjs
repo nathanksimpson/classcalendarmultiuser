@@ -25,7 +25,9 @@ const SKIP_DIRS = new Set([
     'tests',
     'server',
     'worker',
-    'Example Calendars'
+    'Example Calendars',
+    'design_handoff_schedule_planner',
+    'design_handoff_debate_teams'
 ]);
 
 const SKIP_FILES = new Set([
@@ -116,7 +118,11 @@ const MINIFY_JS = [
     'js/cohort-management.js',
     'js/meeting-days-control.js',
     'js/setup-board.js',
-    'js/teacher-management.js'
+    'js/teacher-management.js',
+    'js/planner/teacher-planner-core.js',
+    'js/planner/teacher-planner-ui.js',
+    'js/planner/teacher-planner-page.js',
+    'js/core/app-state.js'
 ];
 
 const MINIFY_CSS = ['styles.css', 'admin.css', 'help.css'];

@@ -12674,6 +12674,38 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
 }
 
+/* Fill leftover viewport under sticky chrome + class/date context + toolbar. */
+#panel-debate-scores {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: calc(
+        100dvh
+        - var(--app-chrome-sticky-top, 72px)
+        - var(--classroom-zone-context-height, 56px)
+        - var(--space-6)
+    );
+    box-sizing: border-box;
+}
+
+#panel-debate-scores > .classroom-debate-scores-toolbar,
+#panel-debate-scores > .section-hint {
+    flex: 0 0 auto;
+}
+
+#panel-debate-scores > .classroom-sheet-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#panel-debate-scores .classroom-sheet-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+}
+
 .classroom-sheet--debate-scores .classroom-sheet-col-test-score,
 .classroom-sheet--debate-scores .classroom-sheet-col-test-max {
     width: 4.5rem;
@@ -17251,5 +17283,992 @@ body[data-active-tab='debate-teams'] .classroom-zone-context-bar .classroom-zone
         align-items: baseline;
         gap: var(--space-2);
     }
+}
+
+
+/* Schedule planner Draft — mockup 3-pane + Timetable grids (2026-07-22) */
+.planner-draft-layout--3pane {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr) 260px;
+    gap: var(--space-3, 12px);
+    align-items: start;
+}
+@media (max-width: 1200px) {
+    .planner-draft-layout--3pane {
+        grid-template-columns: 280px minmax(0, 1fr);
+    }
+    .planner-draft-layout--3pane .planner-issues-mount {
+        grid-column: 1 / -1;
+    }
+}
+.planner-lock-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary, #1c2430);
+    min-height: 44px;
+    margin-left: var(--space-2, 8px);
+}
+.planner-class-bin {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 8px);
+    max-height: calc(100vh - 96px);
+    padding: var(--space-3, 12px);
+    border: 1px solid var(--border, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface, #fff);
+    position: sticky;
+    top: 76px;
+    overflow: hidden;
+    min-height: 0;
+}
+.planner-bin-search,
+.planner-class-bin .module-list-search {
+    border: 1px solid var(--border, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 100%;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+.planner-bin-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted, #8893a3);
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+.planner-class-bin-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding-right: 2px;
+}
+.planner-bin-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted, #8893a3);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 4px;
+}
+.planner-bin-section-label--spaced {
+    padding-top: 10px;
+}
+.planner-bin-empty-note {
+    font-size: 12px;
+    color: var(--text-muted, #8893a3);
+    padding: 6px 4px;
+}
+.planner-bin-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: var(--radius-sm, 4px);
+    padding: 8px 10px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    position: relative;
+    background: transparent;
+}
+.planner-bin-drag-handle {
+    color: var(--text-muted, #8893a3);
+    font-size: 12px;
+    cursor: grab;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.planner-bin-row-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+.planner-bin-row-name {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-primary, #1c2430);
+}
+.planner-bin-row-name::before {
+    content: "● ";
+    color: var(--row-color, var(--primary));
+}
+.planner-bin-row-meta {
+    font-size: 11px;
+    line-height: 1.3;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary, #5a6a80);
+}
+.planner-bin-row--unassigned {
+    background: color-mix(in srgb, var(--row-color, var(--primary)) 16%, white);
+    border-color: color-mix(in srgb, var(--row-color, var(--primary)) 45%, transparent);
+    color: var(--text-primary, #1c2430);
+}
+html[data-theme="dark"] .planner-bin-row--unassigned {
+    background: color-mix(in srgb, var(--row-color, var(--primary)) 28%, var(--surface, #111c2c));
+}
+.planner-bin-row--unassigned:hover {
+    border-color: var(--row-color, var(--primary));
+}
+.planner-bin-row--unassigned.is-selected {
+    outline: 2px solid var(--text-primary, #1c2430);
+    outline-offset: 1px;
+}
+.planner-bin-row-progress {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--surface, #fff);
+    color: var(--row-color, var(--primary));
+    border: 1px solid color-mix(in srgb, var(--row-color, var(--primary)) 45%, transparent);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.planner-bin-row--assigned {
+    background: var(--hover, #eef1f5);
+    color: var(--text-muted, #8893a3);
+}
+.planner-bin-row--assigned .planner-bin-row-name {
+    color: var(--text-secondary, #5a6a80);
+    font-weight: 600;
+}
+.planner-bin-row--assigned .planner-bin-row-name::before {
+    content: "○ ";
+    color: var(--text-muted, #8893a3);
+}
+.planner-bin-row--assigned .planner-bin-row-arrow {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary-dark, #0e9b76);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.planner-bin-row--assigned:hover {
+    background: #e4e9f0;
+}
+html[data-theme="dark"] .planner-bin-row--assigned:hover {
+    background: var(--hover, #16202f);
+}
+.planner-suggest-panel {
+    margin-top: 2px;
+    padding: var(--space-3, 12px);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-md, 8px);
+    background: var(--accent-muted, #eaf6f1);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.planner-suggest-panel .planner-bin-heading {
+    margin-top: 0;
+    color: var(--primary-dark, #0e9b76);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+}
+.planner-suggest-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border, #e3e8ef);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--surface, #fff);
+    min-height: 40px;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+.planner-suggest-row span:first-child {
+    font-size: 13px;
+    font-weight: 700;
+}
+.planner-suggest-row .section-hint {
+    font-size: 11px;
+}
+.planner-suggest-row.is-ineligible {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+.planner-suggest-row.is-active {
+    border-color: var(--primary);
+    background: var(--accent-muted, #eaf6f1);
+}
+.planner-teacher-board--timetable {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: var(--space-3, 12px);
+    align-items: stretch;
+}
+.planner-teacher-board--timetable .planner-teacher-panel,
+.planner-teacher-board--stack .planner-teacher-panel {
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    max-width: 100%;
+}
+.planner-teacher-panel.is-focused {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+    box-shadow: var(--shadow-md, 0 4px 14px rgba(28, 36, 48, 0.08));
+}
+.planner-panel-title {
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.planner-panel-load {
+    font-size: 11px;
+    color: var(--text-secondary, #5a6a80);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.planner-tt-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: 12px;
+    --timetable-row-height: 52px;
+    --row-h: 52px;
+}
+.planner-tt-grid th,
+.planner-tt-grid td {
+    border: 1px solid var(--border, #e3e8ef);
+    vertical-align: top;
+    box-sizing: border-box;
+}
+.planner-tt-grid thead th {
+    background: var(--hover, #eef1f5);
+    font-weight: 700;
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 11px;
+    color: var(--text-secondary, #5a6a80);
+}
+.planner-tt-grid .timetable-col-time,
+.planner-tt-grid th.timetable-col-time {
+    background: var(--hover, #eef1f5);
+    font-weight: 700;
+    text-align: center;
+    width: 78px;
+    min-width: 78px;
+    max-width: 88px;
+    font-size: 10.5px;
+    color: var(--text-muted, #8893a3);
+    white-space: nowrap;
+    line-height: 1.3;
+    padding: 4px 2px;
+}
+.planner-tt-grid tbody > tr > th.timetable-col-time,
+.planner-tt-grid tbody > tr > td,
+.planner-tt-grid .planner-cell {
+    height: var(--row-h, 52px);
+    max-height: none;
+    min-height: var(--row-h, 52px);
+    padding: 2px;
+    overflow: hidden;
+    position: relative;
+    vertical-align: top;
+}
+.planner-tt-grid tr.planner-band-divider > td,
+.planner-tt-grid tr.planner-band-divider > th {
+    border-top: 2px solid var(--text-primary, #1c2430) !important;
+}
+.planner-card--tt {
+    width: 100%;
+    height: 100%;
+    min-height: calc(var(--row-h, 52px) - 4px);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    padding: 4px 6px;
+    cursor: grab;
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+.planner-tile-remove {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 15px;
+    height: 15px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.28);
+    color: #fff;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    font-size: 10px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.planner-cell:hover .planner-tile-remove {
+    display: flex;
+}
+.planner-cell--outofblock {
+    box-shadow: inset 0 0 0 2px var(--warning, #f59e0b);
+}
+.planner-cell.drop-valid {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+    background: var(--accent-muted, #eaf6f1);
+}
+.planner-cell.drop-valid-warn {
+    outline: 2px dashed var(--warning, #f59e0b);
+    outline-offset: -2px;
+    background: #fef3c7;
+}
+.planner-cell.drop-invalid {
+    outline: 2px solid var(--danger, #dc2626);
+    opacity: 0.7;
+}
+.planner-period-band--junior .timetable-col-time { color: var(--text-secondary, #5a6a80); }
+.planner-period-band--middle .timetable-col-time { color: #0e9b76; }
+.planner-period-band--senior .timetable-col-time { color: #5a6a80; font-weight: 600; }
+.planner-band-legend {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+    margin-left: 0;
+}
+.planner-band-chip {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border, #e3e8ef);
+    background: var(--hover, #eef1f5);
+}
+.planner-band-chip--junior { border-color: var(--primary); }
+.planner-band-chip--middle { background: var(--accent-muted, #eaf6f1); }
+.planner-band-chip--senior { background: #eef1f5; }
+
+/* Draft · Rooms — daily cohort-column sheet (mockup fidelity) */
+.planner-room-sheet-toolbar {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 8px);
+}
+.planner-day-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.planner-day-tab-btn {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border, #e3e8ef);
+    background: var(--surface, #fff);
+    color: var(--text-secondary, #5a6a80);
+    cursor: pointer;
+    font-family: inherit;
+    min-height: 36px;
+}
+.planner-day-tab-btn.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--on-primary, #f8fafc);
+}
+.planner-room-sheet-wrap {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    overflow-x: auto;
+    padding: var(--space-2, 8px);
+    max-width: 100%;
+}
+.planner-room-sheet {
+    /* Column count sets --planner-room-cols on the table (see renderRoomBoard).
+       Few cohorts: fill width. Many cohorts: keep 140px cols and scroll. */
+    width: 100%;
+    min-width: calc(78px + (var(--planner-room-cols, 4) * 140px));
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+    table-layout: fixed;
+}
+.planner-room-sheet th,
+.planner-room-sheet td {
+    border: 1px solid var(--border, #e3e8ef);
+    box-sizing: border-box;
+}
+.planner-room-sheet thead th {
+    background: var(--hover, #eef1f5);
+    font-weight: 700;
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 11.5px;
+    color: var(--text-secondary, #5a6a80);
+    line-height: 1.35;
+}
+.planner-room-band-header {
+    background: var(--accent-muted, #eaf6f1) !important;
+    color: var(--primary-dark, #0e9b76) !important;
+    font-size: 12px !important;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+.planner-room-time-col,
+.planner-room-label-col {
+    background: var(--hover, #eef1f5);
+    font-weight: 700;
+    text-align: center;
+    width: 78px;
+    min-width: 78px;
+    max-width: 78px;
+    font-size: 10.5px;
+    color: var(--text-muted, #8893a3);
+    white-space: nowrap;
+    line-height: 1.3;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+}
+.planner-room-label-col {
+    background: var(--page-bg, #f4f6f9);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+/* Cohort columns: readable class name + room <select> */
+.planner-room-sheet th[data-cohort-col],
+.planner-room-sheet td.planner-room-sheet-cell {
+    width: 140px;
+    min-width: 140px;
+    max-width: 180px;
+}
+.planner-room-cohort-swatch {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: 1px;
+}
+.planner-room-cohort-meta {
+    font-weight: 500;
+    color: var(--text-muted, #8893a3);
+    font-size: 10px;
+}
+.planner-room-sheet-cell {
+    height: 50px;
+    padding: 3px 5px;
+    vertical-align: middle;
+    transition: outline 0.15s;
+}
+.planner-room-sheet-cell--empty {
+    background: repeating-linear-gradient(
+        135deg,
+        var(--page-bg, #f4f6f9),
+        var(--page-bg, #f4f6f9) 5px,
+        #eef1f5 5px,
+        #eef1f5 10px
+    );
+}
+.planner-room-sheet-cell--outofblock {
+    background: var(--surface, #fff);
+    opacity: 0.35;
+}
+.planner-room-sheet-cell--notattending {
+    background: repeating-linear-gradient(
+        135deg,
+        #f3f3f3,
+        #f3f3f3 4px,
+        #e6e6e6 4px,
+        #e6e6e6 8px
+    );
+    opacity: 0.55;
+}
+.planner-room-sheet-cell--colored {
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+.planner-room-sheet-cell--colored.is-outofblock {
+    outline: 2px dashed var(--warning-text, #b45309);
+    outline-offset: -2px;
+}
+.planner-room-sheet-cell-name {
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.planner-room-sheet-cell-teacher {
+    font-size: 10px;
+    opacity: 0.9;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.planner-room-row-cell {
+    height: 32px;
+    padding: 3px 4px;
+    text-align: center;
+    background: var(--surface, #fff);
+}
+.planner-room-select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 11px;
+    border: 1px solid var(--border, #e3e8ef);
+    border-radius: 4px;
+    padding: 3px 2px;
+    background: var(--surface, #fff);
+    font-family: inherit;
+    color: var(--text-primary, #1c2430);
+    cursor: pointer;
+}
+.planner-room-select.is-empty {
+    border-color: var(--warning-text, #b45309);
+    background: var(--warning-bg, #fef3c7);
+    color: var(--warning-text, #b45309);
+    font-weight: 700;
+}
+.planner-room-sheet .is-col-highlighted {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+th[data-cohort-col] {
+    cursor: pointer;
+}
+
+/* === Restored planner MVP styles (from handoff excerpt; were only in features.css) === */
+/* Extracted from css/features.css — Teacher planner / Schedule planner satellite styles (lines 17289–end). Reference only; redesign mockup may replace visuals. */
+
+/* Teacher planner Arrange mode (Timetable) */
+.planner-mode-toggle {
+    display: inline-flex;
+    gap: var(--space-1, 4px);
+    margin-right: var(--space-2, 8px);
+}
+.planner-mode-toggle .btn.is-active {
+    border-color: var(--primary);
+    background: var(--accent-muted, rgba(20, 185, 143, 0.12));
+}
+.timetable-planner-root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 16px);
+    padding: var(--space-3, 16px);
+}
+.planner-step-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-2, 8px);
+    overflow-x: auto;
+}
+.planner-step-tabs .btn.is-active {
+    border-color: var(--primary);
+    background: var(--accent-muted, rgba(20, 185, 143, 0.12));
+}
+.planner-teachers-mount {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-3, 16px);
+}
+.planner-teacher-card {
+    border: 1px solid var(--border, #ddd);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-3, 16px);
+    background: var(--surface, #fff);
+}
+.planner-teacher-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    margin-bottom: var(--space-2, 8px);
+}
+.planner-teacher-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2, 8px);
+}
+.planner-teacher-flags,
+.planner-pref-row,
+.planner-blockout-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+    align-items: center;
+    margin-top: var(--space-2, 8px);
+}
+.planner-demand-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+    align-items: center;
+    margin-bottom: var(--space-2, 8px);
+}
+.planner-demand-table-wrap {
+    overflow: auto;
+}
+.planner-draft-layout {
+    align-items: start;
+    gap: var(--space-3, 16px);
+}
+.planner-issues-mount {
+    min-width: 220px;
+    max-width: 320px;
+}
+.planner-issue-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 8px);
+}
+.planner-issue {
+    border: 1px solid var(--border, #ddd);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-2, 8px);
+    font-size: 0.9rem;
+}
+.planner-issue--hard {
+    border-left: 3px solid var(--danger, #c0392b);
+}
+.planner-issue--soft {
+    border-left: 3px solid var(--warning, #d4a017);
+}
+.planner-teacher-board {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: var(--space-3, 12px);
+}
+.planner-teacher-panel {
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    border: 1px solid var(--border, #ddd);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface, #fff);
+    overflow: hidden;
+}
+.planner-teacher-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    padding: 10px var(--space-3, 12px);
+    cursor: grab;
+    border-bottom: 1px solid var(--border, #ddd);
+    background: var(--surface, #fff);
+}
+.planner-mini-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: 12px;
+}
+.planner-mini-grid th,
+.planner-mini-grid td {
+    border: 1px solid var(--border, #ddd);
+    padding: 2px;
+    text-align: center;
+    min-width: 44px;
+    vertical-align: middle;
+}
+.planner-cell--blocked {
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 4px,
+        rgba(0,0,0,0.06) 4px,
+        rgba(0,0,0,0.06) 8px
+    );
+}
+.planner-card {
+    display: block;
+    width: 100%;
+    min-height: 36px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--accent-muted, rgba(20, 185, 143, 0.12));
+    color: inherit;
+    font: inherit;
+    cursor: grab;
+    padding: 4px 6px;
+    text-align: left;
+    overflow: hidden;
+    white-space: normal;
+}
+.planner-card--linked {
+    box-shadow: inset 3px 0 0 var(--primary);
+}
+.planner-card--locked {
+    opacity: 0.75;
+    cursor: not-allowed;
+}
+.planner-board-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    margin-bottom: var(--space-2, 8px);
+}
+
+/* Schedule planner satellite page (planner.html) */
+.planner-page {
+    min-height: 100vh;
+    background: var(--bg, #f7f8fa);
+}
+.planner-page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3, 16px);
+    padding: var(--space-3, 16px) var(--space-4, 24px);
+    border-bottom: 1px solid var(--border, #ddd);
+    background: var(--surface, #fff);
+}
+.planner-page-header-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1, 4px);
+    min-width: 0;
+}
+.planner-back-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.planner-page-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+.planner-calendar-label {
+    margin: 0;
+}
+.planner-page-header-actions {
+    display: flex;
+    gap: var(--space-2, 8px);
+    flex-wrap: wrap;
+}
+.planner-page-root {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+.planner-init-error-banner,
+.planner-remote-banner,
+.planner-readonly-banner,
+.planner-sync-hint {
+    margin: var(--space-2, 8px) var(--space-4, 24px);
+}
+.planner-readonly-banner {
+    padding: var(--space-2, 8px) var(--space-3, 16px);
+    border-radius: var(--radius-md, 8px);
+    border: 1px solid var(--border, #ddd);
+    background: var(--accent-muted, rgba(20, 185, 143, 0.08));
+}
+
+/* Planner UX polish + rooms board */
+.planner-hero {
+    margin-bottom: var(--space-4, 16px);
+    padding: var(--space-4, 16px);
+    border: 1px solid var(--border-color, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface, #fff);
+}
+.planner-hero-lead {
+    margin: 0 0 var(--space-3, 12px);
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+.planner-hero-steps {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--text-secondary);
+    display: grid;
+    gap: var(--space-1, 4px);
+}
+.planner-step-intro {
+    margin-bottom: var(--space-3, 12px);
+}
+.planner-step-title {
+    margin: 0 0 var(--space-2, 8px);
+    font-size: 1.25rem;
+}
+.planner-step-footer {
+    display: flex;
+    gap: var(--space-2, 8px);
+    justify-content: flex-end;
+    margin-top: var(--space-4, 16px);
+    padding-top: var(--space-3, 12px);
+    border-top: 1px solid var(--border-color, #e3e8ef);
+}
+.planner-summary-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+}
+.planner-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: var(--space-1, 4px) var(--space-2, 8px);
+    border-radius: 999px;
+    background: var(--accent-muted);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.planner-stat small {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+.planner-card-section {
+    margin-top: var(--space-3, 12px);
+    padding-top: var(--space-3, 12px);
+    border-top: 1px solid var(--border-color, #e3e8ef);
+}
+.planner-card-section-title {
+    margin: 0 0 var(--space-2, 8px);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+.planner-card-title {
+    display: block;
+    font-size: 1.05rem;
+}
+.planner-card-sub {
+    margin: 2px 0 0;
+}
+.planner-field-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.planner-chip-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-color, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface, #fff);
+}
+.planner-empty-card {
+    padding: var(--space-5, 24px);
+    border: 1px dashed var(--border-color, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface-muted);
+}
+.planner-draft-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-3, 12px);
+    align-items: center;
+}
+.planner-board-mode {
+    display: inline-flex;
+    gap: var(--space-1, 4px);
+}
+.planner-board-mode .btn.is-active {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+}
+.planner-card-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.15;
+}
+.planner-card-meta {
+    display: block;
+    font-size: 10px;
+    opacity: 0.9;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: inherit;
+}
+.planner-card--noroom {
+    border-style: dashed;
+    background: var(--surface-muted);
+}
+.planner-rooms-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+    align-items: center;
+    margin-bottom: var(--space-3, 12px);
+}
+.planner-rooms-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-3, 12px);
+}
+.planner-room-card {
+    display: grid;
+    gap: var(--space-2, 8px);
+    padding: var(--space-3, 12px);
+    border: 1px solid var(--border-color, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface, #fff);
+}
+.planner-unassigned-rooms {
+    margin-bottom: var(--space-3, 12px);
+    padding: var(--space-3, 12px);
+    border: 1px dashed var(--border-color, #e3e8ef);
+    border-radius: var(--radius-md, 8px);
+}
+.planner-unassigned-room-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+}
+.planner-unassigned-room-list .planner-card {
+    width: auto;
+    min-width: 120px;
 }
 

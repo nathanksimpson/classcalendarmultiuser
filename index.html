@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260721-numpad-place">
+    <link rel="stylesheet" href="styles.css?v=20260721-scores-sheet-fill">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -1060,6 +1060,7 @@
             <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
                 <div class="print-data-section timetable-view-section">
                 <div class="module-toolbar timetable-tab-toolbar">
+                    <a href="/planner.html" id="timetableOpenPlannerBtn" class="btn btn-outline btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
                     <button type="button" id="timetablePeriodScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodSchedule">Period schedule</button>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
                     <button type="button" id="timetableExportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableExportExcel">Export Excel</button>
@@ -1169,7 +1170,8 @@
                     <h2 class="teachers-placeholder-title" data-i18n="teachersPlaceholderTitle">Teachers</h2>
                     <p class="teachers-placeholder-body" data-i18n="teachersPlaceholderBody">Planned future features will live here.</p>
                     <div class="teachers-placeholder-actions">
-                        <button type="button" id="teachersPlaceholderOpenTimetableBtn" class="btn btn-primary btn-small" data-i18n="teachersTabOpenTimetable">Open in Timetable</button>
+                        <a href="/planner.html" id="teachersPlaceholderOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
+                        <button type="button" id="teachersPlaceholderOpenTimetableBtn" class="btn btn-outline btn-small" data-i18n="teachersTabOpenTimetable">Open in Timetable</button>
                         <button type="button" id="teachersPlaceholderOpenCohortsBtn" class="btn btn-outline btn-small" data-i18n="teachersTabManageCohorts">Open Cohorts board</button>
                     </div>
                 </div>
@@ -2137,6 +2139,7 @@
         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang header-dropdown-item" data-i18n="langToggle">Language</button>
         <button type="button" id="nowClassPopupToggleBtn" class="btn btn-outline btn-small header-dropdown-item" aria-pressed="true" data-i18n="nowClassPopupToggleOn">During-class popup: On</button>
         <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
+        <a href="/planner.html" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
         <hr class="header-dropdown-divider" aria-hidden="true">
         <a href="admin.html" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
         <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
@@ -2190,7 +2193,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
-    <script defer src="app.js?v=20260721-event-applicability-fix"></script>
+    <script defer src="app.js?v=20260721-scores-sheet-fill"></script>
 </body>
 </html>
 

@@ -328,13 +328,31 @@ Each mutation:
 
 Offline queue key: `classCalendarQueue:` + calendar id in `localStorage` (via `CCPSessionRestore`).
 
-## Planned admin scheduling fields (UI organization overhaul — deferred)
+## Teacher planner fields (Schedule planner page)
 
-These optional top-level fields are reserved for Setup Hub / auto-scheduler work; calendars without them load normally.
+Optional top-level fields used by the satellite page [`planner.html`](planner.html) (not a Timetable tab). Calendars without them load normally; `CCPTeacherPlanner.ensurePlannerFields` fills defaults.
 
 | Field | Type | Notes |
 |-------|------|--------|
-| `teacherTeachingProfiles[]` | array | Per `userId`: `teacherProfilePreset`, `categories` map (`prefer` / `avoid` / `never` / `neutral`) |
+| `rooms[]` | array | `{ id, name, capacity?, allowedClassTypes?, notes?, sortOrder? }` |
+| `teacherProfiles[]` | array | Planner teacher rows: role, limits, availability block-outs, preferences, learnedPreferences |
+| `plannerState` | object | Active draft id, board zoom/order, filters, global blockouts, `lockToCohortDays` (default true) |
+| `plannerDrafts[]` | array | Versioned drafts with assignments, issues, metrics (keep last ~5) |
+| `classes[].teacherRequirementType` | string | `korean` \| `native` \| `either` |
+| `classes[].weeklyFrequency` | number | Optional 1 or 2; else derived from meetings |
+| `classes[].roomId` | string | Soft default room |
+| `classes[].roomIdByWeekday` | object | Optional weekday room overrides |
+| `classes[].plannerExcluded` | boolean | Exclude from draft demand when true |
+
+Legacy note: older deferred `teacherTeachingProfiles[]` is migrated into `teacherProfiles[]` when present.
+
+## Planned admin scheduling fields (legacy / deferred)
+
+These optional top-level fields were reserved earlier; prefer `teacherProfiles[]` + `plannerState` above.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `teacherTeachingProfiles[]` | array | Legacy; migrated into `teacherProfiles[]` |
 | `teacherAvailability[]` | array | Optional hard windows (schema TBD) |
 | `scheduleOptimizerPrefs` | object | `version`, `weights`, `thresholds`, `strategy` for break/load optimizer |
 | `rooms[]` | array | `{ id, name, capacity?, notes? }` room catalog |

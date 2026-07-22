@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <base href="/">
+    <title>Schedule planner — ClassManager</title>
+    <script src="js/theme-init.js"></script>
+    <script src="js/language-init.js"></script>
+    <script>
+        window.CCP_I18N_VERSION = '20260722-planner-rooms-sheet';
+        (function () {
+            try {
+                var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
+                    ? window.CCPLanguage.resolveCalendarLanguage()
+                    : 'en';
+                if (lang === 'ko') {
+                    document.write(
+                        '<scr' + 'ipt defer src="js/i18n/calendar-ko.js?v='
+                        + window.CCP_I18N_VERSION + '"></scr' + 'ipt>'
+                    );
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260722-planner-room-col-width">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="planner-page">
+    <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div id="viewAsBanner" class="view-as-banner" hidden role="status" aria-live="polite">
+        <div class="view-as-banner-inner">
+            <div class="view-as-banner-text">
+                <strong id="viewAsBannerPrimary" class="view-as-banner-primary"></strong>
+                <span id="viewAsBannerSecondary" class="view-as-banner-secondary"></span>
+            </div>
+            <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit" data-view-as-i18n="viewAsExitBtn">Exit View As</button>
+        </div>
+    </div>
+
+    <header class="planner-page-header">
+        <div class="planner-page-header-main">
+            <a href="/" class="planner-back-link" data-i18n="plannerBackCalendar">← Calendar</a>
+            <h1 class="planner-page-title" data-i18n="plannerPageTitle">Schedule planner</h1>
+            <p id="plannerCalendarLabel" class="planner-calendar-label section-hint"></p>
+        </div>
+        <div class="planner-page-header-actions">
+            <button type="button" id="plannerLangToggle" class="btn btn-outline btn-small btn-lang">🌐 한국어</button>
+            <button type="button" id="plannerThemeToggle" class="btn btn-outline btn-small btn-header-theme">🌙 Dark</button>
+        </div>
+    </header>
+
+    <div id="plannerInitErrorBanner" class="planner-init-error-banner" hidden role="alert">
+        <span id="plannerInitErrorText"></span>
+        <button type="button" id="plannerInitRetryBtn" class="btn btn-primary btn-small" data-i18n="workspaceReload">Reload</button>
+    </div>
+
+    <div id="plannerRemoteBanner" class="remote-newer-banner planner-remote-banner" hidden role="alert">
+        <span data-i18n="workspaceRemoteNewer">Calendar was updated elsewhere.</span>
+        <button type="button" id="plannerReloadBtn" class="btn btn-primary btn-small" data-i18n="workspaceReload">Reload</button>
+    </div>
+
+    <p id="plannerSyncHint" class="planner-sync-hint section-hint" hidden role="status"></p>
+    <p id="plannerReadOnlyBanner" class="planner-readonly-banner" hidden role="status" data-i18n="plannerReadOnlyHint">This calendar is read-only. Request edit access before applying a draft.</p>
+
+    <div id="teamLockSyncBar" class="team-lock-sync-bar" hidden aria-live="polite"></div>
+
+    <main id="plannerPageRoot" class="timetable-planner-root planner-page-root">
+        <div class="planner-hero">
+            <p class="planner-hero-lead" data-i18n="plannerHeroLead">Arrange teachers and classrooms for this term, then apply the draft back to your calendar.</p>
+            <ol class="planner-hero-steps" data-i18n-skip="1">
+                <li data-i18n="plannerHeroStep1">1. Set teacher limits and block-outs</li>
+                <li data-i18n="plannerHeroStep2">2. Review which classes need teaching</li>
+                <li data-i18n="plannerHeroStep3">3. Add rooms (optional)</li>
+                <li data-i18n="plannerHeroStep4">4. Generate a draft, drag to fix, apply</li>
+            </ol>
+        </div>
+        <nav class="planner-step-tabs" aria-label="Arrange steps">
+            <button type="button" id="plannerStepTab-teachers" class="btn btn-outline btn-small is-active" data-planner-step="teachers" data-i18n="plannerStepTeachers">1. Teachers</button>
+            <button type="button" id="plannerStepTab-demand" class="btn btn-outline btn-small" data-planner-step="demand" data-i18n="plannerStepDemand">2. Classes</button>
+            <button type="button" id="plannerStepTab-rooms" class="btn btn-outline btn-small" data-planner-step="rooms" data-i18n="plannerStepRooms">3. Rooms</button>
+            <button type="button" id="plannerStepTab-draft" class="btn btn-outline btn-small" data-planner-step="draft" data-i18n="plannerStepDraft">4. Draft board</button>
+        </nav>
+        <div id="plannerStep-teachers" class="planner-step-panel">
+            <div class="planner-step-intro">
+                <h2 class="planner-step-title" data-i18n="plannerStepTeachersTitle">Teacher setup</h2>
+                <p class="section-hint" data-i18n="plannerTeachersHint">Set role, load limits, preferences, and blocked-out times for each teacher.</p>
+            </div>
+            <div id="plannerTeachersMount" class="planner-teachers-mount"></div>
+            <div class="planner-step-footer">
+                <button type="button" class="btn btn-primary" data-planner-step="demand" data-i18n="plannerNextClasses">Next: Classes</button>
+            </div>
+        </div>
+        <div id="plannerStep-demand" class="planner-step-panel" hidden>
+            <div class="planner-step-intro">
+                <h2 class="planner-step-title" data-i18n="plannerStepDemandTitle">Class demand</h2>
+                <p id="plannerDemandSummary" class="planner-summary-strip section-hint"></p>
+            </div>
+            <div id="plannerDemandMount"></div>
+            <div class="planner-step-footer">
+                <button type="button" class="btn btn-outline" data-planner-step="teachers" data-i18n="plannerBack">Back</button>
+                <button type="button" class="btn btn-primary" data-planner-step="rooms" data-i18n="plannerNextRooms">Next: Rooms</button>
+            </div>
+        </div>
+        <div id="plannerStep-rooms" class="planner-step-panel" hidden>
+            <div class="planner-step-intro">
+                <h2 class="planner-step-title" data-i18n="plannerStepRoomsTitle">Rooms</h2>
+                <p class="section-hint" data-i18n="plannerRoomsHint">Add classrooms here. Room conflicts are soft warnings — teacher assignment still works without a perfect room fit.</p>
+            </div>
+            <div id="plannerRoomsMount" class="planner-rooms-mount"></div>
+            <div class="planner-step-footer">
+                <button type="button" class="btn btn-outline" data-planner-step="demand" data-i18n="plannerBack">Back</button>
+                <button type="button" class="btn btn-primary" data-planner-step="draft" data-i18n="plannerNextDraft">Next: Draft board</button>
+            </div>
+        </div>
+        <div id="plannerStep-draft" class="planner-step-panel" hidden>
+            <div class="planner-step-intro">
+                <h2 class="planner-step-title" data-i18n="plannerStepDraftTitle">Draft board</h2>
+                <p class="section-hint" data-i18n="plannerDraftHint">Generate a draft, drag class periods onto teacher grids, or drop onto another tile to swap. Apply writes times back into Class Setup.</p>
+            </div>
+            <div class="module-toolbar classroom-tab-toolbar planner-draft-toolbar">
+                <div class="planner-board-mode" role="group" aria-label="Board view">
+                    <button type="button" id="plannerBoardTeachersBtn" class="btn btn-outline btn-small is-active" data-board-view="teachers" data-i18n="plannerBoardTeachers">Teachers</button>
+                    <button type="button" id="plannerBoardRoomsBtn" class="btn btn-outline btn-small" data-board-view="rooms" data-i18n="plannerBoardRooms">Rooms</button>
+                </div>
+                <label class="planner-lock-toggle" title="When on, classes may only be placed on their cohort academy days">
+                    <input type="checkbox" id="plannerLockCohortDays" checked>
+                    <span data-i18n="plannerLockCohortDays">Lock to cohort days</span>
+                </label>
+                <div class="toolbar-actions">
+                    <button type="button" id="plannerGenerateBtn" class="btn btn-primary btn-small" data-i18n="plannerGenerate">Generate draft</button>
+                    <button type="button" id="plannerRerunUnresolvedBtn" class="btn btn-outline btn-small" data-i18n="plannerRerunUnresolved">Rerun unresolved</button>
+                    <button type="button" id="plannerApplyBtn" class="btn btn-secondary btn-small" data-i18n="plannerApply">Apply to calendar</button>
+                </div>
+            </div>
+            <p id="plannerMetricsMount" class="planner-summary-strip section-hint"></p>
+            <div class="planner-draft-layout planner-draft-layout--3pane">
+                <aside id="plannerClassBin" class="planner-class-bin" aria-label="Class list">
+                    <input type="search" id="plannerBinSearch" class="module-list-search planner-bin-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plannerBinSearchPlaceholder" placeholder="Search classes…">
+                    <div class="planner-bin-heading" data-i18n="plannerClassList">Class list</div>
+                    <div id="plannerClassBinList" class="planner-class-bin-list"></div>
+                </aside>
+                <div id="plannerDraftMount" class="planner-draft-mount"></div>
+                <aside id="plannerIssuesMount" class="planner-issues-mount" aria-label="Planner issues"></aside>
+            </div>
+        </div>
+    </main>
+
+    <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
+    <script defer src="js/schedule-core.js"></script>
+    <script defer src="js/utils.js?v=20260606-clipboard-dash"></script>
+    <script defer src="js/theme-toggle.js?v=20260527-modal-ux"></script>
+    <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
+    <script defer src="js/session-restore.js?v=20260608-notes-app"></script>
+    <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
+    <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
+    <script defer src="js/team-auth.js?v=20260601-role-palette"></script>
+    <script defer src="js/calendar-sync.js?v=20260623-atomic-cas"></script>
+    <script defer src="js/core/app-state.js?v=20260721-planner-page"></script>
+    <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
+    <script defer src="js/teacher-timetable.js?v=20260619-term-flex"></script>
+    <script defer src="js/planner/teacher-planner-core.js?v=20260722-planner-room-col-width"></script>
+    <script defer src="js/planner/teacher-planner-ui.js?v=20260722-planner-room-col-width"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260722-planner-rooms-sheet"></script>
+    <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
+    <script defer src="app.js?v=20260722-planner-mockup"></script>
+    <script defer src="js/planner/teacher-planner-page.js?v=20260722-planner-rooms-sheet"></script>
+</body>
+</html>
