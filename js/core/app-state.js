@@ -74,6 +74,10 @@
             portfolioRecordings: [],
             portfolioEntries: [],
             smsLog: [],
+            rooms: [],
+            teacherProfiles: [],
+            plannerDrafts: [],
+            plannerState: null,
             ui: {
                 visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
                 printVisibility: { ...DEFAULT_VISIBILITY_FILTERS },

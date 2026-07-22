@@ -84,6 +84,46 @@ function formatI18n(key, vars) {
     return s;
 }
 
+/** i18n for planner.html — avoids calendar-only DOM updates that crash without index.html chrome. */
+function applyPlannerPageLanguage() {
+    ensureActiveLanguageLoaded(applyPlannerPageLanguage);
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[currentLanguage][key]) {
+            el.textContent = translations[currentLanguage][key];
+        }
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (translations[currentLanguage][key]) {
+            el.placeholder = translations[currentLanguage][key];
+        }
+    });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
+        const key = el.getAttribute('data-i18n-aria-label');
+        if (translations[currentLanguage][key]) {
+            el.setAttribute('aria-label', translations[currentLanguage][key]);
+        }
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+        const key = el.getAttribute('data-i18n-title');
+        if (translations[currentLanguage][key]) {
+            el.setAttribute('title', translations[currentLanguage][key]);
+        }
+    });
+    const langBtn = document.getElementById('plannerLangToggle');
+    if (langBtn) {
+        langBtn.textContent = t('langToggle');
+    }
+    updateThemeToggleButtons();
+    document.documentElement.lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    const titleBase =
+        appData && appData.calendarName && appData.calendarName.trim()
+            ? appData.calendarName.trim()
+            : t('plannerPageTitle');
+    document.title = titleBase;
+}
+
 /** i18n for notes.html only — avoids calendar-only DOM updates that crash without index.html chrome. */
 function applyNotesPageLanguage() {
     ensureActiveLanguageLoaded(applyNotesPageLanguage);
@@ -128,6 +168,10 @@ function applyLanguage() {
     ensureActiveLanguageLoaded(applyLanguage);
     if (isNotesPage()) {
         applyNotesPageLanguage();
+        return;
+    }
+    if (isPlannerPage()) {
+        applyPlannerPageLanguage();
         return;
     }
     // Update all elements with data-i18n attribute
@@ -679,6 +723,10 @@ function getDefaultAppData() {
         portfolioRecordings: [],
         portfolioEntries: [],
         smsLog: [],
+        rooms: [],
+        teacherProfiles: [],
+        plannerDrafts: [],
+        plannerState: null,
         ui: {
             visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
             printVisibility: { ...DEFAULT_VISIBILITY_FILTERS },
@@ -5115,6 +5163,16 @@ function syncAppChromeStickyTop() {
         document.documentElement.style.setProperty('--app-chrome-sticky-top', `${topHeight}px`);
     }
 
+    const zoneContextBar = document.getElementById('classroomZoneContextBar');
+    const contextHeight =
+        zoneContextBar && !zoneContextBar.hidden
+            ? Math.ceil(zoneContextBar.getBoundingClientRect().height)
+            : 0;
+    document.documentElement.style.setProperty(
+        '--classroom-zone-context-height',
+        `${Math.max(0, contextHeight)}px`
+    );
+
     let monthStickyTop = topHeight > 0 ? topHeight : 72;
     const dock = document.querySelector('.calendar-visibility-dock');
     if (
@@ -5600,7 +5658,7 @@ function initAppChromeStickyTop() {
         }
         appChromeStickyResizeObserver = new ResizeObserver(() => syncAppChromeStickyTop());
         appChromeStickyResizeObserver.observe(topBar);
-        ['teamLockSyncBar', 'teamLockBarRow', 'teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack'].forEach((id) => {
+        ['teamLockSyncBar', 'teamLockBarRow', 'teamLockStatus', 'teamLockDebugPanel', 'app-banner-stack', 'classroomZoneContextBar'].forEach((id) => {
             const el = document.getElementById(id);
             if (el) {
                 appChromeStickyResizeObserver.observe(el);
@@ -6192,8 +6250,12 @@ function normalizeEvent(raw) {
         endDate: isRange ? (raw.endDate || null) : null,
         bgColor,
         textColor,
+        classIds: Array.isArray(raw.classIds) && raw.classIds.length
+            ? raw.classIds
+            : resolveEventClassIdsFromNames(raw.classNames || []),
         grades: Array.isArray(raw.grades) ? raw.grades : [],
         classNames: Array.isArray(raw.classNames) ? raw.classNames : [],
+        excludedClassIds: Array.isArray(raw.excludedClassIds) ? raw.excludedClassIds : [],
         sectionLevels: Array.isArray(raw.sectionLevels) ? raw.sectionLevels : [],
         allElementary: raw.allElementary === true,
         allMiddleSchool: raw.allMiddleSchool === true,
@@ -6218,8 +6280,10 @@ function holidayFromEvent(ev) {
         endDate: ev.endDate,
         bgColor: ev.bgColor,
         textColor: ev.textColor,
+        classIds: ev.classIds,
         grades: ev.grades,
         classNames: ev.classNames,
+        excludedClassIds: ev.excludedClassIds,
         sectionLevels: ev.sectionLevels,
         allElementary: ev.allElementary,
         allMiddleSchool: ev.allMiddleSchool
@@ -6955,7 +7019,9 @@ function clearAllLessonFiltersInPopover() {
 function createEmptyEventApplicability() {
     return {
         grades: [],
+        classIds: [],
         classNames: [],
+        excludedClassIds: [],
         sectionLevels: [],
         allElementary: false,
         allMiddleSchool: false
@@ -6964,19 +7030,12 @@ function createEmptyEventApplicability() {
 let eventApplicabilityDraft = createEmptyEventApplicability();
 
 function getEventApplicabilityOptionGroups() {
-    const seenNames = new Set();
-    const classes = [];
-    getClassesInDisplayOrder().forEach(classData => {
-        const name = classData.name;
-        if (!name || seenNames.has(name)) {
-            return;
-        }
-        seenNames.add(name);
-        classes.push({
-            value: name,
+    const classes = getClassesInDisplayOrder()
+        .filter((classData) => classData && classData.id)
+        .map((classData) => ({
+            value: classData.id,
             label: formatClassLabelWithPeriod(classData)
-        });
-    });
+        }));
     return {
         classes,
         grades: SCHOOL_GRADE_OPTIONS.map(code => ({ value: code, label: code })),
@@ -6995,7 +7054,9 @@ function getDefaultAllSelectedEventApplicability() {
     const groups = getEventApplicabilityOptionGroups();
     return {
         grades: groups.grades.map(g => g.value),
-        classNames: groups.classes.map(c => c.value),
+        classIds: groups.classes.map(c => c.value),
+        classNames: groups.classes.map((c) => c.label),
+        excludedClassIds: [],
         sectionLevels: groups.sectionLevels.map(s => s.value),
         allElementary: true,
         allMiddleSchool: true
@@ -7011,8 +7072,16 @@ function countEventApplicabilityOptions() {
 }
 
 function countEventApplicabilitySelected(draft = eventApplicabilityDraft) {
+    const groups = getEventApplicabilityOptionGroups();
+    const hasBroadFilters = (draft.grades?.length || 0) > 0
+        || (draft.sectionLevels?.length || 0) > 0
+        || draft.allElementary === true
+        || draft.allMiddleSchool === true;
+    const classSelectedCount = hasBroadFilters
+        ? Math.max(0, groups.classes.length - (draft.excludedClassIds?.length || 0))
+        : (draft.classIds?.length || 0);
     return (draft.grades?.length || 0)
-        + (draft.classNames?.length || 0)
+        + classSelectedCount
         + (draft.sectionLevels?.length || 0)
         + (draft.allElementary ? 1 : 0)
         + (draft.allMiddleSchool ? 1 : 0);
@@ -7023,9 +7092,14 @@ function loadEventApplicabilityDraftFromHoliday(holidayData) {
         eventApplicabilityDraft = createEmptyEventApplicability();
         return;
     }
+    const classIds = Array.isArray(holidayData.classIds) && holidayData.classIds.length
+        ? [...holidayData.classIds]
+        : resolveEventClassIdsFromNames(holidayData.classNames || []);
     eventApplicabilityDraft = {
         grades: [...(holidayData.grades || [])],
+        classIds,
         classNames: [...(holidayData.classNames || [])],
+        excludedClassIds: [...(holidayData.excludedClassIds || [])],
         sectionLevels: [...(holidayData.sectionLevels || [])],
         allElementary: holidayData.allElementary === true,
         allMiddleSchool: holidayData.allMiddleSchool === true
@@ -7034,8 +7108,13 @@ function loadEventApplicabilityDraftFromHoliday(holidayData) {
 
 function readEventApplicabilityFromPopoverDom() {
     const draft = createEmptyEventApplicability();
+    const groups = getEventApplicabilityOptionGroups();
+    const checkedClassIds = [];
     document.querySelectorAll('#eventApplicabilityPopoverBody input[data-event-filter]').forEach(cb => {
         if (!cb.checked) {
+            if (cb.getAttribute('data-event-filter') === 'classIds') {
+                return;
+            }
             return;
         }
         const key = cb.getAttribute('data-event-filter');
@@ -7048,20 +7127,48 @@ function readEventApplicabilityFromPopoverDom() {
             }
             return;
         }
-        if (key === 'grades' || key === 'classNames' || key === 'sectionLevels') {
+        if (key === 'classIds') {
+            checkedClassIds.push(val);
+            return;
+        }
+        if (key === 'grades' || key === 'sectionLevels') {
             draft[key].push(val);
         }
     });
+    const hasBroadFilters = draft.grades.length > 0
+        || draft.sectionLevels.length > 0
+        || draft.allElementary === true
+        || draft.allMiddleSchool === true;
+    if (hasBroadFilters) {
+        const allClassIds = groups.classes.map((option) => option.value);
+        draft.excludedClassIds = allClassIds.filter((classId) => !checkedClassIds.includes(classId));
+        draft.classIds = [];
+        draft.classNames = [];
+    } else {
+        draft.classIds = checkedClassIds;
+        draft.classNames = resolveEventClassNamesFromIds(checkedClassIds);
+        draft.excludedClassIds = [];
+    }
     return draft;
 }
 
 function applyEventApplicabilityToPopoverDom() {
     const d = eventApplicabilityDraft;
+    const hasBroadFilters = (d.grades?.length || 0) > 0
+        || (d.sectionLevels?.length || 0) > 0
+        || d.allElementary === true
+        || d.allMiddleSchool === true;
     document.querySelectorAll('#eventApplicabilityPopoverBody input[data-event-filter]').forEach(cb => {
         const key = cb.getAttribute('data-event-filter');
         const val = cb.value;
         if (key === 'schoolBand') {
             cb.checked = val === 'allElementary' ? d.allElementary : d.allMiddleSchool;
+            return;
+        }
+        if (key === 'classIds') {
+            cb.checked = hasBroadFilters
+                ? !(d.excludedClassIds || []).includes(val)
+                : Array.isArray(d.classIds) && d.classIds.includes(val);
             return;
         }
         const arr = d[key];
@@ -7122,7 +7229,7 @@ function renderEventApplicabilityPopoverBody() {
         buildEventApplicabilitySectionHtml('eventApplicabilitySectionSchoolBand', 'schoolBand', groups.schoolBands),
         buildEventApplicabilitySectionHtml('eventApplicabilitySectionLevel', 'sectionLevels', groups.sectionLevels),
         buildEventApplicabilitySectionHtml('lessonFilterSectionGrade', 'grades', groups.grades),
-        buildEventApplicabilitySectionHtml('lessonFilterSectionClasses', 'classNames', groups.classes)
+        buildEventApplicabilitySectionHtml('lessonFilterSectionClasses', 'classIds', groups.classes)
     ].join('');
     applyEventApplicabilityToPopoverDom();
     if (searchEl) {
@@ -10568,6 +10675,22 @@ function initDayNotesUi() {
     bindOpenNotesAppControl(document.getElementById('openNotesAppTabBtn'));
     bindOpenNotesAppControl(document.getElementById('openNotesAppLink'));
 
+    function bindOpenPlannerAppControl(el) {
+        if (!el || el.dataset.openPlannerAppBound === '1') {
+            return;
+        }
+        el.dataset.openPlannerAppBound = '1';
+        el.addEventListener('click', (e) => {
+            if (el.tagName === 'A') {
+                e.preventDefault();
+            }
+            void openPlannerPage({ sameTab: true });
+        });
+    }
+    bindOpenPlannerAppControl(document.getElementById('openPlannerAppHeaderBtn'));
+    bindOpenPlannerAppControl(document.getElementById('timetableOpenPlannerBtn'));
+    bindOpenPlannerAppControl(document.getElementById('teachersPlaceholderOpenPlannerBtn'));
+
     document.getElementById('dayNotesToolbarBtn')?.addEventListener('click', () => {
         const defaults = resolveDefaultOpenNotesParams();
         const dateStr = defaults.dateStr;
@@ -10816,6 +10939,60 @@ async function openNotesPage(options = {}) {
         return;
     }
     window.open(url, '_blank', 'noopener');
+}
+
+async function openPlannerPage(options = {}) {
+    if (typeof CalendarSync !== 'undefined' && CalendarSync.flushPendingSave) {
+        try {
+            await CalendarSync.flushPendingSave();
+        } catch (err) {
+            if (err.status !== 423) {
+                console.warn('Flush before planner open failed:', err);
+            }
+        }
+    }
+    if (typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId) {
+        const calId = CalendarSync.getActiveCalendarId();
+        if (calId) {
+            try {
+                localStorage.setItem('teamCalendarActiveId', calId);
+            } catch (_) {
+                /* ignore */
+            }
+        }
+    }
+    const url = '/planner.html';
+    if (options.sameTab === false) {
+        window.open(url, '_blank', 'noopener');
+        return;
+    }
+    location.href = url;
+}
+
+async function reloadPlannerCalendar() {
+    if (typeof CalendarSync === 'undefined' || !teamSyncEnabled) {
+        location.reload();
+        return;
+    }
+    const id = CalendarSync.getActiveCalendarId();
+    if (!id) {
+        location.reload();
+        return;
+    }
+    const doc = await CalendarSync.loadCalendar(id);
+    applyServerDocument(doc);
+    if (typeof window.refreshPlannerPageUi === 'function') {
+        window.refreshPlannerPageUi();
+    }
+    const banner = document.getElementById('plannerRemoteBanner');
+    if (banner) {
+        banner.hidden = true;
+    }
+    const initErr = document.getElementById('plannerInitErrorBanner');
+    if (initErr) {
+        initErr.hidden = true;
+    }
+    CalendarSync.state.remoteNewer = false;
 }
 
 async function reloadNotesCalendar() {
@@ -12442,8 +12619,10 @@ async function importKoreanPublicHolidays() {
                 date: g.date,
                 startDate: g.startDate,
                 endDate: g.endDate,
+                classIds: [],
                 grades: [],
                 classNames: [],
+                excludedClassIds: [],
                 sectionLevels: [],
                 allElementary: false,
                 allMiddleSchool: false
@@ -12525,11 +12704,49 @@ function getClassSectionPreset(classData) {
     return null;
 }
 
+function resolveEventClassIdsFromNames(classNames) {
+    if (!Array.isArray(classNames) || !classNames.length) {
+        return [];
+    }
+    const wanted = new Set(classNames.map((name) => String(name || '').trim()).filter(Boolean));
+    if (!wanted.size) {
+        return [];
+    }
+    return getClassesInDisplayOrder()
+        .filter((classData) => classData && classData.id && wanted.has((classData.name || '').trim()))
+        .map((classData) => classData.id);
+}
+
+function resolveEventClassNamesFromIds(classIds) {
+    if (!Array.isArray(classIds) || !classIds.length) {
+        return [];
+    }
+    const byId = new Map(getClassesInDisplayOrder()
+        .filter((classData) => classData && classData.id)
+        .map((classData) => [classData.id, classData.name || '']));
+    return classIds
+        .map((classId) => (byId.get(classId) || '').trim())
+        .filter(Boolean);
+}
+
+function resolveEventClassLabelsFromIds(classIds) {
+    if (!Array.isArray(classIds) || !classIds.length) {
+        return [];
+    }
+    const byId = new Map(getClassesInDisplayOrder()
+        .filter((classData) => classData && classData.id)
+        .map((classData) => [classData.id, formatClassLabelWithPeriod(classData)]));
+    return classIds
+        .map((classId) => (byId.get(classId) || '').trim())
+        .filter(Boolean);
+}
+
 function holidayHasAnyTargetFilter(holiday) {
     const hasGrades = holiday.grades && holiday.grades.length > 0;
+    const hasClassIds = holiday.classIds && holiday.classIds.length > 0;
     const hasClassNames = holiday.classNames && holiday.classNames.length > 0;
     const hasSections = holiday.sectionLevels && holiday.sectionLevels.length > 0;
-    return hasGrades || hasClassNames || hasSections
+    return hasGrades || hasClassIds || hasClassNames || hasSections
         || holiday.allElementary === true
         || holiday.allMiddleSchool === true;
 }
@@ -12548,8 +12765,15 @@ function getHolidayAppliesToDescriptionParts(holiday) {
     if (holiday.grades && holiday.grades.length > 0) {
         parts.push(`${t('gradesLabel')}: ${holiday.grades.join(', ')}`);
     }
-    if (holiday.classNames && holiday.classNames.length > 0) {
+    const explicitClassLabels = resolveEventClassLabelsFromIds(holiday.classIds || []);
+    if (explicitClassLabels.length > 0) {
+        parts.push(`${t('classesLabel')}: ${explicitClassLabels.join(', ')}`);
+    } else if (holiday.classNames && holiday.classNames.length > 0) {
         parts.push(`${t('classesLabel')}: ${holiday.classNames.join(', ')}`);
+    }
+    const excludedClassLabels = resolveEventClassLabelsFromIds(holiday.excludedClassIds || []);
+    if (excludedClassLabels.length > 0) {
+        parts.push(`${t('exceptLabel')}: ${excludedClassLabels.join(', ')}`);
     }
     return parts;
 }
@@ -20250,6 +20474,14 @@ function isNotesPage() {
     return document.body.classList.contains('notes-page');
 }
 
+function isPlannerPage() {
+    return document.body.classList.contains('planner-page');
+}
+
+function isSatelliteAppPage() {
+    return isNotesPage() || isPlannerPage() || isWorkspacePage();
+}
+
 /** Set term fields on appData only (safe on notes/workspace pages without calendar chrome). */
 function ensureTermStartData() {
     if (!appData.termStart) {
@@ -20281,6 +20513,12 @@ function refreshWorkspaceHomeworkUi() {
 function refreshCalendarScopedUi() {
     if (isNotesPage()) {
         refreshNotesPageIfMounted();
+        return;
+    }
+    if (isPlannerPage()) {
+        if (typeof window.refreshPlannerPageUi === 'function') {
+            window.refreshPlannerPageUi();
+        }
         return;
     }
     renderClassList();
@@ -22885,6 +23123,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     if (document.body.classList.contains('notes-page')) {
+        return;
+    }
+    if (document.body.classList.contains('planner-page')) {
         return;
     }
     const useTeamSync = hasTeamSyncStatusEl();
@@ -26884,9 +27125,11 @@ function handleHolidaySubmit(e) {
         return;
     }
     
-    // Get selected grades, sections, bands, class names
+    // Get selected grades, sections, bands, and class-specific overrides
     let grades = [];
+    let classIds = [];
     let classNames = [];
+    let excludedClassIds = [];
     let sectionLevels = [];
     let allElementary = false;
     let allMiddleSchool = false;
@@ -26896,7 +27139,9 @@ function handleHolidaySubmit(e) {
             commitEventApplicabilityFromPopover();
         }
         grades = [...(eventApplicabilityDraft.grades || [])];
+        classIds = [...(eventApplicabilityDraft.classIds || [])];
         classNames = [...(eventApplicabilityDraft.classNames || [])];
+        excludedClassIds = [...(eventApplicabilityDraft.excludedClassIds || [])];
         sectionLevels = [...(eventApplicabilityDraft.sectionLevels || [])];
         allElementary = eventApplicabilityDraft.allElementary === true;
         allMiddleSchool = eventApplicabilityDraft.allMiddleSchool === true;
@@ -26927,8 +27172,10 @@ function handleHolidaySubmit(e) {
         accentColor: elements.holidayAccentColor ? elements.holidayAccentColor.value.trim() : '',
         bgColor: elements.holidayBgColor.value,
         textColor: elements.holidayTextColor.value,
+        classIds,
         grades,
         classNames,
+        excludedClassIds,
         sectionLevels,
         allElementary,
         allMiddleSchool
@@ -27943,12 +28190,28 @@ function targetFilterAppliesToClass(target, classData) {
         return true;
     }
 
+    const classId = String(classData.id || '').trim();
+    const excludedClassIds = Array.isArray(target.excludedClassIds) ? target.excludedClassIds : [];
+    if (classId && excludedClassIds.includes(classId)) {
+        return false;
+    }
+
+    const classIds = Array.isArray(target.classIds) ? target.classIds : [];
     const hasClassNames = target.classNames && target.classNames.length > 0;
+    const hasClassIds = classIds.length > 0;
     const hasGrades = target.grades && target.grades.length > 0;
     const hasSections = target.sectionLevels && target.sectionLevels.length > 0;
+    const classMatchedById = hasClassIds && classId ? classIds.includes(classId) : false;
+    const classMatchedByName = !hasClassIds && hasClassNames && target.classNames.includes(classData.name);
+    const hasBroadFilters = hasGrades || hasSections
+        || target.allElementary === true
+        || target.allMiddleSchool === true;
 
-    if (hasClassNames && target.classNames.includes(classData.name)) {
+    if (classMatchedById || classMatchedByName) {
         return true;
+    }
+    if (!hasBroadFilters) {
+        return false;
     }
     if (hasGrades && target.grades.includes(classData.grade)) {
         return true;
@@ -34140,10 +34403,10 @@ function applyLoadedAppData(data) {
     syncDismissedNavTabWarningsIntoUi(appData.ui);
     syncNavNotificationMetaIntoUi(appData.ui);
     refreshLocalizedEventDisplayNames();
-    if (appShellBootComplete && !isNotesPage() && !isWorkspacePage()) {
+    if (appShellBootComplete && !isNotesPage() && !isWorkspacePage() && !isPlannerPage()) {
         syncTeachersTabVisibility();
     }
-    if (!isNotesPage()) {
+    if (!isNotesPage() && !isPlannerPage()) {
         initTeacherManagementModule();
     }
     if (typeof CCPTeacherManagement !== 'undefined' && getActiveTab() === 'teachers') {
@@ -34426,7 +34689,7 @@ function showCalendarBootLoading(show) {
 }
 
 function refreshActiveTabAfterHydration() {
-    if (isNotesPage() || isWorkspacePage()) {
+    if (isNotesPage() || isWorkspacePage() || isPlannerPage()) {
         return;
     }
     const tab = getActiveTab();
@@ -34547,7 +34810,7 @@ async function ensureActiveCalendarLoaded(options) {
     }
 
     if (
-        (isNotesPage() || isWorkspacePage()) &&
+        (isNotesPage() || isWorkspacePage() || isPlannerPage()) &&
         calendars.length > 0 &&
         (!activeId || !calendars.some((c) => c.id === activeId))
     ) {
@@ -34581,6 +34844,9 @@ async function ensureActiveCalendarLoaded(options) {
 
     if (isNotesPage()) {
         refreshNotesPageIfMounted();
+    }
+    if (isPlannerPage() && typeof window.refreshPlannerPageUi === 'function') {
+        window.refreshPlannerPageUi();
     }
 
     return {
@@ -34682,7 +34948,7 @@ function updateTeamSyncStatus(status, detail) {
 
 /** Recover team sync after bfcache or return from admin/other pages with stuck boot status. */
 async function ensureTeamSyncReady() {
-    if (document.body.classList.contains('workspace-page') || isNotesPage()) {
+    if (document.body.classList.contains('workspace-page') || isNotesPage() || isPlannerPage()) {
         return;
     }
     const el = document.getElementById('teamSyncStatus');
@@ -35491,11 +35757,11 @@ async function initTeamSync() {
     setupTeamUserBar();
 
     if (teamSyncUiBound) {
-        await ensureActiveCalendarLoaded({
-            forceIfStale:
-                (isNotesPage() || isWorkspacePage()) &&
-                (!Array.isArray(appData.classes) || appData.classes.length === 0)
-        });
+                await ensureActiveCalendarLoaded({
+                    forceIfStale:
+                        (isNotesPage() || isWorkspacePage() || isPlannerPage()) &&
+                        (!Array.isArray(appData.classes) || appData.classes.length === 0)
+                });
         updateTeamSyncStatus(
             CalendarSync.getActiveCalendarId()
                 ? 'saved'
@@ -35573,6 +35839,13 @@ async function initTeamSync() {
                 const notesBanner = document.getElementById('notesRemoteBanner');
                 if (notesBanner) {
                     notesBanner.hidden = false;
+                }
+                return;
+            }
+            if (document.body.classList.contains('planner-page')) {
+                const plannerBanner = document.getElementById('plannerRemoteBanner');
+                if (plannerBanner) {
+                    plannerBanner.hidden = false;
                 }
                 return;
             }
@@ -35909,6 +36182,29 @@ function migrateData(data) {
         );
         if (JSON.stringify(normalizedMap) !== JSON.stringify(data.periodSlotMap)) {
             data.periodSlotMap = normalizedMap;
+            migrated = true;
+        }
+    }
+    if (typeof CCPTeacherPlanner !== 'undefined' && CCPTeacherPlanner.ensurePlannerFields) {
+        const plannerMig = CCPTeacherPlanner.ensurePlannerFields(data);
+        if (plannerMig && plannerMig.migrated) {
+            migrated = true;
+        }
+    } else {
+        if (!Array.isArray(data.rooms)) {
+            data.rooms = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.teacherProfiles)) {
+            data.teacherProfiles = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.plannerDrafts)) {
+            data.plannerDrafts = [];
+            migrated = true;
+        }
+        if (!data.plannerState || typeof data.plannerState !== 'object') {
+            data.plannerState = null;
             migrated = true;
         }
     }
@@ -36250,15 +36546,19 @@ function migrateData(data) {
                 });
                 
                 holiday.grades = newGrades;
+                holiday.classIds = holiday.classIds || [];
                 holiday.classNames = holiday.classNames || [];
+                holiday.excludedClassIds = holiday.excludedClassIds || [];
                 delete holiday.levels; // Remove old format
                 migrated = true;
                 migratedHolidays++;
             }
             
             // Ensure new format fields exist
+            if (!Array.isArray(holiday.classIds)) holiday.classIds = resolveEventClassIdsFromNames(holiday.classNames || []);
             if (!holiday.grades) holiday.grades = [];
             if (!holiday.classNames) holiday.classNames = [];
+            if (!Array.isArray(holiday.excludedClassIds)) holiday.excludedClassIds = [];
             if (!Array.isArray(holiday.sectionLevels)) holiday.sectionLevels = [];
             if (holiday.allElementary === undefined) holiday.allElementary = false;
             if (holiday.allMiddleSchool === undefined) holiday.allMiddleSchool = false;
