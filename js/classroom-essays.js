@@ -15,6 +15,7 @@
     const ESSAY_NOTE_AUTOSAVE_DELAY_MS = 900;
     const progressReportSelectedKeys = new Set();
     let progressReportOutstandingOnly = false;
+    const classSummarySelectedKeys = new Set();
     let resubmitDayNoteDirty = false;
     let resubmitDayNoteSyncInFlight = false;
     let essayClassSearchQuery = '';
@@ -697,6 +698,311 @@
                 return;
             }
             openEssayProgressPrint(selected);
+        });
+    }
+
+    function loadClassSummarySelection() {
+        const data = getAppData();
+        classSummarySelectedKeys.clear();
+        const raw = data.ui && data.ui.essayClassSummarySelection;
+        if (typeof raw === 'string' && raw.trim()) {
+            raw.split(',').forEach((key) => {
+                const trimmed = key.trim();
+                if (trimmed) {
+                    classSummarySelectedKeys.add(trimmed);
+                }
+            });
+        }
+    }
+
+    function saveClassSummarySelection() {
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref(
+                'essayClassSummarySelection',
+                Array.from(classSummarySelectedKeys).join(',')
+            );
+        }
+    }
+
+    function formatClassSummaryAssignmentHint(row) {
+        const complete = (row.counts && row.counts.complete) || 0;
+        const total = row.totalStudents || 0;
+        return tf('classroomEssayClassSummaryAssignmentHint', { complete, total });
+    }
+
+    function getClassSummaryLabels() {
+        return {
+            title: t('classroomEssayClassSummaryTitle'),
+            noStudents: t('classroomEssayClassSummaryNoStudents'),
+            noStudentsInSection: t('classroomEssayClassSummaryNoStudentsInSection'),
+            generatedAt: t('classroomEssayClassSummaryGeneratedAt'),
+            overdue: t('classroomEssayClassSummaryOverdue'),
+            noHomeroom: t('classroomEssayClassSummaryNoHomeroom'),
+            hrHeading: t('classroomEssayClassSummaryHrHeading'),
+            retestReceived: t('classroomEssayResubmitRetestReceived'),
+            colStudent: t('classroomColStudent'),
+            colStatus: t('classroomEssayColStatus'),
+            colDue: t('classroomEssayColDue'),
+            colNotes: t('classroomEssayColFeedback'),
+            statusLabels: {
+                not_submitted: t('classroomEssayStatusNotSubmitted'),
+                submitted: t('classroomEssayStatusReceived'),
+                complete: t('classroomEssayStatusComplete'),
+                resubmit_required: t('classroomEssayStatusResubmit'),
+                incomplete: t('classroomEssayStatusIncomplete'),
+                exempt: t('classroomEssayStatusExempt')
+            }
+        };
+    }
+
+    function getSelectedClassSummaryAssignments() {
+        const progressApi = global.CCPClassroomEssayProgress;
+        if (!progressApi) {
+            return [];
+        }
+        const all = listProgressAssignments();
+        if (!classSummarySelectedKeys.size) {
+            return [];
+        }
+        return progressApi.filterAssignments(all, {
+            selectedKeys: classSummarySelectedKeys,
+            outstandingOnly: false
+        });
+    }
+
+    function getClassSummaryHrGroups(assignments) {
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        if (!summaryApi || !assignments.length) {
+            return [];
+        }
+        const appData = getAppData();
+        const rows = summaryApi.listRowsForAssignments(appData, assignments);
+        return summaryApi.groupRowsByHomeroom(rows, appData);
+    }
+
+    function renderClassSummaryPreviewHtml(assignments) {
+        const printApi = global.CCPClassroomEssayClassSummaryPrint;
+        const labels = getClassSummaryLabels();
+        if (!printApi) {
+            return `<p class="section-hint">${escapeHtml(labels.noStudents)}</p>`;
+        }
+        const groups = getClassSummaryHrGroups(assignments);
+        if (!groups.length) {
+            return `<p class="section-hint">${escapeHtml(labels.noStudents)}</p>`;
+        }
+        return printApi.renderDocumentHtml(
+            {
+                calendarName: '',
+                generatedAt: '',
+                groups
+            },
+            labels
+        );
+    }
+
+    function openEssayClassSummaryPrint(assignments) {
+        const printApi = global.CCPClassroomEssayClassSummaryPrint;
+        if (!printApi || !assignments.length) {
+            return;
+        }
+        const groups = getClassSummaryHrGroups(assignments);
+        if (!groups.length) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayClassSummaryNoStudents'), true);
+            }
+            return;
+        }
+        const data = getAppData();
+        const d = domain();
+        const labels = getClassSummaryLabels();
+        const bodyHtml = printApi.renderDocumentHtml(
+            {
+                calendarName: data.calendarName || '',
+                generatedAt: d ? d.todayISO() : '',
+                groups
+            },
+            labels
+        );
+        const title = labels.title;
+        const inlineCss = printApi.PRINT_STYLES || '';
+        const appStyles =
+            typeof document !== 'undefined'
+                ? Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+                    .map((link) => link.href)
+                    .filter(Boolean)[0] || 'styles.css'
+                : 'styles.css';
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+            <link rel="stylesheet" href="${escapeAttr(appStyles)}">
+            <style>${inlineCss}</style>
+        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('printSyllabusBlocked'), true);
+            }
+            return;
+        }
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        printWin.document.title = title;
+        printWin.focus();
+        printWin.print();
+    }
+
+    async function copyEssayClassSummary(assignments) {
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        if (!summaryApi || !assignments.length) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayClassSummaryNoAssignments'), true);
+            }
+            return;
+        }
+        const groups = getClassSummaryHrGroups(assignments);
+        const labels = getClassSummaryLabels();
+        const text = summaryApi.formatCopyText(groups, labels);
+        if (!text || text === labels.noStudents) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayClassSummaryNoStudents'), true);
+            }
+            return;
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayClassSummaryCopyDone'));
+            }
+        } catch (err) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayClassSummaryCopyFailed'), true);
+            }
+        }
+    }
+
+    function renderClassSummaryModal() {
+        const listEl = document.getElementById('essayClassSummaryAssignmentList');
+        const previewEl = document.getElementById('essayClassSummaryPreview');
+        if (!listEl) {
+            return;
+        }
+        const assignments = listProgressAssignments();
+        const grouped = global.CCPClassroomEssayProgress
+            ? global.CCPClassroomEssayProgress.groupAssignmentsByClass(assignments)
+            : [];
+        const savedSelection = getAppData().ui && getAppData().ui.essayClassSummarySelection;
+        const neverSavedSelection = savedSelection === undefined || savedSelection === null;
+        if (neverSavedSelection && !classSummarySelectedKeys.size && assignments.length) {
+            assignments.forEach((row) => classSummarySelectedKeys.add(row.key));
+        }
+        listEl.innerHTML = grouped
+            .map((group) => {
+                const rows = (group.rows || [])
+                    .map((row) => {
+                        const checked = classSummarySelectedKeys.has(row.key) ? ' checked' : '';
+                        const hint = formatClassSummaryAssignmentHint(row);
+                        return `<label class="classroom-essay-progress-assignment-row">
+                            <input type="checkbox" data-assignment-key="${escapeAttr(row.key)}"${checked} />
+                            <span>${escapeHtml(row.assignmentLabel || '')} <span class="section-hint">(${escapeHtml(hint)})</span></span>
+                        </label>`;
+                    })
+                    .join('');
+                return `<div class="classroom-essay-progress-class-group">
+                    <h4 class="classroom-essay-progress-class-name">${escapeHtml(group.className || '')}</h4>
+                    ${rows}
+                </div>`;
+            })
+            .join('') || `<p class="section-hint">${escapeHtml(t('classroomEssayClassSummaryNoAssignments'))}</p>`;
+        listEl.querySelectorAll('input[data-assignment-key]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const key = input.getAttribute('data-assignment-key');
+                if (!key) {
+                    return;
+                }
+                if (input.checked) {
+                    classSummarySelectedKeys.add(key);
+                } else {
+                    classSummarySelectedKeys.delete(key);
+                }
+                saveClassSummarySelection();
+                if (previewEl) {
+                    previewEl.innerHTML = renderClassSummaryPreviewHtml(
+                        getSelectedClassSummaryAssignments()
+                    );
+                }
+            });
+        });
+        if (previewEl) {
+            previewEl.innerHTML = renderClassSummaryPreviewHtml(getSelectedClassSummaryAssignments());
+        }
+    }
+
+    function openClassSummaryModal() {
+        const modal = document.getElementById('essayClassSummaryModal');
+        if (!modal) {
+            return;
+        }
+        loadClassSummarySelection();
+        renderClassSummaryModal();
+        if (hooks && hooks.openModal) {
+            hooks.openModal(modal);
+        } else {
+            modal.classList.add('active');
+            modal.hidden = false;
+        }
+    }
+
+    function bindClassSummaryModal() {
+        const modal = document.getElementById('essayClassSummaryModal');
+        if (!modal || modal.dataset.bound === '1') {
+            return;
+        }
+        modal.dataset.bound = '1';
+        document.getElementById('essayClassSummaryClose')?.addEventListener('click', () => {
+            if (hooks && hooks.closeModal) {
+                hooks.closeModal(modal);
+            }
+        });
+        document.getElementById('essayClassSummarySelectAll')?.addEventListener('click', () => {
+            listProgressAssignments().forEach((row) => classSummarySelectedKeys.add(row.key));
+            saveClassSummarySelection();
+            renderClassSummaryModal();
+        });
+        document.getElementById('essayClassSummaryClearAll')?.addEventListener('click', () => {
+            classSummarySelectedKeys.clear();
+            saveClassSummarySelection();
+            renderClassSummaryModal();
+        });
+        document.getElementById('essayClassSummaryCopyBtn')?.addEventListener('click', () => {
+            const selected = getSelectedClassSummaryAssignments();
+            if (!selected.length) {
+                if (hooks && hooks.showToast) {
+                    hooks.showToast(t('classroomEssayClassSummaryNoAssignments'), true);
+                }
+                return;
+            }
+            void copyEssayClassSummary(selected);
+        });
+        document.getElementById('essayClassSummaryPrintBtn')?.addEventListener('click', () => {
+            const selected = getSelectedClassSummaryAssignments();
+            if (!selected.length) {
+                if (hooks && hooks.showToast) {
+                    hooks.showToast(t('classroomEssayClassSummaryNoAssignments'), true);
+                }
+                return;
+            }
+            openEssayClassSummaryPrint(selected);
         });
     }
 
@@ -2191,6 +2497,7 @@
                     ${reportsIcon}${escapeHtml(t('classroomEssayReportsBtn'))} ▾
                 </button>
                 <div id="classroomEssaysReportsDropdown" class="classroom-essay-reports-dropdown"${menuHidden} role="menu">
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="class-summary" role="menuitem">${escapeHtml(t('classroomEssayClassSummaryBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="progress" role="menuitem">${escapeHtml(t('classroomEssayProgressReportBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-summary" role="menuitem">${escapeHtml(t('classroomEssayResubmitSummaryBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-print" role="menuitem">${escapeHtml(t('classroomEssayResubmitPrintBtn'))}</button>
@@ -2204,6 +2511,11 @@
             renderReportsMenu(panel);
         });
 
+        mount.querySelector('[data-report-action="class-summary"]')?.addEventListener('click', () => {
+            closeReportsMenu();
+            renderReportsMenu(panel);
+            openClassSummaryModal();
+        });
         mount.querySelector('[data-report-action="progress"]')?.addEventListener('click', () => {
             closeReportsMenu();
             renderReportsMenu(panel);
@@ -2725,6 +3037,7 @@
         applyResolvedAssignment(getClassData());
         loadSubmission();
         bindProgressReportModal();
+        bindClassSummaryModal();
         bindResubmitSummaryModal();
         ensureEssaysOnlyDefault();
         ensureClassVisibleAfterFilter(document.getElementById('panel-essays'), { silent: true });

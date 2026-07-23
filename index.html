@@ -1488,6 +1488,28 @@
         </div>
     </div>
 
+    <div id="essayClassSummaryModal" class="modal" role="dialog" aria-labelledby="essayClassSummaryTitle" aria-modal="true" hidden>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2 id="essayClassSummaryTitle" data-i18n="classroomEssayClassSummaryTitle">Essay class summary</h2>
+                <button type="button" class="modal-close" id="essayClassSummaryClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body classroom-essay-progress-modal-body classroom-essay-class-summary-modal-body">
+                <p class="section-hint" data-i18n="classroomEssayClassSummaryFilterHint">Choose which assignments to include in print and copy.</p>
+                <div class="classroom-essay-progress-filters">
+                    <button type="button" id="essayClassSummarySelectAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayClassSummarySelectAll">Select all</button>
+                    <button type="button" id="essayClassSummaryClearAll" class="btn btn-outline btn-compact" data-i18n="classroomEssayClassSummaryClearAll">Clear all</button>
+                </div>
+                <div id="essayClassSummaryAssignmentList" class="classroom-essay-progress-assignment-list"></div>
+                <div id="essayClassSummaryPreview" class="classroom-essay-progress-preview classroom-essay-class-summary-preview" aria-live="polite"></div>
+                <div class="form-actions">
+                    <button type="button" id="essayClassSummaryCopyBtn" class="btn btn-outline" data-i18n="classroomEssayClassSummaryCopy">Copy</button>
+                    <button type="button" id="essayClassSummaryPrintBtn" class="btn btn-primary" data-i18n="classroomEssayClassSummaryPrint">Print / PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="newCalendarModal" class="modal" role="dialog" aria-labelledby="newCalendarModalTitle" aria-modal="true">
         <div class="modal-content modal-small">
             <div class="modal-header">

@@ -1241,6 +1241,18 @@
         return rows;
     }
 
+    /**
+     * Full roster rows for class summary sheets (every status, including complete / exempt).
+     * @param {object} appData
+     * @param {object} [options] — same filters as listEssayOutstandingStudentRows; statuses default to all.
+     */
+    function listEssayClassSummaryRows(appData, options) {
+        const opts = Object.assign({}, options || {}, {
+            statuses: ESSAY_STATUSES.slice()
+        });
+        return listEssayOutstandingStudentRows(appData, opts);
+    }
+
     function groupEssayStudentRowsByClass(rows) {
         const groups = new Map();
         (rows || []).forEach((row) => {
@@ -2072,6 +2084,7 @@
         listEssayAssignmentsForClass,
         listEssayResubmitRows,
         listEssayOutstandingStudentRows,
+        listEssayClassSummaryRows,
         groupEssayStudentRowsByClass,
         daysUntilISO,
         getEssayRowsFromSyllabus,

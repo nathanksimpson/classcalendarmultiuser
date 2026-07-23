@@ -14765,6 +14765,100 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     background: var(--bg-card);
 }
 
+.classroom-essay-class-summary-preview {
+    max-height: 280px;
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-doc-title,
+.classroom-essay-class-summary-preview .essay-class-summary-meta {
+    display: none;
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-hr-title {
+    margin: 0 0 var(--space-2);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-class-title {
+    margin: var(--space-2) 0 var(--space-1);
+    font-size: 0.875rem;
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-assignment-title {
+    margin: 0 0 var(--space-1);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin-bottom: var(--space-3);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-table th,
+.classroom-essay-class-summary-preview .essay-class-summary-table td {
+    border: 1px solid var(--border-color);
+    padding: 4px 6px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip,
+.essay-class-summary-status-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--bg-card);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip.essay-status--not,
+.essay-class-summary-status-chip.essay-status--not {
+    background: var(--essay-status-not);
+    border-color: var(--essay-status-not);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip.essay-status--submitted,
+.essay-class-summary-status-chip.essay-status--submitted {
+    background: var(--essay-status-received);
+    border-color: var(--essay-status-received);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip.essay-status--complete,
+.essay-class-summary-status-chip.essay-status--complete {
+    background: var(--essay-status-complete);
+    border-color: var(--essay-status-complete);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip.essay-status--resubmit,
+.essay-class-summary-status-chip.essay-status--resubmit {
+    background: var(--essay-status-resubmit);
+    border-color: var(--essay-status-resubmit);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip.essay-status--incomplete,
+.essay-class-summary-status-chip.essay-status--incomplete {
+    background: var(--essay-status-incomplete);
+    border-color: var(--essay-status-incomplete);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-status-chip.essay-status--exempt,
+.essay-class-summary-status-chip.essay-status--exempt {
+    background: var(--essay-status-exempt);
+    border-color: var(--essay-status-exempt);
+}
+
+.classroom-essay-class-summary-preview .essay-class-summary-overdue {
+    color: var(--danger, #c92a2a);
+    font-weight: 600;
+}
+
 .classroom-essay-progress-preview-table {
     width: 100%;
     border-collapse: collapse;
