@@ -58,7 +58,7 @@
             'js/classroom-essay-class-summary.js?v=20260723-class-summary',
             'js/classroom-essay-class-summary-print.js?v=20260723-class-summary',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260723-class-summary'
+            'js/classroom-essays.js?v=20260723-class-summary-print-fix'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

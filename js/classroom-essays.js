@@ -534,6 +534,40 @@
         });
     }
 
+    function openInlinePrintDocument(title, bodyHtml, inlineCss) {
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+            <style>${inlineCss || ''}</style>
+        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('printSyllabusBlocked'), true);
+            }
+            return null;
+        }
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        printWin.document.title = title;
+        printWin.focus();
+        const triggerPrint = () => {
+            try {
+                printWin.focus();
+                printWin.print();
+            } catch (err) {
+                /* ignore */
+            }
+        };
+        // Wait a tick so the popup paints before the print dialog snapshots.
+        if (printWin.document.readyState === 'complete') {
+            setTimeout(triggerPrint, 50);
+        } else {
+            printWin.addEventListener('load', () => setTimeout(triggerPrint, 50));
+            setTimeout(triggerPrint, 300);
+        }
+        return printWin;
+    }
+
     function openEssayProgressPrint(assignments) {
         const printApi = global.CCPClassroomEssayProgressPrint;
         if (!printApi || !assignments.length) {
@@ -557,31 +591,7 @@
             },
             labels
         );
-        const title = labels.title;
-        const inlineCss = printApi.PRINT_STYLES || '';
-        const appStyles =
-            typeof document !== 'undefined'
-                ? Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-                    .map((link) => link.href)
-                    .filter(Boolean)[0] || 'styles.css'
-                : 'styles.css';
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
-            <link rel="stylesheet" href="${escapeAttr(appStyles)}">
-            <style>${inlineCss}</style>
-        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
-        const printWin = window.open('', '_blank');
-        if (!printWin) {
-            if (hooks && hooks.showToast) {
-                hooks.showToast(t('printSyllabusBlocked'), true);
-            }
-            return;
-        }
-        printWin.document.open();
-        printWin.document.write(html);
-        printWin.document.close();
-        printWin.document.title = title;
-        printWin.focus();
-        printWin.print();
+        openInlinePrintDocument(labels.title, bodyHtml, printApi.PRINT_STYLES || '');
     }
 
     function renderProgressReportModal() {
@@ -823,31 +833,7 @@
             },
             labels
         );
-        const title = labels.title;
-        const inlineCss = printApi.PRINT_STYLES || '';
-        const appStyles =
-            typeof document !== 'undefined'
-                ? Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-                    .map((link) => link.href)
-                    .filter(Boolean)[0] || 'styles.css'
-                : 'styles.css';
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
-            <link rel="stylesheet" href="${escapeAttr(appStyles)}">
-            <style>${inlineCss}</style>
-        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
-        const printWin = window.open('', '_blank');
-        if (!printWin) {
-            if (hooks && hooks.showToast) {
-                hooks.showToast(t('printSyllabusBlocked'), true);
-            }
-            return;
-        }
-        printWin.document.open();
-        printWin.document.write(html);
-        printWin.document.close();
-        printWin.document.title = title;
-        printWin.focus();
-        printWin.print();
+        openInlinePrintDocument(labels.title, bodyHtml, printApi.PRINT_STYLES || '');
     }
 
     async function copyEssayClassSummary(assignments) {
@@ -1041,29 +1027,7 @@
         );
         const title = labels.title;
         const inlineCss = printApi.PRINT_STYLES || '';
-        const appStyles =
-            typeof document !== 'undefined'
-                ? Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-                    .map((link) => link.href)
-                    .filter(Boolean)[0] || 'styles.css'
-                : 'styles.css';
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
-            <link rel="stylesheet" href="${escapeAttr(appStyles)}">
-            <style>${inlineCss}</style>
-        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
-        const printWin = window.open('', '_blank');
-        if (!printWin) {
-            if (hooks && hooks.showToast) {
-                hooks.showToast(t('printSyllabusBlocked'), true);
-            }
-            return;
-        }
-        printWin.document.open();
-        printWin.document.write(html);
-        printWin.document.close();
-        printWin.document.title = title;
-        printWin.focus();
-        printWin.print();
+        openInlinePrintDocument(title, bodyHtml, inlineCss);
     }
 
     function printCurrentClassResubmits() {
