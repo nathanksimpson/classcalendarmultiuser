@@ -280,10 +280,20 @@
             .replace(/\u2212/g, '-'); // minus sign
     }
 
+    function formatStudentDisplayName(row) {
+        const r = row || {};
+        const ko = String(r.studentName || '').trim();
+        const en = String(r.studentNameEn || '').trim();
+        if (ko && en) {
+            return `${ko} (${en})`;
+        }
+        return ko || en || '';
+    }
+
     function formatStudentCopyLine(row, labels) {
         const r = row || {};
         const idx = r.rosterIndex || '';
-        const name = String(r.studentName || '').trim();
+        const name = formatStudentDisplayName(r);
         const status = statusLabel(r.status, labels);
         const parts = [`${idx}. ${name}\t${status}`];
         const note = String(r.note || '').trim();
@@ -353,6 +363,7 @@
         groupRowsByHomeroom,
         formatCopyText,
         formatStudentCopyLine,
+        formatStudentDisplayName,
         sanitizeCopyText
     };
 })(typeof window !== 'undefined' ? window : globalThis);
