@@ -93,7 +93,7 @@ const appData = {
             homeroomTeacherUserId: 'hr-kim',
             homeroomTeacherName: 'Kim',
             students: [
-                { id: 's1', name: 'Amy', sortOrder: 0, active: true },
+                { id: 's1', name: 'Amy', nameEn: 'Amy En', sortOrder: 0, active: true },
                 { id: 's2', name: 'Ben', sortOrder: 1, active: true }
             ]
         },
@@ -195,6 +195,9 @@ const appData = {
     assert(text.includes('== HR Teacher: Park =='), 'copy has Park heading');
     assert(text.includes('== HR Teacher: No homeroom =='), 'copy has no-HR heading');
     assert(text.includes('Complete'), 'copy includes Complete status');
+    assert(text.includes('Amy (Amy En)'), 'copy includes Korean (English) when nameEn set');
+    assert(text.includes('Ben\t') || text.includes('Ben '), 'copy includes Korean-only when no nameEn');
+    assert(!text.includes('Ben ('), 'Korean-only student has no empty English paren');
     assert(text.includes('Fix intro'), 'copy includes resubmit note');
     assert(text.includes('Retest received'), 'copy includes retest chip text');
     assert(text.includes('Inc.'), 'copy includes incomplete');
@@ -249,6 +252,7 @@ const appData = {
     assert(html.includes('essay-class-summary-status-chip'), 'print has status chips');
     assert(html.includes('essay-status--complete'), 'print has complete chip class');
     assert(html.includes('essay-status--resubmit'), 'print has resubmit chip class');
+    assert(html.includes('Amy (Amy En)'), 'print includes Korean (English)');
     assert(html.includes('Fix intro'), 'print includes note');
     assert(html.includes('Retest received'), 'print includes retest');
     assert(!!printApi.PRINT_STYLES, 'print styles exported');

@@ -63,9 +63,14 @@
         const r = row || {};
         const chipCls = statusCssClass(r.status);
         const label = statusLabel(r.status, labels);
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        const displayName =
+            summaryApi && typeof summaryApi.formatStudentDisplayName === 'function'
+                ? summaryApi.formatStudentDisplayName(r)
+                : String(r.studentName || '').trim();
         return `<tr class="essay-class-summary-row">
             <td class="essay-class-summary-col-index">${escapeHtml(String(r.rosterIndex || ''))}</td>
-            <td class="essay-class-summary-col-student">${escapeHtml(r.studentName || '')}</td>
+            <td class="essay-class-summary-col-student">${escapeHtml(displayName)}</td>
             <td class="essay-class-summary-col-status">
                 <span class="essay-class-summary-status-chip ${escapeHtml(chipCls)}">${escapeHtml(label)}</span>
             </td>

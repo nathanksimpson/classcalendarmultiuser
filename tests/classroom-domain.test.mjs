@@ -460,6 +460,64 @@ assert(
     'default debate date falls back to last Day 4 when all past'
 );
 
+{
+    const multiMonthEssayClass = {
+        id: 'cls-essay-months',
+        syllabusRows: [
+            {
+                id: 'e-jun',
+                kind: 'lesson',
+                date: '2026-06-10',
+                planTitle: 'June Essay',
+                trackEssay: true,
+                homework: 'essay draft'
+            },
+            {
+                id: 'e-jul-early',
+                kind: 'lesson',
+                date: '2026-07-05',
+                planTitle: 'July Early',
+                trackEssay: true,
+                homework: 'essay draft'
+            },
+            {
+                id: 'e-jul-late',
+                kind: 'lesson',
+                date: '2026-07-20',
+                planTitle: 'July Late',
+                trackEssay: true,
+                homework: 'essay draft'
+            },
+            {
+                id: 'e-aug',
+                kind: 'lesson',
+                date: '2026-08-12',
+                planTitle: 'August Essay',
+                trackEssay: true,
+                homework: 'essay draft'
+            }
+        ]
+    };
+    assert(d.sameCalendarMonth('2026-07-15', '2026-07-01') === true, 'sameCalendarMonth true');
+    assert(d.sameCalendarMonth('2026-07-15', '2026-06-30') === false, 'sameCalendarMonth false');
+    assert(d.yearMonthKey('2026-07-23') === '2026-07', 'yearMonthKey');
+
+    const midJuly = d.pickDefaultEssaySyllabusRow(multiMonthEssayClass, '2026-07-15');
+    assert(midJuly && midJuly.id === 'e-jul-late', 'mid-month picks next essay still in month');
+
+    const earlyJuly = d.pickDefaultEssaySyllabusRow(multiMonthEssayClass, '2026-07-01');
+    assert(earlyJuly && earlyJuly.id === 'e-jul-early', 'start of month picks first upcoming in month');
+
+    const endJuly = d.pickDefaultEssaySyllabusRow(multiMonthEssayClass, '2026-07-25');
+    assert(endJuly && endJuly.id === 'e-jul-late', 'late month with only past essays picks latest in month');
+
+    const noMonthMatch = d.pickDefaultEssaySyllabusRow(multiMonthEssayClass, '2026-09-01');
+    assert(noMonthMatch && noMonthMatch.id === 'e-aug', 'no essay this month falls back to last past overall');
+
+    const beforeAll = d.pickDefaultEssaySyllabusRow(multiMonthEssayClass, '2026-05-01');
+    assert(beforeAll && beforeAll.id === 'e-jun', 'before all essays falls back to first upcoming');
+}
+
 const emptySyllabusDebate = {
     id: 'cls-debate-empty',
     scheduleModel: 'debateMonthly',

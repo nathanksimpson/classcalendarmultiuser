@@ -270,14 +270,23 @@
         if (!classData || !d) {
             return null;
         }
+        const today = d.todayISO ? d.todayISO() : '';
         const map = getEssayAssignmentMap();
         const savedId = map[classData.id] || '';
         if (savedId && rowExistsInClass(classData, savedId)) {
-            return d
+            const saved = d
                 .getEssayRowsFromSyllabus(classData.syllabusRows)
                 .find((r) => d.getSyllabusRowKey(r) === savedId);
+            if (saved) {
+                if (typeof d.sameCalendarMonth !== 'function') {
+                    return saved;
+                }
+                if (d.sameCalendarMonth(saved.date, today)) {
+                    return saved;
+                }
+            }
         }
-        return d.pickDefaultEssaySyllabusRow(classData, lessonDate || d.todayISO());
+        return d.pickDefaultEssaySyllabusRow(classData, today);
     }
 
     function persistEssayAssignmentForClass(cId, rowId) {

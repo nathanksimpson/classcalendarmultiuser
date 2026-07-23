@@ -1217,6 +1217,9 @@
                         studentName: String(
                             (entry.student && entry.student.name) || studentId
                         ).trim(),
+                        studentNameEn: normalizeStr(
+                            entry.student && entry.student.nameEn
+                        ),
                         status,
                         note: rec ? normalizeStr(rec.note) : '',
                         submittedRetest: rec ? Boolean(rec.submittedRetest) : false,
@@ -1304,18 +1307,47 @@
         return Math.round((dMs - tMs) / 86400000);
     }
 
+    /** YYYY-MM prefix for calendar-month comparisons. */
+    function yearMonthKey(dateStr) {
+        const s = normalizeStr(dateStr);
+        return s.length >= 7 ? s.slice(0, 7) : '';
+    }
+
+    function sameCalendarMonth(a, b) {
+        const ma = yearMonthKey(a);
+        const mb = yearMonthKey(b);
+        return Boolean(ma && mb && ma === mb);
+    }
+
+    /**
+     * Prefer an essay in refDate's calendar month (nearest on/after ref, else latest past
+     * in that month). If none, first essay on/after ref, else last essay.
+     */
     function pickDefaultEssaySyllabusRow(classData, refDate) {
         const rows = getEssayRowsFromSyllabus(classData && classData.syllabusRows);
         if (!rows.length) {
             return null;
         }
         const ref = normalizeStr(refDate) || todayISO();
-        for (let i = 0; i < rows.length; i += 1) {
-            if (compareDateStr(rows[i].date, ref) >= 0) {
-                return rows[i];
+        const monthRows = rows
+            .filter((row) => sameCalendarMonth(row && row.date, ref))
+            .slice()
+            .sort((a, b) => compareDateStr(a.date, b.date));
+        if (monthRows.length) {
+            for (let i = 0; i < monthRows.length; i += 1) {
+                if (compareDateStr(monthRows[i].date, ref) >= 0) {
+                    return monthRows[i];
+                }
+            }
+            return monthRows[monthRows.length - 1];
+        }
+        const sorted = rows.slice().sort((a, b) => compareDateStr(a.date, b.date));
+        for (let i = 0; i < sorted.length; i += 1) {
+            if (compareDateStr(sorted[i].date, ref) >= 0) {
+                return sorted[i];
             }
         }
-        return rows[rows.length - 1];
+        return sorted[sorted.length - 1];
     }
 
     function isDebateDayFourTitle(title) {
@@ -2087,6 +2119,8 @@
         listEssayClassSummaryRows,
         groupEssayStudentRowsByClass,
         daysUntilISO,
+        yearMonthKey,
+        sameCalendarMonth,
         getEssayRowsFromSyllabus,
         pickDefaultEssaySyllabusRow,
         isDebateDayFourTitle,
