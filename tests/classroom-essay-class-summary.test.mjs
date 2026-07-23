@@ -200,6 +200,8 @@ const appData = {
     assert(text.includes('Inc.'), 'copy includes incomplete');
     assert(text.includes('Not submitted'), 'copy includes not submitted');
     assert(!text.includes('Essay Day 2'), 'filtered copy excludes unselected Day 2 assignment');
+    assert(!text.includes('\u2014') && !text.includes('\u2013'), 'copy has no em/en dashes');
+    assert(text.includes(' - '), 'copy uses ASCII hyphen separators');
 }
 
 {
