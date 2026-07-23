@@ -55,7 +55,7 @@
             'js/classroom-essay-progress-print.js?v=20260708-student-progress',
             'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
-            'js/classroom-essay-class-summary.js?v=20260723-class-summary',
+            'js/classroom-essay-class-summary.js?v=20260723-copy-hyphen',
             'js/classroom-essay-class-summary-print.js?v=20260723-class-summary',
             'js/classroom-header.js?v=20260707-essay-context',
             'js/classroom-essays.js?v=20260723-class-summary-print-fix'

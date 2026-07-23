@@ -273,6 +273,13 @@
         return map[status] || status || '';
     }
 
+    function sanitizeCopyText(text) {
+        return String(text ?? '')
+            .replace(/\u2014/g, '-') // em dash
+            .replace(/\u2013/g, '-') // en dash
+            .replace(/\u2212/g, '-'); // minus sign
+    }
+
     function formatStudentCopyLine(row, labels) {
         const r = row || {};
         const idx = r.rosterIndex || '';
@@ -281,7 +288,7 @@
         const parts = [`${idx}. ${name}\t${status}`];
         const note = String(r.note || '').trim();
         if (note) {
-            parts[0] += ` — ${note}`;
+            parts[0] += ` - ${note}`;
         }
         if (r.submittedRetest && labels && labels.retestReceived) {
             parts[0] += ` [${labels.retestReceived}]`;
@@ -289,7 +296,7 @@
         if (r.ssOverdue && labels && labels.overdue) {
             parts[0] += ` (${labels.overdue})`;
         }
-        return parts[0];
+        return sanitizeCopyText(parts[0]);
     }
 
     /**
@@ -300,7 +307,7 @@
         const lines = [];
         const groups = Array.isArray(hrGroups) ? hrGroups : [];
         if (!groups.length) {
-            return String(L.noStudents || '').trim();
+            return sanitizeCopyText(String(L.noStudents || '').trim());
         }
         groups.forEach((hrGroup, hi) => {
             if (hi > 0) {
@@ -326,14 +333,14 @@
                         ? `${classGroup.className || ''} (${meta})`
                         : classGroup.className || '';
                     const assignTitle = assign.assignmentLabel || '';
-                    lines.push(`-- ${classTitle} — ${assignTitle} --`);
+                    lines.push(`-- ${classTitle} - ${assignTitle} --`);
                     (assign.students || []).forEach((student) => {
                         lines.push(formatStudentCopyLine(student, L));
                     });
                 });
             });
         });
-        return lines.join('\n').trimEnd();
+        return sanitizeCopyText(lines.join('\n').trimEnd());
     }
 
     global.CCPClassroomEssayClassSummary = {
@@ -345,6 +352,7 @@
         listRowsForAssignments,
         groupRowsByHomeroom,
         formatCopyText,
-        formatStudentCopyLine
+        formatStudentCopyLine,
+        sanitizeCopyText
     };
 })(typeof window !== 'undefined' ? window : globalThis);
