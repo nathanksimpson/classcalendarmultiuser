@@ -13,7 +13,8 @@
         'incomplete',
         'exempt'
     ];
-    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon'];
+    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon', 'off_roster'];
+    const OFF_ROSTER_TAG = 'off_roster';
     const ARCHIVE_REASONS = ['break', 'new', 'left', 'starting_soon'];
     const ARCHIVE_COHORT_ID = 'cohort-student-archive';
     const DEFAULT_ARCHIVE_RETENTION_DAYS = 90;
@@ -123,6 +124,381 @@
             archiveReason,
             expectedStartDate: normalizeStr(raw.expectedStartDate)
         };
+    }
+
+    /** Korean-name match key for TMS sync (trim + collapse whitespace). Ignores English. */
+    function koreanNameKey(name) {
+        return normalizeStr(name).replace(/\s+/g, '');
+    }
+
+    function withStudentTag(student, tag) {
+        const s = normalizeStudent(student);
+        if (!s || !STUDENT_TAGS.includes(tag)) {
+            return s;
+        }
+        const tags = Array.isArray(s.tags) ? s.tags.slice() : [];
+        if (!tags.includes(tag)) {
+            tags.push(tag);
+        }
+        return Object.assign({}, s, { tags });
+    }
+
+    function withoutStudentTag(student, tag) {
+        const s = normalizeStudent(student);
+        if (!s) {
+            return s;
+        }
+        const tags = (Array.isArray(s.tags) ? s.tags : []).filter((t) => t !== tag);
+        return Object.assign({}, s, { tags });
+    }
+
+    /**
+     * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
+     * - Match by Korean name only; do not add duplicates.
+     * - Add students whose Korean name is not in the cohort.
+     * - Flag existing students missing from TMS with off_roster (never delete).
+     * - Clear off_roster when they reappear on TMS.
+     */
+    function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
+        const opts = options || {};
+        const makeId =
+            typeof opts.newStudentId === 'function'
+                ? opts.newStudentId
+                : () => newId('stu');
+        const existing = (Array.isArray(existingStudents) ? existingStudents : [])
+            .map(normalizeStudent)
+            .filter(Boolean);
+        const incoming = (Array.isArray(tmsStudents) ? tmsStudents : [])
+            .map((raw) => {
+                if (!raw) {
+                    return null;
+                }
+                const name = normalizeStr(raw.name);
+                if (!name) {
+                    return null;
+                }
+                return {
+                    name,
+                    nameEn: normalizeStr(raw.nameEn),
+                    locationTag: normalizeStr(raw.locationTag),
+                    memo: normalizeStr(raw.memo)
+                };
+            })
+            .filter(Boolean);
+
+        const existingByKey = new Map();
+        const duplicateKeys = new Set();
+        existing.forEach((s) => {
+            const k = koreanNameKey(s.name);
+            if (!k) {
+                return;
+            }
+            if (existingByKey.has(k)) {
+                duplicateKeys.add(k);
+            } else {
+                existingByKey.set(k, s);
+            }
+        });
+
+        const tmsKeys = new Set();
+        const added = [];
+        const matched = [];
+        const warnings = [];
+
+        incoming.forEach((imp) => {
+            const k = koreanNameKey(imp.name);
+            if (!k) {
+                return;
+            }
+            if (tmsKeys.has(k)) {
+                warnings.push({ code: 'duplicate_tms_name', name: imp.name });
+                return;
+            }
+            tmsKeys.add(k);
+            const match = existingByKey.get(k);
+            if (match) {
+                if (duplicateKeys.has(k)) {
+                    warnings.push({ code: 'duplicate_existing_name', name: imp.name, matchedId: match.id });
+                }
+                matched.push({ id: match.id, name: match.name });
+                return;
+            }
+            added.push({
+                id: makeId(),
+                name: imp.name,
+                nameEn: imp.nameEn,
+                locationTag: imp.locationTag,
+                sortOrder: existing.length + added.length,
+                active: true,
+                tags: [],
+                memo: imp.memo,
+                archivedAt: '',
+                archiveReason: '',
+                expectedStartDate: ''
+            });
+        });
+
+        const flagged = [];
+        const cleared = [];
+        const nextExisting = existing.map((s) => {
+            const k = koreanNameKey(s.name);
+            const onTms = k && tmsKeys.has(k);
+            const hadOff = (s.tags || []).includes(OFF_ROSTER_TAG);
+            if (onTms) {
+                if (hadOff) {
+                    cleared.push({ id: s.id, name: s.name });
+                    return withoutStudentTag(s, OFF_ROSTER_TAG);
+                }
+                return s;
+            }
+            if (!hadOff) {
+                flagged.push({ id: s.id, name: s.name });
+                return withStudentTag(s, OFF_ROSTER_TAG);
+            }
+            return s;
+        });
+
+        const students = nextExisting.concat(added).sort(compareStudentNames);
+        return {
+            students,
+            summary: {
+                added: added.map((s) => ({ id: s.id, name: s.name })),
+                matched,
+                flagged,
+                cleared,
+                warnings,
+                totalTms: tmsKeys.size,
+                totalAfter: students.length
+            }
+        };
+    }
+
+    /**
+     * Apply Korean-name TMS merges across cohorts using a mapping plan.
+     * plan rows: { userAction: 'map'|'skip', userTargetId, importCohortName, students: [{name,nameEn?}] }
+     */
+    function applyTmsRosterPlan(calendarCohorts, plan, options) {
+        const opts = options || {};
+        let cohorts = (Array.isArray(calendarCohorts) ? calendarCohorts : []).map((c) =>
+            Object.assign({}, c, {
+                students: Array.isArray(c.students) ? c.students.map((s) => Object.assign({}, s)) : []
+            })
+        );
+        const results = [];
+        (Array.isArray(plan) ? plan : []).forEach((row) => {
+            if (!row || row.userAction === 'skip') {
+                results.push({
+                    importCohortName: row && row.importCohortName,
+                    skipped: true,
+                    summary: null
+                });
+                return;
+            }
+            if (row.userAction !== 'map') {
+                return;
+            }
+            const targetId = normalizeStr(row.userTargetId);
+            const idx = cohorts.findIndex((c) => c && c.id === targetId);
+            if (idx < 0) {
+                results.push({
+                    importCohortName: row.importCohortName,
+                    error: 'target_not_found',
+                    summary: null
+                });
+                return;
+            }
+            const target = cohorts[idx];
+            const merged = mergeRosterByKoreanName(target.students, row.students, {
+                newStudentId: opts.newStudentId
+            });
+            cohorts[idx] = Object.assign({}, target, { students: merged.students });
+            results.push({
+                importCohortName: row.importCohortName,
+                targetId,
+                targetName: target.name,
+                summary: merged.summary
+            });
+        });
+        return { cohorts, results };
+    }
+
+    /** Stable key for a TMS class — prefer id when present, else normalized name. */
+    function normalizeTmsClassKey(tmsClassName, tmsClassId) {
+        const id = normalizeStr(tmsClassId);
+        if (id) {
+            return `id:${id}`;
+        }
+        return normalizeStr(tmsClassName)
+            .toLowerCase()
+            .replace(/\s+/g, '');
+    }
+
+    function normalizeTmsRosterLinkEntry(raw, keyHint) {
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+        const action = raw.action === 'skip' ? 'skip' : raw.action === 'map' ? 'map' : '';
+        if (!action) {
+            return null;
+        }
+        const cohortId = action === 'map' ? normalizeStr(raw.cohortId) : '';
+        if (action === 'map' && !cohortId) {
+            return null;
+        }
+        const tmsClassName = normalizeStr(raw.tmsClassName) || normalizeStr(keyHint);
+        const tmsClassId = normalizeStr(raw.tmsClassId);
+        return {
+            action,
+            cohortId,
+            tmsClassName,
+            tmsClassId
+        };
+    }
+
+    function normalizeTmsRosterLinks(raw) {
+        const out = {};
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return out;
+        }
+        Object.keys(raw).forEach((key) => {
+            const entry = normalizeTmsRosterLinkEntry(raw[key], key);
+            if (!entry) {
+                return;
+            }
+            const k =
+                normalizeTmsClassKey(entry.tmsClassName, entry.tmsClassId) ||
+                normalizeStr(key).toLowerCase().replace(/\s+/g, '');
+            if (!k) {
+                return;
+            }
+            out[k] = entry;
+        });
+        return out;
+    }
+
+    /**
+     * Resolve UI defaults for one TMS class against saved links + live cohorts.
+     * Saved map/skip wins. Missing/stale links → choose (no auto-map).
+     */
+    function resolveTmsRosterLink(links, tmsClassName, cohorts, options) {
+        const opts = options || {};
+        const tmsClassId = normalizeStr(opts.tmsClassId);
+        const key = normalizeTmsClassKey(tmsClassName, tmsClassId);
+        const map = normalizeTmsRosterLinks(links);
+        const entry = key ? map[key] : null;
+        const list = Array.isArray(cohorts) ? cohorts : [];
+        const cohortExists = (id) => list.some((c) => c && normalizeStr(c.id) === normalizeStr(id));
+
+        if (entry && entry.action === 'skip') {
+            return {
+                key,
+                source: 'saved',
+                remembered: true,
+                userAction: 'skip',
+                userTargetId: '',
+                suggestedTargetId: '',
+                tmsClassName: entry.tmsClassName || normalizeStr(tmsClassName),
+                tmsClassId: entry.tmsClassId || tmsClassId
+            };
+        }
+        if (entry && entry.action === 'map' && cohortExists(entry.cohortId)) {
+            return {
+                key,
+                source: 'saved',
+                remembered: true,
+                userAction: 'map',
+                userTargetId: entry.cohortId,
+                suggestedTargetId: entry.cohortId,
+                tmsClassName: entry.tmsClassName || normalizeStr(tmsClassName),
+                tmsClassId: entry.tmsClassId || tmsClassId
+            };
+        }
+
+        // Soft name hint only (does not auto-select — names often mismatch).
+        let suggestedTargetId = '';
+        const exact = list.filter(
+            (c) =>
+                c &&
+                !isArchiveCohort(c) &&
+                normalizeStr(c.name) === normalizeStr(tmsClassName)
+        );
+        if (exact.length === 1) {
+            suggestedTargetId = exact[0].id;
+        } else {
+            const norm = normalizeTmsClassKey(tmsClassName);
+            const normHits = list.filter(
+                (c) => c && !isArchiveCohort(c) && normalizeTmsClassKey(c.name) === norm
+            );
+            if (normHits.length === 1) {
+                suggestedTargetId = normHits[0].id;
+            }
+        }
+
+        return {
+            key,
+            source: entry ? 'stale' : 'none',
+            remembered: false,
+            userAction: 'choose',
+            userTargetId: '',
+            suggestedTargetId,
+            tmsClassName: normalizeStr(tmsClassName),
+            tmsClassId
+        };
+    }
+
+    /**
+     * Merge plan row choices into tmsRosterLinks; drop map links to deleted cohorts.
+     * plan rows: { importCohortName, tmsClassId?, userAction, userTargetId }
+     */
+    function upsertTmsRosterLinks(existingLinks, planRows, cohorts) {
+        const next = normalizeTmsRosterLinks(existingLinks);
+        const validIds = new Set(
+            (Array.isArray(cohorts) ? cohorts : [])
+                .filter((c) => c && normalizeStr(c.id))
+                .map((c) => normalizeStr(c.id))
+        );
+
+        (Array.isArray(planRows) ? planRows : []).forEach((row) => {
+            if (!row) {
+                return;
+            }
+            const name = normalizeStr(row.importCohortName || row.tmsClassName);
+            const tmsClassId = normalizeStr(row.tmsClassId);
+            const key = normalizeTmsClassKey(name, tmsClassId);
+            if (!key) {
+                return;
+            }
+            if (row.userAction === 'skip') {
+                next[key] = {
+                    action: 'skip',
+                    cohortId: '',
+                    tmsClassName: name,
+                    tmsClassId
+                };
+                return;
+            }
+            if (row.userAction === 'map') {
+                const cohortId = normalizeStr(row.userTargetId || row.cohortId);
+                if (!cohortId || !validIds.has(cohortId)) {
+                    return;
+                }
+                next[key] = {
+                    action: 'map',
+                    cohortId,
+                    tmsClassName: name,
+                    tmsClassId
+                };
+            }
+        });
+
+        Object.keys(next).forEach((k) => {
+            const entry = next[k];
+            if (entry.action === 'map' && entry.cohortId && !validIds.has(entry.cohortId)) {
+                delete next[k];
+            }
+        });
+
+        return next;
     }
 
     function isArchiveCohort(cohort) {
@@ -239,6 +615,88 @@
             return Object.assign({}, c, { students });
         });
         return { error: null, cohorts: list, archiveCohortId: archiveId };
+    }
+
+    /**
+     * Archive many students from one cohort with the same reason metadata.
+     * @returns {{ error: string|null, cohorts, archiveCohortId?: string, archivedCount: number }}
+     */
+    function archiveStudents(cohorts, studentIds, fromCohortId, meta) {
+        const ids = Array.isArray(studentIds)
+            ? studentIds.map((id) => normalizeStr(id)).filter(Boolean)
+            : [];
+        if (!ids.length) {
+            return { error: 'missing_student', cohorts, archivedCount: 0 };
+        }
+        let list = cohorts;
+        let archiveCohortId = '';
+        let archivedCount = 0;
+        for (const sid of ids) {
+            const result = archiveStudent(list, sid, fromCohortId, meta);
+            if (result.error) {
+                return {
+                    error: result.error,
+                    cohorts: result.cohorts,
+                    archiveCohortId,
+                    archivedCount
+                };
+            }
+            list = result.cohorts;
+            archiveCohortId = result.archiveCohortId || archiveCohortId;
+            archivedCount += 1;
+        }
+        return { error: null, cohorts: list, archiveCohortId, archivedCount };
+    }
+
+    /**
+     * Bulk update tags and/or active for students in one cohort.
+     * opts.addTags / opts.removeTags: tag arrays; opts.active: true|false|null (null = leave).
+     */
+    function updateStudentsInCohort(cohorts, cohortId, studentIds, opts) {
+        const options = opts || {};
+        const cid = normalizeStr(cohortId);
+        const idSet = new Set(
+            (Array.isArray(studentIds) ? studentIds : []).map((id) => normalizeStr(id)).filter(Boolean)
+        );
+        if (!cid || !idSet.size) {
+            return { error: 'missing_student', cohorts, updatedCount: 0 };
+        }
+        const list = cloneCohorts(cohorts);
+        const cohort = list.find((c) => c && c.id === cid);
+        if (!cohort || isArchiveCohort(cohort)) {
+            return { error: 'invalid_source', cohorts: list, updatedCount: 0 };
+        }
+        const addTags = (Array.isArray(options.addTags) ? options.addTags : []).filter((t) =>
+            STUDENT_TAGS.includes(t)
+        );
+        const removeTags = (Array.isArray(options.removeTags) ? options.removeTags : []).filter((t) =>
+            STUDENT_TAGS.includes(t)
+        );
+        const setActive = options.active === true || options.active === false ? options.active : null;
+        let updatedCount = 0;
+        const students = normalizeCohortStudents(cohort).map((s) => {
+            if (!s || !idSet.has(s.id)) {
+                return s;
+            }
+            let tags = Array.isArray(s.tags) ? s.tags.slice() : [];
+            removeTags.forEach((tag) => {
+                tags = tags.filter((t) => t !== tag);
+            });
+            addTags.forEach((tag) => {
+                if (!tags.includes(tag)) {
+                    tags.push(tag);
+                }
+            });
+            tags = tags.filter((t) => STUDENT_TAGS.includes(t));
+            const next = Object.assign({}, s, { tags });
+            if (setActive !== null) {
+                next.active = setActive;
+            }
+            updatedCount += 1;
+            return next;
+        });
+        const nextList = list.map((c) => (c && c.id === cid ? Object.assign({}, c, { students }) : c));
+        return { error: null, cohorts: nextList, updatedCount };
     }
 
     function restoreStudentFromArchive(cohorts, studentId, toCohortId) {
@@ -768,7 +1226,9 @@
             studentId: normalizeStr(raw.studentId),
             status: validStatus,
             submittedRetest: Boolean(raw.submittedRetest),
-            note: normalizeStr(raw.note)
+            note: normalizeStr(raw.note),
+            submissionLate: Boolean(raw.submissionLate),
+            overdueDismissed: Boolean(raw.overdueDismissed)
         };
     }
 
@@ -845,7 +1305,9 @@
                 studentId: sid,
                 status: 'not_submitted',
                 submittedRetest: false,
-                note: ''
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false
             });
             seen.add(sid);
         });
@@ -912,14 +1374,50 @@
         return days != null && days < 0;
     }
 
-    function essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount) {
-        if (!isEssaySsOverdueISO(ssDueDate)) {
-            return 0;
+    function isEssayReceivedStatus(status) {
+        return status === 'submitted' || status === 'complete' || status === 'resubmit_required';
+    }
+
+    /** Teacher marked submission late (explicit); not the same as checking after the due date. */
+    function isEssayReceivedLate(record) {
+        if (!record || record.overdueDismissed) {
+            return false;
         }
+        if (!record.submissionLate) {
+            return false;
+        }
+        return isEssayReceivedStatus(record.status);
+    }
+
+    /**
+     * Per-student submission overdue: not_submitted past due, or explicitly late received.
+     * Cleared when overdueDismissed; received-on-time is never overdue from due date alone.
+     */
+    function isEssaySubmissionOverdue(record, ssDueDate) {
+        if (!record || record.overdueDismissed) {
+            return false;
+        }
+        if (isEssayReceivedLate(record)) {
+            return true;
+        }
+        const status = ESSAY_STATUSES.includes(record.status) ? record.status : 'not_submitted';
+        return status === 'not_submitted' && isEssaySsOverdueISO(ssDueDate);
+    }
+
+    function essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount) {
         if (!submission || !Array.isArray(submission.records)) {
+            if (!isEssaySsOverdueISO(ssDueDate)) {
+                return 0;
+            }
             return Math.max(0, studentCount || 0);
         }
-        return countEssayByStatus(submission).not_submitted;
+        let count = 0;
+        submission.records.forEach((rec) => {
+            if (isEssaySubmissionOverdue(rec, ssDueDate)) {
+                count += 1;
+            }
+        });
+        return count;
     }
 
     function essayPendingTeacherEvalCount(submission) {
@@ -1189,7 +1687,6 @@
                     submission && submission.ssDueDate
                         ? submission.ssDueDate
                         : row.date || '';
-                const ssOverdue = isEssaySsOverdueISO(ssDue);
                 students.forEach((entry) => {
                     const studentId = entry && entry.student && normalizeStr(entry.student.id);
                     if (!studentId) {
@@ -1201,6 +1698,14 @@
                     if (!statusFilter.includes(status)) {
                         return;
                     }
+                    const recordForOverdue = rec || {
+                        studentId,
+                        status: 'not_submitted',
+                        submissionLate: false,
+                        overdueDismissed: false
+                    };
+                    const receivedLate = isEssayReceivedLate(recordForOverdue);
+                    const ssOverdue = isEssaySubmissionOverdue(recordForOverdue, ssDue);
                     rows.push({
                         key: `${classData.id}|${syllabusRowId}|${studentId}`,
                         classId: classData.id,
@@ -1220,11 +1725,21 @@
                         studentNameEn: normalizeStr(
                             entry.student && entry.student.nameEn
                         ),
+                        studentTags: Array.isArray(entry.student && entry.student.tags)
+                            ? entry.student.tags.slice()
+                            : [],
                         status,
                         note: rec ? normalizeStr(rec.note) : '',
                         submittedRetest: rec ? Boolean(rec.submittedRetest) : false,
+                        submissionLate: rec ? Boolean(rec.submissionLate) : false,
+                        overdueDismissed: rec ? Boolean(rec.overdueDismissed) : false,
                         ssDueDate: ssDue,
-                        ssOverdue
+                        ssOverdue,
+                        ssOverdueKind: receivedLate
+                            ? 'received_late'
+                            : ssOverdue
+                                ? 'not_submitted'
+                                : ''
                     });
                 });
             });
@@ -2053,14 +2568,26 @@
         HOMEWORK_SELF_CHECKS,
         ESSAY_STATUSES,
         STUDENT_TAGS,
+        OFF_ROSTER_TAG,
         ARCHIVE_REASONS,
         ARCHIVE_COHORT_ID,
         DEFAULT_ARCHIVE_RETENTION_DAYS,
+        koreanNameKey,
+        withStudentTag,
+        withoutStudentTag,
+        mergeRosterByKoreanName,
+        applyTmsRosterPlan,
+        normalizeTmsClassKey,
+        normalizeTmsRosterLinks,
+        resolveTmsRosterLink,
+        upsertTmsRosterLinks,
         isArchiveCohort,
         findArchiveCohort,
         ensureArchiveCohort,
         findStudentCohort,
         archiveStudent,
+        archiveStudents,
+        updateStudentsInCohort,
         restoreStudentFromArchive,
         moveStudentsBetweenCohorts,
         deleteStudentPermanently,
@@ -2100,6 +2627,9 @@
         essayResubmitCount,
         essayResubmitCountForClass,
         isEssaySsOverdueISO,
+        isEssayReceivedStatus,
+        isEssayReceivedLate,
+        isEssaySubmissionOverdue,
         isEssaySyllabusRow,
         isEssayAssignmentRow,
         essayOverdueNotSubmittedCount,

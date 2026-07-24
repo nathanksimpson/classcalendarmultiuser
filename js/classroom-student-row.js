@@ -17,7 +17,8 @@
             interested: t('classroomTagInterested'),
             new: t('classroomTagNew'),
             ending_soon: t('classroomTagEndingSoon'),
-            starting_soon: t('classroomTagStartingSoon')
+            starting_soon: t('classroomTagStartingSoon'),
+            off_roster: t('classroomTagOffRoster')
         };
         return map[tag] || tag;
     }
@@ -86,14 +87,19 @@
         const en = student.nameEn
             ? `<span class="classroom-essay-student-en">${escapeHtml(student.nameEn)}</span>`
             : '';
+        const tags = buildTagBadges(student, t);
         const branch = student.locationTag
-            ? `<div class="classroom-essay-student-meta"><span class="classroom-essay-branch-chip">${escapeHtml(student.locationTag)}</span></div>`
+            ? `<span class="classroom-essay-branch-chip">${escapeHtml(student.locationTag)}</span>`
+            : '';
+        const metaBits = [branch, tags].filter(Boolean).join(' ');
+        const meta = metaBits
+            ? `<div class="classroom-essay-student-meta">${metaBits}</div>`
             : '';
         return `<div class="classroom-essay-student-cell">
             <div class="classroom-essay-student-name-line">
                 <span class="classroom-essay-student-ko">${ko}</span>${en}
             </div>
-            ${branch}
+            ${meta}
         </div>`;
     }
 

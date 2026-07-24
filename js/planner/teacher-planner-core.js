@@ -50,26 +50,114 @@
         return Number.isFinite(n) && n >= 1 ? n : null;
     }
 
+    /** Junior Rainbow level names (EN + common aliases). */
+    const JUNIOR_LEVEL_ORDER = ['red', 'orange', 'yellow', 'green', 'blue', 'navy', 'purple'];
+    /** Senior Waterflow level names (EN canonical). */
+    const SENIOR_LEVEL_ORDER = ['saemmul', 'yeoul', 'garam', 'bada', 'mirinae', 'byeolmaru'];
+
+    function normalizeLevelKey(text) {
+        return normalizeStr(text)
+            .toLowerCase()
+            .replace(/[\s_\-./]+/g, '')
+            .replace(/별\s*마루/g, '별마루');
+    }
+
+    function levelKeyAliases(raw) {
+        const key = normalizeLevelKey(raw);
+        if (!key) return '';
+        if (key === 'saemul' || key === 'saemmul' || key === '샘물') return 'saemmul';
+        if (key === 'yeoul' || key === '여울') return 'yeoul';
+        if (key === 'garam' || key === '가람') return 'garam';
+        if (key === 'bada' || key === '바다') return 'bada';
+        if (key === 'mirinae' || key === '미리내') return 'mirinae';
+        if (
+            key === 'byeolmaru'
+            || key === 'beyoulmaru'
+            || key === 'byeoulmaru'
+            || key === '별마루'
+            || key.indexOf('byeol') >= 0
+            || key.indexOf('별마루') >= 0
+        ) {
+            return 'byeolmaru';
+        }
+        return key;
+    }
+
+    /**
+     * Resolve planner band from a level / cohort name string.
+     * Returns 'junior' | 'senior' | null if unrecognized (caller defaults to middle).
+     */
+    function resolvePlannerBandFromText(text) {
+        const raw = normalizeStr(text);
+        if (!raw) return null;
+        const key = levelKeyAliases(raw);
+        if (JUNIOR_LEVEL_ORDER.includes(key)) return 'junior';
+        if (SENIOR_LEVEL_ORDER.includes(key)) return 'senior';
+        const lower = raw.toLowerCase();
+        if (/\b(red|orange|yellow|green|blue|navy|purple)\b/i.test(lower)) return 'junior';
+        if (/(saemmul|saemul|yeoul|garam|bada|mirinae|byeol\s*maru|샘물|여울|가람|바다|미리내|별마루)/i.test(raw)) {
+            return 'senior';
+        }
+        return null;
+    }
+
+    function cohortLevelText(cohort) {
+        if (!cohort) return '';
+        return normalizeStr(cohort.levelPreset || cohort.level || cohort.name || cohort.label || '');
+    }
+
+    function resolvePlannerBandForCohort(cohort) {
+        const fromLevel = resolvePlannerBandFromText(cohortLevelText(cohort));
+        if (fromLevel) return fromLevel;
+        const block = normalizeStr(cohort && cohort.scheduleBlock).toLowerCase();
+        if (block === 'secondary' || block === 'senior') return 'senior';
+        if (block === 'middle' || block === 'middleschool' || block === 'middle-school') return 'middle';
+        if (block === 'junior') return 'junior';
+        // primary alone is ambiguous — default middle per product rule
+        return 'middle';
+    }
+
+    function levelSortIndex(band, cohort) {
+        const key = levelKeyAliases(cohortLevelText(cohort));
+        if (band === 'junior') {
+            const i = JUNIOR_LEVEL_ORDER.indexOf(key);
+            return i >= 0 ? i : 100;
+        }
+        if (band === 'senior') {
+            const i = SENIOR_LEVEL_ORDER.indexOf(key);
+            return i >= 0 ? i : 100;
+        }
+        return 0;
+    }
+
     function bandFromScheduleBlock(block, classData, cohorts) {
-        const b = normalizeStr(block || (classData && classData.scheduleBlock)).toLowerCase();
-        if (b === 'secondary' || b === 'senior') return 'senior';
-        if (b === 'middle' || b === 'middleschool' || b === 'middle-school') return 'middle';
-        if (b === 'primary' || b === 'junior') return 'junior';
         const ids = getClassCohortIds(classData);
         for (let i = 0; i < ids.length; i += 1) {
             const c = (cohorts || []).find((x) => x && x.id === ids[i]);
-            const level = normalizeStr(c && (c.levelPreset || c.level)).toLowerCase();
-            if (/senior|waterflow|garam|bada|yeoul|saemmul|mirinae|byeolmaru/.test(level)) {
-                return 'senior';
-            }
-            if (/middle|중|jung/.test(level)) {
-                return 'middle';
-            }
-            if (/junior|rainbow|red|orange|yellow|green|blue|navy|purple/.test(level)) {
-                return 'junior';
-            }
+            if (!c) continue;
+            const fromLevel = resolvePlannerBandFromText(cohortLevelText(c));
+            if (fromLevel) return fromLevel;
         }
-        return 'junior';
+        if (classData) {
+            const fromClass = resolvePlannerBandFromText(
+                classData.levelPreset || classData.level || classData.name
+            );
+            if (fromClass) return fromClass;
+        }
+        // Class scheduleBlock (legacy primary/secondary) when levels unknown
+        const classBlock = normalizeStr(block || (classData && classData.scheduleBlock)).toLowerCase();
+        if (classBlock === 'secondary' || classBlock === 'senior') return 'senior';
+        if (classBlock === 'middle' || classBlock === 'middleschool' || classBlock === 'middle-school') return 'middle';
+        if (classBlock === 'primary' || classBlock === 'junior') return 'junior';
+        for (let i = 0; i < ids.length; i += 1) {
+            const c = (cohorts || []).find((x) => x && x.id === ids[i]);
+            if (!c) continue;
+            const blockOnly = normalizeStr(c.scheduleBlock).toLowerCase();
+            if (blockOnly === 'secondary' || blockOnly === 'senior') return 'senior';
+            if (blockOnly === 'middle' || blockOnly === 'middleschool' || blockOnly === 'middle-school') return 'middle';
+            if (blockOnly === 'junior' || blockOnly === 'primary') return 'junior';
+        }
+        return 'middle';
     }
 
     function periodBand(period) {
@@ -263,7 +351,7 @@
                 globalUnavailablePeriods: [],
                 notes: ''
             }, p.blockouts || {}),
-            lockToCohortDays: p.lockToCohortDays !== false,
+            lockToCohortDays: p.lockToCohortDays === true,
             updatedAt: p.updatedAt || null
         };
     }
@@ -331,6 +419,83 @@
             appData.plannerState.teacherBoard.visibleIds = appData.teacherProfiles.map((p) => p.id);
         }
         return appData.teacherProfiles;
+    }
+
+    function findTeacherProfileForClass(appData, cls) {
+        const row = Array.isArray(cls && cls.classTeachers) && cls.classTeachers[0]
+            ? cls.classTeachers[0]
+            : null;
+        if (!row) return null;
+        const profiles = appData.teacherProfiles || [];
+        const userId = normalizeStr(row.userId);
+        const name = normalizeStr(row.name);
+        if (userId) {
+            const byUser = profiles.find((p) => normalizeStr(p.userId) === userId || normalizeStr(p.id) === userId);
+            if (byUser) return byUser;
+        }
+        if (name) {
+            return profiles.find((p) => normalizeStr(p.name).toLowerCase() === name.toLowerCase()) || null;
+        }
+        return null;
+    }
+
+    /**
+     * Build a draft from live classTeachers + meeting slots (calendar schedule).
+     */
+    function seedDraftFromCalendar(appData, options) {
+        const opts = options || {};
+        ensurePlannerFields(appData);
+        seedTeacherProfilesFromAppData(appData);
+        const filters = opts.filters || (appData.plannerState && appData.plannerState.filters);
+        const demands = buildDemandsFromAppData(appData, { filters })
+            .filter((d) => d.includedInDraft !== false);
+        const classesById = new Map((appData.classes || []).map((c) => [c.id, c]));
+        const assignments = [];
+
+        demands.forEach((demand) => {
+            const cls = classesById.get(demand.classId);
+            const teacher = cls ? findTeacherProfileForClass(appData, cls) : null;
+            const meetings = (demand.meetings || []).map((m) => ({
+                meetingId: uid('mtg'),
+                dow: Number(m.dow),
+                period: String(m.period)
+            }));
+            if (!teacher && !meetings.length) return;
+            assignments.push({
+                assignmentId: uid('asg'),
+                demandId: demand.demandId,
+                linkGroupId: demand.linkGroupId,
+                classId: demand.classId,
+                teacherProfileId: teacher ? teacher.id : null,
+                userId: teacher ? teacher.userId : null,
+                roomId: demand.preferredRoomId || (cls && cls.roomId) || null,
+                meetings,
+                locked: false,
+                manualKeep: true,
+                source: 'imported',
+                score: { hardOk: true, softScore: 0, tags: ['imported'] }
+            });
+        });
+
+        const teachers = (appData.teacherProfiles || []).map((t) => defaultTeacherProfile(t));
+        const draft = {
+            id: uid('draft'),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            label: opts.label || 'From calendar',
+            status: 'ready',
+            inputSnapshot: {
+                teacherProfileIds: teachers.map((t) => t.id),
+                includedDemandIds: demands.map((d) => d.demandId),
+                rulesVersion: PLANNER_RULES_VERSION,
+                source: 'calendar'
+            },
+            assignments,
+            issues: [],
+            metrics: {}
+        };
+        recomputeDraftMetrics(appData, draft);
+        return draft;
     }
 
     function collectClassMeetings(classData, appData) {
@@ -534,6 +699,7 @@
 
     /**
      * Validate placing one period of a demand/assignment onto a teacher cell.
+     * Only missing_context is hard; all other checks are soft warnings (permissive DnD).
      * excludeAssignmentIds: assignments whose meetings are ignored for conflict (self / swap partner).
      */
     function isValidPlacement(appData, teacher, demand, dow, period, assignments, options) {
@@ -541,40 +707,54 @@
         const excludeIds = new Set((opts.excludeAssignmentIds || []).map(String));
         const lockOn = opts.lockToCohortDays != null
             ? !!opts.lockToCohortDays
-            : !!(appData.plannerState && appData.plannerState.lockToCohortDays !== false);
+            : !!(appData.plannerState && appData.plannerState.lockToCohortDays === true);
         const globalBlockouts = (appData.plannerState && appData.plannerState.blockouts) || {};
-        const reasons = [];
+        const softReasons = [];
 
         if (!teacher || !demand) {
-            return { ok: false, reasons: ['missing_context'], warnOutOfBlock: false };
+            return {
+                ok: false,
+                reasons: ['missing_context'],
+                hardReasons: ['missing_context'],
+                softReasons: [],
+                warnOutOfBlock: false
+            };
         }
         if (demand.teacherRequirementType === 'korean' && teacher.role !== 'korean') {
-            reasons.push('wrong_teacher_type');
+            softReasons.push('wrong_teacher_type');
         }
         if (demand.teacherRequirementType === 'native' && teacher.role !== 'native') {
-            reasons.push('wrong_teacher_type');
+            softReasons.push('wrong_teacher_type');
         }
-        if (demand.band === 'junior' && teacher.limits.juniorAllowed === false) reasons.push('wrong_junior_senior_band');
-        if (demand.band === 'middle' && teacher.limits.middleAllowed === false) reasons.push('wrong_junior_senior_band');
-        if (demand.band === 'senior' && teacher.limits.seniorAllowed === false) reasons.push('wrong_junior_senior_band');
+        if (demand.band === 'junior' && teacher.limits.juniorAllowed === false) softReasons.push('wrong_junior_senior_band');
+        if (demand.band === 'middle' && teacher.limits.middleAllowed === false) softReasons.push('wrong_junior_senior_band');
+        if (demand.band === 'senior' && teacher.limits.seniorAllowed === false) softReasons.push('wrong_junior_senior_band');
 
         const blocked = isSlotBlocked(teacher, dow, period, globalBlockouts);
-        if (blocked) reasons.push(blocked);
+        if (blocked) {
+            return {
+                ok: false,
+                reasons: [blocked],
+                hardReasons: [blocked],
+                softReasons: [],
+                warnOutOfBlock: false
+            };
+        }
 
-        if (lockOn) {
-            const days = cohortMeetingDays(appData, demand);
-            if (days.length && !days.includes(Number(dow))) {
-                reasons.push('outside_cohort_days');
-            }
+        const days = cohortMeetingDays(appData, demand);
+        if (days.length && !days.includes(Number(dow))) {
+            softReasons.push('outside_cohort_days');
+        }
+        if (lockOn && days.length && !days.includes(Number(dow))) {
+            // lock is advisory only — already in softReasons
         }
 
         const others = (assignments || []).filter((a) => !excludeIds.has(String(a.assignmentId)));
         const occ = occupancyMap(others);
         if (occ.has(`${teacher.id}|${slotKey(dow, period)}`)) {
-            reasons.push('teacher_double_booked');
+            softReasons.push('teacher_double_booked');
         }
 
-        // Cohort busy: another assignment for same cohort at this slot
         const cohortIds = new Set(demand.cohortIds || []);
         others.forEach((asg) => {
             const d = opts.demandById && opts.demandById.get(asg.demandId);
@@ -582,63 +762,76 @@
             const overlap = (d.cohortIds || []).some((cid) => cohortIds.has(cid));
             if (!overlap) return;
             if ((asg.meetings || []).some((m) => Number(m.dow) === Number(dow) && String(m.period) === String(period))) {
-                reasons.push('cohort_double_booked');
+                softReasons.push('cohort_double_booked');
             }
         });
 
-        if (countDayLoad(others, teacher.id, dow) + 1 > teacher.limits.maxPeriodsPerDay) {
-            reasons.push('max_periods_per_day');
+        if (countDayLoad(others, teacher.id, dow) + 1 > (teacher.limits.maxPeriodsPerDay || 99)) {
+            softReasons.push('max_periods_per_day');
         }
 
-        // Existing assignment for this demand (when placing another period)
         const existing = (assignments || []).find((a) => a.demandId === demand.demandId && !excludeIds.has(String(a.assignmentId)));
         if (existing) {
             if (existing.teacherProfileId && existing.teacherProfileId !== teacher.id) {
-                reasons.push('teacher_locked');
+                softReasons.push('teacher_reassigned');
             }
             const need = weeklyNeed(demand);
             const meetings = assignmentMeetings(existing);
             if (meetings.length >= need && !opts.replacingSlot) {
-                reasons.push('weekly_complete');
+                softReasons.push('weekly_complete');
             }
-            const nextMeetings = meetings.concat([{ dow: Number(dow), period: String(period) }]);
+            const nextMeetings = opts.replacingSlot
+                ? meetings.concat([{ dow: Number(dow), period: String(period) }])
+                : meetings.concat([{ dow: Number(dow), period: String(period) }]);
             if (need >= 2 && hasDuplicateWeekday(nextMeetings)) {
-                reasons.push('duplicate_weekday_2x');
+                softReasons.push('duplicate_weekday_2x');
             }
-        } else if (weeklyNeed(demand) >= 2) {
-            // first placement of a 2x — ok
         }
 
         const warnOutOfBlock = isOutOfBlock(demand.band, period);
-        return { ok: reasons.length === 0, reasons: [...new Set(reasons)], warnOutOfBlock };
+        const uniqueSoft = [...new Set(softReasons)];
+        return {
+            ok: true,
+            reasons: uniqueSoft,
+            hardReasons: [],
+            softReasons: uniqueSoft,
+            warnOutOfBlock
+        };
     }
 
     function canSwapPeriods(appData, draft, draggedAsgId, targetAsgId, toDow, toPeriod, fromDow, fromPeriod) {
         const assignments = (draft && draft.assignments) || [];
         const dragged = assignments.find((a) => a.assignmentId === draggedAsgId);
         const target = assignments.find((a) => a.assignmentId === targetAsgId);
-        if (!dragged || !target) return { ok: false, reasons: ['missing_assignment'] };
+        if (!dragged || !target) {
+            return { ok: false, reasons: ['missing_assignment'], hardReasons: ['missing_assignment'], softReasons: [] };
+        }
         const demands = buildDemandsFromAppData(appData);
         const demandById = new Map(demands.map((d) => [d.demandId, d]));
         const teachers = appData.teacherProfiles || [];
-        const dragTeacher = teachers.find((t) => t.id === dragged.teacherProfileId);
-        const targetTeacher = teachers.find((t) => t.id === target.teacherProfileId);
+        // Destination teachers: dragged goes to target's grid; target goes to dragged's grid
+        const toTeacher = teachers.find((t) => t.id === target.teacherProfileId)
+            || teachers.find((t) => t.id === dragged.teacherProfileId);
+        const fromTeacher = teachers.find((t) => t.id === dragged.teacherProfileId)
+            || teachers.find((t) => t.id === target.teacherProfileId);
         const dragDemand = demandById.get(dragged.demandId);
         const targetDemand = demandById.get(target.demandId);
         const exclude = [dragged.assignmentId, target.assignmentId];
-        const draggedOk = isValidPlacement(appData, dragTeacher, dragDemand, toDow, toPeriod, assignments, {
+        const draggedOk = isValidPlacement(appData, toTeacher, dragDemand, toDow, toPeriod, assignments, {
             excludeAssignmentIds: exclude,
             demandById,
             replacingSlot: true
         });
-        const targetOk = isValidPlacement(appData, targetTeacher, targetDemand, fromDow, fromPeriod, assignments, {
+        const targetOk = isValidPlacement(appData, fromTeacher, targetDemand, fromDow, fromPeriod, assignments, {
             excludeAssignmentIds: exclude,
             demandById,
             replacingSlot: true
         });
+        const soft = [...new Set([...(draggedOk.softReasons || draggedOk.reasons || []), ...(targetOk.softReasons || targetOk.reasons || [])])];
         return {
             ok: draggedOk.ok && targetOk.ok,
-            reasons: [...draggedOk.reasons, ...targetOk.reasons],
+            reasons: soft,
+            softReasons: soft,
             warnOutOfBlock: !!(draggedOk.warnOutOfBlock || targetOk.warnOutOfBlock)
         };
     }
@@ -680,13 +873,22 @@
             dow: Number(dow),
             period: String(period)
         }]);
-        if (check.warnOutOfBlock) {
+        if (check.warnOutOfBlock || (check.softReasons && check.softReasons.length)) {
             asg.score = asg.score || {};
-            asg.score.tags = [...new Set([...(asg.score.tags || []), 'outside band block'])];
+            asg.score.tags = [...new Set([
+                ...(asg.score.tags || []),
+                ...(check.warnOutOfBlock ? ['outside band block'] : []),
+                ...(check.softReasons || [])
+            ])];
         }
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
-        return { ok: true, warnOutOfBlock: check.warnOutOfBlock, assignmentId: asg.assignmentId };
+        return {
+            ok: true,
+            warnOutOfBlock: check.warnOutOfBlock,
+            softReasons: check.softReasons || [],
+            assignmentId: asg.assignmentId
+        };
     }
 
     function movePeriod(appData, draft, assignmentId, fromDow, fromPeriod, toTeacherId, toDow, toPeriod) {
@@ -695,23 +897,20 @@
         const demands = buildDemandsFromAppData(appData);
         const demand = demands.find((d) => d.demandId === asg.demandId);
         const teacher = (appData.teacherProfiles || []).find((t) => t.id === toTeacherId);
+        if (!teacher || !demand) return { ok: false, reason: 'missing_context' };
         const demandById = new Map(demands.map((d) => [d.demandId, d]));
-        // Temporarily remove from-slot for validation
         const saved = assignmentMeetings(asg).slice();
         asg.meetings = saved.filter((m) => !(Number(m.dow) === Number(fromDow) && String(m.period) === String(fromPeriod)));
         const check = isValidPlacement(appData, teacher, demand, toDow, toPeriod, draft.assignments, {
             demandById,
-            excludeAssignmentIds: teacher && asg.teacherProfileId === teacher.id ? [] : []
+            excludeAssignmentIds: [asg.assignmentId],
+            replacingSlot: true
         });
         if (!check.ok) {
             asg.meetings = saved;
             return { ok: false, reason: check.reasons[0] || 'invalid', reasons: check.reasons };
         }
-        if (asg.teacherProfileId && asg.teacherProfileId !== toTeacherId && saved.length > 1) {
-            // Moving one period to another teacher while others remain — lock rule: reject
-            asg.meetings = saved;
-            return { ok: false, reason: 'teacher_locked' };
-        }
+        // Single-teacher model: reassign whole assignment to destination teacher
         asg.teacherProfileId = toTeacherId;
         asg.userId = teacher.userId;
         asg.meetings = asg.meetings.concat([{ meetingId: uid('mtg'), dow: Number(toDow), period: String(toPeriod) }]);
@@ -719,7 +918,7 @@
         asg.source = 'manual';
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
-        return { ok: true, warnOutOfBlock: check.warnOutOfBlock };
+        return { ok: true, warnOutOfBlock: check.warnOutOfBlock, softReasons: check.softReasons || [] };
     }
 
     function removePeriod(appData, draft, assignmentId, dow, period) {
@@ -730,7 +929,6 @@
         );
         asg.manualKeep = true;
         asg.source = 'manual';
-        // Keep teacher even at 0 placements (mockup §4.4)
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
         return { ok: true };
@@ -750,13 +948,21 @@
         tMeet[tIdx] = { meetingId: uid('mtg'), dow: Number(fromDow), period: String(fromPeriod) };
         dragged.meetings = dMeet;
         target.meetings = tMeet;
+        if (dragged.teacherProfileId !== target.teacherProfileId) {
+            const tId = dragged.teacherProfileId;
+            const uId = dragged.userId;
+            dragged.teacherProfileId = target.teacherProfileId;
+            dragged.userId = target.userId;
+            target.teacherProfileId = tId;
+            target.userId = uId;
+        }
         dragged.manualKeep = true;
         target.manualKeep = true;
         dragged.source = 'manual';
         target.source = 'manual';
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
-        return { ok: true, warnOutOfBlock: check.warnOutOfBlock };
+        return { ok: true, warnOutOfBlock: check.warnOutOfBlock, softReasons: check.softReasons || [] };
     }
 
     function setAssignmentTeacher(appData, draft, demandId, teacherProfileId) {
@@ -764,9 +970,6 @@
         const demand = buildDemandsFromAppData(appData).find((d) => d.demandId === demandId);
         if (!teacher || !demand || !draft) return { ok: false, reason: 'missing_context' };
         let asg = draft.assignments.find((a) => a.demandId === demandId);
-        if (asg && assignmentMeetings(asg).length > 0 && asg.teacherProfileId !== teacherProfileId) {
-            return { ok: false, reason: 'teacher_locked' };
-        }
         if (!asg) {
             asg = {
                 assignmentId: uid('asg'),
@@ -775,7 +978,7 @@
                 classId: demand.classId,
                 teacherProfileId: teacher.id,
                 userId: teacher.userId,
-                roomId: null,
+                roomId: demand.preferredRoomId || null,
                 meetings: [],
                 locked: false,
                 manualKeep: true,
@@ -787,6 +990,7 @@
             asg.teacherProfileId = teacher.id;
             asg.userId = teacher.userId;
             asg.manualKeep = true;
+            asg.source = 'manual';
         }
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
@@ -799,7 +1003,7 @@
         const demands = buildDemandsFromAppData(appData).filter((d) => d.includedInDraft !== false);
         const demandById = new Map(demands.map((d) => [d.demandId, d]));
         const issues = [];
-        const lockOn = !!(appData.plannerState && appData.plannerState.lockToCohortDays !== false);
+        const lockOn = !!(appData.plannerState && appData.plannerState.lockToCohortDays === true);
 
         (draft.assignments || []).forEach((asg) => {
             const demand = demandById.get(asg.demandId);
@@ -808,11 +1012,61 @@
             const meetings = assignmentMeetings(asg);
             if (weeklyNeed(demand) >= 2 && hasDuplicateWeekday(meetings)) {
                 issues.push(createIssue({
+                    severity: 'soft',
                     code: 'duplicate_weekday_2x',
                     message: `${demand.name}: 2× class needs two different days.`,
                     assignmentId: asg.assignmentId,
                     demandId: demand.demandId
                 }));
+            }
+            if (teacher && demand) {
+                if (demand.teacherRequirementType === 'korean' && teacher.role !== 'korean') {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'wrong_teacher_type',
+                        message: `${demand.name}: prefers a Korean teacher.`,
+                        assignmentId: asg.assignmentId,
+                        demandId: demand.demandId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
+                if (demand.teacherRequirementType === 'native' && teacher.role !== 'native') {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'wrong_teacher_type',
+                        message: `${demand.name}: prefers a native teacher.`,
+                        assignmentId: asg.assignmentId,
+                        demandId: demand.demandId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
+                if (demand.band === 'junior' && teacher.limits.juniorAllowed === false) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'wrong_junior_senior_band',
+                        message: `${demand.name}: teacher is not set for junior band.`,
+                        assignmentId: asg.assignmentId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
+                if (demand.band === 'middle' && teacher.limits.middleAllowed === false) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'wrong_junior_senior_band',
+                        message: `${demand.name}: teacher is not set for middle band.`,
+                        assignmentId: asg.assignmentId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
+                if (demand.band === 'senior' && teacher.limits.seniorAllowed === false) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'wrong_junior_senior_band',
+                        message: `${demand.name}: teacher is not set for senior band.`,
+                        assignmentId: asg.assignmentId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
             }
             meetings.forEach((m) => {
                 if (isOutOfBlock(demand.band, m.period)) {
@@ -825,17 +1079,17 @@
                         teacherProfileId: asg.teacherProfileId
                     }));
                 }
-                if (!lockOn) {
-                    const days = cohortMeetingDays(appData, demand);
-                    if (days.length && !days.includes(Number(m.dow))) {
-                        issues.push(createIssue({
-                            severity: 'soft',
-                            code: 'outside_cohort_days',
-                            message: `${demand.name}: placed on a day outside cohort days.`,
-                            assignmentId: asg.assignmentId,
-                            demandId: demand.demandId
-                        }));
-                    }
+                const days = cohortMeetingDays(appData, demand);
+                if (days.length && !days.includes(Number(m.dow))) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'outside_cohort_days',
+                        message: lockOn
+                            ? `${demand.name}: outside cohort days (lock on — warning only).`
+                            : `${demand.name}: placed on a day outside cohort days.`,
+                        assignmentId: asg.assignmentId,
+                        demandId: demand.demandId
+                    }));
                 }
             });
             if (!asg.roomId) {
@@ -894,21 +1148,63 @@
                     teacherProfileId: t.id
                 }));
             }
+            const byDay = {};
+            (draft.assignments || []).forEach((asg) => {
+                if (asg.teacherProfileId !== t.id) return;
+                assignmentMeetings(asg).forEach((m) => {
+                    const d = Number(m.dow);
+                    byDay[d] = (byDay[d] || 0) + 1;
+                });
+            });
+            Object.keys(byDay).forEach((d) => {
+                if (byDay[d] > (t.limits.maxPeriodsPerDay || 99)) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'max_periods_per_day',
+                        message: `${t.name}: over max periods on day ${d} (${byDay[d]}/${t.limits.maxPeriodsPerDay}).`,
+                        teacherProfileId: t.id
+                    }));
+                }
+            });
         });
 
-        // Defensive hard: teacher double-book
+        // Soft: teacher double-book
         const occ = new Map();
         (draft.assignments || []).forEach((asg) => {
             assignmentMeetings(asg).forEach((m) => {
                 const key = `${asg.teacherProfileId}|${slotKey(m.dow, m.period)}`;
                 if (occ.has(key)) {
                     issues.push(createIssue({
+                        severity: 'soft',
                         code: 'teacher_double_booked',
                         message: `Teacher double-booked at D${m.dow} P${m.period}.`,
                         assignmentId: asg.assignmentId,
                         teacherProfileId: asg.teacherProfileId
                     }));
                 } else occ.set(key, asg.assignmentId);
+            });
+        });
+
+        // Soft: cohort double-book
+        const cohortOcc = new Map();
+        (draft.assignments || []).forEach((asg) => {
+            const demand = demandById.get(asg.demandId);
+            if (!demand) return;
+            assignmentMeetings(asg).forEach((m) => {
+                (demand.cohortIds || []).forEach((cid) => {
+                    const key = `${cid}|${slotKey(m.dow, m.period)}`;
+                    if (cohortOcc.has(key) && cohortOcc.get(key) !== asg.assignmentId) {
+                        issues.push(createIssue({
+                            severity: 'soft',
+                            code: 'cohort_double_booked',
+                            message: `${demand.name}: cohort overlap at D${m.dow} P${m.period}.`,
+                            assignmentId: asg.assignmentId,
+                            demandId: demand.demandId
+                        }));
+                    } else {
+                        cohortOcc.set(key, asg.assignmentId);
+                    }
+                });
             });
         });
 
@@ -1407,30 +1703,6 @@
         }
     }
 
-    function moveAssignmentBundle(draft, assignmentId, toTeacherProfileId, teachers, demands, globalBlockouts) {
-        const asg = (draft.assignments || []).find((a) => a.assignmentId === assignmentId);
-        if (!asg || asg.locked) {
-            return { ok: false, reason: 'locked_or_missing' };
-        }
-        const teacher = (teachers || []).find((t) => t.id === toTeacherProfileId);
-        const demand = (demands || []).find((d) => d.demandId === asg.demandId);
-        if (!teacher || !demand) return { ok: false, reason: 'missing_teacher_or_demand' };
-        const others = draft.assignments.filter((a) => a.linkGroupId !== asg.linkGroupId);
-        const hard = hardRejectReasons(teacher, demand, others, globalBlockouts);
-        if (hard.length) return { ok: false, reason: hard[0], reasons: hard };
-        const soft = softScore(teacher, demand, others);
-        draft.assignments.forEach((a) => {
-            if (a.linkGroupId !== asg.linkGroupId) return;
-            a.teacherProfileId = teacher.id;
-            a.userId = teacher.userId;
-            a.manualKeep = true;
-            a.source = 'manual';
-            a.score = { hardOk: true, softScore: soft.softScore, tags: soft.tags };
-        });
-        draft.updatedAt = new Date().toISOString();
-        return { ok: true };
-    }
-
     function swapAssignmentBundles(draft, assignmentIdA, assignmentIdB, teachers, demands, globalBlockouts) {
         const a = (draft.assignments || []).find((x) => x.assignmentId === assignmentIdA);
         const b = (draft.assignments || []).find((x) => x.assignmentId === assignmentIdB);
@@ -1464,6 +1736,73 @@
         });
         draft.updatedAt = new Date().toISOString();
         return { ok: true };
+    }
+
+    /**
+     * Permissive full swap for sidebar ↔ board: exchange teachers and meeting slots.
+     * Soft conflicts surface in metrics; only missing/locked fail.
+     */
+    function swapAssignmentsFull(appData, draft, assignmentIdA, assignmentIdB) {
+        const a = (draft.assignments || []).find((x) => x.assignmentId === assignmentIdA);
+        const b = (draft.assignments || []).find((x) => x.assignmentId === assignmentIdB);
+        if (!a || !b) return { ok: false, reason: 'missing_assignment', softReasons: [] };
+        if (a.locked || b.locked) return { ok: false, reason: 'locked', softReasons: [] };
+        if (a.assignmentId === b.assignmentId) return { ok: true, softReasons: [] };
+
+        const aTeacher = a.teacherProfileId;
+        const aUser = a.userId;
+        const aMeetings = assignmentMeetings(a).map((m) => Object.assign({}, m));
+        const bMeetings = assignmentMeetings(b).map((m) => Object.assign({}, m));
+
+        a.teacherProfileId = b.teacherProfileId;
+        a.userId = b.userId;
+        a.meetings = bMeetings.map((m) => ({
+            meetingId: uid('mtg'),
+            dow: Number(m.dow),
+            period: String(m.period)
+        }));
+        b.teacherProfileId = aTeacher;
+        b.userId = aUser;
+        b.meetings = aMeetings.map((m) => ({
+            meetingId: uid('mtg'),
+            dow: Number(m.dow),
+            period: String(m.period)
+        }));
+
+        a.manualKeep = true;
+        b.manualKeep = true;
+        a.source = 'manual';
+        b.source = 'manual';
+        draft.updatedAt = new Date().toISOString();
+        recomputeDraftMetrics(appData, draft);
+        return { ok: true, softReasons: [] };
+    }
+
+    function moveAssignmentBundle(draft, assignmentId, toTeacherProfileId, teachers, demands, globalBlockouts, options) {
+        const opts = options || {};
+        const asg = (draft.assignments || []).find((a) => a.assignmentId === assignmentId);
+        if (!asg || asg.locked) {
+            return { ok: false, reason: 'locked_or_missing' };
+        }
+        const teacher = (teachers || []).find((t) => t.id === toTeacherProfileId);
+        const demand = (demands || []).find((d) => d.demandId === asg.demandId);
+        if (!teacher || !demand) return { ok: false, reason: 'missing_teacher_or_demand' };
+        const others = draft.assignments.filter((a) => a.linkGroupId !== asg.linkGroupId);
+        if (!opts.permissive) {
+            const hard = hardRejectReasons(teacher, demand, others, globalBlockouts);
+            if (hard.length) return { ok: false, reason: hard[0], reasons: hard };
+        }
+        const soft = softScore(teacher, demand, others);
+        draft.assignments.forEach((a) => {
+            if (a.linkGroupId !== asg.linkGroupId) return;
+            a.teacherProfileId = teacher.id;
+            a.userId = teacher.userId;
+            a.manualKeep = true;
+            a.source = 'manual';
+            a.score = { hardOk: true, softScore: soft.softScore, tags: soft.tags };
+        });
+        draft.updatedAt = new Date().toISOString();
+        return { ok: true, softReasons: opts.permissive ? soft.tags || [] : [] };
     }
 
     function recordLearningFromDraft(appData, draft) {
@@ -1598,6 +1937,8 @@
         defaultRoom,
         ensurePlannerFields,
         seedTeacherProfilesFromAppData,
+        seedDraftFromCalendar,
+        findTeacherProfileForClass,
         buildDemandsFromAppData,
         hardRejectReasons,
         softScore,
@@ -1605,6 +1946,7 @@
         recommendRooms,
         moveAssignmentBundle,
         swapAssignmentBundles,
+        swapAssignmentsFull,
         moveAssignmentRoom,
         swapAssignmentRooms,
         roomConflictsFor,
@@ -1616,6 +1958,11 @@
         occupancyMap,
         roomOccupancy,
         bandFromScheduleBlock,
+        resolvePlannerBandFromText,
+        resolvePlannerBandForCohort,
+        levelSortIndex,
+        JUNIOR_LEVEL_ORDER,
+        SENIOR_LEVEL_ORDER,
         periodBand,
         isOutOfBlock,
         cohortMeetingDays,

@@ -9,7 +9,7 @@
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
-        window.CCP_I18N_VERSION = '20260722-planner-rooms-sheet';
+        window.CCP_I18N_VERSION = '20260723-planner-print';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -24,7 +24,7 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260722-planner-room-col-width">
+    <link rel="stylesheet" href="styles.css?v=20260723-planner-print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -126,14 +126,18 @@
                     <button type="button" id="plannerBoardTeachersBtn" class="btn btn-outline btn-small is-active" data-board-view="teachers" data-i18n="plannerBoardTeachers">Teachers</button>
                     <button type="button" id="plannerBoardRoomsBtn" class="btn btn-outline btn-small" data-board-view="rooms" data-i18n="plannerBoardRooms">Rooms</button>
                 </div>
-                <label class="planner-lock-toggle" title="When on, classes may only be placed on their cohort academy days">
-                    <input type="checkbox" id="plannerLockCohortDays" checked>
+                <label class="planner-lock-toggle" title="When on, off-cohort days show as soft warnings">
+                    <input type="checkbox" id="plannerLockCohortDays">
                     <span data-i18n="plannerLockCohortDays">Lock to cohort days</span>
                 </label>
                 <div class="toolbar-actions">
+                    <button type="button" id="plannerLoadCalendarBtn" class="btn btn-outline btn-small" data-i18n="plannerLoadCalendar">Load from calendar</button>
                     <button type="button" id="plannerGenerateBtn" class="btn btn-primary btn-small" data-i18n="plannerGenerate">Generate draft</button>
                     <button type="button" id="plannerRerunUnresolvedBtn" class="btn btn-outline btn-small" data-i18n="plannerRerunUnresolved">Rerun unresolved</button>
                     <button type="button" id="plannerApplyBtn" class="btn btn-secondary btn-small" data-i18n="plannerApply">Apply to calendar</button>
+                    <button type="button" id="plannerPrintBtn" class="btn btn-header-print btn-small">
+                        <span id="plannerPrintBtnLabel" data-i18n="plannerPrintTeachers">Print teacher timetables</span>
+                    </button>
                 </div>
             </div>
             <p id="plannerMetricsMount" class="planner-summary-strip section-hint"></p>
@@ -149,6 +153,8 @@
         </div>
     </main>
 
+    <div id="plannerPrintArea" class="planner-print-area" aria-hidden="true"></div>
+
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/schedule-core.js"></script>
     <script defer src="js/utils.js?v=20260606-clipboard-dash"></script>
@@ -162,11 +168,11 @@
     <script defer src="js/core/app-state.js?v=20260721-planner-page"></script>
     <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
     <script defer src="js/teacher-timetable.js?v=20260619-term-flex"></script>
-    <script defer src="js/planner/teacher-planner-core.js?v=20260722-planner-room-col-width"></script>
-    <script defer src="js/planner/teacher-planner-ui.js?v=20260722-planner-room-col-width"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260722-planner-rooms-sheet"></script>
+    <script defer src="js/planner/teacher-planner-core.js?v=20260723-planner-room-bands"></script>
+    <script defer src="js/planner/teacher-planner-ui.js?v=20260723-planner-print"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260723-planner-print"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="app.js?v=20260722-planner-mockup"></script>
-    <script defer src="js/planner/teacher-planner-page.js?v=20260722-planner-rooms-sheet"></script>
+    <script defer src="js/planner/teacher-planner-page.js?v=20260723-planner-permissive"></script>
 </body>
 </html>

@@ -12,10 +12,14 @@
 
     function renderNotSubmittedLine(row, labels) {
         const r = row || {};
-        const overdue =
-            r.ssOverdue && labels.overdue
-                ? ` <span class="essay-progress-overdue">(${escapeHtml(labels.overdue)})</span>`
-                : '';
+        const overdueLabel =
+            r.ssOverdue &&
+            (r.ssOverdueKind === 'received_late' || r.submissionLate
+                ? labels.receivedLate || labels.overdue
+                : labels.overdue);
+        const overdue = overdueLabel
+            ? ` <span class="essay-progress-overdue">(${escapeHtml(overdueLabel)})</span>`
+            : '';
         return `<li class="essay-progress-student-line">${escapeHtml(r.studentName || '')}${overdue}</li>`;
     }
 

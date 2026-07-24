@@ -193,6 +193,185 @@ assert(
     'OD excludes future due dates'
 );
 
+{
+    const receivedOnTime = {
+        id: 'es-ontime',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        ssDueDate: yesterday,
+        records: [
+            {
+                studentId: 's1',
+                status: 'submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false
+            },
+            {
+                studentId: 's2',
+                status: 'complete',
+                submittedRetest: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false
+            }
+        ]
+    };
+    assert(
+        d.isEssaySubmissionOverdue(receivedOnTime.records[0], yesterday) === false,
+        'received without submissionLate is not overdue after due date'
+    );
+    assert(
+        d.essayOverdueNotSubmittedCount(receivedOnTime, yesterday, 2) === 0,
+        'OD is zero when all received on time'
+    );
+
+    const receivedLate = {
+        id: 'es-late',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        ssDueDate: yesterday,
+        records: [
+            {
+                studentId: 's1',
+                status: 'submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: true,
+                overdueDismissed: false
+            },
+            {
+                studentId: 's2',
+                status: 'not_submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false
+            }
+        ]
+    };
+    assert(
+        d.isEssayReceivedLate(receivedLate.records[0]) === true,
+        'submissionLate marks received late'
+    );
+    assert(
+        d.isEssaySubmissionOverdue(receivedLate.records[0], yesterday) === true,
+        'late received counts as submission overdue'
+    );
+    assert(
+        d.essayOverdueNotSubmittedCount(receivedLate, yesterday, 2) === 2,
+        'OD counts late received plus not_submitted'
+    );
+
+    const dismissed = {
+        id: 'es-dismissed',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        ssDueDate: yesterday,
+        records: [
+            {
+                studentId: 's1',
+                status: 'not_submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: true
+            },
+            {
+                studentId: 's2',
+                status: 'submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: true,
+                overdueDismissed: true
+            }
+        ]
+    };
+    assert(
+        d.isEssaySubmissionOverdue(dismissed.records[0], yesterday) === false,
+        'overdueDismissed clears not_submitted overdue'
+    );
+    assert(
+        d.isEssayReceivedLate(dismissed.records[1]) === false,
+        'overdueDismissed clears received late'
+    );
+    assert(
+        d.essayOverdueNotSubmittedCount(dismissed, yesterday, 2) === 0,
+        'OD zero when overdue dismissed'
+    );
+
+    const normalized = d.normalizeEssaySubmission({
+        id: 'es-norm',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        records: [
+            {
+                studentId: 's1',
+                status: 'submitted',
+                submissionLate: 1,
+                overdueDismissed: 'yes'
+            }
+        ]
+    });
+    assert(normalized.records[0].submissionLate === true, 'normalize keeps submissionLate');
+    assert(normalized.records[0].overdueDismissed === true, 'normalize keeps overdueDismissed');
+
+    const outstandingLate = d.listEssayOutstandingStudentRows(
+        {
+            classes: [essayClass],
+            cohorts,
+            essaySubmissions: [receivedLate]
+        },
+        { classes: [essayClass], statuses: ['not_submitted', 'submitted'] }
+    );
+    const lateRow = outstandingLate.find((r) => r.studentId === 's1');
+    const notSubRow = outstandingLate.find((r) => r.studentId === 's2');
+    assert(lateRow && lateRow.ssOverdue === true, 'outstanding late row is overdue');
+    assert(lateRow.ssOverdueKind === 'received_late', 'outstanding late row kind is received_late');
+    assert(notSubRow && notSubRow.ssOverdue === true, 'outstanding not_submitted past due is overdue');
+    assert(notSubRow.ssOverdueKind === 'not_submitted', 'outstanding not_submitted kind');
+
+    const outstandingOnTime = d.listEssayOutstandingStudentRows(
+        {
+            classes: [essayClass],
+            cohorts,
+            essaySubmissions: [
+                {
+                    id: 'es-resubmit-ontime',
+                    classId: 'cls-essay',
+                    syllabusRowId: 'row1',
+                    ssDueDate: yesterday,
+                    records: [
+                        {
+                            studentId: 's1',
+                            status: 'resubmit_required',
+                            submittedRetest: false,
+                            note: '',
+                            submissionLate: false,
+                            overdueDismissed: false
+                        },
+                        {
+                            studentId: 's2',
+                            status: 'complete',
+                            submittedRetest: false,
+                            note: '',
+                            submissionLate: false,
+                            overdueDismissed: false
+                        }
+                    ]
+                }
+            ]
+        },
+        { classes: [essayClass] }
+    );
+    assert(outstandingOnTime.length === 1, 'resubmit still outstanding');
+    assert(
+        outstandingOnTime[0].ssOverdue === false,
+        'on-time received/resubmit is not overdue from due date alone'
+    );
+}
+
 const classAlerts = d.essayAlertCountsForClass([essaySubmissionPastDue], essayClass, cohorts);
 assert(classAlerts.od === 1, 'class OD aggregates assignment');
 assert(classAlerts.rs === 0, 'class RS zero without resubmits');

@@ -950,6 +950,9 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'speakingTestRecords')) {
                 body.speakingTestRecords = fields.speakingTestRecords;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsRosterLinks')) {
+                body.tmsRosterLinks = fields.tmsRosterLinks;
+            }
             setStatus('saving');
             state.saving = true;
             let retried409 = false;

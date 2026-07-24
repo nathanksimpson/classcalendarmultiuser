@@ -144,7 +144,7 @@ One record per class per syllabus lesson row (essay assignment). Keyed by `class
 | `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
 | `ssDueDate` | string | Student submission due (`YYYY-MM-DD`, optional override) |
 | `teacherEvalDueDate` | string | Teacher evaluation due (`YYYY-MM-DD`, optional override) |
-| `records[]` | array | `{ studentId, status, submittedRetest, note }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` |
+| `records[]` | array | `{ studentId, status, submittedRetest, note, submissionLate, overdueDismissed }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` (+ `incomplete`, `exempt` in code). `submissionLate`: teacher marked the submission late (not inferred from when Received was clicked). `overdueDismissed`: teacher cleared overdue after verifying e.g. TMS shows on time. |
 | `authorUserId` | string | Last editor |
 | `updatedAt` | string | ISO-8601 |
 
@@ -195,17 +195,62 @@ Stored in calendar JSON and mirrored to `localStorage` for quick restore. Not re
 
 ### `ui.lessonFilters` (optional)
 
-Each key is `null` (no filter — show all) or a string array (only matching classes are shown on the calendar and in class-related print sections). Dimensions are combined with **AND** logic.
+Each key is `null` (no filter — show all) or a string array (only matching classes are shown on the calendar and in class-related print sections). Dimensions are combined with **AND** (intersection) logic — this is a **viewer filter**, not event applicability.
 
 | Key | Matches |
 |-----|---------|
-| `classIds` | Class `id` |
+| `classIds` | Class `id` (stable identity; never class display name) |
 | `grades` | `grade` (empty → sentinel `__no_grade__`) |
 | `levelPresets` | `levelPreset` (empty → `__no_level__`) |
 | `classTypeIds` | `classTypeId` (empty → `__no_type__`) |
 | `periods` | Any period in `period` / `periodByWeekday` |
 | `books` | Default `book` (empty → `__no_book__`) |
-| `teacherUserIds` | Any `classTeachers[].userId` or legacy `assignedTeacherUserId` (empty → `__no_teacher__`) |
+| `teacherUserIds` | Team account `userId` on `classTeachers[]` / legacy `assignedTeacherUserId` (empty → `__no_teacher__`). Fuzzy display-name matching is legacy-only when a row has no `userId`. |
+
+## Class filter contracts (viewer vs applicability)
+
+The app has **two different filter semantics**. Do not mix them.
+
+### 1. Viewer filters — “show me fewer classes”
+
+**Purpose:** Narrow what the signed-in viewer sees or prints. Intersection across active dimensions.
+
+**Stable identity:** Classes match by `class.id`. Teachers match by team `userId`. Display names are migration/legacy fallbacks only.
+
+**Surfaces that share (or should share) this contract:**
+
+| Surface | Helper / pipeline | Notes |
+|---------|-------------------|--------|
+| Calendar lesson bars / print chips | `classPassesLessonFilters()` + `ui.lessonFilters` | AND across dimensions |
+| Homework class list | `resolveClassListFilter()` then `filterClassesForActiveCohort()` | Plus optional text search and on-day split |
+| Daily summary print | Same my-classes + date-occurs + **active cohort** as homework | No text search |
+| Desktop Class Notes filters | `resolveClassListFilter()` + notes chip state | Subject/grade/homeroom chips are additional AND layers |
+| Essay / zone “my classes” | Teacher `userId` on class rows | Separate modules; same identity rule |
+
+**Explicit class checkboxes in viewer filters mean intersection**, not “override and force include.” Selecting a class still requires that class to pass other active dimensions (grade, teacher, etc.).
+
+**Intentionally independent:**
+
+| Surface | Why |
+|---------|-----|
+| Syllabus class list | Editor catalog — search over all classes so you can open any syllabus |
+| Mobile notes day roster | Date + my-classes only; not the full desktop notes chip set |
+| Timetable teacher grid | Teacher-centric, not the calendar lesson-filter popover |
+
+### 2. Applicability filters — “this event applies to these classes”
+
+**Purpose:** Decide which classes a holiday / evaluation period / other event cancels or annotates. Used by schedule generation, syllabus holiday rows, and homework due-date skipping via `eventAppliesToClass()` / `isHolidayForClass()`.
+
+**Precedence (highest first):**
+
+1. `excludedClassIds` — class is out even if a broad filter would include it
+2. Explicit `classIds` — include those class instances (period siblings with the same display name stay distinct)
+3. Broad includes — `grades`, `sectionLevels`, `allElementary`, `allMiddleSchool` (OR across broad dimensions)
+4. Legacy `classNames` — only when `classIds` is empty; maps by display name (can collapse same-name siblings; prefer re-saving events)
+
+**Empty targeting** (no grades / sections / bands / classIds / classNames) means **all classes**.
+
+**UI note:** When broad filters are active, unchecked class chips are stored as `excludedClassIds`. When only class chips are used (no broad filters), checked chips become `classIds`.
 
 ## Class (`classes[]`)
 
@@ -300,12 +345,15 @@ Each key is `null` (no filter — show all) or a string array (only matching cla
 | `name` | string | |
 | `date` or `startDate`/`endDate` | string | Single or range |
 | `isRange` | boolean | |
-| `grades`, `sectionLevels`, `classNames` | arrays | Optional filters |
-| `allElementary`, `allMiddleSchool` | boolean | Quick bands |
+| `classIds` | string[] | Preferred class targeting by stable `classes[].id` (one option per class instance, including same-name different periods) |
+| `excludedClassIds` | string[] | Class ids excluded when broad filters would otherwise include them |
+| `grades`, `sectionLevels` | arrays | Optional broad include filters |
+| `classNames` | string[] | Legacy display-name targeting; used only when `classIds` is empty. Prefer `classIds` on save. |
+| `allElementary`, `allMiddleSchool` | boolean | Quick school-band includes |
 | `bgColor`, `textColor` | string | Display colors (derived from `accentColor` when set) |
 | `accentColor` | string | Optional calm-palette accent hex (theme-aware tint at render) |
 
-If no targeting filters are set, the event applies to all classes.
+If no targeting filters are set, the event applies to all classes. See **Class filter contracts → Applicability filters** above for precedence.
 
 ## Team sync PATCH mutations (API)
 

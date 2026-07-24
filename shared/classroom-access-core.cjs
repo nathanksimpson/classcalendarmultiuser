@@ -363,6 +363,7 @@ function prepareClassroomForSave(user, calendarData, payload) {
     const hasDebateScores = Object.prototype.hasOwnProperty.call(body, 'debateScores');
     const hasDebateFormats = Object.prototype.hasOwnProperty.call(body, 'debateCustomFormats');
     const hasSpeakingTestRecords = Object.prototype.hasOwnProperty.call(body, 'speakingTestRecords');
+    const hasTmsRosterLinks = Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks');
 
     if (
         !hasCohorts &&
@@ -374,7 +375,8 @@ function prepareClassroomForSave(user, calendarData, payload) {
         !hasDebateSessions &&
         !hasDebateScores &&
         !hasDebateFormats &&
-        !hasSpeakingTestRecords
+        !hasSpeakingTestRecords &&
+        !hasTmsRosterLinks
     ) {
         return { error: 'No classroom fields to save', merged: {} };
     }
@@ -466,6 +468,12 @@ function prepareClassroomForSave(user, calendarData, payload) {
             return { error: err, merged: {} };
         }
         merged.speakingTestRecords = nextRecords;
+    }
+
+    if (hasTmsRosterLinks) {
+        const raw = body.tmsRosterLinks;
+        merged.tmsRosterLinks =
+            raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
     }
 
     return { error: null, merged };

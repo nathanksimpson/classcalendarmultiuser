@@ -343,7 +343,7 @@
         return { error: null, cohort };
     }
 
-    const STUDENT_TAGS = ['interested', 'new', 'ending_soon'];
+    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'off_roster'];
 
     function normalizeStr(v) {
         return String(v == null ? '' : v).trim();
@@ -526,7 +526,7 @@
                 candidateTargetIds,
                 userAction: autoMap ? 'map' : 'choose',
                 userTargetId: autoMap ? suggestedTargetId : '',
-                mergeMode: 'replace'
+                mergeMode: 'merge'
             };
         });
     }

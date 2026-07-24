@@ -48,6 +48,7 @@
             events: [],
             holidays: [],
             cohorts: [],
+            tmsRosterLinks: {},
             timetableTimeSlots: slots,
             periodSlotMap,
             customClassTypes: [],

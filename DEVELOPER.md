@@ -53,6 +53,7 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Access control | `server/calendar-access.js`, `worker/src/calendar-access.js`, `server/access-requests.js`, `worker/src/access-requests.js` |
 | App settings | `server/app-settings.js`, `worker/src/app-settings.js` |
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
+| Class / event filter semantics | `SCHEMA.md` → **Class filter contracts** (viewer intersection vs event applicability + exclusions) |
 | Daily class log (calendar) | `js/day-notes.js`, `appData.dayNotes[]`, calendar context menus in `app.js` |
 
 ### UI tokens and shared controls
