@@ -424,8 +424,20 @@
             noReason: t('classroomEssayResubmitNoReason'),
             retestReceived: t('classroomEssayResubmitRetestReceived'),
             generatedAt: t('classroomEssayProgressGeneratedAt'),
-            overdue: t('classroomEssayProgressOverdue')
+            overdue: t('classroomEssayProgressOverdue'),
+            receivedLate: t('classroomEssayProgressReceivedLate')
         };
+    }
+
+    function formatProgressOverdueChip(row) {
+        if (!row || !row.ssOverdue) {
+            return '';
+        }
+        const label =
+            row.ssOverdueKind === 'received_late' || row.submissionLate
+                ? t('classroomEssayProgressReceivedLate')
+                : t('classroomEssayProgressOverdue');
+        return ` <span class="classroom-essay-progress-overdue-chip">${escapeHtml(label)}</span>`;
     }
 
     function formatProgressAssignmentHint(row) {
@@ -468,10 +480,7 @@
                         <td>${retest}</td>
                     </tr>`;
                 }
-                const overdue =
-                    row.ssOverdue
-                        ? ` <span class="classroom-essay-progress-overdue-chip">${escapeHtml(t('classroomEssayProgressOverdue'))}</span>`
-                        : '';
+                const overdue = formatProgressOverdueChip(row);
                 return `<tr><td colspan="3">${escapeHtml(row.studentName || '')}${overdue}</td></tr>`;
             })
             .join('');
@@ -756,6 +765,7 @@
             noStudentsInSection: t('classroomEssayClassSummaryNoStudentsInSection'),
             generatedAt: t('classroomEssayClassSummaryGeneratedAt'),
             overdue: t('classroomEssayClassSummaryOverdue'),
+            receivedLate: t('classroomEssayClassSummaryReceivedLate'),
             noHomeroom: t('classroomEssayClassSummaryNoHomeroom'),
             hrHeading: t('classroomEssayClassSummaryHrHeading'),
             retestReceived: t('classroomEssayResubmitRetestReceived'),
@@ -1435,7 +1445,12 @@
         }
         if (currentFilter === 'overdue_sub') {
             const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
-            return status === 'not_submitted' && d && d.isEssaySsOverdueISO(ssDue);
+            const record = rec || {
+                status: 'not_submitted',
+                submissionLate: false,
+                overdueDismissed: false
+            };
+            return !!(d && d.isEssaySubmissionOverdue(record, ssDue));
         }
         if (currentFilter === 'eval_overdue') {
             const teDue = draftSubmission ? draftSubmission.teacherEvalDueDate || '' : '';
@@ -1586,7 +1601,14 @@
         const idx = records.findIndex((r) => r.studentId === studentId);
         const base = idx >= 0
             ? records[idx]
-            : { studentId, status: 'not_submitted', submittedRetest: false, note: '' };
+            : {
+                studentId,
+                status: 'not_submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false
+            };
         const next = Object.assign({}, base, patch);
         const changed = JSON.stringify(base) !== JSON.stringify(next);
         if (!changed) {
@@ -1631,7 +1653,9 @@
                 studentId: rec.studentId || '',
                 status: rec.status || 'not_submitted',
                 submittedRetest: !!rec.submittedRetest,
-                note: rec.note || ''
+                note: rec.note || '',
+                submissionLate: !!rec.submissionLate,
+                overdueDismissed: !!rec.overdueDismissed
             }))
         });
     }
@@ -1647,6 +1671,163 @@
 
     function isReceivedStatus(status) {
         return status === 'submitted' || status === 'complete' || status === 'resubmit_required';
+    }
+
+    function isEnteringReceivedStatus(prevStatus, nextStatus) {
+        return !isReceivedStatus(prevStatus) && isReceivedStatus(nextStatus);
+    }
+
+    function shouldPromptReceiveTiming(prevStatus, nextStatus) {
+        const d = domain();
+        if (!d || !draftSubmission) {
+            return false;
+        }
+        if (!isEnteringReceivedStatus(prevStatus, nextStatus)) {
+            return false;
+        }
+        return d.isEssaySsOverdueISO(draftSubmission.ssDueDate || '');
+    }
+
+    /**
+     * Ask On time vs Late when marking received after the due date.
+     * Resolves 'on_time' | 'late' | null (cancel).
+     */
+    function promptReceiveTiming() {
+        return new Promise((resolve) => {
+            let settled = false;
+            const modalApi = global.CCPModal;
+            const finish = (value) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                if (modalApi && typeof modalApi.close === 'function') {
+                    modalApi.close(modal);
+                }
+                if (modal.parentNode) {
+                    modal.parentNode.removeChild(modal);
+                }
+                resolve(value);
+            };
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-labelledby', 'essayReceiveTimingTitle');
+            modal.innerHTML = `<div class="modal-content classroom-essay-receive-timing-modal">
+                <div class="modal-header">
+                    <h3 id="essayReceiveTimingTitle">${escapeHtml(t('classroomEssayReceiveTimingTitle'))}</h3>
+                    <button type="button" class="modal-close" data-receive-timing="cancel" aria-label="${escapeAttr(t('classroomEssayReceiveTimingCancel'))}">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="section-hint">${escapeHtml(t('classroomEssayReceiveTimingHint'))}</p>
+                    <div class="toolbar-actions classroom-essay-receive-timing-actions">
+                        <button type="button" class="btn btn-primary" data-receive-timing="on_time">${escapeHtml(t('classroomEssayReceiveOnTime'))}</button>
+                        <button type="button" class="btn btn-outline" data-receive-timing="late">${escapeHtml(t('classroomEssayReceiveLate'))}</button>
+                        <button type="button" class="btn btn-secondary" data-receive-timing="cancel">${escapeHtml(t('classroomEssayReceiveTimingCancel'))}</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+            if (modalApi && typeof modalApi.open === 'function') {
+                modalApi.open(modal);
+            }
+            if (modalApi && typeof modalApi.bindBackdropClose === 'function') {
+                modalApi.bindBackdropClose(modal, () => finish(null));
+            }
+            modal.querySelectorAll('[data-receive-timing]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const choice = btn.getAttribute('data-receive-timing');
+                    if (choice === 'on_time' || choice === 'late') {
+                        finish(choice);
+                        return;
+                    }
+                    finish(null);
+                });
+            });
+            modal.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    finish(null);
+                }
+            });
+            const primary = modal.querySelector('[data-receive-timing="on_time"]');
+            if (primary && typeof primary.focus === 'function') {
+                primary.focus();
+            }
+        });
+    }
+
+    function buildStatusPatch(prevStatus, nextStatus, timing) {
+        const patch = { status: nextStatus };
+        if (nextStatus !== 'resubmit_required') {
+            patch.submittedRetest = false;
+        }
+        if (isEnteringReceivedStatus(prevStatus, nextStatus)) {
+            patch.submissionLate = timing === 'late';
+            if (timing === 'late') {
+                patch.overdueDismissed = false;
+            }
+        } else if (nextStatus === 'not_submitted') {
+            patch.submissionLate = false;
+        } else if (!isReceivedStatus(nextStatus)) {
+            patch.submissionLate = false;
+        }
+        return patch;
+    }
+
+    async function applyStatusChange(panel, studentId, nextStatus) {
+        const rec = getRecord(studentId);
+        const prevStatus = rec ? rec.status : 'not_submitted';
+        if (prevStatus === nextStatus) {
+            return;
+        }
+        let timing = 'on_time';
+        if (shouldPromptReceiveTiming(prevStatus, nextStatus)) {
+            const choice = await promptReceiveTiming();
+            if (choice == null) {
+                return;
+            }
+            timing = choice;
+        }
+        const patch = buildStatusPatch(prevStatus, nextStatus, timing);
+        const result = setRecord(studentId, patch);
+        if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+            markResubmitDayNoteDirty();
+        }
+        afterEssayStatusChange(panel, studentId);
+    }
+
+    function clearEssayOverdue(panel, studentId) {
+        const result = setRecord(studentId, {
+            overdueDismissed: true,
+            submissionLate: false
+        });
+        if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+            markResubmitDayNoteDirty();
+        }
+        afterEssayStatusChange(panel, studentId);
+    }
+
+    function markEssaySubmissionLate(panel, studentId) {
+        const result = setRecord(studentId, {
+            submissionLate: true,
+            overdueDismissed: false
+        });
+        if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+            markResubmitDayNoteDirty();
+        }
+        afterEssayStatusChange(panel, studentId);
+    }
+
+    function restoreEssayOverdue(panel, studentId) {
+        const result = setRecord(studentId, {
+            overdueDismissed: false
+        });
+        if (recordAffectsResubmitDayNote(result.prev, result.next)) {
+            markResubmitDayNoteDirty();
+        }
+        afterEssayStatusChange(panel, studentId);
     }
 
     function getEssaysOnlyToggle() {
@@ -2374,23 +2555,38 @@
         if (next.submittedRetest !== prev.submittedRetest) {
             patch.submittedRetest = next.submittedRetest;
         }
+        if (!!next.submissionLate !== !!prev.submissionLate) {
+            patch.submissionLate = !!next.submissionLate;
+        }
+        if (!!next.overdueDismissed !== !!prev.overdueDismissed) {
+            patch.overdueDismissed = !!next.overdueDismissed;
+        }
         return patch;
     }
 
-    function applyBatchStatus(panel, targetStatus) {
+    async function applyBatchStatus(panel, targetStatus) {
         const editable = access() && access().canEditClass(getClassData());
         if (!editable || !draftSubmission || !selectedStudentIds.size || !targetStatus) {
             return;
         }
-        selectedStudentIds.forEach((sid) => {
+        const selected = Array.from(selectedStudentIds);
+        const needsPrompt = selected.some((sid) => {
             const rec = getRecord(sid);
-            if (!rec) {
+            const prevStatus = rec ? rec.status : 'not_submitted';
+            return shouldPromptReceiveTiming(prevStatus, targetStatus);
+        });
+        let timing = 'on_time';
+        if (needsPrompt) {
+            const choice = await promptReceiveTiming();
+            if (choice == null) {
                 return;
             }
-            const patch = { status: targetStatus };
-            if (targetStatus !== 'resubmit_required') {
-                patch.submittedRetest = false;
-            }
+            timing = choice;
+        }
+        selected.forEach((sid) => {
+            const rec = getRecord(sid);
+            const prevStatus = rec ? rec.status : 'not_submitted';
+            const patch = buildStatusPatch(prevStatus, targetStatus, timing);
             const result = setRecord(sid, patch);
             if (recordAffectsResubmitDayNote(result.prev, result.next)) {
                 markResubmitDayNoteDirty();
@@ -2407,7 +2603,7 @@
         scheduleSave();
     }
 
-    function applyBatchActions(panel, submissionStatus, evaluationStatus, setRetest) {
+    async function applyBatchActions(panel, submissionStatus, evaluationStatus, setRetest) {
         const editable = access() && access().canEditClass(getClassData());
         if (!editable || !draftSubmission || !selectedStudentIds.size) {
             return;
@@ -2417,15 +2613,37 @@
         if (!hasSubmission && !hasEvaluation) {
             return;
         }
+        const selected = Array.from(selectedStudentIds);
+        let timing = 'on_time';
+        if (hasSubmission && submissionStatus === 'submitted') {
+            const needsPrompt = selected.some((sid) => {
+                const rec = getRecord(sid);
+                const prevStatus = rec ? rec.status : 'not_submitted';
+                return shouldPromptReceiveTiming(prevStatus, 'submitted');
+            });
+            if (needsPrompt) {
+                const choice = await promptReceiveTiming();
+                if (choice == null) {
+                    return;
+                }
+                timing = choice;
+            }
+        }
         let skippedEvaluation = 0;
-        selectedStudentIds.forEach((sid) => {
+        selected.forEach((sid) => {
             const rec = getRecord(sid);
             if (!rec) {
                 return;
             }
             let next = Object.assign({}, rec);
             if (hasSubmission) {
-                next = applyStagedBatchToRecord(next, 'submission', submissionStatus, null);
+                if (submissionStatus === 'submitted' || submissionStatus === 'not_submitted') {
+                    const prevStatus = next.status;
+                    const patch = buildStatusPatch(prevStatus, submissionStatus, timing);
+                    next = Object.assign({}, next, patch);
+                } else {
+                    next = applyStagedBatchToRecord(next, 'submission', submissionStatus, null);
+                }
             }
             if (hasEvaluation) {
                 const beforeEval = next;
@@ -2543,7 +2761,7 @@
 
         mount.querySelectorAll('[data-batch-status]').forEach((btn) => {
             btn.addEventListener('click', () => {
-                applyBatchStatus(panel, btn.getAttribute('data-batch-status'));
+                void applyBatchStatus(panel, btn.getAttribute('data-batch-status'));
             });
         });
         mount.querySelector('#classroomEssaysBatchClearBtn')?.addEventListener('click', () => {
@@ -2647,22 +2865,82 @@
         const status = rec ? rec.status : 'not_submitted';
         const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
         const teDue = draftSubmission ? draftSubmission.teacherEvalDueDate || '' : '';
+        const editable = access() && access().canEditClass(getClassData());
         if (!d) {
             return '';
         }
+        const clearBtn = editable
+            ? `<button type="button" class="classroom-essay-due-action btn btn-small btn-outline" data-essay-due-action="clear-overdue" data-student-id="${escapeAttr(studentId)}" title="${escapeAttr(t('classroomEssayClearOverdue'))}">${escapeHtml(t('classroomEssayClearOverdue'))}</button>`
+            : '';
+        const markLateBtn = editable
+            ? `<button type="button" class="classroom-essay-due-action btn btn-small btn-outline" data-essay-due-action="mark-late" data-student-id="${escapeAttr(studentId)}" title="${escapeAttr(t('classroomEssayMarkLate'))}">${escapeHtml(t('classroomEssayMarkLate'))}</button>`
+            : '';
+        const restoreOverdueBtn = editable
+            ? `<button type="button" class="classroom-essay-due-action btn btn-small btn-outline" data-essay-due-action="restore-overdue" data-student-id="${escapeAttr(studentId)}" title="${escapeAttr(t('classroomEssayRestoreOverdue'))}">${escapeHtml(t('classroomEssayRestoreOverdue'))}</button>`
+            : '';
         if (status === 'incomplete') {
             return `<span class="classroom-essay-due-pill classroom-essay-due-pill--incomplete">${escapeHtml(t('classroomEssayStatusIncomplete'))}</span>`;
         }
         if (status === 'exempt') {
             return `<span class="classroom-essay-due-pill classroom-essay-due-pill--exempt">${escapeHtml(t('classroomEssayStatusExempt'))}</span>`;
         }
+        const recordForOverdue = rec || {
+            status: 'not_submitted',
+            submissionLate: false,
+            overdueDismissed: false
+        };
+        if (d.isEssayReceivedLate(recordForOverdue)) {
+            return `<div class="classroom-essay-due-cell">
+                <span class="classroom-essay-due-pill classroom-essay-due-pill--danger classroom-essay-due-pill--received-late">${escapeHtml(t('classroomEssayDueReceivedLate'))}</span>
+                ${clearBtn}
+            </div>`;
+        }
         if (status === 'not_submitted') {
-            if (d.isEssaySsOverdueISO(ssDue)) {
+            if (rec && rec.overdueDismissed && d.isEssaySsOverdueISO(ssDue)) {
+                return `<div class="classroom-essay-due-cell">
+                    <span class="classroom-essay-due-pill classroom-essay-due-pill--muted">${escapeHtml(t('classroomEssayDueCleared'))}</span>
+                    ${restoreOverdueBtn}
+                </div>`;
+            }
+            if (d.isEssaySubmissionOverdue(recordForOverdue, ssDue)) {
                 const days = d.daysUntilISO(ssDue);
                 const n = days == null ? 0 : Math.abs(days);
-                return `<span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueOverdueDays', { days: n }))}</span>`;
+                return `<div class="classroom-essay-due-cell">
+                    <span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueOverdueDays', { days: n }))}</span>
+                    ${clearBtn}
+                </div>`;
             }
             return `<span class="classroom-essay-due-pill classroom-essay-due-pill--muted">${escapeHtml(t('classroomEssayDueNotInYet'))}</span>`;
+        }
+        if (isReceivedStatus(status) && !recordForOverdue.submissionLate) {
+            const canMarkLate = editable && (d.isEssaySsOverdueISO(ssDue) || recordForOverdue.overdueDismissed);
+            const markLate = canMarkLate ? markLateBtn : '';
+            if (status === 'submitted') {
+                if (d.isEssaySsOverdueISO(teDue)) {
+                    const days = d.daysUntilISO(teDue);
+                    const n = days == null ? 0 : Math.abs(days);
+                    return `<div class="classroom-essay-due-cell">
+                        <span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueEvalLateDays', { days: n }))}</span>
+                        ${markLate}
+                    </div>`;
+                }
+                return `<div class="classroom-essay-due-cell">
+                    <span class="classroom-essay-due-pill classroom-essay-due-pill--submitted">${escapeHtml(t('classroomEssayDueAwaitingEval'))}</span>
+                    ${markLate}
+                </div>`;
+            }
+            if (status === 'complete') {
+                return `<div class="classroom-essay-due-cell">
+                    <span class="classroom-essay-due-pill classroom-essay-due-pill--complete">${escapeHtml(t('classroomEssayStatusComplete'))}</span>
+                    ${markLate}
+                </div>`;
+            }
+            if (status === 'resubmit_required') {
+                return `<div class="classroom-essay-due-cell">
+                    <span class="classroom-essay-due-pill classroom-essay-due-pill--resubmit">${escapeHtml(t('classroomEssayStatusResubmit'))}</span>
+                    ${markLate}
+                </div>`;
+            }
         }
         if (status === 'submitted') {
             if (d.isEssaySsOverdueISO(teDue)) {
@@ -2693,6 +2971,31 @@
         scheduleStatusSave();
     }
 
+    function bindDueCellActions(panel, row) {
+        row.querySelectorAll('[data-essay-due-action]').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const sid = btn.getAttribute('data-student-id');
+                const action = btn.getAttribute('data-essay-due-action');
+                if (!sid || !action) {
+                    return;
+                }
+                if (action === 'clear-overdue') {
+                    clearEssayOverdue(panel, sid);
+                    return;
+                }
+                if (action === 'mark-late') {
+                    markEssaySubmissionLate(panel, sid);
+                    return;
+                }
+                if (action === 'restore-overdue') {
+                    restoreEssayOverdue(panel, sid);
+                }
+            });
+        });
+    }
+
     function bindEssayRowHandlers(panel, row, studentId) {
         const sid = studentId || row.getAttribute('data-student-id');
         if (!sid || !row) {
@@ -2705,17 +3008,13 @@
                     return;
                 }
                 const status = btn.getAttribute('data-status');
-                const patch = { status };
-                if (status !== 'resubmit_required') {
-                    patch.submittedRetest = false;
+                if (!status) {
+                    return;
                 }
-                const result = setRecord(sid, patch);
-                if (recordAffectsResubmitDayNote(result.prev, result.next)) {
-                    markResubmitDayNoteDirty();
-                }
-                afterEssayStatusChange(panel, sid);
+                void applyStatusChange(panel, sid, status);
             });
         });
+        bindDueCellActions(panel, row);
         row.querySelector('.classroom-essay-retest')?.addEventListener('change', (event) => {
             setRecord(sid, { submittedRetest: event.currentTarget.checked });
             scheduleStatusSave();

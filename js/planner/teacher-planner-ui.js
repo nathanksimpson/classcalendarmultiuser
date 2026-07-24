@@ -14,6 +14,7 @@
     let binSearchQuery = '';
     let focusedTeacherId = null;
     let roomDay = 1; // Mon–Fri (1–5), Rooms board day sheet
+    let roomCadence = 'mwf'; // mwf | tth — Rooms board cadence
     let highlightCohortId = null;
     let highlightCohortTimer = null;
 
@@ -84,6 +85,72 @@
         return (data.plannerDrafts || []).find((d) => d.id === id) || null;
     }
 
+    function draftHasManualEdits(draft) {
+        if (!draft || !Array.isArray(draft.assignments)) return false;
+        return draft.assignments.some((a) => a.source === 'manual' || (a.manualKeep && a.source !== 'imported'));
+    }
+
+    function installDraft(data, draft) {
+        data.plannerDrafts = [draft].concat((data.plannerDrafts || []).filter((d) => d.id !== draft.id)).slice(0, 5);
+        data.plannerState.activeDraftId = draft.id;
+        data.plannerState.updatedAt = draft.updatedAt;
+    }
+
+    function ensureDraftFromCalendar(data, options) {
+        if (!data || !api()) return null;
+        const opts = options || {};
+        const existing = getActiveDraft(data);
+        if (existing && (existing.assignments || []).length && !opts.force) {
+            return existing;
+        }
+        const draft = api().seedDraftFromCalendar(data, { label: t('plannerLoadedFromCalendar', 'From calendar') });
+        installDraft(data, draft);
+        return draft;
+    }
+
+    function loadCalendarAction() {
+        const data = ensureData();
+        if (!data || !api()) return;
+        readTeacherCardsIntoData(data);
+        const prior = getActiveDraft(data);
+        if (prior && draftHasManualEdits(prior)) {
+            const ok = typeof window.confirm === 'function'
+                ? window.confirm(t('plannerLoadCalendarConfirm', 'Replace the current draft with what’s on the calendar?'))
+                : true;
+            if (!ok) return;
+        }
+        const draft = api().seedDraftFromCalendar(data, { label: t('plannerLoadedFromCalendar', 'From calendar') });
+        installDraft(data, draft);
+        markDirty();
+        setStep('draft');
+        if (typeof showAppNotice === 'function') {
+            showAppNotice(t('plannerLoadedFromCalendar', 'Draft loaded from calendar.'), 'success');
+        }
+    }
+
+    function clearDropHints() {
+        document.querySelectorAll('.planner-cell.drop-valid, .planner-cell.drop-valid-warn, .planner-cell.drop-invalid, .planner-cell.drop-swap-preview')
+            .forEach((el) => {
+                el.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid', 'drop-swap-preview');
+                el.removeAttribute('data-drop-hint');
+                const hint = el.querySelector('.planner-drop-hint');
+                if (hint) hint.remove();
+            });
+    }
+
+    function setDropHint(cell, text, warn) {
+        cell.classList.add(warn ? 'drop-valid-warn' : 'drop-valid');
+        if (text && text.indexOf('↔') >= 0) cell.classList.add('drop-swap-preview');
+        cell.setAttribute('data-drop-hint', text || '');
+        let hint = cell.querySelector('.planner-drop-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.className = 'planner-drop-hint';
+            cell.appendChild(hint);
+        }
+        hint.textContent = text || '';
+    }
+
     function escapeHtml(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;')
@@ -133,14 +200,10 @@
     }
 
     function cohortBand(cohort) {
-        const b = String((cohort && cohort.scheduleBlock) || '').toLowerCase();
-        if (b === 'secondary' || b === 'senior') return 'senior';
-        if (b === 'middle' || b === 'middleschool' || b === 'middle-school') return 'middle';
-        if (b === 'primary' || b === 'junior') return 'junior';
-        const level = String((cohort && (cohort.levelPreset || cohort.level || cohort.name)) || '').toLowerCase();
-        if (/senior|waterflow|garam|bada|yeoul|saemmul|mirinae|byeolmaru|시니어/.test(level)) return 'senior';
-        if (/middle|중|jung|미들/.test(level)) return 'middle';
-        return 'junior';
+        if (api() && api().resolvePlannerBandForCohort) {
+            return api().resolvePlannerBandForCohort(cohort);
+        }
+        return 'middle';
     }
 
     function cohortMeetingDaysList(cohort) {
@@ -152,19 +215,102 @@
         return (cohort && (cohort.name || cohort.label || cohort.id)) || '';
     }
 
-    function bandRank(band) {
-        if (band === 'junior') return 0;
-        if (band === 'middle') return 1;
-        return 2;
+    function cohortEnrollmentCount(cohort) {
+        if (!cohort) return null;
+        if (typeof cohort.studentCount === 'number' && cohort.studentCount >= 0) return cohort.studentCount;
+        if (typeof cohort.count === 'number' && cohort.count >= 0) return cohort.count;
+        if (Array.isArray(cohort.students)) {
+            return cohort.students.filter((s) => s && s.active !== false).length;
+        }
+        return null;
     }
 
-    function sortedCohortsForRoomSheet(data) {
-        const cohorts = Array.isArray(data.cohorts) ? data.cohorts.slice() : [];
-        return cohorts.sort((a, b) => {
-            const br = bandRank(cohortBand(a)) - bandRank(cohortBand(b));
-            if (br !== 0) return br;
-            return String(cohortDisplayName(a)).localeCompare(String(cohortDisplayName(b)));
+    function contrastTextForBg(hex) {
+        const raw = String(hex || '').replace('#', '');
+        if (!/^[0-9a-fA-F]{6}$/.test(raw)) return 'var(--text-primary, #1c2430)';
+        const r = parseInt(raw.slice(0, 2), 16);
+        const g = parseInt(raw.slice(2, 4), 16);
+        const b = parseInt(raw.slice(4, 6), 16);
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return lum > 0.62 ? '#1c2430' : '#ffffff';
+    }
+
+    function cohortCadence(cohort) {
+        const pat = String((cohort && cohort.schedulePattern) || '').toLowerCase();
+        if (pat === 'tth' || pat === 'tt' || pat === 'tuesthurs') return 'tth';
+        if (pat === 'mwf' || pat === 'mw' || pat === 'wf' || pat === 'mf') return 'mwf';
+        const days = cohortMeetingDaysList(cohort);
+        if (days.length) {
+            const isTth = days.every((d) => d === 2 || d === 4);
+            const isMwf = days.every((d) => d === 1 || d === 3 || d === 5);
+            if (isTth && !isMwf) return 'tth';
+            if (isMwf && !isTth) return 'mwf';
+            // Mixed / custom: prefer whichever days dominate
+            const tthHits = days.filter((d) => d === 2 || d === 4).length;
+            const mwfHits = days.filter((d) => d === 1 || d === 3 || d === 5).length;
+            if (tthHits > mwfHits) return 'tth';
+        }
+        return 'mwf';
+    }
+
+    function cadenceDays(cadence) {
+        return cadence === 'tth' ? [2, 4] : [1, 3, 5];
+    }
+
+    function bandRank(band) {
+        // Room sheet column order: Junior → Senior → Middle
+        if (band === 'junior') return 0;
+        if (band === 'senior') return 1;
+        if (band === 'middle') return 2;
+        return 3;
+    }
+
+    function cohortHasScheduleOnDay(assignments, demandById, cohortId, dow) {
+        return (assignments || []).some((asg) => {
+            const demand = demandById.get(asg.demandId);
+            if (!demand) return false;
+            if (!(demand.cohortIds || []).includes(cohortId)) return false;
+            return (asg.meetings || []).some((m) => Number(m.dow) === Number(dow));
         });
+    }
+
+    function sortedCohortsForRoomSheet(data, options) {
+        const opts = options || {};
+        const dow = opts.dow != null ? Number(opts.dow) : null;
+        const cadence = opts.cadence || null;
+        const assignments = opts.assignments || null;
+        const demandById = opts.demandById || null;
+        const cohorts = Array.isArray(data.cohorts) ? data.cohorts.slice() : [];
+        return cohorts
+            .filter((c) => {
+                if (!c) return false;
+                if (cadence && cohortCadence(c) !== cadence) return false;
+                if (dow != null) {
+                    const days = cohortMeetingDaysList(c);
+                    if (days.length && !days.includes(dow)) return false;
+                }
+                // Only columns with at least one scheduled class that day
+                if (dow != null && assignments && demandById) {
+                    if (!cohortHasScheduleOnDay(assignments, demandById, c.id, dow)) return false;
+                }
+                return true;
+            })
+            .sort((a, b) => {
+                const bandA = cohortBand(a);
+                const bandB = cohortBand(b);
+                const br = bandRank(bandA) - bandRank(bandB);
+                if (br !== 0) return br;
+                if (api() && api().levelSortIndex) {
+                    const li = api().levelSortIndex(bandA, a) - api().levelSortIndex(bandB, b);
+                    if (li !== 0) return li;
+                }
+                return String(cohortDisplayName(a)).localeCompare(String(cohortDisplayName(b)), 'ko');
+            });
+    }
+
+    function syncRoomDayToCadence() {
+        const days = cadenceDays(roomCadence);
+        if (!days.includes(Number(roomDay))) roomDay = days[0];
     }
 
     function findAssignmentForCohortSlot(assignments, demandById, cohortId, dow, period) {
@@ -179,9 +325,12 @@
     function focusRoomColumn(data, cohortId, scrollTo) {
         const cohort = (data.cohorts || []).find((c) => c && c.id === cohortId);
         if (cohort) {
+            roomCadence = cohortCadence(cohort);
             const days = cohortMeetingDaysList(cohort);
             if (days.length && !days.includes(Number(roomDay))) {
                 roomDay = days[0];
+            } else {
+                syncRoomDayToCadence();
             }
         }
         highlightCohortId = cohortId || null;
@@ -475,12 +624,15 @@ ${rooms.length ? rooms.map((r, idx) => `
                 ? (data.teacherProfiles || []).find((p) => p.id === asg.teacherProfileId)
                 : null;
             const color = classColor(data, d);
+            const canDrag = boardView === 'teachers' && asg && asg.assignmentId;
             return `<div class="planner-bin-row planner-bin-row--assigned"
               style="--row-color:${escapeAttr(color)}"
               data-demand-id="${escapeAttr(d.demandId)}"
+              data-assignment-id="${escapeAttr((asg && asg.assignmentId) || '')}"
               data-bin-select="${escapeAttr(d.demandId)}"
-              draggable="false" data-drag-kind="bin">
-  <span class="planner-bin-drag-handle" aria-hidden="true" style="visibility:hidden">⠿</span>
+              draggable="${canDrag ? 'true' : 'false'}" data-drag-kind="bin-assigned"
+              title="${canDrag ? escapeAttr(t('plannerBinDragSwapHint', 'Drag onto a class to swap schedules')) : ''}">
+  <span class="planner-bin-drag-handle" aria-hidden="true" style="${canDrag ? '' : 'visibility:hidden'}">⠿</span>
   <div class="planner-bin-row-main">
     <div class="planner-bin-row-name">${escapeHtml(d.name)}</div>
     <div class="planner-bin-row-meta">${escapeHtml(placementsShortText(asg))}</div>
@@ -510,10 +662,16 @@ ${complete.length
         const issuesMount = $('plannerIssuesMount');
         const metricsMount = $('plannerMetricsMount');
         if (!mount) return;
-        const draft = getActiveDraft(data);
+        let draft = getActiveDraft(data);
         const lockEl = $('plannerLockCohortDays');
         if (lockEl) {
-            lockEl.checked = data.plannerState.lockToCohortDays !== false;
+            lockEl.checked = data.plannerState.lockToCohortDays === true;
+        }
+
+        // Auto-seed from calendar when Draft has no usable assignments
+        if (!draft || !(draft.assignments || []).length) {
+            draft = ensureDraftFromCalendar(data, { force: !draft });
+            markDirty();
         }
 
         const order = (data.plannerState.teacherBoard && data.plannerState.teacherBoard.panelOrder
@@ -543,6 +701,7 @@ ${complete.length
         const roomsBtn = $('plannerBoardRoomsBtn');
         if (teachersBtn) teachersBtn.classList.toggle('is-active', boardView === 'teachers');
         if (roomsBtn) roomsBtn.classList.toggle('is-active', boardView === 'rooms');
+        updatePrintBtnLabel();
 
         renderClassBin(data, draft);
 
@@ -649,40 +808,75 @@ ${profiles.map((p) => {
     function renderRoomBoard(data, draft, mount) {
         const rooms = Array.isArray(data.rooms) ? data.rooms.slice() : [];
         const periods = [1, 2, 3, 4, 5, 6, 7];
-        const days = [1, 2, 3, 4, 5];
         const assignments = (draft && draft.assignments) || [];
         const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
-        const columns = sortedCohortsForRoomSheet(data);
         const bandOrder = [
             ['junior', t('plannerJunior', 'Junior')],
-            ['middle', t('plannerMiddle', 'Middle')],
-            ['senior', t('plannerSenior', 'Senior')]
+            ['senior', t('plannerSenior', 'Senior')],
+            ['middle', t('plannerMiddle1', '중1')]
         ];
 
-        if (!columns.length) {
+        if (!(data.cohorts || []).length) {
             mount.innerHTML = `<div class="planner-empty-card"><p class="module-empty-hint">${t('plannerNoCohortsRoomSheet', 'Add cohorts in Class Setup, then return here to assign rooms by day.')}</p></div>`;
             return;
         }
 
-        if (!days.includes(Number(roomDay))) roomDay = 1;
+        if (roomCadence !== 'tth') roomCadence = 'mwf';
+        syncRoomDayToCadence();
+        const dayOptions = cadenceDays(roomCadence);
+        const columns = sortedCohortsForRoomSheet(data, {
+            cadence: roomCadence,
+            dow: roomDay,
+            assignments,
+            demandById
+        });
 
-        const dayTabs = days.map((d) => `
+        const cadenceTabs = `
+<button type="button" class="planner-cadence-tab-btn${roomCadence === 'mwf' ? ' is-active' : ''}" data-room-cadence="mwf">${t('plannerCadenceMwf', 'MWF')}</button>
+<button type="button" class="planner-cadence-tab-btn${roomCadence === 'tth' ? ' is-active' : ''}" data-room-cadence="tth">${t('plannerCadenceTth', 'T·Th')}</button>`;
+
+        const dayTabs = dayOptions.map((d) => `
 <button type="button" class="planner-day-tab-btn${Number(roomDay) === d ? ' is-active' : ''}" data-room-day="${d}">${weekdayLabel(d)}</button>`).join('');
+
+        const roomsHint = rooms.length
+            ? t('plannerRoomSheetHintCadence', 'Pick MWF or T·Th, then a day. Only cohorts with a class that day are shown (Junior → Senior → 중1).')
+            : t('plannerNoRoomsBoard', 'Add rooms in step 3, then return here to assign rooms.');
+
+        if (!columns.length) {
+            mount.innerHTML = `
+<div class="planner-board-toolbar planner-room-sheet-toolbar">
+  <div class="planner-room-sheet-filters">
+    <div class="planner-cadence-tabs" role="tablist" aria-label="${escapeAttr(t('plannerCadence', 'Cadence'))}">${cadenceTabs}</div>
+    <div class="planner-day-tabs" role="tablist" aria-label="${escapeAttr(t('plannerBoardRooms', 'Rooms'))}">${dayTabs}</div>
+  </div>
+  <span class="section-hint">${escapeHtml(roomsHint)}</span>
+</div>
+<div class="planner-empty-card"><p class="module-empty-hint">${t('plannerNoScheduledThisDay', 'No classes are scheduled on this day yet. Place periods on the Teachers board first.')}</p></div>`;
+            return;
+        }
 
         const groupHeaderCells = bandOrder.map(([bandKey, label]) => {
             const cols = columns.filter((c) => cohortBand(c) === bandKey);
             if (!cols.length) return '';
-            return `<th class="planner-room-band-header" colspan="${cols.length}">${escapeHtml(label)}</th>`;
+            return `<th class="planner-room-band-header planner-room-band-header--${bandKey}" colspan="${cols.length}">${escapeHtml(label)}</th>`;
         }).join('');
 
         const subHeaderCells = columns.map((c) => {
-            const daysShort = cohortMeetingDaysList(c).map(weekdayLabel).join('/');
             const hl = highlightCohortId === c.id ? ' is-col-highlighted' : '';
-            const color = c.color || 'var(--primary)';
-            return `<th class="${hl.trim()}" data-cohort-col="${escapeAttr(c.id)}">
-  <span class="planner-room-cohort-swatch" style="background:${escapeAttr(color)}"></span>${escapeHtml(cohortDisplayName(c))}
-  <br><span class="planner-room-cohort-meta">${escapeHtml(daysShort || '—')}</span>
+            const color = c.color || '#e3e8ef';
+            const textColor = contrastTextForBg(color);
+            const band = cohortBand(c);
+            return `<th class="planner-room-cohort-header planner-room-cohort-header--${band}${hl}"
+              data-cohort-col="${escapeAttr(c.id)}" data-band="${escapeAttr(band)}"
+              style="background:${escapeAttr(color)};color:${escapeAttr(textColor)}">
+  ${escapeHtml(cohortDisplayName(c))}
 </th>`;
+        }).join('');
+
+        const enrollmentCells = columns.map((c) => {
+            const n = cohortEnrollmentCount(c);
+            const hl = highlightCohortId === c.id ? ' is-col-highlighted' : '';
+            return `<td class="planner-room-enrollment-cell${hl}">${n == null ? '—' : String(n)}</td>`;
         }).join('');
 
         const bodyRows = periods.map((p) => {
@@ -711,10 +905,6 @@ ${profiles.map((p) => {
                 if (outEmpty) {
                     return `<td class="planner-room-sheet-cell planner-room-sheet-cell--outofblock${hl}"></td>`;
                 }
-                const attendDays = cohortMeetingDaysList(c);
-                if (attendDays.length && !attendDays.includes(Number(roomDay))) {
-                    return `<td class="planner-room-sheet-cell planner-room-sheet-cell--notattending${hl}"></td>`;
-                }
                 return `<td class="planner-room-sheet-cell planner-room-sheet-cell--empty${hl}"></td>`;
             }).join('');
 
@@ -732,27 +922,203 @@ ${profiles.map((p) => {
             }).join('');
 
             return `<tr><th class="planner-room-time-col">${escapeHtml(periodTimeLabel(p, data))}</th>${contentCells}</tr>
-<tr><th class="planner-room-label-col">${escapeHtml(t('plannerRoom', 'Room'))}</th>${roomCells}</tr>`;
+<tr><th class="planner-room-label-col">${escapeHtml(t('plannerRoomClassroom', '강의실'))}</th>${roomCells}</tr>`;
         }).join('');
-
-        const roomsHint = rooms.length
-            ? t('plannerRoomSheetHint', 'Pick a day, then assign a room under each class. Room conflicts warn only.')
-            : t('plannerNoRoomsBoard', 'Add rooms in step 3, then return here to assign rooms.');
 
         mount.innerHTML = `
 <div class="planner-board-toolbar planner-room-sheet-toolbar">
-  <div class="planner-day-tabs" role="tablist" aria-label="${escapeAttr(t('plannerBoardRooms', 'Rooms'))}">${dayTabs}</div>
+  <div class="planner-room-sheet-filters">
+    <div class="planner-cadence-tabs" role="tablist" aria-label="${escapeAttr(t('plannerCadence', 'Cadence'))}">${cadenceTabs}</div>
+    <div class="planner-day-tabs" role="tablist" aria-label="${escapeAttr(t('plannerBoardRooms', 'Rooms'))}">${dayTabs}</div>
+  </div>
   <span class="section-hint">${escapeHtml(roomsHint)}</span>
 </div>
 <div class="planner-room-sheet-wrap">
   <table class="planner-room-sheet" style="--planner-room-cols:${columns.length}">
     <thead>
       <tr><th class="planner-room-time-col"></th>${groupHeaderCells}</tr>
-      <tr><th class="planner-room-time-col"></th>${subHeaderCells}</tr>
+      <tr>
+        <th class="planner-room-time-col planner-room-banmyeong-label">${escapeHtml(t('plannerRoomBanmyeong', '반명'))}</th>
+        ${subHeaderCells}
+      </tr>
+      <tr class="planner-room-enrollment-row">
+        <th class="planner-room-time-col">${escapeHtml(t('plannerRoomEnrollment', '인원'))}</th>
+        ${enrollmentCells}
+      </tr>
     </thead>
     <tbody>${bodyRows}</tbody>
   </table>
 </div>`;
+    }
+
+    function updatePrintBtnLabel() {
+        const el = $('plannerPrintBtnLabel');
+        if (!el) return;
+        el.textContent = boardView === 'rooms'
+            ? t('plannerPrintRooms', 'Print room schedule')
+            : t('plannerPrintTeachers', 'Print teacher timetables');
+    }
+
+    function printPageHeader(title, subtitle) {
+        return `<div class="planner-print-page-header">
+  <div class="planner-print-page-title">${escapeHtml(title)}</div>
+  <div class="planner-print-page-meta">ClassManager · ${escapeHtml(subtitle || '')}</div>
+</div>`;
+    }
+
+    function calendarSubtitle(data) {
+        const name = (data && (data.calendarName || data.name || data.termName)) || '';
+        return name || t('plannerPrintDefaultTerm', 'Schedule planner');
+    }
+
+    function buildTeacherPrintHTML(data, draft) {
+        const assignments = (draft && draft.assignments) || [];
+        const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
+        const periods = [1, 2, 3, 4, 5, 6, 7];
+        const days = [1, 2, 3, 4, 5];
+        const profiles = (data.teacherProfiles || []).slice();
+        const blocks = profiles.map((te) => {
+            const rows = periods.map((p) => {
+                const cells = days.map((dow) => {
+                    const asg = assignments.find((a) => a.teacherProfileId === te.id
+                        && (a.meetings || []).some((m) => Number(m.dow) === dow && String(m.period) === String(p)));
+                    if (!asg) return '<td></td>';
+                    const demand = demandById.get(asg.demandId) || {};
+                    const color = classColor(data, demand);
+                    const room = asg.roomId
+                        ? ((data.rooms || []).find((r) => r.id === asg.roomId) || {}).name
+                        : '';
+                    const band = demand.band || 'junior';
+                    const bandShort = band === 'junior'
+                        ? t('plannerJrShort', 'Jr')
+                        : band === 'middle'
+                            ? t('plannerMiddle1', '중1')
+                            : t('plannerSrShort', 'Sr');
+                    return `<td class="planner-print-cell-colored" style="background:${escapeAttr(color)}">
+  <div class="planner-print-cell-name">${escapeHtml(demand.name || asg.classId)}</div>
+  <div class="planner-print-cell-sub">${escapeHtml(bandShort)}${room ? ` · ${escapeHtml(room)}` : ''}</div>
+</td>`;
+                }).join('');
+                return `<tr><th class="planner-print-time-col">${escapeHtml(periodTimeLabel(p, data))}</th>${cells}</tr>`;
+            }).join('');
+            const role = te.role === 'native'
+                ? t('plannerRoleNative', 'Native')
+                : t('plannerRoleKorean', 'Korean');
+            const load = assignments
+                .filter((a) => a.teacherProfileId === te.id)
+                .reduce((n, a) => n + ((a.meetings || []).length), 0);
+            const maxW = (te.limits && te.limits.maxPeriodsPerWeek) || 22;
+            return `<div class="planner-print-block">
+  <div class="planner-print-block-title">${escapeHtml(te.name)}</div>
+  <div class="planner-print-block-subtitle">${escapeHtml(role)} · ${load}/${maxW} ${t('plannerPeriodsPerWeek', 'periods/wk')}</div>
+  <table class="planner-print-table">
+    <thead><tr><th class="planner-print-time-col"></th>${days.map((d) => `<th>${weekdayLabel(d)}</th>`).join('')}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</div>`;
+        }).join('');
+        return `<div class="planner-print-page">${printPageHeader(
+            t('plannerPrintTeacherTitle', 'Teacher timetable'),
+            calendarSubtitle(data)
+        )}${blocks}</div>`;
+    }
+
+    function buildRoomsPrintHTML(data, draft) {
+        const assignments = (draft && draft.assignments) || [];
+        const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
+        const periods = [1, 2, 3, 4, 5, 6, 7];
+        const bandOrder = [
+            ['junior', t('plannerJunior', 'Junior')],
+            ['senior', t('plannerSenior', 'Senior')],
+            ['middle', t('plannerMiddle1', '중1')]
+        ];
+        const days = cadenceDays(roomCadence);
+        const pages = days.map((day) => {
+            const columns = sortedCohortsForRoomSheet(data, {
+                cadence: roomCadence,
+                dow: day,
+                assignments,
+                demandById
+            });
+            if (!columns.length) {
+                return `<div class="planner-print-page">${printPageHeader(
+                    `${weekdayLabel(day)} ${t('plannerPrintRoomTitle', 'Room schedule')}`,
+                    calendarSubtitle(data)
+                )}<p>${escapeHtml(t('plannerNoScheduledThisDay', 'No classes are scheduled on this day yet.'))}</p></div>`;
+            }
+            const groupHeaderCells = bandOrder.map(([bandKey, label]) => {
+                const cols = columns.filter((c) => cohortBand(c) === bandKey);
+                if (!cols.length) return '';
+                return `<th class="planner-print-band-header" colspan="${cols.length}">${escapeHtml(label)}</th>`;
+            }).join('');
+            const subHeaderCells = columns.map((c) => {
+                const color = c.color || '#e3e8ef';
+                const textColor = contrastTextForBg(color);
+                return `<th style="background:${escapeAttr(color)};color:${escapeAttr(textColor)}">${escapeHtml(cohortDisplayName(c))}</th>`;
+            }).join('');
+            const enrollmentCells = columns.map((c) => {
+                const n = cohortEnrollmentCount(c);
+                return `<td>${n == null ? '—' : String(n)}</td>`;
+            }).join('');
+            const bodyRows = periods.map((p) => {
+                const contentCells = columns.map((c) => {
+                    const asg = findAssignmentForCohortSlot(assignments, demandById, c.id, day, p);
+                    if (!asg) return '<td></td>';
+                    const demand = demandById.get(asg.demandId) || {};
+                    const te = asg.teacherProfileId
+                        ? (data.teacherProfiles || []).find((x) => x.id === asg.teacherProfileId)
+                        : null;
+                    const color = classColor(data, demand.cohortIds ? demand : { classId: asg.classId, cohortIds: [c.id] });
+                    const out = api().isOutOfBlock(demand.band || cohortBand(c), p);
+                    return `<td class="planner-print-cell-colored" style="background:${escapeAttr(color)}${out ? ';outline:2px dashed #b45309;outline-offset:-2px' : ''}">
+  <div class="planner-print-cell-name">${out ? '⚠ ' : ''}${escapeHtml(demand.name || asg.classId)}</div>
+  <div class="planner-print-cell-sub">${escapeHtml((te && te.name) || t('plannerNoTeacherShort', 'No teacher'))}</div>
+</td>`;
+                }).join('');
+                const roomCells = columns.map((c) => {
+                    const asg = findAssignmentForCohortSlot(assignments, demandById, c.id, day, p);
+                    if (!asg) return '<td></td>';
+                    const room = asg.roomId
+                        ? ((data.rooms || []).find((r) => r.id === asg.roomId) || {}).name
+                        : null;
+                    return `<td style="font-weight:700;${room ? '' : 'color:#b45309'}">${escapeHtml(room || t('plannerRoomTbd', 'TBD'))}</td>`;
+                }).join('');
+                return `<tr><th class="planner-print-time-col">${escapeHtml(periodTimeLabel(p, data))}</th>${contentCells}</tr>
+<tr><th class="planner-print-room-label">${escapeHtml(t('plannerRoomClassroom', '강의실'))}</th>${roomCells}</tr>`;
+            }).join('');
+            return `<div class="planner-print-page">${printPageHeader(
+                `${weekdayLabel(day)} ${t('plannerPrintRoomTitle', 'Room schedule')}`,
+                calendarSubtitle(data)
+            )}
+  <table class="planner-print-table">
+    <thead>
+      <tr><th class="planner-print-time-col"></th>${groupHeaderCells}</tr>
+      <tr><th class="planner-print-time-col">${escapeHtml(t('plannerRoomBanmyeong', '반명'))}</th>${subHeaderCells}</tr>
+      <tr><th class="planner-print-time-col">${escapeHtml(t('plannerRoomEnrollment', '인원'))}</th>${enrollmentCells}</tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+</div>`;
+        }).join('');
+        return pages;
+    }
+
+    function openPrintView() {
+        const data = ensureData();
+        const draft = getActiveDraft(data);
+        if (!data || !draft || !api()) return;
+        const area = $('plannerPrintArea');
+        if (!area) return;
+        area.innerHTML = boardView === 'rooms'
+            ? buildRoomsPrintHTML(data, draft)
+            : buildTeacherPrintHTML(data, draft);
+        area.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                window.print();
+                area.setAttribute('aria-hidden', 'true');
+            });
+        });
     }
 
     function render() {
@@ -889,12 +1255,20 @@ ${profiles.map((p) => {
                 generateDraftAction();
                 return;
             }
+            if (e.target.closest('#plannerLoadCalendarBtn')) {
+                loadCalendarAction();
+                return;
+            }
             if (e.target.closest('#plannerRerunUnresolvedBtn')) {
                 generateDraftAction({ onlyUnresolved: true });
                 return;
             }
             if (e.target.closest('#plannerApplyBtn')) {
                 applyDraftAction();
+                return;
+            }
+            if (e.target.closest('#plannerPrintBtn')) {
+                openPrintView();
                 return;
             }
             const binSelect = e.target.closest && e.target.closest('[data-bin-select]');
@@ -923,6 +1297,14 @@ ${profiles.map((p) => {
             const dayTab = e.target.closest && e.target.closest('[data-room-day]');
             if (dayTab) {
                 roomDay = Number(dayTab.getAttribute('data-room-day')) || 1;
+                const data = ensureData();
+                if (data) renderDraft(data);
+                return;
+            }
+            const cadenceTab = e.target.closest && e.target.closest('[data-room-cadence]');
+            if (cadenceTab) {
+                roomCadence = cadenceTab.getAttribute('data-room-cadence') === 'tth' ? 'tth' : 'mwf';
+                syncRoomDayToCadence();
                 const data = ensureData();
                 if (data) renderDraft(data);
                 return;
@@ -1062,6 +1444,20 @@ ${profiles.map((p) => {
         });
 
         document.addEventListener('dragstart', (e) => {
+            const assignedBin = e.target.closest && e.target.closest('.planner-bin-row--assigned');
+            if (assignedBin && assignedBin.getAttribute('draggable') === 'true') {
+                dragKind = 'bin-assigned';
+                dragDemandId = assignedBin.getAttribute('data-demand-id');
+                dragAssignmentId = assignedBin.getAttribute('data-assignment-id');
+                dragFromDow = null;
+                dragFromPeriod = null;
+                e.dataTransfer.setData('text/plain', dragAssignmentId || '');
+                e.dataTransfer.setData('text/drag-kind', 'bin-assigned');
+                e.dataTransfer.setData('text/demand-id', dragDemandId || '');
+                e.dataTransfer.setData('text/assignment-id', dragAssignmentId || '');
+                e.dataTransfer.effectAllowed = 'move';
+                return;
+            }
             const binRow = e.target.closest && e.target.closest('.planner-bin-row--unassigned');
             if (binRow && e.target.closest('[data-bin-select], .planner-bin-row')) {
                 dragKind = 'bin';
@@ -1107,52 +1503,116 @@ ${profiles.map((p) => {
             const data = ensureData();
             const draft = getActiveDraft(data);
             if (!data || !draft || !api()) return;
-            document.querySelectorAll('.planner-cell.drop-valid, .planner-cell.drop-valid-warn, .planner-cell.drop-invalid')
-                .forEach((el) => el.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid'));
+            clearDropHints();
             const kind = dragKind;
             const dow = cell.getAttribute('data-dow');
             const period = cell.getAttribute('data-period');
             const teacherId = cell.getAttribute('data-profile-id');
-            if (!teacherId || cell.classList.contains('planner-cell--blocked')) return;
+            if (!teacherId || cell.classList.contains('planner-cell--blocked')) {
+                cell.classList.add('drop-invalid');
+                return;
+            }
             const demands = api().buildDemandsFromAppData(data);
             const demandById = new Map(demands.map((d) => [d.demandId, d]));
             const teacher = (data.teacherProfiles || []).find((p) => p.id === teacherId);
-            let check = { ok: false, warnOutOfBlock: false };
+            const classesById = new Map((data.classes || []).map((c) => [c.id, c]));
+            const className = (demand) => {
+                const cls = demand && classesById.get(demand.classId);
+                return (cls && cls.name) || (demand && demand.name) || '?';
+            };
+            let check = { ok: false, warnOutOfBlock: false, softReasons: [] };
+            let hint = '';
+            const occupant = cell.querySelector('.planner-card');
+            const occupantId = occupant && occupant.getAttribute('data-assignment-id');
+
             if (kind === 'bin' && dragDemandId) {
                 const demand = demandById.get(dragDemandId);
                 check = api().isValidPlacement(data, teacher, demand, dow, period, draft.assignments, { demandById });
+                hint = t('plannerDropPlaceHere', 'Place here');
+            } else if (kind === 'bin-assigned' && dragAssignmentId) {
+                const asg = draft.assignments.find((a) => a.assignmentId === dragAssignmentId);
+                const demand = asg && demandById.get(asg.demandId);
+                if (occupantId && occupantId !== dragAssignmentId) {
+                    check = { ok: true, warnOutOfBlock: false, softReasons: [] };
+                    const other = draft.assignments.find((a) => a.assignmentId === occupantId);
+                    const otherDemand = other && demandById.get(other.demandId);
+                    const tpl = t('plannerDropSwap', 'Swap: {a} ↔ {b}');
+                    hint = tpl
+                        .replace('{a}', className(demand))
+                        .replace('{b}', className(otherDemand));
+                } else if (occupantId === dragAssignmentId) {
+                    check = { ok: true, softReasons: [] };
+                    hint = t('plannerDropMoveHere', 'Move here');
+                } else {
+                    check = { ok: true, softReasons: [] };
+                    hint = t('plannerDropMoveHere', 'Move here');
+                }
             } else if ((kind === 'period' || kind === 'teacher') && dragAssignmentId) {
                 const asg = draft.assignments.find((a) => a.assignmentId === dragAssignmentId);
                 const demand = asg && demandById.get(asg.demandId);
-                const occupant = cell.querySelector('.planner-card');
-                if (occupant && occupant.getAttribute('data-assignment-id') !== dragAssignmentId) {
+                if (occupantId && occupantId !== dragAssignmentId) {
                     const swap = api().canSwapPeriods(
-                        data, draft, dragAssignmentId, occupant.getAttribute('data-assignment-id'),
+                        data, draft, dragAssignmentId, occupantId,
                         dow, period, dragFromDow, dragFromPeriod
                     );
-                    check = { ok: swap.ok, warnOutOfBlock: swap.warnOutOfBlock };
+                    check = {
+                        ok: swap.ok,
+                        warnOutOfBlock: swap.warnOutOfBlock,
+                        softReasons: swap.softReasons || swap.reasons || []
+                    };
+                    const other = draft.assignments.find((a) => a.assignmentId === occupantId);
+                    const otherDemand = other && demandById.get(other.demandId);
+                    const tpl = t('plannerDropSwap', 'Swap: {a} ↔ {b}');
+                    hint = tpl
+                        .replace('{a}', className(demand))
+                        .replace('{b}', className(otherDemand));
                 } else {
-                    // preview move: strip current slot
                     const saved = (asg.meetings || []).slice();
                     asg.meetings = saved.filter((m) => !(Number(m.dow) === Number(dragFromDow) && String(m.period) === String(dragFromPeriod)));
-                    check = api().isValidPlacement(data, teacher, demand, dow, period, draft.assignments, { demandById });
+                    check = api().isValidPlacement(data, teacher, demand, dow, period, draft.assignments, {
+                        demandById,
+                        excludeAssignmentIds: [dragAssignmentId],
+                        replacingSlot: true
+                    });
                     asg.meetings = saved;
+                    hint = t('plannerDropMoveHere', 'Move here');
                 }
             }
-            cell.classList.add(check.ok ? (check.warnOutOfBlock ? 'drop-valid-warn' : 'drop-valid') : 'drop-invalid');
+
+            if (!check.ok) {
+                cell.classList.add('drop-invalid');
+                return;
+            }
+            const warn = !!(check.warnOutOfBlock || (check.softReasons && check.softReasons.length));
+            setDropHint(cell, hint, warn);
         });
 
         document.addEventListener('dragleave', (e) => {
             const cell = e.target.closest && e.target.closest('.planner-cell');
-            if (cell) cell.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid');
+            if (!cell) return;
+            // Only clear when leaving the cell entirely
+            const related = e.relatedTarget;
+            if (related && cell.contains(related)) return;
+            cell.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid', 'drop-swap-preview');
+            cell.removeAttribute('data-drop-hint');
+            const hint = cell.querySelector('.planner-drop-hint');
+            if (hint) hint.remove();
+        });
+
+        document.addEventListener('dragend', () => {
+            clearDropHints();
+            dragKind = null;
+            dragDemandId = null;
+            dragAssignmentId = null;
+            dragFromDow = null;
+            dragFromPeriod = null;
         });
 
         document.addEventListener('drop', (e) => {
             const data = ensureData();
             const draft = getActiveDraft(data);
             if (!data || !draft || !api()) return;
-            document.querySelectorAll('.planner-cell.drop-valid, .planner-cell.drop-valid-warn, .planner-cell.drop-invalid')
-                .forEach((el) => el.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid'));
+            clearDropHints();
 
             const roomPanelId = e.dataTransfer.getData('text/room-panel');
             if (roomPanelId) {
@@ -1224,6 +1684,7 @@ ${profiles.map((p) => {
             const toDow = targetCell && targetCell.getAttribute('data-dow');
             const toPeriod = targetCell && targetCell.getAttribute('data-period');
             const toTeacher = targetCell && targetCell.getAttribute('data-profile-id');
+            if (targetCell && targetCell.classList.contains('planner-cell--blocked')) return;
 
             if (kind === 'bin') {
                 const demandId = e.dataTransfer.getData('text/demand-id') || dragDemandId;
@@ -1239,16 +1700,58 @@ ${profiles.map((p) => {
                 return;
             }
 
+            if (kind === 'bin-assigned') {
+                const assignmentId = e.dataTransfer.getData('text/assignment-id')
+                    || e.dataTransfer.getData('text/plain')
+                    || dragAssignmentId;
+                if (!assignmentId || !targetCell || !toTeacher) return;
+                e.preventDefault();
+                const occupant = targetCell.querySelector('.planner-card');
+                const occupantId = occupant && occupant.getAttribute('data-assignment-id');
+                if (occupantId && occupantId !== assignmentId) {
+                    const result = api().swapAssignmentsFull(data, draft, assignmentId, occupantId);
+                    if (result.ok) {
+                        markDirty();
+                        renderDraft(data);
+                    } else if (typeof showAppNotice === 'function') {
+                        showAppNotice(result.reason || 'Invalid swap', 'error');
+                    }
+                    return;
+                }
+                if (occupantId === assignmentId) return;
+                const demands = api().buildDemandsFromAppData(data);
+                const result = api().moveAssignmentBundle(
+                    draft,
+                    assignmentId,
+                    toTeacher,
+                    data.teacherProfiles,
+                    demands,
+                    (data.plannerState && data.plannerState.blockouts) || {},
+                    { permissive: true }
+                );
+                if (result.ok) {
+                    api().recomputeDraftMetrics(data, draft);
+                    markDirty();
+                    renderDraft(data);
+                } else if (typeof showAppNotice === 'function') {
+                    showAppNotice(result.reason || 'Invalid move', 'error');
+                }
+                return;
+            }
+
+            // Board tile → always move or swap (never place / duplicate)
             const assignmentId = e.dataTransfer.getData('text/plain') || dragAssignmentId;
             const fromDow = e.dataTransfer.getData('text/from-dow') || dragFromDow;
             const fromPeriod = e.dataTransfer.getData('text/from-period') || dragFromPeriod;
-            if (!assignmentId || !targetCell) return;
+            if (!assignmentId || !targetCell || !toTeacher) return;
 
-            if (targetCard && targetCard.getAttribute('data-assignment-id') !== assignmentId) {
+            const occupant = targetCell.querySelector('.planner-card');
+            const occupantId = occupant && occupant.getAttribute('data-assignment-id');
+
+            if (occupantId && occupantId !== assignmentId) {
                 e.preventDefault();
-                const otherId = targetCard.getAttribute('data-assignment-id');
                 const result = api().swapPeriodCells(
-                    data, draft, assignmentId, otherId,
+                    data, draft, assignmentId, occupantId,
                     toDow, toPeriod, fromDow, fromPeriod
                 );
                 if (result.ok) {
@@ -1258,15 +1761,20 @@ ${profiles.map((p) => {
                 return;
             }
 
-            if (targetCell.classList.contains('planner-cell--empty') && toTeacher) {
+            // Same cell = no-op
+            if (Number(fromDow) === Number(toDow) && String(fromPeriod) === String(toPeriod)
+                && occupantId === assignmentId) {
                 e.preventDefault();
-                const result = api().movePeriod(data, draft, assignmentId, fromDow, fromPeriod, toTeacher, toDow, toPeriod);
-                if (result.ok) {
-                    markDirty();
-                    renderDraft(data);
-                } else if (typeof showAppNotice === 'function') {
-                    showAppNotice(result.reason || 'Invalid move', 'error');
-                }
+                return;
+            }
+
+            e.preventDefault();
+            const result = api().movePeriod(data, draft, assignmentId, fromDow, fromPeriod, toTeacher, toDow, toPeriod);
+            if (result.ok) {
+                markDirty();
+                renderDraft(data);
+            } else if (typeof showAppNotice === 'function') {
+                showAppNotice(result.reason || 'Invalid move', 'error');
             }
         });
     }

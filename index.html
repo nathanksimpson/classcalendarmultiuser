@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260721-scores-sheet-fill">
+    <link rel="stylesheet" href="styles.css?v=20260724-essay-due-actions">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -12,7 +12,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260721-debate-digit-pad';
+        window.CCP_I18N_VERSION = '20260724-essay-overdue-restore';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -380,6 +380,7 @@
                             <button type="button" id="classroomRosterImportBtn" class="header-dropdown-item" data-i18n="rosterImportBtn">Import roster&hellip;</button>
                             <button type="button" id="classroomRosterEssayTrackerImportBtn" class="header-dropdown-item" data-i18n="essayTrackerImportBtn">Import from Essay Tracker&hellip;</button>
                             <button type="button" id="classroomRosterPasteBtn" class="header-dropdown-item" data-i18n="rosterPasteBtn">Paste from SMS&hellip;</button>
+                            <button type="button" id="classroomRosterTmsSyncBtn" class="header-dropdown-item" data-i18n="rosterTmsSyncBtn">Sync from TMS&hellip;</button>
                         </div>
                     </details>
                     <button type="button" id="classroomRosterExportAllBtn" class="btn btn-outline btn-compact" data-i18n="rosterExportAllBtn">Export all</button>
@@ -401,6 +402,8 @@
                             <button type="button" id="classroomRosterSelectAllBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveSelectAll">Select all</button>
                             <button type="button" id="classroomRosterClearSelectionBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveClearSelection">Clear</button>
                             <button type="button" id="classroomRosterMoveBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveBtn" disabled>Move to cohort&hellip;</button>
+                            <button type="button" id="classroomRosterBulkStatusBtn" class="btn btn-outline btn-compact" data-i18n="studentBulkStatusBtn" disabled>Change status&hellip;</button>
+                            <button type="button" id="classroomRosterBulkArchiveBtn" class="btn btn-outline btn-compact" data-i18n="studentBulkArchiveBtn" disabled>Archive&hellip;</button>
                         </div>
                         <input type="search" id="classroomRosterStudentSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="studentListSearchPlaceholder" placeholder="Search students&hellip;">
                         <div id="classroomRosterStudentList" class="module-list classroom-roster-student-list" role="listbox" aria-label="Students"></div>
@@ -1650,11 +1653,11 @@
                     <fieldset class="roster-import-merge-global">
                         <legend data-i18n="rosterImportMergeLegend">How to apply students</legend>
                         <label class="checkbox-label selection-chip">
-                            <input type="radio" name="rosterImportMergeGlobal" value="replace" checked>
+                            <input type="radio" name="rosterImportMergeGlobal" value="replace">
                             <span data-i18n="rosterImportMergeReplace">Replace roster (remove students not in file)</span>
                         </label>
                         <label class="checkbox-label selection-chip">
-                            <input type="radio" name="rosterImportMergeGlobal" value="merge">
+                            <input type="radio" name="rosterImportMergeGlobal" value="merge" checked>
                             <span data-i18n="rosterImportMergeMerge">Merge by student id (keep existing not in file)</span>
                         </label>
                     </fieldset>
@@ -1693,11 +1696,11 @@
             <div class="form-actions roster-import-actions roster-paste-footer">
                 <div class="roster-paste-merge-switch" role="radiogroup" aria-label="How to apply students">
                     <label class="roster-paste-merge-option">
-                        <input type="radio" name="rosterPasteMergeMode" value="replace" checked>
+                        <input type="radio" name="rosterPasteMergeMode" value="replace">
                         <span class="syllabus-segment-btn roster-paste-merge-btn" data-i18n="rosterImportMergeReplaceShort" data-i18n-title="rosterImportMergeReplace" title="Replace roster (remove students not in file)">Replace</span>
                     </label>
                     <label class="roster-paste-merge-option">
-                        <input type="radio" name="rosterPasteMergeMode" value="merge">
+                        <input type="radio" name="rosterPasteMergeMode" value="merge" checked>
                         <span class="syllabus-segment-btn roster-paste-merge-btn" data-i18n="rosterImportMergeMergeShort" data-i18n-title="rosterImportMergeMerge" title="Merge by student id (keep existing not in file)">Merge</span>
                     </label>
                 </div>
@@ -1709,13 +1712,40 @@
         </div>
     </div>
 
+    <div id="rosterTmsSyncModal" class="modal" role="dialog" aria-labelledby="rosterTmsSyncModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-wide modal-content--scrollable roster-import-modal-content">
+            <div class="modal-header">
+                <h2 id="rosterTmsSyncModalTitle" data-i18n="rosterTmsSyncTitle">Sync roster from TMS</h2>
+                <button type="button" class="modal-close" id="closeRosterTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll roster-import-modal-body">
+                <p class="section-hint" data-i18n="rosterTmsSyncHint">
+                    Pull class lists from tms.esimson.com, match students by Korean name, add new names, and flag missing students as Off roster (no deletes). Your TMS class → cohort choices are remembered for next time.
+                </p>
+                <p id="rosterTmsSyncStatus" class="section-hint" aria-live="polite"></p>
+                <div class="module-toolbar classroom-tab-toolbar roster-tms-sync-toolbar" id="rosterTmsSyncBatchBar" hidden>
+                    <div class="toolbar-actions">
+                        <button type="button" id="rosterTmsSyncSkipAllBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsSyncSkipAll">Skip all</button>
+                        <button type="button" id="rosterTmsSyncSkipUnmappedBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsSyncSkipUnmapped">Skip unmapped</button>
+                    </div>
+                </div>
+                <div id="rosterTmsSyncMappingTable" class="roster-import-table-wrap"></div>
+                <p id="rosterTmsSyncError" class="section-hint roster-import-error" hidden role="alert"></p>
+            </div>
+            <div class="form-actions roster-import-actions">
+                <button type="button" id="cancelRosterTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="rosterTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="rosterTmsSyncConfirm">Apply sync</button>
+            </div>
+        </div>
+    </div>
+
     <div id="studentArchiveModal" class="modal" role="dialog" aria-labelledby="studentArchiveModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h2 id="studentArchiveModalTitle" data-i18n="studentArchiveTitle">Archive student</h2>
                 <button type="button" class="modal-close" id="closeStudentArchiveModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
-            <p class="section-hint" data-i18n="studentArchiveHint">Moves the student to the archive cohort (no classes). They will not appear on attendance or homework.</p>
+            <p id="studentArchiveHint" class="section-hint" data-i18n="studentArchiveHint">Moves the student to the archive cohort (no classes). They will not appear on attendance or homework.</p>
             <div class="form-group">
                 <label for="studentArchiveReason" data-i18n="studentArchiveReasonLabel">Reason</label>
                 <select id="studentArchiveReason" class="field-select">
@@ -1768,6 +1798,42 @@
             <div class="form-actions">
                 <button type="button" id="cancelStudentMoveBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                 <button type="button" id="confirmStudentMoveBtn" class="btn btn-primary" data-i18n="studentMoveConfirm">Move</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="studentBulkStatusModal" class="modal" role="dialog" aria-labelledby="studentBulkStatusModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="studentBulkStatusModalTitle" data-i18n="studentBulkStatusTitle">Change status</h2>
+                <button type="button" class="modal-close" id="closeStudentBulkStatusModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <p id="studentBulkStatusHint" class="section-hint"></p>
+            <div class="form-group">
+                <label for="studentBulkStatusActive" data-i18n="studentBulkStatusActiveLabel">Active</label>
+                <select id="studentBulkStatusActive" class="field-select">
+                    <option value="leave" data-i18n="studentBulkStatusLeave">Leave unchanged</option>
+                    <option value="yes" data-i18n="classroomStudentActive">Active</option>
+                    <option value="no" data-i18n="studentBulkStatusInactive">Inactive</option>
+                </select>
+            </div>
+            <fieldset class="form-group classroom-roster-tags-fieldset">
+                <legend data-i18n="studentBulkStatusAddTags">Add tags</legend>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkAddTagNew" value="new" /> <span data-i18n="classroomTagNew">New</span></label>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkAddTagEnding" value="ending_soon" /> <span data-i18n="classroomTagEndingSoon">Ending soon</span></label>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkAddTagInterested" value="interested" /> <span data-i18n="classroomTagInterested">Interested</span></label>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkAddTagOffRoster" value="off_roster" /> <span data-i18n="classroomTagOffRoster">Off roster</span></label>
+            </fieldset>
+            <fieldset class="form-group classroom-roster-tags-fieldset">
+                <legend data-i18n="studentBulkStatusRemoveTags">Remove tags</legend>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkRemoveTagNew" value="new" /> <span data-i18n="classroomTagNew">New</span></label>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkRemoveTagEnding" value="ending_soon" /> <span data-i18n="classroomTagEndingSoon">Ending soon</span></label>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkRemoveTagInterested" value="interested" /> <span data-i18n="classroomTagInterested">Interested</span></label>
+                <label class="checkbox-label selection-chip"><input type="checkbox" id="studentBulkRemoveTagOffRoster" value="off_roster" /> <span data-i18n="classroomTagOffRoster">Off roster</span></label>
+            </fieldset>
+            <div class="form-actions">
+                <button type="button" id="cancelStudentBulkStatusBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="confirmStudentBulkStatusBtn" class="btn btn-primary" data-i18n="studentBulkStatusConfirm">Apply</button>
             </div>
         </div>
     </div>
@@ -2116,17 +2182,17 @@
     <script defer src="js/active-context.js?v=20260703-zone-context"></script>
     <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
     <script defer src="js/classroom-zone-context.js?v=20260713-zone-class-popover"></script>
-    <script defer src="js/cohort-sidebar-filter.js?v=20260619-ui-overhaul"></script>
+    <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260701-event-color-palette"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260720-debate-scores-local"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260724-essay-overdue-restore"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
     <script defer src="js/team-auth.js?v=20260608-i18n-audit"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-mutations.js?v=20260623-atomic-cas"></script>
-    <script defer src="js/calendar-sync.js?v=20260720-debate-scores"></script>
+    <script defer src="js/calendar-sync.js?v=20260723-tms-links"></script>
     <script defer src="js/conflict-merge.js?v=20260619-delta-sync"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
@@ -2148,7 +2214,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260723-print-name-en"></script>
+    <script defer src="js/classroom-domain.js?v=20260724-essay-overdue"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
@@ -2207,7 +2273,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260721-event-syllabi-banner"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260721-debate-digit-pad"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260724-essay-overdue-restore"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2215,7 +2281,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260619-calm-text-tokens"></script>
-    <script defer src="app.js?v=20260721-scores-sheet-fill"></script>
+    <script defer src="app.js?v=20260724-filter-contracts"></script>
 </body>
 </html>
 

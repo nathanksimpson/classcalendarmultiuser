@@ -20,6 +20,7 @@ const CalendarMeta = require('./calendar-meta');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
 const ViewAs = require('./view-as');
+const tmsRoster = require('./tms-roster');
 const { getDb } = require('./schema');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -1117,6 +1118,44 @@ app.post('/api/backup', requireUser, rejectViewAsWrites, (_req, res) => {
     res.json({ skipped: true, reason: 'Use Synology or export from Print & data tab for backups' });
 });
 
+/** Local-only TMS roster preview (credentials from server .env). */
+app.post('/api/tms/roster/preview', requireUser, rejectViewAsWrites, async (req, res) => {
+    try {
+        if (!tmsRoster.credentialsConfigured(tmsRoster.getConfig())) {
+            return res.status(503).json({
+                error: 'TMS credentials not configured',
+                code: 'TMS_CREDS_MISSING'
+            });
+        }
+        const result = await tmsRoster.scrapeRosters();
+        return res.json({
+            cohorts: result.cohorts,
+            meta: {
+                homeUrl: result.meta && result.meta.homeUrl,
+                pagesFetched: result.meta && result.meta.pagesFetched,
+                cohortCount: (result.cohorts || []).length,
+                studentCount: (result.cohorts || []).reduce(
+                    (n, c) => n + ((c.students && c.students.length) || 0),
+                    0
+                )
+            }
+        });
+    } catch (err) {
+        const code = err && err.code;
+        if (code === 'TMS_LOGIN_FAILED') {
+            return res.status(401).json({ error: err.message || 'TMS login failed', code });
+        }
+        if (code === 'TMS_CREDS_MISSING') {
+            return res.status(503).json({ error: err.message || 'TMS credentials missing', code });
+        }
+        console.error('TMS roster preview failed', err);
+        return res.status(502).json({
+            error: (err && err.message) || 'TMS sync failed',
+            code: 'TMS_SCRAPE_FAILED'
+        });
+    }
+});
+
 app.get('/api/calendars', requireUser, (req, res) => {
     res.json(CalAccess.listCalendarsForUser(req.user));
 });
@@ -1472,7 +1511,8 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         debateTeamSessions,
         debateScores,
         debateCustomFormats,
-        speakingTestRecords
+        speakingTestRecords,
+        tmsRosterLinks
     } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
     if (classroomOnly) {
@@ -1506,6 +1546,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'speakingTestRecords')) {
             payload.speakingTestRecords = speakingTestRecords;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'tmsRosterLinks')) {
+            payload.tmsRosterLinks = tmsRosterLinks;
         }
         const result = calendars.updateCalendarClassroom(
             req.params.id,
@@ -1706,6 +1749,11 @@ app.listen(PORT, () => {
         console.log('Kakao redirect URI (register in Kakao Developers):', kakaoRedirectUri({}));
     } else {
         console.log('Kakao login: not configured (set KAKAO_CLIENT_ID)');
+    }
+    if (tmsRoster.credentialsConfigured(tmsRoster.getConfig())) {
+        console.log('TMS roster sync: configured');
+    } else {
+        console.log('TMS roster sync: missing TMS_USERNAME/TMS_PASSWORD (add to .env and restart)');
     }
     if (users.countAdmins() === 0 && BOOTSTRAP_SECRET) {
         console.log('No admin yet — POST /api/admin/bootstrap with BOOTSTRAP_ADMIN_SECRET');

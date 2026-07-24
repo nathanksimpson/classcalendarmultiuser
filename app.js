@@ -696,6 +696,7 @@ function getDefaultAppData() {
         events: [],
         holidays: [],
         cohorts: [],
+        tmsRosterLinks: {},
         timetableTimeSlots: getDefaultTimetableTimeSlots(),
         periodSlotMap: getDefaultPeriodSlotMap(),
         customClassTypes: [],
@@ -1253,7 +1254,9 @@ function filterEventsForActiveCohort(events) {
         return list;
     }
     const cohortId = CCPCohortSidebarFilter.getActiveCohortId();
-    return CCPCohortSidebarFilter.filterEventsByCohort(list, cohortId, appData.classes || []);
+    return CCPCohortSidebarFilter.filterEventsByCohort(list, cohortId, appData.classes || [], {
+        eventAppliesToClass
+    });
 }
 
 function openHomeworkFromTimetable(classId, options) {
@@ -1472,9 +1475,11 @@ function lessonFilterTeacherMatchesRef(ref, selector) {
     const refUid = String(ref.userId || ref.assignedTeacherUserId || '').trim();
     const refName = ref.displayName || ref.name || ref.assignedTeacherName || '';
     const selName = selector.displayName || '';
-    if (uid && refUid && uid === refUid) {
-        return true;
+    // Stable identity wins: when both sides have a userId, never fuzzy-match names.
+    if (uid && refUid) {
+        return uid === refUid;
     }
+    // Legacy rows without a team userId may still match by display name.
     return lessonFilterTeacherNamesMatch(selName, refName);
 }
 
@@ -12704,6 +12709,11 @@ function getClassSectionPreset(classData) {
     return null;
 }
 
+/**
+ * Legacy migration only: expand display names to current class ids.
+ * Same-name siblings (e.g. two "Blue" classes in different periods) all match.
+ * Prefer persisted `classIds` / `excludedClassIds` for runtime targeting.
+ */
 function resolveEventClassIdsFromNames(classNames) {
     if (!Array.isArray(classNames) || !classNames.length) {
         return [];
@@ -17417,7 +17427,10 @@ function getClassesForDailySummaryPrint() {
     const hwFilters = getHomeworkFiltersFromDom();
     const assigned = getClassIdsAssignedToViewer();
     const assignedSet = assigned ? new Set(assigned) : null;
-    return mod.resolveClassesForDailyPrint(getClassesInDisplayOrder(), {
+    // Align with homework: same my-classes + date-occurs universe, plus active cohort.
+    // Text search stays homework-list-only (print should not hide classes based on search box).
+    let classes = filterClassesForActiveCohort(getClassesInDisplayOrder());
+    return mod.resolveClassesForDailyPrint(classes, {
         referenceDate,
         myClassesOnly: hwFilters.myClassesOnly,
         assignedClassIds: assignedSet,
@@ -20055,6 +20068,12 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.speakingTestRecords)) {
         appData.speakingTestRecords = serverData.speakingTestRecords;
     }
+    if (serverData.tmsRosterLinks && typeof serverData.tmsRosterLinks === 'object') {
+        appData.tmsRosterLinks =
+            typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
+                ? CCPClassroomDomain.normalizeTmsRosterLinks(serverData.tmsRosterLinks)
+                : serverData.tmsRosterLinks;
+    }
 }
 
 async function saveClassroomPartial(fields, options) {
@@ -20087,6 +20106,14 @@ async function saveClassroomPartial(fields, options) {
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'speakingTestRecords')) {
         appData.speakingTestRecords = fields.speakingTestRecords;
+    }
+    if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsRosterLinks')) {
+        appData.tmsRosterLinks =
+            typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
+                ? CCPClassroomDomain.normalizeTmsRosterLinks(fields.tmsRosterLinks)
+                : fields.tmsRosterLinks && typeof fields.tmsRosterLinks === 'object'
+                  ? fields.tmsRosterLinks
+                  : {};
     }
     if (fields && Object.prototype.hasOwnProperty.call(fields, 'ui')) {
         Object.assign(appData.ui, fields.ui);
@@ -36141,6 +36168,12 @@ function migrateData(data) {
     if (!Array.isArray(data.cohorts)) {
         data.cohorts = [];
         migrated = true;
+    }
+    if (!data.tmsRosterLinks || typeof data.tmsRosterLinks !== 'object' || Array.isArray(data.tmsRosterLinks)) {
+        data.tmsRosterLinks = {};
+        migrated = true;
+    } else if (typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks) {
+        data.tmsRosterLinks = CCPClassroomDomain.normalizeTmsRosterLinks(data.tmsRosterLinks);
     }
     if (typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.migrateClassroomData) {
         if (CCPClassroomDomain.migrateClassroomData(data)) {

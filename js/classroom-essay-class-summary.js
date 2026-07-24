@@ -284,10 +284,12 @@
         const r = row || {};
         const ko = String(r.studentName || '').trim();
         const en = String(r.studentNameEn || '').trim();
-        if (ko && en) {
-            return `${ko} (${en})`;
+        let base = ko && en ? `${ko} (${en})` : ko || en || '';
+        const tags = Array.isArray(r.studentTags) ? r.studentTags : [];
+        if (tags.includes('off_roster')) {
+            base = base ? `${base} [Off roster]` : '[Off roster]';
         }
-        return ko || en || '';
+        return base;
     }
 
     function formatStudentCopyLine(row, labels) {
@@ -303,8 +305,14 @@
         if (r.submittedRetest && labels && labels.retestReceived) {
             parts[0] += ` [${labels.retestReceived}]`;
         }
-        if (r.ssOverdue && labels && labels.overdue) {
-            parts[0] += ` (${labels.overdue})`;
+        if (r.ssOverdue && labels) {
+            const overdueLabel =
+                r.ssOverdueKind === 'received_late' || r.submissionLate
+                    ? labels.receivedLate || labels.overdue
+                    : labels.overdue;
+            if (overdueLabel) {
+                parts[0] += ` (${overdueLabel})`;
+            }
         }
         return sanitizeCopyText(parts[0]);
     }

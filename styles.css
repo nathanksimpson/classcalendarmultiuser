@@ -16094,8 +16094,14 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-sheet--essays .classroom-sheet-col-due {
-    width: 126px;
-    min-width: 100px;
+    width: 132px;
+    min-width: 112px;
+}
+
+.classroom-sheet--essays td.classroom-sheet-col-due {
+    text-align: center;
+    overflow: hidden;
+    vertical-align: middle;
 }
 
 .classroom-sheet--essays .classroom-sheet-col-feedback {
@@ -16760,6 +16766,48 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     background: var(--essay-exempt-tint-bg);
     color: var(--essay-exempt-tint-text);
     border-color: var(--essay-exempt-tint-border);
+}
+
+.classroom-essay-due-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-inline: 0;
+}
+
+.classroom-essay-due-cell .classroom-essay-due-pill {
+    max-width: 100%;
+    justify-content: center;
+}
+
+.classroom-essay-due-action.btn {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+    min-height: 0;
+    height: auto;
+    padding: var(--space-1) var(--space-2);
+    font-size: 0.625rem;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: normal;
+    text-align: center;
+    border-radius: var(--radius-sm);
+    box-sizing: border-box;
+}
+
+.classroom-essay-receive-timing-modal {
+    max-width: 28rem;
+}
+
+.classroom-essay-receive-timing-actions {
+    margin-top: var(--space-3);
+    justify-content: flex-start;
 }
 
 .classroom-essay-feedback,
@@ -17572,6 +17620,11 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     background: var(--accent-muted, rgba(37, 99, 235, 0.12));
 }
 
+.classroom-student-tag--off_roster {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    color: var(--danger);
+}
+
 .classroom-recent-absence {
     color: var(--danger, #b91c1c);
     font-size: 0.8125rem;
@@ -17650,6 +17703,18 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .roster-import-table-wrap {
     overflow-x: auto;
     margin: var(--space-3) 0;
+}
+
+.roster-tms-sync-toolbar {
+    margin: 0 0 var(--space-3);
+    padding: 0;
+}
+
+.roster-tms-sync-toolbar .toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: flex-start;
 }
 
 .roster-import-table {
@@ -19851,6 +19916,13 @@ html[data-theme="dark"] .planner-bin-row--unassigned {
     background: var(--hover, #eef1f5);
     color: var(--text-muted, #8893a3);
 }
+.planner-bin-row--assigned[draggable="true"] {
+    cursor: grab;
+    color: var(--text-secondary, #5a6a80);
+}
+.planner-bin-row--assigned[draggable="true"]:active {
+    cursor: grabbing;
+}
 .planner-bin-row--assigned .planner-bin-row-name {
     color: var(--text-secondary, #5a6a80);
     font-weight: 600;
@@ -20058,6 +20130,34 @@ html[data-theme="dark"] .planner-bin-row--assigned:hover {
     outline: 2px solid var(--danger, #dc2626);
     opacity: 0.7;
 }
+.planner-cell.drop-swap-preview {
+    z-index: 2;
+}
+.planner-drop-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    transform: translateX(-50%);
+    z-index: 3;
+    max-width: calc(100% - 8px);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e3e8ef);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
+    color: var(--text, #1a2332);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+.planner-cell.drop-valid-warn .planner-drop-hint {
+    border-color: var(--warning, #f59e0b);
+    color: var(--text, #1a2332);
+}
 .planner-period-band--junior .timetable-col-time { color: var(--text-secondary, #5a6a80); }
 .planner-period-band--middle .timetable-col-time { color: #0e9b76; }
 .planner-period-band--senior .timetable-col-time { color: #5a6a80; font-weight: 600; }
@@ -20084,11 +20184,19 @@ html[data-theme="dark"] .planner-bin-row--assigned:hover {
     align-items: center;
     gap: var(--space-2, 8px);
 }
+.planner-room-sheet-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3, 16px);
+}
+.planner-cadence-tabs,
 .planner-day-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
+.planner-cadence-tab-btn,
 .planner-day-tab-btn {
     font-size: 13px;
     font-weight: 600;
@@ -20100,6 +20208,11 @@ html[data-theme="dark"] .planner-bin-row--assigned:hover {
     cursor: pointer;
     font-family: inherit;
     min-height: 36px;
+}
+.planner-cadence-tab-btn.is-active {
+    background: var(--text-primary, #1c2430);
+    border-color: var(--text-primary, #1c2430);
+    color: var(--on-primary, #f8fafc);
 }
 .planner-day-tab-btn.is-active {
     background: var(--primary);
@@ -20144,6 +20257,41 @@ html[data-theme="dark"] .planner-bin-row--assigned:hover {
     font-size: 12px !important;
     letter-spacing: 0.02em;
     text-transform: uppercase;
+}
+.planner-room-band-header--junior {
+    background: var(--accent-muted, #eaf6f1) !important;
+    color: var(--primary-dark, #0e9b76) !important;
+}
+.planner-room-band-header--senior {
+    background: var(--hover, #eef1f5) !important;
+    color: var(--text-primary, #1c2430) !important;
+}
+.planner-room-band-header--middle {
+    background: color-mix(in srgb, var(--warning, #f59e0b) 18%, white) !important;
+    color: var(--text-primary, #1c2430) !important;
+}
+.planner-room-banmyeong-label,
+.planner-room-enrollment-row th {
+    font-size: 11px !important;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.planner-room-cohort-header {
+    font-weight: 800 !important;
+    font-size: 12px !important;
+    color: inherit !important;
+    background: inherit !important;
+    padding: 8px 4px !important;
+}
+.planner-room-enrollment-row td,
+.planner-room-enrollment-cell {
+    background: var(--hover, #eef1f5);
+    text-align: center;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-secondary, #5a6a80);
+    padding: 4px;
 }
 .planner-room-time-col,
 .planner-room-label-col {
@@ -20269,6 +20417,118 @@ html[data-theme="dark"] .planner-bin-row--assigned:hover {
 }
 th[data-cohort-col] {
     cursor: pointer;
+}
+
+/* Planner print sheets (Draft → Teachers / Rooms) */
+.planner-print-area {
+    display: none;
+}
+.planner-print-page {
+    padding: 0;
+    margin-bottom: 28px;
+}
+.planner-print-page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    border-bottom: 2px solid var(--text-primary, #1c2430);
+    padding-bottom: 8px;
+}
+.planner-print-page-title {
+    font-size: 20px;
+    font-weight: 700;
+}
+.planner-print-page-meta {
+    font-size: 12px;
+    color: var(--text-secondary, #5a6a80);
+}
+.planner-print-block {
+    margin-bottom: 18px;
+    page-break-inside: avoid;
+}
+.planner-print-block-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.planner-print-block-subtitle {
+    font-size: 11px;
+    color: var(--text-secondary, #5a6a80);
+    margin-bottom: 6px;
+}
+.planner-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    table-layout: fixed;
+}
+.planner-print-table th,
+.planner-print-table td {
+    border: 1px solid #333;
+    padding: 3px 4px;
+    text-align: center;
+    vertical-align: middle;
+}
+.planner-print-table thead th {
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-weight: 700;
+}
+.planner-print-time-col {
+    width: 76px;
+    font-weight: 700;
+    background: #f3f3f3 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 10px;
+}
+.planner-print-band-header {
+    background: #e2f4ee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10.5px;
+}
+.planner-print-room-label {
+    background: #f7f7f7 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 8.5px;
+    color: #666;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.planner-print-cell-colored {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-weight: 700;
+}
+.planner-print-cell-name {
+    font-weight: 700;
+    font-size: 11px;
+}
+.planner-print-cell-sub {
+    font-size: 9.5px;
+    opacity: 0.9;
+}
+
+/* Only when printing planner.html (has #plannerPrintArea). Do not blank popup print windows. */
+@media print {
+    body:has(#plannerPrintArea) > *:not(#plannerPrintArea) {
+        display: none !important;
+    }
+    body:has(#plannerPrintArea) #plannerPrintArea {
+        display: block !important;
+    }
+    body:has(#plannerPrintArea) .planner-print-page {
+        page-break-after: always;
+    }
+    body:has(#plannerPrintArea) .planner-print-page:last-child {
+        page-break-after: auto;
+    }
 }
 
 /* === Restored planner MVP styles (from handoff excerpt; were only in features.css) === */

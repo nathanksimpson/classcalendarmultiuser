@@ -52,10 +52,14 @@
         if (!due) {
             return '—';
         }
-        const overdue =
-            r.ssOverdue && labels.overdue
-                ? ` <span class="essay-class-summary-overdue">(${escapeHtml(labels.overdue)})</span>`
-                : '';
+        const overdueLabel =
+            r.ssOverdue &&
+            (r.ssOverdueKind === 'received_late' || r.submissionLate
+                ? labels.receivedLate || labels.overdue
+                : labels.overdue);
+        const overdue = overdueLabel
+            ? ` <span class="essay-class-summary-overdue">(${escapeHtml(overdueLabel)})</span>`
+            : '';
         return `${escapeHtml(due)}${overdue}`;
     }
 

@@ -30,35 +30,35 @@
         homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
         students: [
             'js/essay-tracker-import.js?v=20260630-essay-import',
-            'js/roster-import.js?v=20260630-essay-import',
+            'js/roster-import.js?v=20260723-tms-sync',
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260708-essays-visual',
-            'js/classroom-roster.js?v=20260701-roster-ui'
+            'js/classroom-student-row.js?v=20260723-tms-sync',
+            'js/classroom-roster.js?v=20260724-bulk-status'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260708-essays-visual',
+            'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-attendance.js?v=20260703-zone-context'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260708-essays-visual',
+            'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-homework.js?v=20260703-zone-context'
         ],
         essays: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260708-essays-visual',
+            'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
             'js/classroom-essay-progress.js?v=20260721-essay-inc-exempt',
-            'js/classroom-essay-progress-print.js?v=20260708-student-progress',
+            'js/classroom-essay-progress-print.js?v=20260724-essay-overdue',
             'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
-            'js/classroom-essay-class-summary.js?v=20260723-print-name-en',
-            'js/classroom-essay-class-summary-print.js?v=20260723-print-name-en',
+            'js/classroom-essay-class-summary.js?v=20260724-essay-overdue',
+            'js/classroom-essay-class-summary-print.js?v=20260724-essay-overdue',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260723-essay-month-default'
+            'js/classroom-essays.js?v=20260724-essay-overdue-restore'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -70,13 +70,13 @@
         ],
         points: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260708-essays-visual',
+            'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-point-reasons.js?v=20260618-point-reasons',
             'js/classroom-points.js?v=20260703-zone-context'
         ],
         tests: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-student-row.js?v=20260708-essays-visual',
+            'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-tests.js?v=20260703-zone-context'
         ],

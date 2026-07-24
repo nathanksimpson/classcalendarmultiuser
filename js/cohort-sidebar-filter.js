@@ -43,20 +43,35 @@
         });
     }
 
-    function filterEventsByCohort(events, cohortId, classes) {
+    /**
+     * Keep events that apply to at least one class in the active cohort.
+     * Prefer options.eventAppliesToClass (same semantics as app.js).
+     * Legacy fallback: event.applicableClassIds when no matcher is provided.
+     */
+    function filterEventsByCohort(events, cohortId, classes, options) {
         const list = Array.isArray(events) ? events : [];
         if (!cohortId) {
             return list.slice();
         }
         const classList = Array.isArray(classes) ? classes : [];
-        const cohortClassIds = new Set(
-            filterClassesByCohort(classList, cohortId).map((c) => c.id).filter(Boolean)
-        );
+        const cohortClasses = filterClassesByCohort(classList, cohortId);
+        const cohortClassIds = new Set(cohortClasses.map((c) => c.id).filter(Boolean));
         if (!cohortClassIds.size) {
             return list.slice();
         }
+        const opts = options && typeof options === 'object' ? options : {};
+        const appliesFn = typeof opts.eventAppliesToClass === 'function'
+            ? opts.eventAppliesToClass
+            : null;
         return list.filter((ev) => {
-            if (!ev || !Array.isArray(ev.applicableClassIds)) {
+            if (!ev) {
+                return false;
+            }
+            if (appliesFn) {
+                return cohortClasses.some((classData) => appliesFn(ev, classData));
+            }
+            // Legacy path: only known when events stored applicableClassIds.
+            if (!Array.isArray(ev.applicableClassIds)) {
                 return true;
             }
             if (!ev.applicableClassIds.length) {

@@ -5,6 +5,7 @@
     let hooks = null;
     let selectedCohortId = null;
     let selectedStudentId = null;
+    let archiveBulkMode = false;
     let dirty = false;
     let importPack = null;
     let importPlan = [];
@@ -13,6 +14,8 @@
     let importPackSource = '';
     let pastePlanRow = null;
     let pastePreviewTimer = null;
+    let tmsSyncPlan = [];
+    let tmsSyncLoading = false;
     const selectedStudentIds = new Set();
 
     function domain() {
@@ -213,7 +216,7 @@
 
     function getGlobalMergeMode() {
         const checked = document.querySelector('input[name="rosterImportMergeGlobal"]:checked');
-        return checked && checked.value === 'merge' ? 'merge' : 'replace';
+        return checked && checked.value === 'replace' ? 'replace' : 'merge';
     }
 
     function formatPreviewLine(preview) {
@@ -532,7 +535,7 @@
 
     function getPasteMergeMode() {
         const checked = document.querySelector('input[name="rosterPasteMergeMode"]:checked');
-        return checked && checked.value === 'merge' ? 'merge' : 'replace';
+        return checked && checked.value === 'replace' ? 'replace' : 'merge';
     }
 
     function syncPasteMergeSwitchUi() {
@@ -785,7 +788,7 @@
         setPasteError('');
         showPastePreviewIdle();
         document.querySelectorAll('input[name="rosterPasteMergeMode"]').forEach((radio) => {
-            radio.checked = radio.value === 'replace';
+            radio.checked = radio.value === 'merge';
         });
         syncPasteMergeSwitchUi();
         if (hooks.openModal) {
@@ -797,13 +800,22 @@
     function updateBulkActionsUi() {
         const wrap = document.getElementById('classroomRosterBulkActions');
         const moveBtn = document.getElementById('classroomRosterMoveBtn');
+        const statusBtn = document.getElementById('classroomRosterBulkStatusBtn');
+        const archiveBtn = document.getElementById('classroomRosterBulkArchiveBtn');
         const cohort = getSelectedCohort();
         const editable = cohort && canEditRoster() && !isArchiveCohort(cohort);
         if (wrap) {
             wrap.hidden = !editable;
         }
+        const hasSel = selectedStudentIds.size > 0;
         if (moveBtn) {
-            moveBtn.disabled = selectedStudentIds.size === 0;
+            moveBtn.disabled = !hasSel;
+        }
+        if (statusBtn) {
+            statusBtn.disabled = !hasSel;
+        }
+        if (archiveBtn) {
+            archiveBtn.disabled = !hasSel;
         }
     }
 
@@ -941,6 +953,360 @@
         }
     }
 
+    function setTmsSyncError(msg) {
+        const el = document.getElementById('rosterTmsSyncError');
+        if (!el) {
+            return;
+        }
+        if (msg) {
+            el.hidden = false;
+            el.textContent = msg;
+        } else {
+            el.hidden = true;
+            el.textContent = '';
+        }
+    }
+
+    function setTmsSyncStatus(msg) {
+        const el = document.getElementById('rosterTmsSyncStatus');
+        if (el) {
+            el.textContent = msg || '';
+        }
+    }
+
+    function getTmsRosterLinks() {
+        const app = hooks && hooks.getAppData ? hooks.getAppData() : null;
+        const raw = app && app.tmsRosterLinks;
+        if (domain().normalizeTmsRosterLinks) {
+            return domain().normalizeTmsRosterLinks(raw);
+        }
+        return raw && typeof raw === 'object' ? raw : {};
+    }
+
+    function closeTmsSyncModal() {
+        tmsSyncPlan = [];
+        tmsSyncLoading = false;
+        setTmsSyncError('');
+        setTmsSyncStatus('');
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+        }
+        const batchBar = document.getElementById('rosterTmsSyncBatchBar');
+        if (batchBar) {
+            batchBar.hidden = true;
+        }
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(document.getElementById('rosterTmsSyncModal'));
+        }
+    }
+
+    function syncTmsBatchBarVisibility() {
+        const batchBar = document.getElementById('rosterTmsSyncBatchBar');
+        if (!batchBar) {
+            return;
+        }
+        batchBar.hidden = Boolean(tmsSyncLoading) || tmsSyncPlan.length === 0;
+    }
+
+    function skipAllTmsSyncRows() {
+        tmsSyncPlan.forEach((row) => {
+            row.userAction = 'skip';
+            row.userTargetId = '';
+            row.remembered = false;
+        });
+        setTmsSyncError('');
+        renderTmsSyncTable();
+    }
+
+    function skipUnmappedTmsSyncRows() {
+        tmsSyncPlan.forEach((row) => {
+            if (row.userAction === 'choose' || (!row.userTargetId && row.userAction !== 'skip' && row.userAction !== 'map')) {
+                row.userAction = 'skip';
+                row.userTargetId = '';
+                row.remembered = false;
+            }
+        });
+        setTmsSyncError('');
+        renderTmsSyncTable();
+    }
+
+    function normalizeCohortLabelLocal(s) {
+        return String(s || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '')
+            .replace(/[^a-z0-9\uac00-\ud7a3]/g, '');
+    }
+
+    function suggestTmsTargetId(tmsName, calendarCohorts) {
+        const list = (Array.isArray(calendarCohorts) ? calendarCohorts : []).filter(
+            (c) => c && !domain().isArchiveCohort(c)
+        );
+        const exact = list.filter((c) => String(c.name || '').trim() === String(tmsName || '').trim());
+        if (exact.length === 1) {
+            return exact[0].id;
+        }
+        const norm = normalizeCohortLabelLocal(tmsName);
+        const normHits = list.filter((c) => normalizeCohortLabelLocal(c.name) === norm);
+        if (normHits.length === 1) {
+            return normHits[0].id;
+        }
+        return '';
+    }
+
+    function buildTmsPlanRowFromScrape(c, calendar, links) {
+        const name = (c && c.cohortName) || '';
+        const tmsClassId = (c && (c.tmsClassId || c.cohortId)) || '';
+        const resolved = domain().resolveTmsRosterLink
+            ? domain().resolveTmsRosterLink(links, name, calendar, { tmsClassId })
+            : {
+                  key: '',
+                  source: 'none',
+                  remembered: false,
+                  userAction: 'choose',
+                  userTargetId: '',
+                  suggestedTargetId: suggestTmsTargetId(name, calendar),
+                  tmsClassName: name,
+                  tmsClassId: ''
+              };
+        return {
+            importCohortName: name,
+            tmsClassId: resolved.tmsClassId || tmsClassId || '',
+            tmsLinkKey: resolved.key || '',
+            studentCount: Array.isArray(c.students) ? c.students.length : 0,
+            students: Array.isArray(c.students) ? c.students.slice() : [],
+            userAction: resolved.userAction,
+            userTargetId: resolved.userTargetId || '',
+            suggestedTargetId: resolved.suggestedTargetId || '',
+            remembered: Boolean(resolved.remembered),
+            linkSource: resolved.source || 'none'
+        };
+    }
+
+    function buildTmsPreviewLine(summary) {
+        const s = summary || {};
+        return t('rosterTmsSyncPreviewLine')
+            .replace('{added}', String((s.added && s.added.length) || 0))
+            .replace('{matched}', String((s.matched && s.matched.length) || 0))
+            .replace('{flagged}', String((s.flagged && s.flagged.length) || 0))
+            .replace('{cleared}', String((s.cleared && s.cleared.length) || 0));
+    }
+
+    function previewTmsRow(row) {
+        if (!row || row.userAction !== 'map' || !row.userTargetId) {
+            return { added: [], matched: [], flagged: [], cleared: [], warnings: [] };
+        }
+        const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+        if (!target || !domain().mergeRosterByKoreanName) {
+            return { added: [], matched: [], flagged: [], cleared: [], warnings: [] };
+        }
+        return domain().mergeRosterByKoreanName(target.students, row.students).summary;
+    }
+
+    function renderTmsSyncTable() {
+        const mount = document.getElementById('rosterTmsSyncMappingTable');
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        if (!mount) {
+            return;
+        }
+        const cohorts = getCohorts().filter((c) => c && !domain().isArchiveCohort(c));
+        const optionsHtml = (selectedId) => {
+            const opts = [
+                `<option value="__skip__"${selectedId === '__skip__' ? ' selected' : ''}>${escapeHtml(t('rosterTmsSyncSkip'))}</option>`,
+                `<option value=""${ !selectedId || selectedId === '' ? ' selected' : ''}>${escapeHtml(t('rosterTmsSyncChoose'))}</option>`
+            ];
+            cohorts.forEach((c) => {
+                const disabled = !canEditCohort(c) ? ' disabled' : '';
+                opts.push(
+                    `<option value="${escapeHtml(c.id)}"${selectedId === c.id ? ' selected' : ''}${disabled}>${escapeHtml(c.name || c.id)}</option>`
+                );
+            });
+            return opts.join('');
+        };
+
+        const rows = tmsSyncPlan
+            .map((row, idx) => {
+                const selected =
+                    row.userAction === 'skip' ? '__skip__' : row.userTargetId || '';
+                const summary = previewTmsRow(row);
+                const warn =
+                    summary.warnings && summary.warnings.length
+                        ? `<div class="section-hint">${escapeHtml(
+                              t('rosterTmsSyncWarnDup').replace(
+                                  '{name}',
+                                  summary.warnings.map((w) => w.name).join(', ')
+                              )
+                          )}</div>`
+                        : '';
+                let linkHint = '';
+                if (row.remembered) {
+                    linkHint = `<div class="section-hint">${escapeHtml(t('rosterTmsSyncRemembered'))}</div>`;
+                } else if (row.userAction === 'choose') {
+                    linkHint = `<div class="section-hint">${escapeHtml(t('rosterTmsSyncNewClass'))}</div>`;
+                    if (row.suggestedTargetId) {
+                        const sug = cohorts.find((c) => c.id === row.suggestedTargetId);
+                        if (sug) {
+                            linkHint += `<div class="section-hint">${escapeHtml(
+                                t('rosterTmsSyncSuggested').replace('{name}', sug.name || sug.id)
+                            )}</div>`;
+                        }
+                    }
+                }
+                return `<tr data-tms-row="${idx}">
+                    <td>${escapeHtml(row.importCohortName)}${linkHint}</td>
+                    <td>${row.studentCount}</td>
+                    <td><select class="field-select roster-tms-target" data-tms-row="${idx}">${optionsHtml(selected)}</select></td>
+                    <td>${escapeHtml(buildTmsPreviewLine(summary))}${warn}</td>
+                </tr>`;
+            })
+            .join('');
+
+        mount.innerHTML = `<table class="roster-import-table"><thead><tr>
+            <th>${escapeHtml(t('rosterTmsSyncColTms'))}</th>
+            <th>${escapeHtml(t('rosterTmsSyncColStudents'))}</th>
+            <th>${escapeHtml(t('rosterTmsSyncColTarget'))}</th>
+            <th>${escapeHtml(t('rosterTmsSyncColPreview'))}</th>
+        </tr></thead><tbody>${
+            rows ||
+            `<tr><td colspan="4">${escapeHtml(t('rosterTmsSyncEmpty'))}</td></tr>`
+        }</tbody></table>`;
+
+        mount.querySelectorAll('select.roster-tms-target').forEach((sel) => {
+            sel.addEventListener('change', () => {
+                const idx = Number(sel.getAttribute('data-tms-row'));
+                const row = tmsSyncPlan[idx];
+                if (!row) {
+                    return;
+                }
+                const val = sel.value;
+                if (val === '__skip__') {
+                    row.userAction = 'skip';
+                    row.userTargetId = '';
+                    row.remembered = false;
+                } else if (!val) {
+                    row.userAction = 'choose';
+                    row.userTargetId = '';
+                    row.remembered = false;
+                } else {
+                    row.userAction = 'map';
+                    row.userTargetId = val;
+                    row.remembered = false;
+                }
+                renderTmsSyncTable();
+            });
+        });
+
+        const canApply =
+            !tmsSyncLoading &&
+            tmsSyncPlan.length > 0 &&
+            tmsSyncPlan.every((r) => r.userAction === 'skip' || (r.userAction === 'map' && r.userTargetId));
+        if (confirmBtn) {
+            confirmBtn.disabled = !canApply;
+        }
+        syncTmsBatchBarVisibility();
+    }
+
+    async function openTmsSyncModal() {
+        if (!hooks || !hooks.openModal) {
+            return;
+        }
+        tmsSyncPlan = [];
+        tmsSyncLoading = true;
+        setTmsSyncError('');
+        setTmsSyncStatus(t('rosterTmsSyncLoading'));
+        renderTmsSyncTable();
+        hooks.openModal(document.getElementById('rosterTmsSyncModal'));
+        try {
+            const res = await fetch('/api/tms/roster/preview', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const code = body && body.code;
+                if (code === 'TMS_CREDS_MISSING') {
+                    setTmsSyncError(t('rosterTmsSyncCredsMissing'));
+                } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
+                    setTmsSyncError(t('rosterTmsSyncLoginFailed'));
+                } else {
+                    setTmsSyncError((body && body.error) || t('rosterTmsSyncError'));
+                }
+                setTmsSyncStatus('');
+                tmsSyncLoading = false;
+                renderTmsSyncTable();
+                return;
+            }
+            const cohorts = Array.isArray(body.cohorts) ? body.cohorts : [];
+            const calendar = getCohorts();
+            const links = getTmsRosterLinks();
+            tmsSyncPlan = cohorts.map((c) => buildTmsPlanRowFromScrape(c, calendar, links));
+            if (!tmsSyncPlan.length) {
+                setTmsSyncStatus(t('rosterTmsSyncEmpty'));
+            } else {
+                const meta = body.meta || {};
+                const remembered = tmsSyncPlan.filter((r) => r.remembered).length;
+                const needChoose = tmsSyncPlan.filter((r) => r.userAction === 'choose').length;
+                setTmsSyncStatus(
+                    `${meta.cohortCount || tmsSyncPlan.length} classes · ${meta.studentCount || 0} students · ${remembered} remembered · ${needChoose} new`
+                );
+            }
+        } catch (err) {
+            setTmsSyncError((err && err.message) || t('rosterTmsSyncError'));
+            setTmsSyncStatus('');
+        }
+        tmsSyncLoading = false;
+        renderTmsSyncTable();
+    }
+
+    async function confirmTmsSync() {
+        setTmsSyncError('');
+        const mappedTargets = new Set();
+        for (const row of tmsSyncPlan) {
+            if (row.userAction === 'choose') {
+                setTmsSyncError(t('rosterTmsSyncMappingRequired'));
+                return;
+            }
+            if (row.userAction === 'map') {
+                if (!row.userTargetId) {
+                    setTmsSyncError(t('rosterTmsSyncMappingRequired'));
+                    return;
+                }
+                if (mappedTargets.has(row.userTargetId)) {
+                    setTmsSyncError(t('rosterTmsSyncDuplicateTarget'));
+                    return;
+                }
+                mappedTargets.add(row.userTargetId);
+                const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+                if (!canEditCohort(target)) {
+                    setTmsSyncError(t('rosterTmsSyncNoPermission'));
+                    return;
+                }
+            }
+        }
+        if (!tmsSyncPlan.some((r) => r.userAction === 'map') && !tmsSyncPlan.some((r) => r.userAction === 'skip')) {
+            closeTmsSyncModal();
+            return;
+        }
+        const applied = domain().applyTmsRosterPlan(getCohorts(), tmsSyncPlan, {
+            newStudentId: () => domain().newId('stu')
+        });
+        const nextLinks = domain().upsertTmsRosterLinks
+            ? domain().upsertTmsRosterLinks(getTmsRosterLinks(), tmsSyncPlan, applied.cohorts)
+            : getTmsRosterLinks();
+        try {
+            await hooks.saveClassroom({ cohorts: applied.cohorts, tmsRosterLinks: nextLinks });
+            dirty = false;
+            hooks.showToast(t('rosterTmsSyncSuccess'));
+            closeTmsSyncModal();
+            render(document.getElementById('panel-students'));
+        } catch (err) {
+            setTmsSyncError(err.message || String(err));
+        }
+    }
+
     function setupRosterImportExport(panel) {
         if (!panel || panel.dataset.rosterIoBound === '1') {
             return;
@@ -972,9 +1338,24 @@
             closeImportMenu();
             openPasteModal();
         });
+        panel.querySelector('#classroomRosterTmsSyncBtn')?.addEventListener('click', () => {
+            closeImportMenu();
+            void openTmsSyncModal();
+        });
 
         document.getElementById('closeRosterPasteModal')?.addEventListener('click', closePasteModal);
         document.getElementById('cancelRosterPasteBtn')?.addEventListener('click', closePasteModal);
+        document.getElementById('closeRosterTmsSyncModal')?.addEventListener('click', closeTmsSyncModal);
+        document.getElementById('cancelRosterTmsSyncBtn')?.addEventListener('click', closeTmsSyncModal);
+        document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
+            void confirmTmsSync();
+        });
+        document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
+            skipAllTmsSyncRows();
+        });
+        document.getElementById('rosterTmsSyncSkipUnmappedBtn')?.addEventListener('click', () => {
+            skipUnmappedTmsSyncRows();
+        });
         document.getElementById('rosterPasteConfirmBtn')?.addEventListener('click', () => {
             void confirmRosterPaste();
         });
@@ -1177,6 +1558,16 @@
                 meta.textContent = student.expectedStartDate;
                 textWrap.appendChild(meta);
             }
+            const rowApi = global.CCPClassroomStudentRow;
+            if (rowApi && typeof rowApi.buildTagBadges === 'function') {
+                const tagsHtml = rowApi.buildTagBadges(student, t);
+                if (tagsHtml) {
+                    const tagsMount = document.createElement('span');
+                    tagsMount.className = 'classroom-roster-student-tags';
+                    tagsMount.innerHTML = tagsHtml;
+                    textWrap.appendChild(tagsMount);
+                }
+            }
             btn.appendChild(textWrap);
             btn.addEventListener('click', () => {
                 selectedStudentId = student.id;
@@ -1205,6 +1596,9 @@
         if (document.getElementById('classroomStudentTagInterested')?.checked) {
             tags.push('interested');
         }
+        if (document.getElementById('classroomStudentTagOffRoster')?.checked) {
+            tags.push('off_roster');
+        }
         return { name, nameEn, locationTag, memo, active, tags };
     }
 
@@ -1231,6 +1625,7 @@
         setChk('classroomStudentTagNew', tags.includes('new'));
         setChk('classroomStudentTagEnding', tags.includes('ending_soon'));
         setChk('classroomStudentTagInterested', tags.includes('interested'));
+        setChk('classroomStudentTagOffRoster', tags.includes('off_roster'));
     }
 
     function buildStudentTaggedNotesHtml(student) {
@@ -1321,6 +1716,7 @@
               <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagNew" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagNew'))}</label>
               <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagEnding" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagEndingSoon'))}</label>
               <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagInterested" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagInterested'))}</label>
+              <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagOffRoster" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagOffRoster'))}</label>
               </fieldset>
             </section>
             <div class="form-actions classroom-student-actions classroom-roster-student-actions">
@@ -1435,7 +1831,29 @@
         }
     }
 
-    function openArchiveModal() {
+    function openArchiveModal(options) {
+        const opts = options || {};
+        archiveBulkMode = Boolean(opts.bulk);
+        const titleEl = document.getElementById('studentArchiveModalTitle');
+        const hintEl = document.getElementById('studentArchiveHint');
+        if (archiveBulkMode) {
+            if (titleEl) {
+                titleEl.textContent = t('studentBulkArchiveTitle');
+            }
+            if (hintEl) {
+                hintEl.textContent = t('studentBulkArchiveHint').replace(
+                    '{count}',
+                    String(selectedStudentIds.size)
+                );
+            }
+        } else {
+            if (titleEl) {
+                titleEl.textContent = t('studentArchiveTitle');
+            }
+            if (hintEl) {
+                hintEl.textContent = t('studentArchiveHint');
+            }
+        }
         syncArchiveStartDateVisibility();
         if (hooks && hooks.openModal) {
             hooks.openModal(document.getElementById('studentArchiveModal'));
@@ -1443,6 +1861,7 @@
     }
 
     function closeArchiveModal() {
+        archiveBulkMode = false;
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('studentArchiveModal'));
         }
@@ -1450,7 +1869,7 @@
 
     async function confirmArchiveStudent() {
         const d = domain();
-        if (!d || !selectedStudentId || !selectedCohortId) {
+        if (!d || !selectedCohortId) {
             return;
         }
         const reason = document.getElementById('studentArchiveReason')?.value || 'break';
@@ -1459,20 +1878,173 @@
             hooks.showToast(t('studentArchiveStartDateRequired'), true);
             return;
         }
-        const result = d.archiveStudent(getCohorts(), selectedStudentId, selectedCohortId, {
+        const meta = {
             archiveReason: reason,
             expectedStartDate,
             homeroomTeacherUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : ''
-        });
+        };
+
+        let result;
+        if (archiveBulkMode) {
+            if (!selectedStudentIds.size) {
+                hooks.showToast(t('studentMoveNoSelection'), true);
+                return;
+            }
+            result = d.archiveStudents
+                ? d.archiveStudents(getCohorts(), Array.from(selectedStudentIds), selectedCohortId, meta)
+                : { error: 'missing_helper' };
+        } else {
+            if (!selectedStudentId) {
+                return;
+            }
+            result = d.archiveStudent(getCohorts(), selectedStudentId, selectedCohortId, meta);
+            if (!result.error) {
+                result.archivedCount = 1;
+            }
+        }
         if (result.error) {
             hooks.showToast(t('studentArchiveFailed'), true);
             return;
         }
         try {
             await saveCohorts(result.cohorts);
-            selectedCohortId = result.archiveCohortId;
+            selectedCohortId = result.archiveCohortId || selectedCohortId;
+            selectedStudentId = null;
+            clearStudentBulkSelection();
             closeArchiveModal();
-            hooks.showToast(t('studentArchiveDone'));
+            const count = result.archivedCount || 1;
+            hooks.showToast(
+                count > 1
+                    ? t('studentBulkArchiveDone').replace('{count}', String(count))
+                    : t('studentArchiveDone')
+            );
+            render(document.getElementById('panel-students'));
+        } catch (err) {
+            hooks.showToast(err.message || String(err), true);
+        }
+    }
+
+    function openBulkArchiveModal() {
+        if (hooks && hooks.isViewOnly && hooks.isViewOnly()) {
+            hooks.showToast(t('rosterImportReadOnly'), true);
+            return;
+        }
+        const cohort = getSelectedCohort();
+        if (!cohort || !canEditRoster() || isArchiveCohort(cohort)) {
+            hooks.showToast(t('studentMoveNoPermission'), true);
+            return;
+        }
+        if (!selectedStudentIds.size) {
+            hooks.showToast(t('studentMoveNoSelection'), true);
+            return;
+        }
+        openArchiveModal({ bulk: true });
+    }
+
+    function resetBulkStatusForm() {
+        const activeSel = document.getElementById('studentBulkStatusActive');
+        if (activeSel) {
+            activeSel.value = 'leave';
+        }
+        [
+            'studentBulkAddTagNew',
+            'studentBulkAddTagEnding',
+            'studentBulkAddTagInterested',
+            'studentBulkAddTagOffRoster',
+            'studentBulkRemoveTagNew',
+            'studentBulkRemoveTagEnding',
+            'studentBulkRemoveTagInterested',
+            'studentBulkRemoveTagOffRoster'
+        ].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.checked = false;
+            }
+        });
+    }
+
+    function openBulkStatusModal() {
+        if (hooks && hooks.isViewOnly && hooks.isViewOnly()) {
+            hooks.showToast(t('rosterImportReadOnly'), true);
+            return;
+        }
+        const cohort = getSelectedCohort();
+        if (!cohort || !canEditRoster() || isArchiveCohort(cohort)) {
+            hooks.showToast(t('studentMoveNoPermission'), true);
+            return;
+        }
+        if (!selectedStudentIds.size) {
+            hooks.showToast(t('studentMoveNoSelection'), true);
+            return;
+        }
+        const hint = document.getElementById('studentBulkStatusHint');
+        if (hint) {
+            hint.textContent = t('studentBulkStatusHint').replace(
+                '{count}',
+                String(selectedStudentIds.size)
+            );
+        }
+        resetBulkStatusForm();
+        if (hooks && hooks.openModal) {
+            hooks.openModal(document.getElementById('studentBulkStatusModal'));
+        }
+    }
+
+    function closeBulkStatusModal() {
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(document.getElementById('studentBulkStatusModal'));
+        }
+    }
+
+    function collectBulkTagIds(prefix) {
+        const map = [
+            [`${prefix}New`, 'new'],
+            [`${prefix}Ending`, 'ending_soon'],
+            [`${prefix}Interested`, 'interested'],
+            [`${prefix}OffRoster`, 'off_roster']
+        ];
+        return map
+            .filter(([id]) => document.getElementById(id)?.checked)
+            .map(([, tag]) => tag);
+    }
+
+    async function confirmBulkStatus() {
+        const d = domain();
+        const cohort = getSelectedCohort();
+        if (!d || !cohort || !selectedStudentIds.size || !d.updateStudentsInCohort) {
+            hooks.showToast(t('studentMoveNoSelection'), true);
+            return;
+        }
+        const activeVal = document.getElementById('studentBulkStatusActive')?.value || 'leave';
+        const addTags = collectBulkTagIds('studentBulkAddTag');
+        const removeTags = collectBulkTagIds('studentBulkRemoveTag');
+        let active = null;
+        if (activeVal === 'yes') {
+            active = true;
+        } else if (activeVal === 'no') {
+            active = false;
+        }
+        if (active === null && !addTags.length && !removeTags.length) {
+            hooks.showToast(t('studentBulkStatusNoChange'), true);
+            return;
+        }
+        const result = d.updateStudentsInCohort(
+            getCohorts(),
+            cohort.id,
+            Array.from(selectedStudentIds),
+            { addTags, removeTags, active }
+        );
+        if (result.error) {
+            hooks.showToast(t('studentBulkStatusFailed'), true);
+            return;
+        }
+        try {
+            await saveCohorts(result.cohorts);
+            clearStudentBulkSelection();
+            closeBulkStatusModal();
+            hooks.showToast(
+                t('studentBulkStatusDone').replace('{count}', String(result.updatedCount || 0))
+            );
             render(document.getElementById('panel-students'));
         } catch (err) {
             hooks.showToast(err.message || String(err), true);
@@ -1630,10 +2202,21 @@
             render(document.getElementById('panel-students'));
         });
         document.getElementById('classroomRosterMoveBtn')?.addEventListener('click', () => openMoveModal());
+        document.getElementById('classroomRosterBulkStatusBtn')?.addEventListener('click', () =>
+            openBulkStatusModal()
+        );
+        document.getElementById('classroomRosterBulkArchiveBtn')?.addEventListener('click', () =>
+            openBulkArchiveModal()
+        );
         document.getElementById('closeStudentMoveModal')?.addEventListener('click', closeMoveModal);
         document.getElementById('cancelStudentMoveBtn')?.addEventListener('click', closeMoveModal);
         document.getElementById('confirmStudentMoveBtn')?.addEventListener('click', () => {
             void confirmMoveStudents();
+        });
+        document.getElementById('closeStudentBulkStatusModal')?.addEventListener('click', closeBulkStatusModal);
+        document.getElementById('cancelStudentBulkStatusBtn')?.addEventListener('click', closeBulkStatusModal);
+        document.getElementById('confirmStudentBulkStatusBtn')?.addEventListener('click', () => {
+            void confirmBulkStatus();
         });
     }
 
