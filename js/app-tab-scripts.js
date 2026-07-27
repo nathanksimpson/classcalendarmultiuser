@@ -33,7 +33,7 @@
             'js/roster-import.js?v=20260723-tms-sync',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260727-tms-disambig-review'
+            'js/classroom-roster.js?v=20260727-tms-mark-after-link'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -58,7 +58,7 @@
             'js/classroom-essay-class-summary.js?v=20260724-class-summary-filters',
             'js/classroom-essay-class-summary-print.js?v=20260724-essay-overdue',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260727-essay-add-visible'
+            'js/classroom-essays.js?v=20260727-essay-all-editable'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

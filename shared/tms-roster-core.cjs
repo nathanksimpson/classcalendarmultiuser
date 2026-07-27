@@ -360,9 +360,12 @@ function decodeHtmlEntities(s) {
 }
 
 /** Trailing identity marks used academy-wide to disambiguate same Hangul names. */
-const TMS_NAME_DISAMBIGUATOR_RE = /[◆◇★☆●○■□▲△▼▽※A-Za-z0-9]/;
+// Includes geometric diamonds (◆◇), card-suit diamonds (♦♢), stars, bullets, Latin/digit.
+const TMS_DISAMBIGUATOR_CHARS = '◆◇♦♢★☆✦✧●○■□▲△▼▽※A-Za-z0-9';
+const TMS_NAME_DISAMBIGUATOR_RE = new RegExp(`[${TMS_DISAMBIGUATOR_CHARS}]`);
+const TMS_NAME_DISAMBIGUATOR_ONLY_RE = new RegExp(`^[${TMS_DISAMBIGUATOR_CHARS}]$`);
 const TMS_STUDENT_NAME_RE = new RegExp(
-    `^[\\uac00-\\ud7a3]{2,6}${TMS_NAME_DISAMBIGUATOR_RE.source}?$`
+    `^[\\uac00-\\ud7a3]{2,6}\\s*[${TMS_DISAMBIGUATOR_CHARS}]?$`
 );
 
 function stripTmsAttendanceNoise(name) {
@@ -376,35 +379,68 @@ function stripTmsAttendanceNoise(name) {
 }
 
 /**
- * Attendance strip only — keeps disambiguators (권이안◆, 김민수A) as identity.
+ * Keep Hangul + optional trailing disambiguator (권이안◆ / 김민수A).
+ * Collapses spaces between Hangul and the mark. Strips attendance only.
  */
 function normalizeTmsStudentName(raw) {
-    const name = stripTmsAttendanceNoise(raw);
-    if (!name || !TMS_STUDENT_NAME_RE.test(name)) {
+    let name = stripTmsAttendanceNoise(raw);
+    if (!name) {
         return { name: '', nameEnHint: '' };
     }
+    // 권이안 ◆ → 권이안◆
+    name = name.replace(
+        new RegExp(`([\\uac00-\\ud7a3]{2,6})\\s+([${TMS_DISAMBIGUATOR_CHARS}])$`),
+        '$1$2'
+    );
+    if (!TMS_STUDENT_NAME_RE.test(name)) {
+        return { name: '', nameEnHint: '' };
+    }
+    // Canonical form: no space before mark
+    name = name.replace(
+        new RegExp(`([\\uac00-\\ud7a3]{2,6})\\s*([${TMS_DISAMBIGUATOR_CHARS}])$`),
+        '$1$2'
+    );
     return { name, nameEnHint: '' };
 }
 
 function isLikelyStudentName(name) {
-    const n = stripTmsAttendanceNoise(name);
-    if (!n || n.length < 2 || n.length > 7) {
+    const normalized = normalizeTmsStudentName(name).name;
+    if (!normalized || normalized.length < 2 || normalized.length > 7) {
         return false;
     }
-    if (!TMS_STUDENT_NAME_RE.test(n)) {
-        return false;
-    }
-    const hangulOnly = n.replace(TMS_NAME_DISAMBIGUATOR_RE, '');
+    const hangulOnly = normalized.replace(TMS_NAME_DISAMBIGUATOR_RE, '');
     if (SKIP_NAME_WORDS.has(hangulOnly) || STUDENT_NOISE_NAMES.has(hangulOnly)) {
         return false;
     }
-    if (SKIP_NAME_WORDS.has(n) || STUDENT_NOISE_NAMES.has(n)) {
+    if (SKIP_NAME_WORDS.has(normalized) || STUDENT_NOISE_NAMES.has(normalized)) {
         return false;
     }
-    if (/^셀프체크/i.test(n) || /^\[숙제확인\]/.test(n)) {
+    if (/^셀프체크/i.test(normalized) || /^\[숙제확인\]/.test(normalized)) {
         return false;
     }
     return true;
+}
+
+/**
+ * If TMS puts the disambiguator just after </a> (권이안</a>◆), pick it up.
+ */
+function extractTrailingDisambiguator(afterHtml) {
+    const text = stripTags(decodeHtmlEntities(String(afterHtml || '')))
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!text) {
+        return '';
+    }
+    const m = text.match(new RegExp(`^\\s*([${TMS_DISAMBIGUATOR_CHARS}])(?:\\s|$|[\\(（])`));
+    if (m && TMS_NAME_DISAMBIGUATOR_ONLY_RE.test(m[1])) {
+        return m[1];
+    }
+    // Bare mark as first non-space char
+    const first = text.charAt(0);
+    if (TMS_NAME_DISAMBIGUATOR_ONLY_RE.test(first)) {
+        return first;
+    }
+    return '';
 }
 
 function isNoiseClassName(name) {
@@ -572,7 +608,7 @@ function parseStudentsFromClassPopup(html) {
     let m;
     while ((m = re.exec(raw))) {
         const mpidx = String(m[1] || '').trim();
-        const name = normalizeTmsStudentName(
+        let name = normalizeTmsStudentName(
             stripTags(decodeHtmlEntities(m[2])).replace(/\s+/g, ' ').trim()
         ).name;
         if (!mpidx || !name || !isLikelyStudentName(name)) {
@@ -585,6 +621,16 @@ function parseStudentsFromClassPopup(html) {
         const after = raw.slice(m.index + m[0].length, m.index + m[0].length + 280);
         const nextStudent = after.search(/javascript:\s*studentinf\s*\(/i);
         const afterWindow = nextStudent >= 0 ? after.slice(0, nextStudent) : after;
+        // Disambiguator often sits just after </a>, not inside the link text.
+        if (!TMS_NAME_DISAMBIGUATOR_RE.test(name.slice(-1))) {
+            const trailingMark = extractTrailingDisambiguator(afterWindow);
+            if (trailingMark) {
+                const withMark = normalizeTmsStudentName(name + trailingMark).name;
+                if (withMark && isLikelyStudentName(withMark) && !seenName.has(withMark)) {
+                    name = withMark;
+                }
+            }
+        }
         const enMatch =
             afterWindow.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
             afterWindow.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
