@@ -2234,24 +2234,42 @@
                 .join('')
             : `<p class="section-hint classroom-essay-class-picker-empty">${escapeHtml(t('classroomEssayClassComboboxEmpty'))}</p>`;
 
-        const pickerPopover = classPickerOpen
-            ? `<div id="classroomEssaysClassPickerPopover" class="classroom-essay-class-picker__popover lesson-filter-popover lesson-filter-popover-panel" role="dialog" aria-label="${escapeAttr(t('classroomEssaySidebarClassTitle'))}">
-                <input type="search" id="classroomEssaysClassSearch" class="field-input module-list-search" autocomplete="off" spellcheck="false" value="${escapeAttr(essayClassSearchQuery)}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" data-i18n-placeholder="classListSearchPlaceholder" />
-                <div class="classroom-essay-class-filter-chips" role="group">
-                    ${chip('all', 'classroomEssayFilterAll')}
-                    ${chip('has_essays', 'classroomZoneEssaysOnly')}
-                    ${chip('resubmits', 'classroomEssayClassFilterResubmits')}
-                    ${chip('overdue', 'classroomEssayClassFilterOverdue')}
-                    ${chip('mine', 'classroomZoneMyClassesOnly')}
-                </div>
-                ${
-                    essayClassAttentionFilter === 'has_essays'
-                        ? `<p class="section-hint classroom-essay-class-filter-hint">${escapeHtml(t('classroomEssayHasEssaysFilterHint'))}</p>`
-                        : ''
+        const hasEssaysHintHtml =
+            essayClassAttentionFilter === 'has_essays'
+                ? `<p class="section-hint classroom-essay-class-filter-hint">${escapeHtml(t('classroomEssayHasEssaysFilterHint'))}</p>`
+                : '';
+
+        function syncPickerChipsAndHint(popover) {
+            popover.querySelectorAll('[data-class-filter]').forEach((btn) => {
+                const filter = btn.getAttribute('data-class-filter') || '';
+                btn.classList.toggle('is-active', essayClassAttentionFilter === filter);
+            });
+            const chips = popover.querySelector('.classroom-essay-class-filter-chips');
+            let hint = popover.querySelector('.classroom-essay-class-filter-hint');
+            if (essayClassAttentionFilter === 'has_essays') {
+                if (!hint && chips) {
+                    chips.insertAdjacentHTML('afterend', hasEssaysHintHtml);
+                } else if (hint) {
+                    hint.textContent = t('classroomEssayHasEssaysFilterHint');
                 }
-                <div id="classroomEssaysClassList" class="module-list classroom-essay-class-picker-list" role="listbox">${listHtml}</div>
-            </div>`
-            : '';
+            } else if (hint) {
+                hint.remove();
+            }
+        }
+
+        function bindPickerListClicks(listEl) {
+            if (!listEl) {
+                return;
+            }
+            listEl.querySelectorAll('[data-class-id]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-class-id') || '';
+                    if (id) {
+                        void selectClass(panel, id);
+                    }
+                });
+            });
+        }
 
         const pickerField = mount.querySelector('.classroom-essay-class-picker');
         if (pickerField) {
@@ -2272,39 +2290,69 @@
                     });
                 }
             }
-            const existingPopover = pickerField.querySelector('#classroomEssaysClassPickerPopover');
-            if (existingPopover) {
-                existingPopover.remove();
+
+            let existingPopover = pickerField.querySelector('#classroomEssaysClassPickerPopover');
+            if (!classPickerOpen) {
+                if (existingPopover) {
+                    existingPopover.remove();
+                }
+                return;
             }
-            if (pickerPopover) {
-                pickerField.insertAdjacentHTML('beforeend', pickerPopover);
+
+            // Keep the search input mounted while filtering so typing does not steal focus.
+            if (existingPopover) {
+                const listEl = existingPopover.querySelector('#classroomEssaysClassList');
+                if (listEl) {
+                    listEl.innerHTML = listHtml;
+                    bindPickerListClicks(listEl);
+                }
+                syncPickerChipsAndHint(existingPopover);
+                const searchEl = existingPopover.querySelector('#classroomEssaysClassSearch');
+                if (searchEl && searchEl.value !== essayClassSearchQuery) {
+                    searchEl.value = essayClassSearchQuery;
+                }
+                return;
+            }
+
+            pickerField.insertAdjacentHTML(
+                'beforeend',
+                `<div id="classroomEssaysClassPickerPopover" class="classroom-essay-class-picker__popover lesson-filter-popover lesson-filter-popover-panel" role="dialog" aria-label="${escapeAttr(t('classroomEssaySidebarClassTitle'))}">
+                <input type="search" id="classroomEssaysClassSearch" class="field-input module-list-search" autocomplete="off" spellcheck="false" value="${escapeAttr(essayClassSearchQuery)}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" data-i18n-placeholder="classListSearchPlaceholder" />
+                <div class="classroom-essay-class-filter-chips" role="group">
+                    ${chip('all', 'classroomEssayFilterAll')}
+                    ${chip('has_essays', 'classroomZoneEssaysOnly')}
+                    ${chip('resubmits', 'classroomEssayClassFilterResubmits')}
+                    ${chip('overdue', 'classroomEssayClassFilterOverdue')}
+                    ${chip('mine', 'classroomZoneMyClassesOnly')}
+                </div>
+                ${hasEssaysHintHtml}
+                <div id="classroomEssaysClassList" class="module-list classroom-essay-class-picker-list" role="listbox">${listHtml}</div>
+            </div>`
+            );
+            existingPopover = pickerField.querySelector('#classroomEssaysClassPickerPopover');
+            const search = existingPopover && existingPopover.querySelector('#classroomEssaysClassSearch');
+            if (search && !search.dataset.bound) {
+                search.dataset.bound = '1';
+                search.addEventListener('input', (e) => {
+                    essayClassSearchQuery = e.target.value || '';
+                    renderClassPickerPopover(panel);
+                });
+            }
+            existingPopover?.querySelectorAll('[data-class-filter]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const next = btn.getAttribute('data-class-filter') || 'all';
+                    essayClassAttentionFilter = next;
+                    if (next === 'mine' && hooks && hooks.setUiPref) {
+                        hooks.setUiPref('classroomZoneMyClassesOnly', '1');
+                    }
+                    renderClassPickerPopover(panel);
+                });
+            });
+            bindPickerListClicks(existingPopover?.querySelector('#classroomEssaysClassList'));
+            if (search) {
+                search.focus();
             }
         }
-
-        mount.querySelector('#classroomEssaysClassSearch')?.addEventListener('input', (e) => {
-            essayClassSearchQuery = e.target.value || '';
-            renderClassPickerPopover(panel);
-        });
-
-        mount.querySelectorAll('[data-class-filter]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const next = btn.getAttribute('data-class-filter') || 'all';
-                essayClassAttentionFilter = next;
-                if (next === 'mine' && hooks && hooks.setUiPref) {
-                    hooks.setUiPref('classroomZoneMyClassesOnly', '1');
-                }
-                renderClassPickerPopover(panel);
-            });
-        });
-
-        mount.querySelectorAll('[data-class-id]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-class-id') || '';
-                if (id) {
-                    void selectClass(panel, id);
-                }
-            });
-        });
     }
 
     function bindContextBarOutsideClick(panel) {
