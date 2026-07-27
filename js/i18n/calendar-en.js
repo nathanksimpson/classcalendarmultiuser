@@ -624,8 +624,10 @@
         classroomEssayNoAssignment: 'No essay lesson selected. Pick an assignment above.',
         classroomEssayNoStudentsFilter: 'No students match this filter.',
         classroomEssayAssignmentLabel: 'Essay assignment',
-        classroomEssayAddAssignmentBtn: 'Add…',
+        classroomEssayAddAssignmentBtn: 'Add assignment',
         classroomEssayAddAssignmentTitle: 'Add essay assignment',
+        classroomEssayHasEssaysFilterHint:
+            'Switch to All to see classes with no essay assignments yet.',
         classroomEssayAddAssignmentHint:
             'Adds a tracked essay lesson to this class syllabus. Use for custom work such as monthly news essays or a presentation script.',
         classroomEssayAddAssignmentForClass: 'Class: {name}',

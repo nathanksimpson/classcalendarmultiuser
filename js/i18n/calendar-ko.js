@@ -624,8 +624,10 @@
         classroomEssayNoAssignment: '에세이 수업이 선택되지 않았습니다. 위에서 과제를 선택하세요.',
         classroomEssayNoStudentsFilter: '이 필터에 해당하는 학생이 없습니다.',
         classroomEssayAssignmentLabel: '에세이 과제',
-        classroomEssayAddAssignmentBtn: '추가…',
+        classroomEssayAddAssignmentBtn: '과제 추가',
         classroomEssayAddAssignmentTitle: '에세이 과제 추가',
+        classroomEssayHasEssaysFilterHint:
+            '에세이 과제가 없는 반을 보려면 ‘전체’로 전환하세요.',
         classroomEssayAddAssignmentHint:
             '이 반 강의계획표에 추적할 에세이 수업을 추가합니다. 월간 뉴스 에세이·발표 대본처럼 직접 넣는 과제에 사용하세요.',
         classroomEssayAddAssignmentForClass: '반: {name}',

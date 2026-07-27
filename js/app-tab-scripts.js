@@ -58,7 +58,7 @@
             'js/classroom-essay-class-summary.js?v=20260724-class-summary-filters',
             'js/classroom-essay-class-summary-print.js?v=20260724-essay-overdue',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260724-essay-picker-all'
+            'js/classroom-essays.js?v=20260727-essay-add-visible'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
