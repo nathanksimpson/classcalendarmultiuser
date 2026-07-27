@@ -1,5 +1,6 @@
 /**
  * Students roster segment — cohort picker + student CRUD.
+ * TMS sync: unclear-name review wizard + disambiguator marks (권이안◆).
  */
 (function (global) {
     let hooks = null;
