@@ -153,36 +153,94 @@ function assert(cond, msg) {
     assert(D.shareThreeHangulSyllables('김민아', '김민수') === false, 'only 2 contiguous');
     assert(D.shareThreeHangulSyllables('김민', '김민수') === false, 'too short');
     assert(D.hangulNameVariantPair('권이안', '이안권') === false, 'non-contained shared syllables do not fuzzy match');
+    assert(D.koreanNameKey('권이안◆') !== D.koreanNameKey('권이안'), 'disambiguator kept in key');
+    assert(D.nameDisambiguatorSuffix('권이안◆') === '◆', 'diamond suffix');
+    assert(D.hangulNameVariantPair('권이안', '권이안◆') === false, 'no auto fuzzy across disambiguator');
 }
 
-// Fuzzy clear: equal count + unique 3-syllable substring
+// Unclear: 권이안◆ vs existing 권이안
+{
+    const existing = [{ id: 'stu_a', name: '권이안', tags: [] }];
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '권이안◆', nameEn: '' }]);
+    assert(unclear.length === 1, 'one unclear');
+    assert(unclear[0].tmsName === '권이안◆', 'unclear tms name');
+    assert(unclear[0].reason === 'shared_hangul_core', 'shared core reason');
+    assert(unclear[0].candidates[0].id === 'stu_a', 'candidate is bare name');
+}
+
+// Resolution add keeps diamond name
+{
+    const existing = [{ id: 'stu_a', name: '권이안', tags: [] }];
+    const key = D.koreanNameKey('권이안◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆' }], {
+        newStudentId: () => 'stu_new',
+        studentResolutions: { [key]: { action: 'add' } }
+    });
+    assert(result.summary.added.length === 1, 'added disambiguated student');
+    assert(result.summary.added[0].name === '권이안◆', 'kept diamond on add');
+    assert(result.students.length === 2, 'both students remain');
+}
+
+// Resolution map links without renaming CM
+{
+    const existing = [{ id: 'stu_a', name: '권이안', tags: ['off_roster'] }];
+    const key = D.koreanNameKey('권이안◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+    });
+    assert(result.summary.added.length === 0, 'no add on map');
+    assert(result.summary.matched.some((m) => m.id === 'stu_a'), 'mapped matched');
+    assert(result.students.find((s) => s.id === 'stu_a').name === '권이안', 'did not rename');
+    assert(
+        !result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
+        'cleared off_roster on map'
+    );
+}
+
+// Unresolved unclear does not auto-add
+{
+    const existing = [{ id: 'stu_a', name: '권이안', tags: [] }];
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆' }], {
+        softUnclear: true
+    });
+    assert(result.summary.added.length === 0, 'no auto add while unclear');
+    assert(
+        result.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
+        'unresolved warning'
+    );
+}
+
+// Variant names require review (no silent fuzzy consume)
 {
     const existing = [
         { id: 'stu_a', name: '이서연', tags: [] },
         { id: 'stu_b', name: '김민수', tags: ['off_roster'] }
     ];
-    const result = D.mergeRosterByKoreanName(existing, [
+    const unclear = D.listUnclearTmsStudentMatches(existing, [
         { name: '이서연' },
         { name: '김민수아' }
     ]);
-    assert(result.summary.matched.length === 2, 'exact + fuzzy matched');
-    assert(result.summary.added.length === 0, 'no duplicate add for fuzzy TMS name');
+    assert(unclear.length === 1, '김민수아 unclear');
+    assert(unclear[0].reason === 'fuzzy_variant', 'fuzzy_variant reason');
+    const key = D.koreanNameKey('김민수아');
+    const result = D.mergeRosterByKoreanName(existing, [
+        { name: '이서연' },
+        { name: '김민수아' }
+    ], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_b' } }
+    });
+    assert(result.summary.matched.length === 2, 'exact + resolved matched');
+    assert(result.summary.added.length === 0, 'no duplicate add for resolved variant');
     assert(result.summary.flagged.length === 0, 'nobody flagged');
-    assert(result.summary.cleared.length === 1, 'cleared off_roster via fuzzy');
-    assert(result.summary.fuzzyCleared.length === 1, 'fuzzyCleared listed');
-    assert(result.summary.fuzzyCleared[0].id === 'stu_b', 'fuzzy cleared 김민수');
+    assert(result.summary.cleared.length === 1, 'cleared off_roster via map resolution');
     assert(
         !result.students.find((s) => s.id === 'stu_b').tags.includes('off_roster'),
         'off_roster removed'
     );
     assert(result.students.find((s) => s.id === 'stu_b').name === '김민수', 'did not rename');
-    assert(
-        result.summary.warnings.some((w) => w.code === 'fuzzy_syllable_match'),
-        'fuzzy warning recorded'
-    );
 }
 
-// Fuzzy: duplicate candidates → no clear
+// Ambiguous shared-core candidates stay unresolved without a choice
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
@@ -192,67 +250,65 @@ function assert(cond, msg) {
         { name: '김민수XX' },
         { name: '박지훈' }
     ]);
-    // Both CM names share 김민수 with TMS 김민수XX → ambiguous for that TMS; 박지훈 unmatched
-    // Counts equal (2===2) but pairing not unique for 김민수 / 김민수아 vs one overlapping TMS
-    assert(result.summary.fuzzyCleared.length === 0, 'no fuzzy clear when duplicate candidates');
+    assert(result.summary.added.length === 1, '박지훈 still added');
+    assert(
+        result.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
+        '김민수XX needs review'
+    );
     assert(
         result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
-        'stu_a still off_roster'
+        'stu_a still off_roster until resolved'
     );
     assert(
         result.students.find((s) => s.id === 'stu_b').tags.includes('off_roster'),
-        'stu_b still off_roster'
+        'stu_b still off_roster until resolved'
     );
 }
 
-// Fuzzy: unequal headcount + unique 3-syllable variant still merges (no false New)
+// Unequal headcount variant still reviewed then mapped
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수아' }]);
-    assert(result.summary.fuzzyCleared.length === 1, 'fuzzy clears despite unequal count');
-    assert(result.summary.fuzzyCleared[0].id === 'stu_a', 'fuzzy cleared 김민수');
-    assert(result.summary.added.length === 0, 'no duplicate add for fuzzy TMS name');
+    const key = D.koreanNameKey('김민수아');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수아' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+    });
+    assert(result.summary.added.length === 0, 'no duplicate add for resolved variant');
     assert(
         !result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
-        'off_roster removed via fuzzy'
+        'off_roster removed via map'
     );
     assert(result.students.find((s) => s.id === 'stu_a').name === '김민수', 'did not rename');
     assert(result.summary.flagged.length === 1, '이서연 still flagged as missing');
     assert(result.summary.flagged[0].id === 'stu_b', 'flagged is 이서연');
-    assert(
-        result.students.find((s) => s.id === 'stu_b').tags.includes('off_roster'),
-        '이서연 got off_roster'
-    );
 }
 
-// Fuzzy: already-off-roster inflation must not block matching an active name variant
+// Off-roster inflation must not block reviewing an active name variant
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
         { id: 'stu_b', name: '이서연', tags: [] },
         { id: 'stu_gone', name: '최유나', tags: ['off_roster'] }
     ];
-    const result = D.mergeRosterByKoreanName(existing, [
+    const unclear = D.listUnclearTmsStudentMatches(existing, [
         { name: '김민수아' },
         { name: '이서연' }
     ]);
-    assert(result.summary.matched.length === 2, 'exact + fuzzy matched');
+    assert(unclear.length === 1, 'only 김민수아 unclear');
+    const key = D.koreanNameKey('김민수아');
+    const result = D.mergeRosterByKoreanName(existing, [
+        { name: '김민수아' },
+        { name: '이서연' }
+    ], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+    });
+    assert(result.summary.matched.length === 2, 'exact + resolved matched');
     assert(result.summary.added.length === 0, 'no false New for 김민수아');
-    assert(result.summary.fuzzyCleared.length === 0, '김민수 was not off_roster before');
-    assert(
-        result.summary.warnings.some((w) => w.code === 'fuzzy_syllable_match' && w.matchedId === 'stu_a'),
-        'fuzzy warning for 김민수'
-    );
     assert(result.students.find((s) => s.id === 'stu_a').name === '김민수', 'kept CM spelling');
     assert(result.summary.flagged.length === 1, 'only 최유나 flagged');
     assert(result.summary.flagged[0].id === 'stu_gone', 'flagged is 최유나');
-    assert(
-        result.students.find((s) => s.id === 'stu_gone').tags.includes('off_roster'),
-        '최유나 stays off_roster'
-    );
 }
 
 // Unrelated TMS name with no 3-syllable overlap still adds + flags

@@ -359,22 +359,11 @@ function decodeHtmlEntities(s) {
         .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
 }
 
-function isLikelyStudentName(name) {
-    const n = String(name || '').trim();
-    if (n.length < 2 || n.length > 6) {
-        return false;
-    }
-    if (!/^[\uac00-\ud7a3]+$/.test(n)) {
-        return false;
-    }
-    if (SKIP_NAME_WORDS.has(n) || STUDENT_NOISE_NAMES.has(n)) {
-        return false;
-    }
-    if (/^셀프체크/i.test(n) || /^\[숙제확인\]/.test(n)) {
-        return false;
-    }
-    return true;
-}
+/** Trailing identity marks used academy-wide to disambiguate same Hangul names. */
+const TMS_NAME_DISAMBIGUATOR_RE = /[◆◇★☆●○■□▲△▼▽※A-Za-z0-9]/;
+const TMS_STUDENT_NAME_RE = new RegExp(
+    `^[\\uac00-\\ud7a3]{2,6}${TMS_NAME_DISAMBIGUATOR_RE.source}?$`
+);
 
 function stripTmsAttendanceNoise(name) {
     return String(name || '')
@@ -384,6 +373,38 @@ function stripTmsAttendanceNoise(name) {
         .replace(/\s*\((?:결석|출석|지각|조퇴|미참석)\)\s*$/u, '')
         .replace(/\s*(?:결석|출석|지각|조퇴|미참석)\s*$/u, '')
         .trim();
+}
+
+/**
+ * Attendance strip only — keeps disambiguators (권이안◆, 김민수A) as identity.
+ */
+function normalizeTmsStudentName(raw) {
+    const name = stripTmsAttendanceNoise(raw);
+    if (!name || !TMS_STUDENT_NAME_RE.test(name)) {
+        return { name: '', nameEnHint: '' };
+    }
+    return { name, nameEnHint: '' };
+}
+
+function isLikelyStudentName(name) {
+    const n = stripTmsAttendanceNoise(name);
+    if (!n || n.length < 2 || n.length > 7) {
+        return false;
+    }
+    if (!TMS_STUDENT_NAME_RE.test(n)) {
+        return false;
+    }
+    const hangulOnly = n.replace(TMS_NAME_DISAMBIGUATOR_RE, '');
+    if (SKIP_NAME_WORDS.has(hangulOnly) || STUDENT_NOISE_NAMES.has(hangulOnly)) {
+        return false;
+    }
+    if (SKIP_NAME_WORDS.has(n) || STUDENT_NOISE_NAMES.has(n)) {
+        return false;
+    }
+    if (/^셀프체크/i.test(n) || /^\[숙제확인\]/.test(n)) {
+        return false;
+    }
+    return true;
 }
 
 function isNoiseClassName(name) {
@@ -502,8 +523,8 @@ function parseStudentsFromNumberedBlocks(text) {
                 j += 1;
                 continue;
             }
-            const cleanL = stripTmsAttendanceNoise(L);
-            if (!name && isLikelyStudentName(cleanL)) {
+            const cleanL = normalizeTmsStudentName(L).name;
+            if (!name && cleanL && isLikelyStudentName(cleanL)) {
                 name = cleanL;
                 j += 1;
                 continue;
@@ -515,8 +536,11 @@ function parseStudentsFromNumberedBlocks(text) {
             }
             j += 1;
         }
-        if (!name && isLikelyStudentName(firstLine)) {
-            name = firstLine;
+        if (!name) {
+            const fromFirst = normalizeTmsStudentName(firstLine).name;
+            if (fromFirst && isLikelyStudentName(fromFirst)) {
+                name = fromFirst;
+            }
         }
         if (name && isLikelyStudentName(name) && !seen.has(name)) {
             seen.add(name);
@@ -548,10 +572,10 @@ function parseStudentsFromClassPopup(html) {
     let m;
     while ((m = re.exec(raw))) {
         const mpidx = String(m[1] || '').trim();
-        const name = stripTmsAttendanceNoise(
+        const name = normalizeTmsStudentName(
             stripTags(decodeHtmlEntities(m[2])).replace(/\s+/g, ' ').trim()
-        );
-        if (!mpidx || !isLikelyStudentName(name)) {
+        ).name;
+        if (!mpidx || !name || !isLikelyStudentName(name)) {
             continue;
         }
         if (seenMpidx.has(mpidx) || seenName.has(name)) {
@@ -559,11 +583,19 @@ function parseStudentsFromClassPopup(html) {
         }
         let nameEn = '';
         const after = raw.slice(m.index + m[0].length, m.index + m[0].length + 280);
+        const nextStudent = after.search(/javascript:\s*studentinf\s*\(/i);
+        const afterWindow = nextStudent >= 0 ? after.slice(0, nextStudent) : after;
         const enMatch =
-            after.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
-            after.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
+            afterWindow.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
+            afterWindow.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
         if (enMatch) {
-            nameEn = stripTags(decodeHtmlEntities(enMatch[1])).replace(/\s+/g, ' ').trim();
+            const candidate = stripTags(decodeHtmlEntities(enMatch[1])).replace(/\s+/g, ' ').trim();
+            if (
+                candidate &&
+                !/^(Absent|Present|Late|Tardy|Early leave)$/i.test(candidate)
+            ) {
+                nameEn = candidate;
+            }
         }
         seenMpidx.add(mpidx);
         seenName.add(name);
@@ -981,6 +1013,7 @@ module.exports = {
     mergeCohortLists,
     isLikelyStudentName,
     stripTmsAttendanceNoise,
+    normalizeTmsStudentName,
     isNoiseClassName,
     isJunkHeaderCohortName,
     CLASS_POPUP_PATH
