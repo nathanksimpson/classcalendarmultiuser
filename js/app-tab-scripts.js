@@ -56,7 +56,7 @@
             'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
             'js/classroom-essay-class-summary.js?v=20260724-class-summary-filters',
-            'js/classroom-essay-class-summary-print.js?v=20260724-essay-overdue',
+            'js/classroom-essay-class-summary-print.js?v=20260727-class-summary-blank-page',
             'js/classroom-header.js?v=20260707-essay-context',
             'js/classroom-essays.js?v=20260727-essay-search-focus'
         ],

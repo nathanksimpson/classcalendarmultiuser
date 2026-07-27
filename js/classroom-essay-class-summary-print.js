@@ -132,7 +132,7 @@
             : `HR Teacher: ${hrLabel}`;
         const classes = (g.classes || []).map((c) => renderClassSection(c, labels)).join('');
         return `<section class="essay-class-summary-hr-block">
-            <h1 class="essay-class-summary-hr-title">${escapeHtml(heading)}</h1>
+            <h2 class="essay-class-summary-hr-title">${escapeHtml(heading)}</h2>
             ${classes}
         </section>`;
     }
@@ -159,11 +159,16 @@
 .essay-class-summary-header { margin-bottom: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.5rem; }
 .essay-class-summary-doc-title { margin: 0 0 0.25rem; font-size: 16pt; }
 .essay-class-summary-meta { margin: 0.15rem 0; color: #444; font-size: 10pt; }
-.essay-class-summary-hr-block { margin: 0 0 1.5rem; page-break-inside: avoid; }
+/* Do NOT page-break-inside:avoid on HR blocks — tall teacher sections force a blank first page in Chromium. */
+.essay-class-summary-hr-block { margin: 0 0 1.5rem; }
+.essay-class-summary-hr-block + .essay-class-summary-hr-block {
+    page-break-before: always;
+    break-before: page;
+}
 .essay-class-summary-hr-title { margin: 0 0 0.75rem; font-size: 14pt; border-bottom: 2px solid #333; padding-bottom: 0.25rem; }
 .essay-class-summary-class-block { margin: 0 0 1rem 0.25rem; }
 .essay-class-summary-class-title { margin: 0 0 0.5rem; font-size: 12pt; }
-.essay-class-summary-assignment-block { margin: 0 0 0.75rem 0.35rem; }
+.essay-class-summary-assignment-block { margin: 0 0 0.75rem 0.35rem; page-break-inside: avoid; break-inside: avoid; }
 .essay-class-summary-assignment-title { margin: 0 0 0.35rem; font-size: 10.5pt; color: #333; }
 .essay-class-summary-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 0.5rem; }
 .essay-class-summary-table th, .essay-class-summary-table td { border: 1px solid #ccc; padding: 0.2rem 0.35rem; text-align: left; vertical-align: top; }
@@ -179,6 +184,10 @@
 .essay-class-summary-overdue { color: #c92a2a; font-weight: 600; }
 .essay-class-summary-retest { color: #555; font-weight: 600; }
 .essay-class-summary-empty { color: #666; font-style: italic; }
+@media print {
+    .essay-class-summary-header { page-break-after: avoid; break-after: avoid; }
+    .essay-class-summary-hr-title { page-break-after: avoid; break-after: avoid; }
+}
 `;
 
     global.CCPClassroomEssayClassSummaryPrint = {
