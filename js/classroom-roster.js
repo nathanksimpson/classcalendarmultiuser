@@ -1164,8 +1164,18 @@
 
     function buildTmsPreviewLine(summary) {
         const s = summary || {};
-        return t('rosterTmsSyncPreviewLine')
+        const review = Array.isArray(s.unclear) ? s.unclear.length : 0;
+        const base = t('rosterTmsSyncPreviewLine')
             .replace('{added}', String((s.added && s.added.length) || 0))
+            .replace('{matched}', String((s.matched && s.matched.length) || 0))
+            .replace('{flagged}', String((s.flagged && s.flagged.length) || 0))
+            .replace('{cleared}', String((s.cleared && s.cleared.length) || 0));
+        if (!review) {
+            return base;
+        }
+        return t('rosterTmsSyncPreviewLineWithReview')
+            .replace('{added}', String((s.added && s.added.length) || 0))
+            .replace('{review}', String(review))
             .replace('{matched}', String((s.matched && s.matched.length) || 0))
             .replace('{flagged}', String((s.flagged && s.flagged.length) || 0))
             .replace('{cleared}', String((s.cleared && s.cleared.length) || 0));

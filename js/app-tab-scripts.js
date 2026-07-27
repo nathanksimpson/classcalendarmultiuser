@@ -33,7 +33,7 @@
             'js/roster-import.js?v=20260723-tms-sync',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260727-tms-mark-after-link'
+            'js/classroom-roster.js?v=20260727-tms-nested-mark'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
