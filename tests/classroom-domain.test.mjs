@@ -377,6 +377,46 @@ assert(classAlerts.od === 1, 'class OD aggregates assignment');
 assert(classAlerts.rs === 0, 'class RS zero without resubmits');
 assert(classAlerts.ae === 1, 'class AE counts submitted awaiting eval');
 
+{
+    // Archived students keep old essay records but must not keep OD warnings.
+    const archivedCohorts = [
+        {
+            id: 'c1',
+            name: 'Active',
+            students: [{ id: 's2', name: 'Lee', sortOrder: 0, active: true }]
+        },
+        {
+            id: 'cohort-student-archive',
+            name: 'Student archive',
+            isArchiveCohort: true,
+            students: [
+                {
+                    id: 's1',
+                    name: 'Kim',
+                    sortOrder: 0,
+                    active: false,
+                    archivedAt: '2026-07-01T00:00:00.000Z',
+                    archiveReason: 'quit'
+                }
+            ]
+        }
+    ];
+    const afterArchive = d.essayAlertCountsForClass(
+        [essaySubmissionPastDue],
+        essayClass,
+        archivedCohorts
+    );
+    assert(afterArchive.od === 0, 'archived student does not keep OD warning');
+    assert(
+        d.essayOverdueNotSubmittedCount(essaySubmissionPastDue, yesterday, 1, ['s2']) === 0,
+        'OD with active roster ids ignores archived record'
+    );
+    assert(
+        d.essayOverdueNotSubmittedCount(essaySubmissionPastDue, yesterday, 2, ['s1', 's2']) === 1,
+        'OD with both roster ids still counts not_submitted'
+    );
+}
+
 const assignmentAlerts = d.essayAlertCountsForAssignment(essaySubmissionPastDue, yesterday, 2);
 assert(assignmentAlerts.ae === 1, 'assignment AE counts submitted status');
 assert(assignmentAlerts.od === 1, 'assignment OD still counts overdue not_submitted');
@@ -525,6 +565,41 @@ assert(
 assert(
     reparseResult.rows.find((row) => row.id === 'row-r2').trackEssay === false,
     'reparse marks non-essay row false'
+);
+
+{
+    const custom = d.createCustomEssayAssignment(
+        { id: 'cls-custom', name: 'MS News', syllabusRows: [] },
+        { title: 'Presentation script', date: today, id: 'syl_custom_1' }
+    );
+    assert(!custom.error, 'createCustomEssayAssignment ok');
+    assert(custom.syllabusRowId === 'syl_custom_1', 'stable syllabus row id');
+    assert(custom.row.trackEssay === true, 'custom row tracked');
+    assert(
+        d.getEssayRowsFromSyllabus(custom.classData.syllabusRows).length === 1,
+        'custom row listed as essay'
+    );
+    const listed = d.listEssayAssignmentsForClass(custom.classData, { essaySubmissions: [] });
+    assert(listed.length === 1, 'listEssayAssignmentsForClass sees custom');
+    assert(listed[0].planTitle === 'Presentation script', 'custom title');
+
+    const reparseCustom = d.reparseEssayFlagsForClass(custom.classData);
+    assert(
+        reparseCustom.rows.find((row) => row.id === 'syl_custom_1').trackEssay === true,
+        'reparse keeps trackEssay true without essay keyword'
+    );
+    assert(reparseCustom.essayRowsFound === 1, 'reparse still counts preserved custom essay');
+}
+
+assert(
+    d.createCustomEssayAssignment({ id: 'c' }, { title: '', date: today }).error ===
+        'missing_title',
+    'create requires title'
+);
+assert(
+    d.createCustomEssayAssignment({ id: 'c' }, { title: 'X', date: 'bad' }).error ===
+        'invalid_date',
+    'create requires ISO date'
 );
 
 const orphanData = {

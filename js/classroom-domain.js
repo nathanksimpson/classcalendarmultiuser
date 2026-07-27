@@ -126,9 +126,24 @@
         };
     }
 
-    /** Korean-name match key for TMS sync (trim + collapse whitespace). Ignores English. */
+    /**
+     * Korean-name match key for TMS sync. Ignores English.
+     * Normalizes invisible Unicode differences (NFC, spaces/NBSP, zero-width, punctuation,
+     * fullwidth ASCII) so "looks the same" names match without fuzzy/edit-distance matching.
+     */
     function koreanNameKey(name) {
-        return normalizeStr(name).replace(/\s+/g, '');
+        let s = String(name == null ? '' : name).normalize('NFC').trim();
+        // Whitespace incl. NBSP, ideographic space, thin spaces
+        s = s.replace(/[\s\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, '');
+        // Zero-width / BOM (ZWJ/ZWNJ may remain after the range above)
+        s = s.replace(/[\u200C\u200D\uFEFF\u2060]/g, '');
+        // Separators often pasted from TMS / SMS
+        s = s.replace(/[·•ㆍ\-–—_./]/g, '');
+        // Fullwidth ASCII → halfwidth (Hangul syllables unchanged)
+        s = s.replace(/[\uFF01-\uFF5E]/g, (ch) =>
+            String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+        );
+        return s;
     }
 
     function withStudentTag(student, tag) {
@@ -152,12 +167,99 @@
         return Object.assign({}, s, { tags });
     }
 
+    /** Hangul syllabic blocks (음절) from a Korean name after koreanNameKey cleanup. */
+    function hangulSyllables(name) {
+        const key = koreanNameKey(name);
+        const out = [];
+        for (let i = 0; i < key.length; i += 1) {
+            const ch = key[i];
+            const code = ch.charCodeAt(0);
+            if (code >= 0xac00 && code <= 0xd7a3) {
+                out.push(ch);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * True when two Hangul names are equal, or one is a contiguous variant
+     * of the other (e.g. 김민수 ↔ 김민수아).
+     */
+    function hangulNameVariantPair(nameA, nameB) {
+        const a = hangulSyllables(nameA).join('');
+        const b = hangulSyllables(nameB).join('');
+        if (!a || !b) {
+            return false;
+        }
+        if (a === b) {
+            return true;
+        }
+        return (a.length >= 3 && b.includes(a)) || (b.length >= 3 && a.includes(b));
+    }
+
+    /** @deprecated Prefer hangulNameVariantPair — kept for tests/back-compat. */
+    function shareThreeHangulSyllables(nameA, nameB) {
+        return hangulNameVariantPair(nameA, nameB);
+    }
+
+    /**
+     * Unique 1:1 fuzzy pairs among leftover CM students and leftover TMS rows.
+     * Drops any name that has 2+ syllable candidates on the other side.
+     * leftoverCm: [{ id, name, ... }], leftoverTms: [{ name, nameEn?, ... }]
+     */
+    function pairFuzzyRosterMatches(leftoverCm, leftoverTms) {
+        const cmList = Array.isArray(leftoverCm) ? leftoverCm : [];
+        const tmsList = Array.isArray(leftoverTms) ? leftoverTms : [];
+        if (!cmList.length || !tmsList.length) {
+            return [];
+        }
+        const cmToTms = new Map();
+        const tmsToCm = new Map();
+        cmList.forEach((cm, cmIdx) => {
+            tmsList.forEach((tms, tmsIdx) => {
+                if (!hangulNameVariantPair(cm && cm.name, tms && tms.name)) {
+                    return;
+                }
+                if (!cmToTms.has(cmIdx)) {
+                    cmToTms.set(cmIdx, []);
+                }
+                cmToTms.get(cmIdx).push(tmsIdx);
+                if (!tmsToCm.has(tmsIdx)) {
+                    tmsToCm.set(tmsIdx, []);
+                }
+                tmsToCm.get(tmsIdx).push(cmIdx);
+            });
+        });
+        const pairs = [];
+        cmToTms.forEach((tmsIdxs, cmIdx) => {
+            if (tmsIdxs.length !== 1) {
+                return;
+            }
+            const tmsIdx = tmsIdxs[0];
+            const cmIdxs = tmsToCm.get(tmsIdx) || [];
+            if (cmIdxs.length !== 1) {
+                return;
+            }
+            pairs.push({
+                cm: cmList[cmIdx],
+                tms: tmsList[tmsIdx],
+                cmIndex: cmIdx,
+                tmsIndex: tmsIdx
+            });
+        });
+        return pairs;
+    }
+
     /**
      * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
      * - Match by Korean name only; do not add duplicates.
      * - Add students whose Korean name is not in the cohort.
      * - Flag existing students missing from TMS with off_roster (never delete).
-     * - Clear off_roster when they reappear on TMS.
+     *   Preview `flagged` includes students who already had the tag (still missing).
+     * - Clear off_roster when they reappear on TMS (always strip on match).
+     * - After exact match, uniquely fuzzy-pair leftovers when one Hangul name is a
+     *   contiguous variant of the other (clear off_roster; do not add / rename).
+     *   Safety is unique 1:1 pairing only.
      */
     function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
         const opts = options || {};
@@ -204,6 +306,7 @@
         const added = [];
         const matched = [];
         const warnings = [];
+        const exactMatchedIds = new Set();
 
         incoming.forEach((imp) => {
             const k = koreanNameKey(imp.name);
@@ -221,6 +324,7 @@
                     warnings.push({ code: 'duplicate_existing_name', name: imp.name, matchedId: match.id });
                 }
                 matched.push({ id: match.id, name: match.name });
+                exactMatchedIds.add(match.id);
                 return;
             }
             added.push({
@@ -238,24 +342,79 @@
             });
         });
 
+        const fuzzyMatchedIds = new Set();
+        const fuzzyCleared = [];
+        const leftoverCm = existing.filter((s) => !exactMatchedIds.has(s.id));
+        const leftoverTms = added.slice();
+        if (leftoverCm.length && leftoverTms.length) {
+            const fuzzyPairs = pairFuzzyRosterMatches(leftoverCm, leftoverTms);
+            const removeAddedIndexes = new Set();
+            fuzzyPairs.forEach((pair) => {
+                const cm = pair.cm;
+                const tms = pair.tms;
+                if (!cm || !cm.id || !tms) {
+                    return;
+                }
+                fuzzyMatchedIds.add(cm.id);
+                matched.push({ id: cm.id, name: cm.name, fuzzy: true });
+                warnings.push({
+                    code: 'fuzzy_syllable_match',
+                    name: cm.name,
+                    tmsName: tms.name,
+                    matchedId: cm.id
+                });
+                if (Number.isInteger(pair.tmsIndex) && pair.tmsIndex >= 0) {
+                    removeAddedIndexes.add(pair.tmsIndex);
+                }
+            });
+            if (removeAddedIndexes.size) {
+                const kept = [];
+                added.forEach((row, idx) => {
+                    if (!removeAddedIndexes.has(idx)) {
+                        kept.push(row);
+                    }
+                });
+                added.length = 0;
+                kept.forEach((row) => added.push(row));
+            }
+        }
+
         const flagged = [];
         const cleared = [];
+        if (incoming.length === 0 && existing.some((s) => s.active !== false)) {
+            return {
+                students: existing.slice().sort(compareStudentNames),
+                summary: {
+                    added: [],
+                    matched,
+                    flagged: [],
+                    cleared: [],
+                    fuzzyCleared,
+                    warnings: [{ code: 'incomplete_tms_scrape' }],
+                    totalTms: 0,
+                    totalAfter: existing.length
+                }
+            };
+        }
         const nextExisting = existing.map((s) => {
             const k = koreanNameKey(s.name);
-            const onTms = k && tmsKeys.has(k);
+            const onTms = (k && tmsKeys.has(k)) || fuzzyMatchedIds.has(s.id);
             const hadOff = (s.tags || []).includes(OFF_ROSTER_TAG);
             if (onTms) {
+                // Always strip Off roster when Korean name is on this TMS scrape (exact or fuzzy).
                 if (hadOff) {
-                    cleared.push({ id: s.id, name: s.name });
-                    return withoutStudentTag(s, OFF_ROSTER_TAG);
+                    const entry = { id: s.id, name: s.name };
+                    cleared.push(entry);
+                    if (fuzzyMatchedIds.has(s.id)) {
+                        fuzzyCleared.push(entry);
+                    }
                 }
-                return s;
+                return withoutStudentTag(s, OFF_ROSTER_TAG);
             }
-            if (!hadOff) {
-                flagged.push({ id: s.id, name: s.name });
-                return withStudentTag(s, OFF_ROSTER_TAG);
-            }
-            return s;
+            // Count every student missing from TMS in flagged (including ones already tagged),
+            // so preview "0 off roster" means no Off roster tags will remain after Apply.
+            flagged.push({ id: s.id, name: s.name });
+            return hadOff ? s : withStudentTag(s, OFF_ROSTER_TAG);
         });
 
         const students = nextExisting.concat(added).sort(compareStudentNames);
@@ -266,6 +425,7 @@
                 matched,
                 flagged,
                 cleared,
+                fuzzyCleared,
                 warnings,
                 totalTms: tmsKeys.size,
                 totalAfter: students.length
@@ -1182,7 +1342,8 @@
             if (!row || !isEssayTrackableSyllabusRow(row)) {
                 return row;
             }
-            const nextFlag = isEssaySyllabusRow(row);
+            // Keep manually tracked essays (trackEssay true) even without keyword text.
+            const nextFlag = row.trackEssay === true ? true : isEssaySyllabusRow(row);
             if (nextFlag) {
                 essayRowsFound += 1;
             }
@@ -1193,6 +1354,52 @@
             return Object.assign({}, row, { trackEssay: nextFlag });
         });
         return { rows, rowsUpdated, essayRowsFound };
+    }
+
+    /**
+     * Add a custom essay assignment as a syllabus lesson with trackEssay: true.
+     * @returns {{ error: string|null, classData, row, syllabusRowId }}
+     */
+    function createCustomEssayAssignment(classData, options) {
+        const opts = options || {};
+        if (!classData || !normalizeStr(classData.id)) {
+            return { error: 'missing_class', classData: classData || null, row: null, syllabusRowId: '' };
+        }
+        const title = normalizeStr(opts.title);
+        const date = normalizeStr(opts.date);
+        if (!title) {
+            return { error: 'missing_title', classData, row: null, syllabusRowId: '' };
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return { error: 'invalid_date', classData, row: null, syllabusRowId: '' };
+        }
+        const id = normalizeStr(opts.id) || newId('syl');
+        const row = {
+            id,
+            kind: 'lesson',
+            date,
+            planTitle: title,
+            planDetail: '',
+            homework: '',
+            note: '',
+            trackEssay: true
+        };
+        const rows = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.slice() : [];
+        rows.push(row);
+        rows.sort((a, b) => {
+            const byDate = compareDateStr(a && a.date, b && b.date);
+            if (byDate !== 0) {
+                return byDate;
+            }
+            return normalizeStr(a && a.planTitle).localeCompare(normalizeStr(b && b.planTitle));
+        });
+        const nextClass = Object.assign({}, classData, { syllabusRows: rows });
+        return {
+            error: null,
+            classData: nextClass,
+            row,
+            syllabusRowId: getSyllabusRowKey(row)
+        };
     }
 
     function pruneOrphanEssaySubmissions(appData, classData) {
@@ -1404,7 +1611,26 @@
         return status === 'not_submitted' && isEssaySsOverdueISO(ssDueDate);
     }
 
-    function essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount) {
+    function essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount, activeStudentIds) {
+        const rosterIds = Array.isArray(activeStudentIds)
+            ? activeStudentIds.map(normalizeStr).filter(Boolean)
+            : null;
+        // Prefer current class roster so archived / removed students do not keep OD warnings.
+        if (rosterIds) {
+            let count = 0;
+            rosterIds.forEach((sid) => {
+                const rec = getEssayRecordForStudent(submission, sid) || {
+                    studentId: sid,
+                    status: 'not_submitted',
+                    submissionLate: false,
+                    overdueDismissed: false
+                };
+                if (isEssaySubmissionOverdue(rec, ssDueDate)) {
+                    count += 1;
+                }
+            });
+            return count;
+        }
         if (!submission || !Array.isArray(submission.records)) {
             if (!isEssaySsOverdueISO(ssDueDate)) {
                 return 0;
@@ -1431,7 +1657,10 @@
         return essayPendingTeacherEvalCount(submission) > 0;
     }
 
-    function essayAlertCountsForAssignment(submission, ssDueDate, studentCount) {
+    function essayAlertCountsForAssignment(submission, ssDueDate, studentCount, activeStudentIds) {
+        const rosterIds = Array.isArray(activeStudentIds)
+            ? activeStudentIds.map(normalizeStr).filter(Boolean)
+            : null;
         const counts = submission
             ? countEssayByStatus(submission)
             : Object.assign(emptyEssayStatusCounts(), {
@@ -1439,7 +1668,12 @@
             });
         return {
             rs: counts.resubmit_required || 0,
-            od: essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount),
+            od: essayOverdueNotSubmittedCount(
+                submission,
+                ssDueDate,
+                studentCount,
+                rosterIds || undefined
+            ),
             ae: essayPendingTeacherEvalCount(submission),
             counts
         };
@@ -1451,6 +1685,9 @@
         }
         const students = resolveStudentsForClass(classData, cohorts);
         const totalStudents = students.length;
+        const activeStudentIds = students
+            .map((entry) => entry && entry.student && entry.student.id)
+            .filter(Boolean);
         let rs = 0;
         let od = 0;
         let ae = 0;
@@ -1462,7 +1699,12 @@
             const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
             const ssDue =
                 submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
-            const alerts = essayAlertCountsForAssignment(submission, ssDue, totalStudents);
+            const alerts = essayAlertCountsForAssignment(
+                submission,
+                ssDue,
+                totalStudents,
+                activeStudentIds
+            );
             rs += alerts.rs;
             od += alerts.od;
             ae += alerts.ae;
@@ -2573,6 +2815,10 @@
         ARCHIVE_COHORT_ID,
         DEFAULT_ARCHIVE_RETENTION_DAYS,
         koreanNameKey,
+        hangulSyllables,
+        hangulNameVariantPair,
+        shareThreeHangulSyllables,
+        pairFuzzyRosterMatches,
         withStudentTag,
         withoutStudentTag,
         mergeRosterByKoreanName,
@@ -2636,6 +2882,7 @@
         essayPendingTeacherEvalCount,
         isEssayTeacherEvalOverdue,
         reparseEssayFlagsForClass,
+        createCustomEssayAssignment,
         pruneOrphanEssaySubmissions,
         essayAlertCountsForAssignment,
         essayAlertCountsForClass,

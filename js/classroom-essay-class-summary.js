@@ -110,6 +110,102 @@
         return String(la || '').localeCompare(String(lb || ''), undefined, { sensitivity: 'base' });
     }
 
+    /** YYYY-MM from an ISO due date (ssDueDate), or '' if missing/invalid. */
+    function monthKeyFromDueDate(ssDueDate) {
+        const raw = String(ssDueDate || '').trim();
+        if (/^\d{4}-\d{2}/.test(raw)) {
+            return raw.slice(0, 7);
+        }
+        return '';
+    }
+
+    function findClassForAssignment(assignment, appData, options) {
+        const opts = options || {};
+        const classId = assignment && assignment.classId;
+        if (!classId) {
+            return null;
+        }
+        const lists = [];
+        if (Array.isArray(opts.classes)) {
+            lists.push(opts.classes);
+        }
+        if (Array.isArray(appData && appData.classes)) {
+            lists.push(appData.classes);
+        }
+        for (let i = 0; i < lists.length; i += 1) {
+            const found = lists[i].find((c) => c && c.id === classId);
+            if (found) {
+                return found;
+            }
+        }
+        return {
+            id: classId,
+            name: (assignment && assignment.className) || classId
+        };
+    }
+
+    function listHomeroomFilterOptions(assignments, appData, options) {
+        const opts = options || {};
+        const byKey = new Map();
+        (Array.isArray(assignments) ? assignments : []).forEach((row) => {
+            if (!row || !row.classId) {
+                return;
+            }
+            const classData = findClassForAssignment(row, appData, opts);
+            const hr = resolveHomeroomMeta(classData, appData, opts.resolveHomeroom);
+            if (!byKey.has(hr.key)) {
+                byKey.set(hr.key, { key: hr.key, label: hr.label || hr.key });
+            }
+        });
+        const labelForKey = (key) => {
+            const g = byKey.get(key);
+            return g ? g.label || key : key;
+        };
+        return Array.from(byKey.keys())
+            .sort((a, b) => compareHomeroomKeys(a, b, labelForKey))
+            .map((key) => byKey.get(key));
+    }
+
+    function listMonthFilterOptions(assignments) {
+        const months = new Set();
+        (Array.isArray(assignments) ? assignments : []).forEach((row) => {
+            const month = monthKeyFromDueDate(row && row.ssDueDate);
+            if (month) {
+                months.add(month);
+            }
+        });
+        return Array.from(months).sort((a, b) => String(b).localeCompare(String(a)));
+    }
+
+    /**
+     * Narrow assignment checklist by HR teacher and/or ssDueDate month (YYYY-MM).
+     * Empty homeroomKey / month = no filter on that axis.
+     */
+    function filterAssignmentsByHrAndMonth(assignments, appData, filters, options) {
+        const opts = options || {};
+        const f = filters || {};
+        const homeroomKey = String(f.homeroomKey || '').trim();
+        const month = String(f.month || '').trim();
+        return (Array.isArray(assignments) ? assignments : []).filter((row) => {
+            if (!row) {
+                return false;
+            }
+            if (month) {
+                if (monthKeyFromDueDate(row.ssDueDate) !== month) {
+                    return false;
+                }
+            }
+            if (homeroomKey) {
+                const classData = findClassForAssignment(row, appData, opts);
+                const hr = resolveHomeroomMeta(classData, appData, opts.resolveHomeroom);
+                if (hr.key !== homeroomKey) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
     /**
      * @param {object} appData
      * @param {object[]} assignments — from listEssayAssignments (need classId + syllabusRowId / key)
@@ -367,6 +463,10 @@
         normalizeKey,
         statusCssClass,
         resolveHomeroomMeta,
+        monthKeyFromDueDate,
+        listHomeroomFilterOptions,
+        listMonthFilterOptions,
+        filterAssignmentsByHrAndMonth,
         listRowsForAssignments,
         groupRowsByHomeroom,
         formatCopyText,

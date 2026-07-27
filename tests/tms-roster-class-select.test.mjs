@@ -102,6 +102,8 @@ const FIXTURE_CLASS_SELECT = `
     assert(!tms.isLikelyStudentName('매우만족'), '매우만족 not a student name');
     assert(!tms.isLikelyStudentName('만족'), '만족 not a student name');
     assert(tms.isLikelyStudentName('조하연'), '조하연 is a student name');
+    assert(tms.stripTmsAttendanceNoise('권이안 (Absent)') === '권이안', 'strip english attendance');
+    assert(tms.stripTmsAttendanceNoise('권이안 결석') === '권이안', 'strip korean attendance');
 }
 
 {
@@ -132,6 +134,18 @@ const FIXTURE_CLASS_SELECT = `
 }
 
 {
+    const html = `
+      <td><a href="javascript:studentinf(10101)">권이안 (Absent)</a></td>
+      <td><a href="javascript:studentinf(10102)">김민수 결석</a></td>
+    `;
+    const students = tms.parseStudentsFromClassPopup(html);
+    assert(students.length === 2, `attendance names expected 2, got ${students.length}`);
+    assert(students[0].name === '권이안', 'parsed korean-only absent student');
+    assert(students[0].nameEn === '', 'empty english preserved');
+    assert(students[1].name === '김민수', 'parsed korean attendance suffix');
+}
+
+{
     const numbered = `
 Navy M
 1. 촬영실
@@ -149,6 +163,21 @@ Navy M
     assert(students[0].name === '김민수' && students[0].nameEn === 'Minsu', 'numbered first');
     assert(students[1].name === '이서연', 'numbered second');
     assert(!students.some((s) => s.name === '매우만족'), 'tail trimmed 매우만족');
+}
+
+{
+    const numbered = `
+Garam M
+1. 권이안
+결석
+2. 김민수
+(Minsu)
+`;
+    const students = tms.parseStudentsFromNumberedBlocks(numbered);
+    assert(students.length === 2, `numbered korean-only expected 2, got ${students.length}`);
+    assert(students[0].name === '권이안', 'numbered first-line korean name');
+    assert(students[0].nameEn === '', 'numbered first-line english empty');
+    assert(students[1].name === '김민수', 'numbered second student');
 }
 
 // Domain still resolves tmsClassId from scrape rows

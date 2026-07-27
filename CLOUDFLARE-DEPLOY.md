@@ -93,6 +93,10 @@ npx wrangler secret put BOOTSTRAP_ADMIN_SECRET
 
 Type each value when prompted (nothing appears on screen — that is normal).
 
+**TMS roster sync** does **not** use wrangler secrets. Teachers enter the TMS username and password in **Classroom → Students → Sync from TMS…**. The password is used only for that request and is not stored.
+
+**If TMS only allows academy/work IPs:** on the work PC keep **START TEAM CALENDAR.bat** / `npm start` running (port **8080**). Then open https://classmanager.live and Sync as usual — the page will use the local bridge (`/api/tms/bridge/*`) so TMS sees the work IP. Mapping/Apply still save to the live calendar. Locally you may still put `TMS_USERNAME` / `TMS_PASSWORD` in `.env` as a shortcut.
+
 ---
 
 ## Step 5 — Commit and push

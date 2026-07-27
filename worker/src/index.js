@@ -41,6 +41,7 @@ import * as Lock from './lock.js';
 import * as CalendarMeta from './calendar-meta.js';
 import * as CalendarMutations from '../../shared/calendar-mutations.cjs';
 import { findCalendarByName, assertCalendarNameAvailable } from './calendars.js';
+import * as TmsRoster from './tms-roster.js';
 
 const MAX_CALENDAR_BODY_BYTES = 5 * 1024 * 1024;
 const RATE_AUTH_WINDOW_MS = 15 * 60 * 1000;
@@ -1390,6 +1391,62 @@ export default {
         if (path === '/api/calendars' && request.method === 'GET') {
             const rows = await CalAccess.listCalendarsForUser(env, user);
             return json(rows);
+        }
+
+        if (path === '/api/tms/roster/preview' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            try {
+                const body = await readJson(request);
+                const bodyUser = String((body && body.username) || '').trim();
+                const bodyPass = String((body && body.password) || '');
+                if (!bodyUser || !bodyPass) {
+                    return json(
+                        {
+                            error: 'TMS username and password are required',
+                            code: 'TMS_CREDS_MISSING'
+                        },
+                        503
+                    );
+                }
+                const result = await TmsRoster.scrapeRosters({
+                    username: bodyUser,
+                    password: bodyPass
+                });
+                return json({
+                    cohorts: result.cohorts,
+                    meta: {
+                        homeUrl: result.meta && result.meta.homeUrl,
+                        pagesFetched: result.meta && result.meta.pagesFetched,
+                        cohortCount: (result.cohorts || []).length,
+                        studentCount: (result.cohorts || []).reduce(
+                            (n, c) => n + ((c.students && c.students.length) || 0),
+                            0
+                        )
+                    }
+                });
+            } catch (err) {
+                const code = err && err.code;
+                if (code === 'TMS_LOGIN_FAILED') {
+                    return json({ error: (err && err.message) || 'TMS login failed', code }, 401);
+                }
+                if (code === 'TMS_CREDS_MISSING') {
+                    return json(
+                        { error: (err && err.message) || 'TMS credentials missing', code },
+                        503
+                    );
+                }
+                console.error('TMS roster preview failed', err);
+                return json(
+                    {
+                        error: (err && err.message) || 'TMS sync failed',
+                        code: 'TMS_SCRAPE_FAILED'
+                    },
+                    502
+                );
+            }
         }
 
         if (path === '/api/teachers' && request.method === 'GET') {

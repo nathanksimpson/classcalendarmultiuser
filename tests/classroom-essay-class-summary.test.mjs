@@ -258,4 +258,51 @@ const appData = {
     assert(!!printApi.PRINT_STYLES, 'print styles exported');
 }
 
+{
+    const assignments = [
+        { key: 'c1|r1', classId: 'c1', className: 'Alpha', ssDueDate: '2026-03-15' },
+        { key: 'c1|r2', classId: 'c1', className: 'Alpha', ssDueDate: '2026-04-01' },
+        { key: 'c2|r3', classId: 'c2', className: 'Beta', ssDueDate: '2026-03-20' },
+        { key: 'c3|r4', classId: 'c3', className: 'Gamma No HR', ssDueDate: '2026-03-10' }
+    ];
+    assert(summary.monthKeyFromDueDate('2026-03-15') === '2026-03', 'monthKeyFromDueDate');
+    assert(summary.monthKeyFromDueDate('') === '', 'empty due → empty month');
+
+    const months = summary.listMonthFilterOptions(assignments);
+    assert(months[0] === '2026-04', 'months newest first');
+    assert(months.includes('2026-03'), 'includes March');
+
+    const hrs = summary.listHomeroomFilterOptions(assignments, appData);
+    assert(hrs.some((h) => h.key === 'hr-kim'), 'HR options include Kim');
+    assert(hrs.some((h) => h.key === 'hr-park'), 'HR options include Park');
+    assert(hrs.some((h) => h.key === summary.NO_HOMEROOM_KEY), 'HR options include no-HR');
+    assert(hrs[hrs.length - 1].key === summary.NO_HOMEROOM_KEY, 'no-HR last in options');
+
+    const byMonth = summary.filterAssignmentsByHrAndMonth(assignments, appData, {
+        month: '2026-03'
+    });
+    assert(byMonth.length === 3, 'month filter keeps March dues');
+    assert(
+        byMonth.every((r) => summary.monthKeyFromDueDate(r.ssDueDate) === '2026-03'),
+        'all kept rows are March'
+    );
+
+    const byHr = summary.filterAssignmentsByHrAndMonth(assignments, appData, {
+        homeroomKey: 'hr-kim'
+    });
+    assert(byHr.length === 2, 'HR Kim keeps Alpha assignments');
+    assert(byHr.every((r) => r.classId === 'c1'), 'Kim filter is Alpha only');
+
+    const byNoHr = summary.filterAssignmentsByHrAndMonth(assignments, appData, {
+        homeroomKey: summary.NO_HOMEROOM_KEY
+    });
+    assert(byNoHr.length === 1 && byNoHr[0].classId === 'c3', 'no-HR filter keeps Gamma');
+
+    const combined = summary.filterAssignmentsByHrAndMonth(assignments, appData, {
+        homeroomKey: 'hr-kim',
+        month: '2026-03'
+    });
+    assert(combined.length === 1 && combined[0].key === 'c1|r1', 'HR + month AND together');
+}
+
 console.log('classroom-essay-class-summary.test.mjs: ok');
