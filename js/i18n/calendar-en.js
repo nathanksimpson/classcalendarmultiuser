@@ -947,6 +947,8 @@
         rosterTmsSyncColPreview: 'Preview',
         rosterTmsSyncPreviewLine:
             '+{added} new · {matched} matched · {flagged} missing from TMS · clear {cleared}',
+        rosterTmsSyncPreviewLineWithReview:
+            '+{added} new · {review} need review · {matched} matched · {flagged} missing from TMS · clear {cleared}',
         rosterTmsSyncAddedHint: 'Will add: {names}',
         rosterTmsSyncClearHint: 'Will remove Off roster: {names}',
         rosterTmsSyncFuzzyClearHint:

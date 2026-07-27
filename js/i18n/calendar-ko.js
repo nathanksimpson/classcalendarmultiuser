@@ -947,6 +947,8 @@
         rosterTmsSyncColPreview: '미리보기',
         rosterTmsSyncPreviewLine:
             '+{added} 신규 · {matched} 일치 · {flagged} TMS 목록 없음 · 해제 {cleared}',
+        rosterTmsSyncPreviewLineWithReview:
+            '+{added} 신규 · {review}개 확인 필요 · {matched} 일치 · {flagged} TMS 목록 없음 · 해제 {cleared}',
         rosterTmsSyncAddedHint: '추가 예정: {names}',
         rosterTmsSyncClearHint: '명단외 태그 해제: {names}',
         rosterTmsSyncFuzzyClearHint: '이름 변형 일치 — 명단외 태그 해제: {names}',

@@ -356,21 +356,38 @@ function decodeHtmlEntities(s) {
         .replace(/&amp;/gi, '&')
         .replace(/&lt;/gi, '<')
         .replace(/&gt;/gi, '>')
-        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+        .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+            const code = parseInt(h, 16);
+            return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+        })
+        .replace(/&#(\d+);/g, (_, n) => {
+            const code = Number(n);
+            return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+        });
 }
 
 /** Trailing identity marks used academy-wide to disambiguate same Hangul names. */
-// Includes geometric diamonds (◆◇), card-suit diamonds (♦♢), stars, bullets, Latin/digit.
-const TMS_DISAMBIGUATOR_CHARS = '◆◇♦♢★☆✦✧●○■□▲△▼▽※A-Za-z0-9';
+// Includes geometric diamonds (◆◇⬥), card-suit diamonds (♦♢), stars, bullets, Latin/digit.
+const TMS_DISAMBIGUATOR_CHARS = '◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※A-Za-z0-9';
 const TMS_NAME_DISAMBIGUATOR_RE = new RegExp(`[${TMS_DISAMBIGUATOR_CHARS}]`);
 const TMS_NAME_DISAMBIGUATOR_ONLY_RE = new RegExp(`^[${TMS_DISAMBIGUATOR_CHARS}]$`);
 const TMS_STUDENT_NAME_RE = new RegExp(
     `^[\\uac00-\\ud7a3]{2,6}\\s*[${TMS_DISAMBIGUATOR_CHARS}]?$`
 );
 
-function stripTmsAttendanceNoise(name) {
+function stripInvisibleNameNoise(name) {
     return String(name || '')
+        .normalize('NFC')
+        // Zero-width / BOM / word-joiner / soft hyphen
+        .replace(/[\u200B-\u200D\uFEFF\u2060\u00AD]/g, '')
+        // Emoji variation selectors after a mark (◆️)
+        .replace(/[\uFE0E\uFE0F]/g, '')
         .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function stripTmsAttendanceNoise(name) {
+    return stripInvisibleNameNoise(name)
         .replace(/\s*\((?:Absent|Present|Late|Tardy|Early leave|Early leave\/pickup)\)\s*$/i, '')
         .replace(/\s*(?:Absent|Present|Late|Tardy|Early leave|Early leave\/pickup)\s*$/i, '')
         .replace(/\s*\((?:결석|출석|지각|조퇴|미참석)\)\s*$/u, '')
@@ -422,20 +439,24 @@ function isLikelyStudentName(name) {
 }
 
 /**
- * If TMS puts the disambiguator just after </a> (권이안</a>◆), pick it up.
+ * If TMS puts the disambiguator just after </a> (권이안</a>◆ or </a>(Alice)◆), pick it up.
  */
 function extractTrailingDisambiguator(afterHtml) {
-    const text = stripTags(decodeHtmlEntities(String(afterHtml || '')))
-        .replace(/\s+/g, ' ')
-        .trim();
+    const text = stripInvisibleNameNoise(
+        stripTags(decodeHtmlEntities(String(afterHtml || '')))
+    );
     if (!text) {
         return '';
     }
-    const m = text.match(new RegExp(`^\\s*([${TMS_DISAMBIGUATOR_CHARS}])(?:\\s|$|[\\(（])`));
+    // ◆ right after </a>, or after an English (Name) group: (Alice)◆ / (Alice) ◆
+    const m = text.match(
+        new RegExp(
+            `^(?:\\([^)]{0,40}\\)\\s*)?([${TMS_DISAMBIGUATOR_CHARS}])(?:\\s|$|[\\(（])`
+        )
+    );
     if (m && TMS_NAME_DISAMBIGUATOR_ONLY_RE.test(m[1])) {
         return m[1];
     }
-    // Bare mark as first non-space char
     const first = text.charAt(0);
     if (TMS_NAME_DISAMBIGUATOR_ONLY_RE.test(first)) {
         return first;
@@ -593,7 +614,8 @@ function parseStudentsFromTextLines(text) {
 }
 
 /**
- * Primary: studentinf(mpidx)">KoreanName</a> (+ optional English).
+ * Primary: studentinf(mpidx)">…name…</a> (+ optional English / trailing ◆).
+ * Inner HTML may nest spans/fonts (권이안<span>◆</span>) — strip tags, keep mark.
  * Fallback: numbered paste-style blocks after cutting homework/self-check tails.
  * Never greedy-scan all Hangul table cells (avoids 매우만족 etc.).
  */
@@ -603,14 +625,16 @@ function parseStudentsFromClassPopup(html) {
     const seenMpidx = new Set();
     const seenName = new Set();
 
+    // Capture full anchor inner HTML (nested <span>/<font> allowed).
     const re =
-        /javascript:\s*studentinf\s*\(\s*['"]?(\d+)['"]?\s*\)[^>]*>\s*([^<]+?)\s*<\/a>/gi;
+        /javascript:\s*studentinf\s*\(\s*['"]?(\d+)['"]?\s*\)[^>]*>([\s\S]*?)<\/a>/gi;
     let m;
     while ((m = re.exec(raw))) {
         const mpidx = String(m[1] || '').trim();
-        let name = normalizeTmsStudentName(
-            stripTags(decodeHtmlEntities(m[2])).replace(/\s+/g, ' ').trim()
-        ).name;
+        const innerText = stripInvisibleNameNoise(
+            stripTags(decodeHtmlEntities(m[2]))
+        );
+        let name = normalizeTmsStudentName(innerText).name;
         if (!mpidx || !name || !isLikelyStudentName(name)) {
             continue;
         }
@@ -635,7 +659,9 @@ function parseStudentsFromClassPopup(html) {
             afterWindow.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
             afterWindow.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
         if (enMatch) {
-            const candidate = stripTags(decodeHtmlEntities(enMatch[1])).replace(/\s+/g, ' ').trim();
+            const candidate = stripInvisibleNameNoise(
+                stripTags(decodeHtmlEntities(enMatch[1]))
+            );
             if (
                 candidate &&
                 !/^(Absent|Present|Late|Tardy|Early leave)$/i.test(candidate)
@@ -653,7 +679,7 @@ function parseStudentsFromClassPopup(html) {
     }
 
     // Fallback: paste-style numbered list from visible text (tail-trimmed).
-    const text = stripTags(raw)
+    const text = stripTags(decodeHtmlEntities(raw))
         .replace(/\s{2,}/g, '\n')
         .replace(/\n{3,}/g, '\n\n');
     return parseStudentsFromNumberedBlocks(text);

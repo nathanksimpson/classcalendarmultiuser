@@ -160,6 +160,27 @@ const FIXTURE_CLASS_SELECT = `
 }
 
 {
+    // Real TMS often wraps Hangul / mark in nested tags — old [^<]+ regex dropped these.
+    const html = `
+      <td><span><a href="javascript:studentinf(20101)">권이안<span style="color:red">◆</span></a><br></span></td>
+      <td><a href="javascript:studentinf(20102)"><font color="#c00">서하린</font></a>◆</td>
+      <td><a href="javascript:studentinf(20103)">민서아</a><br>(Mina)◆</td>
+      <td><a href="javascript:studentinf(20104)">윤도현&#9670;</a></td>
+      <td><a href="javascript:studentinf(20105)">하은별&#x25C6;</a></td>
+      <td><a href="javascript:studentinf(20106)">채원◆&#xfe0f;</a></td>
+    `;
+    const students = tms.parseStudentsFromClassPopup(html);
+    assert(students.length === 6, `nested/entity names expected 6, got ${students.length}`);
+    assert(students[0].name === '권이안◆', 'mark inside nested span kept');
+    assert(students[1].name === '서하린◆', 'font wrap + mark after </a>');
+    assert(students[2].name === '민서아◆', 'mark after English paren kept');
+    assert(students[2].nameEn === 'Mina', 'english before trailing mark');
+    assert(students[3].name === '윤도현◆', 'decimal &#9670; decoded');
+    assert(students[4].name === '하은별◆', 'hex &#x25C6; decoded');
+    assert(students[5].name === '채원◆', 'emoji variation selector stripped');
+}
+
+{
     const numbered = `
 Navy M
 1. 촬영실

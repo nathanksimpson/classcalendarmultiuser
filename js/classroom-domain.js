@@ -150,7 +150,7 @@
     /** Trailing identity mark after Hangul core, if any (e.g. ◆ on 권이안◆). */
     function nameDisambiguatorSuffix(name) {
         const key = koreanNameKey(name);
-        const m = key.match(/[\uac00-\ud7a3]+([◆◇♦♢★☆✦✧●○■□▲△▼▽※A-Za-z0-9])$/);
+        const m = key.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※A-Za-z0-9])$/);
         return m ? m[1] : '';
     }
 
