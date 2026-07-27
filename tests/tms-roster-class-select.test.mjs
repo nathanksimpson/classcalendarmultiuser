@@ -103,11 +103,14 @@ const FIXTURE_CLASS_SELECT = `
     assert(!tms.isLikelyStudentName('만족'), '만족 not a student name');
     assert(tms.isLikelyStudentName('조익차'), '조익차 is a student name');
     assert(tms.isLikelyStudentName('권익사◆'), 'disambiguator diamond allowed');
+    assert(tms.isLikelyStudentName('권익사♦'), 'card-suit diamond allowed');
     assert(tms.isLikelyStudentName('김민수A'), 'disambiguator latin allowed');
+    assert(tms.isLikelyStudentName('권익사 ◆'), 'space before mark normalized');
     assert(!tms.isLikelyStudentName('◆'), 'symbol alone rejected');
     assert(tms.stripTmsAttendanceNoise('권익사 (Absent)') === '권익사', 'strip english attendance');
     assert(tms.stripTmsAttendanceNoise('권익사 결석') === '권익사', 'strip korean attendance');
     assert(tms.normalizeTmsStudentName('권익사◆ 결석').name === '권익사◆', 'keep diamond after attendance strip');
+    assert(tms.normalizeTmsStudentName('권익사 ◆').name === '권익사◆', 'collapse space before mark');
 }
 
 {
@@ -142,13 +145,18 @@ const FIXTURE_CLASS_SELECT = `
       <td><a href="javascript:studentinf(10101)">권익사◆</a></td>
       <td><a href="javascript:studentinf(10102)">김민수A</a></td>
       <td><a href="javascript:studentinf(10103)">이엽타◆ (Absent)</a></td>
+      <td><a href="javascript:studentinf(10104)">박지훈</a>◆<br>(Alice)</td>
+      <td><a href="javascript:studentinf(10105)">최유나</a> ♦ </td>
     `;
     const students = tms.parseStudentsFromClassPopup(html);
-    assert(students.length === 3, `disambiguator names expected 3, got ${students.length}`);
+    assert(students.length === 5, `disambiguator names expected 5, got ${students.length}`);
     assert(students[0].name === '권익사◆', 'kept diamond disambiguator');
     assert(students[0].nameEn === '', 'empty english preserved');
     assert(students[1].name === '김민수A', 'kept latin disambiguator');
     assert(students[2].name === '이엽타◆', 'attendance stripped, diamond kept');
+    assert(students[3].name === '박지훈◆', 'mark after </a> captured');
+    assert(students[3].nameEn === 'Alice', 'english after trailing mark');
+    assert(students[4].name === '최유나♦', 'card-suit diamond after </a>');
 }
 
 {
