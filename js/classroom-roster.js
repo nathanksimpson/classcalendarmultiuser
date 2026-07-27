@@ -16,6 +16,7 @@
     let pastePreviewTimer = null;
     let tmsSyncPlan = [];
     let tmsSyncLoading = false;
+    let tmsSyncHasFetched = false;
     const selectedStudentIds = new Set();
 
     function domain() {
@@ -953,6 +954,56 @@
         }
     }
 
+    const TMS_USERNAME_STORAGE_KEY = 'ccp.tmsRosterUsername';
+
+    function clearTmsPasswordField() {
+        const pwd = document.getElementById('rosterTmsPassword');
+        if (pwd) {
+            pwd.value = '';
+        }
+    }
+
+    function readTmsCredFields() {
+        const userEl = document.getElementById('rosterTmsUsername');
+        const passEl = document.getElementById('rosterTmsPassword');
+        const rememberEl = document.getElementById('rosterTmsRememberUser');
+        return {
+            username: userEl ? String(userEl.value || '').trim() : '',
+            password: passEl ? String(passEl.value || '') : '',
+            rememberUser: Boolean(rememberEl && rememberEl.checked)
+        };
+    }
+
+    function persistTmsUsernamePreference(username, remember) {
+        try {
+            if (remember && username) {
+                localStorage.setItem(TMS_USERNAME_STORAGE_KEY, username);
+            } else {
+                localStorage.removeItem(TMS_USERNAME_STORAGE_KEY);
+            }
+        } catch (_) {
+            /* ignore quota / private mode */
+        }
+    }
+
+    function hydrateTmsCredForm() {
+        const userEl = document.getElementById('rosterTmsUsername');
+        const rememberEl = document.getElementById('rosterTmsRememberUser');
+        clearTmsPasswordField();
+        let saved = '';
+        try {
+            saved = String(localStorage.getItem(TMS_USERNAME_STORAGE_KEY) || '').trim();
+        } catch (_) {
+            saved = '';
+        }
+        if (userEl) {
+            userEl.value = saved;
+        }
+        if (rememberEl) {
+            rememberEl.checked = Boolean(saved);
+        }
+    }
+
     function setTmsSyncError(msg) {
         const el = document.getElementById('rosterTmsSyncError');
         if (!el) {
@@ -986,11 +1037,17 @@
     function closeTmsSyncModal() {
         tmsSyncPlan = [];
         tmsSyncLoading = false;
+        tmsSyncHasFetched = false;
         setTmsSyncError('');
         setTmsSyncStatus('');
+        clearTmsPasswordField();
         const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
         if (confirmBtn) {
             confirmBtn.disabled = true;
+        }
+        const loadBtn = document.getElementById('rosterTmsLoadBtn');
+        if (loadBtn) {
+            loadBtn.disabled = false;
         }
         const batchBar = document.getElementById('rosterTmsSyncBatchBar');
         if (batchBar) {
@@ -1093,6 +1150,60 @@
             .replace('{cleared}', String((s.cleared && s.cleared.length) || 0));
     }
 
+    function buildTmsPreviewExtraHint(summary) {
+        const s = summary || {};
+        const added = Array.isArray(s.added) ? s.added : [];
+        const fuzzyCleared = Array.isArray(s.fuzzyCleared) ? s.fuzzyCleared : [];
+        const cleared = Array.isArray(s.cleared) ? s.cleared : [];
+        const flagged = Array.isArray(s.flagged) ? s.flagged : [];
+        const matched = Array.isArray(s.matched) ? s.matched : [];
+        const incomplete = Array.isArray(s.warnings)
+            ? s.warnings.some((w) => w && w.code === 'incomplete_tms_scrape')
+            : false;
+        if (incomplete) {
+            return t('rosterTmsSyncIncompleteHint');
+        }
+        if (added.length) {
+            const names = added
+                .slice(0, 5)
+                .map((row) => row && row.name)
+                .filter(Boolean);
+            const extra = added.length > names.length ? ` (+${added.length - names.length})` : '';
+            return t('rosterTmsSyncAddedHint').replace('{names}', names.join(', ') + extra);
+        }
+        if (fuzzyCleared.length) {
+            const names = fuzzyCleared
+                .slice(0, 5)
+                .map((row) => row && row.name)
+                .filter(Boolean);
+            const extra =
+                fuzzyCleared.length > names.length
+                    ? ` (+${fuzzyCleared.length - names.length})`
+                    : '';
+            return t('rosterTmsSyncFuzzyClearHint').replace('{names}', names.join(', ') + extra);
+        }
+        if (cleared.length) {
+            const names = cleared
+                .slice(0, 5)
+                .map((row) => row && row.name)
+                .filter(Boolean);
+            const extra = cleared.length > names.length ? ` (+${cleared.length - names.length})` : '';
+            return t('rosterTmsSyncClearHint').replace('{names}', names.join(', ') + extra);
+        }
+        if (flagged.length === 0 && matched.length > 0) {
+            return t('rosterTmsSyncAllMatchedHint');
+        }
+        if (flagged.length) {
+            const names = flagged
+                .slice(0, 5)
+                .map((row) => row && row.name)
+                .filter(Boolean);
+            const extra = flagged.length > names.length ? ` (+${flagged.length - names.length})` : '';
+            return t('rosterTmsSyncFlaggedHint').replace('{names}', names.join(', ') + extra);
+        }
+        return '';
+    }
+
     function previewTmsRow(row) {
         if (!row || row.userAction !== 'map' || !row.userTargetId) {
             return { added: [], matched: [], flagged: [], cleared: [], warnings: [] };
@@ -1130,15 +1241,30 @@
                 const selected =
                     row.userAction === 'skip' ? '__skip__' : row.userTargetId || '';
                 const summary = previewTmsRow(row);
-                const warn =
-                    summary.warnings && summary.warnings.length
+                const warnList = Array.isArray(summary.warnings) ? summary.warnings : [];
+                const dupNames = warnList
+                    .filter((w) => w && w.code === 'duplicate_existing_name')
+                    .map((w) => w.name)
+                    .filter(Boolean);
+                const fuzzyPairs = warnList
+                    .filter((w) => w && w.code === 'fuzzy_syllable_match' && w.name && w.tmsName)
+                    .map((w) => `${w.tmsName} -> ${w.name}`);
+                const warn = [
+                    dupNames.length
                         ? `<div class="section-hint">${escapeHtml(
-                              t('rosterTmsSyncWarnDup').replace(
-                                  '{name}',
-                                  summary.warnings.map((w) => w.name).join(', ')
-                              )
+                              t('rosterTmsSyncWarnDup').replace('{name}', dupNames.join(', '))
                           )}</div>`
-                        : '';
+                        : '',
+                    fuzzyPairs.length
+                        ? `<div class="section-hint">${escapeHtml(
+                              t('rosterTmsSyncWarnFuzzy').replace('{pair}', fuzzyPairs.join(', '))
+                          )}</div>`
+                        : ''
+                ].join('');
+                const clearHintText = buildTmsPreviewExtraHint(summary);
+                const clearHint = clearHintText
+                    ? `<div class="section-hint">${escapeHtml(clearHintText)}</div>`
+                    : '';
                 let linkHint = '';
                 if (row.remembered) {
                     linkHint = `<div class="section-hint">${escapeHtml(t('rosterTmsSyncRemembered'))}</div>`;
@@ -1157,7 +1283,7 @@
                     <td>${escapeHtml(row.importCohortName)}${linkHint}</td>
                     <td>${row.studentCount}</td>
                     <td><select class="field-select roster-tms-target" data-tms-row="${idx}">${optionsHtml(selected)}</select></td>
-                    <td>${escapeHtml(buildTmsPreviewLine(summary))}${warn}</td>
+                    <td>${escapeHtml(buildTmsPreviewLine(summary))}${clearHint}${warn}</td>
                 </tr>`;
             })
             .join('');
@@ -1169,7 +1295,9 @@
             <th>${escapeHtml(t('rosterTmsSyncColPreview'))}</th>
         </tr></thead><tbody>${
             rows ||
-            `<tr><td colspan="4">${escapeHtml(t('rosterTmsSyncEmpty'))}</td></tr>`
+            `<tr><td colspan="4">${escapeHtml(
+                tmsSyncHasFetched ? t('rosterTmsSyncEmpty') : t('rosterTmsSyncIdle')
+            )}</td></tr>`
         }</tbody></table>`;
 
         mount.querySelectorAll('select.roster-tms-target').forEach((sel) => {
@@ -1207,50 +1335,227 @@
         syncTmsBatchBarVisibility();
     }
 
-    async function openTmsSyncModal() {
+    function openTmsSyncModal() {
         if (!hooks || !hooks.openModal) {
             return;
         }
         tmsSyncPlan = [];
+        tmsSyncLoading = false;
+        tmsSyncHasFetched = false;
+        setTmsSyncError('');
+        setTmsSyncStatus('');
+        hydrateTmsCredForm();
+        renderTmsSyncTable();
+        hooks.openModal(document.getElementById('rosterTmsSyncModal'));
+        const userEl = document.getElementById('rosterTmsUsername');
+        const passEl = document.getElementById('rosterTmsPassword');
+        if (userEl && !userEl.value) {
+            userEl.focus();
+        } else if (passEl) {
+            passEl.focus();
+        }
+    }
+
+    function isLocalClassManagerHost() {
+        try {
+            if (typeof location === 'undefined') {
+                return false;
+            }
+            const host = String(location.hostname || '').toLowerCase();
+            return host === 'localhost' || host === '127.0.0.1';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function tmsBridgeFetchInit(extra) {
+        const init = Object.assign(
+            {
+                credentials: 'omit',
+                // Chrome Local Network Access: 127.0.0.1 / localhost are loopback
+                // (not LAN "local") — mismatch causes silent block with no prompt.
+                targetAddressSpace: 'loopback'
+            },
+            extra || {}
+        );
+        return init;
+    }
+
+    function getTmsBridgeBaseCandidates() {
+        return ['http://127.0.0.1:8080', 'http://localhost:8080'];
+    }
+
+    async function probeTmsLocalBridge() {
+        // Already on local server — use same-origin preview, not the cross-origin bridge.
+        if (isLocalClassManagerHost()) {
+            return null;
+        }
+        const bases = getTmsBridgeBaseCandidates();
+        let lastErr = null;
+        for (const base of bases) {
+            const pingUrl = `${base}/api/tms/bridge/ping`;
+            const controller =
+                typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), 3000) : null;
+            try {
+                const res = await fetch(
+                    pingUrl,
+                    tmsBridgeFetchInit({
+                        method: 'GET',
+                        signal: controller ? controller.signal : undefined
+                    })
+                );
+                if (timer) {
+                    clearTimeout(timer);
+                }
+                if (!res.ok) {
+                    lastErr = new Error(`bridge ping HTTP ${res.status} at ${base}`);
+                    continue;
+                }
+                const body = await res.json().catch(() => null);
+                if (!body || body.ok !== true || body.bridge !== true) {
+                    lastErr = new Error(`bridge ping invalid JSON at ${base}`);
+                    continue;
+                }
+                return {
+                    base,
+                    previewUrl: `${base}/api/tms/bridge/preview`
+                };
+            } catch (err) {
+                if (timer) {
+                    clearTimeout(timer);
+                }
+                lastErr = err;
+            }
+        }
+        if (typeof console !== 'undefined' && console.warn) {
+            console.warn(
+                '[TMS bridge] local probe failed — keep START TEAM CALENDAR.bat running and Allow local network access for classmanager.live',
+                lastErr
+            );
+        }
+        return null;
+    }
+
+    async function loadTmsSyncPreview() {
+        if (!hooks) {
+            return;
+        }
+        if (hooks.isViewOnly && hooks.isViewOnly()) {
+            setTmsSyncError(t('rosterImportReadOnly'));
+            return;
+        }
+        const creds = readTmsCredFields();
+        persistTmsUsernamePreference(creds.username, creds.rememberUser);
+
+        tmsSyncPlan = [];
         tmsSyncLoading = true;
+        tmsSyncHasFetched = false;
         setTmsSyncError('');
         setTmsSyncStatus(t('rosterTmsSyncLoading'));
         renderTmsSyncTable();
-        hooks.openModal(document.getElementById('rosterTmsSyncModal'));
+        const loadBtn = document.getElementById('rosterTmsLoadBtn');
+        if (loadBtn) {
+            loadBtn.disabled = true;
+        }
         try {
-            const res = await fetch('/api/tms/roster/preview', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: '{}'
-            });
-            const body = await res.json().catch(() => ({}));
+            const payload = {};
+            if (creds.username || creds.password) {
+                payload.username = creds.username;
+                payload.password = creds.password;
+            }
+
+            const onLocalHost = isLocalClassManagerHost();
+            const bridge = await probeTmsLocalBridge();
+            let usedBridge = false;
+            let res;
+
+            if (bridge) {
+                usedBridge = true;
+                setTmsSyncStatus(t('rosterTmsBridgeLoading'));
+                res = await fetch(
+                    bridge.previewUrl,
+                    tmsBridgeFetchInit({
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                );
+            } else if (onLocalHost) {
+                // Local UI: scrape from this Node process (work IP).
+                res = await fetch('/api/tms/roster/preview', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                // Live site without reachable bridge — do not fall back to Worker
+                // (Cloudflare IPs are usually blocked by TMS).
+                setTmsSyncError(
+                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
+                );
+                setTmsSyncStatus('');
+                tmsSyncLoading = false;
+                if (loadBtn) {
+                    loadBtn.disabled = false;
+                }
+                renderTmsSyncTable();
+                return;
+            }
+
+            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+            const body = contentType.includes('application/json')
+                ? await res.json().catch(() => null)
+                : null;
             if (!res.ok) {
                 const code = body && body.code;
                 if (code === 'TMS_CREDS_MISSING') {
                     setTmsSyncError(t('rosterTmsSyncCredsMissing'));
                 } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
                     setTmsSyncError(t('rosterTmsSyncLoginFailed'));
+                } else if (res.status === 404 || !body) {
+                    setTmsSyncError(t('rosterTmsSyncUnavailable'));
                 } else {
                     setTmsSyncError((body && body.error) || t('rosterTmsSyncError'));
                 }
                 setTmsSyncStatus('');
                 tmsSyncLoading = false;
+                if (loadBtn) {
+                    loadBtn.disabled = false;
+                }
                 renderTmsSyncTable();
                 return;
             }
-            const cohorts = Array.isArray(body.cohorts) ? body.cohorts : [];
+            if (!body || !Array.isArray(body.cohorts)) {
+                setTmsSyncError(t('rosterTmsSyncUnavailable'));
+                setTmsSyncStatus('');
+                tmsSyncLoading = false;
+                if (loadBtn) {
+                    loadBtn.disabled = false;
+                }
+                renderTmsSyncTable();
+                return;
+            }
+            tmsSyncHasFetched = true;
+            clearTmsPasswordField();
+            const cohorts = body.cohorts;
             const calendar = getCohorts();
             const links = getTmsRosterLinks();
             tmsSyncPlan = cohorts.map((c) => buildTmsPlanRowFromScrape(c, calendar, links));
             if (!tmsSyncPlan.length) {
-                setTmsSyncStatus(t('rosterTmsSyncEmpty'));
+                setTmsSyncStatus(
+                    usedBridge
+                        ? `${t('rosterTmsBridgeConnected')} ${t('rosterTmsSyncEmpty')}`
+                        : t('rosterTmsSyncEmpty')
+                );
             } else {
                 const meta = body.meta || {};
                 const remembered = tmsSyncPlan.filter((r) => r.remembered).length;
                 const needChoose = tmsSyncPlan.filter((r) => r.userAction === 'choose').length;
+                const summary = `${meta.cohortCount || tmsSyncPlan.length} classes · ${meta.studentCount || 0} students · ${remembered} remembered · ${needChoose} new`;
                 setTmsSyncStatus(
-                    `${meta.cohortCount || tmsSyncPlan.length} classes · ${meta.studentCount || 0} students · ${remembered} remembered · ${needChoose} new`
+                    usedBridge ? `${t('rosterTmsBridgeConnected')} ${summary}` : summary
                 );
             }
         } catch (err) {
@@ -1258,6 +1563,9 @@
             setTmsSyncStatus('');
         }
         tmsSyncLoading = false;
+        if (loadBtn) {
+            loadBtn.disabled = false;
+        }
         renderTmsSyncTable();
     }
 
@@ -1340,13 +1648,25 @@
         });
         panel.querySelector('#classroomRosterTmsSyncBtn')?.addEventListener('click', () => {
             closeImportMenu();
-            void openTmsSyncModal();
+            openTmsSyncModal();
         });
 
         document.getElementById('closeRosterPasteModal')?.addEventListener('click', closePasteModal);
         document.getElementById('cancelRosterPasteBtn')?.addEventListener('click', closePasteModal);
         document.getElementById('closeRosterTmsSyncModal')?.addEventListener('click', closeTmsSyncModal);
         document.getElementById('cancelRosterTmsSyncBtn')?.addEventListener('click', closeTmsSyncModal);
+        document.getElementById('rosterTmsLoadBtn')?.addEventListener('click', () => {
+            void loadTmsSyncPreview();
+        });
+        document.getElementById('rosterTmsBridgeTestBtn')?.addEventListener('click', () => {
+            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
+        });
+        document.getElementById('rosterTmsPassword')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                void loadTmsSyncPreview();
+            }
+        });
         document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
             void confirmTmsSync();
         });

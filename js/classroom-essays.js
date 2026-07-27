@@ -16,6 +16,10 @@
     const progressReportSelectedKeys = new Set();
     let progressReportOutstandingOnly = false;
     const classSummarySelectedKeys = new Set();
+    let classSummaryFilters = {
+        homeroomKey: '',
+        month: ''
+    };
     let resubmitDayNoteDirty = false;
     let resubmitDayNoteSyncInFlight = false;
     let essayClassSearchQuery = '';
@@ -193,10 +197,14 @@
         return classes;
     }
 
-    function getEssayVisibleClasses() {
+    function getEssayVisibleClasses(options) {
         // Do NOT rely on CCPClassroomZoneContext here.
         // In production the zone context is not active for Essays, so its internal activeTabId
         // may not be 'essays' and non-essay classes can leak into the Essays tab/report flows.
+        const opts = options || {};
+        const essaysOnly = Object.prototype.hasOwnProperty.call(opts, 'essaysOnly')
+            ? Boolean(opts.essaysOnly)
+            : true;
         const base = getAccessibleClasses();
         const api = global.CCPEssayClassFilter;
         const d = domain();
@@ -213,21 +221,26 @@
             }
         };
         if (api && typeof api.filterClassesForZoneContext === 'function') {
-            return api.filterClassesForZoneContext(base, { myClassesOnly, essaysOnly: true }, ctx);
+            return api.filterClassesForZoneContext(base, { myClassesOnly, essaysOnly }, ctx);
         }
-        if (api && typeof api.classHasEssayAssignments === 'function') {
-            const filtered = base.filter((c) => api.classHasEssayAssignments(c, d));
-            return myClassesOnly && ctx.deps.classIsMine
-                ? filtered.filter((c) => ctx.deps.classIsMine(c, ctx.currentUserId))
-                : filtered;
+        let filtered = base;
+        if (essaysOnly) {
+            if (api && typeof api.classHasEssayAssignments === 'function') {
+                filtered = base.filter((c) => api.classHasEssayAssignments(c, d));
+            } else if (d && typeof d.getEssayRowsFromSyllabus === 'function') {
+                filtered = base.filter(
+                    (c) => d.getEssayRowsFromSyllabus(c && c.syllabusRows).length > 0
+                );
+            }
         }
-        if (d && typeof d.getEssayRowsFromSyllabus === 'function') {
-            const filtered = base.filter((c) => d.getEssayRowsFromSyllabus(c && c.syllabusRows).length > 0);
-            return myClassesOnly && ctx.deps.classIsMine
-                ? filtered.filter((c) => ctx.deps.classIsMine(c, ctx.currentUserId))
-                : filtered;
-        }
-        return base;
+        return myClassesOnly && ctx.deps.classIsMine
+            ? filtered.filter((c) => ctx.deps.classIsMine(c, ctx.currentUserId))
+            : filtered;
+    }
+
+    /** Class picker: all of my classes (so Add assignment works before any essays exist). */
+    function getEssayPickerClasses() {
+        return getEssayVisibleClasses({ essaysOnly: false });
     }
 
     function syncClassIdFromContext() {
@@ -313,22 +326,32 @@
 
     function ensureClassVisibleAfterFilter(panel, options) {
         const silent = options && options.silent;
-        const zone = global.CCPClassroomZoneContext;
-        if (zone && zone.ensureActiveClassVisible) {
-            const switched = zone.ensureActiveClassVisible();
-            if (switched) {
-                syncClassIdFromContext();
-                applyResolvedAssignment(getClassData());
-                selectedStudentIds.clear();
-                loadSubmission();
-                if (!silent && panel && hooks && hooks.showToast) {
-                    const cls = getClassData();
-                    hooks.showToast(tf('essayClassFilterSwitchedClass', { name: (cls && cls.name) || classId }));
-                }
-                return true;
-            }
+        // Use picker list (includes classes with no essays yet) so Add assignment stays usable.
+        const visible = getEssayPickerClasses();
+        if (!visible.length) {
+            return false;
         }
-        return false;
+        if (classId && visible.some((c) => c && c.id === classId)) {
+            return false;
+        }
+        const nextId = visible[0].id;
+        if (typeof global.CCPActiveContext !== 'undefined') {
+            global.CCPActiveContext.set({ classId: nextId }, { source: 'essays-class-filter' });
+        } else if (hooks && hooks.setUiPref) {
+            hooks.setUiPref('classroomTabClassId', nextId);
+            classId = nextId;
+        } else {
+            classId = nextId;
+        }
+        syncClassIdFromContext();
+        applyResolvedAssignment(getClassData());
+        selectedStudentIds.clear();
+        loadSubmission();
+        if (!silent && panel && hooks && hooks.showToast) {
+            const cls = getClassData();
+            hooks.showToast(tf('essayClassFilterSwitchedClass', { name: (cls && cls.name) || classId }));
+        }
+        return true;
     }
 
     function getAssignmentLabelForCurrent() {
@@ -741,6 +764,28 @@
                 }
             });
         }
+        const filtersRaw = data.ui && data.ui.essayClassSummaryFilters;
+        classSummaryFilters = { homeroomKey: '', month: '' };
+        if (typeof filtersRaw === 'string' && filtersRaw.trim()) {
+            try {
+                const parsed = JSON.parse(filtersRaw);
+                if (parsed && typeof parsed === 'object') {
+                    classSummaryFilters = {
+                        homeroomKey:
+                            typeof parsed.homeroomKey === 'string' ? parsed.homeroomKey : '',
+                        month: typeof parsed.month === 'string' ? parsed.month : ''
+                    };
+                }
+            } catch (_err) {
+                classSummaryFilters = { homeroomKey: '', month: '' };
+            }
+        } else if (filtersRaw && typeof filtersRaw === 'object') {
+            classSummaryFilters = {
+                homeroomKey:
+                    typeof filtersRaw.homeroomKey === 'string' ? filtersRaw.homeroomKey : '',
+                month: typeof filtersRaw.month === 'string' ? filtersRaw.month : ''
+            };
+        }
     }
 
     function saveClassSummarySelection() {
@@ -750,6 +795,37 @@
                 Array.from(classSummarySelectedKeys).join(',')
             );
         }
+    }
+
+    function saveClassSummaryFilters() {
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref(
+                'essayClassSummaryFilters',
+                JSON.stringify({
+                    homeroomKey: classSummaryFilters.homeroomKey || '',
+                    month: classSummaryFilters.month || ''
+                })
+            );
+        }
+    }
+
+    function syncClassSummaryFiltersFromDom() {
+        const hrEl = document.getElementById('essayClassSummaryHomeroomFilter');
+        const monthEl = document.getElementById('essayClassSummaryMonthFilter');
+        classSummaryFilters = {
+            homeroomKey: hrEl ? String(hrEl.value || '') : classSummaryFilters.homeroomKey || '',
+            month: monthEl ? String(monthEl.value || '') : classSummaryFilters.month || ''
+        };
+        saveClassSummaryFilters();
+    }
+
+    function listFilteredClassSummaryAssignments() {
+        const all = listProgressAssignments();
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        if (!summaryApi || !summaryApi.filterAssignmentsByHrAndMonth) {
+            return all;
+        }
+        return summaryApi.filterAssignmentsByHrAndMonth(all, getAppData(), classSummaryFilters);
     }
 
     function formatClassSummaryAssignmentHint(row) {
@@ -789,11 +865,11 @@
         if (!progressApi) {
             return [];
         }
-        const all = listProgressAssignments();
+        const filtered = listFilteredClassSummaryAssignments();
         if (!classSummarySelectedKeys.size) {
             return [];
         }
-        return progressApi.filterAssignments(all, {
+        return progressApi.filterAssignments(filtered, {
             selectedKeys: classSummarySelectedKeys,
             outstandingOnly: false
         });
@@ -896,13 +972,61 @@
         }
     }
 
+    function populateClassSummaryFilterSelects(allAssignments) {
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        const hrEl = document.getElementById('essayClassSummaryHomeroomFilter');
+        const monthEl = document.getElementById('essayClassSummaryMonthFilter');
+        const appData = getAppData();
+        if (hrEl && summaryApi && summaryApi.listHomeroomFilterOptions) {
+            const options = summaryApi.listHomeroomFilterOptions(allAssignments, appData);
+            const prev = classSummaryFilters.homeroomKey || '';
+            const parts = [
+                `<option value="">${escapeHtml(t('classroomEssayClassSummaryFilterAllHomerooms'))}</option>`
+            ];
+            options.forEach((opt) => {
+                if (!opt || !opt.key) {
+                    return;
+                }
+                const label =
+                    opt.key === summaryApi.NO_HOMEROOM_KEY
+                        ? t('classroomEssayClassSummaryNoHomeroom')
+                        : opt.label || opt.key;
+                parts.push(
+                    `<option value="${escapeAttr(opt.key)}">${escapeHtml(label)}</option>`
+                );
+            });
+            hrEl.innerHTML = parts.join('');
+            const valid = !prev || options.some((o) => o && o.key === prev);
+            hrEl.value = valid ? prev : '';
+            classSummaryFilters.homeroomKey = hrEl.value || '';
+        }
+        if (monthEl && summaryApi && summaryApi.listMonthFilterOptions) {
+            const months = summaryApi.listMonthFilterOptions(allAssignments);
+            const prev = classSummaryFilters.month || '';
+            const parts = [
+                `<option value="">${escapeHtml(t('classroomEssayClassSummaryFilterAllMonths'))}</option>`
+            ];
+            months.forEach((month) => {
+                parts.push(
+                    `<option value="${escapeAttr(month)}">${escapeHtml(month)}</option>`
+                );
+            });
+            monthEl.innerHTML = parts.join('');
+            const valid = !prev || months.includes(prev);
+            monthEl.value = valid ? prev : '';
+            classSummaryFilters.month = monthEl.value || '';
+        }
+    }
+
     function renderClassSummaryModal() {
         const listEl = document.getElementById('essayClassSummaryAssignmentList');
         const previewEl = document.getElementById('essayClassSummaryPreview');
         if (!listEl) {
             return;
         }
-        const assignments = listProgressAssignments();
+        const allAssignments = listProgressAssignments();
+        populateClassSummaryFilterSelects(allAssignments);
+        const assignments = listFilteredClassSummaryAssignments();
         const grouped = global.CCPClassroomEssayProgress
             ? global.CCPClassroomEssayProgress.groupAssignmentsByClass(assignments)
             : [];
@@ -979,13 +1103,25 @@
                 hooks.closeModal(modal);
             }
         });
+        document.getElementById('essayClassSummaryHomeroomFilter')?.addEventListener('change', () => {
+            syncClassSummaryFiltersFromDom();
+            renderClassSummaryModal();
+        });
+        document.getElementById('essayClassSummaryMonthFilter')?.addEventListener('change', () => {
+            syncClassSummaryFiltersFromDom();
+            renderClassSummaryModal();
+        });
         document.getElementById('essayClassSummarySelectAll')?.addEventListener('click', () => {
-            listProgressAssignments().forEach((row) => classSummarySelectedKeys.add(row.key));
+            listFilteredClassSummaryAssignments().forEach((row) => classSummarySelectedKeys.add(row.key));
             saveClassSummarySelection();
             renderClassSummaryModal();
         });
         document.getElementById('essayClassSummaryClearAll')?.addEventListener('click', () => {
-            classSummarySelectedKeys.clear();
+            listFilteredClassSummaryAssignments().forEach((row) => {
+                if (row && row.key) {
+                    classSummarySelectedKeys.delete(row.key);
+                }
+            });
             saveClassSummarySelection();
             renderClassSummaryModal();
         });
@@ -1427,7 +1563,15 @@
         }
         const ssDue = draftSubmission.ssDueDate || '';
         const teDue = draftSubmission.teacherEvalDueDate || '';
-        const overdueSub = d.essayOverdueNotSubmittedCount(draftSubmission, ssDue, students.length);
+        const activeStudentIds = students
+            .map((entry) => entry && entry.student && entry.student.id)
+            .filter(Boolean);
+        const overdueSub = d.essayOverdueNotSubmittedCount(
+            draftSubmission,
+            ssDue,
+            students.length,
+            activeStudentIds
+        );
         let evalOverdue = 0;
         if (d.isEssayTeacherEvalOverdue(draftSubmission, teDue)) {
             evalOverdue = d.essayPendingTeacherEvalCount(draftSubmission);
@@ -1491,6 +1635,18 @@
             }
             if (essayClassAttentionFilter === 'overdue' && !(counts.od > 0)) {
                 return false;
+            }
+            if (essayClassAttentionFilter === 'has_essays') {
+                const api = global.CCPEssayClassFilter;
+                const has =
+                    api && api.classHasEssayAssignments
+                        ? api.classHasEssayAssignments(c, d)
+                        : d && d.getEssayRowsFromSyllabus
+                          ? d.getEssayRowsFromSyllabus(c.syllabusRows).length > 0
+                          : false;
+                if (!has) {
+                    return false;
+                }
             }
             if (essayClassAttentionFilter === 'mine') {
                 const teachers = Array.isArray(c.teacherIds) ? c.teacherIds : [];
@@ -1841,20 +1997,6 @@
         return true;
     }
 
-    function ensureEssaysOnlyDefault() {
-        const ui = getAppData().ui || {};
-        if (
-            ui.classroomZoneEssaysOnly !== true &&
-            ui.classroomZoneEssaysOnly !== '1' &&
-            ui.classroomZoneEssaysOnly !== false &&
-            ui.classroomZoneEssaysOnly !== '0'
-        ) {
-            if (hooks && hooks.setUiPref) {
-                hooks.setUiPref('classroomZoneEssaysOnly', '1');
-            }
-        }
-    }
-
     function buildSsOverduePill(isoDate) {
         const d = domain();
         if (!d || !isoDate) {
@@ -2063,7 +2205,7 @@
         };
 
         const classes = filterClassesForAttention(
-            filterEssayClassesForSearch(getEssayVisibleClasses(), essayClassSearchQuery, classId)
+            filterEssayClassesForSearch(getEssayPickerClasses(), essayClassSearchQuery, classId)
         );
 
         const listHtml = classes.length
@@ -2095,6 +2237,7 @@
                 <input type="search" id="classroomEssaysClassSearch" class="field-input module-list-search" autocomplete="off" spellcheck="false" value="${escapeAttr(essayClassSearchQuery)}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" data-i18n-placeholder="classListSearchPlaceholder" />
                 <div class="classroom-essay-class-filter-chips" role="group">
                     ${chip('all', 'classroomEssayFilterAll')}
+                    ${chip('has_essays', 'classroomZoneEssaysOnly')}
                     ${chip('resubmits', 'classroomEssayClassFilterResubmits')}
                     ${chip('overdue', 'classroomEssayClassFilterOverdue')}
                     ${chip('mine', 'classroomZoneMyClassesOnly')}
@@ -2211,6 +2354,14 @@
                 renderRows(panel);
             }
         });
+        mount.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('#classroomEssaysAddAssignmentBtn') : null;
+            if (!btn || !mount.contains(btn)) {
+                return;
+            }
+            e.preventDefault();
+            openAddAssignmentModal(panel);
+        });
     }
 
     function renderContextBar(panel) {
@@ -2257,10 +2408,13 @@
                             <span class="classroom-essay-class-picker__chevron" aria-hidden="true">▾</span>
                         </button>
                     </div>
-                    <label class="classroom-essay-context-field classroom-essay-context-field--grow">
+                    <div class="classroom-essay-context-field classroom-essay-context-field--grow">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>
-                        <select id="classroomEssaysAssignmentSelect" class="field-select field-control classroom-essay-datefield">${assignmentOpts}</select>
-                    </label>
+                        <div class="classroom-essay-assignment-row">
+                            <select id="classroomEssaysAssignmentSelect" class="field-select field-control classroom-essay-datefield" aria-label="${escapeAttr(t('classroomEssayAssignmentLabel'))}">${assignmentOpts}</select>
+                            <button type="button" id="classroomEssaysAddAssignmentBtn" class="btn btn-outline btn-compact"${editable && classData ? '' : ' disabled'}>${escapeHtml(t('classroomEssayAddAssignmentBtn'))}</button>
+                        </div>
+                    </div>
                     <label class="classroom-essay-context-field">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssaySsDueShort'))}</span>
                         <input type="date" id="classroomEssaysSsDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(ss)}"${deadlineDisabled} />
@@ -2275,6 +2429,10 @@
             if (select) {
                 select.innerHTML = assignmentOpts;
                 select.disabled = !assignments.length || !editable;
+            }
+            const addBtn = mount.querySelector('#classroomEssaysAddAssignmentBtn');
+            if (addBtn) {
+                addBtn.disabled = !(editable && classData);
             }
             const ssInput = mount.querySelector('#classroomEssaysSsDue');
             if (ssInput) {
@@ -2306,6 +2464,156 @@
         currentFilter = 'all';
         loadSubmission();
         render(panel);
+    }
+
+    function setAddAssignmentError(message) {
+        const el = document.getElementById('essayAddAssignmentError');
+        if (!el) {
+            return;
+        }
+        if (message) {
+            el.hidden = false;
+            el.textContent = message;
+        } else {
+            el.hidden = true;
+            el.textContent = '';
+        }
+    }
+
+    function closeAddAssignmentModal() {
+        const modal = document.getElementById('essayAddAssignmentModal');
+        if (!modal) {
+            return;
+        }
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+            modal.hidden = true;
+        }
+    }
+
+    function openAddAssignmentModal(panel) {
+        const classData = getClassData();
+        const d = domain();
+        if (!classData || !d || !d.createCustomEssayAssignment) {
+            return;
+        }
+        if (access() && !access().canEditClass(classData) && !access().canBypass()) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayAddAssignmentNoPermission'), true);
+            }
+            return;
+        }
+        const modal = document.getElementById('essayAddAssignmentModal');
+        if (!modal) {
+            return;
+        }
+        const classLabel = document.getElementById('essayAddAssignmentClassLabel');
+        if (classLabel) {
+            classLabel.textContent = tf('classroomEssayAddAssignmentForClass', {
+                name: classData.name || classData.id
+            });
+        }
+        const titleInput = document.getElementById('essayAddAssignmentTitleInput');
+        const dateInput = document.getElementById('essayAddAssignmentDateInput');
+        if (titleInput) {
+            titleInput.value = '';
+        }
+        if (dateInput) {
+            dateInput.value = (d.todayISO && d.todayISO()) || '';
+        }
+        setAddAssignmentError('');
+        if (hooks && hooks.openModal) {
+            hooks.openModal(modal);
+        } else {
+            modal.classList.add('active');
+            modal.hidden = false;
+        }
+        if (titleInput) {
+            titleInput.focus();
+        }
+    }
+
+    async function confirmAddAssignment() {
+        const d = domain();
+        const classData = getClassData();
+        const panel = panelRef || document.getElementById('panel-essays');
+        if (!d || !d.createCustomEssayAssignment || !classData) {
+            return;
+        }
+        if (access() && !access().canEditClass(classData) && !access().canBypass()) {
+            setAddAssignmentError(t('classroomEssayAddAssignmentNoPermission'));
+            return;
+        }
+        const title = (document.getElementById('essayAddAssignmentTitleInput')?.value || '').trim();
+        const date = (document.getElementById('essayAddAssignmentDateInput')?.value || '').trim();
+        const result = d.createCustomEssayAssignment(classData, { title, date });
+        if (result.error === 'missing_title') {
+            setAddAssignmentError(t('classroomEssayAddAssignmentNeedTitle'));
+            return;
+        }
+        if (result.error === 'invalid_date') {
+            setAddAssignmentError(t('classroomEssayAddAssignmentNeedDate'));
+            return;
+        }
+        if (result.error || !result.classData || !result.syllabusRowId) {
+            setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
+            return;
+        }
+        const data = getAppData();
+        const idx = (data.classes || []).findIndex((c) => c && c.id === classData.id);
+        if (idx < 0) {
+            setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
+            return;
+        }
+        data.classes[idx] = result.classData;
+        try {
+            if (typeof global.saveData === 'function') {
+                await Promise.resolve(global.saveData());
+            }
+        } catch (err) {
+            setAddAssignmentError(
+                (err && err.message) || t('classroomEssayAddAssignmentFailed')
+            );
+            return;
+        }
+        closeAddAssignmentModal();
+        syllabusRowId = result.syllabusRowId;
+        lessonDate = date;
+        persistEssayAssignmentForClass(classData.id, result.syllabusRowId);
+        selectedStudentIds.clear();
+        currentFilter = 'all';
+        loadSubmission();
+        if (panel) {
+            render(panel);
+        }
+        if (hooks && hooks.showToast) {
+            hooks.showToast(t('classroomEssayAddAssignmentDone'));
+        }
+    }
+
+    function bindAddAssignmentModal() {
+        const modal = document.getElementById('essayAddAssignmentModal');
+        if (!modal || modal.dataset.bound === '1') {
+            return;
+        }
+        modal.dataset.bound = '1';
+        document.getElementById('essayAddAssignmentClose')?.addEventListener('click', () => {
+            closeAddAssignmentModal();
+        });
+        document.getElementById('essayAddAssignmentCancel')?.addEventListener('click', () => {
+            closeAddAssignmentModal();
+        });
+        document.getElementById('essayAddAssignmentConfirm')?.addEventListener('click', () => {
+            void confirmAddAssignment();
+        });
+        document.getElementById('essayAddAssignmentTitleInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                void confirmAddAssignment();
+            }
+        });
     }
 
     function statusFilterSegments() {
@@ -3289,7 +3597,7 @@
         await flushBeforeLeave();
         const data = getAppData();
         const d = domain();
-        const visible = getEssayVisibleClasses();
+        const visible = getEssayPickerClasses();
         if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
             classId = global.CCPActiveContext.resolveActiveClassId(data, {
                 classId: options && options.classId,
@@ -3310,8 +3618,8 @@
         loadSubmission();
         bindProgressReportModal();
         bindClassSummaryModal();
+        bindAddAssignmentModal();
         bindResubmitSummaryModal();
-        ensureEssaysOnlyDefault();
         ensureClassVisibleAfterFilter(document.getElementById('panel-essays'), { silent: true });
         const panel = document.getElementById('panel-essays');
         render(panel);

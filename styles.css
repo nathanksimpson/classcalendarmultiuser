@@ -16149,6 +16149,19 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     flex: 1 1 240px;
 }
 
+.classroom-essay-assignment-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.classroom-essay-assignment-row .classroom-essay-datefield {
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+
 .classroom-essay-context-label {
     font-size: 0.6875rem;
     font-weight: 600;

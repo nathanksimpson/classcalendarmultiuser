@@ -33,7 +33,7 @@
             'js/roster-import.js?v=20260723-tms-sync',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260724-bulk-status'
+            'js/classroom-roster.js?v=20260727-tms-roster-fix'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
@@ -55,10 +55,10 @@
             'js/classroom-essay-progress-print.js?v=20260724-essay-overdue',
             'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
-            'js/classroom-essay-class-summary.js?v=20260724-essay-overdue',
+            'js/classroom-essay-class-summary.js?v=20260724-class-summary-filters',
             'js/classroom-essay-class-summary-print.js?v=20260724-essay-overdue',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260724-essay-overdue-restore'
+            'js/classroom-essays.js?v=20260724-essay-picker-all'
         ],
         ledger: [
             'js/classroom-access.js?v=20260612-classroom-mvp',

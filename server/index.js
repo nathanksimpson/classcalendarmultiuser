@@ -21,6 +21,10 @@ const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
 const ViewAs = require('./view-as');
 const tmsRoster = require('./tms-roster');
+const {
+    isLoopbackRequest,
+    tmsBridgeAllowedOrigin
+} = require('./tms-bridge-security');
 const { getDb } = require('./schema');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -238,6 +242,85 @@ function rejectViewAsWrites(req, res, next) {
         return;
     }
     next();
+}
+
+/** CORS + Private Network Access for live-site → localhost TMS bridge only. */
+function applyTmsBridgeCors(req, res) {
+    const origin = tmsBridgeAllowedOrigin(req.headers.origin);
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Access-Control-Max-Age', '600');
+        // Always allow private-network / local-network access for allowlisted origins
+        // (Chrome LNA / PNA preflight requires this for https → 127.0.0.1).
+        res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    }
+    return Boolean(origin);
+}
+
+function requireTmsBridgeLoopback(req, res) {
+    applyTmsBridgeCors(req, res);
+    if (!isLoopbackRequest(req)) {
+        res.status(403).json({ error: 'TMS bridge is only available on localhost', code: 'TMS_BRIDGE_DENIED' });
+        return false;
+    }
+    return true;
+}
+
+async function runTmsRosterPreview(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    const bodyUser = String(payload.username || '').trim();
+    const bodyPass = String(payload.password || '');
+    let scrapeOpts = {};
+    if (bodyUser || bodyPass) {
+        if (!bodyUser || !bodyPass) {
+            const err = new Error('TMS username and password are required');
+            err.code = 'TMS_CREDS_MISSING';
+            err.status = 503;
+            throw err;
+        }
+        scrapeOpts = { username: bodyUser, password: bodyPass };
+    }
+    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
+    if (!tmsRoster.credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        err.status = 503;
+        throw err;
+    }
+    const result = await tmsRoster.scrapeRosters(scrapeOpts);
+    return {
+        cohorts: result.cohorts,
+        meta: {
+            homeUrl: result.meta && result.meta.homeUrl,
+            pagesFetched: result.meta && result.meta.pagesFetched,
+            cohortCount: (result.cohorts || []).length,
+            studentCount: (result.cohorts || []).reduce(
+                (n, c) => n + ((c.students && c.students.length) || 0),
+                0
+            )
+        }
+    };
+}
+
+function sendTmsPreviewError(res, err) {
+    const code = err && err.code;
+    if (code === 'TMS_LOGIN_FAILED') {
+        return res.status(401).json({ error: (err && err.message) || 'TMS login failed', code });
+    }
+    if (code === 'TMS_CREDS_MISSING') {
+        return res.status(err.status || 503).json({
+            error: (err && err.message) || 'TMS credentials missing',
+            code
+        });
+    }
+    console.error('TMS roster preview failed', err);
+    return res.status(502).json({
+        error: (err && err.message) || 'TMS sync failed',
+        code: 'TMS_SCRAPE_FAILED'
+    });
 }
 
 function requirePermission(perm) {
@@ -1118,41 +1201,44 @@ app.post('/api/backup', requireUser, rejectViewAsWrites, (_req, res) => {
     res.json({ skipped: true, reason: 'Use Synology or export from Print & data tab for backups' });
 });
 
-/** Local-only TMS roster preview (credentials from server .env). */
+/** TMS roster preview — body credentials preferred; local .env fallback when body empty. */
 app.post('/api/tms/roster/preview', requireUser, rejectViewAsWrites, async (req, res) => {
     try {
-        if (!tmsRoster.credentialsConfigured(tmsRoster.getConfig())) {
-            return res.status(503).json({
-                error: 'TMS credentials not configured',
-                code: 'TMS_CREDS_MISSING'
-            });
-        }
-        const result = await tmsRoster.scrapeRosters();
-        return res.json({
-            cohorts: result.cohorts,
-            meta: {
-                homeUrl: result.meta && result.meta.homeUrl,
-                pagesFetched: result.meta && result.meta.pagesFetched,
-                cohortCount: (result.cohorts || []).length,
-                studentCount: (result.cohorts || []).reduce(
-                    (n, c) => n + ((c.students && c.students.length) || 0),
-                    0
-                )
-            }
-        });
+        return res.json(await runTmsRosterPreview(req.body));
     } catch (err) {
-        const code = err && err.code;
-        if (code === 'TMS_LOGIN_FAILED') {
-            return res.status(401).json({ error: err.message || 'TMS login failed', code });
-        }
-        if (code === 'TMS_CREDS_MISSING') {
-            return res.status(503).json({ error: err.message || 'TMS credentials missing', code });
-        }
-        console.error('TMS roster preview failed', err);
-        return res.status(502).json({
-            error: (err && err.message) || 'TMS sync failed',
-            code: 'TMS_SCRAPE_FAILED'
-        });
+        return sendTmsPreviewError(res, err);
+    }
+});
+
+/**
+ * Live-site → localhost bridge (no ClassManager session).
+ * Only loopback; CORS allowlisted for classmanager.live so Sync can use the work PC IP.
+ */
+app.options('/api/tms/bridge/ping', (req, res) => {
+    applyTmsBridgeCors(req, res);
+    res.status(204).end();
+});
+
+app.get('/api/tms/bridge/ping', (req, res) => {
+    if (!requireTmsBridgeLoopback(req, res)) {
+        return;
+    }
+    res.json({ ok: true, bridge: true, port: PORT });
+});
+
+app.options('/api/tms/bridge/preview', (req, res) => {
+    applyTmsBridgeCors(req, res);
+    res.status(204).end();
+});
+
+app.post('/api/tms/bridge/preview', async (req, res) => {
+    if (!requireTmsBridgeLoopback(req, res)) {
+        return;
+    }
+    try {
+        return res.json(await runTmsRosterPreview(req.body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
     }
 });
 
@@ -1751,10 +1837,15 @@ app.listen(PORT, () => {
         console.log('Kakao login: not configured (set KAKAO_CLIENT_ID)');
     }
     if (tmsRoster.credentialsConfigured(tmsRoster.getConfig())) {
-        console.log('TMS roster sync: configured');
+        console.log('TMS roster sync: configured (.env shortcut)');
     } else {
-        console.log('TMS roster sync: missing TMS_USERNAME/TMS_PASSWORD (add to .env and restart)');
+        console.log(
+            'TMS roster sync: no .env TMS_* — use Sync modal credentials (required on production)'
+        );
     }
+    console.log(
+        `TMS live-site bridge: http://127.0.0.1:${PORT}/api/tms/bridge/ping (keep this running at work)`
+    );
     if (users.countAdmins() === 0 && BOOTSTRAP_SECRET) {
         console.log('No admin yet — POST /api/admin/bootstrap with BOOTSTRAP_ADMIN_SECRET');
     }

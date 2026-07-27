@@ -42,3 +42,4 @@ PUBLIC_URL = "https://classmanager.live"
 # KAKAO_CLIENT_ID
 # KAKAO_CLIENT_SECRET
 # BOOTSTRAP_ADMIN_SECRET
+# (TMS sync uses per-request credentials from the Sync modal — not wrangler secrets)
