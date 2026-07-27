@@ -17,6 +17,9 @@
     let tmsSyncPlan = [];
     let tmsSyncLoading = false;
     let tmsSyncHasFetched = false;
+    let tmsSyncWizardStep = 1;
+    let tmsReviewQueue = [];
+    let tmsReviewIndex = 0;
     const selectedStudentIds = new Set();
 
     function domain() {
@@ -1038,12 +1041,16 @@
         tmsSyncPlan = [];
         tmsSyncLoading = false;
         tmsSyncHasFetched = false;
+        tmsSyncWizardStep = 1;
+        tmsReviewQueue = [];
+        tmsReviewIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
         clearTmsPasswordField();
         const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
         if (confirmBtn) {
             confirmBtn.disabled = true;
+            confirmBtn.textContent = t('rosterTmsSyncConfirm');
         }
         const loadBtn = document.getElementById('rosterTmsLoadBtn');
         if (loadBtn) {
@@ -1052,6 +1059,18 @@
         const batchBar = document.getElementById('rosterTmsSyncBatchBar');
         if (batchBar) {
             batchBar.hidden = true;
+        }
+        const mapping = document.getElementById('rosterTmsSyncMappingTable');
+        if (mapping) {
+            mapping.hidden = false;
+        }
+        const review = document.getElementById('rosterTmsStudentReview');
+        if (review) {
+            review.hidden = true;
+        }
+        const credForm = document.getElementById('rosterTmsCredForm');
+        if (credForm) {
+            credForm.hidden = false;
         }
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('rosterTmsSyncModal'));
@@ -1133,6 +1152,7 @@
             tmsLinkKey: resolved.key || '',
             studentCount: Array.isArray(c.students) ? c.students.length : 0,
             students: Array.isArray(c.students) ? c.students.slice() : [],
+            studentResolutions: {},
             userAction: resolved.userAction,
             userTargetId: resolved.userTargetId || '',
             suggestedTargetId: resolved.suggestedTargetId || '',
@@ -1162,6 +1182,16 @@
             : false;
         if (incomplete) {
             return t('rosterTmsSyncIncompleteHint');
+        }
+        const unclear = Array.isArray(s.unclear) ? s.unclear : [];
+        if (unclear.length) {
+            const names = unclear
+                .slice(0, 5)
+                .map((row) => row && row.tmsName)
+                .filter(Boolean);
+            const extra =
+                unclear.length > names.length ? ` (+${unclear.length - names.length})` : '';
+            return t('rosterTmsSyncUnclearHint').replace('{names}', names.join(', ') + extra);
         }
         if (added.length) {
             const names = added
@@ -1206,13 +1236,268 @@
 
     function previewTmsRow(row) {
         if (!row || row.userAction !== 'map' || !row.userTargetId) {
-            return { added: [], matched: [], flagged: [], cleared: [], warnings: [] };
+            return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
         }
         const target = getCohorts().find((c) => c && c.id === row.userTargetId);
         if (!target || !domain().mergeRosterByKoreanName) {
-            return { added: [], matched: [], flagged: [], cleared: [], warnings: [] };
+            return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
         }
-        return domain().mergeRosterByKoreanName(target.students, row.students).summary;
+        const unclear = domain().listUnclearTmsStudentMatches
+            ? domain().listUnclearTmsStudentMatches(target.students, row.students)
+            : [];
+        const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
+            studentResolutions: row.studentResolutions || {},
+            softUnclear: true
+        }).summary;
+        summary.unclear = unclear;
+        return summary;
+    }
+
+    function collectTmsReviewQueue() {
+        const queue = [];
+        tmsSyncPlan.forEach((row, rowIdx) => {
+            if (!row || row.userAction !== 'map' || !row.userTargetId) {
+                return;
+            }
+            const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+            if (!target || !domain().listUnclearTmsStudentMatches) {
+                return;
+            }
+            if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
+                row.studentResolutions = {};
+            }
+            const unclear = domain().listUnclearTmsStudentMatches(target.students, row.students);
+            unclear.forEach((item) => {
+                queue.push({
+                    rowIdx,
+                    importCohortName: row.importCohortName,
+                    targetName: target.name || row.userTargetId,
+                    item
+                });
+            });
+        });
+        return queue;
+    }
+
+    function tmsReviewReasonText(reason) {
+        if (reason === 'duplicate_existing') {
+            return t('rosterTmsReviewReasonDuplicate');
+        }
+        if (reason === 'fuzzy_variant') {
+            return t('rosterTmsReviewReasonFuzzy');
+        }
+        return t('rosterTmsReviewReasonSharedCore');
+    }
+
+    function getCurrentReviewResolution() {
+        const entry = tmsReviewQueue[tmsReviewIndex];
+        if (!entry) {
+            return null;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        const key = entry.item.tmsKey;
+        return row && row.studentResolutions ? row.studentResolutions[key] : null;
+    }
+
+    function setCurrentReviewResolution(action, studentId) {
+        const entry = tmsReviewQueue[tmsReviewIndex];
+        if (!entry) {
+            return;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        if (!row) {
+            return;
+        }
+        if (!row.studentResolutions) {
+            row.studentResolutions = {};
+        }
+        const key = entry.item.tmsKey;
+        if (action === 'map') {
+            row.studentResolutions[key] = { action: 'map', studentId: String(studentId || '') };
+        } else if (action === 'add') {
+            row.studentResolutions[key] = { action: 'add' };
+        } else {
+            row.studentResolutions[key] = { action: 'skip' };
+        }
+    }
+
+    function renderTmsStudentReview() {
+        const review = document.getElementById('rosterTmsStudentReview');
+        const mapping = document.getElementById('rosterTmsSyncMappingTable');
+        const batchBar = document.getElementById('rosterTmsSyncBatchBar');
+        const credForm = document.getElementById('rosterTmsCredForm');
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        if (!review) {
+            return;
+        }
+        const onReview = tmsSyncWizardStep === 2 && tmsReviewQueue.length > 0;
+        review.hidden = !onReview;
+        if (mapping) {
+            mapping.hidden = onReview;
+        }
+        if (batchBar) {
+            batchBar.hidden = onReview || Boolean(tmsSyncLoading) || tmsSyncPlan.length === 0;
+        }
+        if (credForm) {
+            credForm.hidden = onReview;
+        }
+        if (!onReview) {
+            if (confirmBtn) {
+                confirmBtn.textContent = t('rosterTmsSyncConfirm');
+            }
+            return;
+        }
+        const entry = tmsReviewQueue[tmsReviewIndex];
+        if (!entry) {
+            return;
+        }
+        const item = entry.item;
+        const progress = document.getElementById('rosterTmsStudentReviewProgress');
+        const reasonEl = document.getElementById('rosterTmsStudentReviewReason');
+        const nameEl = document.getElementById('rosterTmsStudentReviewName');
+        const labelEl = document.getElementById('rosterTmsStudentReviewNameLabel');
+        const optionsEl = document.getElementById('rosterTmsStudentReviewOptions');
+        const backBtn = document.getElementById('rosterTmsStudentReviewBackBtn');
+        const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        if (progress) {
+            progress.textContent = t('rosterTmsReviewProgress')
+                .replace('{current}', String(tmsReviewIndex + 1))
+                .replace('{total}', String(tmsReviewQueue.length))
+                .replace('{class}', entry.targetName || entry.importCohortName || '');
+        }
+        if (reasonEl) {
+            reasonEl.textContent = tmsReviewReasonText(item.reason);
+        }
+        if (labelEl) {
+            labelEl.textContent = t('rosterTmsReviewTmsName');
+        }
+        if (nameEl) {
+            const en = item.tmsNameEn ? ` (${item.tmsNameEn})` : '';
+            nameEl.textContent = `${item.tmsName}${en}`;
+        }
+        const existing = getCurrentReviewResolution();
+        const selected =
+            existing && existing.action === 'map'
+                ? `map:${existing.studentId}`
+                : existing && existing.action === 'add'
+                  ? 'add'
+                  : existing && existing.action === 'skip'
+                    ? 'skip'
+                    : '';
+        const opts = [];
+        (item.candidates || []).forEach((c) => {
+            const en = c.nameEn ? ` (${c.nameEn})` : '';
+            const val = `map:${c.id}`;
+            opts.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
+                    selected === val ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsReviewMapTo').replace('{name}', `${c.name}${en}`))}</span></label>`
+            );
+        });
+        opts.push(
+            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
+                selected === 'add' ? ' checked' : ''
+            }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
+        );
+        opts.push(
+            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
+                selected === 'skip' ? ' checked' : ''
+            }><span>${escapeHtml(t('rosterTmsReviewSkip'))}</span></label>`
+        );
+        if (optionsEl) {
+            optionsEl.innerHTML = opts.join('');
+            optionsEl.querySelectorAll('input[name="rosterTmsReviewChoice"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    const val = input.value;
+                    if (val === 'add') {
+                        setCurrentReviewResolution('add');
+                    } else if (val === 'skip') {
+                        setCurrentReviewResolution('skip');
+                    } else if (val.startsWith('map:')) {
+                        setCurrentReviewResolution('map', val.slice(4));
+                    }
+                    updateTmsReviewNavButtons();
+                });
+            });
+        }
+        if (backBtn) {
+            backBtn.disabled = false;
+            backBtn.textContent =
+                tmsReviewIndex === 0 ? t('rosterTmsReviewBackToMapping') : t('rosterTmsReviewBack');
+        }
+        if (nextBtn) {
+            nextBtn.textContent =
+                tmsReviewIndex >= tmsReviewQueue.length - 1
+                    ? t('rosterTmsReviewFinish')
+                    : t('rosterTmsReviewNext');
+        }
+        updateTmsReviewNavButtons();
+        if (confirmBtn) {
+            confirmBtn.hidden = true;
+        }
+    }
+
+    function updateTmsReviewNavButtons() {
+        const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        const res = getCurrentReviewResolution();
+        const ok =
+            res &&
+            (res.action === 'add' ||
+                res.action === 'skip' ||
+                (res.action === 'map' && res.studentId));
+        if (nextBtn) {
+            nextBtn.disabled = !ok;
+        }
+    }
+
+    function enterTmsStudentReview() {
+        tmsReviewQueue = collectTmsReviewQueue();
+        if (!tmsReviewQueue.length) {
+            tmsSyncWizardStep = 1;
+            void confirmTmsSync();
+            return;
+        }
+        tmsSyncWizardStep = 2;
+        tmsReviewIndex = 0;
+        setTmsSyncError('');
+        renderTmsStudentReview();
+    }
+
+    function leaveTmsStudentReviewToMapping() {
+        tmsSyncWizardStep = 1;
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.hidden = false;
+        }
+        renderTmsSyncTable();
+        renderTmsStudentReview();
+    }
+
+    function advanceTmsStudentReview() {
+        const res = getCurrentReviewResolution();
+        if (
+            !res ||
+            !(
+                res.action === 'add' ||
+                res.action === 'skip' ||
+                (res.action === 'map' && res.studentId)
+            )
+        ) {
+            setTmsSyncError(t('rosterTmsReviewChoiceRequired'));
+            return;
+        }
+        setTmsSyncError('');
+        if (tmsReviewIndex < tmsReviewQueue.length - 1) {
+            tmsReviewIndex += 1;
+            renderTmsStudentReview();
+            return;
+        }
+        tmsSyncWizardStep = 1;
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.hidden = false;
+        }
+        void confirmTmsSync();
     }
 
     function renderTmsSyncTable() {
@@ -1312,14 +1597,17 @@
                     row.userAction = 'skip';
                     row.userTargetId = '';
                     row.remembered = false;
+                    row.studentResolutions = {};
                 } else if (!val) {
                     row.userAction = 'choose';
                     row.userTargetId = '';
                     row.remembered = false;
+                    row.studentResolutions = {};
                 } else {
                     row.userAction = 'map';
                     row.userTargetId = val;
                     row.remembered = false;
+                    row.studentResolutions = {};
                 }
                 renderTmsSyncTable();
             });
@@ -1329,10 +1617,31 @@
             !tmsSyncLoading &&
             tmsSyncPlan.length > 0 &&
             tmsSyncPlan.every((r) => r.userAction === 'skip' || (r.userAction === 'map' && r.userTargetId));
+        let unclearCount = 0;
+        if (canApply) {
+            tmsSyncPlan.forEach((row) => {
+                if (row.userAction !== 'map' || !row.userTargetId) {
+                    return;
+                }
+                const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+                if (!target || !domain().listUnclearTmsStudentMatches) {
+                    return;
+                }
+                unclearCount += domain().listUnclearTmsStudentMatches(target.students, row.students).length;
+            });
+        }
         if (confirmBtn) {
+            confirmBtn.hidden = tmsSyncWizardStep === 2;
             confirmBtn.disabled = !canApply;
+            confirmBtn.textContent = unclearCount
+                ? t('rosterTmsSyncContinueReview').replace('{count}', String(unclearCount))
+                : t('rosterTmsSyncConfirm');
+            confirmBtn.dataset.needsReview = unclearCount ? '1' : '0';
         }
         syncTmsBatchBarVisibility();
+        if (tmsSyncWizardStep === 2) {
+            renderTmsStudentReview();
+        }
     }
 
     function openTmsSyncModal() {
@@ -1342,6 +1651,9 @@
         tmsSyncPlan = [];
         tmsSyncLoading = false;
         tmsSyncHasFetched = false;
+        tmsSyncWizardStep = 1;
+        tmsReviewQueue = [];
+        tmsReviewIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
         hydrateTmsCredForm();
@@ -1598,6 +1910,22 @@
             closeTmsSyncModal();
             return;
         }
+        const pendingUnclear = collectTmsReviewQueue().filter((entry) => {
+            const row = tmsSyncPlan[entry.rowIdx];
+            const key = entry.item && entry.item.tmsKey;
+            const res = row && row.studentResolutions && key ? row.studentResolutions[key] : null;
+            return !(
+                res &&
+                (res.action === 'add' ||
+                    res.action === 'skip' ||
+                    (res.action === 'map' && res.studentId))
+            );
+        });
+        if (pendingUnclear.length) {
+            setTmsSyncError(t('rosterTmsReviewIncomplete'));
+            enterTmsStudentReview();
+            return;
+        }
         const applied = domain().applyTmsRosterPlan(getCohorts(), tmsSyncPlan, {
             newStudentId: () => domain().newId('stu')
         });
@@ -1668,7 +1996,24 @@
             }
         });
         document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
+            const btn = document.getElementById('rosterTmsSyncConfirmBtn');
+            if (btn && btn.dataset.needsReview === '1') {
+                enterTmsStudentReview();
+                return;
+            }
             void confirmTmsSync();
+        });
+        document.getElementById('rosterTmsStudentReviewBackBtn')?.addEventListener('click', () => {
+            if (tmsReviewIndex <= 0) {
+                leaveTmsStudentReviewToMapping();
+                return;
+            }
+            tmsReviewIndex -= 1;
+            setTmsSyncError('');
+            renderTmsStudentReview();
+        });
+        document.getElementById('rosterTmsStudentReviewNextBtn')?.addEventListener('click', () => {
+            advanceTmsStudentReview();
         });
         document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
             skipAllTmsSyncRows();
