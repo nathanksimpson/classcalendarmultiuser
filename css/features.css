@@ -13760,6 +13760,21 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     min-width: 0;
 }
 
+.classroom-essay-assignment-row #classroomEssaysAddAssignmentBtn {
+    flex-shrink: 0;
+}
+
+.classroom-essay-class-filter-hint {
+    margin: var(--space-2) 0 0;
+}
+
+.classroom-sheet-empty--essay-add {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
 .classroom-essay-context-label {
     font-size: 0.6875rem;
     font-weight: 600;

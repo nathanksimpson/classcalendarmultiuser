@@ -2242,6 +2242,11 @@
                     ${chip('overdue', 'classroomEssayClassFilterOverdue')}
                     ${chip('mine', 'classroomZoneMyClassesOnly')}
                 </div>
+                ${
+                    essayClassAttentionFilter === 'has_essays'
+                        ? `<p class="section-hint classroom-essay-class-filter-hint">${escapeHtml(t('classroomEssayHasEssaysFilterHint'))}</p>`
+                        : ''
+                }
                 <div id="classroomEssaysClassList" class="module-list classroom-essay-class-picker-list" role="listbox">${listHtml}</div>
             </div>`
             : '';
@@ -2396,7 +2401,10 @@
                 .join('')
             : `<option value="">${escapeHtml(t('classroomEssayNoAssignment'))}</option>`;
 
-        const needsShell = !mount.querySelector('.classroom-essays-context-bar-inner');
+        // Rebuild if missing inner shell or Add button (stale DOM from older Essays markup).
+        const needsShell =
+            !mount.querySelector('.classroom-essays-context-bar-inner') ||
+            !mount.querySelector('#classroomEssaysAddAssignmentBtn');
         if (needsShell) {
             mount.innerHTML = `
                 <div class="classroom-essays-context-bar-inner">
@@ -2433,6 +2441,7 @@
             const addBtn = mount.querySelector('#classroomEssaysAddAssignmentBtn');
             if (addBtn) {
                 addBtn.disabled = !(editable && classData);
+                addBtn.textContent = t('classroomEssayAddAssignmentBtn');
             }
             const ssInput = mount.querySelector('#classroomEssaysSsDue');
             if (ssInput) {
@@ -3428,7 +3437,15 @@
         const rowApi = global.CCPClassroomStudentRow;
 
         if (!syllabusRowId) {
-            rowsMount.innerHTML = `<tr><td colspan="6" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomEssayNoAssignment'))}</p></td></tr>`;
+            const classData = getClassData();
+            const canAdd = Boolean(editable && classData);
+            const emptyCta = canAdd
+                ? `<button type="button" class="btn btn-primary btn-compact" data-action="add-essay-assignment">${escapeHtml(t('classroomEssayAddAssignmentTitle'))}</button>`
+                : '';
+            rowsMount.innerHTML = `<tr><td colspan="6" class="classroom-sheet-empty"><div class="classroom-sheet-empty--essay-add"><p class="section-hint">${escapeHtml(t('classroomEssayNoAssignment'))}</p>${emptyCta}</div></td></tr>`;
+            rowsMount.querySelector('[data-action="add-essay-assignment"]')?.addEventListener('click', () => {
+                openAddAssignmentModal(panel);
+            });
             renderFooterHint(panel);
             return;
         }
