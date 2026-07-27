@@ -205,11 +205,15 @@
         const essaysOnly = Object.prototype.hasOwnProperty.call(opts, 'essaysOnly')
             ? Boolean(opts.essaysOnly)
             : true;
+        // Access (canEdit/bypass) already scopes regular teachers to assigned classes.
+        // Do not force "mine" here — graders who can edit other teachers' classes (e.g. Yuma/Leo)
+        // must still see them. Optional Mine chip narrows in the picker UI.
+        const myClassesOnly = Object.prototype.hasOwnProperty.call(opts, 'myClassesOnly')
+            ? Boolean(opts.myClassesOnly)
+            : false;
         const base = getAccessibleClasses();
         const api = global.CCPEssayClassFilter;
         const d = domain();
-        // Essays is always teacher-scoped: only the current teacher's classes should appear.
-        const myClassesOnly = true;
         const ctx = {
             domain: d,
             currentUserId: hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
@@ -238,7 +242,7 @@
             : filtered;
     }
 
-    /** Class picker: all of my classes (so Add assignment works before any essays exist). */
+    /** Class picker: all editable classes (so Add assignment works before any essays exist). */
     function getEssayPickerClasses() {
         return getEssayVisibleClasses({ essaysOnly: false });
     }
@@ -1617,9 +1621,6 @@
         const d = domain();
         const data = getAppData();
         const submissions = getEssaySubmissionsForAlerts();
-        const ui = getAppData().ui || {};
-        const myClassesOnly =
-            ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1';
         const currentUserId = hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
 
         return (classes || []).filter((c) => {
@@ -1649,9 +1650,10 @@
                 }
             }
             if (essayClassAttentionFilter === 'mine') {
-                const teachers = Array.isArray(c.teacherIds) ? c.teacherIds : [];
-                if (currentUserId && teachers.length && !teachers.includes(currentUserId)) {
-                    return false;
+                if (hooks && typeof hooks.classIsMine === 'function' && currentUserId) {
+                    if (!hooks.classIsMine(c, currentUserId)) {
+                        return false;
+                    }
                 }
             }
             return true;
