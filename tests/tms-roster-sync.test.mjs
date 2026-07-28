@@ -181,20 +181,40 @@ function assert(cond, msg) {
     assert(result.students.length === 2, 'both students remain');
 }
 
-// Resolution map links without renaming CM
+// Resolution map adopts TMS identifying name so next Sync exact-matches
 {
-    const existing = [{ id: 'stu_a', name: '권이안', tags: ['off_roster'] }];
+    const existing = [{ id: 'stu_a', name: '권이안', nameEn: 'Alice', tags: ['off_roster'] }];
     const key = D.koreanNameKey('권이안◆');
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆' }], {
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆', nameEn: '' }], {
         studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
     });
     assert(result.summary.added.length === 0, 'no add on map');
-    assert(result.summary.matched.some((m) => m.id === 'stu_a'), 'mapped matched');
-    assert(result.students.find((s) => s.id === 'stu_a').name === '권이안', 'did not rename');
+    assert(result.summary.matched.some((m) => m.id === 'stu_a' && m.nameUpdated), 'mapped + renamed');
+    const mapped = result.students.find((s) => s.id === 'stu_a');
+    assert(mapped.name === '권이안◆', 'adopted TMS Hangul name');
+    assert(mapped.nameEn === 'Alice', 'empty TMS nameEn keeps CM English');
+    assert(!mapped.tags.includes('off_roster'), 'cleared off_roster on map');
+
+    const second = D.mergeRosterByKoreanName(result.students, [{ name: '권이안◆' }], {});
+    assert(second.summary.added.length === 0, 'second sync no add');
+    assert(second.summary.matched.some((m) => m.id === 'stu_a'), 'second sync exact match');
     assert(
-        !result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
-        'cleared off_roster on map'
+        !second.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
+        'second sync not unclear'
     );
+    assert(D.listUnclearTmsStudentMatches(result.students, [{ name: '권이안◆' }]).length === 0, 'no unclear queue');
+}
+
+// Resolution map writes TMS nameEn when provided
+{
+    const existing = [{ id: 'stu_a', name: '권이안', nameEn: 'Alice', tags: [] }];
+    const key = D.koreanNameKey('권이안◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆', nameEn: 'Ian' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+    });
+    const mapped = result.students.find((s) => s.id === 'stu_a');
+    assert(mapped.name === '권이안◆', 'name from TMS');
+    assert(mapped.nameEn === 'Ian', 'nameEn from TMS when present');
 }
 
 // Unresolved unclear does not auto-add
@@ -237,7 +257,14 @@ function assert(cond, msg) {
         !result.students.find((s) => s.id === 'stu_b').tags.includes('off_roster'),
         'off_roster removed'
     );
-    assert(result.students.find((s) => s.id === 'stu_b').name === '김민수', 'did not rename');
+    assert(result.students.find((s) => s.id === 'stu_b').name === '김민수아', 'adopted TMS variant name');
+    assert(
+        D.listUnclearTmsStudentMatches(result.students, [
+            { name: '이서연' },
+            { name: '김민수아' }
+        ]).length === 0,
+        'second pass not unclear after map rename'
+    );
 }
 
 // Ambiguous shared-core candidates stay unresolved without a choice
@@ -280,7 +307,7 @@ function assert(cond, msg) {
         !result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
         'off_roster removed via map'
     );
-    assert(result.students.find((s) => s.id === 'stu_a').name === '김민수', 'did not rename');
+    assert(result.students.find((s) => s.id === 'stu_a').name === '김민수아', 'adopted TMS variant name');
     assert(result.summary.flagged.length === 1, '이서연 still flagged as missing');
     assert(result.summary.flagged[0].id === 'stu_b', 'flagged is 이서연');
 }
@@ -306,7 +333,7 @@ function assert(cond, msg) {
     });
     assert(result.summary.matched.length === 2, 'exact + resolved matched');
     assert(result.summary.added.length === 0, 'no false New for 김민수아');
-    assert(result.students.find((s) => s.id === 'stu_a').name === '김민수', 'kept CM spelling');
+    assert(result.students.find((s) => s.id === 'stu_a').name === '김민수아', 'adopted TMS spelling');
     assert(result.summary.flagged.length === 1, 'only 최유나 flagged');
     assert(result.summary.flagged[0].id === 'stu_gone', 'flagged is 최유나');
 }

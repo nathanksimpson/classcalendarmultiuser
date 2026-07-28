@@ -385,6 +385,8 @@
      *   Safety is unique 1:1 pairing only. Disambiguator mismatches are not auto-fuzzy.
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
      *   for unclear names resolved by the Sync wizard.
+     * - Confirmed map adopts TMS identifying names (`name`, and `nameEn` when TMS sends one)
+     *   so the next Sync exact-matches and does not ask again.
      */
     function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
         const opts = options || {};
@@ -439,6 +441,8 @@
         const exactMatchedIds = new Set();
         const resolutionMatchedIds = new Set();
         const skipTmsKeys = new Set();
+        /** @type {Map<string, { name: string, nameEn: string }>} */
+        const mapNameUpdates = new Map();
 
         incoming.forEach((imp) => {
             const k = koreanNameKey(imp.name);
@@ -468,7 +472,19 @@
                 const targetId = normalizeStr(resolution.studentId);
                 const target = existingById.get(targetId);
                 if (target) {
-                    matched.push({ id: target.id, name: target.name, resolved: true });
+                    const previousName = target.name;
+                    const nameUpdated = koreanNameKey(previousName) !== k;
+                    mapNameUpdates.set(target.id, {
+                        name: imp.name,
+                        nameEn: imp.nameEn
+                    });
+                    matched.push({
+                        id: target.id,
+                        name: imp.name,
+                        previousName,
+                        resolved: true,
+                        nameUpdated
+                    });
                     exactMatchedIds.add(target.id);
                     resolutionMatchedIds.add(target.id);
                     return;
@@ -553,24 +569,36 @@
             };
         }
         const nextExisting = existing.map((s) => {
-            const k = koreanNameKey(s.name);
-            const onTms = (k && tmsKeys.has(k) && !skipTmsKeys.has(k)) || fuzzyMatchedIds.has(s.id) || exactMatchedIds.has(s.id);
-            const hadOff = (s.tags || []).includes(OFF_ROSTER_TAG);
+            const nameUpdate = mapNameUpdates.get(s.id);
+            let next = s;
+            if (nameUpdate) {
+                const patch = { name: nameUpdate.name };
+                if (nameUpdate.nameEn) {
+                    patch.nameEn = nameUpdate.nameEn;
+                }
+                next = Object.assign({}, s, patch);
+            }
+            const k = koreanNameKey(next.name);
+            const onTms =
+                (k && tmsKeys.has(k) && !skipTmsKeys.has(k)) ||
+                fuzzyMatchedIds.has(s.id) ||
+                exactMatchedIds.has(s.id);
+            const hadOff = (next.tags || []).includes(OFF_ROSTER_TAG);
             if (onTms) {
                 // Always strip Off roster when Korean name is on this TMS scrape (exact or fuzzy).
                 if (hadOff) {
-                    const entry = { id: s.id, name: s.name };
+                    const entry = { id: next.id, name: next.name };
                     cleared.push(entry);
                     if (fuzzyMatchedIds.has(s.id)) {
                         fuzzyCleared.push(entry);
                     }
                 }
-                return withoutStudentTag(s, OFF_ROSTER_TAG);
+                return withoutStudentTag(next, OFF_ROSTER_TAG);
             }
             // Count every student missing from TMS in flagged (including ones already tagged),
             // so preview "0 off roster" means no Off roster tags will remain after Apply.
-            flagged.push({ id: s.id, name: s.name });
-            return hadOff ? s : withStudentTag(s, OFF_ROSTER_TAG);
+            flagged.push({ id: next.id, name: next.name });
+            return hadOff ? next : withStudentTag(next, OFF_ROSTER_TAG);
         });
 
         const students = nextExisting.concat(added).sort(compareStudentNames);
