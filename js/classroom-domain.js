@@ -1832,6 +1832,62 @@
         return count;
     }
 
+    /**
+     * Not submitted and not overdue (and not "overdue cleared"): matches due-cell Awaiting submission.
+     */
+    function isEssayAwaitingSubmission(record, ssDueDate) {
+        const rec = record || {
+            status: 'not_submitted',
+            submissionLate: false,
+            overdueDismissed: false
+        };
+        const status = ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
+        if (status !== 'not_submitted') {
+            return false;
+        }
+        if (isEssaySubmissionOverdue(rec, ssDueDate)) {
+            return false;
+        }
+        if (rec.overdueDismissed && isEssaySsOverdueISO(ssDueDate)) {
+            return false;
+        }
+        return true;
+    }
+
+    function essayAwaitingSubmissionCount(submission, ssDueDate, studentCount, activeStudentIds) {
+        const rosterIds = Array.isArray(activeStudentIds)
+            ? activeStudentIds.map(normalizeStr).filter(Boolean)
+            : null;
+        if (rosterIds) {
+            let count = 0;
+            rosterIds.forEach((sid) => {
+                const rec = getEssayRecordForStudent(submission, sid) || {
+                    studentId: sid,
+                    status: 'not_submitted',
+                    submissionLate: false,
+                    overdueDismissed: false
+                };
+                if (isEssayAwaitingSubmission(rec, ssDueDate)) {
+                    count += 1;
+                }
+            });
+            return count;
+        }
+        if (!submission || !Array.isArray(submission.records)) {
+            if (isEssaySsOverdueISO(ssDueDate)) {
+                return 0;
+            }
+            return Math.max(0, studentCount || 0);
+        }
+        let count = 0;
+        submission.records.forEach((rec) => {
+            if (isEssayAwaitingSubmission(rec, ssDueDate)) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
     function essayPendingTeacherEvalCount(submission) {
         return countEssayByStatus(submission).submitted || 0;
     }
@@ -3066,9 +3122,11 @@
         isEssayReceivedStatus,
         isEssayReceivedLate,
         isEssaySubmissionOverdue,
+        isEssayAwaitingSubmission,
         isEssaySyllabusRow,
         isEssayAssignmentRow,
         essayOverdueNotSubmittedCount,
+        essayAwaitingSubmissionCount,
         essayPendingTeacherEvalCount,
         isEssayTeacherEvalOverdue,
         reparseEssayFlagsForClass,
