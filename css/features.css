@@ -13973,6 +13973,12 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     color: var(--essay-overdue-text);
 }
 
+.classroom-essay-attention-tile--awaiting.is-active {
+    background: color-mix(in srgb, var(--essay-status-not) 22%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--essay-status-not) 55%, var(--border-color));
+    color: var(--text-muted);
+}
+
 .classroom-essay-attention-tile--resubmit.is-active {
     background: var(--essay-resubmit-tint-bg);
     border-color: var(--essay-resubmit-tint-border);
@@ -14362,6 +14368,12 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     background: var(--essay-branch-chip-bg);
     color: var(--text-muted);
     border-color: var(--border-color);
+}
+
+.classroom-essay-due-pill--awaiting-sub {
+    background: color-mix(in srgb, var(--essay-status-not) 22%, transparent);
+    color: var(--text-muted);
+    border-color: color-mix(in srgb, var(--essay-status-not) 55%, transparent);
 }
 
 .classroom-essay-due-pill--submitted {

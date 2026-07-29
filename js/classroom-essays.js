@@ -1563,13 +1563,21 @@
         const d = domain();
         const students = getStudents();
         if (!d || !draftSubmission) {
-            return { overdueSub: 0, evalOverdue: 0, resubmit: 0 };
+            return { awaitingSub: 0, overdueSub: 0, evalOverdue: 0, resubmit: 0 };
         }
         const ssDue = draftSubmission.ssDueDate || '';
         const teDue = draftSubmission.teacherEvalDueDate || '';
         const activeStudentIds = students
             .map((entry) => entry && entry.student && entry.student.id)
             .filter(Boolean);
+        const awaitingSub = d.essayAwaitingSubmissionCount
+            ? d.essayAwaitingSubmissionCount(
+                draftSubmission,
+                ssDue,
+                students.length,
+                activeStudentIds
+            )
+            : 0;
         const overdueSub = d.essayOverdueNotSubmittedCount(
             draftSubmission,
             ssDue,
@@ -1581,7 +1589,7 @@
             evalOverdue = d.essayPendingTeacherEvalCount(draftSubmission);
         }
         const resubmit = d.essayResubmitCount(draftSubmission);
-        return { overdueSub, evalOverdue, resubmit };
+        return { awaitingSub, overdueSub, evalOverdue, resubmit };
     }
 
     function studentMatchesFilter(studentId) {
@@ -1590,6 +1598,15 @@
         const status = rec ? rec.status : 'not_submitted';
         if (currentFilter === 'all') {
             return true;
+        }
+        if (currentFilter === 'awaiting_sub') {
+            const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
+            const record = rec || {
+                status: 'not_submitted',
+                submissionLate: false,
+                overdueDismissed: false
+            };
+            return !!(d && d.isEssayAwaitingSubmission && d.isEssayAwaitingSubmission(record, ssDue));
         }
         if (currentFilter === 'overdue_sub') {
             const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
@@ -2802,6 +2819,7 @@
 
         // Keep warning tiles visible even when counts are zero so filters stay discoverable.
         const tilesHtml = `<div class="classroom-essay-attention-tiles">
+                ${tile('awaiting_sub', attention.awaitingSub, 'classroomEssayAttentionAwaitingSub', 'classroomEssayAttentionAwaitingSubHint', 'awaiting')}
                 ${tile('overdue_sub', attention.overdueSub, 'classroomEssayAttentionOverdueSub', 'classroomEssayAttentionOverdueSubHint', 'overdue')}
                 ${tile('eval_overdue', attention.evalOverdue, 'classroomEssayAttentionEvalOverdue', 'classroomEssayAttentionEvalOverdueHint', 'eval')}
                 ${tile('resubmit_required', attention.resubmit, 'classroomEssayAttentionResubmits', 'classroomEssayAttentionResubmitsHint', 'resubmit')}
@@ -2845,6 +2863,7 @@
             return;
         }
         const labels = {
+            awaiting_sub: t('classroomEssayAttentionAwaitingSub'),
             overdue_sub: t('classroomEssayAttentionOverdueSub'),
             eval_overdue: t('classroomEssayAttentionEvalOverdue'),
             resubmit_required: t('classroomEssayAttentionResubmits'),
@@ -3277,7 +3296,7 @@
                     ${clearBtn}
                 </div>`;
             }
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--muted">${escapeHtml(t('classroomEssayDueNotInYet'))}</span>`;
+            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--awaiting-sub">${escapeHtml(t('classroomEssayDueAwaitingSubmission'))}</span>`;
         }
         if (isReceivedStatus(status) && !recordForOverdue.submissionLate) {
             const canMarkLate = editable && (d.isEssaySsOverdueISO(ssDue) || recordForOverdue.overdueDismissed);

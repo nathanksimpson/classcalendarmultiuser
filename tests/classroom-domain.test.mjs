@@ -193,6 +193,71 @@ assert(
     'OD excludes future due dates'
 );
 
+assert(
+    d.isEssayAwaitingSubmission(
+        { studentId: 's1', status: 'not_submitted', submissionLate: false, overdueDismissed: false },
+        tomorrow
+    ) === true,
+    'awaiting submission when not_submitted and due is future'
+);
+assert(
+    d.isEssayAwaitingSubmission(
+        { studentId: 's1', status: 'not_submitted', submissionLate: false, overdueDismissed: false },
+        yesterday
+    ) === false,
+    'awaiting submission excludes overdue not_submitted'
+);
+assert(
+    d.isEssayAwaitingSubmission(
+        { studentId: 's2', status: 'submitted', submissionLate: false, overdueDismissed: false },
+        tomorrow
+    ) === false,
+    'awaiting submission excludes received students'
+);
+assert(
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, tomorrow, 2) === 1,
+    'awaiting count is not_submitted when due is future'
+);
+assert(
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, yesterday, 2) === 0,
+    'awaiting count excludes overdue not_submitted'
+);
+assert(
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, yesterday, 2, ['s1', 's2']) === 0,
+    'awaiting roster count excludes overdue'
+);
+assert(
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, tomorrow, 2, ['s1', 's2']) === 1,
+    'awaiting roster count includes not_submitted before due'
+);
+
+{
+    const dismissed = {
+        id: 'es-dismissed-await',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        ssDueDate: yesterday,
+        records: [
+            {
+                studentId: 's1',
+                status: 'not_submitted',
+                submittedRetest: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: true
+            }
+        ]
+    };
+    assert(
+        d.isEssayAwaitingSubmission(dismissed.records[0], yesterday) === false,
+        'awaiting excludes overdue-cleared rows'
+    );
+    assert(
+        d.essayAwaitingSubmissionCount(dismissed, yesterday, 1, ['s1']) === 0,
+        'awaiting count excludes overdue-cleared rows'
+    );
+}
+
 {
     const receivedOnTime = {
         id: 'es-ontime',
