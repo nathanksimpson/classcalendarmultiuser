@@ -972,6 +972,8 @@
         rosterTmsReviewReasonSharedCore: '기존 학생과 같은 한글 이름입니다. 같은 사람인지, ◆ 등 구분 기호가 있는 새 학생인지 선택하세요.',
         rosterTmsReviewReasonFuzzy: '기존 학생 이름과 비슷합니다. 매핑을 확인해 주세요.',
         rosterTmsReviewReasonDuplicate: '코호트에 같은 한글 이름이 둘 이상 있습니다. 어느 학생인지 선택하세요.',
+        rosterTmsReviewReasonUnmatched:
+            '이 반에 같은 한글 이름이 없습니다. 기존 학생에 연결하거나, 새로 추가하거나, 건너뛰세요.',
         rosterTmsReviewMapTo: '기존 학생에 연결: {name}',
         rosterTmsReviewAddNew: '새 학생으로 추가',
         rosterTmsReviewSkip: '이 TMS 이름 건너뛰기',

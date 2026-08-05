@@ -1311,6 +1311,9 @@
         if (reason === 'fuzzy_variant') {
             return t('rosterTmsReviewReasonFuzzy');
         }
+        if (reason === 'unmatched') {
+            return t('rosterTmsReviewReasonUnmatched');
+        }
         return t('rosterTmsReviewReasonSharedCore');
     }
 
