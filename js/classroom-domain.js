@@ -127,12 +127,10 @@
     }
 
     /**
-     * Korean-name match key for TMS sync. Ignores English.
-     * Normalizes invisible Unicode differences (NFC, spaces/NBSP, zero-width, punctuation,
-     * fullwidth ASCII) so "looks the same" names match without fuzzy/edit-distance matching.
-     * Keeps identity disambiguators (◆, trailing Latin/digit) so 권이안 ≠ 권이안◆.
+     * Display-oriented cleanup (NFC, spaces, separators, fullwidth ASCII).
+     * Keeps status symbols and Latin letters on the stored/display name.
      */
-    function koreanNameKey(name) {
+    function koreanNameDisplayKey(name) {
         let s = String(name == null ? '' : name).normalize('NFC').trim();
         // Whitespace incl. NBSP, ideographic space, thin spaces
         s = s.replace(/[\s\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, '');
@@ -147,10 +145,53 @@
         return s;
     }
 
-    /** Trailing identity mark after Hangul core, if any (e.g. ◆ on 권이안◆). */
+    /** Status marks pasted from TMS (transfer / new / etc.) — not identity. */
+    const NAME_STATUS_SYMBOL_RE = /[◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]/g;
+
+    /**
+     * Identity match key for TMS sync. Ignores English and status symbols.
+     * Keeps Latin/digit suffixes so 김민수A ≠ 김민수.
+     */
+    function koreanMatchKey(name) {
+        let s = koreanNameDisplayKey(name);
+        s = s.replace(NAME_STATUS_SYMBOL_RE, '');
+        s = s.replace(/[0-9]/g, '');
+        return s;
+    }
+
+    /**
+     * @deprecated Prefer koreanMatchKey for identity matching.
+     * Alias of koreanMatchKey (symbols ignored for match).
+     */
+    function koreanNameKey(name) {
+        return koreanMatchKey(name);
+    }
+
+    /** Trailing Latin letter used to disambiguate same Hangul names (e.g. A on 김민수A). */
+    function nameLatinDisambiguatorSuffix(name) {
+        const key = koreanMatchKey(name);
+        const m = key.match(/[\uac00-\ud7a3]+([A-Za-z])$/);
+        return m ? m[1] : '';
+    }
+
+    /** Trailing mark after Hangul: status symbol or Latin/digit (legacy helper). */
     function nameDisambiguatorSuffix(name) {
-        const key = koreanNameKey(name);
-        const m = key.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※A-Za-z0-9])$/);
+        const display = koreanNameDisplayKey(name);
+        const sym = display.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※])$/);
+        if (sym) {
+            return sym[1];
+        }
+        const latin = nameLatinDisambiguatorSuffix(name);
+        if (latin) {
+            return latin;
+        }
+        const digit = koreanNameDisplayKey(name).match(/[\uac00-\ud7a3]+([0-9])$/);
+        return digit ? digit[1] : '';
+    }
+
+    function nameStatusSymbolSuffix(name) {
+        const display = koreanNameDisplayKey(name);
+        const m = display.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※])$/);
         return m ? m[1] : '';
     }
 
@@ -160,6 +201,10 @@
 
     function hasNameDisambiguator(name) {
         return Boolean(nameDisambiguatorSuffix(name));
+    }
+
+    function hasLatinNameDisambiguator(name) {
+        return Boolean(nameLatinDisambiguatorSuffix(name));
     }
 
     function withStudentTag(student, tag) {
@@ -183,9 +228,9 @@
         return Object.assign({}, s, { tags });
     }
 
-    /** Hangul syllabic blocks (음절) from a Korean name after koreanNameKey cleanup. */
+    /** Hangul syllabic blocks (음절) from a Korean name after display cleanup. */
     function hangulSyllables(name) {
-        const key = koreanNameKey(name);
+        const key = koreanNameDisplayKey(name);
         const out = [];
         for (let i = 0; i < key.length; i += 1) {
             const ch = key[i];
@@ -198,20 +243,20 @@
     }
 
     /**
-     * True when two Hangul names are equal, or one is a contiguous Hangul variant
-     * of the other (e.g. 김민수 ↔ 김민수아). Equal Hangul cores with different keys
-     * (권이안 vs 권이안◆ / 김민수A) are NOT auto-fuzzy — they need user review.
+     * True when two Hangul names are equal by match key, or one is a contiguous Hangul variant
+     * of the other (e.g. 김민수 ↔ 김민수아). Status symbols are ignored (권이안 ≡ 권이안◆).
+     * Latin suffixes still block fuzzy (김민수A is not auto-fuzzy with 김민수).
      */
     function hangulNameVariantPair(nameA, nameB) {
-        const keyA = koreanNameKey(nameA);
-        const keyB = koreanNameKey(nameB);
+        const keyA = koreanMatchKey(nameA);
+        const keyB = koreanMatchKey(nameB);
         if (!keyA || !keyB) {
             return false;
         }
         if (keyA === keyB) {
             return true;
         }
-        if (hasNameDisambiguator(nameA) || hasNameDisambiguator(nameB)) {
+        if (hasLatinNameDisambiguator(nameA) || hasLatinNameDisambiguator(nameB)) {
             return false;
         }
         const a = hangulSyllables(nameA).join('');
@@ -220,7 +265,7 @@
             return false;
         }
         if (a === b) {
-            // Same Hangul core but different full keys (extra Latin etc.) → unclear, not fuzzy.
+            // Same Hangul core but different match keys (extra Latin etc.) → unclear, not fuzzy.
             return false;
         }
         return (a.length >= 3 && b.includes(a)) || (b.length >= 3 && a.includes(b));
@@ -291,14 +336,37 @@
         return hangulNameVariantPair(nameA, nameB);
     }
 
+    function cohortStudentsForMapCandidates(existingStudents) {
+        return (Array.isArray(existingStudents) ? existingStudents : [])
+            .map(normalizeStudent)
+            .filter((s) => s && s.active !== false);
+    }
+
+    function buildFullCohortMapCandidates(existing, preferIds) {
+        const prefer = new Set(
+            (Array.isArray(preferIds) ? preferIds : []).map((id) => normalizeStr(id)).filter(Boolean)
+        );
+        const list = cohortStudentsForMapCandidates(existing);
+        const primary = [];
+        const rest = [];
+        list.forEach((s) => {
+            const row = { id: s.id, name: s.name, nameEn: s.nameEn || '' };
+            if (prefer.has(s.id)) {
+                primary.push(row);
+            } else {
+                rest.push(row);
+            }
+        });
+        return primary.concat(rest);
+    }
+
     /**
-     * TMS names that are not exact key matches but share Hangul core / variant
+     * TMS names that are not exact match-key hits but share Hangul core / variant
      * with one or more CM students — need user review (map / add / skip).
+     * Candidates: Hangul peers first, then the rest of the active/off_roster cohort.
      */
     function listUnclearTmsStudentMatches(existingStudents, tmsStudents) {
-        const existing = (Array.isArray(existingStudents) ? existingStudents : [])
-            .map(normalizeStudent)
-            .filter(Boolean);
+        const existing = cohortStudentsForMapCandidates(existingStudents);
         const incoming = (Array.isArray(tmsStudents) ? tmsStudents : [])
             .map((raw) => {
                 if (!raw) {
@@ -318,7 +386,7 @@
         const existingByKey = new Map();
         const duplicateKeys = new Set();
         existing.forEach((s) => {
-            const k = koreanNameKey(s.name);
+            const k = koreanMatchKey(s.name);
             if (!k) {
                 return;
             }
@@ -332,7 +400,7 @@
         const seenTmsKeys = new Set();
         const unclear = [];
         incoming.forEach((imp) => {
-            const k = koreanNameKey(imp.name);
+            const k = koreanMatchKey(imp.name);
             if (!k || seenTmsKeys.has(k)) {
                 return;
             }
@@ -340,26 +408,25 @@
             const exact = existingByKey.get(k);
             if (exact) {
                 if (duplicateKeys.has(k)) {
+                    const peerIds = existing
+                        .filter((s) => koreanMatchKey(s.name) === k)
+                        .map((s) => s.id);
                     unclear.push({
                         tmsName: imp.name,
                         tmsNameEn: imp.nameEn,
                         tmsKey: k,
                         reason: 'duplicate_existing',
-                        candidates: existing
-                            .filter((s) => koreanNameKey(s.name) === k)
-                            .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }))
+                        candidates: buildFullCohortMapCandidates(existing, peerIds)
                     });
                 }
                 return;
             }
-            const candidates = existing
-                .filter((s) => sharesHangulCoreOrVariant(s.name, imp.name))
-                .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }));
-            if (!candidates.length) {
+            const peers = existing.filter((s) => sharesHangulCoreOrVariant(s.name, imp.name));
+            if (!peers.length) {
                 return;
             }
             const reason =
-                candidates.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
+                peers.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
                     ? 'shared_hangul_core'
                     : 'fuzzy_variant';
             unclear.push({
@@ -367,26 +434,109 @@
                 tmsNameEn: imp.nameEn,
                 tmsKey: k,
                 reason,
-                candidates
+                candidates: buildFullCohortMapCandidates(
+                    existing,
+                    peers.map((s) => s.id)
+                )
             });
         });
         return unclear;
     }
 
     /**
+     * Normalize cohort.tmsStudentResolutions map (remembered Sync wizard choices).
+     */
+    function normalizeTmsStudentResolutions(raw) {
+        const out = {};
+        if (!raw || typeof raw !== 'object') {
+            return out;
+        }
+        Object.keys(raw).forEach((key) => {
+            const k = koreanMatchKey(key) || normalizeStr(key);
+            if (!k) {
+                return;
+            }
+            const r = raw[key];
+            if (!r || typeof r !== 'object') {
+                return;
+            }
+            if (r.action === 'skip') {
+                out[k] = { action: 'skip' };
+                return;
+            }
+            if (r.action === 'add') {
+                out[k] = { action: 'add' };
+                return;
+            }
+            if (r.action === 'map' && normalizeStr(r.studentId)) {
+                out[k] = { action: 'map', studentId: normalizeStr(r.studentId) };
+            }
+        });
+        return out;
+    }
+
+    function mergeTmsStudentResolutions(base, extra) {
+        return Object.assign(
+            {},
+            normalizeTmsStudentResolutions(base),
+            normalizeTmsStudentResolutions(extra)
+        );
+    }
+
+    /**
+     * Apply remembered resolutions onto a Sync row and return unclear items still needing UI.
+     * Mutates row.studentResolutions.
+     */
+    function applyRememberedTmsStudentResolutions(cohort, unclearItems, row) {
+        const mem = normalizeTmsStudentResolutions(cohort && cohort.tmsStudentResolutions);
+        if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
+            row.studentResolutions = {};
+        }
+        const students = Array.isArray(cohort && cohort.students) ? cohort.students : [];
+        const byId = new Map(students.filter((s) => s && s.id).map((s) => [s.id, s]));
+        const still = [];
+        (Array.isArray(unclearItems) ? unclearItems : []).forEach((item) => {
+            if (!item || !item.tmsKey) {
+                return;
+            }
+            const key = item.tmsKey;
+            const remembered = mem[key];
+            if (!remembered) {
+                still.push(item);
+                return;
+            }
+            if (remembered.action === 'skip') {
+                row.studentResolutions[key] = { action: 'skip' };
+                return;
+            }
+            if (remembered.action === 'add') {
+                row.studentResolutions[key] = { action: 'add' };
+                return;
+            }
+            if (remembered.action === 'map') {
+                if (!byId.has(remembered.studentId)) {
+                    still.push(item);
+                    return;
+                }
+                row.studentResolutions[key] = {
+                    action: 'map',
+                    studentId: remembered.studentId
+                };
+                return;
+            }
+            still.push(item);
+        });
+        return still;
+    }
+
+    /**
      * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
-     * - Match by Korean name only; do not add duplicates.
-     * - Add students whose Korean name is not in the cohort.
+     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored).
+     * - On exact match or confirmed map, adopt TMS display name when it differs, and nameEn when set.
+     * - Add students whose match key is not in the cohort (unless unclear without resolution).
      * - Flag existing students missing from TMS with off_roster (never delete).
-     *   Preview `flagged` includes students who already had the tag (still missing).
-     * - Clear off_roster when they reappear on TMS (always strip on match).
-     * - After exact match, uniquely fuzzy-pair leftovers when one Hangul name is a
-     *   contiguous variant of the other (clear off_roster; do not add / rename).
-     *   Safety is unique 1:1 pairing only. Disambiguator mismatches are not auto-fuzzy.
+     * - Clear off_roster when they reappear on TMS.
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
-     *   for unclear names resolved by the Sync wizard.
-     * - Confirmed map adopts TMS identifying names (`name`, and `nameEn` when TMS sends one)
-     *   so the next Sync exact-matches and does not ask again.
      */
     function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
         const opts = options || {};
@@ -394,10 +544,11 @@
             typeof opts.newStudentId === 'function'
                 ? opts.newStudentId
                 : () => newId('stu');
-        const resolutions =
+        const resolutions = normalizeTmsStudentResolutions(
             opts.studentResolutions && typeof opts.studentResolutions === 'object'
                 ? opts.studentResolutions
-                : {};
+                : {}
+        );
         const existing = (Array.isArray(existingStudents) ? existingStudents : [])
             .map(normalizeStudent)
             .filter(Boolean);
@@ -423,7 +574,7 @@
         const existingByKey = new Map();
         const duplicateKeys = new Set();
         existing.forEach((s) => {
-            const k = koreanNameKey(s.name);
+            const k = koreanMatchKey(s.name);
             if (!k) {
                 return;
             }
@@ -444,8 +595,30 @@
         /** @type {Map<string, { name: string, nameEn: string }>} */
         const mapNameUpdates = new Map();
 
+        function adoptTmsIdentity(target, imp, extra) {
+            const previousName = target.name;
+            const nameUpdated = normalizeStr(previousName) !== normalizeStr(imp.name);
+            mapNameUpdates.set(target.id, {
+                name: nameUpdated ? imp.name : target.name,
+                // Empty TMS English keeps existing CM English.
+                nameEn: imp.nameEn || target.nameEn || ''
+            });
+            matched.push(
+                Object.assign(
+                    {
+                        id: target.id,
+                        name: imp.name,
+                        previousName,
+                        nameUpdated
+                    },
+                    extra || {}
+                )
+            );
+            exactMatchedIds.add(target.id);
+        }
+
         incoming.forEach((imp) => {
-            const k = koreanNameKey(imp.name);
+            const k = koreanMatchKey(imp.name);
             if (!k) {
                 return;
             }
@@ -454,16 +627,8 @@
                 return;
             }
             tmsKeys.add(k);
-            const match = existingByKey.get(k);
-            if (match) {
-                if (duplicateKeys.has(k)) {
-                    warnings.push({ code: 'duplicate_existing_name', name: imp.name, matchedId: match.id });
-                }
-                matched.push({ id: match.id, name: match.name });
-                exactMatchedIds.add(match.id);
-                return;
-            }
             const resolution = resolutions[k];
+            // Resolution-first so duplicate_existing Map sticks (exact key would otherwise win first).
             if (resolution && resolution.action === 'skip') {
                 skipTmsKeys.add(k);
                 return;
@@ -472,20 +637,7 @@
                 const targetId = normalizeStr(resolution.studentId);
                 const target = existingById.get(targetId);
                 if (target) {
-                    const previousName = target.name;
-                    const nameUpdated = koreanNameKey(previousName) !== k;
-                    mapNameUpdates.set(target.id, {
-                        name: imp.name,
-                        nameEn: imp.nameEn
-                    });
-                    matched.push({
-                        id: target.id,
-                        name: imp.name,
-                        previousName,
-                        resolved: true,
-                        nameUpdated
-                    });
-                    exactMatchedIds.add(target.id);
+                    adoptTmsIdentity(target, imp, { resolved: true });
                     resolutionMatchedIds.add(target.id);
                     return;
                 }
@@ -507,6 +659,36 @@
                 });
                 return;
             }
+            const match = existingByKey.get(k);
+            if (match) {
+                if (duplicateKeys.has(k)) {
+                    warnings.push({
+                        code: 'duplicate_existing_name',
+                        name: imp.name,
+                        matchedId: match.id
+                    });
+                    // Without a resolution, do not auto-pick among duplicates.
+                    const unclearCandidates = existing.filter((s) => koreanMatchKey(s.name) === k);
+                    if (unclearCandidates.length && !resolution) {
+                        warnings.push({
+                            code: 'unresolved_unclear_name',
+                            name: imp.name,
+                            candidates: unclearCandidates.map((s) => s.id)
+                        });
+                        skipTmsKeys.add(k);
+                        if (opts.softUnclear) {
+                            unclearCandidates.forEach((s) => {
+                                if (s && s.id) {
+                                    exactMatchedIds.add(s.id);
+                                }
+                            });
+                        }
+                        return;
+                    }
+                }
+                adoptTmsIdentity(match, imp, { matchedBy: 'name' });
+                return;
+            }
             // Unclear without resolution: do not auto-add (wizard must decide).
             const unclearCandidates = existing.filter((s) =>
                 sharesHangulCoreOrVariant(s.name, imp.name)
@@ -520,7 +702,6 @@
                 skipTmsKeys.add(k);
                 unclearCandidates.forEach((s) => {
                     if (s && s.id) {
-                        // Soft-hold: do not Off-roster candidates while review is pending.
                         if (opts.softUnclear) {
                             exactMatchedIds.add(s.id);
                         }
@@ -545,10 +726,10 @@
 
         const fuzzyMatchedIds = new Set();
         const fuzzyCleared = [];
-        // Shared Hangul-core / variant leftovers are not auto-fuzzy merged.
+        // Shared Hangul-core / Latin leftovers are not auto-fuzzy merged.
         // They must be resolved via listUnclearTmsStudentMatches + studentResolutions.
 
-        // Treat resolution-mapped + exact + fuzzy as on TMS for Off roster.
+        // Treat resolution-mapped + exact as on TMS for Off roster.
         resolutionMatchedIds.forEach((id) => exactMatchedIds.add(id));
 
         const flagged = [];
@@ -578,14 +759,13 @@
                 }
                 next = Object.assign({}, s, patch);
             }
-            const k = koreanNameKey(next.name);
+            const k = koreanMatchKey(next.name);
             const onTms =
                 (k && tmsKeys.has(k) && !skipTmsKeys.has(k)) ||
                 fuzzyMatchedIds.has(s.id) ||
                 exactMatchedIds.has(s.id);
             const hadOff = (next.tags || []).includes(OFF_ROSTER_TAG);
             if (onTms) {
-                // Always strip Off roster when Korean name is on this TMS scrape (exact or fuzzy).
                 if (hadOff) {
                     const entry = { id: next.id, name: next.name };
                     cleared.push(entry);
@@ -595,8 +775,6 @@
                 }
                 return withoutStudentTag(next, OFF_ROSTER_TAG);
             }
-            // Count every student missing from TMS in flagged (including ones already tagged),
-            // so preview "0 off roster" means no Off roster tags will remain after Apply.
             flagged.push({ id: next.id, name: next.name });
             return hadOff ? next : withStudentTag(next, OFF_ROSTER_TAG);
         });
@@ -625,7 +803,8 @@
         const opts = options || {};
         let cohorts = (Array.isArray(calendarCohorts) ? calendarCohorts : []).map((c) =>
             Object.assign({}, c, {
-                students: Array.isArray(c.students) ? c.students.map((s) => Object.assign({}, s)) : []
+                students: Array.isArray(c.students) ? c.students.map((s) => Object.assign({}, s)) : [],
+                tmsStudentResolutions: normalizeTmsStudentResolutions(c && c.tmsStudentResolutions)
             })
         );
         const results = [];
@@ -652,12 +831,19 @@
                 return;
             }
             const target = cohorts[idx];
+            const sessionResolutions = row.studentResolutions || opts.studentResolutions || {};
             const merged = mergeRosterByKoreanName(target.students, row.students, {
                 newStudentId: opts.newStudentId,
-                studentResolutions: row.studentResolutions || opts.studentResolutions || {},
+                studentResolutions: sessionResolutions,
                 softUnclear: Boolean(opts.softUnclear)
             });
-            cohorts[idx] = Object.assign({}, target, { students: merged.students });
+            cohorts[idx] = Object.assign({}, target, {
+                students: merged.students,
+                tmsStudentResolutions: mergeTmsStudentResolutions(
+                    target.tmsStudentResolutions,
+                    sessionResolutions
+                )
+            });
             results.push({
                 importCohortName: row.importCohortName,
                 targetId,
@@ -3057,14 +3243,22 @@
         ARCHIVE_COHORT_ID,
         DEFAULT_ARCHIVE_RETENTION_DAYS,
         koreanNameKey,
+        koreanMatchKey,
+        koreanNameDisplayKey,
         nameDisambiguatorSuffix,
+        nameStatusSymbolSuffix,
+        nameLatinDisambiguatorSuffix,
         hangulCoreKey,
         hasNameDisambiguator,
+        hasLatinNameDisambiguator,
         hangulSyllables,
         hangulNameVariantPair,
         shareThreeHangulSyllables,
         pairFuzzyRosterMatches,
         listUnclearTmsStudentMatches,
+        normalizeTmsStudentResolutions,
+        mergeTmsStudentResolutions,
+        applyRememberedTmsStudentResolutions,
         withStudentTag,
         withoutStudentTag,
         mergeRosterByKoreanName,
