@@ -226,6 +226,33 @@ function assert(cond, msg) {
     assert(matchedEn.summary.flagged.length === 0, 'no missing when parens with English');
 }
 
+// Bracketed suffix from TMS roster ("Name[]" or "Name[English]") should be ignored for identity
+{
+    assert(D.koreanNameKey('황익호[]') === '황익호', 'strip empty brackets');
+    assert(D.koreanNameKey('황익호[Leo]') === '황익호', 'strip bracket with English');
+    assert(D.koreanNameKey('황익호[] 학생') === '황익호', 'strip trailing 학생 label');
+    assert(D.koreanNameKey('양민아[]') === '양민아', 'strip empty brackets for 양민아');
+}
+
+{
+    const existing = [{ id: 'stu_a', name: '황익호', tags: [] }];
+    const matched = D.mergeRosterByKoreanName(existing, [{ name: '황익호[]' }]);
+    assert(matched.summary.matched.length === 1, '황익호[] matches 황익호');
+    assert(matched.summary.flagged.length === 0, 'not flagged missing when brackets present');
+    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '황익호[]' }]).length === 0, 'no unclear queue for brackets');
+}
+
+{
+    const existing = [{ id: 'stu_a', name: '황익호', tags: [] }];
+    const matched = D.mergeRosterByKoreanName(existing, [{ name: '황익호[] 학생' }]);
+    assert(matched.summary.matched.length === 1, '황익호[] 학생 matches 황익호');
+    assert(matched.summary.flagged.length === 0, 'not flagged missing when 학생 label present');
+    assert(
+        D.listUnclearTmsStudentMatches(existing, [{ name: '황익호[] 학생' }]).length === 0,
+        'no unclear queue for brackets+학생'
+    );
+}
+
 // Identical Hangul+mark still silent-matches
 {
     const existing = [{ id: 'stu_a', name: '정익마★', nameEn: 'Taeheu', tags: [] }];
