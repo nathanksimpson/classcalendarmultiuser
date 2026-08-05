@@ -8,7 +8,8 @@
  *   TMS_ROSTER_URLS=comma-separated absolute or path URLs (optional fallback only)
  *
  * Primary path: login → class_Main_New_PopUp.aspx sidebar (.class_select + Hsubclass)
- * → fetch each ?classidx= for students. Legacy table-header guessing is fallback only.
+ * → ASP.NET LinkButton postback per class (same as TMS UI). GET ?classidx= is fallback only.
+ * Legacy table-header guessing is last resort when the popup yields no classes.
  *
  * HTTP uses global fetch (Node 18+ / Workers) with redirect: 'manual'.
  */
@@ -638,7 +639,7 @@ function parseStudentsFromClassPopup(html) {
         if (!mpidx || !name || !isLikelyStudentName(name)) {
             continue;
         }
-        if (seenMpidx.has(mpidx) || seenName.has(name)) {
+        if (seenMpidx.has(mpidx)) {
             continue;
         }
         let nameEn = '';
@@ -646,14 +647,21 @@ function parseStudentsFromClassPopup(html) {
         const nextStudent = after.search(/javascript:\s*studentinf\s*\(/i);
         const afterWindow = nextStudent >= 0 ? after.slice(0, nextStudent) : after;
         // Disambiguator often sits just after </a>, not inside the link text.
+        // Apply BEFORE name dedupe so 김민수</a>◆ is not dropped as a duplicate of 김민수.
         if (!TMS_NAME_DISAMBIGUATOR_RE.test(name.slice(-1))) {
             const trailingMark = extractTrailingDisambiguator(afterWindow);
             if (trailingMark) {
                 const withMark = normalizeTmsStudentName(name + trailingMark).name;
-                if (withMark && isLikelyStudentName(withMark) && !seenName.has(withMark)) {
+                if (withMark && isLikelyStudentName(withMark)) {
                     name = withMark;
                 }
             }
+        }
+        if (seenName.has(name)) {
+            // Same display name, different mpidx — keep both for reverse map / rematch.
+            // Append a rare private-use marker is too invasive; keep first Hangul hit only
+            // when names collide without marks (TMS data issue). Prefer mpidx uniqueness.
+            continue;
         }
         const enMatch =
             afterWindow.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
@@ -675,7 +683,11 @@ function parseStudentsFromClassPopup(html) {
     }
 
     if (students.length) {
-        return students.map((s) => ({ name: s.name, nameEn: s.nameEn || '' }));
+        return students.map((s) => ({
+            name: s.name,
+            nameEn: s.nameEn || '',
+            mpidx: s.mpidx || ''
+        }));
     }
 
     // Fallback: paste-style numbered list from visible text (tail-trimmed).
@@ -691,8 +703,8 @@ function parseStudentsFromHtml(html) {
 }
 
 /**
- * Parse TMS class popup sidebar: .class_select li → name + Hsubclass id.
- * @returns {{ cohortName: string, tmsClassId: string }[]}
+ * Parse TMS class popup sidebar: .class_select li → name + Hsubclass id + postback target.
+ * @returns {{ cohortName: string, tmsClassId: string, eventTarget: string, eventArgument: string, selected: boolean }[]}
  */
 function parseClassSelectList(html) {
     const results = [];
@@ -702,13 +714,15 @@ function parseClassSelectList(html) {
         /<div[^>]*class=["'][^"']*\bclass_select\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
     );
     const block = blockMatch ? blockMatch[1] : raw;
-    const liRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+    const liRe = /<li\b([^>]*)>([\s\S]*?)<\/li>/gi;
     let m;
     while ((m = liRe.exec(block))) {
-        const li = m[1];
+        const liAttrs = m[1] || '';
+        const li = m[2];
         if (!/Hsubclass/i.test(li)) {
             continue;
         }
+        const selected = /\bselected\b/i.test(liAttrs) || /\bselected\b/i.test(li);
         const aMatch = li.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i);
         const name = aMatch
             ? stripTags(decodeHtmlEntities(aMatch[1]))
@@ -723,6 +737,11 @@ function parseClassSelectList(html) {
                 /<input[^>]*value=["']([^"']*)["'][^>]*(?:id|name)=["'][^"']*Hsubclass[^"']*["']/i
             );
         const tmsClassId = idMatch ? String(idMatch[1]).trim() : '';
+        const postMatch = li.match(
+            /__doPostBack\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/i
+        );
+        const eventTarget = postMatch ? String(postMatch[1] || '').trim() : '';
+        const eventArgument = postMatch ? String(postMatch[2] || '') : '';
         if (!name || name.length < 2 || !tmsClassId || tmsClassId === '0') {
             continue;
         }
@@ -730,9 +749,57 @@ function parseClassSelectList(html) {
             continue;
         }
         seen.add(tmsClassId);
-        results.push({ cohortName: name, tmsClassId });
+        results.push({
+            cohortName: name,
+            tmsClassId,
+            eventTarget,
+            eventArgument,
+            selected: Boolean(selected)
+        });
     }
     return results;
+}
+
+/**
+ * Find a class_select entry on the current popup HTML by Hsubclass id.
+ * Re-resolve after each postback — ASP.NET control ids can shift with ViewState.
+ */
+function findClassSelectById(html, tmsClassId) {
+    const id = String(tmsClassId || '').trim();
+    if (!id) {
+        return null;
+    }
+    return parseClassSelectList(html).find((c) => c.tmsClassId === id) || null;
+}
+
+/**
+ * Switch class popup via ASP.NET LinkButton postback (same as the TMS UI).
+ * GET ?classidx= is unreliable — often returns the previously selected class.
+ */
+async function fetchClassPopupPostback(jar, popupUrl, pageHtml, eventTarget, eventArgument) {
+    const target = String(eventTarget || '').trim();
+    if (!target) {
+        const err = new Error('Missing postback event target');
+        err.code = 'TMS_POSTBACK_TARGET_MISSING';
+        throw err;
+    }
+    const viewState = extractHidden(pageHtml, '__VIEWSTATE');
+    const viewStateGen = extractHidden(pageHtml, '__VIEWSTATEGENERATOR');
+    const eventValidation = extractHidden(pageHtml, '__EVENTVALIDATION');
+    const body = encodeForm({
+        __EVENTTARGET: target,
+        __EVENTARGUMENT: eventArgument == null ? '' : String(eventArgument),
+        __VIEWSTATE: viewState,
+        __VIEWSTATEGENERATOR: viewStateGen,
+        __EVENTVALIDATION: eventValidation
+    });
+    return requestFollow(popupUrl, {
+        method: 'POST',
+        jar,
+        body,
+        headers: { Referer: popupUrl },
+        contentType: 'application/x-www-form-urlencoded'
+    });
 }
 
 function parseTitle(html) {
@@ -862,7 +929,11 @@ function mergeCohortLists(lists) {
         (c.students || []).forEach((s) => {
             if (s && s.name && !seen.has(s.name)) {
                 seen.add(s.name);
-                bucket.students.push({ name: s.name, nameEn: s.nameEn || '' });
+                bucket.students.push({
+                    name: s.name,
+                    nameEn: s.nameEn || '',
+                    mpidx: s.mpidx || ''
+                });
             }
         });
     });
@@ -968,12 +1039,100 @@ async function scrapeRosters(options) {
             popupPage.status < 400 &&
             !stillOnLoginPage(popupPage.text, popupPage.finalUrl)
         ) {
+            // Chain ViewState across postbacks so each class switch matches the TMS UI.
+            let currentHtml = popupPage.text;
             for (const cls of classList.slice(0, 80)) {
-                const url = `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(cls.tmsClassId)}`;
-                try {
-                    const page = await fetchPage(jar, url);
-                    if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
-                        pages.push({ url, status: page.status, ok: false, source: 'class-popup' });
+                const getUrl = `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(cls.tmsClassId)}`;
+                let students = [];
+                let source = 'class-popup';
+                let pageUrl = getUrl;
+                let pageStatus = 0;
+                let pageOk = false;
+                let pageError = '';
+
+                // Re-resolve LinkButton target from the latest popup HTML (ViewState-safe).
+                const live = findClassSelectById(currentHtml, cls.tmsClassId) || cls;
+                const eventTarget = live.eventTarget || cls.eventTarget || '';
+                const eventArgument =
+                    live.eventArgument != null ? live.eventArgument : cls.eventArgument || '';
+
+                // Already selected on this page → use current roster (no redundant postback).
+                if (live.selected) {
+                    students = parseStudentsFromClassPopup(currentHtml);
+                    if (students.length) {
+                        source = 'class-popup-selected';
+                        pageUrl = popupUrl;
+                        pageStatus = 200;
+                        pageOk = true;
+                    }
+                }
+
+                // Prefer ASP.NET LinkButton postback (fresh roster for that Hsubclass).
+                if (!students.length && eventTarget) {
+                    try {
+                        const posted = await fetchClassPopupPostback(
+                            jar,
+                            popupUrl,
+                            currentHtml,
+                            eventTarget,
+                            eventArgument
+                        );
+                        pageStatus = posted.status || 0;
+                        pageUrl = posted.finalUrl || popupUrl;
+                        if (
+                            posted.status < 400 &&
+                            !stillOnLoginPage(posted.text, posted.finalUrl)
+                        ) {
+                            currentHtml = posted.text;
+                            students = parseStudentsFromClassPopup(posted.text);
+                            source = 'class-popup-postback';
+                            pageOk = true;
+                        }
+                    } catch (e) {
+                        pageError = e.message || String(e);
+                    }
+                }
+
+                // Fallback: GET ?classidx= (legacy; may return previously selected class).
+                if (!students.length) {
+                    try {
+                        const page = await fetchPage(jar, getUrl);
+                        pageStatus = page.status || 0;
+                        pageUrl = page.finalUrl || getUrl;
+                        if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
+                            pageOk = false;
+                            pages.push({
+                                url: pageUrl,
+                                status: pageStatus,
+                                ok: false,
+                                error: pageError || undefined,
+                                source: 'class-popup'
+                            });
+                            allCohorts.push({
+                                cohortName: cls.cohortName,
+                                tmsClassId: cls.tmsClassId,
+                                students: [],
+                                source: 'class-popup'
+                            });
+                            continue;
+                        }
+                        students = parseStudentsFromClassPopup(page.text);
+                        source = pageError || eventTarget
+                            ? 'class-popup-get-fallback'
+                            : 'class-popup';
+                        pageOk = true;
+                        // Keep postback ViewState chain when GET is only a fallback.
+                        if (!eventTarget) {
+                            currentHtml = page.text;
+                        }
+                    } catch (e) {
+                        pages.push({
+                            url: getUrl,
+                            status: 0,
+                            ok: false,
+                            error: pageError || e.message || String(e),
+                            source: 'class-popup'
+                        });
                         allCohorts.push({
                             cohortName: cls.cohortName,
                             tmsClassId: cls.tmsClassId,
@@ -982,36 +1141,23 @@ async function scrapeRosters(options) {
                         });
                         continue;
                     }
-                    const students = parseStudentsFromClassPopup(page.text);
-                    pages.push({
-                        url: page.finalUrl || url,
-                        status: page.status,
-                        ok: true,
-                        cohortCount: 1,
-                        studentCount: students.length,
-                        source: 'class-popup'
-                    });
-                    allCohorts.push({
-                        cohortName: cls.cohortName,
-                        tmsClassId: cls.tmsClassId,
-                        students,
-                        source: 'class-popup'
-                    });
-                } catch (e) {
-                    pages.push({
-                        url,
-                        status: 0,
-                        ok: false,
-                        error: e.message || String(e),
-                        source: 'class-popup'
-                    });
-                    allCohorts.push({
-                        cohortName: cls.cohortName,
-                        tmsClassId: cls.tmsClassId,
-                        students: [],
-                        source: 'class-popup'
-                    });
                 }
+
+                pages.push({
+                    url: pageUrl,
+                    status: pageStatus,
+                    ok: pageOk,
+                    cohortCount: 1,
+                    studentCount: students.length,
+                    source,
+                    error: pageError || undefined
+                });
+                allCohorts.push({
+                    cohortName: cls.cohortName,
+                    tmsClassId: cls.tmsClassId,
+                    students,
+                    source
+                });
             }
         }
     } catch (e) {
@@ -1036,7 +1182,11 @@ async function scrapeRosters(options) {
             homeUrl,
             pagesFetched: pages.length,
             pages,
-            source: allCohorts.some((c) => c.source === 'class-popup') ? 'class-popup' : 'legacy'
+            source: allCohorts.some((c) =>
+                String(c.source || '').startsWith('class-popup')
+            )
+                ? 'class-popup'
+                : 'legacy'
         }
     };
 }
@@ -1082,6 +1232,8 @@ module.exports = {
     parseStudentsFromNumberedBlocks,
     trimRosterPasteTail,
     parseClassSelectList,
+    findClassSelectById,
+    fetchClassPopupPostback,
     mergeCohortLists,
     isLikelyStudentName,
     stripTmsAttendanceNoise,
