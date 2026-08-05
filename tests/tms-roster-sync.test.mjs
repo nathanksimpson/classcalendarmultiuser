@@ -68,6 +68,18 @@ function assert(cond, msg) {
     assert(result.students.find((s) => s.name === '김민수').nameEn === 'DifferentEn', 'exact match adopts TMS English');
 }
 
+// Exact Korean match clears off_roster even when English differs
+{
+    const existing = [{ id: 'stu_a', name: '김민수', nameEn: 'Alice', tags: ['off_roster'] }];
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수', nameEn: 'Bob' }]);
+    const student = result.students.find((s) => s.id === 'stu_a');
+    assert(result.summary.matched.length === 1, 'matched by Korean name');
+    assert(result.summary.flagged.length === 0, 'not flagged off roster');
+    assert(result.summary.cleared.length === 1, 'cleared off_roster');
+    assert(!student.tags.includes('off_roster'), 'off_roster removed despite English mismatch');
+    assert(student.nameEn === 'Bob', 'English updated separately from off_roster');
+}
+
 // Flag missing from TMS; clear when they return
 {
     const existing = [

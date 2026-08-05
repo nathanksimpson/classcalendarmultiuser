@@ -535,7 +535,7 @@
      * - On exact match or confirmed map, adopt TMS display name when it differs, and nameEn when set.
      * - Add students whose match key is not in the cohort (unless unclear without resolution).
      * - Flag existing students missing from TMS with off_roster (never delete).
-     * - Clear off_roster when they reappear on TMS.
+     * - Clear off_roster when they reappear on TMS (Korean match / map only — English never affects this).
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
      */
     function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
@@ -759,6 +759,8 @@
                 }
                 next = Object.assign({}, s, patch);
             }
+            // Off roster is Korean-name only: exact match, map resolution, or fuzzy consume.
+            // nameEn differences never block clearing off_roster.
             const k = koreanMatchKey(next.name);
             const onTms =
                 (k && tmsKeys.has(k) && !skipTmsKeys.has(k)) ||
