@@ -55,8 +55,12 @@ const FIXTURE_CLASS_SELECT = `
     assert(list.length === 2, `expected 2 actionable classes, got ${list.length}`);
     assert(list[0].cohortName === 'NavyM_26SP', 'first name NavyM_26SP');
     assert(list[0].tmsClassId === '30496', 'first id 30496');
+    assert(list[0].eventTarget === 'repe1$ctl00$LinkButton1', 'first postback target');
+    assert(list[0].selected === true, 'first class selected in fixture');
     assert(list[1].cohortName === 'OrangeM^2606', 'second name OrangeM^2606');
     assert(list[1].tmsClassId === '30964', 'second id 30964');
+    assert(list[1].eventTarget === 'repe1$ctl01$LinkButton1', 'second postback target');
+    assert(list[1].selected === false, 'second not selected');
 }
 
 {
@@ -157,6 +161,28 @@ const FIXTURE_CLASS_SELECT = `
     assert(students[3].name === '박지훈◆', 'mark after </a> captured');
     assert(students[3].nameEn === 'Alice', 'english after trailing mark');
     assert(students[4].name === '최유나♦', 'card-suit diamond after </a>');
+}
+
+{
+    // Trailing ◆ after </a> must apply before name dedupe so twins are not collapsed.
+    const twinHtml = `
+      <td><a href="javascript:studentinf(90001)">유마</a></td>
+      <td><a href="javascript:studentinf(90002)">유마</a>◆</td>
+    `;
+    const twins = tms.parseStudentsFromClassPopup(twinHtml);
+    assert(twins.length === 2, `trailing ◆ must keep both twins, got ${twins.length}`);
+    assert(twins[0].name === '유마', 'first twin plain');
+    assert(twins[1].name === '유마◆', 'second twin with trailing mark');
+    assert(twins[0].mpidx === '90001', 'first mpidx');
+    assert(twins[1].mpidx === '90002', 'second mpidx');
+}
+
+{
+    const byId = tms.findClassSelectById(FIXTURE_CLASS_SELECT, '30964');
+    assert(byId && byId.cohortName === 'OrangeM^2606', 'findClassSelectById OrangeM');
+    assert(byId.eventTarget === 'repe1$ctl01$LinkButton1', 'live postback target');
+    assert(byId.selected === false, 'OrangeM not selected');
+    assert(!tms.findClassSelectById(FIXTURE_CLASS_SELECT, '99999'), 'missing id returns null');
 }
 
 {
