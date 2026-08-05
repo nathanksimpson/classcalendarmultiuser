@@ -548,6 +548,98 @@ function assert(cond, msg) {
     assert(applied.results[0].summary.added.length === 1, 'one added in result');
 }
 
+// Reverse match: Off-roster CM student → pick TMS name → write TMS identity onto CCMU
+{
+    assert(typeof D.listReverseTmsStudentMatches === 'function', 'listReverseTmsStudentMatches exported');
+    // CM Hangul differs from TMS — cannot auto-match; reverse Map pulls TMS → CCMU.
+    const existing = [
+        { id: 'stu_a', name: '김민수', tags: [] },
+        { id: 'stu_gone', name: '옛이름', nameEn: 'OldEn', tags: ['off_roster'] }
+    ];
+    const tms = [
+        { name: '김민수' },
+        { name: '황연진◆', nameEn: 'Yeonjin' }
+    ];
+    const reverse = D.listReverseTmsStudentMatches(existing, tms, {});
+    assert(reverse.length === 1, 'one reverse candidate (옛이름 / Off roster)');
+    assert(reverse[0].direction === 'reverse', 'reverse direction');
+    assert(reverse[0].studentId === 'stu_gone', 'off_roster student first');
+    assert(
+        reverse[0].candidates.some((c) => c.name === '황연진◆'),
+        'TMS name offered as reverse candidate'
+    );
+    assert(
+        !reverse[0].candidates.some((c) => c.name === '김민수'),
+        'exact-matched TMS not offered for reverse'
+    );
+
+    const tmsKey = D.koreanMatchKey('황연진◆');
+    const cohorts = [
+        {
+            id: 'c1',
+            name: 'Test',
+            students: existing.map((s) => Object.assign({}, s, { tags: (s.tags || []).slice() })),
+            tmsStudentResolutions: {},
+            tmsReverseResolutions: {}
+        }
+    ];
+    const applied = D.applyTmsRosterPlan(
+        cohorts,
+        [
+            {
+                userAction: 'map',
+                userTargetId: 'c1',
+                importCohortName: 'TMS',
+                students: tms,
+                studentResolutions: {
+                    [tmsKey]: { action: 'map', studentId: 'stu_gone' }
+                },
+                reverseResolutions: {
+                    stu_gone: { action: 'map', tmsKey }
+                }
+            }
+        ],
+        {}
+    );
+    const updated = applied.cohorts[0].students.find((s) => s.id === 'stu_gone');
+    assert(updated.name === '황연진◆', 'TMS Korean name written onto CCMU (not to TMS)');
+    assert(updated.nameEn === 'Yeonjin', 'TMS English written onto CCMU');
+    assert(!updated.tags.includes('off_roster'), 'off_roster cleared after reverse map');
+    assert(
+        applied.cohorts[0].tmsReverseResolutions.stu_gone.action === 'map',
+        'reverse map remembered'
+    );
+    assert(
+        D.listUnclearTmsStudentMatches(applied.cohorts[0].students, tms).length === 0,
+        'next sync no unclear'
+    );
+    assert(
+        D.listReverseTmsStudentMatches(applied.cohorts[0].students, tms, {
+            studentResolutions: applied.cohorts[0].tmsStudentResolutions,
+            reverseResolutions: applied.cohorts[0].tmsReverseResolutions
+        }).length === 0,
+        'next sync no reverse review'
+    );
+}
+
+// Reverse keep-off-roster is remembered and does not claim TMS names
+{
+    const existing = [
+        { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
+        { id: 'stu_b', name: '이서연', tags: ['off_roster'] }
+    ];
+    const tms = [{ name: '박지훈', nameEn: 'Park' }];
+    const reverse = D.listReverseTmsStudentMatches(existing, tms, {
+        reverseResolutions: { stu_a: { action: 'skip' } }
+    });
+    assert(reverse.every((r) => r.studentId !== 'stu_a'), 'skipped CM not re-queued');
+    assert(reverse.some((r) => r.studentId === 'stu_b'), 'other Off roster still offered');
+    assert(
+        reverse[0].candidates.some((c) => D.koreanMatchKey(c.name) === D.koreanMatchKey('박지훈')),
+        'TMS still available for other student'
+    );
+}
+
 // TMS class → cohort link memory
 {
     assert(D.normalizeTmsClassKey('가람 월') === '가람월', 'normalize hangul name key');

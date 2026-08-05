@@ -494,6 +494,224 @@
     }
 
     /**
+     * Remembered reverse-match choices: CM student missing from TMS → pick TMS name or keep Off roster.
+     * { [studentId]: { action:'skip' } | { action:'map', tmsKey } }
+     * Map always writes TMS identity onto CCMU (never the reverse — we cannot update TMS).
+     */
+    function normalizeTmsReverseResolutions(raw) {
+        const out = {};
+        if (!raw || typeof raw !== 'object') {
+            return out;
+        }
+        Object.keys(raw).forEach((studentId) => {
+            const sid = normalizeStr(studentId);
+            if (!sid) {
+                return;
+            }
+            const r = raw[studentId];
+            if (!r || typeof r !== 'object') {
+                return;
+            }
+            if (r.action === 'skip') {
+                out[sid] = { action: 'skip' };
+                return;
+            }
+            if (r.action === 'map') {
+                const tmsKey = koreanMatchKey(r.tmsKey) || normalizeStr(r.tmsKey);
+                if (tmsKey) {
+                    out[sid] = { action: 'map', tmsKey };
+                }
+            }
+        });
+        return out;
+    }
+
+    function mergeTmsReverseResolutions(base, extra) {
+        return Object.assign(
+            {},
+            normalizeTmsReverseResolutions(base),
+            normalizeTmsReverseResolutions(extra)
+        );
+    }
+
+    /**
+     * CM students who are (or will be) missing from TMS — offer reverse Map to an unmatched TMS name.
+     * Choosing Map stores studentResolutions[tmsKey]={map,studentId} so merge writes TMS name/nameEn onto CCMU.
+     */
+    function listReverseTmsStudentMatches(existingStudents, tmsStudents, options) {
+        const opts = options || {};
+        const forwardRes = normalizeTmsStudentResolutions(
+            opts.studentResolutions && typeof opts.studentResolutions === 'object'
+                ? opts.studentResolutions
+                : {}
+        );
+        const reverseRes = normalizeTmsReverseResolutions(
+            opts.reverseResolutions && typeof opts.reverseResolutions === 'object'
+                ? opts.reverseResolutions
+                : {}
+        );
+        const existing = cohortStudentsForMapCandidates(existingStudents);
+        const incoming = (Array.isArray(tmsStudents) ? tmsStudents : [])
+            .map((raw) => {
+                if (!raw) {
+                    return null;
+                }
+                const name = normalizeStr(raw.name);
+                if (!name) {
+                    return null;
+                }
+                return { name, nameEn: normalizeStr(raw.nameEn) };
+            })
+            .filter(Boolean);
+        if (!incoming.length || !existing.length) {
+            return [];
+        }
+
+        const existingByKey = new Map();
+        const duplicateKeys = new Set();
+        existing.forEach((s) => {
+            const k = koreanMatchKey(s.name);
+            if (!k) {
+                return;
+            }
+            if (existingByKey.has(k)) {
+                duplicateKeys.add(k);
+            } else {
+                existingByKey.set(k, s);
+            }
+        });
+
+        const exactMatchedStudentIds = new Set();
+        const claimedTmsKeys = new Set();
+        const seenTms = new Set();
+        incoming.forEach((imp) => {
+            const k = koreanMatchKey(imp.name);
+            if (!k || seenTms.has(k)) {
+                return;
+            }
+            seenTms.add(k);
+            const exact = existingByKey.get(k);
+            if (exact && !duplicateKeys.has(k)) {
+                exactMatchedStudentIds.add(exact.id);
+                claimedTmsKeys.add(k);
+            }
+        });
+
+        const mappedStudentIds = new Set();
+        Object.keys(forwardRes).forEach((k) => {
+            const r = forwardRes[k];
+            if (!r) {
+                return;
+            }
+            if (r.action === 'map' && r.studentId) {
+                mappedStudentIds.add(r.studentId);
+                claimedTmsKeys.add(k);
+            } else if (r.action === 'skip' || r.action === 'add') {
+                claimedTmsKeys.add(k);
+            }
+        });
+
+        const tmsCandidates = [];
+        const seenCand = new Set();
+        incoming.forEach((imp) => {
+            const k = koreanMatchKey(imp.name);
+            if (!k || seenCand.has(k) || claimedTmsKeys.has(k)) {
+                return;
+            }
+            seenCand.add(k);
+            tmsCandidates.push({ tmsKey: k, name: imp.name, nameEn: imp.nameEn || '' });
+        });
+        if (!tmsCandidates.length) {
+            return [];
+        }
+
+        const missing = existing
+            .filter((s) => {
+                if (exactMatchedStudentIds.has(s.id) || mappedStudentIds.has(s.id)) {
+                    return false;
+                }
+                const rev = reverseRes[s.id];
+                if (rev && rev.action === 'skip') {
+                    return false;
+                }
+                if (rev && rev.action === 'map' && rev.tmsKey && claimedTmsKeys.has(rev.tmsKey)) {
+                    return false;
+                }
+                return true;
+            })
+            .sort((a, b) => {
+                const aOff = (a.tags || []).includes(OFF_ROSTER_TAG) ? 0 : 1;
+                const bOff = (b.tags || []).includes(OFF_ROSTER_TAG) ? 0 : 1;
+                if (aOff !== bOff) {
+                    return aOff - bOff;
+                }
+                return compareStudentNames(a, b);
+            });
+
+        return missing.map((s) => ({
+            direction: 'reverse',
+            reason: 'missing_from_tms',
+            studentId: s.id,
+            studentName: s.name,
+            studentNameEn: s.nameEn || '',
+            cmKey: koreanMatchKey(s.name),
+            reviewKey: `cm:${s.id}`,
+            alreadyOffRoster: (s.tags || []).includes(OFF_ROSTER_TAG),
+            candidates: tmsCandidates.map((c) => Object.assign({}, c))
+        }));
+    }
+
+    /**
+     * Apply remembered reverse resolutions. Mutates row.reverseResolutions and row.studentResolutions.
+     * Map copies TMS → CCMU via the same studentResolutions path as forward Map.
+     */
+    function applyRememberedTmsReverseResolutions(cohort, reverseItems, row) {
+        const mem = normalizeTmsReverseResolutions(cohort && cohort.tmsReverseResolutions);
+        if (!row.reverseResolutions || typeof row.reverseResolutions !== 'object') {
+            row.reverseResolutions = {};
+        }
+        if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
+            row.studentResolutions = {};
+        }
+        const still = [];
+        (Array.isArray(reverseItems) ? reverseItems : []).forEach((item) => {
+            if (!item || !item.studentId) {
+                return;
+            }
+            const sid = item.studentId;
+            const remembered = mem[sid];
+            if (!remembered) {
+                still.push(item);
+                return;
+            }
+            if (remembered.action === 'skip') {
+                row.reverseResolutions[sid] = { action: 'skip' };
+                return;
+            }
+            if (remembered.action === 'map' && remembered.tmsKey) {
+                const stillAvailable = (item.candidates || []).some(
+                    (c) => c && c.tmsKey === remembered.tmsKey
+                );
+                if (!stillAvailable) {
+                    still.push(item);
+                    return;
+                }
+                row.reverseResolutions[sid] = {
+                    action: 'map',
+                    tmsKey: remembered.tmsKey
+                };
+                row.studentResolutions[remembered.tmsKey] = {
+                    action: 'map',
+                    studentId: sid
+                };
+                return;
+            }
+            still.push(item);
+        });
+        return still;
+    }
+
+    /**
      * Apply remembered resolutions onto a Sync row and return unclear items still needing UI.
      * Mutates row.studentResolutions.
      */
@@ -818,7 +1036,8 @@
         let cohorts = (Array.isArray(calendarCohorts) ? calendarCohorts : []).map((c) =>
             Object.assign({}, c, {
                 students: Array.isArray(c.students) ? c.students.map((s) => Object.assign({}, s)) : [],
-                tmsStudentResolutions: normalizeTmsStudentResolutions(c && c.tmsStudentResolutions)
+                tmsStudentResolutions: normalizeTmsStudentResolutions(c && c.tmsStudentResolutions),
+                tmsReverseResolutions: normalizeTmsReverseResolutions(c && c.tmsReverseResolutions)
             })
         );
         const results = [];
@@ -846,6 +1065,8 @@
             }
             const target = cohorts[idx];
             const sessionResolutions = row.studentResolutions || opts.studentResolutions || {};
+            const sessionReverse = row.reverseResolutions || opts.reverseResolutions || {};
+            // Reverse Map choices are also written into studentResolutions[tmsKey] → adoptTmsIdentity.
             const merged = mergeRosterByKoreanName(target.students, row.students, {
                 newStudentId: opts.newStudentId,
                 studentResolutions: sessionResolutions,
@@ -856,6 +1077,10 @@
                 tmsStudentResolutions: mergeTmsStudentResolutions(
                     target.tmsStudentResolutions,
                     sessionResolutions
+                ),
+                tmsReverseResolutions: mergeTmsReverseResolutions(
+                    target.tmsReverseResolutions,
+                    sessionReverse
                 )
             });
             results.push({
@@ -3270,9 +3495,13 @@
         shareThreeHangulSyllables,
         pairFuzzyRosterMatches,
         listUnclearTmsStudentMatches,
+        listReverseTmsStudentMatches,
         normalizeTmsStudentResolutions,
         mergeTmsStudentResolutions,
+        normalizeTmsReverseResolutions,
+        mergeTmsReverseResolutions,
         applyRememberedTmsStudentResolutions,
+        applyRememberedTmsReverseResolutions,
         withStudentTag,
         withoutStudentTag,
         mergeRosterByKoreanName,

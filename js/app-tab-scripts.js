@@ -33,7 +33,7 @@
             'js/roster-import.js?v=20260723-tms-sync',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260805-tms-unmatched-map'
+            'js/classroom-roster.js?v=20260805-tms-reverse-map'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
