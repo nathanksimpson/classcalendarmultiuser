@@ -21,8 +21,136 @@
     let tmsSyncWizardStep = 1;
     let tmsReviewQueue = [];
     let tmsReviewIndex = 0;
+    let tmsMissingQueue = [];
+    let tmsMissingIndex = 0;
+    let tmsCreateEditorUnsub = null;
     const selectedStudentIds = new Set();
+    const TMS_CREATE_VALUE = '__create__';
 
+    function cleanTmsSyncCohortName(name) {
+        const stripped = String(name || '')
+            .replace(/^\[[^\]]+\]\s*/u, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return (stripped.split('^')[0] || stripped).trim();
+    }
+
+    function inferScheduleFromTmsSyncName(name) {
+        const core = cleanTmsSyncCohortName(name).split('^')[0] || '';
+        if (/T\s*$/i.test(core) || /T_\d/i.test(core)) {
+            return { schedulePattern: 'tth', meetingDays: [2, 4] };
+        }
+        return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
+    }
+
+    function cohortManagement() {
+        return global.CCPCohortManagement || null;
+    }
+
+    function cleanupTmsCreateEditorListener() {
+        if (typeof tmsCreateEditorUnsub === 'function') {
+            tmsCreateEditorUnsub();
+        }
+        tmsCreateEditorUnsub = null;
+    }
+
+    function finishTmsCreateCohortEditor(row) {
+        cleanupTmsCreateEditorListener();
+        if (!row) {
+            renderTmsSyncTable();
+            return;
+        }
+        const draftId = row.tmsCreatedCohortId || row.userTargetId;
+        const cm = cohortManagement();
+        const cohort = getCohorts().find((c) => c && c.id === draftId);
+        if (!cohort || !String(cohort.name || '').trim()) {
+            if (cm && cm.removeNamelessCohortDraft && draftId) {
+                cm.removeNamelessCohortDraft(draftId);
+            }
+            row.userAction = 'choose';
+            row.userTargetId = '';
+            row.tmsCreatedCohortId = '';
+            row.remembered = false;
+        } else {
+            row.userAction = 'map';
+            row.userTargetId = cohort.id;
+            row.tmsCreatedCohortId = cohort.id;
+            row.remembered = false;
+        }
+        renderTmsSyncTable();
+    }
+
+    async function beginTmsCreateCohort(row) {
+        if (hooks && hooks.isViewOnly && hooks.isViewOnly()) {
+            setTmsSyncError(t('rosterImportReadOnly'));
+            row.userAction = 'choose';
+            row.userTargetId = '';
+            renderTmsSyncTable();
+            return;
+        }
+        if (typeof global.CCPEnsureCohortManagementReady === 'function') {
+            const ready = await global.CCPEnsureCohortManagementReady();
+            if (!ready) {
+                setTmsSyncError(t('rosterTmsSyncCreateUnavailable'));
+                row.userAction = 'choose';
+                row.userTargetId = '';
+                renderTmsSyncTable();
+                return;
+            }
+        }
+        const cm = cohortManagement();
+        if (!cm || !cm.createCohortDraftFromTms || !cm.openCohortEditorForId) {
+            setTmsSyncError(t('rosterTmsSyncCreateUnavailable'));
+            row.userAction = 'choose';
+            row.userTargetId = '';
+            renderTmsSyncTable();
+            return;
+        }
+        cleanupTmsCreateEditorListener();
+        if (row.tmsCreatedCohortId) {
+            const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
+            if (prev && !String(prev.name || '').trim() && cm.removeNamelessCohortDraft) {
+                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
+            }
+        }
+        const sched = inferScheduleFromTmsSyncName(row.importCohortName);
+        const appData = hooks && hooks.getAppData ? hooks.getAppData() : null;
+        const mapped =
+            row.schedule && domain().mapTmsBlockToPeriod
+                ? domain().mapTmsBlockToPeriod(
+                      row.schedule,
+                      appData && appData.timetableTimeSlots,
+                      appData && appData.periodSlotMap
+                  )
+                : null;
+        const draft = cm.createCohortDraftFromTms({
+            name: cleanTmsSyncCohortName(row.importCohortName),
+            schedulePattern: sched.schedulePattern,
+            meetingDays: sched.meetingDays,
+            tmsBlockStart: mapped && mapped.start ? mapped.start : '',
+            tmsBlockEnd: mapped && mapped.end ? mapped.end : '',
+            tmsSuggestedPeriod: mapped && mapped.period != null ? mapped.period : null,
+            tmsSuggestedTimeSlotId: mapped && mapped.timeSlotId ? mapped.timeSlotId : ''
+        });
+        if (!draft || !draft.id) {
+            setTmsSyncError(t('rosterTmsSyncCreateUnavailable'));
+            row.userAction = 'choose';
+            row.userTargetId = '';
+            renderTmsSyncTable();
+            return;
+        }
+        row.userAction = 'map';
+        row.userTargetId = draft.id;
+        row.tmsCreatedCohortId = draft.id;
+        row.remembered = false;
+        setTmsSyncError('');
+        setTmsSyncStatus(t('rosterTmsSyncCreateEditorHint'));
+        if (cm.onCohortEditorClosed) {
+            tmsCreateEditorUnsub = cm.onCohortEditorClosed(() => finishTmsCreateCohortEditor(row));
+        }
+        cm.openCohortEditorForId(draft.id);
+        renderTmsSyncTable();
+    }
     function domain() {
         return global.CCPClassroomDomain;
     }
@@ -1039,12 +1167,26 @@
     }
 
     function closeTmsSyncModal() {
+        cleanupTmsCreateEditorListener();
+        tmsSyncPlan.forEach((row) => {
+            if (row && row.tmsCreatedCohortId) {
+                const c = getCohorts().find((x) => x && x.id === row.tmsCreatedCohortId);
+                if (c && !String(c.name || '').trim()) {
+                    const cm = cohortManagement();
+                    if (cm && cm.removeNamelessCohortDraft) {
+                        cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
+                    }
+                }
+            }
+        });
         tmsSyncPlan = [];
         tmsSyncLoading = false;
         tmsSyncHasFetched = false;
         tmsSyncWizardStep = 1;
         tmsReviewQueue = [];
         tmsReviewIndex = 0;
+        tmsMissingQueue = [];
+        tmsMissingIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
         clearTmsPasswordField();
@@ -1153,8 +1295,9 @@
             tmsLinkKey: resolved.key || '',
             studentCount: Array.isArray(c.students) ? c.students.length : 0,
             students: Array.isArray(c.students) ? c.students.slice() : [],
+            schedule: c && c.schedule ? Object.assign({}, c.schedule) : null,
             studentResolutions: {},
-            reverseResolutions: {},
+            missingStudentActions: {},
             userAction: resolved.userAction,
             userTargetId: resolved.userTargetId || '',
             suggestedTargetId: resolved.suggestedTargetId || '',
@@ -1254,52 +1397,18 @@
         if (!target || !domain().mergeRosterByKoreanName) {
             return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
         }
-        const unclear = domain().listUnclearTmsStudentMatches
+        const unclearRaw = domain().listUnclearTmsStudentMatches
             ? domain().listUnclearTmsStudentMatches(target.students, row.students)
             : [];
-        const reverse =
-            domain().listReverseTmsStudentMatches
-                ? domain().listReverseTmsStudentMatches(target.students, row.students, {
-                      studentResolutions: row.studentResolutions || {},
-                      reverseResolutions: row.reverseResolutions || {}
-                  })
-                : [];
+        const unclear = domain().applyRememberedTmsStudentResolutions
+            ? domain().applyRememberedTmsStudentResolutions(target, unclearRaw, row)
+            : unclearRaw;
         const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
             studentResolutions: row.studentResolutions || {},
-            reverseResolutions: row.reverseResolutions || {},
             softUnclear: true
         }).summary;
-        summary.unclear = unclear.concat(reverse);
+        summary.unclear = unclear;
         return summary;
-    }
-
-    function isReviewEntryResolved(entry) {
-        if (!entry || !entry.item) {
-            return true;
-        }
-        const row = tmsSyncPlan[entry.rowIdx];
-        if (!row) {
-            return true;
-        }
-        const item = entry.item;
-        if (item.direction === 'reverse') {
-            const rev =
-                row.reverseResolutions && item.studentId
-                    ? row.reverseResolutions[item.studentId]
-                    : null;
-            return Boolean(
-                rev &&
-                    (rev.action === 'skip' || (rev.action === 'map' && rev.tmsKey))
-            );
-        }
-        const key = item.tmsKey;
-        const res = key && row.studentResolutions ? row.studentResolutions[key] : null;
-        return Boolean(
-            res &&
-                (res.action === 'skip' ||
-                    res.action === 'add' ||
-                    (res.action === 'map' && res.studentId))
-        );
     }
 
     function collectTmsReviewQueue() {
@@ -1315,26 +1424,12 @@
             if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
                 row.studentResolutions = {};
             }
-            if (!row.reverseResolutions || typeof row.reverseResolutions !== 'object') {
-                row.reverseResolutions = {};
-            }
             const unclear = domain().listUnclearTmsStudentMatches(target.students, row.students);
-            const hangulForward = unclear.filter((item) => item && item.reason !== 'unmatched');
-            const unmatchedForward = unclear.filter((item) => item && item.reason === 'unmatched');
-            const stillHangul = domain().applyRememberedTmsStudentResolutions
-                ? domain().applyRememberedTmsStudentResolutions(target, hangulForward, row)
-                : hangulForward;
-
-            // 1) Hangul unclear / duplicates (TMS → CM)
-            stillHangul.forEach((item) => {
-                if (
-                    isReviewEntryResolved({
-                        rowIdx,
-                        item
-                    })
-                ) {
-                    return;
-                }
+            const stillUnclear =
+                domain().applyRememberedTmsStudentResolutions
+                    ? domain().applyRememberedTmsStudentResolutions(target, unclear, row)
+                    : unclear;
+            stillUnclear.forEach((item) => {
                 queue.push({
                     rowIdx,
                     importCohortName: row.importCohortName,
@@ -1342,56 +1437,82 @@
                     item
                 });
             });
+        });
+        return queue;
+    }
 
-            // 2) Reverse: CM missing / Off roster → pick TMS name (writes TMS → CCMU)
-            if (domain().listReverseTmsStudentMatches) {
-                const reverse = domain().listReverseTmsStudentMatches(
-                    target.students,
-                    row.students,
-                    {
-                        studentResolutions: row.studentResolutions,
-                        reverseResolutions: row.reverseResolutions
-                    }
-                );
-                const stillReverse = domain().applyRememberedTmsReverseResolutions
-                    ? domain().applyRememberedTmsReverseResolutions(target, reverse, row)
-                    : reverse;
-                stillReverse.forEach((item) => {
-                    if (
-                        isReviewEntryResolved({
-                            rowIdx,
-                            item
-                        })
-                    ) {
-                        return;
-                    }
-                    queue.push({
-                        rowIdx,
-                        importCohortName: row.importCohortName,
-                        targetName: target.name || row.userTargetId,
-                        item
-                    });
-                });
+    function collectTmsMissingQueue() {
+        const queue = [];
+        const transfers =
+            domain().detectTmsRosterTransfers
+                ? domain().detectTmsRosterTransfers(getCohorts(), tmsSyncPlan)
+                : [];
+        const transferByStudentId = new Map();
+        transfers.forEach((tr) => {
+            if (tr && tr.studentId) {
+                transferByStudentId.set(tr.studentId, tr);
             }
-
-            // 3) Leftover unmatched TMS (Add / Skip / Map) after reverse claimed some
-            const stillUnmatched = domain().applyRememberedTmsStudentResolutions
-                ? domain().applyRememberedTmsStudentResolutions(target, unmatchedForward, row)
-                : unmatchedForward;
-            stillUnmatched.forEach((item) => {
-                if (
-                    isReviewEntryResolved({
-                        rowIdx,
-                        item
-                    })
-                ) {
+        });
+        tmsSyncPlan.forEach((row, rowIdx) => {
+            if (!row || row.userAction !== 'map' || !row.userTargetId) {
+                return;
+            }
+            const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+            if (!target || !domain().mergeRosterByKoreanName) {
+                return;
+            }
+            if (!row.missingStudentActions || typeof row.missingStudentActions !== 'object') {
+                row.missingStudentActions = {};
+            }
+            const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
+                studentResolutions: row.studentResolutions || {},
+                softUnclear: true
+            }).summary;
+            if (
+                Array.isArray(summary.warnings) &&
+                summary.warnings.some((w) => w && w.code === 'incomplete_tms_scrape')
+            ) {
+                return;
+            }
+            const flagged = Array.isArray(summary.flagged) ? summary.flagged : [];
+            flagged.forEach((f) => {
+                if (!f || !f.id) {
                     return;
+                }
+                const student = (target.students || []).find((s) => s && s.id === f.id);
+                if (!student || student.active === false) {
+                    return;
+                }
+                const transfer = transferByStudentId.get(f.id);
+                // Only treat as transfer when this row is the source cohort.
+                const transferForRow =
+                    transfer && transfer.fromRowIdx === rowIdx ? transfer : null;
+                if (!row.missingStudentActions[f.id]) {
+                    if (transferForRow) {
+                        row.missingStudentActions[f.id] = {
+                            action: 'move',
+                            toCohortId: transferForRow.toCohortId
+                        };
+                    } else {
+                        row.missingStudentActions[f.id] = { action: 'keep' };
+                    }
                 }
                 queue.push({
                     rowIdx,
                     importCohortName: row.importCohortName,
                     targetName: target.name || row.userTargetId,
-                    item
+                    student: {
+                        id: f.id,
+                        name: student.name || f.name || '',
+                        nameEn: student.nameEn || ''
+                    },
+                    transfer: transferForRow
+                        ? {
+                              toCohortId: transferForRow.toCohortId,
+                              toCohortName: transferForRow.toCohortName,
+                              tmsName: transferForRow.tmsName
+                          }
+                        : null
                 });
             });
         });
@@ -1405,12 +1526,6 @@
         if (reason === 'fuzzy_variant') {
             return t('rosterTmsReviewReasonFuzzy');
         }
-        if (reason === 'unmatched') {
-            return t('rosterTmsReviewReasonUnmatched');
-        }
-        if (reason === 'missing_from_tms') {
-            return t('rosterTmsReviewReasonMissingFromTms');
-        }
         return t('rosterTmsReviewReasonSharedCore');
     }
 
@@ -1420,17 +1535,11 @@
             return null;
         }
         const row = tmsSyncPlan[entry.rowIdx];
-        const item = entry.item;
-        if (item && item.direction === 'reverse') {
-            return row && row.reverseResolutions && item.studentId
-                ? row.reverseResolutions[item.studentId]
-                : null;
-        }
-        const key = item && item.tmsKey;
+        const key = entry.item.tmsKey;
         return row && row.studentResolutions ? row.studentResolutions[key] : null;
     }
 
-    function setCurrentReviewResolution(action, studentIdOrTmsKey) {
+    function setCurrentReviewResolution(action, studentId, mergeDropIds) {
         const entry = tmsReviewQueue[tmsReviewIndex];
         if (!entry) {
             return;
@@ -1442,28 +1551,30 @@
         if (!row.studentResolutions) {
             row.studentResolutions = {};
         }
-        if (!row.reverseResolutions) {
-            row.reverseResolutions = {};
+        if (!row.pendingStudentMerges) {
+            row.pendingStudentMerges = [];
         }
-        const item = entry.item;
-        if (item && item.direction === 'reverse') {
-            const sid = item.studentId;
-            if (action === 'map') {
-                const tmsKey = String(studentIdOrTmsKey || '');
-                row.reverseResolutions[sid] = { action: 'map', tmsKey };
-                // Pull TMS → CCMU on Apply via the same map path as forward Map.
-                row.studentResolutions[tmsKey] = { action: 'map', studentId: sid };
-            } else {
-                row.reverseResolutions[sid] = { action: 'skip' };
-            }
-            return;
-        }
-        const key = item.tmsKey;
+        const key = entry.item.tmsKey;
+        // Clear prior pending merge for this TMS key
+        row.pendingStudentMerges = (row.pendingStudentMerges || []).filter(
+            (m) => !m || m.tmsKey !== key
+        );
         if (action === 'map') {
-            row.studentResolutions[key] = {
-                action: 'map',
-                studentId: String(studentIdOrTmsKey || '')
-            };
+            row.studentResolutions[key] = { action: 'map', studentId: String(studentId || '') };
+        } else if (action === 'merge_map') {
+            const keepId = String(studentId || '');
+            const drops = Array.isArray(mergeDropIds)
+                ? mergeDropIds.map((id) => String(id || '')).filter((id) => id && id !== keepId)
+                : [];
+            drops.forEach((dropId) => {
+                row.pendingStudentMerges.push({
+                    tmsKey: key,
+                    keepId,
+                    dropId,
+                    profileFrom: 'keep'
+                });
+            });
+            row.studentResolutions[key] = { action: 'map', studentId: keepId };
         } else if (action === 'add') {
             row.studentResolutions[key] = { action: 'add' };
         } else {
@@ -1471,17 +1582,138 @@
         }
     }
 
-    function renderTmsStudentReview() {
+    function getCurrentMissingAction() {
+        const entry = tmsMissingQueue[tmsMissingIndex];
+        if (!entry) {
+            return null;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        const sid = entry.student && entry.student.id;
+        return row && row.missingStudentActions && sid ? row.missingStudentActions[sid] : null;
+    }
+
+    function setCurrentMissingAction(action, archiveReason, expectedStartDate, toCohortId, tmsKey) {
+        const entry = tmsMissingQueue[tmsMissingIndex];
+        if (!entry) {
+            return;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        const sid = entry.student && entry.student.id;
+        if (!row || !sid) {
+            return;
+        }
+        if (!row.missingStudentActions) {
+            row.missingStudentActions = {};
+        }
+        if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
+            row.studentResolutions = {};
+        }
+        // Clear a previous reverse-map claim when switching away from map.
+        const prev = row.missingStudentActions[sid];
+        if (prev && prev.action === 'map' && prev.tmsKey && row.studentResolutions[prev.tmsKey]) {
+            const claimed = row.studentResolutions[prev.tmsKey];
+            if (claimed && claimed.action === 'map' && claimed.studentId === sid) {
+                delete row.studentResolutions[prev.tmsKey];
+            }
+        }
+        if (action === 'archive') {
+            row.missingStudentActions[sid] = {
+                action: 'archive',
+                archiveReason: archiveReason || 'left',
+                expectedStartDate: expectedStartDate || ''
+            };
+        } else if (action === 'move') {
+            const dest =
+                toCohortId ||
+                (entry.transfer && entry.transfer.toCohortId) ||
+                '';
+            row.missingStudentActions[sid] = {
+                action: 'move',
+                toCohortId: dest
+            };
+        } else if (action === 'map' && tmsKey) {
+            row.missingStudentActions[sid] = { action: 'map', tmsKey };
+            row.studentResolutions[tmsKey] = { action: 'map', studentId: sid };
+        } else {
+            row.missingStudentActions[sid] = { action: 'keep' };
+        }
+    }
+
+    function buildMissingTmsMapCandidates(row, studentId) {
+        const d = domain();
+        const keyFn = d && d.koreanMatchKey ? d.koreanMatchKey.bind(d) : (n) => String(n || '').trim();
+        const incoming = Array.isArray(row && row.students) ? row.students : [];
+        const claimed = new Set();
+        const resolutions =
+            row && row.studentResolutions && typeof row.studentResolutions === 'object'
+                ? row.studentResolutions
+                : {};
+        Object.keys(resolutions).forEach((k) => {
+            const r = resolutions[k];
+            if (!r) {
+                return;
+            }
+            if (r.action === 'skip' || r.action === 'add') {
+                claimed.add(k);
+                return;
+            }
+            if (r.action === 'map' && r.studentId && r.studentId !== studentId) {
+                claimed.add(k);
+            }
+        });
+        const seen = new Set();
+        const unmatched = [];
+        const matched = [];
+        incoming.forEach((raw) => {
+            if (!raw || !raw.name) {
+                return;
+            }
+            const name = String(raw.name).trim();
+            if (!name) {
+                return;
+            }
+            const tmsKey = keyFn(name);
+            if (!tmsKey || seen.has(tmsKey) || claimed.has(tmsKey)) {
+                return;
+            }
+            seen.add(tmsKey);
+            const cand = {
+                tmsKey,
+                name,
+                nameEn: raw.nameEn ? String(raw.nameEn).trim() : ''
+            };
+            // Prefer names not already exact-matched to someone else in this cohort.
+            const target = getCohorts().find((c) => c && c.id === (row && row.userTargetId));
+            const exactOther =
+                target &&
+                (target.students || []).some(
+                    (s) =>
+                        s &&
+                        s.id !== studentId &&
+                        s.active !== false &&
+                        keyFn(s.name) === tmsKey
+                );
+            if (exactOther) {
+                matched.push(cand);
+            } else {
+                unmatched.push(cand);
+            }
+        });
+        return unmatched.concat(matched);
+    }
+
+    function renderTmsWizardPanel() {
         const review = document.getElementById('rosterTmsStudentReview');
         const mapping = document.getElementById('rosterTmsSyncMappingTable');
         const batchBar = document.getElementById('rosterTmsSyncBatchBar');
         const credForm = document.getElementById('rosterTmsCredForm');
         const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
-        if (!review) {
-            return;
+        const onUnclear = tmsSyncWizardStep === 2 && tmsReviewQueue.length > 0;
+        const onMissing = tmsSyncWizardStep === 3 && tmsMissingQueue.length > 0;
+        const onReview = onUnclear || onMissing;
+        if (review) {
+            review.hidden = !onReview;
         }
-        const onReview = tmsSyncWizardStep === 2 && tmsReviewQueue.length > 0;
-        review.hidden = !onReview;
         if (mapping) {
             mapping.hidden = onReview;
         }
@@ -1493,24 +1725,37 @@
         }
         if (!onReview) {
             if (confirmBtn) {
+                confirmBtn.hidden = false;
                 confirmBtn.textContent = t('rosterTmsSyncConfirm');
             }
             return;
         }
+        if (onUnclear) {
+            renderTmsStudentReview();
+        } else {
+            renderTmsMissingReview();
+        }
+    }
+
+    function renderTmsStudentReview() {
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
         const entry = tmsReviewQueue[tmsReviewIndex];
         if (!entry) {
             return;
         }
         const item = entry.item;
-        const isReverse = item && item.direction === 'reverse';
         const progress = document.getElementById('rosterTmsStudentReviewProgress');
         const reasonEl = document.getElementById('rosterTmsStudentReviewReason');
         const nameEl = document.getElementById('rosterTmsStudentReviewName');
         const labelEl = document.getElementById('rosterTmsStudentReviewNameLabel');
-        const choicesLegend = document.querySelector('#rosterTmsStudentReviewChoices legend');
         const optionsEl = document.getElementById('rosterTmsStudentReviewOptions');
+        const choicesLegend = document.querySelector('#rosterTmsStudentReviewChoices legend');
         const backBtn = document.getElementById('rosterTmsStudentReviewBackBtn');
         const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        const archiveExtra = document.getElementById('rosterTmsMissingArchiveExtra');
+        if (archiveExtra) {
+            archiveExtra.hidden = true;
+        }
         if (progress) {
             progress.textContent = t('rosterTmsReviewProgress')
                 .replace('{current}', String(tmsReviewIndex + 1))
@@ -1521,78 +1766,62 @@
             reasonEl.textContent = tmsReviewReasonText(item.reason);
         }
         if (labelEl) {
-            labelEl.textContent = isReverse
-                ? t('rosterTmsReviewCmName')
-                : t('rosterTmsReviewTmsName');
+            labelEl.textContent = t('rosterTmsReviewTmsName');
         }
         if (nameEl) {
-            if (isReverse) {
-                const en = item.studentNameEn ? ` (${item.studentNameEn})` : '';
-                const off = item.alreadyOffRoster ? ` [${t('classroomTagOffRoster')}]` : '';
-                nameEl.textContent = `${item.studentName}${en}${off}`;
-            } else {
-                const en = item.tmsNameEn ? ` (${item.tmsNameEn})` : '';
-                nameEl.textContent = `${item.tmsName}${en}`;
-            }
+            const en = item.tmsNameEn ? ` (${item.tmsNameEn})` : '';
+            nameEl.textContent = `${item.tmsName}${en}`;
         }
         if (choicesLegend) {
-            choicesLegend.textContent = isReverse
-                ? t('rosterTmsReviewReverseChoicesLabel')
-                : t('rosterTmsReviewChoicesLabel');
+            choicesLegend.textContent = t('rosterTmsReviewChoicesLabel');
         }
         const existing = getCurrentReviewResolution();
-        const selected = isReverse
-            ? existing && existing.action === 'map'
-                ? `mapTms:${existing.tmsKey}`
-                : existing && existing.action === 'skip'
-                  ? 'skip'
-                  : ''
-            : existing && existing.action === 'map'
-              ? `map:${existing.studentId}`
-              : existing && existing.action === 'add'
-                ? 'add'
-                : existing && existing.action === 'skip'
-                  ? 'skip'
-                  : '';
+        const selected =
+            existing && existing.action === 'map'
+                ? `map:${existing.studentId}`
+                : existing && existing.action === 'add'
+                  ? 'add'
+                  : existing && existing.action === 'skip'
+                    ? 'skip'
+                    : '';
+        const pendingMerges =
+            (tmsSyncPlan[entry.rowIdx] && tmsSyncPlan[entry.rowIdx].pendingStudentMerges) || [];
+        const mergeForKey = pendingMerges.find((m) => m && m.tmsKey === item.tmsKey);
+        const selectedMerge = mergeForKey ? `merge_map:${mergeForKey.keepId}` : '';
         const opts = [];
-        if (isReverse) {
-            (item.candidates || []).forEach((c) => {
+        const candidates = item.candidates || [];
+        candidates.forEach((c) => {
+            const en = c.nameEn ? ` (${c.nameEn})` : '';
+            const val = `map:${c.id}`;
+            opts.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
+                    selected === val && !selectedMerge ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsReviewMapTo').replace('{name}', `${c.name}${en}`))}</span></label>`
+            );
+        });
+        if (item.reason === 'duplicate_existing' && candidates.length >= 2) {
+            candidates.forEach((c) => {
                 const en = c.nameEn ? ` (${c.nameEn})` : '';
-                const val = `mapTms:${c.tmsKey}`;
+                const val = `merge_map:${c.id}`;
                 opts.push(
                     `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
-                        selected === val ? ' checked' : ''
+                        selectedMerge === val ? ' checked' : ''
                     }><span>${escapeHtml(
-                        t('rosterTmsReviewReverseMapTo').replace('{name}', `${c.name}${en}`)
+                        t('rosterTmsReviewMergeMap').replace('{name}', `${c.name}${en}`)
                     )}</span></label>`
                 );
             });
-            opts.push(
-                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
-                    selected === 'skip' ? ' checked' : ''
-                }><span>${escapeHtml(t('rosterTmsReviewKeepOffRoster'))}</span></label>`
-            );
-        } else {
-            (item.candidates || []).forEach((c) => {
-                const en = c.nameEn ? ` (${c.nameEn})` : '';
-                const val = `map:${c.id}`;
-                opts.push(
-                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
-                        selected === val ? ' checked' : ''
-                    }><span>${escapeHtml(t('rosterTmsReviewMapTo').replace('{name}', `${c.name}${en}`))}</span></label>`
-                );
-            });
-            opts.push(
-                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
-                    selected === 'add' ? ' checked' : ''
-                }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
-            );
-            opts.push(
-                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
-                    selected === 'skip' ? ' checked' : ''
-                }><span>${escapeHtml(t('rosterTmsReviewSkip'))}</span></label>`
-            );
         }
+        opts.push(
+            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
+                selected === 'add' && !selectedMerge ? ' checked' : ''
+            }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
+        );
+        opts.push(
+            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
+                selected === 'skip' && !selectedMerge ? ' checked' : ''
+            }><span>${escapeHtml(t('rosterTmsReviewSkip'))}</span></label>`
+        );
         if (optionsEl) {
             optionsEl.innerHTML = opts.join('');
             optionsEl.querySelectorAll('input[name="rosterTmsReviewChoice"]').forEach((input) => {
@@ -1602,8 +1831,12 @@
                         setCurrentReviewResolution('add');
                     } else if (val === 'skip') {
                         setCurrentReviewResolution('skip');
-                    } else if (val.startsWith('mapTms:')) {
-                        setCurrentReviewResolution('map', val.slice(7));
+                    } else if (val.startsWith('merge_map:')) {
+                        const keepId = val.slice('merge_map:'.length);
+                        const dropIds = candidates
+                            .map((c) => c.id)
+                            .filter((id) => id && id !== keepId);
+                        setCurrentReviewResolution('merge_map', keepId, dropIds);
                     } else if (val.startsWith('map:')) {
                         setCurrentReviewResolution('map', val.slice(4));
                     }
@@ -1619,7 +1852,7 @@
         if (nextBtn) {
             nextBtn.textContent =
                 tmsReviewIndex >= tmsReviewQueue.length - 1
-                    ? t('rosterTmsReviewFinish')
+                    ? t('rosterTmsReviewContinueMissing')
                     : t('rosterTmsReviewNext');
         }
         updateTmsReviewNavButtons();
@@ -1628,22 +1861,240 @@
         }
     }
 
+    function archiveReasonOptionsHtml(selectedReason) {
+        const reasons = [
+            ['left', 'studentArchiveReasonLeft'],
+            ['break', 'studentArchiveReasonBreak'],
+            ['new', 'studentArchiveReasonNew'],
+            ['starting_soon', 'studentArchiveReasonStartingSoon']
+        ];
+        return reasons
+            .map(([val, key]) => {
+                const sel = (selectedReason || 'left') === val ? ' selected' : '';
+                return `<option value="${val}"${sel}>${escapeHtml(t(key))}</option>`;
+            })
+            .join('');
+    }
+
+    function renderTmsMissingReview() {
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        const entry = tmsMissingQueue[tmsMissingIndex];
+        if (!entry) {
+            return;
+        }
+        const student = entry.student || {};
+        const progress = document.getElementById('rosterTmsStudentReviewProgress');
+        const reasonEl = document.getElementById('rosterTmsStudentReviewReason');
+        const nameEl = document.getElementById('rosterTmsStudentReviewName');
+        const labelEl = document.getElementById('rosterTmsStudentReviewNameLabel');
+        const optionsEl = document.getElementById('rosterTmsStudentReviewOptions');
+        const choicesLegend = document.querySelector('#rosterTmsStudentReviewChoices legend');
+        const backBtn = document.getElementById('rosterTmsStudentReviewBackBtn');
+        const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        let archiveExtra = document.getElementById('rosterTmsMissingArchiveExtra');
+        if (!archiveExtra) {
+            const choices = document.getElementById('rosterTmsStudentReviewChoices');
+            if (choices && choices.parentNode) {
+                archiveExtra = document.createElement('div');
+                archiveExtra.id = 'rosterTmsMissingArchiveExtra';
+                archiveExtra.className = 'form-group';
+                choices.parentNode.insertBefore(archiveExtra, choices.nextSibling);
+            }
+        }
+        if (progress) {
+            progress.textContent = t('rosterTmsMissingProgress')
+                .replace('{current}', String(tmsMissingIndex + 1))
+                .replace('{total}', String(tmsMissingQueue.length))
+                .replace('{class}', entry.targetName || entry.importCohortName || '');
+        }
+        if (reasonEl) {
+            reasonEl.textContent = t('rosterTmsMissingWarn');
+        }
+        if (labelEl) {
+            labelEl.textContent = t('rosterTmsMissingStudentLabel');
+        }
+        if (nameEl) {
+            const en = student.nameEn ? ` (${student.nameEn})` : '';
+            nameEl.textContent = `${student.name || ''}${en}`;
+        }
+        if (choicesLegend) {
+            choicesLegend.textContent = t('rosterTmsMissingChoicesLabel');
+        }
+        const existing = getCurrentMissingAction() || { action: 'keep' };
+        const hasTransfer = Boolean(entry.transfer && entry.transfer.toCohortId);
+        const row = tmsSyncPlan[entry.rowIdx];
+        const mapCandidates = buildMissingTmsMapCandidates(row, student.id);
+        let selected = 'keep';
+        if (existing.action === 'archive') {
+            selected = 'archive';
+        } else if (existing.action === 'move' && hasTransfer) {
+            selected = 'move';
+        } else if (existing.action === 'map' && existing.tmsKey) {
+            selected = `mapTms:${existing.tmsKey}`;
+        }
+        if (optionsEl) {
+            const moveLabel = hasTransfer
+                ? t('rosterTmsMissingMove').replace(
+                      '{class}',
+                      entry.transfer.toCohortName || entry.transfer.toCohortId || ''
+                  )
+                : '';
+            const chips = [];
+            mapCandidates.forEach((c) => {
+                const en = c.nameEn ? ` (${c.nameEn})` : '';
+                const val = `mapTms:${c.tmsKey}`;
+                chips.push(
+                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="${escapeHtml(val)}"${
+                        selected === val ? ' checked' : ''
+                    }><span>${escapeHtml(
+                        t('rosterTmsReviewReverseMapTo').replace('{name}', `${c.name}${en}`)
+                    )}</span></label>`
+                );
+            });
+            if (hasTransfer) {
+                chips.push(
+                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="move"${
+                        selected === 'move' ? ' checked' : ''
+                    }><span>${escapeHtml(moveLabel)}</span></label>`
+                );
+            }
+            chips.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="keep"${
+                    selected === 'keep' ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsMissingKeep'))}</span></label>`,
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="archive"${
+                    selected === 'archive' ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsMissingArchive'))}</span></label>`
+            );
+            optionsEl.innerHTML = chips.join('');
+            optionsEl.querySelectorAll('input[name="rosterTmsMissingChoice"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    if (input.value === 'archive') {
+                        const reason =
+                            document.getElementById('rosterTmsMissingArchiveReason')?.value || 'left';
+                        const start =
+                            document.getElementById('rosterTmsMissingArchiveStart')?.value || '';
+                        setCurrentMissingAction('archive', reason, start);
+                    } else if (input.value === 'move') {
+                        setCurrentMissingAction('move');
+                    } else if (input.value.startsWith('mapTms:')) {
+                        setCurrentMissingAction(
+                            'map',
+                            undefined,
+                            undefined,
+                            undefined,
+                            input.value.slice('mapTms:'.length)
+                        );
+                    } else {
+                        setCurrentMissingAction('keep');
+                    }
+                    syncTmsMissingArchiveExtra();
+                    updateTmsMissingNavButtons();
+                });
+            });
+        }
+        if (archiveExtra) {
+            archiveExtra.innerHTML = `
+                <label for="rosterTmsMissingArchiveReason" class="form-label">${escapeHtml(
+                    t('studentArchiveReasonLabel')
+                )}</label>
+                <select id="rosterTmsMissingArchiveReason" class="field-select">${archiveReasonOptionsHtml(
+                    existing.archiveReason
+                )}</select>
+                <div id="rosterTmsMissingStartWrap" class="form-group" hidden>
+                    <label for="rosterTmsMissingArchiveStart" class="form-label">${escapeHtml(
+                        t('studentArchiveStartDateLabel')
+                    )}</label>
+                    <input type="date" id="rosterTmsMissingArchiveStart" class="field-input" value="${escapeHtml(
+                        existing.expectedStartDate || ''
+                    )}">
+                </div>`;
+            archiveExtra
+                .querySelector('#rosterTmsMissingArchiveReason')
+                ?.addEventListener('change', () => {
+                    const reason =
+                        document.getElementById('rosterTmsMissingArchiveReason')?.value || 'left';
+                    const start =
+                        document.getElementById('rosterTmsMissingArchiveStart')?.value || '';
+                    setCurrentMissingAction('archive', reason, start);
+                    syncTmsMissingArchiveExtra();
+                    updateTmsMissingNavButtons();
+                });
+            archiveExtra
+                .querySelector('#rosterTmsMissingArchiveStart')
+                ?.addEventListener('change', () => {
+                    const reason =
+                        document.getElementById('rosterTmsMissingArchiveReason')?.value || 'left';
+                    const start =
+                        document.getElementById('rosterTmsMissingArchiveStart')?.value || '';
+                    setCurrentMissingAction('archive', reason, start);
+                    updateTmsMissingNavButtons();
+                });
+        }
+        syncTmsMissingArchiveExtra();
+        if (backBtn) {
+            backBtn.disabled = false;
+            backBtn.textContent =
+                tmsMissingIndex === 0 ? t('rosterTmsMissingBackToPrior') : t('rosterTmsReviewBack');
+        }
+        if (nextBtn) {
+            nextBtn.textContent =
+                tmsMissingIndex >= tmsMissingQueue.length - 1
+                    ? t('rosterTmsReviewFinish')
+                    : t('rosterTmsReviewNext');
+        }
+        updateTmsMissingNavButtons();
+        if (confirmBtn) {
+            confirmBtn.hidden = true;
+        }
+    }
+
+    function syncTmsMissingArchiveExtra() {
+        const extra = document.getElementById('rosterTmsMissingArchiveExtra');
+        const action = getCurrentMissingAction();
+        const show = action && action.action === 'archive';
+        if (extra) {
+            extra.hidden = !show;
+        }
+        const wrap = document.getElementById('rosterTmsMissingStartWrap');
+        const reason = document.getElementById('rosterTmsMissingArchiveReason')?.value;
+        if (wrap) {
+            wrap.hidden = reason !== 'starting_soon';
+        }
+    }
+
     function updateTmsReviewNavButtons() {
         const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
         const entry = tmsReviewQueue[tmsReviewIndex];
+        const row = entry ? tmsSyncPlan[entry.rowIdx] : null;
+        const key = entry && entry.item ? entry.item.tmsKey : '';
+        const pendingMerge =
+            row &&
+            Array.isArray(row.pendingStudentMerges) &&
+            row.pendingStudentMerges.some((m) => m && m.tmsKey === key);
         const res = getCurrentReviewResolution();
-        const isReverse = entry && entry.item && entry.item.direction === 'reverse';
-        const ok = isReverse
-            ? Boolean(
-                  res &&
-                      (res.action === 'skip' || (res.action === 'map' && res.tmsKey))
-              )
-            : Boolean(
-                  res &&
-                      (res.action === 'add' ||
-                          res.action === 'skip' ||
-                          (res.action === 'map' && res.studentId))
-              );
+        const ok =
+            pendingMerge ||
+            (res &&
+                (res.action === 'add' ||
+                    res.action === 'skip' ||
+                    (res.action === 'map' && res.studentId)));
+        if (nextBtn) {
+            nextBtn.disabled = !ok;
+        }
+    }
+
+    function updateTmsMissingNavButtons() {
+        const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        const action = getCurrentMissingAction() || { action: 'keep' };
+        let ok =
+            action.action === 'keep' ||
+            action.action === 'archive' ||
+            (action.action === 'map' && Boolean(action.tmsKey)) ||
+            (action.action === 'move' && Boolean(action.toCohortId));
+        if (action.action === 'archive' && action.archiveReason === 'starting_soon') {
+            ok = Boolean(String(action.expectedStartDate || '').trim());
+        }
         if (nextBtn) {
             nextBtn.disabled = !ok;
         }
@@ -1652,14 +2103,26 @@
     function enterTmsStudentReview() {
         tmsReviewQueue = collectTmsReviewQueue();
         if (!tmsReviewQueue.length) {
-            tmsSyncWizardStep = 1;
-            void confirmTmsSync();
+            enterTmsMissingReview();
             return;
         }
         tmsSyncWizardStep = 2;
         tmsReviewIndex = 0;
         setTmsSyncError('');
-        renderTmsStudentReview();
+        renderTmsWizardPanel();
+    }
+
+    function enterTmsMissingReview() {
+        tmsMissingQueue = collectTmsMissingQueue();
+        if (!tmsMissingQueue.length) {
+            tmsSyncWizardStep = 1;
+            void finishTmsSyncApply();
+            return;
+        }
+        tmsSyncWizardStep = 3;
+        tmsMissingIndex = 0;
+        setTmsSyncError('');
+        renderTmsWizardPanel();
     }
 
     function leaveTmsStudentReviewToMapping() {
@@ -1669,42 +2132,91 @@
             confirmBtn.hidden = false;
         }
         renderTmsSyncTable();
-        renderTmsStudentReview();
+        renderTmsWizardPanel();
+    }
+
+    function advanceTmsWizard() {
+        if (tmsSyncWizardStep === 3) {
+            advanceTmsMissingReview();
+            return;
+        }
+        advanceTmsStudentReview();
+    }
+
+    function backTmsWizard() {
+        if (tmsSyncWizardStep === 3) {
+            if (tmsMissingIndex === 0) {
+                if (tmsReviewQueue.length) {
+                    tmsSyncWizardStep = 2;
+                    tmsReviewIndex = tmsReviewQueue.length - 1;
+                    renderTmsWizardPanel();
+                } else {
+                    leaveTmsStudentReviewToMapping();
+                }
+                return;
+            }
+            tmsMissingIndex -= 1;
+            renderTmsWizardPanel();
+            return;
+        }
+        if (tmsReviewIndex === 0) {
+            leaveTmsStudentReviewToMapping();
+            return;
+        }
+        tmsReviewIndex -= 1;
+        renderTmsWizardPanel();
     }
 
     function advanceTmsStudentReview() {
-        const entry = tmsReviewQueue[tmsReviewIndex];
         const res = getCurrentReviewResolution();
-        const isReverse = entry && entry.item && entry.item.direction === 'reverse';
-        const ok = isReverse
-            ? Boolean(
-                  res &&
-                      (res.action === 'skip' || (res.action === 'map' && res.tmsKey))
-              )
-            : Boolean(
-                  res &&
-                      (res.action === 'add' ||
-                          res.action === 'skip' ||
-                          (res.action === 'map' && res.studentId))
-              );
-        if (!ok) {
+        if (
+            !res ||
+            !(
+                res.action === 'add' ||
+                res.action === 'skip' ||
+                (res.action === 'map' && res.studentId)
+            )
+        ) {
             setTmsSyncError(t('rosterTmsReviewChoiceRequired'));
             return;
         }
         setTmsSyncError('');
-        // Rebuild so reverse Map claims a TMS name and drops it from later steps.
-        tmsReviewQueue = collectTmsReviewQueue();
-        if (!tmsReviewQueue.length) {
-            tmsSyncWizardStep = 1;
-            const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
-            if (confirmBtn) {
-                confirmBtn.hidden = false;
-            }
-            void confirmTmsSync();
+        if (tmsReviewIndex < tmsReviewQueue.length - 1) {
+            tmsReviewIndex += 1;
+            renderTmsWizardPanel();
             return;
         }
-        tmsReviewIndex = 0;
-        renderTmsStudentReview();
+        enterTmsMissingReview();
+    }
+
+    function advanceTmsMissingReview() {
+        const action = getCurrentMissingAction() || { action: 'keep' };
+        if (action.action === 'archive' && action.archiveReason === 'starting_soon') {
+            if (!String(action.expectedStartDate || '').trim()) {
+                setTmsSyncError(t('studentArchiveStartDateRequired'));
+                return;
+            }
+        }
+        if (
+            action.action !== 'keep' &&
+            action.action !== 'archive' &&
+            !(action.action === 'move' && action.toCohortId)
+        ) {
+            setTmsSyncError(t('rosterTmsMissingChoiceRequired'));
+            return;
+        }
+        setTmsSyncError('');
+        if (tmsMissingIndex < tmsMissingQueue.length - 1) {
+            tmsMissingIndex += 1;
+            renderTmsWizardPanel();
+            return;
+        }
+        tmsSyncWizardStep = 1;
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.hidden = false;
+        }
+        void finishTmsSyncApply();
     }
 
     function renderTmsSyncTable() {
@@ -1717,7 +2229,8 @@
         const optionsHtml = (selectedId) => {
             const opts = [
                 `<option value="__skip__"${selectedId === '__skip__' ? ' selected' : ''}>${escapeHtml(t('rosterTmsSyncSkip'))}</option>`,
-                `<option value=""${ !selectedId || selectedId === '' ? ' selected' : ''}>${escapeHtml(t('rosterTmsSyncChoose'))}</option>`
+                `<option value=""${ !selectedId || selectedId === '' ? ' selected' : ''}>${escapeHtml(t('rosterTmsSyncChoose'))}</option>`,
+                `<option value="${TMS_CREATE_VALUE}"${selectedId === TMS_CREATE_VALUE ? ' selected' : ''}>${escapeHtml(t('rosterTmsSyncCreate'))}</option>`
             ];
             cohorts.forEach((c) => {
                 const disabled = !canEditCohort(c) ? ' disabled' : '';
@@ -1770,6 +2283,8 @@
                             )}</div>`;
                         }
                     }
+                } else if (row.tmsCreatedCohortId && row.userTargetId === row.tmsCreatedCohortId) {
+                    linkHint = `<div class="section-hint">${escapeHtml(t('rosterTmsSyncCreatedMapped'))}</div>`;
                 }
                 return `<tr data-tms-row="${idx}">
                     <td>${escapeHtml(row.importCohortName)}${linkHint}</td>
@@ -1801,23 +2316,56 @@
                 }
                 const val = sel.value;
                 if (val === '__skip__') {
+                    if (row.tmsCreatedCohortId) {
+                        const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
+                        if (prev && !String(prev.name || '').trim()) {
+                            const cm = cohortManagement();
+                            if (cm && cm.removeNamelessCohortDraft) {
+                                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
+                            }
+                        }
+                    }
                     row.userAction = 'skip';
                     row.userTargetId = '';
+                    row.tmsCreatedCohortId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
-                    row.reverseResolutions = {};
+                    row.missingStudentActions = {};
+                } else if (val === TMS_CREATE_VALUE) {
+                    void beginTmsCreateCohort(row);
+                    return;
                 } else if (!val) {
+                    if (row.tmsCreatedCohortId) {
+                        const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
+                        if (prev && !String(prev.name || '').trim()) {
+                            const cm = cohortManagement();
+                            if (cm && cm.removeNamelessCohortDraft) {
+                                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
+                            }
+                        }
+                    }
                     row.userAction = 'choose';
                     row.userTargetId = '';
+                    row.tmsCreatedCohortId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
-                    row.reverseResolutions = {};
+                    row.missingStudentActions = {};
                 } else {
+                    if (row.tmsCreatedCohortId && row.tmsCreatedCohortId !== val) {
+                        const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
+                        if (prev && !String(prev.name || '').trim()) {
+                            const cm = cohortManagement();
+                            if (cm && cm.removeNamelessCohortDraft) {
+                                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
+                            }
+                        }
+                        row.tmsCreatedCohortId = '';
+                    }
                     row.userAction = 'map';
                     row.userTargetId = val;
                     row.remembered = false;
                     row.studentResolutions = {};
-                    row.reverseResolutions = {};
+                    row.missingStudentActions = {};
                 }
                 renderTmsSyncTable();
             });
@@ -1827,9 +2375,12 @@
             !tmsSyncLoading &&
             tmsSyncPlan.length > 0 &&
             tmsSyncPlan.every((r) => r.userAction === 'skip' || (r.userAction === 'map' && r.userTargetId));
-        const unclearCount = canApply ? collectTmsReviewQueue().length : 0;
+        let unclearCount = 0;
+        if (canApply) {
+            unclearCount = collectTmsReviewQueue().length;
+        }
         if (confirmBtn) {
-            confirmBtn.hidden = tmsSyncWizardStep === 2;
+            confirmBtn.hidden = tmsSyncWizardStep === 2 || tmsSyncWizardStep === 3;
             confirmBtn.disabled = !canApply;
             confirmBtn.textContent = unclearCount
                 ? t('rosterTmsSyncContinueReview').replace('{count}', String(unclearCount))
@@ -1837,8 +2388,8 @@
             confirmBtn.dataset.needsReview = unclearCount ? '1' : '0';
         }
         syncTmsBatchBarVisibility();
-        if (tmsSyncWizardStep === 2) {
-            renderTmsStudentReview();
+        if (tmsSyncWizardStep === 2 || tmsSyncWizardStep === 3) {
+            renderTmsWizardPanel();
         }
     }
 
@@ -1852,6 +2403,8 @@
         tmsSyncWizardStep = 1;
         tmsReviewQueue = [];
         tmsReviewIndex = 0;
+        tmsMissingQueue = [];
+        tmsMissingIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
         hydrateTmsCredForm();
@@ -2063,7 +2616,13 @@
                 const meta = body.meta || {};
                 const remembered = tmsSyncPlan.filter((r) => r.remembered).length;
                 const needChoose = tmsSyncPlan.filter((r) => r.userAction === 'choose').length;
-                const summary = `${meta.cohortCount || tmsSyncPlan.length} classes · ${meta.studentCount || 0} students · ${remembered} remembered · ${needChoose} new`;
+                let summary = `${meta.cohortCount || tmsSyncPlan.length} classes · ${meta.studentCount || 0} students · ${remembered} remembered · ${needChoose} new`;
+                if (meta.sidebarClassCount != null || meta.writingClassCount != null) {
+                    const sourceCounts = t('rosterTmsSyncSourceCounts')
+                        .replace('{sidebar}', String(meta.sidebarClassCount != null ? meta.sidebarClassCount : 0))
+                        .replace('{writing}', String(meta.writingClassCount != null ? meta.writingClassCount : 0));
+                    summary = `${summary} · ${sourceCounts}`;
+                }
                 setTmsSyncStatus(
                     usedBridge ? `${t('rosterTmsBridgeConnected')} ${summary}` : summary
                 );
@@ -2108,22 +2667,135 @@
             closeTmsSyncModal();
             return;
         }
-        const pendingUnclear = collectTmsReviewQueue().filter(
-            (entry) => !isReviewEntryResolved(entry)
-        );
+        const pendingUnclear = collectTmsReviewQueue().filter((entry) => {
+            const row = tmsSyncPlan[entry.rowIdx];
+            const key = entry.item && entry.item.tmsKey;
+            const res = row && row.studentResolutions && key ? row.studentResolutions[key] : null;
+            return !(
+                res &&
+                (res.action === 'add' ||
+                    res.action === 'skip' ||
+                    (res.action === 'map' && res.studentId))
+            );
+        });
         if (pendingUnclear.length) {
-            setTmsSyncError(t('rosterTmsReviewIncomplete'));
             enterTmsStudentReview();
             return;
         }
-        const applied = domain().applyTmsRosterPlan(getCohorts(), tmsSyncPlan, {
+        enterTmsMissingReview();
+    }
+
+    async function finishTmsSyncApply() {
+        setTmsSyncError('');
+        let cohorts = getCohorts();
+        const appData = hooks.getAppData ? hooks.getAppData() : {};
+        let mergedWorking = null;
+        // Apply queued local duplicate merges before roster plan (TMS map targets keepId).
+        if (domain().mergeStudentRecords) {
+            let working = Object.assign({}, appData, { cohorts });
+            let didMerge = false;
+            for (const row of tmsSyncPlan) {
+                const merges = (row && row.pendingStudentMerges) || [];
+                for (const m of merges) {
+                    if (!m || !m.keepId || !m.dropId) {
+                        continue;
+                    }
+                    const merged = domain().mergeStudentRecords(working, {
+                        keepId: m.keepId,
+                        dropId: m.dropId,
+                        profileFrom: m.profileFrom || 'keep',
+                        clearOffRoster: true
+                    });
+                    if (merged.error) {
+                        setTmsSyncError(t('studentMergeFailed'));
+                        return;
+                    }
+                    working = merged.appData;
+                    cohorts = working.cohorts;
+                    didMerge = true;
+                }
+            }
+            if (didMerge) {
+                mergedWorking = working;
+            }
+        }
+        const moveTransfers = [];
+        for (const row of tmsSyncPlan) {
+            if (!row || row.userAction !== 'map' || !row.userTargetId) {
+                continue;
+            }
+            const actions = row.missingStudentActions || {};
+            for (const sid of Object.keys(actions)) {
+                const act = actions[sid];
+                if (!act || act.action !== 'move' || !act.toCohortId) {
+                    continue;
+                }
+                moveTransfers.push({
+                    studentId: sid,
+                    fromCohortId: row.userTargetId,
+                    toCohortId: act.toCohortId
+                });
+            }
+        }
+        if (moveTransfers.length && domain().applyTmsRosterTransfers) {
+            const moved = domain().applyTmsRosterTransfers(cohorts, moveTransfers);
+            if (moved.errors && moved.errors.length) {
+                setTmsSyncError(t('rosterTmsMissingMoveFailed'));
+                return;
+            }
+            cohorts = moved.cohorts;
+        }
+        const applied = domain().applyTmsRosterPlan(cohorts, tmsSyncPlan, {
             newStudentId: () => domain().newId('stu')
         });
+        cohorts = applied.cohorts;
+        const hrId = hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+        const movedIds = new Set(moveTransfers.map((tr) => tr.studentId));
+        for (const row of tmsSyncPlan) {
+            if (!row || row.userAction !== 'map' || !row.userTargetId) {
+                continue;
+            }
+            const actions = row.missingStudentActions || {};
+            for (const sid of Object.keys(actions)) {
+                if (movedIds.has(sid)) {
+                    continue;
+                }
+                const act = actions[sid];
+                if (!act || act.action !== 'archive') {
+                    continue;
+                }
+                if (!domain().archiveStudent) {
+                    continue;
+                }
+                const result = domain().archiveStudent(cohorts, sid, row.userTargetId, {
+                    archiveReason: act.archiveReason || 'left',
+                    expectedStartDate: act.expectedStartDate || '',
+                    homeroomTeacherUserId: hrId
+                });
+                if (result.error) {
+                    setTmsSyncError(t('studentArchiveFailed'));
+                    return;
+                }
+                cohorts = result.cohorts;
+            }
+        }
         const nextLinks = domain().upsertTmsRosterLinks
-            ? domain().upsertTmsRosterLinks(getTmsRosterLinks(), tmsSyncPlan, applied.cohorts)
+            ? domain().upsertTmsRosterLinks(getTmsRosterLinks(), tmsSyncPlan, cohorts)
             : getTmsRosterLinks();
         try {
-            await hooks.saveClassroom({ cohorts: applied.cohorts, tmsRosterLinks: nextLinks });
+            const savePayload = { cohorts, tmsRosterLinks: nextLinks };
+            if (mergedWorking) {
+                savePayload.attendanceSessions = mergedWorking.attendanceSessions;
+                savePayload.homeworkCompletions = mergedWorking.homeworkCompletions;
+                savePayload.essaySubmissions = mergedWorking.essaySubmissions;
+                savePayload.studentPoints = mergedWorking.studentPoints;
+                savePayload.studentTests = mergedWorking.studentTests;
+                savePayload.debateScores = mergedWorking.debateScores;
+                savePayload.debateTeamSessions = mergedWorking.debateTeamSessions;
+                savePayload.speakingTestRecords = mergedWorking.speakingTestRecords;
+                savePayload.dayNotes = mergedWorking.dayNotes;
+            }
+            await hooks.saveClassroom(savePayload);
             dirty = false;
             hooks.showToast(t('rosterTmsSyncSuccess'));
             closeTmsSyncModal();
@@ -2186,24 +2858,14 @@
             }
         });
         document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
-            const btn = document.getElementById('rosterTmsSyncConfirmBtn');
-            if (btn && btn.dataset.needsReview === '1') {
-                enterTmsStudentReview();
-                return;
-            }
             void confirmTmsSync();
         });
         document.getElementById('rosterTmsStudentReviewBackBtn')?.addEventListener('click', () => {
-            if (tmsReviewIndex <= 0) {
-                leaveTmsStudentReviewToMapping();
-                return;
-            }
-            tmsReviewIndex -= 1;
             setTmsSyncError('');
-            renderTmsStudentReview();
+            backTmsWizard();
         });
         document.getElementById('rosterTmsStudentReviewNextBtn')?.addEventListener('click', () => {
-            advanceTmsStudentReview();
+            advanceTmsWizard();
         });
         document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
             skipAllTmsSyncRows();
@@ -2580,6 +3242,7 @@
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentDeactivate">${escapeHtml(student.active ? t('classroomDeactivateStudent') : t('classroomActivateStudent'))}</button>` : ''}
             ${canArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentArchive">${escapeHtml(t('studentArchiveBtn'))}</button>` : ''}
             ${canRestore ? `<button type="button" class="btn btn-outline" id="classroomStudentRestore">${escapeHtml(t('studentRestoreBtn'))}</button>` : ''}
+            ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentMerge">${escapeHtml(t('studentMergeBtn'))}</button>` : ''}
             ${canDelete ? `<button type="button" class="btn btn-outline btn-danger-outline" id="classroomStudentDelete">${escapeHtml(t('studentDeleteBtn'))}</button>` : ''}
             </div>` : ''}
             </div>`;
@@ -2599,6 +3262,7 @@
         editor.querySelector('#classroomStudentDeactivate')?.addEventListener('click', () => toggleActive(mountEl));
         editor.querySelector('#classroomStudentArchive')?.addEventListener('click', () => openArchiveModal());
         editor.querySelector('#classroomStudentRestore')?.addEventListener('click', () => openRestoreModal());
+        editor.querySelector('#classroomStudentMerge')?.addEventListener('click', () => openMergeModal());
         editor.querySelector('#classroomStudentDelete')?.addEventListener('click', () => openDeleteModal());
     }
 
@@ -2975,6 +3639,128 @@
         }
     }
 
+    function fillMergeStudentSelects(preferDropId) {
+        const d = domain();
+        const cohort = getSelectedCohort();
+        const keepSelect = document.getElementById('studentMergeKeepSelect');
+        const dropSelect = document.getElementById('studentMergeDropSelect');
+        if (!d || !cohort || !keepSelect || !dropSelect) {
+            return;
+        }
+        const students = d.normalizeCohortStudents(cohort).filter((s) => s && s.active !== false);
+        const options = students
+            .map((s) => {
+                const en = s.nameEn ? ` (${s.nameEn})` : '';
+                const off = Array.isArray(s.tags) && s.tags.includes('off_roster') ? ' · off roster' : '';
+                return `<option value="${escapeHtml(s.id)}">${escapeHtml(`${s.name}${en}${off}`)}</option>`;
+            })
+            .join('');
+        keepSelect.innerHTML = options;
+        dropSelect.innerHTML = options;
+        if (selectedStudentId) {
+            keepSelect.value = selectedStudentId;
+        }
+        const dropDefault =
+            preferDropId && preferDropId !== keepSelect.value
+                ? preferDropId
+                : students.find((s) => s.id !== keepSelect.value)?.id || '';
+        if (dropDefault) {
+            dropSelect.value = dropDefault;
+        }
+        const summary = document.getElementById('studentMergeSummary');
+        if (summary) {
+            const suspects = d.listSuspectedDuplicateStudents
+                ? d.listSuspectedDuplicateStudents(cohort)
+                : [];
+            summary.textContent = suspects.length
+                ? t('studentMergeSuspectHint').replace('{count}', String(suspects.length))
+                : t('studentMergePickHint');
+        }
+    }
+
+    function openMergeModal(preferDropId) {
+        const err = document.getElementById('studentMergeError');
+        if (err) {
+            err.hidden = true;
+            err.textContent = '';
+        }
+        fillMergeStudentSelects(preferDropId);
+        const keepSelect = document.getElementById('studentMergeKeepSelect');
+        const dropSelect = document.getElementById('studentMergeDropSelect');
+        if (!keepSelect || !dropSelect || !keepSelect.options.length) {
+            hooks.showToast(t('studentMergeNeedTwo'), true);
+            return;
+        }
+        if (hooks && hooks.openModal) {
+            hooks.openModal(document.getElementById('studentMergeModal'));
+        }
+    }
+
+    function closeMergeModal() {
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(document.getElementById('studentMergeModal'));
+        }
+    }
+
+    async function confirmMergeStudent() {
+        const d = domain();
+        const errEl = document.getElementById('studentMergeError');
+        const keepId = document.getElementById('studentMergeKeepSelect')?.value || '';
+        const dropId = document.getElementById('studentMergeDropSelect')?.value || '';
+        const profileFrom =
+            document.querySelector('input[name="studentMergeProfileFrom"]:checked')?.value || 'keep';
+        if (!d || !d.mergeStudentRecords) {
+            return;
+        }
+        if (!keepId || !dropId || keepId === dropId) {
+            if (errEl) {
+                errEl.textContent = t('studentMergeSameIds');
+                errEl.hidden = false;
+            }
+            return;
+        }
+        const appData = hooks.getAppData ? hooks.getAppData() : {};
+        const result = d.mergeStudentRecords(appData, {
+            keepId,
+            dropId,
+            profileFrom,
+            clearOffRoster: true
+        });
+        if (result.error) {
+            if (errEl) {
+                errEl.textContent =
+                    result.error === 'cross_cohort'
+                        ? t('studentMergeCrossCohort')
+                        : t('studentMergeFailed');
+                errEl.hidden = false;
+            }
+            return;
+        }
+        try {
+            await hooks.saveClassroom({
+                cohorts: result.appData.cohorts,
+                attendanceSessions: result.appData.attendanceSessions,
+                homeworkCompletions: result.appData.homeworkCompletions,
+                essaySubmissions: result.appData.essaySubmissions,
+                studentPoints: result.appData.studentPoints,
+                studentTests: result.appData.studentTests,
+                debateScores: result.appData.debateScores,
+                debateTeamSessions: result.appData.debateTeamSessions,
+                speakingTestRecords: result.appData.speakingTestRecords,
+                dayNotes: result.appData.dayNotes
+            });
+            selectedStudentId = keepId;
+            closeMergeModal();
+            hooks.showToast(t('studentMergeDone'));
+            render(document.getElementById('panel-students'));
+        } catch (err) {
+            if (errEl) {
+                errEl.textContent = err.message || String(err);
+                errEl.hidden = false;
+            }
+        }
+    }
+
     async function confirmDeleteStudent() {
         const d = domain();
         const pwd = document.getElementById('studentDeletePassword')?.value || '';
@@ -3095,6 +3881,11 @@
         document.getElementById('cancelStudentDeleteBtn')?.addEventListener('click', closeDeleteModal);
         document.getElementById('confirmStudentDeleteBtn')?.addEventListener('click', () => {
             void confirmDeleteStudent();
+        });
+        document.getElementById('closeStudentMergeModal')?.addEventListener('click', closeMergeModal);
+        document.getElementById('cancelStudentMergeBtn')?.addEventListener('click', closeMergeModal);
+        document.getElementById('confirmStudentMergeBtn')?.addEventListener('click', () => {
+            void confirmMergeStudent();
         });
     }
 

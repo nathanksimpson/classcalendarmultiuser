@@ -15355,6 +15355,22 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     justify-content: flex-start;
 }
 
+.roster-tms-student-review {
+    margin: var(--space-3) 0;
+}
+
+.roster-tms-review-name {
+    margin: 0;
+    font-size: var(--font-size-lg, 1.125rem);
+    font-weight: 600;
+}
+
+.roster-tms-review-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
 .roster-import-table {
     width: 100%;
     border-collapse: collapse;
