@@ -975,6 +975,12 @@
         rosterTmsReviewReasonDuplicate: 'This Korean name appears more than once in the cohort — pick which student it is.',
         rosterTmsReviewReasonUnmatched:
             'No Hangul match in this class — map to an existing student, add as new, or skip.',
+        rosterTmsReviewReasonMissingFromTms:
+            'This ClassManager student is not on the TMS list (or is Off roster). Pick the matching TMS name to pull into ClassManager — we cannot write names back to TMS. Or keep Off roster.',
+        rosterTmsReviewCmName: 'ClassManager student',
+        rosterTmsReviewReverseChoicesLabel: 'Which TMS name should update this student?',
+        rosterTmsReviewReverseMapTo: 'Use TMS name: {name} (write into ClassManager)',
+        rosterTmsReviewKeepOffRoster: 'Keep Off roster (no TMS match)',
         rosterTmsReviewMapTo: 'Map to existing: {name}',
         rosterTmsReviewAddNew: 'Add as a new student',
         rosterTmsReviewSkip: 'Skip this TMS name',

@@ -1154,6 +1154,7 @@
             studentCount: Array.isArray(c.students) ? c.students.length : 0,
             students: Array.isArray(c.students) ? c.students.slice() : [],
             studentResolutions: {},
+            reverseResolutions: {},
             userAction: resolved.userAction,
             userTargetId: resolved.userTargetId || '',
             suggestedTargetId: resolved.suggestedTargetId || '',
@@ -1256,12 +1257,48 @@
         const unclear = domain().listUnclearTmsStudentMatches
             ? domain().listUnclearTmsStudentMatches(target.students, row.students)
             : [];
+        const reverse =
+            domain().listReverseTmsStudentMatches
+                ? domain().listReverseTmsStudentMatches(target.students, row.students, {
+                      studentResolutions: row.studentResolutions || {},
+                      reverseResolutions: row.reverseResolutions || {}
+                  })
+                : [];
         const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
             studentResolutions: row.studentResolutions || {},
             softUnclear: true
         }).summary;
-        summary.unclear = unclear;
+        summary.unclear = unclear.concat(reverse);
         return summary;
+    }
+
+    function isReviewEntryResolved(entry) {
+        if (!entry || !entry.item) {
+            return true;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        if (!row) {
+            return true;
+        }
+        const item = entry.item;
+        if (item.direction === 'reverse') {
+            const rev =
+                row.reverseResolutions && item.studentId
+                    ? row.reverseResolutions[item.studentId]
+                    : null;
+            return Boolean(
+                rev &&
+                    (rev.action === 'skip' || (rev.action === 'map' && rev.tmsKey))
+            );
+        }
+        const key = item.tmsKey;
+        const res = key && row.studentResolutions ? row.studentResolutions[key] : null;
+        return Boolean(
+            res &&
+                (res.action === 'skip' ||
+                    res.action === 'add' ||
+                    (res.action === 'map' && res.studentId))
+        );
     }
 
     function collectTmsReviewQueue() {
@@ -1277,19 +1314,75 @@
             if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
                 row.studentResolutions = {};
             }
+            if (!row.reverseResolutions || typeof row.reverseResolutions !== 'object') {
+                row.reverseResolutions = {};
+            }
             const unclear = domain().listUnclearTmsStudentMatches(target.students, row.students);
-            const still = domain().applyRememberedTmsStudentResolutions
-                ? domain().applyRememberedTmsStudentResolutions(target, unclear, row)
-                : unclear;
-            still.forEach((item) => {
-                // Already resolved this session (or just applied from memory) — skip UI.
-                const key = item && item.tmsKey;
-                const res = key && row.studentResolutions ? row.studentResolutions[key] : null;
+            const hangulForward = unclear.filter((item) => item && item.reason !== 'unmatched');
+            const unmatchedForward = unclear.filter((item) => item && item.reason === 'unmatched');
+            const stillHangul = domain().applyRememberedTmsStudentResolutions
+                ? domain().applyRememberedTmsStudentResolutions(target, hangulForward, row)
+                : hangulForward;
+
+            // 1) Hangul unclear / duplicates (TMS → CM)
+            stillHangul.forEach((item) => {
                 if (
-                    res &&
-                    (res.action === 'skip' ||
-                        res.action === 'add' ||
-                        (res.action === 'map' && res.studentId))
+                    isReviewEntryResolved({
+                        rowIdx,
+                        item
+                    })
+                ) {
+                    return;
+                }
+                queue.push({
+                    rowIdx,
+                    importCohortName: row.importCohortName,
+                    targetName: target.name || row.userTargetId,
+                    item
+                });
+            });
+
+            // 2) Reverse: CM missing / Off roster → pick TMS name (writes TMS → CCMU)
+            if (domain().listReverseTmsStudentMatches) {
+                const reverse = domain().listReverseTmsStudentMatches(
+                    target.students,
+                    row.students,
+                    {
+                        studentResolutions: row.studentResolutions,
+                        reverseResolutions: row.reverseResolutions
+                    }
+                );
+                const stillReverse = domain().applyRememberedTmsReverseResolutions
+                    ? domain().applyRememberedTmsReverseResolutions(target, reverse, row)
+                    : reverse;
+                stillReverse.forEach((item) => {
+                    if (
+                        isReviewEntryResolved({
+                            rowIdx,
+                            item
+                        })
+                    ) {
+                        return;
+                    }
+                    queue.push({
+                        rowIdx,
+                        importCohortName: row.importCohortName,
+                        targetName: target.name || row.userTargetId,
+                        item
+                    });
+                });
+            }
+
+            // 3) Leftover unmatched TMS (Add / Skip / Map) after reverse claimed some
+            const stillUnmatched = domain().applyRememberedTmsStudentResolutions
+                ? domain().applyRememberedTmsStudentResolutions(target, unmatchedForward, row)
+                : unmatchedForward;
+            stillUnmatched.forEach((item) => {
+                if (
+                    isReviewEntryResolved({
+                        rowIdx,
+                        item
+                    })
                 ) {
                     return;
                 }
@@ -1314,6 +1407,9 @@
         if (reason === 'unmatched') {
             return t('rosterTmsReviewReasonUnmatched');
         }
+        if (reason === 'missing_from_tms') {
+            return t('rosterTmsReviewReasonMissingFromTms');
+        }
         return t('rosterTmsReviewReasonSharedCore');
     }
 
@@ -1323,11 +1419,17 @@
             return null;
         }
         const row = tmsSyncPlan[entry.rowIdx];
-        const key = entry.item.tmsKey;
+        const item = entry.item;
+        if (item && item.direction === 'reverse') {
+            return row && row.reverseResolutions && item.studentId
+                ? row.reverseResolutions[item.studentId]
+                : null;
+        }
+        const key = item && item.tmsKey;
         return row && row.studentResolutions ? row.studentResolutions[key] : null;
     }
 
-    function setCurrentReviewResolution(action, studentId) {
+    function setCurrentReviewResolution(action, studentIdOrTmsKey) {
         const entry = tmsReviewQueue[tmsReviewIndex];
         if (!entry) {
             return;
@@ -1339,9 +1441,28 @@
         if (!row.studentResolutions) {
             row.studentResolutions = {};
         }
-        const key = entry.item.tmsKey;
+        if (!row.reverseResolutions) {
+            row.reverseResolutions = {};
+        }
+        const item = entry.item;
+        if (item && item.direction === 'reverse') {
+            const sid = item.studentId;
+            if (action === 'map') {
+                const tmsKey = String(studentIdOrTmsKey || '');
+                row.reverseResolutions[sid] = { action: 'map', tmsKey };
+                // Pull TMS → CCMU on Apply via the same map path as forward Map.
+                row.studentResolutions[tmsKey] = { action: 'map', studentId: sid };
+            } else {
+                row.reverseResolutions[sid] = { action: 'skip' };
+            }
+            return;
+        }
+        const key = item.tmsKey;
         if (action === 'map') {
-            row.studentResolutions[key] = { action: 'map', studentId: String(studentId || '') };
+            row.studentResolutions[key] = {
+                action: 'map',
+                studentId: String(studentIdOrTmsKey || '')
+            };
         } else if (action === 'add') {
             row.studentResolutions[key] = { action: 'add' };
         } else {
@@ -1380,10 +1501,12 @@
             return;
         }
         const item = entry.item;
+        const isReverse = item && item.direction === 'reverse';
         const progress = document.getElementById('rosterTmsStudentReviewProgress');
         const reasonEl = document.getElementById('rosterTmsStudentReviewReason');
         const nameEl = document.getElementById('rosterTmsStudentReviewName');
         const labelEl = document.getElementById('rosterTmsStudentReviewNameLabel');
+        const choicesLegend = document.querySelector('#rosterTmsStudentReviewChoices legend');
         const optionsEl = document.getElementById('rosterTmsStudentReviewOptions');
         const backBtn = document.getElementById('rosterTmsStudentReviewBackBtn');
         const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
@@ -1397,41 +1520,78 @@
             reasonEl.textContent = tmsReviewReasonText(item.reason);
         }
         if (labelEl) {
-            labelEl.textContent = t('rosterTmsReviewTmsName');
+            labelEl.textContent = isReverse
+                ? t('rosterTmsReviewCmName')
+                : t('rosterTmsReviewTmsName');
         }
         if (nameEl) {
-            const en = item.tmsNameEn ? ` (${item.tmsNameEn})` : '';
-            nameEl.textContent = `${item.tmsName}${en}`;
+            if (isReverse) {
+                const en = item.studentNameEn ? ` (${item.studentNameEn})` : '';
+                const off = item.alreadyOffRoster ? ` [${t('classroomTagOffRoster')}]` : '';
+                nameEl.textContent = `${item.studentName}${en}${off}`;
+            } else {
+                const en = item.tmsNameEn ? ` (${item.tmsNameEn})` : '';
+                nameEl.textContent = `${item.tmsName}${en}`;
+            }
+        }
+        if (choicesLegend) {
+            choicesLegend.textContent = isReverse
+                ? t('rosterTmsReviewReverseChoicesLabel')
+                : t('rosterTmsReviewChoicesLabel');
         }
         const existing = getCurrentReviewResolution();
-        const selected =
-            existing && existing.action === 'map'
-                ? `map:${existing.studentId}`
-                : existing && existing.action === 'add'
-                  ? 'add'
-                  : existing && existing.action === 'skip'
-                    ? 'skip'
-                    : '';
+        const selected = isReverse
+            ? existing && existing.action === 'map'
+                ? `mapTms:${existing.tmsKey}`
+                : existing && existing.action === 'skip'
+                  ? 'skip'
+                  : ''
+            : existing && existing.action === 'map'
+              ? `map:${existing.studentId}`
+              : existing && existing.action === 'add'
+                ? 'add'
+                : existing && existing.action === 'skip'
+                  ? 'skip'
+                  : '';
         const opts = [];
-        (item.candidates || []).forEach((c) => {
-            const en = c.nameEn ? ` (${c.nameEn})` : '';
-            const val = `map:${c.id}`;
+        if (isReverse) {
+            (item.candidates || []).forEach((c) => {
+                const en = c.nameEn ? ` (${c.nameEn})` : '';
+                const val = `mapTms:${c.tmsKey}`;
+                opts.push(
+                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
+                        selected === val ? ' checked' : ''
+                    }><span>${escapeHtml(
+                        t('rosterTmsReviewReverseMapTo').replace('{name}', `${c.name}${en}`)
+                    )}</span></label>`
+                );
+            });
             opts.push(
-                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
-                    selected === val ? ' checked' : ''
-                }><span>${escapeHtml(t('rosterTmsReviewMapTo').replace('{name}', `${c.name}${en}`))}</span></label>`
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
+                    selected === 'skip' ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsReviewKeepOffRoster'))}</span></label>`
             );
-        });
-        opts.push(
-            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
-                selected === 'add' ? ' checked' : ''
-            }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
-        );
-        opts.push(
-            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
-                selected === 'skip' ? ' checked' : ''
-            }><span>${escapeHtml(t('rosterTmsReviewSkip'))}</span></label>`
-        );
+        } else {
+            (item.candidates || []).forEach((c) => {
+                const en = c.nameEn ? ` (${c.nameEn})` : '';
+                const val = `map:${c.id}`;
+                opts.push(
+                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
+                        selected === val ? ' checked' : ''
+                    }><span>${escapeHtml(t('rosterTmsReviewMapTo').replace('{name}', `${c.name}${en}`))}</span></label>`
+                );
+            });
+            opts.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
+                    selected === 'add' ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
+            );
+            opts.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
+                    selected === 'skip' ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsReviewSkip'))}</span></label>`
+            );
+        }
         if (optionsEl) {
             optionsEl.innerHTML = opts.join('');
             optionsEl.querySelectorAll('input[name="rosterTmsReviewChoice"]').forEach((input) => {
@@ -1441,6 +1601,8 @@
                         setCurrentReviewResolution('add');
                     } else if (val === 'skip') {
                         setCurrentReviewResolution('skip');
+                    } else if (val.startsWith('mapTms:')) {
+                        setCurrentReviewResolution('map', val.slice(7));
                     } else if (val.startsWith('map:')) {
                         setCurrentReviewResolution('map', val.slice(4));
                     }
@@ -1467,12 +1629,20 @@
 
     function updateTmsReviewNavButtons() {
         const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        const entry = tmsReviewQueue[tmsReviewIndex];
         const res = getCurrentReviewResolution();
-        const ok =
-            res &&
-            (res.action === 'add' ||
-                res.action === 'skip' ||
-                (res.action === 'map' && res.studentId));
+        const isReverse = entry && entry.item && entry.item.direction === 'reverse';
+        const ok = isReverse
+            ? Boolean(
+                  res &&
+                      (res.action === 'skip' || (res.action === 'map' && res.tmsKey))
+              )
+            : Boolean(
+                  res &&
+                      (res.action === 'add' ||
+                          res.action === 'skip' ||
+                          (res.action === 'map' && res.studentId))
+              );
         if (nextBtn) {
             nextBtn.disabled = !ok;
         }
@@ -1502,30 +1672,38 @@
     }
 
     function advanceTmsStudentReview() {
+        const entry = tmsReviewQueue[tmsReviewIndex];
         const res = getCurrentReviewResolution();
-        if (
-            !res ||
-            !(
-                res.action === 'add' ||
-                res.action === 'skip' ||
-                (res.action === 'map' && res.studentId)
-            )
-        ) {
+        const isReverse = entry && entry.item && entry.item.direction === 'reverse';
+        const ok = isReverse
+            ? Boolean(
+                  res &&
+                      (res.action === 'skip' || (res.action === 'map' && res.tmsKey))
+              )
+            : Boolean(
+                  res &&
+                      (res.action === 'add' ||
+                          res.action === 'skip' ||
+                          (res.action === 'map' && res.studentId))
+              );
+        if (!ok) {
             setTmsSyncError(t('rosterTmsReviewChoiceRequired'));
             return;
         }
         setTmsSyncError('');
-        if (tmsReviewIndex < tmsReviewQueue.length - 1) {
-            tmsReviewIndex += 1;
-            renderTmsStudentReview();
+        // Rebuild so reverse Map claims a TMS name and drops it from later steps.
+        tmsReviewQueue = collectTmsReviewQueue();
+        if (!tmsReviewQueue.length) {
+            tmsSyncWizardStep = 1;
+            const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+            if (confirmBtn) {
+                confirmBtn.hidden = false;
+            }
+            void confirmTmsSync();
             return;
         }
-        tmsSyncWizardStep = 1;
-        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
-        if (confirmBtn) {
-            confirmBtn.hidden = false;
-        }
-        void confirmTmsSync();
+        tmsReviewIndex = 0;
+        renderTmsStudentReview();
     }
 
     function renderTmsSyncTable() {
@@ -1626,16 +1804,19 @@
                     row.userTargetId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
+                    row.reverseResolutions = {};
                 } else if (!val) {
                     row.userAction = 'choose';
                     row.userTargetId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
+                    row.reverseResolutions = {};
                 } else {
                     row.userAction = 'map';
                     row.userTargetId = val;
                     row.remembered = false;
                     row.studentResolutions = {};
+                    row.reverseResolutions = {};
                 }
                 renderTmsSyncTable();
             });
@@ -1645,19 +1826,7 @@
             !tmsSyncLoading &&
             tmsSyncPlan.length > 0 &&
             tmsSyncPlan.every((r) => r.userAction === 'skip' || (r.userAction === 'map' && r.userTargetId));
-        let unclearCount = 0;
-        if (canApply) {
-            tmsSyncPlan.forEach((row) => {
-                if (row.userAction !== 'map' || !row.userTargetId) {
-                    return;
-                }
-                const target = getCohorts().find((c) => c && c.id === row.userTargetId);
-                if (!target || !domain().listUnclearTmsStudentMatches) {
-                    return;
-                }
-                unclearCount += domain().listUnclearTmsStudentMatches(target.students, row.students).length;
-            });
-        }
+        const unclearCount = canApply ? collectTmsReviewQueue().length : 0;
         if (confirmBtn) {
             confirmBtn.hidden = tmsSyncWizardStep === 2;
             confirmBtn.disabled = !canApply;
@@ -1938,17 +2107,9 @@
             closeTmsSyncModal();
             return;
         }
-        const pendingUnclear = collectTmsReviewQueue().filter((entry) => {
-            const row = tmsSyncPlan[entry.rowIdx];
-            const key = entry.item && entry.item.tmsKey;
-            const res = row && row.studentResolutions && key ? row.studentResolutions[key] : null;
-            return !(
-                res &&
-                (res.action === 'add' ||
-                    res.action === 'skip' ||
-                    (res.action === 'map' && res.studentId))
-            );
-        });
+        const pendingUnclear = collectTmsReviewQueue().filter(
+            (entry) => !isReviewEntryResolved(entry)
+        );
         if (pendingUnclear.length) {
             setTmsSyncError(t('rosterTmsReviewIncomplete'));
             enterTmsStudentReview();
