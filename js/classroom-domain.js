@@ -202,21 +202,27 @@
         return hangulSyllables(name).join('');
     }
 
+    /**
+     * Display compare key: Hangul + status marks + Latin/digits after cleanup.
+     * Unlike koreanMatchKey, keeps ★/◆ so gain/loss of a mark is visible.
+     */
+    function koreanDisplayCompareKey(name) {
+        const s = koreanNameDisplayKey(name);
+        return s.replace(
+            /[^\uac00-\ud7a3A-Za-z0-9◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]/g,
+            ''
+        );
+    }
+
+    /** True when Hangul identity matches but visible mark/letter form differs. */
+    function koreanDisplaysDiffer(nameA, nameB) {
+        const a = koreanDisplayCompareKey(nameA);
+        const b = koreanDisplayCompareKey(nameB);
+        return Boolean(a && b && a !== b);
+    }
+
     function hasLatinNameDisambiguator(name) {
         return Boolean(nameLatinDisambiguatorSuffix(name));
-    }
-
-    /**
-     * Identity key that ignores ★/◆ status marks but keeps Latin letters (김민수A).
-     * Same as koreanMatchKey in the current matching model; exported for paste/import.
-     */
-    function koreanMarkAgnosticKey(name) {
-        return koreanMatchKey(name);
-    }
-
-    /** True when match keys equal but stored/display Hangul (incl. marks) differs. */
-    function koreanDisplayNameDiffers(nameA, nameB) {
-        return koreanNameDisplayKey(nameA) !== koreanNameDisplayKey(nameB);
     }
 
     function hasNameDisambiguator(name) {
@@ -355,11 +361,10 @@
 
     /**
      * TMS names that need user review (map / add / skip) before sync applies:
-     * - ★/◆ gain/loss vs CM (same match key, different display) → name_mark_change
-     * - Multiple CM students share the same match key → duplicate_existing
-     * - Latin letter difference (김민수 vs 김민수A) → shared_hangul_core
+     * - Same Hangul match key but ★/◆ (etc.) gained/lost vs CM → name_mark_change
+     * - Same Hangul core with Latin letter difference → shared_hangul_core
      * - Contiguous Hangul variant → fuzzy_variant
-     * - No Hangul peer → unmatched (still offers Map to any cohort student)
+     * - Multiple CM students share the match key → duplicate_existing
      * Identical Hangul+mark display is not unclear (silent match).
      * TMS display name is source of truth when the user maps.
      */
@@ -405,69 +410,52 @@
                 return;
             }
             seenTmsKeys.add(k);
+            const sameKeyStudents = existing.filter((s) => koreanMatchKey(s.name) === k);
+            if (sameKeyStudents.length > 1 || duplicateKeys.has(k)) {
+                unclear.push({
+                    tmsName: imp.name,
+                    tmsNameEn: imp.nameEn,
+                    tmsKey: k,
+                    reason: 'duplicate_existing',
+                    candidates: sameKeyStudents.map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                        nameEn: s.nameEn || ''
+                    }))
+                });
+                return;
+            }
             const exact = existingByKey.get(k);
             if (exact) {
-                if (duplicateKeys.has(k)) {
-                    unclear.push({
-                        tmsName: imp.name,
-                        tmsNameEn: imp.nameEn,
-                        tmsKey: k,
-                        reason: 'duplicate_existing',
-                        candidates: existing
-                            .filter((s) => koreanMatchKey(s.name) === k)
-                            .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }))
-                    });
-                    return;
-                }
-                if (koreanDisplayNameDiffers(exact.name, imp.name)) {
+                if (koreanDisplaysDiffer(exact.name, imp.name)) {
                     unclear.push({
                         tmsName: imp.name,
                         tmsNameEn: imp.nameEn,
                         tmsKey: k,
                         reason: 'name_mark_change',
                         candidates: [
-                            {
-                                id: exact.id,
-                                name: exact.name,
-                                nameEn: exact.nameEn || ''
-                            }
+                            { id: exact.id, name: exact.name, nameEn: exact.nameEn || '' }
                         ]
                     });
                 }
                 return;
             }
-            const peerCandidates = existing
+            const candidates = existing
                 .filter((s) => sharesHangulCoreOrVariant(s.name, imp.name))
                 .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }));
-            const allCandidates = existing.map((s) => ({
-                id: s.id,
-                name: s.name,
-                nameEn: s.nameEn || ''
-            }));
-            if (!peerCandidates.length) {
-                // No Hangul-similar peer — still offer Map to any cohort student.
-                unclear.push({
-                    tmsName: imp.name,
-                    tmsNameEn: imp.nameEn,
-                    tmsKey: k,
-                    reason: 'unmatched',
-                    candidates: allCandidates
-                });
+            if (!candidates.length) {
                 return;
             }
             const reason =
-                peerCandidates.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
+                candidates.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
                     ? 'shared_hangul_core'
                     : 'fuzzy_variant';
-            const peerIds = new Set(peerCandidates.map((c) => c.id));
-            const rest = allCandidates.filter((c) => !peerIds.has(c.id));
             unclear.push({
                 tmsName: imp.name,
                 tmsNameEn: imp.nameEn,
                 tmsKey: k,
                 reason,
-                // Hangul peers first, then the rest of the cohort for Map.
-                candidates: peerCandidates.concat(rest)
+                candidates
             });
         });
         return unclear;
@@ -475,14 +463,13 @@
 
     /**
      * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
-     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored for the key).
-     * - Identical display → adopt nameEn/mpidx; ★/◆ display diffs need studentResolutions.
-     * - Duplicate CM rows for the same match key need studentResolutions (no silent pick).
-     * - Add students whose match key is not in the cohort (unless unclear/unmatched).
+     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored for identity).
+     * - ★/◆ gain/loss or Latin letter differences require studentResolutions (map/add/skip).
+     * - On confirmed map (or identical display), adopt TMS display name / nameEn / mpidx.
+     * - Add students whose match key is not in the cohort (and not unclear).
      * - Flag existing students missing from TMS with off_roster (never delete).
      *   Preview `flagged` includes students who already had the tag (still missing).
      * - Clear off_roster when they reappear on TMS (always strip on match).
-     * - Unclear Hangul-core / Latin collisions need studentResolutions (map / add / skip).
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
      */
     function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
@@ -623,37 +610,31 @@
 
             const match = existingByKey.get(k);
             if (match) {
-                if (duplicateKeys.has(k)) {
-                    const dupCandidates = existing.filter((s) => koreanMatchKey(s.name) === k);
-                    warnings.push({
-                        code: 'duplicate_existing_name',
-                        name: imp.name,
-                        matchedId: match.id
-                    });
+                const sameKeyStudents = existing.filter((s) => koreanMatchKey(s.name) === k);
+                const needsReview =
+                    duplicateKeys.has(k) ||
+                    sameKeyStudents.length > 1 ||
+                    koreanDisplaysDiffer(match.name, imp.name);
+                if (needsReview) {
+                    if (duplicateKeys.has(k) || sameKeyStudents.length > 1) {
+                        warnings.push({
+                            code: 'duplicate_existing_name',
+                            name: imp.name,
+                            matchedId: match.id
+                        });
+                    }
                     warnings.push({
                         code: 'unresolved_unclear_name',
                         name: imp.name,
-                        candidates: dupCandidates.map((s) => s.id)
+                        candidates: sameKeyStudents.map((s) => s.id)
                     });
                     skipTmsKeys.add(k);
                     if (opts.softUnclear) {
-                        dupCandidates.forEach((s) => {
+                        sameKeyStudents.forEach((s) => {
                             if (s && s.id) {
                                 exactMatchedIds.add(s.id);
                             }
                         });
-                    }
-                    return;
-                }
-                if (koreanDisplayNameDiffers(match.name, imp.name)) {
-                    warnings.push({
-                        code: 'unresolved_unclear_name',
-                        name: imp.name,
-                        candidates: [match.id]
-                    });
-                    skipTmsKeys.add(k);
-                    if (opts.softUnclear && match.id) {
-                        exactMatchedIds.add(match.id);
                     }
                     return;
                 }
@@ -681,12 +662,20 @@
                 });
                 return;
             }
-            // No Hangul peer and no resolution — queue for Map/Add/Skip (no silent add).
-            warnings.push({
-                code: 'unresolved_unmatched_name',
-                name: imp.name
+            added.push({
+                id: makeId(),
+                name: imp.name,
+                nameEn: imp.nameEn,
+                locationTag: imp.locationTag,
+                sortOrder: existing.length + added.length,
+                active: true,
+                tags: [],
+                memo: imp.memo,
+                archivedAt: '',
+                archiveReason: '',
+                expectedStartDate: '',
+                tmsMpidx: imp.mpidx || ''
             });
-            skipTmsKeys.add(k);
         });
 
         const fuzzyMatchedIds = new Set();
@@ -854,9 +843,44 @@
         return still;
     }
 
+    function createTmsRosterCohort(row, options) {
+        const opts = options || {};
+        const newCohortId =
+            typeof opts.newCohortId === 'function' ? opts.newCohortId : () => newId('cohort');
+        return {
+            id: newCohortId(),
+            name: normalizeStr(row && row.importCohortName),
+            classIds: [],
+            students: [],
+            level: normalizeStr(row && row.level),
+            levelPreset: normalizeStr(row && row.levelPreset),
+            grade: normalizeStr(row && row.grade),
+            schedulePattern: row && row.schedulePattern === 'tth' ? 'tth' : 'mwf',
+            meetingDays:
+                Array.isArray(row && row.meetingDays) && row.meetingDays.length
+                    ? row.meetingDays.slice()
+                    : row && row.schedulePattern === 'tth'
+                      ? [2, 4]
+                      : [1, 3, 5],
+            periodCount: 0,
+            scheduleBlock: normalizeStr(row && row.scheduleBlock) || 'primary',
+            subjectSlots: [],
+            homeroomTeacherUserId: normalizeStr(opts.homeroomTeacherUserId),
+            homeroomTeacherName: '',
+            homeroomDaySuffix: '',
+            tmsBlockStart: normalizeStr(row && row.tmsBlockStart),
+            tmsBlockEnd: normalizeStr(row && row.tmsBlockEnd),
+            tmsSuggestedPeriod:
+                row && row.tmsSuggestedPeriod != null && row.tmsSuggestedPeriod !== ''
+                    ? Number(row.tmsSuggestedPeriod)
+                    : null,
+            tmsSuggestedTimeSlotId: normalizeStr(row && row.tmsSuggestedTimeSlotId)
+        };
+    }
+
     /**
      * Apply Korean-name TMS merges across cohorts using a mapping plan.
-     * plan rows: { userAction: 'map'|'skip', userTargetId, importCohortName, students: [{name,nameEn?}] }
+     * plan rows: { userAction: 'map'|'create'|'skip', userTargetId, importCohortName, students: [{name,nameEn?}] }
      */
     function applyTmsRosterPlan(calendarCohorts, plan, options) {
         const opts = options || {};
@@ -876,11 +900,21 @@
                 });
                 return;
             }
-            if (row.userAction !== 'map') {
+            if (row.userAction !== 'map' && row.userAction !== 'create') {
                 return;
             }
-            const targetId = normalizeStr(row.userTargetId);
-            const idx = cohorts.findIndex((c) => c && c.id === targetId);
+
+            let targetId = normalizeStr(row.userTargetId);
+            let idx = cohorts.findIndex((c) => c && c.id === targetId);
+            if (row.userAction === 'create') {
+                const created = createTmsRosterCohort(row, {
+                    newCohortId: opts.newCohortId,
+                    homeroomTeacherUserId: opts.homeroomTeacherUserId
+                });
+                cohorts.push(created);
+                targetId = created.id;
+                idx = cohorts.length - 1;
+            }
             if (idx < 0) {
                 results.push({
                     importCohortName: row.importCohortName,
@@ -907,6 +941,7 @@
                 importCohortName: row.importCohortName,
                 targetId,
                 targetName: target.name,
+                created: row.userAction === 'create',
                 summary: merged.summary
             });
         });
@@ -1213,6 +1248,19 @@
             }
             if (row.userAction === 'map') {
                 const cohortId = normalizeStr(row.userTargetId || row.cohortId);
+                if (!cohortId || !validIds.has(cohortId)) {
+                    return;
+                }
+                next[key] = {
+                    action: 'map',
+                    cohortId,
+                    tmsClassName: name,
+                    tmsClassId
+                };
+                return;
+            }
+            if (row.userAction === 'create') {
+                const cohortId = normalizeStr(row.createdCohortId || row.userTargetId || row.cohortId);
                 if (!cohortId || !validIds.has(cohortId)) {
                     return;
                 }
@@ -5530,15 +5578,19 @@
         DEFAULT_ARCHIVE_RETENTION_DAYS,
         koreanNameKey,
         koreanMatchKey,
-        koreanMarkAgnosticKey,
         koreanNameDisplayKey,
         nameDisambiguatorSuffix,
         nameStatusSymbolSuffix,
         nameLatinDisambiguatorSuffix,
         hangulCoreKey,
+        koreanDisplayCompareKey,
+        koreanDisplaysDiffer,
         hasNameDisambiguator,
         hasLatinNameDisambiguator,
         hangulSyllables,
+        hangulCoreKey,
+        koreanDisplayCompareKey,
+        koreanDisplaysDiffer,
         hangulNameVariantPair,
         shareThreeHangulSyllables,
         pairFuzzyRosterMatches,

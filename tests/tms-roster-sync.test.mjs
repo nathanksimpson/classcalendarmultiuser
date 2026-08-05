@@ -57,10 +57,8 @@ function assert(cond, msg) {
         { name: '이서연' },
         { name: '박지훈' }
     ];
-    const keyNew = D.koreanMatchKey('박지훈');
     const result = D.mergeRosterByKoreanName(existing, tms, {
-        newStudentId: () => 'stu_new',
-        studentResolutions: { [keyNew]: { action: 'add' } }
+        newStudentId: () => 'stu_new'
     });
     assert(result.summary.added.length === 1, 'one new student');
     assert(result.summary.added[0].name === '박지훈', 'new is 박지훈');
@@ -68,28 +66,26 @@ function assert(cond, msg) {
     assert(result.students.filter((s) => s.name === '김민수').length === 1, 'no duplicate 김민수');
     assert(result.students.find((s) => s.name === '김민수').id === 'stu_a', 'keep existing id');
     assert(result.students.find((s) => s.name === '김민수').nameEn === 'DifferentEn', 'exact match adopts TMS English');
+    assert(result.students.find((s) => s.name === '이서연').nameEn === 'Seoyeon', 'blank TMS English keeps CM');
 }
 
-// Exact Korean match clears off_roster even when English differs
+// Exact Korean match pushes TMS English; blank TMS English leaves CM alone
 {
-    const existing = [{ id: 'stu_a', name: '김민수', nameEn: 'Alice', tags: ['off_roster'] }];
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수', nameEn: 'Bob' }]);
-    const student = result.students.find((s) => s.id === 'stu_a');
-    assert(result.summary.matched.length === 1, 'matched by Korean name');
-    assert(result.summary.flagged.length === 0, 'not flagged off roster');
-    assert(result.summary.cleared.length === 1, 'cleared off_roster');
-    assert(!student.tags.includes('off_roster'), 'off_roster removed despite English mismatch');
-    assert(student.nameEn === 'Bob', 'English updated separately from off_roster');
+    const existing = [{ id: 'stu_a', name: '김민수', nameEn: 'OldEn', tags: [] }];
+    const withEn = D.mergeRosterByKoreanName(existing, [{ name: '김민수', nameEn: 'NewEn' }]);
+    assert(withEn.students[0].nameEn === 'NewEn', 'exact match updates nameEn from TMS');
+    const blankEn = D.mergeRosterByKoreanName(existing, [{ name: '김민수', nameEn: '' }]);
+    assert(blankEn.students[0].nameEn === 'OldEn', 'exact match keeps CM nameEn when TMS blank');
 }
 
-// Flag missing from TMS (wizard Keep / Map / Archive reviews them); clear when they return
+// Flag missing from TMS; clear when they return
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
     const first = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }]);
-    assert(first.summary.flagged.length === 1, 'flagged one missing from TMS');
+    assert(first.summary.flagged.length === 1, 'flagged one');
     assert(first.summary.flagged[0].name === '이서연', 'flagged 이서연');
     const flagged = first.students.find((s) => s.id === 'stu_b');
     assert(flagged.tags.includes('off_roster'), 'has off_roster tag');
@@ -117,7 +113,7 @@ function assert(cond, msg) {
     const gone = result.students.find((s) => s.id === 'stu_gone');
     assert(gone, 'kept gone student');
     assert(gone.tags.includes('interested'), 'kept other tags');
-    assert(gone.tags.includes('off_roster'), 'added off_roster while missing from TMS');
+    assert(gone.tags.includes('off_roster'), 'added off_roster');
 }
 
 // Already Off roster + still missing from TMS still counts in flagged preview
@@ -159,7 +155,7 @@ function assert(cond, msg) {
     );
 }
 
-// Hangul syllable helpers
+// Hangul syllable helpers + symbol-aware match keys
 {
     assert(D.hangulSyllables('김민수').join('') === '김민수', 'three syllables');
     assert(D.hangulSyllables('Kim김민수').join('') === '김민수', 'strip latin');
@@ -167,74 +163,85 @@ function assert(cond, msg) {
     assert(D.shareThreeHangulSyllables('김민아', '김민수') === false, 'only 2 contiguous');
     assert(D.shareThreeHangulSyllables('김민', '김민수') === false, 'too short');
     assert(D.hangulNameVariantPair('권이안', '이안권') === false, 'non-contained shared syllables do not fuzzy match');
-    assert(D.koreanMatchKey('권이안◆') === D.koreanMatchKey('권이안'), 'status symbol stripped from match key');
-    assert(D.nameDisambiguatorSuffix('권이안◆') === '◆', 'diamond suffix on display');
-    assert(D.hangulNameVariantPair('권이안', '권이안◆') === true, 'same match key across diamond');
-    assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수'), 'Latin suffix kept in match key');
-    assert(D.hangulNameVariantPair('김민수', '김민수A') === false, 'no auto fuzzy across Latin suffix');
+    assert(D.koreanMatchKey('권이안◆') === D.koreanMatchKey('권이안'), 'status symbol ignored in match key');
+    assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수'), 'Latin disambiguator kept');
+    assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수B'), 'Latin A ≠ B');
+    assert(D.nameStatusSymbolSuffix('권이안◆') === '◆', 'diamond status suffix');
+    assert(D.nameLatinDisambiguatorSuffix('김민수A') === 'A', 'latin suffix');
+    assert(D.hangulNameVariantPair('권이안', '권이안◆') === true, 'symbol-only pair shares identity');
+    assert(D.hangulNameVariantPair('김민수', '김민수A') === false, 'latin blocks fuzzy');
 }
 
-// ★/◆ display diffs ask; Latin suffix stays unclear
+// Symbol/mark gain or loss requires review; map adopts TMS name (source of truth)
 {
-    const existing = [
-        { id: 'stu_a', name: '권이안', tags: ['off_roster'] },
-        { id: 'stu_b', name: '김민수', tags: [] },
-        { id: 'stu_c', name: '이서연', nameEn: 'Seoyeon', tags: [] }
-    ];
-    assert(D.koreanMarkAgnosticKey('권이안◆') === D.koreanMarkAgnosticKey('권이안'), 'mark-agnostic equal');
-    const unclearMark = D.listUnclearTmsStudentMatches(existing, [{ name: '권이안◆' }]);
-    assert(unclearMark.length === 1, 'diamond mark change unclear');
-    assert(unclearMark[0].reason === 'name_mark_change', 'mark change reason');
-    assert(unclearMark[0].candidates[0].id === 'stu_a', 'candidate is bare name');
-    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆', nameEn: 'Ian' }]);
+    const existing = [{ id: 'stu_a', name: '권이안', tags: [] }];
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '권이안◆', nameEn: '' }]);
+    assert(unclear.length === 1, 'symbol gain is unclear');
+    assert(unclear[0].reason === 'name_mark_change', 'name_mark_change reason');
+    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆' }]);
     assert(blocked.summary.added.length === 0, 'no silent add on mark change');
     assert(blocked.summary.matched.length === 0, 'no silent match on mark change');
     assert(
         blocked.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
-        'mark change unresolved without resolution'
+        'warn until reviewed'
     );
-    assert(blocked.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'), 'keeps off_roster until map');
+    assert(blocked.students.find((s) => s.id === 'stu_a').name === '권이안', 'CM name unchanged');
 
-    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '김민수A', nameEn: '' }]);
-    assert(unclear.length === 1, 'Latin suffix unclear');
-    assert(unclear[0].reason === 'shared_hangul_core', 'shared core reason');
-    assert(
-        unclear[0].candidates.some((c) => c.id === 'stu_b'),
-        'Hangul peer first'
+    const key = D.koreanMatchKey('권이안◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+    });
+    assert(result.summary.matched.length === 1, 'mapped after review');
+    assert(result.students.find((s) => s.id === 'stu_a').name === '권이안◆', 'adopted TMS symbol');
+
+    const stripUnclear = D.listUnclearTmsStudentMatches(
+        [{ id: 'stu_a', name: '권이안◆', tags: [] }],
+        [{ name: '권이안' }]
     );
-    assert(
-        unclear[0].candidates.some((c) => c.id === 'stu_c'),
-        'full cohort map list includes other students'
+    assert(stripUnclear.length === 1 && stripUnclear[0].reason === 'name_mark_change', 'symbol loss unclear');
+    const strip = D.mergeRosterByKoreanName(
+        [{ id: 'stu_a', name: '권이안◆', tags: [] }],
+        [{ name: '권이안' }],
+        { studentResolutions: { [D.koreanMatchKey('권이안')]: { action: 'map', studentId: 'stu_a' } } }
     );
-    assert(
-        unclear[0].candidates.some((c) => c.id === 'stu_a'),
-        'off_roster included in map candidates'
-    );
+    assert(strip.students[0].name === '권이안', 'adopted TMS without symbol');
 }
 
-// ★ gain/loss and existing CM duplicates (정태희★ + 정태희)
+// Identical Hangul+mark still silent-matches
 {
-    const starOnly = [{ id: 'stu_star', name: '정태희★', nameEn: 'Taeheu', tags: [] }];
-    const unclearStar = D.listUnclearTmsStudentMatches(starOnly, [{ name: '정태희', nameEn: 'Taeheu' }]);
-    assert(unclearStar.length === 1 && unclearStar[0].reason === 'name_mark_change', 'star loss asks');
-    const both = [
+    const existing = [{ id: 'stu_a', name: '정태희★', nameEn: 'Taeheu', tags: [] }];
+    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '정태희★' }]).length === 0, 'identical not unclear');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '정태희★', nameEn: 'Taeheui' }]);
+    assert(result.summary.matched.length === 1, 'identical mark matched');
+    assert(result.summary.added.length === 0, 'no add');
+    assert(result.students[0].nameEn === 'Taeheui', 'TMS English adopted on silent match');
+}
+
+// Existing CM duplicates (정태희 + 정태희★) require merge choice
+{
+    const existing = [
         { id: 'stu_star', name: '정태희★', nameEn: 'Taeheu', tags: [] },
         { id: 'stu_plain', name: '정태희', nameEn: 'Taeheu', tags: [] }
     ];
-    const unclearBoth = D.listUnclearTmsStudentMatches(both, [{ name: '정태희', nameEn: 'Taeheu' }]);
-    assert(unclearBoth.length === 1 && unclearBoth[0].reason === 'duplicate_existing', 'both dups ask');
-    assert(unclearBoth[0].candidates.length === 2, 'both candidates');
-    const blockedBoth = D.mergeRosterByKoreanName(both, [{ name: '정태희' }]);
-    assert(blockedBoth.summary.added.length === 0, 'no third student');
-    assert(blockedBoth.summary.matched.length === 0, 'no silent adopt onto one dup');
-    const key = D.koreanMatchKey('정태희');
-    const mapped = D.mergeRosterByKoreanName(both, [{ name: '정태희' }], {
-        studentResolutions: { [key]: { action: 'map', studentId: 'stu_star' } }
-    });
-    assert(mapped.students.find((s) => s.id === 'stu_star').name === '정태희', 'TMS name wins on map');
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '정태희', nameEn: 'Taeheu' }]);
+    assert(unclear.length === 1, 'duplicate unclear');
+    assert(unclear[0].reason === 'duplicate_existing', 'duplicate_existing');
+    assert(unclear[0].candidates.length === 2, 'both candidates');
+    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '정태희' }]);
+    assert(blocked.summary.added.length === 0, 'no third student');
+    assert(blocked.summary.matched.length === 0, 'no silent adopt onto one dup');
 }
 
-// Resolution add keeps diamond name (forced add even though keys match)
+// Latin disambiguator still unclear vs bare Hangul
+{
+    const existing = [{ id: 'stu_a', name: '김민수', tags: [] }];
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '김민수A', nameEn: '' }]);
+    assert(unclear.length === 1, 'one unclear latin');
+    assert(unclear[0].reason === 'shared_hangul_core', 'shared core reason');
+    assert(unclear[0].candidates[0].id === 'stu_a', 'candidate is bare name');
+}
+
+// Resolution add keeps diamond name (forced add beside existing bare name)
 {
     const existing = [{ id: 'stu_a', name: '권이안', tags: [] }];
     const key = D.koreanMatchKey('권이안◆');
@@ -283,7 +290,45 @@ function assert(cond, msg) {
     assert(mapped.nameEn === 'Ian', 'nameEn from TMS when present');
 }
 
-// Unresolved Latin-suffix unclear does not auto-add
+// Duplicate Korean names: Map resolution wins over first exact match
+{
+    const existing = [
+        { id: 'stu_a', name: '김민수', nameEn: 'A', tags: [] },
+        { id: 'stu_b', name: '김민수', nameEn: 'B', tags: [] }
+    ];
+    const key = D.koreanNameKey('김민수');
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '김민수', nameEn: 'Minsu' }]);
+    assert(unclear.length === 1 && unclear[0].reason === 'duplicate_existing', 'duplicate unclear');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수', nameEn: 'Minsu' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_b' } }
+    });
+    assert(result.summary.matched.some((m) => m.id === 'stu_b' && m.resolved), 'mapped to second');
+    assert(result.students.find((s) => s.id === 'stu_b').nameEn === 'Minsu', 'TMS en on chosen');
+    assert(
+        result.summary.flagged.some((f) => f.id === 'stu_a'),
+        'other duplicate flagged off roster'
+    );
+    assert(result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'), 'stu_a off roster');
+}
+
+// Remembered skip applies without re-queue (Latin unclear case)
+{
+    const cohort = {
+        id: 'c1',
+        students: [{ id: 'stu_a', name: '김민수', tags: [] }],
+        tmsStudentResolutions: {
+            [D.koreanMatchKey('김민수A')]: { action: 'skip' }
+        }
+    };
+    const unclear = D.listUnclearTmsStudentMatches(cohort.students, [{ name: '김민수A' }]);
+    assert(unclear.length === 1, 'still listed as unclear raw');
+    const row = { studentResolutions: {} };
+    const still = D.applyRememberedTmsStudentResolutions(cohort, unclear, row);
+    assert(still.length === 0, 'remembered skip not queued');
+    assert(row.studentResolutions[D.koreanMatchKey('김민수A')].action === 'skip', 'skip injected');
+}
+
+// Unresolved unclear does not auto-add (Latin)
 {
     const existing = [{ id: 'stu_a', name: '김민수', tags: [] }];
     const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수A' }], {
@@ -294,72 +339,6 @@ function assert(cond, msg) {
         result.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
         'unresolved warning'
     );
-}
-
-// Remembered skip/map on cohort survive applyTmsRosterPlan
-{
-    const cohorts = [
-        {
-            id: 'coh1',
-            name: 'Test',
-            students: [
-                { id: 'stu_a', name: '김민수', tags: [] },
-                { id: 'stu_b', name: '이서연', tags: [] }
-            ],
-            tmsStudentResolutions: {}
-        }
-    ];
-    const keyA = D.koreanMatchKey('김민수A');
-    const keySkip = D.koreanMatchKey('김민수B');
-    const plan = [
-        {
-            userAction: 'map',
-            userTargetId: 'coh1',
-            importCohortName: 'TMS',
-            students: [
-                { name: '김민수A', nameEn: 'Min' },
-                { name: '이서연' },
-                { name: '김민수B', nameEn: '' }
-            ],
-            studentResolutions: {
-                [keyA]: { action: 'map', studentId: 'stu_a' },
-                [keySkip]: { action: 'skip' }
-            }
-        }
-    ];
-    const applied = D.applyTmsRosterPlan(cohorts, plan, { newStudentId: () => 'stu_new' });
-    const coh = applied.cohorts[0];
-    assert(coh.students.find((s) => s.id === 'stu_a').name === '김민수A', 'map wrote TMS name');
-    assert(coh.students.find((s) => s.id === 'stu_a').nameEn === 'Min', 'map wrote TMS English');
-    assert(!coh.students.some((s) => s.name === '김민수B'), 'skip did not add');
-    assert(coh.tmsStudentResolutions[keyA].action === 'map', 'map remembered');
-    assert(coh.tmsStudentResolutions[keySkip].action === 'skip', 'skip remembered');
-
-    // Next Sync: 김민수A exact-matches renamed student; 김민수B still unclear but skip is remembered.
-    const tmsAgain = [
-        { name: '김민수A', nameEn: 'Min' },
-        { name: '이서연' },
-        { name: '김민수B', nameEn: '' }
-    ];
-    const unclear = D.listUnclearTmsStudentMatches(coh.students, tmsAgain);
-    assert(
-        unclear.every((u) => u.tmsKey !== keyA),
-        'mapped name no longer unclear'
-    );
-    assert(
-        unclear.some((u) => u.tmsKey === keySkip),
-        'skipped Latin variant still listed until memory applied'
-    );
-    const row = { studentResolutions: {} };
-    const still = D.applyRememberedTmsStudentResolutions(coh, unclear, row);
-    assert(still.length === 0, 'remembered skip clears review queue');
-    assert(row.studentResolutions[keySkip].action === 'skip', 'memory applied skip');
-
-    const second = D.mergeRosterByKoreanName(coh.students, tmsAgain, {
-        studentResolutions: row.studentResolutions
-    });
-    assert(second.summary.added.length === 0, 'second sync does not add skipped name');
-    assert(second.summary.matched.some((m) => m.id === 'stu_a'), 'second sync still matches mapped');
 }
 
 // Variant names require review (no silent fuzzy consume)
@@ -405,15 +384,11 @@ function assert(cond, msg) {
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
         { id: 'stu_b', name: '김민수아', tags: ['off_roster'] }
     ];
-    const keyPark = D.koreanMatchKey('박지훈');
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수XX' },
         { name: '박지훈' }
-    ], {
-        studentResolutions: { [keyPark]: { action: 'add' } },
-        newStudentId: () => 'stu_new'
-    });
-    assert(result.summary.added.length === 1, '박지훈 still added via Add resolution');
+    ]);
+    assert(result.summary.added.length === 1, '박지훈 still added');
     assert(
         result.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
         '김민수XX needs review'
@@ -474,58 +449,30 @@ function assert(cond, msg) {
     assert(result.summary.flagged[0].id === 'stu_gone', 'flagged is 최유나');
 }
 
-// Unrelated TMS name needs review (no silent add); Map updates identity
+// Unrelated TMS name with no 3-syllable overlap still adds + flags
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
-    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '박지훈', nameEn: 'Jihoon' }]);
-    assert(unclear.length === 1, 'unmatched queued for review');
-    assert(unclear[0].reason === 'unmatched', 'unmatched reason');
-    assert(
-        unclear[0].candidates.some((c) => c.id === 'stu_a') &&
-            unclear[0].candidates.some((c) => c.id === 'stu_b'),
-        'full cohort map candidates'
-    );
-
-    const unresolved = D.mergeRosterByKoreanName(existing, [{ name: '박지훈' }], {
-        softUnclear: true
-    });
-    assert(unresolved.summary.added.length === 0, 'no silent add without resolution');
-    // Missing CM students are flagged for the missing-student wizard (Keep / Map / Archive).
-    assert(unresolved.summary.flagged.length >= 1, 'missing CM students flagged for wizard');
-
-    const key = D.koreanMatchKey('박지훈');
-    const mapped = D.mergeRosterByKoreanName(existing, [{ name: '박지훈', nameEn: 'Jihoon' }], {
-        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
-    });
-    assert(mapped.summary.added.length === 0, 'map does not add');
-    const target = mapped.students.find((s) => s.id === 'stu_a');
-    assert(target.name === '박지훈', 'adopted TMS Korean name');
-    assert(target.nameEn === 'Jihoon', 'adopted TMS English');
-    assert(!target.tags.includes('off_roster'), 'cleared off_roster on map');
-    assert(mapped.summary.flagged.length === 1, '이서연 still flagged');
-    assert(
-        D.listUnclearTmsStudentMatches(mapped.students, [{ name: '박지훈' }]).length === 0,
-        'second sync exact-matches'
-    );
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '박지훈' }]);
+    assert(result.summary.fuzzyCleared.length === 0, 'no fuzzy for unrelated name');
+    assert(result.summary.added.length === 1, '박지훈 added as new');
+    assert(result.summary.flagged.length === 2, 'both CM flagged as missing');
 }
 
-// Unmatched Add resolution creates new student (including empty English)
+// New Korean-only TMS student should add even with empty English name
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
     let n = 0;
-    const key = D.koreanMatchKey('권이안');
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수' },
         { name: '권이안', nameEn: '' }
     ], {
-        newStudentId: () => `stu_new${++n}`,
-        studentResolutions: { [key]: { action: 'add' } }
+        newStudentId: () => `stu_new${++n}`
     });
     assert(result.summary.added.length === 1, 'one korean-only student added');
     assert(result.summary.added[0].name === '권이안', '권이안 added');
@@ -554,14 +501,12 @@ function assert(cond, msg) {
         { id: 'c1', name: 'Purple T', students: [{ id: 'stu_a', name: '김민수', tags: [] }] },
         { id: 'c2', name: 'Navy T', students: [] }
     ];
-    const keySeo = D.koreanMatchKey('이서연');
     const plan = [
         {
             userAction: 'map',
             userTargetId: 'c1',
             importCohortName: 'Purple T',
-            students: [{ name: '김민수' }, { name: '이서연' }],
-            studentResolutions: { [keySeo]: { action: 'add' } }
+            students: [{ name: '김민수' }, { name: '이서연' }]
         },
         { userAction: 'skip', importCohortName: 'Other', students: [{ name: '무시' }] }
     ];
@@ -574,86 +519,50 @@ function assert(cond, msg) {
     assert(applied.results[0].summary.added.length === 1, 'one added in result');
 }
 
-// Missing-student Map: Off-roster CM student → TMS name via studentResolutions → CCMU only
+// applyTmsRosterPlan can create a new cohort from unmatched TMS rows
 {
-    const existing = [
-        { id: 'stu_a', name: '김민수', tags: [] },
-        { id: 'stu_gone', name: '옛이름', nameEn: 'OldEn', tags: ['off_roster'] }
-    ];
-    const tms = [
-        { name: '김민수' },
-        { name: '황연진◆', nameEn: 'Yeonjin' }
-    ];
-    const flagged = D.mergeRosterByKoreanName(existing, tms, {});
-    assert(
-        flagged.summary.flagged.some((f) => f.id === 'stu_gone'),
-        '옛이름 flagged for missing wizard'
-    );
-
-    const tmsKey = D.koreanMatchKey('황연진◆');
-    const cohorts = [
-        {
-            id: 'c1',
-            name: 'Test',
-            students: existing.map((s) => Object.assign({}, s, { tags: (s.tags || []).slice() })),
-            tmsStudentResolutions: {}
-        }
-    ];
+    const cohorts = [{ id: 'c1', name: 'Purple T', students: [{ id: 'stu_a', name: '김민수', tags: [] }] }];
+    let newStudentSeq = 0;
+    let newCohortSeq = 0;
     const applied = D.applyTmsRosterPlan(
         cohorts,
         [
             {
-                userAction: 'map',
-                userTargetId: 'c1',
-                importCohortName: 'TMS',
-                students: tms,
-                studentResolutions: {
-                    [tmsKey]: { action: 'map', studentId: 'stu_gone' }
-                }
+                userAction: 'create',
+                importCohortName: 'Orange M',
+                students: [{ name: '이서연' }, { name: '박지훈', nameEn: 'Jihoon' }],
+                schedulePattern: 'mwf',
+                meetingDays: [1, 3, 5],
+                tmsSuggestedPeriod: 4,
+                tmsSuggestedTimeSlotId: 'slot4',
+                tmsBlockStart: '16:10',
+                tmsBlockEnd: '17:00'
             }
         ],
-        {}
+        {
+            newStudentId: () => `stu_new${++newStudentSeq}`,
+            newCohortId: () => `cohort_new${++newCohortSeq}`,
+            homeroomTeacherUserId: 'teacher_1'
+        }
     );
-    const updated = applied.cohorts[0].students.find((s) => s.id === 'stu_gone');
-    assert(updated.name === '황연진◆', 'TMS Korean name written onto CCMU (not to TMS)');
-    assert(updated.nameEn === 'Yeonjin', 'TMS English written onto CCMU');
-    assert(!updated.tags.includes('off_roster'), 'off_roster cleared after map');
+    assert(applied.cohorts.length === 2, 'created cohort added');
+    const created = applied.cohorts.find((c) => c.id === 'cohort_new1');
+    assert(created, 'created cohort present');
+    assert(created.name === 'Orange M', 'created cohort keeps TMS name');
+    assert(created.homeroomTeacherUserId === 'teacher_1', 'created cohort stamps homeroom user');
+    assert(created.students.length === 2, 'created cohort gets TMS students');
     assert(
-        D.listUnclearTmsStudentMatches(applied.cohorts[0].students, tms).length === 0,
-        'next sync no unclear'
-    );
-}
-
-// NavyM / 유마T / 레오M style: subset match → extras flagged for missing wizard; Map rematch works
-{
-    const existing = [
-        { id: 'stu_1', name: '김민수', tags: [] },
-        { id: 'stu_2', name: '이서연', tags: [] },
-        { id: 'stu_3', name: '황연진', tags: [] },
-        { id: 'stu_4', name: '박지훈', tags: ['off_roster'] }
-    ];
-    const tms = [
-        { name: '김민수', nameEn: 'Min' },
-        { name: '이서연', nameEn: 'Seo' }
-    ];
-    const silent = D.mergeRosterByKoreanName(existing, tms, {});
-    assert(silent.summary.flagged.length === 2, 'two missing CM students flagged');
-    assert(
-        silent.students.find((s) => s.id === 'stu_3').tags.includes('off_roster'),
-        '황연진 tagged Off roster'
+        created.students.map((s) => s.id).sort().join(',') === 'stu_new1,stu_new2',
+        'new student ids generated'
     );
     assert(
-        silent.students.find((s) => s.id === 'stu_4').tags.includes('off_roster'),
-        'existing Off roster kept'
+        created.students.find((s) => s.name === '박지훈').nameEn === 'Jihoon',
+        'created student keeps English name'
     );
-
-    const rematchKey = D.koreanMatchKey('김민수');
-    const rematched = D.mergeRosterByKoreanName(existing, tms, {
-        studentResolutions: { [rematchKey]: { action: 'map', studentId: 'stu_3' } }
-    });
-    assert(rematched.students.find((s) => s.id === 'stu_3').name === '김민수', 'rematch wrote TMS name onto 황연진 slot');
-    assert(!rematched.students.find((s) => s.id === 'stu_3').tags.includes('off_roster'), 'rematch cleared Off roster');
-    assert(rematched.summary.flagged.some((f) => f.id === 'stu_4'), 'stu_4 still flagged');
+    assert(created.tmsSuggestedPeriod === 4, 'created cohort keeps suggested period');
+    assert(applied.results[0].created === true, 'result marked created');
+    assert(applied.results[0].targetId === 'cohort_new1', 'result returns new target id');
+    assert(applied.results[0].summary.added.length === 2, 'all students treated as added');
 }
 
 // TMS class → cohort link memory
@@ -692,13 +601,112 @@ function assert(cond, msg) {
         links,
         [
             { importCohortName: '가람 월', userAction: 'map', userTargetId: 'c2' },
-            { importCohortName: '새로운반', userAction: 'skip' }
+            { importCohortName: '새로운반', userAction: 'skip' },
+            { importCohortName: '오렌지반', userAction: 'create', createdCohortId: 'c1' }
         ],
         cohorts
     );
     assert(next['가람월'].cohortId === 'c2', 'upsert overwrites map');
     assert(next['새로운반'].action === 'skip', 'upsert adds skip');
+    assert(next['오렌지반'].action === 'map', 'created cohort remembered as map');
+    assert(next['오렌지반'].cohortId === 'c1', 'created cohort link stored');
     assert(!next['죽은링크'], 'stale map to missing cohort cleaned');
+}
+
+// Cross-cohort transfer detection (missing on A + add on B)
+{
+    const cohorts = [
+        {
+            id: 'cA',
+            name: 'Cohort A',
+            students: [
+                { id: 'stu_move', name: '김민수', tags: [] },
+                { id: 'stu_stay', name: '이서연', tags: [] }
+            ]
+        },
+        {
+            id: 'cB',
+            name: 'Cohort B',
+            students: [{ id: 'stu_other', name: '박지훈', tags: [] }]
+        }
+    ];
+    const plan = [
+        {
+            importCohortName: 'TMS A',
+            userAction: 'map',
+            userTargetId: 'cA',
+            students: [{ name: '이서연' }],
+            studentResolutions: {}
+        },
+        {
+            importCohortName: 'TMS B',
+            userAction: 'map',
+            userTargetId: 'cB',
+            students: [{ name: '박지훈' }, { name: '김민수◆' }],
+            studentResolutions: {}
+        }
+    ];
+    const transfers = D.detectTmsRosterTransfers(cohorts, plan);
+    assert(transfers.length === 1, `one transfer ${transfers.length}`);
+    assert(transfers[0].studentId === 'stu_move', 'moved student id');
+    assert(transfers[0].fromCohortId === 'cA', 'from A');
+    assert(transfers[0].toCohortId === 'cB', 'to B');
+
+    const ambiguous = D.detectTmsRosterTransfers(cohorts, [
+        plan[0],
+        plan[1],
+        {
+            importCohortName: 'TMS C',
+            userAction: 'map',
+            userTargetId: 'cB',
+            students: [{ name: '김민수' }],
+            studentResolutions: {}
+        }
+    ]);
+    // Two destinations for same key → no unique transfer (second row also targets B with add)
+    // Rebuild with two distinct destinations:
+    const cohorts3 = cohorts.concat([
+        { id: 'cC', name: 'Cohort C', students: [] }
+    ]);
+    const amb2 = D.detectTmsRosterTransfers(cohorts3, [
+        plan[0],
+        {
+            importCohortName: 'TMS B',
+            userAction: 'map',
+            userTargetId: 'cB',
+            students: [{ name: '박지훈' }, { name: '김민수' }],
+            studentResolutions: {}
+        },
+        {
+            importCohortName: 'TMS C',
+            userAction: 'map',
+            userTargetId: 'cC',
+            students: [{ name: '김민수' }],
+            studentResolutions: {}
+        }
+    ]);
+    assert(amb2.length === 0, 'ambiguous destinations → no transfer');
+
+    const moved = D.applyTmsRosterTransfers(cohorts, transfers);
+    assert(!moved.errors.length, 'move ok');
+    const markKey = D.koreanMatchKey('김민수◆');
+    const planWithMarkMap = [
+        plan[0],
+        Object.assign({}, plan[1], {
+            studentResolutions: {
+                [markKey]: { action: 'map', studentId: 'stu_move' }
+            }
+        })
+    ];
+    const afterMove = D.applyTmsRosterPlan(moved.cohorts, planWithMarkMap, {
+        newStudentId: () => 'stu_should_not'
+    });
+    const a = afterMove.cohorts.find((c) => c.id === 'cA');
+    const b = afterMove.cohorts.find((c) => c.id === 'cB');
+    assert(!a.students.some((s) => s.id === 'stu_move'), 'gone from A');
+    assert(b.students.some((s) => s.id === 'stu_move'), 'same id on B');
+    assert(b.students.find((s) => s.id === 'stu_move').name === '김민수◆', 'symbol updated on B');
+    assert(!b.students.some((s) => s.id === 'stu_should_not'), 'no duplicate add');
 }
 
 console.log('tms-roster-sync.test.mjs: ok');

@@ -1391,10 +1391,21 @@
     }
 
     function previewTmsRow(row) {
-        if (!row || row.userAction !== 'map' || !row.userTargetId) {
+        if (!row) {
             return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
         }
-        const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+        const creating = row.userAction === 'create';
+        if (!creating && (row.userAction !== 'map' || !row.userTargetId)) {
+            return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
+        }
+        const target = creating
+            ? {
+                  id: '',
+                  name: cleanTmsSyncCohortName(row.importCohortName),
+                  students: [],
+                  tmsStudentResolutions: {}
+              }
+            : getCohorts().find((c) => c && c.id === row.userTargetId);
         if (!target || !domain().mergeRosterByKoreanName) {
             return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
         }
@@ -1596,7 +1607,7 @@
         return row && row.missingStudentActions && sid ? row.missingStudentActions[sid] : null;
     }
 
-    function setCurrentMissingAction(action, archiveReason, expectedStartDate, toCohortId, tmsKey) {
+    function setCurrentMissingAction(action, archiveReason, expectedStartDate, toCohortId) {
         const entry = tmsMissingQueue[tmsMissingIndex];
         if (!entry) {
             return;
@@ -1608,17 +1619,6 @@
         }
         if (!row.missingStudentActions) {
             row.missingStudentActions = {};
-        }
-        if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
-            row.studentResolutions = {};
-        }
-        // Clear a previous reverse-map claim when switching away from map.
-        const prev = row.missingStudentActions[sid];
-        if (prev && prev.action === 'map' && prev.tmsKey && row.studentResolutions[prev.tmsKey]) {
-            const claimed = row.studentResolutions[prev.tmsKey];
-            if (claimed && claimed.action === 'map' && claimed.studentId === sid) {
-                delete row.studentResolutions[prev.tmsKey];
-            }
         }
         if (action === 'archive') {
             row.missingStudentActions[sid] = {
@@ -1635,75 +1635,9 @@
                 action: 'move',
                 toCohortId: dest
             };
-        } else if (action === 'map' && tmsKey) {
-            row.missingStudentActions[sid] = { action: 'map', tmsKey };
-            row.studentResolutions[tmsKey] = { action: 'map', studentId: sid };
         } else {
             row.missingStudentActions[sid] = { action: 'keep' };
         }
-    }
-
-    function buildMissingTmsMapCandidates(row, studentId) {
-        const d = domain();
-        const keyFn = d && d.koreanMatchKey ? d.koreanMatchKey.bind(d) : (n) => String(n || '').trim();
-        const incoming = Array.isArray(row && row.students) ? row.students : [];
-        const claimed = new Set();
-        const resolutions =
-            row && row.studentResolutions && typeof row.studentResolutions === 'object'
-                ? row.studentResolutions
-                : {};
-        Object.keys(resolutions).forEach((k) => {
-            const r = resolutions[k];
-            if (!r) {
-                return;
-            }
-            if (r.action === 'skip' || r.action === 'add') {
-                claimed.add(k);
-                return;
-            }
-            if (r.action === 'map' && r.studentId && r.studentId !== studentId) {
-                claimed.add(k);
-            }
-        });
-        const seen = new Set();
-        const unmatched = [];
-        const matched = [];
-        incoming.forEach((raw) => {
-            if (!raw || !raw.name) {
-                return;
-            }
-            const name = String(raw.name).trim();
-            if (!name) {
-                return;
-            }
-            const tmsKey = keyFn(name);
-            if (!tmsKey || seen.has(tmsKey) || claimed.has(tmsKey)) {
-                return;
-            }
-            seen.add(tmsKey);
-            const cand = {
-                tmsKey,
-                name,
-                nameEn: raw.nameEn ? String(raw.nameEn).trim() : ''
-            };
-            // Prefer names not already exact-matched to someone else in this cohort.
-            const target = getCohorts().find((c) => c && c.id === (row && row.userTargetId));
-            const exactOther =
-                target &&
-                (target.students || []).some(
-                    (s) =>
-                        s &&
-                        s.id !== studentId &&
-                        s.active !== false &&
-                        keyFn(s.name) === tmsKey
-                );
-            if (exactOther) {
-                matched.push(cand);
-            } else {
-                unmatched.push(cand);
-            }
-        });
-        return unmatched.concat(matched);
     }
 
     function renderTmsWizardPanel() {
@@ -1926,15 +1860,11 @@
         }
         const existing = getCurrentMissingAction() || { action: 'keep' };
         const hasTransfer = Boolean(entry.transfer && entry.transfer.toCohortId);
-        const row = tmsSyncPlan[entry.rowIdx];
-        const mapCandidates = buildMissingTmsMapCandidates(row, student.id);
         let selected = 'keep';
         if (existing.action === 'archive') {
             selected = 'archive';
         } else if (existing.action === 'move' && hasTransfer) {
             selected = 'move';
-        } else if (existing.action === 'map' && existing.tmsKey) {
-            selected = `mapTms:${existing.tmsKey}`;
         }
         if (optionsEl) {
             const moveLabel = hasTransfer
@@ -1944,17 +1874,6 @@
                   )
                 : '';
             const chips = [];
-            mapCandidates.forEach((c) => {
-                const en = c.nameEn ? ` (${c.nameEn})` : '';
-                const val = `mapTms:${c.tmsKey}`;
-                chips.push(
-                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="${escapeHtml(val)}"${
-                        selected === val ? ' checked' : ''
-                    }><span>${escapeHtml(
-                        t('rosterTmsReviewReverseMapTo').replace('{name}', `${c.name}${en}`)
-                    )}</span></label>`
-                );
-            });
             if (hasTransfer) {
                 chips.push(
                     `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="move"${
@@ -1981,14 +1900,6 @@
                         setCurrentMissingAction('archive', reason, start);
                     } else if (input.value === 'move') {
                         setCurrentMissingAction('move');
-                    } else if (input.value.startsWith('mapTms:')) {
-                        setCurrentMissingAction(
-                            'map',
-                            undefined,
-                            undefined,
-                            undefined,
-                            input.value.slice('mapTms:'.length)
-                        );
                     } else {
                         setCurrentMissingAction('keep');
                     }
@@ -2069,20 +1980,12 @@
 
     function updateTmsReviewNavButtons() {
         const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
-        const entry = tmsReviewQueue[tmsReviewIndex];
-        const row = entry ? tmsSyncPlan[entry.rowIdx] : null;
-        const key = entry && entry.item ? entry.item.tmsKey : '';
-        const pendingMerge =
-            row &&
-            Array.isArray(row.pendingStudentMerges) &&
-            row.pendingStudentMerges.some((m) => m && m.tmsKey === key);
         const res = getCurrentReviewResolution();
         const ok =
-            pendingMerge ||
-            (res &&
-                (res.action === 'add' ||
-                    res.action === 'skip' ||
-                    (res.action === 'map' && res.studentId)));
+            res &&
+            (res.action === 'add' ||
+                res.action === 'skip' ||
+                (res.action === 'map' && res.studentId));
         if (nextBtn) {
             nextBtn.disabled = !ok;
         }
@@ -2094,7 +1997,6 @@
         let ok =
             action.action === 'keep' ||
             action.action === 'archive' ||
-            (action.action === 'map' && Boolean(action.tmsKey)) ||
             (action.action === 'move' && Boolean(action.toCohortId));
         if (action.action === 'archive' && action.archiveReason === 'starting_soon') {
             ok = Boolean(String(action.expectedStartDate || '').trim());
@@ -2248,7 +2150,11 @@
         const rows = tmsSyncPlan
             .map((row, idx) => {
                 const selected =
-                    row.userAction === 'skip' ? '__skip__' : row.userTargetId || '';
+                    row.userAction === 'skip'
+                        ? '__skip__'
+                        : row.userAction === 'create'
+                          ? TMS_CREATE_VALUE
+                          : row.userTargetId || '';
                 const summary = previewTmsRow(row);
                 const warnList = Array.isArray(summary.warnings) ? summary.warnings : [];
                 const dupNames = warnList
@@ -2287,7 +2193,7 @@
                             )}</div>`;
                         }
                     }
-                } else if (row.tmsCreatedCohortId && row.userTargetId === row.tmsCreatedCohortId) {
+                } else if (row.userAction === 'create') {
                     linkHint = `<div class="section-hint">${escapeHtml(t('rosterTmsSyncCreatedMapped'))}</div>`;
                 }
                 return `<tr data-tms-row="${idx}">
@@ -2320,53 +2226,30 @@
                 }
                 const val = sel.value;
                 if (val === '__skip__') {
-                    if (row.tmsCreatedCohortId) {
-                        const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
-                        if (prev && !String(prev.name || '').trim()) {
-                            const cm = cohortManagement();
-                            if (cm && cm.removeNamelessCohortDraft) {
-                                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
-                            }
-                        }
-                    }
                     row.userAction = 'skip';
                     row.userTargetId = '';
-                    row.tmsCreatedCohortId = '';
+                    row.createdCohortId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
                 } else if (val === TMS_CREATE_VALUE) {
-                    void beginTmsCreateCohort(row);
-                    return;
+                    row.userAction = 'create';
+                    row.userTargetId = '';
+                    row.createdCohortId = '';
+                    row.remembered = false;
+                    row.studentResolutions = {};
+                    row.missingStudentActions = {};
                 } else if (!val) {
-                    if (row.tmsCreatedCohortId) {
-                        const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
-                        if (prev && !String(prev.name || '').trim()) {
-                            const cm = cohortManagement();
-                            if (cm && cm.removeNamelessCohortDraft) {
-                                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
-                            }
-                        }
-                    }
                     row.userAction = 'choose';
                     row.userTargetId = '';
-                    row.tmsCreatedCohortId = '';
+                    row.createdCohortId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
                 } else {
-                    if (row.tmsCreatedCohortId && row.tmsCreatedCohortId !== val) {
-                        const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
-                        if (prev && !String(prev.name || '').trim()) {
-                            const cm = cohortManagement();
-                            if (cm && cm.removeNamelessCohortDraft) {
-                                cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
-                            }
-                        }
-                        row.tmsCreatedCohortId = '';
-                    }
                     row.userAction = 'map';
                     row.userTargetId = val;
+                    row.createdCohortId = '';
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
@@ -2378,7 +2261,12 @@
         const canApply =
             !tmsSyncLoading &&
             tmsSyncPlan.length > 0 &&
-            tmsSyncPlan.every((r) => r.userAction === 'skip' || (r.userAction === 'map' && r.userTargetId));
+            tmsSyncPlan.every(
+                (r) =>
+                    r.userAction === 'skip' ||
+                    r.userAction === 'create' ||
+                    (r.userAction === 'map' && r.userTargetId)
+            );
         let unclearCount = 0;
         if (canApply) {
             unclearCount = collectTmsReviewQueue().length;
@@ -2666,8 +2554,15 @@
                     return;
                 }
             }
+            if (row.userAction === 'create') {
+                row.userTargetId = '';
+            }
         }
-        if (!tmsSyncPlan.some((r) => r.userAction === 'map') && !tmsSyncPlan.some((r) => r.userAction === 'skip')) {
+        if (
+            !tmsSyncPlan.some((r) => r.userAction === 'map') &&
+            !tmsSyncPlan.some((r) => r.userAction === 'skip') &&
+            !tmsSyncPlan.some((r) => r.userAction === 'create')
+        ) {
             closeTmsSyncModal();
             return;
         }
@@ -2750,9 +2645,17 @@
             cohorts = moved.cohorts;
         }
         const applied = domain().applyTmsRosterPlan(cohorts, tmsSyncPlan, {
-            newStudentId: () => domain().newId('stu')
+            newStudentId: () => domain().newId('stu'),
+            newCohortId: () => domain().newId('cohort'),
+            homeroomTeacherUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : ''
         });
         cohorts = applied.cohorts;
+        (applied.results || []).forEach((result, idx) => {
+            const row = tmsSyncPlan[idx];
+            if (row && result && result.created && result.targetId) {
+                row.createdCohortId = result.targetId;
+            }
+        });
         const hrId = hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
         const movedIds = new Set(moveTransfers.map((tr) => tr.studentId));
         for (const row of tmsSyncPlan) {

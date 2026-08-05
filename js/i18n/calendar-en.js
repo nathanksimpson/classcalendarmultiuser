@@ -964,6 +964,12 @@
         rosterTmsSyncSkipAll: 'Skip all',
         rosterTmsSyncSkipUnmapped: 'Skip unmapped',
         rosterTmsSyncChoose: 'Choose cohort…',
+        rosterTmsSyncCreate: 'Create new cohort on Apply…',
+        rosterTmsSyncCreateUnavailable:
+            'Cohort editor is not available. The sync can still create the cohort automatically on Apply.',
+        rosterTmsSyncCreateEditorHint:
+            'Finish the cohort details, then return here to continue the sync.',
+        rosterTmsSyncCreatedMapped: 'Will create a new cohort on Apply',
         rosterTmsSyncConfirm: 'Apply sync',
         rosterTmsSyncContinueReview: 'Review {count} unclear names…',
         rosterTmsSyncUnclearHint: 'Needs review: {names}',
