@@ -8,7 +8,8 @@
  *   TMS_ROSTER_URLS=comma-separated absolute or path URLs (optional fallback only)
  *
  * Primary path: login → class_Main_New_PopUp.aspx sidebar (.class_select + Hsubclass)
- * → fetch each ?classidx= for students. Legacy table-header guessing is fallback only.
+ * → ASP.NET LinkButton postback per class (same as TMS UI). GET ?classidx= is fallback only.
+ * Legacy table-header guessing is last resort when the popup yields no classes.
  *
  * HTTP uses global fetch (Node 18+ / Workers) with redirect: 'manual'.
  */
@@ -331,6 +332,35 @@ function extractHidden(html, name) {
     return m2 ? m2[1] : '';
 }
 
+/**
+ * Collect all hidden inputs for an ASP.NET postback (browser submits the whole form).
+ * ViewState alone is often not enough — missing fields → invalid postback / no class switch.
+ */
+function extractHiddenInputs(html) {
+    const fields = {};
+    const inputRe = /<input\b([^>]*)>/gi;
+    let m;
+    while ((m = inputRe.exec(String(html || '')))) {
+        const attrs = m[1] || '';
+        const typeMatch = attrs.match(/\btype\s*=\s*["']([^"']*)["']/i);
+        const type = typeMatch ? String(typeMatch[1] || '').toLowerCase() : 'text';
+        if (type && type !== 'hidden') {
+            continue;
+        }
+        const nameMatch = attrs.match(/\bname\s*=\s*["']([^"']*)["']/i);
+        if (!nameMatch) {
+            continue;
+        }
+        const name = nameMatch[1];
+        if (!name || Object.prototype.hasOwnProperty.call(fields, name)) {
+            continue;
+        }
+        const valueMatch = attrs.match(/\bvalue\s*=\s*["']([^"']*)["']/i);
+        fields[name] = valueMatch ? decodeHtmlEntities(valueMatch[1]) : '';
+    }
+    return fields;
+}
+
 function encodeForm(fields) {
     return Object.keys(fields)
         .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(fields[k] == null ? '' : fields[k])}`)
@@ -614,7 +644,7 @@ function parseStudentsFromTextLines(text) {
 }
 
 /**
- * Primary: studentinf(mpidx)">…name…</a> (+ optional English / trailing ◆).
+ * Primary: studentinf(mpidx) / StudentPopup.aspx?mpidx= (+ optional English / trailing ◆).
  * Inner HTML may nest spans/fonts (권이안<span>◆</span>) — strip tags, keep mark.
  * Fallback: numbered paste-style blocks after cutting homework/self-check tails.
  * Never greedy-scan all Hangul table cells (avoids 매우만족 etc.).
@@ -625,39 +655,48 @@ function parseStudentsFromClassPopup(html) {
     const seenMpidx = new Set();
     const seenName = new Set();
 
-    // Capture full anchor inner HTML (nested <span>/<font> allowed).
-    const re =
-        /javascript:\s*studentinf\s*\(\s*['"]?(\d+)['"]?\s*\)[^>]*>([\s\S]*?)<\/a>/gi;
-    let m;
-    while ((m = re.exec(raw))) {
-        const mpidx = String(m[1] || '').trim();
+    function pushStudent(mpidx, rawInner, afterWindow) {
+        const id = String(mpidx || '').trim();
         const innerText = stripInvisibleNameNoise(
-            stripTags(decodeHtmlEntities(m[2]))
+            stripTags(decodeHtmlEntities(rawInner))
         );
         let name = normalizeTmsStudentName(innerText).name;
-        if (!mpidx || !name || !isLikelyStudentName(name)) {
-            continue;
+        if (!id || !name || !isLikelyStudentName(name)) {
+            return;
         }
-        if (seenMpidx.has(mpidx) || seenName.has(name)) {
-            continue;
+        if (seenMpidx.has(id)) {
+            return;
         }
         let nameEn = '';
-        const after = raw.slice(m.index + m[0].length, m.index + m[0].length + 280);
-        const nextStudent = after.search(/javascript:\s*studentinf\s*\(/i);
-        const afterWindow = nextStudent >= 0 ? after.slice(0, nextStudent) : after;
+        const windowText = String(afterWindow || '');
         // Disambiguator often sits just after </a>, not inside the link text.
+        // Apply BEFORE name dedupe so 김민수</a>◆ is not dropped as a duplicate of 김민수.
         if (!TMS_NAME_DISAMBIGUATOR_RE.test(name.slice(-1))) {
-            const trailingMark = extractTrailingDisambiguator(afterWindow);
+            const trailingMark = extractTrailingDisambiguator(windowText);
             if (trailingMark) {
                 const withMark = normalizeTmsStudentName(name + trailingMark).name;
-                if (withMark && isLikelyStudentName(withMark) && !seenName.has(withMark)) {
+                if (withMark && isLikelyStudentName(withMark)) {
                     name = withMark;
                 }
             }
         }
+        if (seenName.has(name)) {
+            // Same Hangul display, different mpidx (twins without a mark on the first).
+            // Keep both — Sync reverse Map / rematch need every TMS person.
+            if (!TMS_NAME_DISAMBIGUATOR_RE.test(name.slice(-1))) {
+                const alt = normalizeTmsStudentName(`${name}◆`).name;
+                if (alt && isLikelyStudentName(alt) && !seenName.has(alt)) {
+                    name = alt;
+                } else {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
         const enMatch =
-            afterWindow.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
-            afterWindow.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
+            windowText.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
+            windowText.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
         if (enMatch) {
             const candidate = stripInvisibleNameNoise(
                 stripTags(decodeHtmlEntities(enMatch[1]))
@@ -669,13 +708,42 @@ function parseStudentsFromClassPopup(html) {
                 nameEn = candidate;
             }
         }
-        seenMpidx.add(mpidx);
+        seenMpidx.add(id);
         seenName.add(name);
-        students.push({ name, nameEn, mpidx });
+        students.push({ name, nameEn, mpidx: id });
+    }
+
+    // Capture full anchor inner HTML (nested <span>/<font> allowed).
+    const studentInfRe =
+        /javascript:\s*studentinf\s*\(\s*['"]?(\d+)['"]?\s*\)[^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = studentInfRe.exec(raw))) {
+        const after = raw.slice(m.index + m[0].length, m.index + m[0].length + 280);
+        const nextStudent = after.search(
+            /javascript:\s*studentinf\s*\(|StudentPopup\.aspx\?[^"'>\s]*mpidx=/i
+        );
+        const afterWindow = nextStudent >= 0 ? after.slice(0, nextStudent) : after;
+        pushStudent(m[1], m[2], afterWindow);
+    }
+
+    // Alternate TMS markup: StudentPopup.aspx?mpidx=12345
+    const popupRe =
+        /(?:href|onclick)\s*=\s*["'][^"']*StudentPopup\.aspx\?[^"']*mpidx=(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+    while ((m = popupRe.exec(raw))) {
+        const after = raw.slice(m.index + m[0].length, m.index + m[0].length + 280);
+        const nextStudent = after.search(
+            /javascript:\s*studentinf\s*\(|StudentPopup\.aspx\?[^"'>\s]*mpidx=/i
+        );
+        const afterWindow = nextStudent >= 0 ? after.slice(0, nextStudent) : after;
+        pushStudent(m[1], m[2], afterWindow);
     }
 
     if (students.length) {
-        return students.map((s) => ({ name: s.name, nameEn: s.nameEn || '' }));
+        return students.map((s) => ({
+            name: s.name,
+            nameEn: s.nameEn || '',
+            mpidx: s.mpidx || ''
+        }));
     }
 
     // Fallback: paste-style numbered list from visible text (tail-trimmed).
@@ -691,24 +759,56 @@ function parseStudentsFromHtml(html) {
 }
 
 /**
- * Parse TMS class popup sidebar: .class_select li → name + Hsubclass id.
- * @returns {{ cohortName: string, tmsClassId: string }[]}
+ * Extract inner HTML of the first element matching class_select (balanced tags).
+ * Non-greedy([\s\S]*?)</div> truncates when an <li> contains a nested <div>.
+ */
+function extractClassSelectBlock(html) {
+    const raw = String(html || '');
+    const startRe =
+        /<div\b[^>]*class=["'][^"']*\bclass_select\b[^"']*["'][^>]*>/i;
+    const startMatch = startRe.exec(raw);
+    if (!startMatch) {
+        return raw;
+    }
+    const openTagEnd = startMatch.index + startMatch[0].length;
+    let depth = 1;
+    const tagRe = /<\/?div\b[^>]*>/gi;
+    tagRe.lastIndex = openTagEnd;
+    let tm;
+    while ((tm = tagRe.exec(raw))) {
+        if (/^<\//.test(tm[0])) {
+            depth -= 1;
+            if (depth === 0) {
+                return raw.slice(openTagEnd, tm.index);
+            }
+        } else if (!/\/>$/.test(tm[0])) {
+            depth += 1;
+        }
+    }
+    return raw.slice(openTagEnd);
+}
+
+/**
+ * Parse TMS class popup sidebar: .class_select li → name + Hsubclass id + postback target.
+ * @returns {{ cohortName: string, tmsClassId: string, eventTarget: string, eventArgument: string, selected: boolean }[]}
  */
 function parseClassSelectList(html) {
     const results = [];
     const seen = new Set();
-    const raw = String(html || '');
-    const blockMatch = raw.match(
-        /<div[^>]*class=["'][^"']*\bclass_select\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
-    );
-    const block = blockMatch ? blockMatch[1] : raw;
-    const liRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+    const block = extractClassSelectBlock(html);
+    const liRe = /<li\b([^>]*)>([\s\S]*?)<\/li>/gi;
     let m;
     while ((m = liRe.exec(block))) {
-        const li = m[1];
+        const liAttrs = m[1] || '';
+        const li = m[2];
         if (!/Hsubclass/i.test(li)) {
             continue;
         }
+        const aOpenMatch = li.match(/<a\b([^>]*)>/i);
+        const aAttrs = aOpenMatch ? aOpenMatch[1] || '' : '';
+        // Selected may be on <li> or the LinkButton <a> — not arbitrary inner text.
+        const selected =
+            /\bselected\b/i.test(liAttrs) || /\bselected\b/i.test(aAttrs);
         const aMatch = li.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i);
         const name = aMatch
             ? stripTags(decodeHtmlEntities(aMatch[1]))
@@ -723,6 +823,11 @@ function parseClassSelectList(html) {
                 /<input[^>]*value=["']([^"']*)["'][^>]*(?:id|name)=["'][^"']*Hsubclass[^"']*["']/i
             );
         const tmsClassId = idMatch ? String(idMatch[1]).trim() : '';
+        const postMatch = li.match(
+            /__doPostBack\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/i
+        );
+        const eventTarget = postMatch ? String(postMatch[1] || '').trim() : '';
+        const eventArgument = postMatch ? String(postMatch[2] || '') : '';
         if (!name || name.length < 2 || !tmsClassId || tmsClassId === '0') {
             continue;
         }
@@ -730,9 +835,90 @@ function parseClassSelectList(html) {
             continue;
         }
         seen.add(tmsClassId);
-        results.push({ cohortName: name, tmsClassId });
+        results.push({
+            cohortName: name,
+            tmsClassId,
+            eventTarget,
+            eventArgument,
+            selected: Boolean(selected)
+        });
     }
     return results;
+}
+
+function studentMpidxSet(students) {
+    const set = new Set();
+    (students || []).forEach((s) => {
+        if (s && s.mpidx) {
+            set.add(String(s.mpidx));
+        }
+    });
+    return set;
+}
+
+function mpidxSetsDiffer(a, b) {
+    if (a.size !== b.size) {
+        return true;
+    }
+    for (const id of a) {
+        if (!b.has(id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Find a class_select entry on the current popup HTML by Hsubclass id.
+ * Re-resolve after each postback — ASP.NET control ids can shift with ViewState.
+ */
+function findClassSelectById(html, tmsClassId) {
+    const id = String(tmsClassId || '').trim();
+    if (!id) {
+        return null;
+    }
+    return parseClassSelectList(html).find((c) => c.tmsClassId === id) || null;
+}
+
+/** True when the popup sidebar marks this Hsubclass as the active class. */
+function classIsSelectedOnPage(html, tmsClassId) {
+    const live = findClassSelectById(html, tmsClassId);
+    return Boolean(live && live.selected);
+}
+
+/**
+ * Switch class popup via ASP.NET LinkButton postback (same as the TMS UI).
+ * GET ?classidx= is unreliable — often returns the previously selected class.
+ * Submit all hidden fields (browser form submit), not only ViewState.
+ */
+async function fetchClassPopupPostback(jar, popupUrl, pageHtml, eventTarget, eventArgument) {
+    const target = String(eventTarget || '').trim();
+    if (!target) {
+        const err = new Error('Missing postback event target');
+        err.code = 'TMS_POSTBACK_TARGET_MISSING';
+        throw err;
+    }
+    const fields = extractHiddenInputs(pageHtml);
+    // Ensure core ASP.NET fields exist even if attribute order confused the scanner.
+    if (!fields.__VIEWSTATE) {
+        fields.__VIEWSTATE = extractHidden(pageHtml, '__VIEWSTATE');
+    }
+    if (!fields.__VIEWSTATEGENERATOR) {
+        fields.__VIEWSTATEGENERATOR = extractHidden(pageHtml, '__VIEWSTATEGENERATOR');
+    }
+    if (!fields.__EVENTVALIDATION) {
+        fields.__EVENTVALIDATION = extractHidden(pageHtml, '__EVENTVALIDATION');
+    }
+    fields.__EVENTTARGET = target;
+    fields.__EVENTARGUMENT = eventArgument == null ? '' : String(eventArgument);
+    const body = encodeForm(fields);
+    return requestFollow(popupUrl, {
+        method: 'POST',
+        jar,
+        body,
+        headers: { Referer: popupUrl },
+        contentType: 'application/x-www-form-urlencoded'
+    });
 }
 
 function parseTitle(html) {
@@ -858,12 +1044,29 @@ function mergeCohortLists(lists) {
         if (!bucket.tmsClassId && tmsClassId) {
             bucket.tmsClassId = tmsClassId;
         }
-        const seen = new Set(bucket.students.map((s) => s.name));
+        const seenNames = new Set(bucket.students.map((s) => s.name));
+        const seenMpidx = new Set(
+            bucket.students.map((s) => (s && s.mpidx ? String(s.mpidx) : '')).filter(Boolean)
+        );
         (c.students || []).forEach((s) => {
-            if (s && s.name && !seen.has(s.name)) {
-                seen.add(s.name);
-                bucket.students.push({ name: s.name, nameEn: s.nameEn || '' });
+            if (!s || !s.name) {
+                return;
             }
+            const mpidx = s.mpidx ? String(s.mpidx) : '';
+            if (mpidx) {
+                if (seenMpidx.has(mpidx)) {
+                    return;
+                }
+                seenMpidx.add(mpidx);
+            } else if (seenNames.has(s.name)) {
+                return;
+            }
+            seenNames.add(s.name);
+            bucket.students.push({
+                name: s.name,
+                nameEn: s.nameEn || '',
+                mpidx: mpidx || ''
+            });
         });
     });
     return Array.from(byKey.values()).filter(
@@ -968,12 +1171,163 @@ async function scrapeRosters(options) {
             popupPage.status < 400 &&
             !stillOnLoginPage(popupPage.text, popupPage.finalUrl)
         ) {
+            // Chain ViewState across postbacks so each class switch matches the TMS UI.
+            let currentHtml = popupPage.text;
+            let previousStudents = parseStudentsFromClassPopup(currentHtml);
             for (const cls of classList.slice(0, 80)) {
-                const url = `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(cls.tmsClassId)}`;
-                try {
-                    const page = await fetchPage(jar, url);
-                    if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
-                        pages.push({ url, status: page.status, ok: false, source: 'class-popup' });
+                const getUrl = `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(cls.tmsClassId)}`;
+                let students = [];
+                let source = 'class-popup';
+                let pageUrl = getUrl;
+                let pageStatus = 0;
+                let pageOk = false;
+                let pageError = '';
+                let accepted = false;
+                const prevMpidx = studentMpidxSet(previousStudents);
+
+                // Re-resolve LinkButton target from the latest popup HTML (ViewState-safe).
+                // Do NOT fall back to the initial cls.selected — that poisons other classes
+                // with the first page's roster and wipes reverse-map candidates.
+                const live = findClassSelectById(currentHtml, cls.tmsClassId);
+                const eventTarget =
+                    (live && live.eventTarget) || cls.eventTarget || '';
+                const eventArgument =
+                    live && live.eventArgument != null
+                        ? live.eventArgument
+                        : cls.eventArgument || '';
+
+                // Already selected on this page → use current roster when non-empty.
+                // Empty parse still falls through to postback/GET (parser/page race).
+                if (live && live.selected) {
+                    students = parseStudentsFromClassPopup(currentHtml);
+                    if (students.length) {
+                        source = 'class-popup-selected';
+                        pageUrl = popupUrl;
+                        pageStatus = 200;
+                        pageOk = true;
+                        accepted = true;
+                    }
+                }
+
+                // Prefer ASP.NET LinkButton postback (fresh roster for that Hsubclass).
+                if (!accepted && eventTarget) {
+                    try {
+                        const posted = await fetchClassPopupPostback(
+                            jar,
+                            popupUrl,
+                            currentHtml,
+                            eventTarget,
+                            eventArgument
+                        );
+                        pageStatus = posted.status || 0;
+                        pageUrl = posted.finalUrl || popupUrl;
+                        if (
+                            posted.status < 400 &&
+                            !stillOnLoginPage(posted.text, posted.finalUrl)
+                        ) {
+                            const switched = classIsSelectedOnPage(
+                                posted.text,
+                                cls.tmsClassId
+                            );
+                            const parsed = parseStudentsFromClassPopup(posted.text);
+                            const rosterChanged = mpidxSetsDiffer(
+                                prevMpidx,
+                                studentMpidxSet(parsed)
+                            );
+                            // Prefer sidebar selected; also accept when the student set
+                            // clearly changed (TMS sometimes marks selected on <a> only
+                            // in ways we already cover, or omits the class briefly).
+                            if (switched || (parsed.length && rosterChanged)) {
+                                currentHtml = posted.text;
+                                students = parsed;
+                                previousStudents = parsed;
+                                source = switched
+                                    ? 'class-popup-postback'
+                                    : 'class-popup-postback-roster-change';
+                                pageOk = true;
+                                accepted = true;
+                            } else {
+                                pageError =
+                                    pageError ||
+                                    'Postback did not select requested class';
+                            }
+                        }
+                    } catch (e) {
+                        pageError = e.message || String(e);
+                    }
+                }
+
+                // Fallback: GET ?classidx= (legacy; may return previously selected class).
+                if (!accepted) {
+                    try {
+                        const page = await fetchPage(jar, getUrl);
+                        pageStatus = page.status || 0;
+                        pageUrl = page.finalUrl || getUrl;
+                        if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
+                            pageOk = false;
+                            pages.push({
+                                url: pageUrl,
+                                status: pageStatus,
+                                ok: false,
+                                error: pageError || undefined,
+                                source: 'class-popup'
+                            });
+                            allCohorts.push({
+                                cohortName: cls.cohortName,
+                                tmsClassId: cls.tmsClassId,
+                                students: [],
+                                source: 'class-popup'
+                            });
+                            continue;
+                        }
+                        const parsed = parseStudentsFromClassPopup(page.text);
+                        const switched = classIsSelectedOnPage(page.text, cls.tmsClassId);
+                        const rosterChanged = mpidxSetsDiffer(
+                            prevMpidx,
+                            studentMpidxSet(parsed)
+                        );
+                        if (switched || (parsed.length && rosterChanged)) {
+                            currentHtml = page.text;
+                            students = parsed;
+                            previousStudents = parsed;
+                            source = pageError || eventTarget
+                                ? 'class-popup-get-fallback'
+                                : 'class-popup';
+                            pageOk = true;
+                            accepted = true;
+                        } else if (parsed.length && !prevMpidx.size) {
+                            // First class / empty prior — keep students but do not claim switch.
+                            students = parsed;
+                            source = 'class-popup-get-unverified';
+                            pageOk = true;
+                            accepted = true;
+                        } else {
+                            pageOk = false;
+                            pages.push({
+                                url: pageUrl,
+                                status: pageStatus,
+                                ok: false,
+                                error:
+                                    pageError ||
+                                    'GET classidx did not select requested class',
+                                source: 'class-popup'
+                            });
+                            allCohorts.push({
+                                cohortName: cls.cohortName,
+                                tmsClassId: cls.tmsClassId,
+                                students: [],
+                                source: 'class-popup'
+                            });
+                            continue;
+                        }
+                    } catch (e) {
+                        pages.push({
+                            url: getUrl,
+                            status: 0,
+                            ok: false,
+                            error: pageError || e.message || String(e),
+                            source: 'class-popup'
+                        });
                         allCohorts.push({
                             cohortName: cls.cohortName,
                             tmsClassId: cls.tmsClassId,
@@ -982,36 +1336,27 @@ async function scrapeRosters(options) {
                         });
                         continue;
                     }
-                    const students = parseStudentsFromClassPopup(page.text);
-                    pages.push({
-                        url: page.finalUrl || url,
-                        status: page.status,
-                        ok: true,
-                        cohortCount: 1,
-                        studentCount: students.length,
-                        source: 'class-popup'
-                    });
-                    allCohorts.push({
-                        cohortName: cls.cohortName,
-                        tmsClassId: cls.tmsClassId,
-                        students,
-                        source: 'class-popup'
-                    });
-                } catch (e) {
-                    pages.push({
-                        url,
-                        status: 0,
-                        ok: false,
-                        error: e.message || String(e),
-                        source: 'class-popup'
-                    });
-                    allCohorts.push({
-                        cohortName: cls.cohortName,
-                        tmsClassId: cls.tmsClassId,
-                        students: [],
-                        source: 'class-popup'
-                    });
                 }
+
+                if (accepted) {
+                    previousStudents = students;
+                }
+
+                pages.push({
+                    url: pageUrl,
+                    status: pageStatus,
+                    ok: pageOk,
+                    cohortCount: 1,
+                    studentCount: students.length,
+                    source,
+                    error: pageError || undefined
+                });
+                allCohorts.push({
+                    cohortName: cls.cohortName,
+                    tmsClassId: cls.tmsClassId,
+                    students,
+                    source
+                });
             }
         }
     } catch (e) {
@@ -1036,7 +1381,11 @@ async function scrapeRosters(options) {
             homeUrl,
             pagesFetched: pages.length,
             pages,
-            source: allCohorts.some((c) => c.source === 'class-popup') ? 'class-popup' : 'legacy'
+            source: allCohorts.some((c) =>
+                String(c.source || '').startsWith('class-popup')
+            )
+                ? 'class-popup'
+                : 'legacy'
         }
     };
 }
@@ -1082,6 +1431,11 @@ module.exports = {
     parseStudentsFromNumberedBlocks,
     trimRosterPasteTail,
     parseClassSelectList,
+    extractClassSelectBlock,
+    findClassSelectById,
+    classIsSelectedOnPage,
+    extractHiddenInputs,
+    fetchClassPopupPostback,
     mergeCohortLists,
     isLikelyStudentName,
     stripTmsAttendanceNoise,

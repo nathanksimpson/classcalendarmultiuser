@@ -122,9 +122,13 @@
             memo: normalizeStr(raw.memo),
             archivedAt: normalizeStr(raw.archivedAt),
             archiveReason,
-            expectedStartDate: normalizeStr(raw.expectedStartDate)
+            expectedStartDate: normalizeStr(raw.expectedStartDate),
+            tmsMpidx: normalizeStr(raw.tmsMpidx || raw.mpidx)
         };
     }
+
+    /** Status marks pasted from TMS (transfer / new / etc.) — not identity. */
+    const NAME_STATUS_SYMBOL_RE = /[◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]/g;
 
     /**
      * Display-oriented cleanup (NFC, spaces, separators, fullwidth ASCII).
@@ -136,7 +140,7 @@
         s = s.replace(/[\s\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, '');
         // Zero-width / BOM (ZWJ/ZWNJ may remain after the range above)
         s = s.replace(/[\u200C\u200D\uFEFF\u2060]/g, '');
-        // Separators often pasted from TMS / SMS (not identity marks like ◆)
+        // Separators often pasted from TMS / SMS
         s = s.replace(/[·•ㆍ\-–—_./]/g, '');
         // Fullwidth ASCII → halfwidth (Hangul syllables / geometric marks unchanged)
         s = s.replace(/[\uFF01-\uFF5E]/g, (ch) =>
@@ -145,12 +149,10 @@
         return s;
     }
 
-    /** Status marks pasted from TMS (transfer / new / etc.) — not identity. */
-    const NAME_STATUS_SYMBOL_RE = /[◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]/g;
-
     /**
-     * Identity match key for TMS sync. Ignores English and status symbols.
-     * Keeps Latin/digit suffixes so 김민수A ≠ 김민수.
+     * Identity key for TMS roster/essay matching.
+     * Strips status symbols and digits; keeps Hangul + Latin letters so 김민수A ≠ 김민수.
+     * 권이안◆ and 권이안 share the same match key.
      */
     function koreanMatchKey(name) {
         let s = koreanNameDisplayKey(name);
@@ -167,31 +169,32 @@
         return koreanMatchKey(name);
     }
 
+    /** Trailing status symbol after Hangul core, if any (e.g. ◆ on 권이안◆). */
+    function nameStatusSymbolSuffix(name) {
+        const key = koreanNameDisplayKey(name);
+        const m = key.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※])$/);
+        return m ? m[1] : '';
+    }
+
     /** Trailing Latin letter used to disambiguate same Hangul names (e.g. A on 김민수A). */
     function nameLatinDisambiguatorSuffix(name) {
         const key = koreanMatchKey(name);
-        const m = key.match(/[\uac00-\ud7a3]+([A-Za-z])$/);
+        const m = key.match(/[\uac00-\ud7a3]+([A-Za-z]+)$/);
         return m ? m[1] : '';
     }
 
     /** Trailing mark after Hangul: status symbol or Latin/digit (legacy helper). */
     function nameDisambiguatorSuffix(name) {
-        const display = koreanNameDisplayKey(name);
-        const sym = display.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※])$/);
-        if (sym) {
-            return sym[1];
+        const status = nameStatusSymbolSuffix(name);
+        if (status) {
+            return status;
         }
         const latin = nameLatinDisambiguatorSuffix(name);
         if (latin) {
             return latin;
         }
-        const digit = koreanNameDisplayKey(name).match(/[\uac00-\ud7a3]+([0-9])$/);
-        return digit ? digit[1] : '';
-    }
-
-    function nameStatusSymbolSuffix(name) {
-        const display = koreanNameDisplayKey(name);
-        const m = display.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※])$/);
+        const key = koreanNameDisplayKey(name);
+        const m = key.match(/[\uac00-\ud7a3]+([0-9]+)$/);
         return m ? m[1] : '';
     }
 
@@ -199,12 +202,12 @@
         return hangulSyllables(name).join('');
     }
 
-    function hasNameDisambiguator(name) {
-        return Boolean(nameDisambiguatorSuffix(name));
-    }
-
     function hasLatinNameDisambiguator(name) {
         return Boolean(nameLatinDisambiguatorSuffix(name));
+    }
+
+    function hasNameDisambiguator(name) {
+        return Boolean(nameDisambiguatorSuffix(name));
     }
 
     function withStudentTag(student, tag) {
@@ -243,9 +246,10 @@
     }
 
     /**
-     * True when two Hangul names are equal by match key, or one is a contiguous Hangul variant
-     * of the other (e.g. 김민수 ↔ 김민수아). Status symbols are ignored (권이안 ≡ 권이안◆).
-     * Latin suffixes still block fuzzy (김민수A is not auto-fuzzy with 김민수).
+     * True when two Hangul names share identity match keys, or one is a contiguous
+     * Hangul variant of the other (e.g. 김민수 ↔ 김민수아).
+     * Status symbols are ignored (권이안 ≡ 권이안◆). Latin suffixes still block fuzzy
+     * (김민수A is not auto-fuzzy with 김민수).
      */
     function hangulNameVariantPair(nameA, nameB) {
         const keyA = koreanMatchKey(nameA);
@@ -336,39 +340,15 @@
         return hangulNameVariantPair(nameA, nameB);
     }
 
-    function cohortStudentsForMapCandidates(existingStudents) {
-        return (Array.isArray(existingStudents) ? existingStudents : [])
-            .map(normalizeStudent)
-            .filter((s) => s && s.active !== false);
-    }
-
-    function buildFullCohortMapCandidates(existing, preferIds) {
-        const prefer = new Set(
-            (Array.isArray(preferIds) ? preferIds : []).map((id) => normalizeStr(id)).filter(Boolean)
-        );
-        const list = cohortStudentsForMapCandidates(existing);
-        const primary = [];
-        const rest = [];
-        list.forEach((s) => {
-            const row = { id: s.id, name: s.name, nameEn: s.nameEn || '' };
-            if (prefer.has(s.id)) {
-                primary.push(row);
-            } else {
-                rest.push(row);
-            }
-        });
-        return primary.concat(rest);
-    }
-
     /**
-     * TMS names that need user review (map / add / skip):
-     * - not an exact match-key hit but share Hangul with CM students
-     * - duplicate exact keys in the cohort
-     * - unmatched (no Hangul peer) — Map to any active cohort student, Add, or Skip
-     * Candidates: Hangul peers first (when any), then the rest of the active/off_roster cohort.
+     * TMS names that are not exact match-key matches but share Hangul core / variant
+     * with one or more CM students — need user review (map / add / skip).
+     * Status-symbol-only differences are exact matches (not unclear).
      */
     function listUnclearTmsStudentMatches(existingStudents, tmsStudents) {
-        const existing = cohortStudentsForMapCandidates(existingStudents);
+        const existing = (Array.isArray(existingStudents) ? existingStudents : [])
+            .map(normalizeStudent)
+            .filter(Boolean);
         const incoming = (Array.isArray(tmsStudents) ? tmsStudents : [])
             .map((raw) => {
                 if (!raw) {
@@ -410,149 +390,80 @@
             const exact = existingByKey.get(k);
             if (exact) {
                 if (duplicateKeys.has(k)) {
-                    const peerIds = existing
-                        .filter((s) => koreanMatchKey(s.name) === k)
-                        .map((s) => s.id);
                     unclear.push({
                         tmsName: imp.name,
                         tmsNameEn: imp.nameEn,
                         tmsKey: k,
                         reason: 'duplicate_existing',
-                        candidates: buildFullCohortMapCandidates(existing, peerIds)
+                        candidates: existing
+                            .filter((s) => koreanMatchKey(s.name) === k)
+                            .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }))
                     });
                 }
                 return;
             }
-            const peers = existing.filter((s) => sharesHangulCoreOrVariant(s.name, imp.name));
-            if (!peers.length) {
-                // No Hangul peer — still review so user can Map onto any cohort student.
+            const peerCandidates = existing
+                .filter((s) => sharesHangulCoreOrVariant(s.name, imp.name))
+                .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }));
+            const allCandidates = existing.map((s) => ({
+                id: s.id,
+                name: s.name,
+                nameEn: s.nameEn || ''
+            }));
+            if (!peerCandidates.length) {
+                // No Hangul-similar peer — still offer Map to any cohort student.
                 unclear.push({
                     tmsName: imp.name,
                     tmsNameEn: imp.nameEn,
                     tmsKey: k,
                     reason: 'unmatched',
-                    candidates: buildFullCohortMapCandidates(existing, [])
+                    candidates: allCandidates
                 });
                 return;
             }
             const reason =
-                peers.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
+                peerCandidates.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
                     ? 'shared_hangul_core'
                     : 'fuzzy_variant';
+            const peerIds = new Set(peerCandidates.map((c) => c.id));
+            const rest = allCandidates.filter((c) => !peerIds.has(c.id));
             unclear.push({
                 tmsName: imp.name,
                 tmsNameEn: imp.nameEn,
                 tmsKey: k,
                 reason,
-                candidates: buildFullCohortMapCandidates(
-                    existing,
-                    peers.map((s) => s.id)
-                )
+                // Hangul peers first, then the rest of the cohort for Map.
+                candidates: peerCandidates.concat(rest)
             });
         });
         return unclear;
     }
 
     /**
-     * Normalize cohort.tmsStudentResolutions map (remembered Sync wizard choices).
+     * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
+     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored).
+     * - On match, adopt TMS display name when symbols/spacing differ, and TMS nameEn when set.
+     * - Add students whose match key is not in the cohort.
+     * - Flag existing students missing from TMS with off_roster (never delete).
+     *   Preview `flagged` includes students who already had the tag (still missing).
+     * - Clear off_roster when they reappear on TMS (always strip on match).
+     * - Unclear Hangul-core / Latin collisions need studentResolutions (map / add / skip).
+     * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
      */
-    function normalizeTmsStudentResolutions(raw) {
-        const out = {};
-        if (!raw || typeof raw !== 'object') {
-            return out;
-        }
-        Object.keys(raw).forEach((key) => {
-            const k = koreanMatchKey(key) || normalizeStr(key);
-            if (!k) {
-                return;
-            }
-            const r = raw[key];
-            if (!r || typeof r !== 'object') {
-                return;
-            }
-            if (r.action === 'skip') {
-                out[k] = { action: 'skip' };
-                return;
-            }
-            if (r.action === 'add') {
-                out[k] = { action: 'add' };
-                return;
-            }
-            if (r.action === 'map' && normalizeStr(r.studentId)) {
-                out[k] = { action: 'map', studentId: normalizeStr(r.studentId) };
-            }
-        });
-        return out;
-    }
-
-    function mergeTmsStudentResolutions(base, extra) {
-        return Object.assign(
-            {},
-            normalizeTmsStudentResolutions(base),
-            normalizeTmsStudentResolutions(extra)
-        );
-    }
-
-    /**
-     * Remembered reverse-match choices: CM student missing from TMS → pick TMS name or keep Off roster.
-     * { [studentId]: { action:'skip' } | { action:'map', tmsKey } }
-     * Map always writes TMS identity onto CCMU (never the reverse — we cannot update TMS).
-     */
-    function normalizeTmsReverseResolutions(raw) {
-        const out = {};
-        if (!raw || typeof raw !== 'object') {
-            return out;
-        }
-        Object.keys(raw).forEach((studentId) => {
-            const sid = normalizeStr(studentId);
-            if (!sid) {
-                return;
-            }
-            const r = raw[studentId];
-            if (!r || typeof r !== 'object') {
-                return;
-            }
-            if (r.action === 'skip') {
-                out[sid] = { action: 'skip' };
-                return;
-            }
-            if (r.action === 'map') {
-                const tmsKey = koreanMatchKey(r.tmsKey) || normalizeStr(r.tmsKey);
-                if (tmsKey) {
-                    out[sid] = { action: 'map', tmsKey };
-                }
-            }
-        });
-        return out;
-    }
-
-    function mergeTmsReverseResolutions(base, extra) {
-        return Object.assign(
-            {},
-            normalizeTmsReverseResolutions(base),
-            normalizeTmsReverseResolutions(extra)
-        );
-    }
-
-    /**
-     * CM students who are (or will be) missing from TMS — reverse Map to a TMS name
-     * (writes TMS → CCMU) or Keep Off roster. Always queued when someone would be flagged,
-     * even if every TMS name already exact-matched someone else (candidates then include
-     * those TMS names for rematch). Never silently Off-roster without this review.
-     */
-    function listReverseTmsStudentMatches(existingStudents, tmsStudents, options) {
+    function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
         const opts = options || {};
-        const forwardRes = normalizeTmsStudentResolutions(
+        const makeId =
+            typeof opts.newStudentId === 'function'
+                ? opts.newStudentId
+                : () => newId('stu');
+        const resolutions =
             opts.studentResolutions && typeof opts.studentResolutions === 'object'
                 ? opts.studentResolutions
-                : {}
-        );
-        const reverseRes = normalizeTmsReverseResolutions(
-            opts.reverseResolutions && typeof opts.reverseResolutions === 'object'
-                ? opts.reverseResolutions
-                : {}
-        );
-        const existing = cohortStudentsForMapCandidates(existingStudents);
+                : {};
+        const existing = (Array.isArray(existingStudents) ? existingStudents : [])
+            .map(normalizeStudent)
+            .filter(Boolean);
+        const existingById = new Map(existing.map((s) => [s.id, s]));
         const incoming = (Array.isArray(tmsStudents) ? tmsStudents : [])
             .map((raw) => {
                 if (!raw) {
@@ -562,162 +473,273 @@
                 if (!name) {
                     return null;
                 }
-                return { name, nameEn: normalizeStr(raw.nameEn) };
+                return {
+                    name,
+                    nameEn: normalizeStr(raw.nameEn),
+                    locationTag: normalizeStr(raw.locationTag),
+                    memo: normalizeStr(raw.memo),
+                    mpidx: normalizeStr(raw.mpidx || raw.tmsMpidx)
+                };
             })
             .filter(Boolean);
-        if (!incoming.length || !existing.length) {
-            return [];
-        }
 
         const existingByKey = new Map();
         const duplicateKeys = new Set();
+        const existingByMpidx = new Map();
         existing.forEach((s) => {
             const k = koreanMatchKey(s.name);
+            if (k) {
+                if (existingByKey.has(k)) {
+                    duplicateKeys.add(k);
+                } else {
+                    existingByKey.set(k, s);
+                }
+            }
+            if (s.tmsMpidx && !existingByMpidx.has(s.tmsMpidx)) {
+                existingByMpidx.set(s.tmsMpidx, s);
+            }
+        });
+
+        const tmsKeys = new Set();
+        const added = [];
+        const matched = [];
+        const warnings = [];
+        const exactMatchedIds = new Set();
+        const resolutionMatchedIds = new Set();
+        const skipTmsKeys = new Set();
+        /** @type {Map<string, { name: string, nameEn: string, tmsMpidx?: string }>} */
+        const mapNameUpdates = new Map();
+
+        function adoptTmsIdentity(target, imp, extra) {
+            const previousName = target.name;
+            const nameUpdated = normalizeStr(previousName) !== normalizeStr(imp.name);
+            mapNameUpdates.set(target.id, {
+                name: nameUpdated ? imp.name : target.name,
+                // TMS scrape (상담) supplies full English; empty keeps existing CM name.
+                nameEn: imp.nameEn || target.nameEn || '',
+                tmsMpidx: imp.mpidx || target.tmsMpidx || ''
+            });
+            matched.push(
+                Object.assign(
+                    {
+                        id: target.id,
+                        name: imp.name,
+                        previousName,
+                        nameUpdated,
+                        matchedBy: imp.mpidx && target.tmsMpidx === imp.mpidx ? 'mpidx' : 'name'
+                    },
+                    extra || {}
+                )
+            );
+            exactMatchedIds.add(target.id);
+        }
+
+        incoming.forEach((imp) => {
+            const k = koreanMatchKey(imp.name);
             if (!k) {
                 return;
             }
-            if (existingByKey.has(k)) {
-                duplicateKeys.add(k);
-            } else {
-                existingByKey.set(k, s);
-            }
-        });
-
-        const exactMatchedStudentIds = new Set();
-        const exactMatchedTmsKeys = new Set();
-        const claimedByResolution = new Set();
-        const seenTms = new Set();
-        /** @type {Map<string, { name: string, nameEn: string }>} */
-        const tmsByKey = new Map();
-        incoming.forEach((imp) => {
-            const k = koreanMatchKey(imp.name);
-            if (!k || seenTms.has(k)) {
+            if (tmsKeys.has(k)) {
+                warnings.push({ code: 'duplicate_tms_name', name: imp.name });
                 return;
             }
-            seenTms.add(k);
-            tmsByKey.set(k, { name: imp.name, nameEn: imp.nameEn || '' });
-            const exact = existingByKey.get(k);
-            if (exact && !duplicateKeys.has(k)) {
-                exactMatchedStudentIds.add(exact.id);
-                exactMatchedTmsKeys.add(k);
-            }
-        });
+            tmsKeys.add(k);
 
-        const mappedStudentIds = new Set();
-        Object.keys(forwardRes).forEach((k) => {
-            const r = forwardRes[k];
-            if (!r) {
+            const resolution = resolutions[k];
+            // Wizard resolutions win over auto exact-match (fixes duplicate_existing Map).
+            if (resolution && resolution.action === 'skip') {
+                skipTmsKeys.add(k);
                 return;
             }
-            if (r.action === 'map' && r.studentId) {
-                mappedStudentIds.add(r.studentId);
-                claimedByResolution.add(k);
-            } else if (r.action === 'skip' || r.action === 'add') {
-                claimedByResolution.add(k);
+            if (resolution && resolution.action === 'map') {
+                const targetId = normalizeStr(resolution.studentId);
+                const target = existingById.get(targetId);
+                if (target) {
+                    adoptTmsIdentity(target, imp, { resolved: true });
+                    resolutionMatchedIds.add(target.id);
+                    return;
+                }
+                warnings.push({ code: 'resolution_target_missing', name: imp.name, studentId: targetId });
             }
-        });
-
-        // Unmatched first (best reverse targets), then already-matched TMS for rematch.
-        const unmatched = [];
-        const matched = [];
-        tmsByKey.forEach((row, k) => {
-            if (claimedByResolution.has(k)) {
+            if (resolution && resolution.action === 'add') {
+                added.push({
+                    id: makeId(),
+                    name: imp.name,
+                    nameEn: imp.nameEn,
+                    locationTag: imp.locationTag,
+                    sortOrder: existing.length + added.length,
+                    active: true,
+                    tags: [],
+                    memo: imp.memo,
+                    archivedAt: '',
+                    archiveReason: '',
+                    expectedStartDate: '',
+                    tmsMpidx: imp.mpidx || ''
+                });
                 return;
             }
-            const cand = { tmsKey: k, name: row.name, nameEn: row.nameEn };
-            if (exactMatchedTmsKeys.has(k)) {
-                matched.push(cand);
-            } else {
-                unmatched.push(cand);
-            }
-        });
-        const tmsCandidates = unmatched.concat(matched);
 
-        const missing = existing
-            .filter((s) => {
-                if (exactMatchedStudentIds.has(s.id) || mappedStudentIds.has(s.id)) {
-                    return false;
+            // Prefer stable TMS student id when both sides have it.
+            if (imp.mpidx && existingByMpidx.has(imp.mpidx)) {
+                const byMpidx = existingByMpidx.get(imp.mpidx);
+                adoptTmsIdentity(byMpidx, imp, { matchedBy: 'mpidx' });
+                return;
+            }
+
+            const match = existingByKey.get(k);
+            if (match) {
+                if (duplicateKeys.has(k)) {
+                    warnings.push({ code: 'duplicate_existing_name', name: imp.name, matchedId: match.id });
                 }
-                const rev = reverseRes[s.id];
-                if (rev && rev.action === 'skip') {
-                    return false;
-                }
-                if (rev && rev.action === 'map' && rev.tmsKey) {
-                    // Already reverse-mapped this session / memory — drop from queue.
-                    return false;
-                }
-                return true;
-            })
-            .sort((a, b) => {
-                const aOff = (a.tags || []).includes(OFF_ROSTER_TAG) ? 0 : 1;
-                const bOff = (b.tags || []).includes(OFF_ROSTER_TAG) ? 0 : 1;
-                if (aOff !== bOff) {
-                    return aOff - bOff;
-                }
-                return compareStudentNames(a, b);
+                adoptTmsIdentity(match, imp, { matchedBy: 'name' });
+                return;
+            }
+            // Unclear without resolution: do not auto-add (wizard must decide).
+            const unclearCandidates = existing.filter((s) =>
+                sharesHangulCoreOrVariant(s.name, imp.name)
+            );
+            if (unclearCandidates.length) {
+                warnings.push({
+                    code: 'unresolved_unclear_name',
+                    name: imp.name,
+                    candidates: unclearCandidates.map((s) => s.id)
+                });
+                skipTmsKeys.add(k);
+                unclearCandidates.forEach((s) => {
+                    if (s && s.id) {
+                        // Soft-hold: do not Off-roster candidates while review is pending.
+                        if (opts.softUnclear) {
+                            exactMatchedIds.add(s.id);
+                        }
+                    }
+                });
+                return;
+            }
+            // No Hangul peer and no resolution — queue for Map/Add/Skip (no silent add).
+            warnings.push({
+                code: 'unresolved_unmatched_name',
+                name: imp.name
             });
+            skipTmsKeys.add(k);
+        });
 
-        return missing.map((s) => ({
-            direction: 'reverse',
-            reason: 'missing_from_tms',
-            studentId: s.id,
-            studentName: s.name,
-            studentNameEn: s.nameEn || '',
-            cmKey: koreanMatchKey(s.name),
-            reviewKey: `cm:${s.id}`,
-            alreadyOffRoster: (s.tags || []).includes(OFF_ROSTER_TAG),
-            candidates: tmsCandidates.map((c) => Object.assign({}, c))
-        }));
+        const fuzzyMatchedIds = new Set();
+        const fuzzyCleared = [];
+        // Shared Hangul-core / variant leftovers are not auto-fuzzy merged.
+        // They must be resolved via listUnclearTmsStudentMatches + studentResolutions.
+
+        // Treat resolution-mapped + exact + fuzzy as on TMS for Off roster.
+        resolutionMatchedIds.forEach((id) => exactMatchedIds.add(id));
+
+        const flagged = [];
+        const cleared = [];
+        if (incoming.length === 0 && existing.some((s) => s.active !== false)) {
+            return {
+                students: existing.slice().sort(compareStudentNames),
+                summary: {
+                    added: [],
+                    matched,
+                    flagged: [],
+                    cleared: [],
+                    fuzzyCleared,
+                    warnings: [{ code: 'incomplete_tms_scrape' }],
+                    totalTms: 0,
+                    totalAfter: existing.length
+                }
+            };
+        }
+        const nextExisting = existing.map((s) => {
+            const nameUpdate = mapNameUpdates.get(s.id);
+            let next = s;
+            if (nameUpdate) {
+                const patch = { name: nameUpdate.name };
+                if (nameUpdate.nameEn) {
+                    patch.nameEn = nameUpdate.nameEn;
+                }
+                if (nameUpdate.tmsMpidx) {
+                    patch.tmsMpidx = nameUpdate.tmsMpidx;
+                }
+                next = Object.assign({}, s, patch);
+            }
+            // Only explicitly matched IDs count as on TMS — not every student who
+            // shares a duplicate Korean key with a matched row.
+            const onTms = exactMatchedIds.has(s.id) || fuzzyMatchedIds.has(s.id);
+            const hadOff = (next.tags || []).includes(OFF_ROSTER_TAG);
+            if (onTms) {
+                // Always strip Off roster when Korean name is on this TMS scrape (exact or fuzzy).
+                if (hadOff) {
+                    const entry = { id: next.id, name: next.name };
+                    cleared.push(entry);
+                    if (fuzzyMatchedIds.has(s.id)) {
+                        fuzzyCleared.push(entry);
+                    }
+                }
+                return withoutStudentTag(next, OFF_ROSTER_TAG);
+            }
+            // Count every student missing from TMS in flagged (including ones already tagged),
+            // so preview "0 off roster" means no Off roster tags will remain after Apply.
+            flagged.push({ id: next.id, name: next.name });
+            return hadOff ? next : withStudentTag(next, OFF_ROSTER_TAG);
+        });
+
+        const students = nextExisting.concat(added).sort(compareStudentNames);
+        return {
+            students,
+            summary: {
+                added: added.map((s) => ({ id: s.id, name: s.name })),
+                matched,
+                flagged,
+                cleared,
+                fuzzyCleared,
+                warnings,
+                totalTms: tmsKeys.size,
+                totalAfter: students.length
+            }
+        };
     }
 
     /**
-     * Apply remembered reverse resolutions. Mutates row.reverseResolutions and row.studentResolutions.
-     * Map copies TMS → CCMU via the same studentResolutions path as forward Map.
+     * Normalize cohort.tmsStudentResolutions map (remembered Sync wizard choices).
+     * @returns {Object<string, { action: string, studentId?: string }>}
      */
-    function applyRememberedTmsReverseResolutions(cohort, reverseItems, row) {
-        const mem = normalizeTmsReverseResolutions(cohort && cohort.tmsReverseResolutions);
-        if (!row.reverseResolutions || typeof row.reverseResolutions !== 'object') {
-            row.reverseResolutions = {};
+    function normalizeTmsStudentResolutions(raw) {
+        const out = {};
+        if (!raw || typeof raw !== 'object') {
+            return out;
         }
-        if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
-            row.studentResolutions = {};
-        }
-        const still = [];
-        (Array.isArray(reverseItems) ? reverseItems : []).forEach((item) => {
-            if (!item || !item.studentId) {
+        Object.keys(raw).forEach((key) => {
+            const k = koreanMatchKey(key) || normalizeStr(key);
+            const entry = raw[key];
+            if (!k || !entry || typeof entry !== 'object') {
                 return;
             }
-            const sid = item.studentId;
-            const remembered = mem[sid];
-            if (!remembered) {
-                still.push(item);
+            const action = entry.action;
+            if (action !== 'skip' && action !== 'map' && action !== 'add') {
                 return;
             }
-            if (remembered.action === 'skip') {
-                row.reverseResolutions[sid] = { action: 'skip' };
-                return;
-            }
-            if (remembered.action === 'map' && remembered.tmsKey) {
-                const stillAvailable = (item.candidates || []).some(
-                    (c) => c && c.tmsKey === remembered.tmsKey
-                );
-                if (!stillAvailable) {
-                    still.push(item);
+            const next = { action };
+            if (action === 'map') {
+                const sid = normalizeStr(entry.studentId);
+                if (!sid) {
                     return;
                 }
-                row.reverseResolutions[sid] = {
-                    action: 'map',
-                    tmsKey: remembered.tmsKey
-                };
-                row.studentResolutions[remembered.tmsKey] = {
-                    action: 'map',
-                    studentId: sid
-                };
-                return;
+                next.studentId = sid;
             }
-            still.push(item);
+            out[k] = next;
         });
-        return still;
+        return out;
+    }
+
+    /**
+     * Merge session wizard resolutions into a cohort's remembered map.
+     */
+    function mergeTmsStudentResolutions(existing, sessionResolutions) {
+        const next = normalizeTmsStudentResolutions(existing);
+        const session = normalizeTmsStudentResolutions(sessionResolutions);
+        Object.keys(session).forEach((k) => {
+            next[k] = session[k];
+        });
+        return next;
     }
 
     /**
@@ -767,293 +789,6 @@
     }
 
     /**
-     * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
-     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored).
-     * - On exact match or confirmed map, adopt TMS display name when it differs, and nameEn when set.
-     * - Add students only via resolution action 'add' (or exact-new when no review needed —
-     *   unmatched / unclear without Map/Add/Skip never auto-add).
-     * - Flag existing students missing from TMS with off_roster only after reverse
-     *   review confirms Keep Off roster (reverseResolutions[id].action === 'skip'),
-     *   unless options.allowSilentOffRoster is true (legacy).
-     * - Clear off_roster when they reappear on TMS (Korean match / map only — English never affects this).
-     * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
-     * - options.reverseResolutions: { [studentId]: { action:'skip'|'map', tmsKey? } }
-     */
-    function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
-        const opts = options || {};
-        const makeId =
-            typeof opts.newStudentId === 'function'
-                ? opts.newStudentId
-                : () => newId('stu');
-        const resolutions = normalizeTmsStudentResolutions(
-            opts.studentResolutions && typeof opts.studentResolutions === 'object'
-                ? opts.studentResolutions
-                : {}
-        );
-        const reverseRes = normalizeTmsReverseResolutions(
-            opts.reverseResolutions && typeof opts.reverseResolutions === 'object'
-                ? opts.reverseResolutions
-                : {}
-        );
-        const allowSilentOffRoster = opts.allowSilentOffRoster === true;
-        const existing = (Array.isArray(existingStudents) ? existingStudents : [])
-            .map(normalizeStudent)
-            .filter(Boolean);
-        const existingById = new Map(existing.map((s) => [s.id, s]));
-        const incoming = (Array.isArray(tmsStudents) ? tmsStudents : [])
-            .map((raw) => {
-                if (!raw) {
-                    return null;
-                }
-                const name = normalizeStr(raw.name);
-                if (!name) {
-                    return null;
-                }
-                return {
-                    name,
-                    nameEn: normalizeStr(raw.nameEn),
-                    locationTag: normalizeStr(raw.locationTag),
-                    memo: normalizeStr(raw.memo)
-                };
-            })
-            .filter(Boolean);
-
-        const existingByKey = new Map();
-        const duplicateKeys = new Set();
-        existing.forEach((s) => {
-            const k = koreanMatchKey(s.name);
-            if (!k) {
-                return;
-            }
-            if (existingByKey.has(k)) {
-                duplicateKeys.add(k);
-            } else {
-                existingByKey.set(k, s);
-            }
-        });
-
-        const tmsKeys = new Set();
-        const added = [];
-        const matched = [];
-        const warnings = [];
-        const exactMatchedIds = new Set();
-        const resolutionMatchedIds = new Set();
-        const skipTmsKeys = new Set();
-        /** @type {Map<string, { name: string, nameEn: string }>} */
-        const mapNameUpdates = new Map();
-
-        function adoptTmsIdentity(target, imp, extra) {
-            const previousName = target.name;
-            const nameUpdated = normalizeStr(previousName) !== normalizeStr(imp.name);
-            mapNameUpdates.set(target.id, {
-                name: nameUpdated ? imp.name : target.name,
-                // Empty TMS English keeps existing CM English.
-                nameEn: imp.nameEn || target.nameEn || ''
-            });
-            matched.push(
-                Object.assign(
-                    {
-                        id: target.id,
-                        name: imp.name,
-                        previousName,
-                        nameUpdated
-                    },
-                    extra || {}
-                )
-            );
-            exactMatchedIds.add(target.id);
-        }
-
-        incoming.forEach((imp) => {
-            const k = koreanMatchKey(imp.name);
-            if (!k) {
-                return;
-            }
-            if (tmsKeys.has(k)) {
-                warnings.push({ code: 'duplicate_tms_name', name: imp.name });
-                return;
-            }
-            tmsKeys.add(k);
-            const resolution = resolutions[k];
-            // Resolution-first so duplicate_existing Map sticks (exact key would otherwise win first).
-            if (resolution && resolution.action === 'skip') {
-                skipTmsKeys.add(k);
-                return;
-            }
-            if (resolution && resolution.action === 'map') {
-                const targetId = normalizeStr(resolution.studentId);
-                const target = existingById.get(targetId);
-                if (target) {
-                    adoptTmsIdentity(target, imp, { resolved: true });
-                    resolutionMatchedIds.add(target.id);
-                    return;
-                }
-                warnings.push({ code: 'resolution_target_missing', name: imp.name, studentId: targetId });
-            }
-            if (resolution && resolution.action === 'add') {
-                added.push({
-                    id: makeId(),
-                    name: imp.name,
-                    nameEn: imp.nameEn,
-                    locationTag: imp.locationTag,
-                    sortOrder: existing.length + added.length,
-                    active: true,
-                    tags: [],
-                    memo: imp.memo,
-                    archivedAt: '',
-                    archiveReason: '',
-                    expectedStartDate: ''
-                });
-                return;
-            }
-            const match = existingByKey.get(k);
-            if (match) {
-                if (duplicateKeys.has(k)) {
-                    warnings.push({
-                        code: 'duplicate_existing_name',
-                        name: imp.name,
-                        matchedId: match.id
-                    });
-                    // Without a resolution, do not auto-pick among duplicates.
-                    const unclearCandidates = existing.filter((s) => koreanMatchKey(s.name) === k);
-                    if (unclearCandidates.length && !resolution) {
-                        warnings.push({
-                            code: 'unresolved_unclear_name',
-                            name: imp.name,
-                            candidates: unclearCandidates.map((s) => s.id)
-                        });
-                        skipTmsKeys.add(k);
-                        if (opts.softUnclear) {
-                            unclearCandidates.forEach((s) => {
-                                if (s && s.id) {
-                                    exactMatchedIds.add(s.id);
-                                }
-                            });
-                        }
-                        return;
-                    }
-                }
-                adoptTmsIdentity(match, imp, { matchedBy: 'name' });
-                return;
-            }
-            // Unclear / unmatched without resolution: do not auto-add (wizard must decide).
-            const unclearCandidates = existing.filter((s) =>
-                sharesHangulCoreOrVariant(s.name, imp.name)
-            );
-            if (!resolution) {
-                if (unclearCandidates.length) {
-                    warnings.push({
-                        code: 'unresolved_unclear_name',
-                        name: imp.name,
-                        candidates: unclearCandidates.map((s) => s.id)
-                    });
-                    skipTmsKeys.add(k);
-                    unclearCandidates.forEach((s) => {
-                        if (s && s.id && opts.softUnclear) {
-                            exactMatchedIds.add(s.id);
-                        }
-                    });
-                    return;
-                }
-                // Unmatched (no Hangul peer) — require Map / Add / Skip.
-                warnings.push({
-                    code: 'unresolved_unmatched_name',
-                    name: imp.name,
-                    candidates: existing.map((s) => s.id)
-                });
-                skipTmsKeys.add(k);
-                return;
-            }
-            // Fallback: resolution was present but invalid (e.g. map target missing already warned).
-            warnings.push({
-                code: 'unresolved_unmatched_name',
-                name: imp.name
-            });
-            skipTmsKeys.add(k);
-        });
-
-        const fuzzyMatchedIds = new Set();
-        const fuzzyCleared = [];
-        // Shared Hangul-core / Latin leftovers are not auto-fuzzy merged.
-        // They must be resolved via listUnclearTmsStudentMatches + studentResolutions.
-
-        // Treat resolution-mapped + exact as on TMS for Off roster.
-        resolutionMatchedIds.forEach((id) => exactMatchedIds.add(id));
-
-        const flagged = [];
-        const cleared = [];
-        if (incoming.length === 0 && existing.some((s) => s.active !== false)) {
-            return {
-                students: existing.slice().sort(compareStudentNames),
-                summary: {
-                    added: [],
-                    matched,
-                    flagged: [],
-                    cleared: [],
-                    fuzzyCleared,
-                    warnings: [{ code: 'incomplete_tms_scrape' }],
-                    totalTms: 0,
-                    totalAfter: existing.length
-                }
-            };
-        }
-        const nextExisting = existing.map((s) => {
-            const nameUpdate = mapNameUpdates.get(s.id);
-            let next = s;
-            if (nameUpdate) {
-                const patch = { name: nameUpdate.name };
-                if (nameUpdate.nameEn) {
-                    patch.nameEn = nameUpdate.nameEn;
-                }
-                next = Object.assign({}, s, patch);
-            }
-            // Off roster is Korean-name only: exact match, map resolution, or fuzzy consume.
-            // nameEn differences never block clearing off_roster.
-            const k = koreanMatchKey(next.name);
-            const onTms =
-                (k && tmsKeys.has(k) && !skipTmsKeys.has(k)) ||
-                fuzzyMatchedIds.has(s.id) ||
-                exactMatchedIds.has(s.id);
-            const hadOff = (next.tags || []).includes(OFF_ROSTER_TAG);
-            if (onTms) {
-                if (hadOff) {
-                    const entry = { id: next.id, name: next.name };
-                    cleared.push(entry);
-                    if (fuzzyMatchedIds.has(s.id)) {
-                        fuzzyCleared.push(entry);
-                    }
-                }
-                return withoutStudentTag(next, OFF_ROSTER_TAG);
-            }
-            const rev = reverseRes[s.id];
-            // Require reverse Keep Off roster (or legacy silent) before newly tagging.
-            const confirmOff =
-                allowSilentOffRoster || (rev && rev.action === 'skip');
-            if (!confirmOff) {
-                // Pending reverse review — do not silently Off-roster.
-                return next;
-            }
-            flagged.push({ id: next.id, name: next.name });
-            return hadOff ? next : withStudentTag(next, OFF_ROSTER_TAG);
-        });
-
-        const students = nextExisting.concat(added).sort(compareStudentNames);
-        return {
-            students,
-            summary: {
-                added: added.map((s) => ({ id: s.id, name: s.name })),
-                matched,
-                flagged,
-                cleared,
-                fuzzyCleared,
-                warnings,
-                totalTms: tmsKeys.size,
-                totalAfter: students.length
-            }
-        };
-    }
-
-    /**
      * Apply Korean-name TMS merges across cohorts using a mapping plan.
      * plan rows: { userAction: 'map'|'skip', userTargetId, importCohortName, students: [{name,nameEn?}] }
      */
@@ -1062,8 +797,7 @@
         let cohorts = (Array.isArray(calendarCohorts) ? calendarCohorts : []).map((c) =>
             Object.assign({}, c, {
                 students: Array.isArray(c.students) ? c.students.map((s) => Object.assign({}, s)) : [],
-                tmsStudentResolutions: normalizeTmsStudentResolutions(c && c.tmsStudentResolutions),
-                tmsReverseResolutions: normalizeTmsReverseResolutions(c && c.tmsReverseResolutions)
+                tmsStudentResolutions: normalizeTmsStudentResolutions(c && c.tmsStudentResolutions)
             })
         );
         const results = [];
@@ -1091,12 +825,9 @@
             }
             const target = cohorts[idx];
             const sessionResolutions = row.studentResolutions || opts.studentResolutions || {};
-            const sessionReverse = row.reverseResolutions || opts.reverseResolutions || {};
-            // Reverse Map choices are also written into studentResolutions[tmsKey] → adoptTmsIdentity.
             const merged = mergeRosterByKoreanName(target.students, row.students, {
                 newStudentId: opts.newStudentId,
                 studentResolutions: sessionResolutions,
-                reverseResolutions: sessionReverse,
                 softUnclear: Boolean(opts.softUnclear)
             });
             cohorts[idx] = Object.assign({}, target, {
@@ -1104,10 +835,6 @@
                 tmsStudentResolutions: mergeTmsStudentResolutions(
                     target.tmsStudentResolutions,
                     sessionResolutions
-                ),
-                tmsReverseResolutions: mergeTmsReverseResolutions(
-                    target.tmsReverseResolutions,
-                    sessionReverse
                 )
             });
             results.push({
@@ -1118,6 +845,149 @@
             });
         });
         return { cohorts, results };
+    }
+
+    /**
+     * Detect students missing from one mapped TMS class who would be added on another
+     * mapped class in the same sync plan (cross-cohort moves).
+     * Uses koreanMatchKey. Ambiguous (2+ sources or destinations) → omitted.
+     * @returns {Array<{ studentId: string, name: string, nameEn: string, tmsKey: string, fromCohortId: string, toCohortId: string, fromRowIdx: number, toRowIdx: number, fromCohortName: string, toCohortName: string, tmsName: string }>}
+     */
+    function detectTmsRosterTransfers(cohorts, plan) {
+        const list = Array.isArray(cohorts) ? cohorts : [];
+        const planRows = Array.isArray(plan) ? plan : [];
+        /** @type {Map<string, Array<{ rowIdx: number, cohortId: string, cohortName: string, studentId: string, name: string, nameEn: string }>>} */
+        const missingByKey = new Map();
+        /** @type {Map<string, Array<{ rowIdx: number, cohortId: string, cohortName: string, tmsName: string, tmsNameEn: string }>>} */
+        const addByKey = new Map();
+
+        planRows.forEach((row, rowIdx) => {
+            if (!row || row.userAction !== 'map' || !row.userTargetId) {
+                return;
+            }
+            const targetId = normalizeStr(row.userTargetId);
+            const target = list.find((c) => c && normalizeStr(c.id) === targetId);
+            if (!target || isArchiveCohort(target)) {
+                return;
+            }
+            const summary = mergeRosterByKoreanName(target.students, row.students, {
+                studentResolutions: row.studentResolutions || {},
+                softUnclear: true
+            }).summary;
+            if (
+                Array.isArray(summary.warnings) &&
+                summary.warnings.some((w) => w && w.code === 'incomplete_tms_scrape')
+            ) {
+                return;
+            }
+            const cohortName = normalizeStr(target.name) || targetId;
+            (Array.isArray(summary.flagged) ? summary.flagged : []).forEach((f) => {
+                if (!f || !f.id) {
+                    return;
+                }
+                const student = (target.students || []).find((s) => s && s.id === f.id);
+                if (!student || student.active === false) {
+                    return;
+                }
+                const k = koreanMatchKey(student.name);
+                if (!k) {
+                    return;
+                }
+                if (!missingByKey.has(k)) {
+                    missingByKey.set(k, []);
+                }
+                missingByKey.get(k).push({
+                    rowIdx,
+                    cohortId: targetId,
+                    cohortName,
+                    studentId: student.id,
+                    name: student.name || f.name || '',
+                    nameEn: student.nameEn || ''
+                });
+            });
+            (Array.isArray(summary.added) ? summary.added : []).forEach((a) => {
+                if (!a || !a.name) {
+                    return;
+                }
+                const k = koreanMatchKey(a.name);
+                if (!k) {
+                    return;
+                }
+                // Destination already has this match key → not a clean add/transfer.
+                const existingOnTarget = normalizeCohortStudents(target).some(
+                    (s) => s.active !== false && koreanMatchKey(s.name) === k
+                );
+                if (existingOnTarget) {
+                    return;
+                }
+                if (!addByKey.has(k)) {
+                    addByKey.set(k, []);
+                }
+                addByKey.get(k).push({
+                    rowIdx,
+                    cohortId: targetId,
+                    cohortName,
+                    tmsName: a.name,
+                    tmsNameEn: a.nameEn || ''
+                });
+            });
+        });
+
+        const transfers = [];
+        missingByKey.forEach((sources, k) => {
+            const destinations = addByKey.get(k) || [];
+            if (sources.length !== 1 || destinations.length !== 1) {
+                return;
+            }
+            const from = sources[0];
+            const to = destinations[0];
+            if (from.cohortId === to.cohortId) {
+                return;
+            }
+            transfers.push({
+                studentId: from.studentId,
+                name: from.name,
+                nameEn: from.nameEn,
+                tmsKey: k,
+                fromCohortId: from.cohortId,
+                toCohortId: to.cohortId,
+                fromRowIdx: from.rowIdx,
+                toRowIdx: to.rowIdx,
+                fromCohortName: from.cohortName,
+                toCohortName: to.cohortName,
+                tmsName: to.tmsName
+            });
+        });
+        return transfers;
+    }
+
+    /**
+     * Apply confirmed cross-cohort transfers (preserves student ids).
+     * transfers: [{ studentId, fromCohortId, toCohortId }]
+     */
+    function applyTmsRosterTransfers(cohorts, transfers) {
+        let list = cloneCohorts(cohorts);
+        const applied = [];
+        const errors = [];
+        (Array.isArray(transfers) ? transfers : []).forEach((tr) => {
+            if (!tr) {
+                return;
+            }
+            const fromId = normalizeStr(tr.fromCohortId);
+            const toId = normalizeStr(tr.toCohortId);
+            const sid = normalizeStr(tr.studentId);
+            if (!fromId || !toId || !sid) {
+                return;
+            }
+            const result = moveStudentsBetweenCohorts(list, fromId, toId, [sid]);
+            if (result.error) {
+                errors.push({ studentId: sid, error: result.error, fromCohortId: fromId, toCohortId: toId });
+                return;
+            }
+            list = result.cohorts;
+            applied.push({ studentId: sid, fromCohortId: fromId, toCohortId: toId });
+        });
+        return { cohorts: list, applied, errors };
     }
 
     /** Stable key for a TMS class — prefer id when present, else normalized name. */
@@ -1657,6 +1527,476 @@
         return next;
     }
 
+    const ESSAY_STATUS_MERGE_RANK = {
+        not_submitted: 0,
+        incomplete: 1,
+        submitted: 2,
+        resubmit_required: 3,
+        complete: 4,
+        exempt: 4
+    };
+
+    function essayStatusMergeRank(status) {
+        const s = normalizeStr(status);
+        return Object.prototype.hasOwnProperty.call(ESSAY_STATUS_MERGE_RANK, s)
+            ? ESSAY_STATUS_MERGE_RANK[s]
+            : 0;
+    }
+
+    function pickRicherEssayRecord(keepRec, dropRec) {
+        if (!keepRec) {
+            return dropRec ? Object.assign({}, dropRec) : null;
+        }
+        if (!dropRec) {
+            return Object.assign({}, keepRec);
+        }
+        const keepRank = essayStatusMergeRank(keepRec.status);
+        const dropRank = essayStatusMergeRank(dropRec.status);
+        const base = dropRank > keepRank ? Object.assign({}, dropRec) : Object.assign({}, keepRec);
+        const other = dropRank > keepRank ? keepRec : dropRec;
+        if (!normalizeStr(base.note) && normalizeStr(other.note)) {
+            base.note = other.note;
+        }
+        if (!base.submittedRetest && other.submittedRetest) {
+            base.submittedRetest = true;
+        }
+        if (!base.submissionLate && other.submissionLate) {
+            base.submissionLate = true;
+        }
+        if (!base.overdueDismissed && other.overdueDismissed) {
+            base.overdueDismissed = true;
+        }
+        return base;
+    }
+
+    function pickRicherAttendanceRecord(keepRec, dropRec) {
+        if (!keepRec) {
+            return dropRec ? Object.assign({}, dropRec) : null;
+        }
+        if (!dropRec) {
+            return Object.assign({}, keepRec);
+        }
+        const keepStatus = normalizeStr(keepRec.status);
+        const dropStatus = normalizeStr(dropRec.status);
+        const base =
+            !keepStatus && dropStatus
+                ? Object.assign({}, dropRec)
+                : Object.assign({}, keepRec);
+        const other = base === keepRec || normalizeStr(base.status) === keepStatus ? dropRec : keepRec;
+        if (!normalizeStr(base.sessionNote) && normalizeStr(other.sessionNote)) {
+            base.sessionNote = other.sessionNote;
+        }
+        return base;
+    }
+
+    function pickRicherHomeworkRecord(keepRec, dropRec) {
+        if (!keepRec) {
+            return dropRec ? Object.assign({}, dropRec) : null;
+        }
+        if (!dropRec) {
+            return Object.assign({}, keepRec);
+        }
+        const keepGrade = normalizeStr(keepRec.grade);
+        const dropGrade = normalizeStr(dropRec.grade);
+        const keepIdx = HOMEWORK_GRADES.indexOf(keepGrade);
+        const dropIdx = HOMEWORK_GRADES.indexOf(dropGrade);
+        // Lower index = better grade (A before F); empty loses.
+        let base;
+        if (!keepGrade && dropGrade) {
+            base = Object.assign({}, dropRec);
+        } else if (keepGrade && dropGrade && dropIdx >= 0 && (keepIdx < 0 || dropIdx < keepIdx)) {
+            base = Object.assign({}, dropRec);
+        } else {
+            base = Object.assign({}, keepRec);
+        }
+        const other = normalizeStr(base.grade) === keepGrade ? dropRec : keepRec;
+        if (!normalizeStr(base.note) && normalizeStr(other.note)) {
+            base.note = other.note;
+        }
+        if (
+            (!base.selfCheck || base.selfCheck === 'none') &&
+            other.selfCheck &&
+            other.selfCheck !== 'none'
+        ) {
+            base.selfCheck = other.selfCheck;
+        }
+        return base;
+    }
+
+    function pickRicherTestRecord(keepRec, dropRec) {
+        if (!keepRec) {
+            return dropRec ? Object.assign({}, dropRec) : null;
+        }
+        if (!dropRec) {
+            return Object.assign({}, keepRec);
+        }
+        const keepScore = normalizeStr(keepRec.score != null ? keepRec.score : keepRec.grade);
+        const dropScore = normalizeStr(dropRec.score != null ? dropRec.score : dropRec.grade);
+        const base =
+            !keepScore && dropScore ? Object.assign({}, dropRec) : Object.assign({}, keepRec);
+        const other = base === keepRec || normalizeStr(base.score || base.grade) === keepScore
+            ? dropRec
+            : keepRec;
+        if (!normalizeStr(base.note) && normalizeStr(other.note)) {
+            base.note = other.note;
+        }
+        return base;
+    }
+
+    function rekeyRecordList(records, keepId, dropId, picker) {
+        const list = Array.isArray(records) ? records : [];
+        const keep = normalizeStr(keepId);
+        const drop = normalizeStr(dropId);
+        const keepRec = list.find((r) => r && normalizeStr(r.studentId) === keep) || null;
+        const dropRec = list.find((r) => r && normalizeStr(r.studentId) === drop) || null;
+        const others = list.filter(
+            (r) =>
+                r &&
+                normalizeStr(r.studentId) !== keep &&
+                normalizeStr(r.studentId) !== drop
+        );
+        if (!dropRec) {
+            return list.slice();
+        }
+        const merged = picker(keepRec, dropRec);
+        if (!merged) {
+            return others;
+        }
+        merged.studentId = keep;
+        return others.concat([merged]);
+    }
+
+    /**
+     * Merge two local student records: keep keepId, rekey dropId history, remove drop shell.
+     * @param {object} appData
+     * @param {{ keepId: string, dropId: string, profileFrom?: 'keep'|'drop', clearOffRoster?: boolean }} options
+     */
+    function mergeStudentRecords(appData, options) {
+        const opts = options || {};
+        const keepId = normalizeStr(opts.keepId);
+        const dropId = normalizeStr(opts.dropId);
+        const data = appData && typeof appData === 'object' ? appData : {};
+        if (!keepId || !dropId || keepId === dropId) {
+            return { error: 'invalid_ids', appData: data };
+        }
+        const cohortsIn = Array.isArray(data.cohorts) ? data.cohorts : [];
+        let keepStudent = null;
+        let dropStudent = null;
+        let keepCohortId = '';
+        let dropCohortId = '';
+        cohortsIn.forEach((c) => {
+            if (!c || !Array.isArray(c.students)) {
+                return;
+            }
+            c.students.forEach((s) => {
+                if (!s) {
+                    return;
+                }
+                if (normalizeStr(s.id) === keepId) {
+                    keepStudent = s;
+                    keepCohortId = normalizeStr(c.id);
+                }
+                if (normalizeStr(s.id) === dropId) {
+                    dropStudent = s;
+                    dropCohortId = normalizeStr(c.id);
+                }
+            });
+        });
+        if (!keepStudent || !dropStudent) {
+            return { error: 'student_not_found', appData: data };
+        }
+        if (keepCohortId && dropCohortId && keepCohortId !== dropCohortId) {
+            return { error: 'cross_cohort', appData: data };
+        }
+
+        const profileFrom = opts.profileFrom === 'drop' ? 'drop' : 'keep';
+        const keepNorm = normalizeStudent(keepStudent) || keepStudent;
+        const dropNorm = normalizeStudent(dropStudent) || dropStudent;
+        const srcNorm = profileFrom === 'drop' ? dropNorm : keepNorm;
+        const otherNorm = profileFrom === 'drop' ? keepNorm : dropNorm;
+        const tagSet = new Set([...(keepNorm.tags || []), ...(dropNorm.tags || [])]);
+        const clearOffRoster = opts.clearOffRoster !== false;
+        if (clearOffRoster) {
+            tagSet.delete(OFF_ROSTER_TAG);
+        }
+        const mergedProfile = Object.assign({}, keepNorm, {
+            name: normalizeStr(srcNorm.name) || normalizeStr(otherNorm.name),
+            nameEn: preferLongerNameEn(keepNorm.nameEn, dropNorm.nameEn),
+            tmsMpidx:
+                normalizeStr(srcNorm.tmsMpidx) ||
+                normalizeStr(otherNorm.tmsMpidx) ||
+                '',
+            locationTag: normalizeStr(srcNorm.locationTag) || normalizeStr(otherNorm.locationTag),
+            memo: normalizeStr(srcNorm.memo) || normalizeStr(otherNorm.memo),
+            tags: Array.from(tagSet),
+            active: keepNorm.active !== false || dropNorm.active !== false
+        });
+        if (profileFrom === 'drop') {
+            mergedProfile.name = normalizeStr(dropNorm.name) || mergedProfile.name;
+            if (normalizeStr(dropNorm.nameEn)) {
+                mergedProfile.nameEn = preferLongerNameEn(keepNorm.nameEn, dropNorm.nameEn);
+            }
+            if (normalizeStr(dropNorm.tmsMpidx)) {
+                mergedProfile.tmsMpidx = normalizeStr(dropNorm.tmsMpidx);
+            }
+        }
+
+        let next = Object.assign({}, data);
+
+        if (Array.isArray(next.attendanceSessions)) {
+            next.attendanceSessions = next.attendanceSessions.map((session) => {
+                if (!session || !Array.isArray(session.records)) {
+                    return session;
+                }
+                return Object.assign({}, session, {
+                    records: rekeyRecordList(
+                        session.records,
+                        keepId,
+                        dropId,
+                        pickRicherAttendanceRecord
+                    )
+                });
+            });
+        }
+        if (Array.isArray(next.homeworkCompletions)) {
+            next.homeworkCompletions = next.homeworkCompletions.map((hw) => {
+                if (!hw || !Array.isArray(hw.records)) {
+                    return hw;
+                }
+                return Object.assign({}, hw, {
+                    records: rekeyRecordList(hw.records, keepId, dropId, pickRicherHomeworkRecord)
+                });
+            });
+        }
+        if (Array.isArray(next.essaySubmissions)) {
+            next.essaySubmissions = next.essaySubmissions.map((essay) => {
+                if (!essay || !Array.isArray(essay.records)) {
+                    return essay;
+                }
+                return Object.assign({}, essay, {
+                    records: rekeyRecordList(essay.records, keepId, dropId, pickRicherEssayRecord)
+                });
+            });
+        }
+        if (Array.isArray(next.studentPoints)) {
+            next.studentPoints = next.studentPoints.map((p) => {
+                if (!p || normalizeStr(p.studentId) !== dropId) {
+                    return p;
+                }
+                return Object.assign({}, p, { studentId: keepId });
+            });
+        }
+        if (Array.isArray(next.studentTests)) {
+            next.studentTests = next.studentTests.map((test) => {
+                if (!test || !Array.isArray(test.records)) {
+                    return test;
+                }
+                return Object.assign({}, test, {
+                    records: rekeyRecordList(test.records, keepId, dropId, pickRicherTestRecord)
+                });
+            });
+        }
+        if (Array.isArray(next.debateScores)) {
+            next.debateScores = next.debateScores.map((session) => {
+                if (!session || !Array.isArray(session.records)) {
+                    return session;
+                }
+                return Object.assign({}, session, {
+                    records: rekeyRecordList(session.records, keepId, dropId, (a, b) => {
+                        if (!a) {
+                            return b ? Object.assign({}, b) : null;
+                        }
+                        if (!b) {
+                            return Object.assign({}, a);
+                        }
+                        return Object.assign({}, a);
+                    })
+                });
+            });
+        }
+        if (Array.isArray(next.debateTeamSessions)) {
+            next.debateTeamSessions = next.debateTeamSessions.map((session) => {
+                if (!session) {
+                    return session;
+                }
+                let changed = false;
+                const patch = {};
+                if (Array.isArray(session.studentIds)) {
+                    const ids = session.studentIds.map((id) =>
+                        normalizeStr(id) === dropId ? keepId : id
+                    );
+                    const dedup = [];
+                    ids.forEach((id) => {
+                        if (id && !dedup.includes(id)) {
+                            dedup.push(id);
+                        }
+                    });
+                    if (dedup.join('|') !== (session.studentIds || []).join('|')) {
+                        patch.studentIds = dedup;
+                        changed = true;
+                    }
+                }
+                if (session.sessionState && typeof session.sessionState === 'object') {
+                    const state = Object.assign({}, session.sessionState);
+                    let stateChanged = false;
+                    Object.keys(state).forEach((k) => {
+                        if (normalizeStr(k) === dropId) {
+                            if (!Object.prototype.hasOwnProperty.call(state, keepId)) {
+                                state[keepId] = state[k];
+                            }
+                            delete state[k];
+                            stateChanged = true;
+                        }
+                    });
+                    if (stateChanged) {
+                        patch.sessionState = state;
+                        changed = true;
+                    }
+                }
+                return changed ? Object.assign({}, session, patch) : session;
+            });
+        }
+        if (Array.isArray(next.speakingTestRecords)) {
+            next.speakingTestRecords = next.speakingTestRecords.map((rec) => {
+                if (!rec || !rec.scores || typeof rec.scores !== 'object') {
+                    return rec;
+                }
+                const scores = Object.assign({}, rec.scores);
+                if (!Object.prototype.hasOwnProperty.call(scores, dropId)) {
+                    return rec;
+                }
+                if (!Object.prototype.hasOwnProperty.call(scores, keepId)) {
+                    scores[keepId] = scores[dropId];
+                }
+                delete scores[dropId];
+                return Object.assign({}, rec, { scores });
+            });
+        }
+        if (Array.isArray(next.dayNotes)) {
+            next.dayNotes = next.dayNotes.map((note) => {
+                if (!note || !Array.isArray(note.taggedStudentIds)) {
+                    return note;
+                }
+                const ids = note.taggedStudentIds.map((id) =>
+                    normalizeStr(id) === dropId ? keepId : id
+                );
+                const dedup = [];
+                ids.forEach((id) => {
+                    const n = normalizeStr(id);
+                    if (n && !dedup.includes(n)) {
+                        dedup.push(n);
+                    }
+                });
+                return Object.assign({}, note, { taggedStudentIds: dedup });
+            });
+        }
+
+        next.cohorts = cohortsIn.map((c) => {
+            if (!c || !Array.isArray(c.students)) {
+                return c;
+            }
+            const students = [];
+            let touched = false;
+            const resolutions = normalizeTmsStudentResolutions(c.tmsStudentResolutions);
+            let resChanged = false;
+            Object.keys(resolutions).forEach((key) => {
+                const r = resolutions[key];
+                if (r && r.action === 'map' && normalizeStr(r.studentId) === dropId) {
+                    resolutions[key] = Object.assign({}, r, { studentId: keepId });
+                    resChanged = true;
+                }
+            });
+            c.students.forEach((s) => {
+                if (!s) {
+                    return;
+                }
+                if (normalizeStr(s.id) === dropId) {
+                    touched = true;
+                    return;
+                }
+                if (normalizeStr(s.id) === keepId) {
+                    touched = true;
+                    students.push(Object.assign({}, s, mergedProfile, { id: keepId }));
+                    return;
+                }
+                students.push(s);
+            });
+            if (!touched && !resChanged) {
+                return c;
+            }
+            const patch = { students };
+            if (resChanged) {
+                patch.tmsStudentResolutions = resolutions;
+            }
+            return Object.assign({}, c, patch);
+        });
+
+        return {
+            error: null,
+            appData: next,
+            keepId,
+            dropId,
+            mergedProfile
+        };
+    }
+
+    /**
+     * Suspected duplicate pairs in a cohort (same koreanMatchKey or same tmsMpidx).
+     * @returns {Array<{ reason: string, students: object[] }>}
+     */
+    function listSuspectedDuplicateStudents(cohort) {
+        const students = normalizeCohortStudents(cohort).filter((s) => s && s.active !== false);
+        const byKey = new Map();
+        const byMpidx = new Map();
+        students.forEach((s) => {
+            const k = koreanMatchKey(s.name);
+            if (k) {
+                if (!byKey.has(k)) {
+                    byKey.set(k, []);
+                }
+                byKey.get(k).push(s);
+            }
+            const mp = normalizeStr(s.tmsMpidx);
+            if (mp) {
+                if (!byMpidx.has(mp)) {
+                    byMpidx.set(mp, []);
+                }
+                byMpidx.get(mp).push(s);
+            }
+        });
+        const out = [];
+        const seen = new Set();
+        byMpidx.forEach((list, mp) => {
+            if (list.length < 2) {
+                return;
+            }
+            const ids = list
+                .map((s) => s.id)
+                .sort()
+                .join('|');
+            if (seen.has(ids)) {
+                return;
+            }
+            seen.add(ids);
+            out.push({ reason: 'duplicate_tms_mpidx', tmsMpidx: mp, students: list });
+        });
+        byKey.forEach((list, key) => {
+            if (list.length < 2) {
+                return;
+            }
+            const ids = list
+                .map((s) => s.id)
+                .sort()
+                .join('|');
+            if (seen.has(ids)) {
+                return;
+            }
+            seen.add(ids);
+            out.push({ reason: 'duplicate_existing', tmsKey: key, students: list });
+        });
+        return out;
+    }
+
     function deleteStudentPermanently(cohorts, studentId, cohortId) {
         const sid = normalizeStr(studentId);
         const cid = normalizeStr(cohortId);
@@ -1710,7 +2050,8 @@
     }
 
     /**
-     * Active students for a class (union of linked cohorts, deduped by id).
+     * Active on-roster students for a class (union of linked cohorts, deduped by id).
+     * Excludes off_roster-tagged students (still visible on Students tab).
      * @returns {Array<{ student, cohortId, cohortName }>}
      */
     function resolveStudentsForClass(classData, cohorts) {
@@ -1726,7 +2067,7 @@
                 return;
             }
             normalizeCohortStudents(cohort)
-                .filter((s) => s.active)
+                .filter((s) => s.active && !(s.tags || []).includes(OFF_ROSTER_TAG))
                 .forEach((student) => {
                     if (!byId.has(student.id)) {
                         byId.set(student.id, {
@@ -1968,6 +2309,51 @@
     function getEssayRowsFromSyllabus(rows) {
         const lessons = getLessonRowsFromSyllabus(rows);
         return lessons.filter(isEssayAssignmentRow);
+    }
+
+    function isCustomEssayAssignmentRow(row) {
+        return Boolean(row && row.trackEssay === true && !isEssaySyllabusRow(row));
+    }
+
+    function getEssayRowsForTerm(syllabusRows, termStart, termEnd) {
+        const rows = getEssayRowsFromSyllabus(syllabusRows);
+        const ts = normalizeStr(termStart);
+        const te = normalizeStr(termEnd);
+        if (!ts && !te) {
+            return rows;
+        }
+        const inTerm = rows.filter((r) => {
+            const d = normalizeStr(r.date);
+            if (!d) {
+                return true;
+            }
+            if (ts && d < ts) {
+                return false;
+            }
+            if (te && d > te) {
+                return false;
+            }
+            return true;
+        });
+        return inTerm;
+    }
+
+    function getEssayRowsForAssignedMonth(syllabusRows, assignedDate, termStart, termEnd) {
+        const rows =
+            termStart || termEnd
+                ? getEssayRowsForTerm(syllabusRows, termStart, termEnd)
+                : getEssayRowsFromSyllabus(syllabusRows);
+        const assignedMonth = yearMonthKey(assignedDate);
+        if (!assignedMonth) {
+            return rows;
+        }
+        return rows.filter((row) => {
+            const rowMonth = yearMonthKey(row && row.date);
+            if (!rowMonth) {
+                return true;
+            }
+            return rowMonth === assignedMonth;
+        });
     }
 
     function reparseEssayFlagsForClass(classData) {
@@ -2285,7 +2671,8 @@
     }
 
     /**
-     * Not submitted and not overdue (and not "overdue cleared"): matches due-cell Awaiting submission.
+     * Not submitted, not overdue, and SS due is in the current calendar month.
+     * Matches due-cell Awaiting submission (other months stay quiet / not AS).
      */
     function isEssayAwaitingSubmission(record, ssDueDate) {
         const rec = record || {
@@ -2295,6 +2682,9 @@
         };
         const status = ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
         if (status !== 'not_submitted') {
+            return false;
+        }
+        if (!sameCalendarMonth(ssDueDate, todayISO())) {
             return false;
         }
         if (isEssaySubmissionOverdue(rec, ssDueDate)) {
@@ -2326,7 +2716,16 @@
             return count;
         }
         if (!submission || !Array.isArray(submission.records)) {
-            if (isEssaySsOverdueISO(ssDueDate)) {
+            if (
+                !isEssayAwaitingSubmission(
+                    {
+                        status: 'not_submitted',
+                        submissionLate: false,
+                        overdueDismissed: false
+                    },
+                    ssDueDate
+                )
+            ) {
                 return 0;
             }
             return Math.max(0, studentCount || 0);
@@ -2362,6 +2761,12 @@
             });
         return {
             rs: counts.resubmit_required || 0,
+            as: essayAwaitingSubmissionCount(
+                submission,
+                ssDueDate,
+                studentCount,
+                rosterIds || undefined
+            ),
             od: essayOverdueNotSubmittedCount(
                 submission,
                 ssDueDate,
@@ -2375,7 +2780,7 @@
 
     function essayAlertCountsForClass(submissions, classData, cohorts) {
         if (!classData || !classData.id) {
-            return { rs: 0, od: 0, ae: 0 };
+            return { rs: 0, as: 0, od: 0, ae: 0 };
         }
         const students = resolveStudentsForClass(classData, cohorts);
         const totalStudents = students.length;
@@ -2383,6 +2788,7 @@
             .map((entry) => entry && entry.student && entry.student.id)
             .filter(Boolean);
         let rs = 0;
+        let asCount = 0;
         let od = 0;
         let ae = 0;
         getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
@@ -2400,10 +2806,11 @@
                 activeStudentIds
             );
             rs += alerts.rs;
+            asCount += alerts.as;
             od += alerts.od;
             ae += alerts.ae;
         });
-        return { rs, od, ae };
+        return { rs, as: asCount, od, ae };
     }
 
     function formatEssayClassAlertSuffix(counts) {
@@ -2411,6 +2818,9 @@
         const parts = [];
         if (c.rs > 0) {
             parts.push(`RS:${c.rs}`);
+        }
+        if (c.as > 0) {
+            parts.push(`NS:${c.as}`);
         }
         if (c.od > 0) {
             parts.push(`OD:${c.od}`);
@@ -2492,6 +2902,7 @@
                 totalStudents,
                 counts: alerts.counts,
                 rs: alerts.rs,
+                as: alerts.as,
                 od: alerts.od,
                 ssDueDate: ssDue,
                 teacherEvalDueDate: teDue,
@@ -2567,6 +2978,105 @@
                         studentName: nameMap.get(studentId) || studentId,
                         note: normalizeStr(rec.note),
                         submittedRetest: Boolean(rec.submittedRetest)
+                    });
+                });
+            });
+        });
+
+        rows.sort((a, b) => {
+            const byClass = String(a.className).localeCompare(String(b.className));
+            if (byClass !== 0) {
+                return byClass;
+            }
+            const byAssignment = String(a.lessonDate).localeCompare(String(b.lessonDate));
+            if (byAssignment !== 0) {
+                return byAssignment;
+            }
+            return String(a.studentName).localeCompare(String(b.studentName));
+        });
+        return rows;
+    }
+
+    /**
+     * Per-student overdue rows for print/copy warns (not_submitted past SS due, or received late).
+     * Uses the current class roster so archived students do not appear.
+     */
+    function listEssayOverdueRows(appData, options) {
+        const opts = options || {};
+        const data = appData || {};
+        let classes = Array.isArray(opts.classes)
+            ? opts.classes
+            : Array.isArray(data.classes)
+                ? data.classes
+                : [];
+        const classIdFilter = normalizeStr(opts.classId);
+        if (classIdFilter) {
+            classes = classes.filter((c) => c && c.id === classIdFilter);
+        }
+        const submissions = Array.isArray(data.essaySubmissions) ? data.essaySubmissions : [];
+        const cohorts = Array.isArray(data.cohorts) ? data.cohorts : [];
+        const rows = [];
+
+        classes.forEach((classData) => {
+            if (!classData || !classData.id) {
+                return;
+            }
+            const students = resolveStudentsForClass(classData, cohorts);
+            const classTypeLabel = resolveClassTypeLabel(classData, data);
+            const levelLabel = resolveClassLevelLabel(classData);
+            getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+                const syllabusRowId = getSyllabusRowKey(row);
+                if (!syllabusRowId) {
+                    return;
+                }
+                const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
+                const assignmentLabel = getEssayAssignmentLabel(row);
+                const ssDue =
+                    submission && submission.ssDueDate
+                        ? submission.ssDueDate
+                        : row.date || '';
+                students.forEach((entry) => {
+                    const studentId = entry && entry.student && normalizeStr(entry.student.id);
+                    if (!studentId) {
+                        return;
+                    }
+                    const rec = getEssayRecordForStudent(submission, studentId) || {
+                        studentId,
+                        status: 'not_submitted',
+                        submissionLate: false,
+                        overdueDismissed: false
+                    };
+                    if (!isEssaySubmissionOverdue(rec, ssDue)) {
+                        return;
+                    }
+                    const receivedLate = isEssayReceivedLate(rec);
+                    const status =
+                        ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
+                    rows.push({
+                        key: `${classData.id}|${syllabusRowId}|${studentId}`,
+                        classId: classData.id,
+                        className: classData.name || classData.id,
+                        classTypeId: normalizeStr(classData.classTypeId),
+                        classTypeLabel,
+                        grade: normalizeStr(classData.grade),
+                        levelLabel,
+                        subject: normalizeStr(classData.subject),
+                        syllabusRowId,
+                        assignmentLabel,
+                        lessonDate: row.date || '',
+                        studentId,
+                        studentName: String(
+                            (entry.student && entry.student.name) || studentId
+                        ).trim(),
+                        // Detail line uses ssOverdueKind (overdue / received late), not feedback notes.
+                        note: '',
+                        submittedRetest: false,
+                        status,
+                        submissionLate: Boolean(rec.submissionLate),
+                        overdueDismissed: Boolean(rec.overdueDismissed),
+                        ssDueDate: ssDue,
+                        ssOverdue: true,
+                        ssOverdueKind: receivedLate ? 'received_late' : 'not_submitted'
                     });
                 });
             });
@@ -3491,11 +4001,1455 @@
         return migrated;
     }
 
+    /**
+     * Normalize TMS subject / syllabus planTitle for fuzzy contains matching.
+     */
+    function normalizeEssayTitleKey(title) {
+        return normalizeStr(title)
+            .toLowerCase()
+            .replace(/[\s\u00A0._\-–—/\\()[\]{}'"`]+/g, '')
+            .replace(/에세이|essay/g, '');
+    }
+
+    function findCohortIdForTmsClass(appData, tmsClassId, className) {
+        const links = normalizeTmsRosterLinks(appData && appData.tmsRosterLinks);
+        const key = normalizeTmsClassKey(className, tmsClassId);
+        const byId = key && links[key] ? links[key] : null;
+        if (byId && byId.action === 'map' && byId.cohortId) {
+            return byId.cohortId;
+        }
+        // Fallback: scan links by tmsClassId or cleaned class name
+        const id = normalizeStr(tmsClassId);
+        const cleaned = cleanCohortNameForEssayMatch(className);
+        let found = '';
+        Object.keys(links).forEach((k) => {
+            if (found) {
+                return;
+            }
+            const entry = links[k];
+            if (!entry || entry.action !== 'map' || !entry.cohortId) {
+                return;
+            }
+            if (id && normalizeStr(entry.tmsClassId) === id) {
+                found = entry.cohortId;
+                return;
+            }
+            if (
+                cleaned &&
+                cleanCohortNameForEssayMatch(entry.tmsClassName) === cleaned
+            ) {
+                found = entry.cohortId;
+            }
+        });
+        return found;
+    }
+
+    function cleanCohortNameForEssayMatch(name) {
+        return normalizeStr(name)
+            .replace(/^\[[^\]]+\]\s*/u, '')
+            .toLowerCase()
+            .replace(/\s+/g, '');
+    }
+
+    function listClassesForCohort(appData, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!cid) {
+            return [];
+        }
+        return (Array.isArray(appData && appData.classes) ? appData.classes : []).filter((c) => {
+            if (!c || !c.id) {
+                return false;
+            }
+            return getCohortIdsForClass(c).some((id) => normalizeStr(id) === cid);
+        });
+    }
+
+    function findStudentInCohortByKoreanName(cohort, tmsName) {
+        const students = normalizeCohortStudents(cohort);
+        const key = koreanMatchKey(tmsName);
+        if (!key) {
+            return null;
+        }
+        const exactMatches = students.filter((s) => koreanMatchKey(s.name) === key);
+        if (exactMatches.length === 1) {
+            return exactMatches[0];
+        }
+        if (exactMatches.length > 1) {
+            return null;
+        }
+        // Contiguous Hangul variant (same rules as roster fuzzy) — only when unique
+        const fuzzy = students.filter((s) => hangulNameVariantPair(s.name, tmsName));
+        if (fuzzy.length === 1) {
+            return fuzzy[0];
+        }
+        return null;
+    }
+
+    /** Unique roster hit by stored TMS student id (tmsMpidx). */
+    function findStudentByTmsMpidx(students, mpidx) {
+        const id = normalizeStr(mpidx);
+        if (!id) {
+            return null;
+        }
+        const list = Array.isArray(students) ? students : [];
+        const matches = list.filter((s) => s && normalizeStr(s.tmsMpidx || s.mpidx) === id);
+        return matches.length === 1 ? matches[0] : null;
+    }
+
+    /** Prefer non-empty English; never replace a longer CCMU name with a shorter TMS paren hint. */
+    function preferLongerNameEn(existing, incoming) {
+        const a = normalizeStr(existing);
+        const b = normalizeStr(incoming);
+        if (!b) {
+            return a;
+        }
+        if (!a) {
+            return b;
+        }
+        return b.length >= a.length ? b : a;
+    }
+
+    /**
+     * Pick best essay syllabus row for a TMS subject title (+ optional lesson date).
+     */
+    /**
+     * @param {{ termStart?: string, termEnd?: string }} [options]
+     */
+    function matchEssayAssignmentRow(classData, tmsTitle, lessonDate, options) {
+        const opts = options || {};
+        const tStart = normalizeStr(opts.termStart);
+        const tEnd = normalizeStr(opts.termEnd);
+        const want = normalizeStr(opts.assignedDate || lessonDate);
+        const wantMonth = yearMonthKey(want);
+        const rows = getEssayRowsForAssignedMonth(
+            classData && classData.syllabusRows,
+            want,
+            tStart,
+            tEnd
+        );
+        if (!rows.length) {
+            return null;
+        }
+        const titleKey = normalizeEssayTitleKey(tmsTitle);
+        if (!titleKey) {
+            return null;
+        }
+        const scored = [];
+        rows.forEach((row) => {
+            const isCustom = isCustomEssayAssignmentRow(row);
+            if (isCustom && !wantMonth) {
+                return;
+            }
+            const planKey = normalizeEssayTitleKey(row.planTitle || '');
+            const detailKey = normalizeEssayTitleKey(row.planDetail || '');
+            const hwKey = normalizeEssayTitleKey(row.homework || '');
+            let score = 0;
+            if (planKey === titleKey) {
+                score = 100;
+            } else if (planKey.includes(titleKey) || titleKey.includes(planKey)) {
+                score = 80;
+            } else if (
+                (detailKey && titleKey && (detailKey.includes(titleKey) || titleKey.includes(detailKey))) ||
+                (hwKey && titleKey && (hwKey.includes(titleKey) || titleKey.includes(hwKey)))
+            ) {
+                score = 50;
+            } else {
+                return;
+            }
+            const rowDate = normalizeStr(row.date);
+            if (want && rowDate === want) {
+                score += 25;
+            } else if (want && rowDate) {
+                if (wantMonth && rowDate.slice(0, 7) === wantMonth) {
+                    score += 20;
+                }
+                const diff = Math.abs(
+                    (Date.parse(`${rowDate}T12:00:00`) || 0) - (Date.parse(`${want}T12:00:00`) || 0)
+                );
+                const days = diff / 86400000;
+                if (days <= 7) {
+                    score += Math.max(0, 15 - Math.floor(days));
+                }
+            }
+            const dateDist = want && rowDate
+                ? Math.abs((Date.parse(`${rowDate}T12:00:00`) || 0) - (Date.parse(`${want}T12:00:00`) || 0))
+                : Infinity;
+            scored.push({ row, score, syllabusRowId: getSyllabusRowKey(row), dateDist });
+        });
+        scored.sort((a, b) => b.score - a.score || a.dateDist - b.dateDist);
+        if (!scored.length) {
+            return null;
+        }
+        if (scored.length > 1 && scored[0].score === scored[1].score && scored[0].dateDist === scored[1].dateDist) {
+            return null;
+        }
+        return scored[0];
+    }
+
+    function isEssaySubmissionLate(dueDate, submittedAt) {
+        const due = normalizeStr(dueDate);
+        const at = normalizeStr(submittedAt);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !/^\d{4}-\d{2}-\d{2}$/.test(at)) {
+            return null;
+        }
+        return compareDateStr(at, due) > 0;
+    }
+
+    /** Stable key for one TMS Writing assignment (prefer homeworkitemidx). */
+    function normalizeTmsEssayAssignmentKey(assign) {
+        if (!assign || typeof assign !== 'object') {
+            return '';
+        }
+        const hw = normalizeStr(assign.homeworkItemIdx);
+        if (hw) {
+            return `hw:${hw}`;
+        }
+        const cls = normalizeStr(assign.tmsClassId) || cleanCohortNameForEssayMatch(assign.className);
+        const title = normalizeEssayTitleKey(assign.title);
+        const date = normalizeStr(assign.lessonDate);
+        if (!cls && !title) {
+            return '';
+        }
+        return `n:${cls}|${title}|${date}`;
+    }
+
+    function normalizeTmsEssayLinkEntry(raw, keyHint) {
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+        const action = raw.action === 'skip' ? 'skip' : raw.action === 'map' ? 'map' : '';
+        if (!action) {
+            return null;
+        }
+        const classId = action === 'map' ? normalizeStr(raw.classId) : '';
+        const syllabusRowId = action === 'map' ? normalizeStr(raw.syllabusRowId) : '';
+        if (action === 'map' && (!classId || !syllabusRowId)) {
+            return null;
+        }
+        return {
+            action,
+            classId,
+            syllabusRowId,
+            tmsClassId: normalizeStr(raw.tmsClassId),
+            className: normalizeStr(raw.className) || normalizeStr(keyHint),
+            title: normalizeStr(raw.title),
+            lessonDate: normalizeStr(raw.lessonDate),
+            homeworkItemIdx: normalizeStr(raw.homeworkItemIdx)
+        };
+    }
+
+    function normalizeTmsEssayLinks(raw) {
+        const out = {};
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return out;
+        }
+        Object.keys(raw).forEach((key) => {
+            const entry = normalizeTmsEssayLinkEntry(raw[key], key);
+            if (!entry) {
+                return;
+            }
+            const k =
+                normalizeStr(key) ||
+                normalizeTmsEssayAssignmentKey({
+                    homeworkItemIdx: entry.homeworkItemIdx,
+                    tmsClassId: entry.tmsClassId,
+                    className: entry.className,
+                    title: entry.title,
+                    lessonDate: entry.lessonDate
+                });
+            if (!k) {
+                return;
+            }
+            out[k] = entry;
+        });
+        return out;
+    }
+
+    function upsertTmsEssayLinks(existingLinks, planRows, classes) {
+        const next = normalizeTmsEssayLinks(existingLinks);
+        const validClassIds = new Set(
+            (Array.isArray(classes) ? classes : [])
+                .filter((c) => c && normalizeStr(c.id))
+                .map((c) => normalizeStr(c.id))
+        );
+
+        (Array.isArray(planRows) ? planRows : []).forEach((row) => {
+            if (!row) {
+                return;
+            }
+            const key = normalizeStr(row.key) || normalizeTmsEssayAssignmentKey(row);
+            if (!key) {
+                return;
+            }
+            if (row.userAction === 'skip') {
+                next[key] = {
+                    action: 'skip',
+                    classId: '',
+                    syllabusRowId: '',
+                    tmsClassId: normalizeStr(row.tmsClassId),
+                    className: normalizeStr(row.className),
+                    title: normalizeStr(row.title),
+                    lessonDate: normalizeStr(row.lessonDate),
+                    homeworkItemIdx: normalizeStr(row.homeworkItemIdx)
+                };
+                return;
+            }
+            if (row.userAction === 'map') {
+                const classId = normalizeStr(row.userClassId || row.classId);
+                const syllabusRowId = normalizeStr(row.userSyllabusRowId || row.syllabusRowId);
+                if (!classId || !syllabusRowId || !validClassIds.has(classId)) {
+                    return;
+                }
+                next[key] = {
+                    action: 'map',
+                    classId,
+                    syllabusRowId,
+                    tmsClassId: normalizeStr(row.tmsClassId),
+                    className: normalizeStr(row.className),
+                    title: normalizeStr(row.title),
+                    lessonDate: normalizeStr(row.lessonDate),
+                    homeworkItemIdx: normalizeStr(row.homeworkItemIdx)
+                };
+            }
+        });
+
+        Object.keys(next).forEach((k) => {
+            const entry = next[k];
+            if (entry.action === 'map' && entry.classId && !validClassIds.has(entry.classId)) {
+                delete next[k];
+            }
+        });
+        return next;
+    }
+
+    function listEssayClasses(appData) {
+        return (Array.isArray(appData && appData.classes) ? appData.classes : []).filter((c) => {
+            if (!c || !c.id) {
+                return false;
+            }
+            return getEssayRowsFromSyllabus(c.syllabusRows).length > 0;
+        });
+    }
+
+    function suggestTmsEssayMapping(appData, assign, options) {
+        const data = appData || {};
+        const key = normalizeTmsEssayAssignmentKey(assign);
+        const links = normalizeTmsEssayLinks(data.tmsEssayLinks);
+        const saved = key && links[key] ? links[key] : null;
+        const suggestOpts = options || {};
+        const assignedDate = normalizeStr(assign && (assign.assignedDate || assign.lessonDate));
+        const assignedMonth = yearMonthKey(assignedDate);
+        const classExists = (id) =>
+            (Array.isArray(data.classes) ? data.classes : []).some(
+                (c) => c && normalizeStr(c.id) === normalizeStr(id)
+            );
+        const rowExists = (classId, syllabusRowId) => {
+            const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+                (c) => c && normalizeStr(c.id) === normalizeStr(classId)
+            );
+            if (!classData) {
+                return false;
+            }
+            return getEssayRowsForAssignedMonth(
+                classData.syllabusRows,
+                assignedDate,
+                suggestOpts.termStart,
+                suggestOpts.termEnd
+            ).some(
+                (r) => getSyllabusRowKey(r) === normalizeStr(syllabusRowId)
+            );
+        };
+
+        if (saved && saved.action === 'skip') {
+            return {
+                key,
+                source: 'saved',
+                remembered: true,
+                userAction: 'skip',
+                userClassId: '',
+                userSyllabusRowId: '',
+                suggestedClassId: '',
+                suggestedSyllabusRowId: ''
+            };
+        }
+        if (
+            saved &&
+            saved.action === 'map' &&
+            (!assignedMonth || !yearMonthKey(saved.lessonDate) || yearMonthKey(saved.lessonDate) === assignedMonth) &&
+            classExists(saved.classId) &&
+            rowExists(saved.classId, saved.syllabusRowId)
+        ) {
+            return {
+                key,
+                source: 'saved',
+                remembered: true,
+                userAction: 'map',
+                userClassId: saved.classId,
+                userSyllabusRowId: saved.syllabusRowId,
+                suggestedClassId: saved.classId,
+                suggestedSyllabusRowId: saved.syllabusRowId
+            };
+        }
+
+        let suggestedClassId = '';
+        let suggestedSyllabusRowId = '';
+        const cohortId = findCohortIdForTmsClass(data, assign.tmsClassId, assign.className);
+        const classes = cohortId ? listClassesForCohort(data, cohortId) : listEssayClasses(data);
+        let best = null;
+        classes.forEach((classData) => {
+            const hit = matchEssayAssignmentRow(classData, assign.title, assignedDate, {
+                assignedDate,
+                termStart: suggestOpts.termStart,
+                termEnd: suggestOpts.termEnd
+            });
+            if (!hit) {
+                return;
+            }
+            if (!best || hit.score > best.score) {
+                best = {
+                    classId: normalizeStr(classData.id),
+                    syllabusRowId: hit.syllabusRowId,
+                    score: hit.score
+                };
+            }
+        });
+        if (best) {
+            suggestedClassId = best.classId;
+            suggestedSyllabusRowId = best.syllabusRowId;
+        }
+
+        return {
+            key,
+            source: 'none',
+            remembered: false,
+            // Do not auto-map — teacher confirms (like roster sync)
+            userAction: 'choose',
+            userClassId: '',
+            userSyllabusRowId: '',
+            suggestedClassId,
+            suggestedSyllabusRowId
+        };
+    }
+
+    /**
+     * Build editable plan rows (one per TMS Writing assignment) for confirm/correct UI.
+     */
+    function buildTmsEssaySyncPlan(appData, scrapeResult, options) {
+        const planOpts = options || {};
+        const assignments = Array.isArray(scrapeResult && scrapeResult.assignments)
+            ? scrapeResult.assignments
+            : [];
+        const filterClassId = normalizeStr(planOpts.filterClassId);
+        const tStart = normalizeStr(planOpts.termStart);
+        const tEnd = normalizeStr(planOpts.termEnd);
+        const rows = [];
+        let filteredOutOfTermCount = 0;
+        assignments.forEach((assign) => {
+            if (!assign || !assign.title) {
+                return;
+            }
+            const lessonDate = normalizeStr(assign.assignedDate || assign.lessonDate);
+            if (
+                lessonDate &&
+                ((tStart && lessonDate < tStart) || (tEnd && lessonDate > tEnd))
+            ) {
+                filteredOutOfTermCount += 1;
+                return;
+            }
+            const resolved = suggestTmsEssayMapping(appData, assign, {
+                termStart: tStart,
+                termEnd: tEnd
+            });
+            if (filterClassId) {
+                const mappedClass = resolved.userClassId || resolved.suggestedClassId || '';
+                if (mappedClass && normalizeStr(mappedClass) !== filterClassId) {
+                    return;
+                }
+                if (!mappedClass) {
+                    const cohortId = findCohortIdForTmsClass(appData, assign.tmsClassId, assign.className);
+                    if (!cohortId) {
+                        return;
+                    }
+                    const matchClasses = listClassesForCohort(appData, cohortId);
+                    if (!matchClasses.some((c) => normalizeStr(c.id) === filterClassId)) {
+                        return;
+                    }
+                }
+            }
+            rows.push({
+                key: resolved.key || normalizeTmsEssayAssignmentKey(assign),
+                tmsClassId: normalizeStr(assign.tmsClassId),
+                className: normalizeStr(assign.className),
+                title: normalizeStr(assign.title),
+                lessonDate: normalizeStr(assign.lessonDate),
+                assignedDate: normalizeStr(assign.assignedDate || assign.lessonDate),
+                assignedMonth: yearMonthKey(assign.assignedDate || assign.lessonDate),
+                portfolioTitle: normalizeStr(assign.portfolioTitle),
+                homeworkItemIdx: normalizeStr(assign.homeworkItemIdx),
+                studentCount: Array.isArray(assign.students) ? assign.students.length : 0,
+                students: Array.isArray(assign.students)
+                    ? assign.students.map((s) => ({
+                          name: normalizeStr(s && s.name),
+                          nameEn: normalizeStr(s && s.nameEn),
+                          mpidx: normalizeStr(s && (s.mpidx || s.tmsMpidx)),
+                          submitted: Boolean(s && s.submitted),
+                          submittedAt: normalizeStr(s && s.submittedAt)
+                      }))
+                    : [],
+                userAction: resolved.userAction,
+                userClassId: resolved.userClassId || '',
+                userSyllabusRowId: resolved.userSyllabusRowId || '',
+                suggestedClassId: resolved.suggestedClassId || '',
+                suggestedSyllabusRowId: resolved.suggestedSyllabusRowId || '',
+                remembered: Boolean(resolved.remembered),
+                linkSource: resolved.source || 'none'
+            });
+        });
+        rows.sort((a, b) => {
+            const byDate = compareDateStr(b.lessonDate, a.lessonDate);
+            if (byDate !== 0) {
+                return byDate;
+            }
+            return normalizeStr(a.className).localeCompare(normalizeStr(b.className));
+        });
+        return { rows, filteredOutOfTermCount };
+    }
+
+    /**
+     * Expand user-confirmed plan rows into Received updates (not_submitted → submitted only).
+     * Honors row.studentResolutions: { [koreanMatchKey]: { action:'map'|'add'|'skip', studentId? } }.
+     * Status symbols are ignored for matching; Latin letters still disambiguate.
+     */
+    function previewTmsEssaySyncPlan(appData, planRows, options) {
+        const data = appData || {};
+        const opts = options || {};
+        const updates = [];
+        const skipped = [];
+        const unmatched = [];
+        const makeId =
+            typeof opts.newStudentId === 'function' ? opts.newStudentId : () => newId('stu');
+
+        (Array.isArray(planRows) ? planRows : []).forEach((row, rowIdx) => {
+            if (!row) {
+                return;
+            }
+            if (row.userAction === 'skip') {
+                skipped.push({
+                    reason: 'skipped_by_user',
+                    className: row.className || '',
+                    title: row.title || '',
+                    lessonDate: row.lessonDate || '',
+                    studentCount: row.studentCount || 0
+                });
+                return;
+            }
+            if (row.userAction !== 'map') {
+                unmatched.push({
+                    reason: 'unresolved',
+                    className: row.className || '',
+                    title: row.title || '',
+                    lessonDate: row.lessonDate || '',
+                    studentCount: row.studentCount || 0
+                });
+                return;
+            }
+            const classId = normalizeStr(row.userClassId);
+            const syllabusRowId = normalizeStr(row.userSyllabusRowId);
+            if (!classId || !syllabusRowId) {
+                unmatched.push({
+                    reason: 'unresolved',
+                    className: row.className || '',
+                    title: row.title || '',
+                    lessonDate: row.lessonDate || '',
+                    studentCount: row.studentCount || 0
+                });
+                return;
+            }
+            const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+                (c) => c && normalizeStr(c.id) === classId
+            );
+            if (!classData) {
+                unmatched.push({
+                    reason: 'class_missing',
+                    className: row.className || '',
+                    title: row.title || '',
+                    classId,
+                    syllabusRowId
+                });
+                return;
+            }
+            const essayRow = getEssayRowsFromSyllabus(classData.syllabusRows).find(
+                (r) => getSyllabusRowKey(r) === syllabusRowId
+            );
+            if (!essayRow) {
+                unmatched.push({
+                    reason: 'assignment_missing',
+                    className: classData.name || row.className || '',
+                    title: row.title || '',
+                    classId,
+                    syllabusRowId
+                });
+                return;
+            }
+            const rowAssignedDate = normalizeStr(row.assignedDate || row.lessonDate);
+            if (
+                yearMonthKey(essayRow.date) &&
+                yearMonthKey(rowAssignedDate) &&
+                yearMonthKey(essayRow.date) !== yearMonthKey(rowAssignedDate)
+            ) {
+                unmatched.push({
+                    reason: 'assignment_month_mismatch',
+                    className: classData.name || row.className || '',
+                    title: row.title || '',
+                    classId,
+                    syllabusRowId,
+                    lessonDate: row.lessonDate || '',
+                    assignedDate: rowAssignedDate,
+                    assignmentDate: normalizeStr(essayRow.date)
+                });
+                return;
+            }
+
+            const cohortIds = getCohortIdsForClass(classData);
+            const cohortList = Array.isArray(data.cohorts) ? data.cohorts : [];
+            const primaryCohortId = cohortIds[0] || '';
+            const existing = findEssaySubmission(data.essaySubmissions, classId, syllabusRowId);
+            const due =
+                (existing && existing.ssDueDate) ||
+                normalizeStr(essayRow.date) ||
+                normalizeStr(row.lessonDate);
+            const rememberedResolutions = {};
+            cohortIds.forEach((cid) => {
+                const cohort = cohortList.find((c) => c && normalizeStr(c.id) === normalizeStr(cid));
+                Object.assign(
+                    rememberedResolutions,
+                    normalizeTmsStudentResolutions(cohort && cohort.tmsStudentResolutions)
+                );
+            });
+            // Session wizard choices override remembered roster/essay resolutions.
+            const resolutions = Object.assign(
+                {},
+                rememberedResolutions,
+                normalizeTmsStudentResolutions(row.studentResolutions)
+            );
+            const rosterStudents = [];
+            cohortIds.forEach((cid) => {
+                const cohort = cohortList.find((c) => c && normalizeStr(c.id) === normalizeStr(cid));
+                normalizeCohortStudents(cohort).forEach((s) => {
+                    if (s && s.active !== false) {
+                        rosterStudents.push(Object.assign({ cohortId: normalizeStr(cid) }, s));
+                    }
+                });
+            });
+
+            (Array.isArray(row.students) ? row.students : []).forEach((stu) => {
+                if (!stu || !stu.submitted || !stu.name) {
+                    return;
+                }
+                const tmsKey = koreanMatchKey(stu.name);
+                if (!tmsKey) {
+                    return;
+                }
+                const resolution = resolutions[tmsKey];
+                if (resolution && resolution.action === 'skip') {
+                    skipped.push({
+                        reason: 'student_skipped',
+                        className: classData.name || row.className || '',
+                        title: row.title || '',
+                        studentName: stu.name,
+                        classId,
+                        syllabusRowId,
+                        tmsKey,
+                        rowIdx
+                    });
+                    return;
+                }
+
+                let student = null;
+                let addNew = false;
+                if (resolution && resolution.action === 'map') {
+                    student = rosterStudents.find(
+                        (s) => normalizeStr(s.id) === normalizeStr(resolution.studentId)
+                    );
+                    if (!student) {
+                        unmatched.push({
+                            reason: 'student_unmatched',
+                            className: classData.name || row.className || '',
+                            title: row.title || '',
+                            studentName: stu.name,
+                            classId,
+                            syllabusRowId,
+                            tmsKey,
+                            rowIdx,
+                            needsReview: true
+                        });
+                        return;
+                    }
+                } else if (resolution && resolution.action === 'add') {
+                    addNew = true;
+                } else {
+                    student = findStudentByTmsMpidx(rosterStudents, stu.mpidx || stu.tmsMpidx);
+                    if (!student) {
+                        student = findStudentInCohortByKoreanName(
+                            { students: rosterStudents },
+                            stu.name
+                        );
+                    }
+                    if (!student) {
+                        const unclear = listUnclearTmsStudentMatches(rosterStudents, [stu]);
+                        if (unclear.length) {
+                            unmatched.push({
+                                reason: 'student_unclear',
+                                className: classData.name || row.className || '',
+                                title: row.title || '',
+                                studentName: stu.name,
+                                studentNameEn: stu.nameEn || '',
+                                classId,
+                                syllabusRowId,
+                                tmsKey,
+                                rowIdx,
+                                needsReview: true,
+                                candidates: unclear[0].candidates || [],
+                                unclearReason: unclear[0].reason
+                            });
+                            return;
+                        }
+                        unmatched.push({
+                            reason: 'student_unmatched',
+                            className: classData.name || row.className || '',
+                            title: row.title || '',
+                            studentName: stu.name,
+                            studentNameEn: stu.nameEn || '',
+                            classId,
+                            syllabusRowId,
+                            tmsKey,
+                            rowIdx,
+                            needsReview: true,
+                            candidates: rosterStudents.map((s) => ({
+                                id: s.id,
+                                name: s.name,
+                                nameEn: s.nameEn || ''
+                            }))
+                        });
+                        return;
+                    }
+                }
+
+                const studentId = addNew ? `pending_add_${rowIdx}_${tmsKey}` : student.id;
+                const studentName = addNew ? stu.name : student.name;
+                const nameUpdated =
+                    !addNew && normalizeStr(student.name) !== normalizeStr(stu.name);
+                const nameEnToWrite = addNew
+                    ? normalizeStr(stu.nameEn)
+                    : preferLongerNameEn(student.nameEn, stu.nameEn);
+                const nameEnUpdated =
+                    !addNew && nameEnToWrite !== normalizeStr(student.nameEn);
+                const mpidxToWrite =
+                    normalizeStr(stu.mpidx || stu.tmsMpidx) ||
+                    (!addNew ? normalizeStr(student.tmsMpidx) : '');
+                const mpidxUpdated =
+                    !addNew &&
+                    Boolean(mpidxToWrite) &&
+                    mpidxToWrite !== normalizeStr(student.tmsMpidx);
+                const rec = addNew ? null : getEssayRecordForStudent(existing, studentId);
+                const prevStatus =
+                    rec && ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
+                if (!addNew && prevStatus !== 'not_submitted') {
+                    skipped.push({
+                        reason: 'already_set',
+                        classId,
+                        className: classData.name || row.className || '',
+                        syllabusRowId,
+                        assignmentLabel: getEssayAssignmentLabel(essayRow),
+                        studentId,
+                        studentName,
+                        tmsName: stu.name,
+                        prevStatus,
+                        tmsTitle: row.title
+                    });
+                    return;
+                }
+                const late = isEssaySubmissionLate(due, stu.submittedAt);
+                updates.push({
+                    classId,
+                    className: classData.name || row.className || '',
+                    syllabusRowId,
+                    assignmentLabel: getEssayAssignmentLabel(essayRow),
+                    lessonDate: normalizeStr(essayRow.date) || row.lessonDate || '',
+                    studentId,
+                    studentName: addNew || nameUpdated ? stu.name : studentName,
+                    tmsName: stu.name,
+                    tmsNameEn: nameEnToWrite,
+                    tmsMpidx: mpidxToWrite,
+                    prevStatus: 'not_submitted',
+                    nextStatus: 'submitted',
+                    submittedAt: stu.submittedAt || '',
+                    submissionLate: late === true,
+                    tmsTitle: row.title,
+                    tmsClassId: row.tmsClassId || '',
+                    tmsLessonDate: row.lessonDate || '',
+                    addStudent: addNew,
+                    addCohortId: addNew ? primaryCohortId : '',
+                    nameUpdated: Boolean(nameUpdated),
+                    nameEnUpdated: Boolean(nameEnUpdated),
+                    mpidxUpdated: Boolean(mpidxUpdated),
+                    tmsKey,
+                    rowIdx
+                });
+            });
+        });
+
+        return {
+            updates,
+            skipped,
+            unmatched,
+            summary: {
+                updateCount: updates.length,
+                skipCount: skipped.length,
+                unmatchedCount: unmatched.length,
+                assignmentCount: Array.isArray(planRows) ? planRows.length : 0,
+                needsReviewCount: unmatched.filter((u) => u && u.needsReview).length
+            }
+        };
+    }
+
+    /**
+     * Pending essay TMS student rows that still need map/add/skip.
+     */
+    function listEssayTmsStudentReviewQueue(appData, planRows) {
+        const preview = previewTmsEssaySyncPlan(appData, planRows);
+        return (preview.unmatched || []).filter((u) => u && u.needsReview);
+    }
+
+    /**
+     * Auto-build plan with suggestions applied as provisional maps (for tests / quick path).
+     * UI should use buildTmsEssaySyncPlan + user edits + previewTmsEssaySyncPlan instead.
+     */
+    function previewTmsEssaySync(appData, scrapeResult) {
+        const built = buildTmsEssaySyncPlan(appData, scrapeResult);
+        const rows = (built.rows || []).map((row) => {
+            if (row.userAction === 'skip') {
+                return row;
+            }
+            if (row.userAction === 'map' && row.userClassId && row.userSyllabusRowId) {
+                return row;
+            }
+            // Provisional: use suggestions so unit tests still exercise match path
+            if (row.suggestedClassId && row.suggestedSyllabusRowId) {
+                return Object.assign({}, row, {
+                    userAction: 'map',
+                    userClassId: row.suggestedClassId,
+                    userSyllabusRowId: row.suggestedSyllabusRowId
+                });
+            }
+            return row;
+        });
+        const preview = previewTmsEssaySyncPlan(appData, rows);
+        preview.planRows = rows;
+        return preview;
+    }
+
+    /**
+     * Apply preview plan rows (only not_submitted → submitted).
+     * Also adds new cohort students and adopts TMS display names when requested by updates.
+     * @param {Array} essaySubmissions
+     * @param {{ updates?: Array }} plan — from previewTmsEssaySyncPlan
+     * @param {{ appData?: object, newSubmissionId?: function, newStudentId?: function }} options
+     */
+    function applyTmsEssaySync(essaySubmissions, plan, options) {
+        const opts = options || {};
+        const data = opts.appData || {};
+        let list = Array.isArray(essaySubmissions) ? essaySubmissions.slice() : [];
+        let cohorts = cloneCohorts(data.cohorts);
+        const updates = Array.isArray(plan && plan.updates) ? plan.updates : [];
+        const applied = [];
+        const ignored = [];
+        const makeStudentId =
+            typeof opts.newStudentId === 'function' ? opts.newStudentId : () => newId('stu');
+
+        // Materialize add-student updates + adopt TMS display names / mpidx before essay records.
+        const idRemap = new Map();
+        updates.forEach((u) => {
+            if (!u) {
+                return;
+            }
+            if (u.addStudent && u.addCohortId) {
+                const newIdVal = makeStudentId();
+                idRemap.set(u.studentId, newIdVal);
+                const idx = cohorts.findIndex(
+                    (c) => c && normalizeStr(c.id) === normalizeStr(u.addCohortId)
+                );
+                if (idx >= 0) {
+                    const students = normalizeCohortStudents(cohorts[idx]).slice();
+                    students.push({
+                        id: newIdVal,
+                        name: normalizeStr(u.tmsName || u.studentName),
+                        nameEn: normalizeStr(u.tmsNameEn),
+                        locationTag: '',
+                        sortOrder: students.length,
+                        active: true,
+                        tags: [],
+                        memo: '',
+                        archivedAt: '',
+                        archiveReason: '',
+                        expectedStartDate: '',
+                        tmsMpidx: normalizeStr(u.tmsMpidx)
+                    });
+                    cohorts[idx] = Object.assign({}, cohorts[idx], { students });
+                }
+                u.studentId = newIdVal;
+            } else if (
+                u.studentId &&
+                (u.nameUpdated || u.nameEnUpdated || u.mpidxUpdated)
+            ) {
+                cohorts = cohorts.map((c) => {
+                    if (!c || !Array.isArray(c.students)) {
+                        return c;
+                    }
+                    let changed = false;
+                    const students = c.students.map((s) => {
+                        if (!s || normalizeStr(s.id) !== normalizeStr(u.studentId)) {
+                            return s;
+                        }
+                        changed = true;
+                        const patch = {};
+                        if (u.nameUpdated && u.tmsName) {
+                            patch.name = normalizeStr(u.tmsName);
+                        }
+                        if (u.nameEnUpdated || u.tmsNameEn) {
+                            patch.nameEn = preferLongerNameEn(s.nameEn, u.tmsNameEn);
+                        }
+                        if (u.mpidxUpdated || u.tmsMpidx) {
+                            const mp = normalizeStr(u.tmsMpidx);
+                            if (mp) {
+                                patch.tmsMpidx = mp;
+                            }
+                        }
+                        return Object.assign({}, s, patch);
+                    });
+                    return changed ? Object.assign({}, c, { students }) : c;
+                });
+            }
+        });
+
+        // Persist essay/session studentResolutions onto mapped class cohorts (same as roster sync).
+        const planRows = Array.isArray(opts.planRows) ? opts.planRows : [];
+        planRows.forEach((row) => {
+            if (!row || !row.studentResolutions) {
+                return;
+            }
+            const sessionResolutions = normalizeTmsStudentResolutions(row.studentResolutions);
+            if (!Object.keys(sessionResolutions).length) {
+                return;
+            }
+            const classId = normalizeStr(row.userClassId || row.suggestedClassId);
+            if (!classId) {
+                return;
+            }
+            const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+                (c) => c && normalizeStr(c.id) === classId
+            );
+            const cohortIds = getCohortIdsForClass(classData);
+            if (!cohortIds.length) {
+                return;
+            }
+            cohorts = cohorts.map((c) => {
+                if (!c || !cohortIds.some((id) => normalizeStr(id) === normalizeStr(c.id))) {
+                    return c;
+                }
+                return Object.assign({}, c, {
+                    tmsStudentResolutions: mergeTmsStudentResolutions(
+                        c.tmsStudentResolutions,
+                        sessionResolutions
+                    )
+                });
+            });
+        });
+
+        // Group by classId+syllabusRowId
+        const byKey = new Map();
+        updates.forEach((u) => {
+            if (!u || !u.classId || !u.syllabusRowId || !u.studentId) {
+                return;
+            }
+            const key = `${u.classId}\0${u.syllabusRowId}`;
+            if (!byKey.has(key)) {
+                byKey.set(key, []);
+            }
+            byKey.get(key).push(u);
+        });
+
+        byKey.forEach((rows, key) => {
+            const [classId, syllabusRowId] = key.split('\0');
+            let submission = findEssaySubmission(list, classId, syllabusRowId);
+            if (!submission) {
+                const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+                    (c) => c && normalizeStr(c.id) === normalizeStr(classId)
+                );
+                const row =
+                    classData &&
+                    getEssayRowsFromSyllabus(classData.syllabusRows).find(
+                        (r) => getSyllabusRowKey(r) === syllabusRowId
+                    );
+                submission = {
+                    id: opts.newSubmissionId ? opts.newSubmissionId() : newId('essay'),
+                    classId,
+                    syllabusRowId,
+                    lessonDate: (row && row.date) || (rows[0] && rows[0].lessonDate) || '',
+                    ssDueDate: (row && row.date) || '',
+                    teacherEvalDueDate: row && row.date ? addDaysISO(row.date, 2) : '',
+                    records: []
+                };
+            } else {
+                submission = Object.assign({}, submission, {
+                    records: Array.isArray(submission.records) ? submission.records.slice() : []
+                });
+            }
+
+            rows.forEach((u) => {
+                const idx = submission.records.findIndex(
+                    (r) => r && normalizeStr(r.studentId) === normalizeStr(u.studentId)
+                );
+                const prev = idx >= 0 ? submission.records[idx] : null;
+                const prevStatus =
+                    prev && ESSAY_STATUSES.includes(prev.status) ? prev.status : 'not_submitted';
+                if (prevStatus !== 'not_submitted') {
+                    ignored.push(Object.assign({}, u, { reason: 'already_set', prevStatus }));
+                    return;
+                }
+                const next = Object.assign({}, prev || { studentId: u.studentId, note: '' }, {
+                    studentId: u.studentId,
+                    status: 'submitted',
+                    submittedRetest: false,
+                    submissionLate: Boolean(u.submissionLate),
+                    overdueDismissed: prev ? Boolean(prev.overdueDismissed) : false
+                });
+                if (idx >= 0) {
+                    submission.records[idx] = next;
+                } else {
+                    submission.records.push(next);
+                }
+                applied.push(u);
+            });
+
+            list = upsertEssaySubmission(list, submission);
+        });
+
+        return {
+            essaySubmissions: list,
+            cohorts,
+            applied,
+            ignored,
+            summary: { appliedCount: applied.length, ignoredCount: ignored.length }
+        };
+    }
+
     function newId(prefix) {
         if (global.CCPUtils && global.CCPUtils.newId) {
             return global.CCPUtils.newId(prefix);
         }
         return `${prefix || 'id'}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+
+    /**
+     * Map a TMS cohort block { start, end } to a CCMU period using timetable slots.
+     * Prefers exact start match, then maximum overlap with [start, end).
+     * @returns {{ period: number|null, timeSlotId: string, start: string, end: string, ambiguous: boolean }}
+     */
+    function mapTmsBlockToPeriod(block, timetableTimeSlots, periodSlotMap) {
+        const empty = { period: null, timeSlotId: '', start: '', end: '', ambiguous: false };
+        if (!block || !block.start) {
+            return empty;
+        }
+        const start = normalizeStr(block.start);
+        const end = normalizeStr(block.end);
+        const slots = Array.isArray(timetableTimeSlots) ? timetableTimeSlots.slice() : [];
+        if (!slots.length) {
+            return Object.assign({}, empty, { start, end });
+        }
+
+        function toMinutes(hhmm) {
+            const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+            if (!m) {
+                return null;
+            }
+            return Number(m[1]) * 60 + Number(m[2]);
+        }
+
+        const startMin = toMinutes(start);
+        const endMin = toMinutes(end) != null ? toMinutes(end) : startMin != null ? startMin + 50 : null;
+        if (startMin == null) {
+            return Object.assign({}, empty, { start, end });
+        }
+
+        const scored = slots
+            .map((slot) => {
+                const sMin = toMinutes(slot && slot.start);
+                const eMin = toMinutes(slot && slot.end);
+                if (sMin == null || eMin == null) {
+                    return null;
+                }
+                const exactStart = sMin === startMin;
+                const overlap = Math.max(0, Math.min(eMin, endMin) - Math.max(sMin, startMin));
+                return {
+                    slot,
+                    exactStart,
+                    overlap,
+                    startDelta: Math.abs(sMin - startMin)
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => {
+                if (a.exactStart !== b.exactStart) {
+                    return a.exactStart ? -1 : 1;
+                }
+                if (b.overlap !== a.overlap) {
+                    return b.overlap - a.overlap;
+                }
+                return a.startDelta - b.startDelta;
+            });
+
+        if (!scored.length || (scored[0].overlap === 0 && !scored[0].exactStart)) {
+            return Object.assign({}, empty, { start, end });
+        }
+
+        const best = scored[0];
+        const tie =
+            scored.length > 1 &&
+            scored[1].exactStart === best.exactStart &&
+            scored[1].overlap === best.overlap &&
+            scored[1].startDelta === best.startDelta;
+        const timeSlotId = normalizeStr(best.slot.id);
+        let period = null;
+        const map = periodSlotMap && typeof periodSlotMap === 'object' ? periodSlotMap : {};
+        Object.keys(map).forEach((p) => {
+            if (map[p] === timeSlotId) {
+                const n = parseInt(p, 10);
+                if (!Number.isNaN(n)) {
+                    period = n;
+                }
+            }
+        });
+        if (period == null && global.CCPTeacherTimetable && global.CCPTeacherTimetable.getPeriodNumberForTimeSlot) {
+            period = global.CCPTeacherTimetable.getPeriodNumberForTimeSlot(timeSlotId, {
+                periodSlotMap: map
+            });
+        }
+        return {
+            period,
+            timeSlotId,
+            start,
+            end,
+            ambiguous: Boolean(tie)
+        };
+    }
+
+    /**
+     * Propose student placements for a new-term migrate:
+     * previous CCMU cohorts → TMS seats on target cohorts.
+     * Matching: tmsMpidx, then unique Hangul koreanMatchKey.
+     *
+     * @param {object[]} previousCohorts
+     * @param {Array<{ cohortId: string, cohortName?: string, levelPreset?: string, students: Array<{name,nameEn?,mpidx?}> }>} tmsTargets
+     * @returns {{ moves: object[], adds: object[], unmatchedPrevious: object[], unclear: object[] }}
+     */
+    function buildTermMigrateTransferPlan(previousCohorts, tmsTargets) {
+        const prevList = Array.isArray(previousCohorts) ? previousCohorts : [];
+        const targets = Array.isArray(tmsTargets) ? tmsTargets : [];
+
+        /** @type {Array<{ studentId: string, name: string, nameEn: string, tmsMpidx: string, fromCohortId: string, fromCohortName: string, previousLevel: string, student: object }>} */
+        const prevStudents = [];
+        prevList.forEach((cohort) => {
+            if (!cohort || isArchiveCohort(cohort)) {
+                return;
+            }
+            const level =
+                normalizeStr(cohort.levelPreset) || normalizeStr(cohort.level) || '';
+            (Array.isArray(cohort.students) ? cohort.students : []).forEach((raw) => {
+                const s = normalizeStudent(raw);
+                if (!s || s.active === false) {
+                    return;
+                }
+                prevStudents.push({
+                    studentId: s.id,
+                    name: s.name,
+                    nameEn: s.nameEn,
+                    tmsMpidx: s.tmsMpidx,
+                    fromCohortId: normalizeStr(cohort.id),
+                    fromCohortName: normalizeStr(cohort.name),
+                    previousLevel: level,
+                    student: s
+                });
+            });
+        });
+
+        const usedPrevIds = new Set();
+        const moves = [];
+        const adds = [];
+        const unclear = [];
+
+        function findByMpidx(mpidx) {
+            if (!mpidx) {
+                return [];
+            }
+            return prevStudents.filter((p) => p.tmsMpidx === mpidx && !usedPrevIds.has(p.studentId));
+        }
+
+        function findByNameKey(name) {
+            const k = koreanMatchKey(name);
+            if (!k) {
+                return [];
+            }
+            return prevStudents.filter(
+                (p) => !usedPrevIds.has(p.studentId) && koreanMatchKey(p.name) === k
+            );
+        }
+
+        targets.forEach((target) => {
+            if (!target || !target.cohortId) {
+                return;
+            }
+            const toCohortId = normalizeStr(target.cohortId);
+            const toCohortName = normalizeStr(target.cohortName) || toCohortId;
+            const toLevel = normalizeStr(target.levelPreset) || normalizeStr(target.level) || '';
+            (Array.isArray(target.students) ? target.students : []).forEach((raw) => {
+                if (!raw || !normalizeStr(raw.name)) {
+                    return;
+                }
+                const tmsName = normalizeStr(raw.name);
+                const tmsNameEn = normalizeStr(raw.nameEn);
+                const mpidx = normalizeStr(raw.mpidx || raw.tmsMpidx);
+                const byMpidx = findByMpidx(mpidx);
+                if (byMpidx.length === 1) {
+                    const prev = byMpidx[0];
+                    usedPrevIds.add(prev.studentId);
+                    moves.push({
+                        action: 'move',
+                        studentId: prev.studentId,
+                        name: prev.name,
+                        nameEn: tmsNameEn || prev.nameEn,
+                        tmsName,
+                        tmsMpidx: mpidx,
+                        fromCohortId: prev.fromCohortId,
+                        fromCohortName: prev.fromCohortName,
+                        toCohortId,
+                        toCohortName,
+                        previousLevel: prev.previousLevel,
+                        nextLevel: toLevel,
+                        matchedBy: 'mpidx',
+                        likelyLevelUp: Boolean(
+                            prev.previousLevel && toLevel && prev.previousLevel !== toLevel
+                        ),
+                        student: prev.student
+                    });
+                    return;
+                }
+                const byName = findByNameKey(tmsName);
+                if (byName.length === 1) {
+                    const prev = byName[0];
+                    usedPrevIds.add(prev.studentId);
+                    moves.push({
+                        action: 'move',
+                        studentId: prev.studentId,
+                        name: prev.name,
+                        nameEn: tmsNameEn || prev.nameEn,
+                        tmsName,
+                        tmsMpidx: mpidx || prev.tmsMpidx,
+                        fromCohortId: prev.fromCohortId,
+                        fromCohortName: prev.fromCohortName,
+                        toCohortId,
+                        toCohortName,
+                        previousLevel: prev.previousLevel,
+                        nextLevel: toLevel,
+                        matchedBy: 'name',
+                        likelyLevelUp: Boolean(
+                            prev.previousLevel && toLevel && prev.previousLevel !== toLevel
+                        ),
+                        student: prev.student
+                    });
+                    return;
+                }
+                if (byName.length > 1 || byMpidx.length > 1) {
+                    unclear.push({
+                        action: 'unclear',
+                        tmsName,
+                        tmsNameEn,
+                        tmsMpidx: mpidx,
+                        toCohortId,
+                        toCohortName,
+                        candidates: (byMpidx.length > 1 ? byMpidx : byName).map((p) => ({
+                            studentId: p.studentId,
+                            name: p.name,
+                            nameEn: p.nameEn,
+                            fromCohortId: p.fromCohortId,
+                            fromCohortName: p.fromCohortName,
+                            previousLevel: p.previousLevel
+                        }))
+                    });
+                    return;
+                }
+                adds.push({
+                    action: 'add',
+                    tmsName,
+                    tmsNameEn,
+                    tmsMpidx: mpidx,
+                    toCohortId,
+                    toCohortName,
+                    name: tmsName,
+                    nameEn: tmsNameEn
+                });
+            });
+        });
+
+        const unmatchedPrevious = prevStudents
+            .filter((p) => !usedPrevIds.has(p.studentId))
+            .map((p) => ({
+                action: 'unmatched_previous',
+                studentId: p.studentId,
+                name: p.name,
+                nameEn: p.nameEn,
+                tmsMpidx: p.tmsMpidx,
+                fromCohortId: p.fromCohortId,
+                fromCohortName: p.fromCohortName,
+                previousLevel: p.previousLevel
+            }));
+
+        return { moves, adds, unmatchedPrevious, unclear };
+    }
+
+    /**
+     * Apply confirmed term-migrate moves into target cohorts (preserves stu_* ids).
+     * moves: buildTermMigrateTransferPlan().moves (or subset with optional studentId override for unclear).
+     * adds: new TMS-only students.
+     * Clears students from previous non-archive cohorts that were moved (via moveStudentsBetweenCohorts
+     * when both cohorts exist on the same list; otherwise injects into target and strips from source).
+     */
+    function applyTermMigrateTransferPlan(cohorts, plan, options) {
+        const opts = options || {};
+        let list = cloneCohorts(cohorts);
+        const makeId =
+            typeof opts.newStudentId === 'function' ? opts.newStudentId : () => newId('stu');
+        const moves = Array.isArray(plan && plan.moves) ? plan.moves : [];
+        const adds = Array.isArray(plan && plan.adds) ? plan.adds : [];
+        const applied = [];
+        const errors = [];
+
+        moves.forEach((tr) => {
+            if (!tr || tr.action === 'skip') {
+                return;
+            }
+            const fromId = normalizeStr(tr.fromCohortId);
+            const toId = normalizeStr(tr.toCohortId);
+            const sid = normalizeStr(tr.studentId);
+            if (!toId || !sid) {
+                return;
+            }
+            if (fromId && fromId !== toId) {
+                const result = moveStudentsBetweenCohorts(list, fromId, toId, [sid]);
+                if (result.error) {
+                    // Target may be a brand-new empty cohort on a cloned doc — inject manually.
+                    const from = list.find((c) => c && c.id === fromId);
+                    const to = list.find((c) => c && c.id === toId);
+                    if (!to) {
+                        errors.push({ studentId: sid, error: result.error });
+                        return;
+                    }
+                    const student = (from && (from.students || []).find((s) => s && s.id === sid)) ||
+                        (tr.student ? normalizeStudent(Object.assign({}, tr.student, { id: sid })) : null);
+                    if (!student) {
+                        errors.push({ studentId: sid, error: 'student_missing' });
+                        return;
+                    }
+                    if (from) {
+                        from.students = (from.students || []).filter((s) => s && s.id !== sid);
+                    }
+                    const next = Object.assign({}, student, {
+                        name: normalizeStr(tr.tmsName) || student.name,
+                        nameEn: normalizeStr(tr.nameEn) || student.nameEn,
+                        tmsMpidx: normalizeStr(tr.tmsMpidx) || student.tmsMpidx || ''
+                    });
+                    to.students = (to.students || []).filter((s) => s && s.id !== sid).concat([next]);
+                    applied.push({ studentId: sid, fromCohortId: fromId, toCohortId: toId });
+                    return;
+                }
+                list = result.cohorts;
+                const to = list.find((c) => c && c.id === toId);
+                if (to) {
+                    to.students = (to.students || []).map((s) => {
+                        if (!s || s.id !== sid) {
+                            return s;
+                        }
+                        return Object.assign({}, s, {
+                            name: normalizeStr(tr.tmsName) || s.name,
+                            nameEn: normalizeStr(tr.nameEn) || s.nameEn,
+                            tmsMpidx: normalizeStr(tr.tmsMpidx) || s.tmsMpidx || ''
+                        });
+                    });
+                }
+                applied.push({ studentId: sid, fromCohortId: fromId, toCohortId: toId });
+                return;
+            }
+            // Same cohort or no from: ensure student exists on target with TMS fields.
+            const to = list.find((c) => c && c.id === toId);
+            if (!to) {
+                errors.push({ studentId: sid, error: 'target_missing' });
+                return;
+            }
+            const existing = (to.students || []).find((s) => s && s.id === sid);
+            if (existing) {
+                Object.assign(existing, {
+                    name: normalizeStr(tr.tmsName) || existing.name,
+                    nameEn: normalizeStr(tr.nameEn) || existing.nameEn,
+                    tmsMpidx: normalizeStr(tr.tmsMpidx) || existing.tmsMpidx || ''
+                });
+            } else if (tr.student) {
+                to.students = (to.students || []).concat([
+                    normalizeStudent(
+                        Object.assign({}, tr.student, {
+                            id: sid,
+                            name: normalizeStr(tr.tmsName) || tr.student.name,
+                            nameEn: normalizeStr(tr.nameEn) || tr.student.nameEn,
+                            tmsMpidx: normalizeStr(tr.tmsMpidx) || ''
+                        })
+                    )
+                ]);
+            }
+            applied.push({ studentId: sid, fromCohortId: fromId, toCohortId: toId });
+        });
+
+        adds.forEach((row) => {
+            if (!row || row.action === 'skip') {
+                return;
+            }
+            const toId = normalizeStr(row.toCohortId);
+            const to = list.find((c) => c && c.id === toId);
+            if (!to) {
+                errors.push({ name: row.tmsName || row.name, error: 'target_missing' });
+                return;
+            }
+            const name = normalizeStr(row.tmsName || row.name);
+            if (!name) {
+                return;
+            }
+            const student = {
+                id: makeId(),
+                name,
+                nameEn: normalizeStr(row.tmsNameEn || row.nameEn),
+                locationTag: '',
+                sortOrder: (to.students || []).length,
+                active: true,
+                tags: [],
+                memo: '',
+                archivedAt: '',
+                archiveReason: '',
+                expectedStartDate: '',
+                tmsMpidx: normalizeStr(row.tmsMpidx || row.mpidx)
+            };
+            to.students = (to.students || []).concat([student]);
+            applied.push({ studentId: student.id, fromCohortId: '', toCohortId: toId, added: true });
+        });
+
+        return { cohorts: list, applied, errors };
     }
 
     const api = {
@@ -3522,17 +5476,31 @@
         shareThreeHangulSyllables,
         pairFuzzyRosterMatches,
         listUnclearTmsStudentMatches,
-        listReverseTmsStudentMatches,
         normalizeTmsStudentResolutions,
         mergeTmsStudentResolutions,
-        normalizeTmsReverseResolutions,
-        mergeTmsReverseResolutions,
         applyRememberedTmsStudentResolutions,
-        applyRememberedTmsReverseResolutions,
         withStudentTag,
         withoutStudentTag,
         mergeRosterByKoreanName,
         applyTmsRosterPlan,
+        detectTmsRosterTransfers,
+        applyTmsRosterTransfers,
+        mapTmsBlockToPeriod,
+        buildTermMigrateTransferPlan,
+        applyTermMigrateTransferPlan,
+        buildTmsEssaySyncPlan,
+        previewTmsEssaySyncPlan,
+        listEssayTmsStudentReviewQueue,
+        previewTmsEssaySync,
+        applyTmsEssaySync,
+        matchEssayAssignmentRow,
+        normalizeEssayTitleKey,
+        normalizeTmsEssayAssignmentKey,
+        normalizeTmsEssayLinks,
+        upsertTmsEssayLinks,
+        suggestTmsEssayMapping,
+        listEssayClasses,
+        findCohortIdForTmsClass,
         normalizeTmsClassKey,
         normalizeTmsRosterLinks,
         resolveTmsRosterLink,
@@ -3548,6 +5516,10 @@
         moveStudentsBetweenCohorts,
         deleteStudentPermanently,
         purgeStudentRecords,
+        mergeStudentRecords,
+        listSuspectedDuplicateStudents,
+        preferLongerNameEn,
+        findStudentByTmsMpidx,
         isPastArchiveRetention,
         listStudentsPastRetention,
         normalizeStr,
@@ -3589,6 +5561,7 @@
         isEssayAwaitingSubmission,
         isEssaySyllabusRow,
         isEssayAssignmentRow,
+        isCustomEssayAssignmentRow,
         essayOverdueNotSubmittedCount,
         essayAwaitingSubmissionCount,
         essayPendingTeacherEvalCount,
@@ -3604,6 +5577,7 @@
         resolveClassLevelLabel,
         listEssayAssignmentsForClass,
         listEssayResubmitRows,
+        listEssayOverdueRows,
         listEssayOutstandingStudentRows,
         listEssayClassSummaryRows,
         groupEssayStudentRowsByClass,
@@ -3611,6 +5585,8 @@
         yearMonthKey,
         sameCalendarMonth,
         getEssayRowsFromSyllabus,
+        getEssayRowsForTerm,
+        getEssayRowsForAssignedMonth,
         pickDefaultEssaySyllabusRow,
         isDebateDayFourTitle,
         isDebateTeamAssignmentRow,

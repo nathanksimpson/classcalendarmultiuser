@@ -55,8 +55,12 @@ const FIXTURE_CLASS_SELECT = `
     assert(list.length === 2, `expected 2 actionable classes, got ${list.length}`);
     assert(list[0].cohortName === 'NavyM_26SP', 'first name NavyM_26SP');
     assert(list[0].tmsClassId === '30496', 'first id 30496');
+    assert(list[0].eventTarget === 'repe1$ctl00$LinkButton1', 'first postback target');
+    assert(list[0].selected === true, 'first class selected in fixture');
     assert(list[1].cohortName === 'OrangeM^2606', 'second name OrangeM^2606');
     assert(list[1].tmsClassId === '30964', 'second id 30964');
+    assert(list[1].eventTarget === 'repe1$ctl01$LinkButton1', 'second postback target');
+    assert(list[1].selected === false, 'second not selected');
 }
 
 {
@@ -157,6 +161,132 @@ const FIXTURE_CLASS_SELECT = `
     assert(students[3].name === '박지훈◆', 'mark after </a> captured');
     assert(students[3].nameEn === 'Alice', 'english after trailing mark');
     assert(students[4].name === '최유나♦', 'card-suit diamond after </a>');
+}
+
+{
+    // Trailing ◆ after </a> must apply before name dedupe so twins are not collapsed.
+    const twinHtml = `
+      <td><a href="javascript:studentinf(90001)">유마</a></td>
+      <td><a href="javascript:studentinf(90002)">유마</a>◆</td>
+    `;
+    const twins = tms.parseStudentsFromClassPopup(twinHtml);
+    assert(twins.length === 2, `trailing ◆ must keep both twins, got ${twins.length}`);
+    assert(twins[0].name === '유마', 'first twin plain');
+    assert(twins[1].name === '유마◆', 'second twin with trailing mark');
+    assert(twins[0].mpidx === '90001', 'first mpidx');
+    assert(twins[1].mpidx === '90002', 'second mpidx');
+}
+
+{
+    const byId = tms.findClassSelectById(FIXTURE_CLASS_SELECT, '30964');
+    assert(byId && byId.cohortName === 'OrangeM^2606', 'findClassSelectById OrangeM');
+    assert(byId.eventTarget === 'repe1$ctl01$LinkButton1', 'live postback target');
+    assert(byId.selected === false, 'OrangeM not selected');
+    assert(!tms.findClassSelectById(FIXTURE_CLASS_SELECT, '99999'), 'missing id returns null');
+    assert(tms.classIsSelectedOnPage(FIXTURE_CLASS_SELECT, '30496'), 'NavyM selected on page');
+    assert(!tms.classIsSelectedOnPage(FIXTURE_CLASS_SELECT, '30964'), 'OrangeM not selected on page');
+}
+
+{
+    // Inner HTML containing the word "selected" must NOT mark the <li> selected —
+    // that bug assigned one roster to every class and removed reverse Map options.
+    const poison = `
+<div class="class_select">
+  <ul>
+    <li class="selected">
+      <a href="javascript:__doPostBack('repe1$ctl00$LinkButton1','')">NavyM_26SP</a>
+      <input type="hidden" name="repe1$ctl00$Hsubclass" value="30496">
+    </li>
+    <li>
+      <a href="javascript:__doPostBack('repe1$ctl01$LinkButton1','')">OrangeM^2606</a>
+      <span>previously selected note</span>
+      <input type="hidden" name="repe1$ctl01$Hsubclass" value="30964">
+    </li>
+  </ul>
+</div>`;
+    const list = tms.parseClassSelectList(poison);
+    assert(list[0].selected === true, 'li class=selected still true');
+    assert(list[1].selected === false, 'inner text "selected" must not mark li selected');
+}
+
+{
+    // TMS sometimes puts selected on the LinkButton <a>, not the <li>.
+    const aSelected = `
+<div class="class_select">
+  <ul>
+    <li>
+      <a class="clock selected" href="javascript:__doPostBack('repe1$ctl00$LinkButton1','')">NavyM_26SP</a>
+      <input type="hidden" name="repe1$ctl00$Hsubclass" value="30496">
+    </li>
+    <li>
+      <a href="javascript:__doPostBack('repe1$ctl01$LinkButton1','')">OrangeM^2606</a>
+      <input type="hidden" name="repe1$ctl01$Hsubclass" value="30964">
+    </li>
+  </ul>
+</div>`;
+    const list = tms.parseClassSelectList(aSelected);
+    assert(list[0].selected === true, 'a.selected counts as selected');
+    assert(list[1].selected === false, 'other class not selected');
+    assert(tms.classIsSelectedOnPage(aSelected, '30496'), 'classIsSelectedOnPage via a.selected');
+}
+
+{
+    // Nested <div> inside class_select must not truncate later classes.
+    const nested = `
+<div class="class_select">
+  <ul>
+    <li class="selected">
+      <a href="javascript:__doPostBack('repe1$ctl00$LinkButton1','')">NavyM_26SP</a>
+      <div class="badge">x</div>
+      <input type="hidden" name="repe1$ctl00$Hsubclass" value="30496">
+    </li>
+    <li>
+      <a href="javascript:__doPostBack('repe1$ctl01$LinkButton1','')">OrangeM^2606</a>
+      <input type="hidden" name="repe1$ctl01$Hsubclass" value="30964">
+    </li>
+  </ul>
+</div>`;
+    const list = tms.parseClassSelectList(nested);
+    assert(list.length === 2, `nested div must keep both classes, got ${list.length}`);
+    assert(list[1].tmsClassId === '30964', 'second class after nested div');
+}
+
+{
+    // Same Hangul, different mpidx — keep both (second gets ◆ when unmarked).
+    const twins = tms.parseStudentsFromClassPopup(`
+      <td><a href="javascript:studentinf(1)">유마</a></td>
+      <td><a href="javascript:studentinf(2)">유마</a></td>
+    `);
+    assert(twins.length === 2, `unmarked twins kept, got ${twins.length}`);
+    assert(twins[0].name === '유마', 'first twin plain');
+    assert(twins[1].name === '유마◆', 'second twin auto-marked');
+    assert(twins[0].mpidx === '1' && twins[1].mpidx === '2', 'both mpidx kept');
+}
+
+{
+    // Alternate TMS link shape.
+    const popup = tms.parseStudentsFromClassPopup(`
+      <a href="StudentPopup.aspx?mpidx=555">조하연</a>(Alice)
+      <a href="StudentPopup.aspx?mpidx=556">김민수</a>
+    `);
+    assert(popup.length === 2, `StudentPopup.aspx links parsed, got ${popup.length}`);
+    assert(popup[0].name === '조하연' && popup[0].nameEn === 'Alice', 'popup first');
+    assert(popup[1].mpidx === '556', 'popup second mpidx');
+}
+
+{
+    const html = `
+<form>
+  <input type="hidden" name="__VIEWSTATE" value="vs1" />
+  <input type="hidden" name="__EVENTVALIDATION" value="ev1" />
+  <input type="hidden" name="repe1$ctl00$Hsubclass" id="repe1_Hsubclass_0" value="30496" />
+  <input type="text" name="q" value="nope" />
+</form>`;
+    const fields = tms.extractHiddenInputs(html);
+    assert(fields.__VIEWSTATE === 'vs1', 'viewstate extracted');
+    assert(fields.__EVENTVALIDATION === 'ev1', 'eventvalidation extracted');
+    assert(fields['repe1$ctl00$Hsubclass'] === '30496', 'Hsubclass hidden included');
+    assert(fields.q == null, 'non-hidden inputs excluded');
 }
 
 {
