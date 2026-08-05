@@ -210,6 +210,71 @@ const FIXTURE_CLASS_SELECT = `
 }
 
 {
+    // TMS sometimes puts selected on the LinkButton <a>, not the <li>.
+    const aSelected = `
+<div class="class_select">
+  <ul>
+    <li>
+      <a class="clock selected" href="javascript:__doPostBack('repe1$ctl00$LinkButton1','')">NavyM_26SP</a>
+      <input type="hidden" name="repe1$ctl00$Hsubclass" value="30496">
+    </li>
+    <li>
+      <a href="javascript:__doPostBack('repe1$ctl01$LinkButton1','')">OrangeM^2606</a>
+      <input type="hidden" name="repe1$ctl01$Hsubclass" value="30964">
+    </li>
+  </ul>
+</div>`;
+    const list = tms.parseClassSelectList(aSelected);
+    assert(list[0].selected === true, 'a.selected counts as selected');
+    assert(list[1].selected === false, 'other class not selected');
+    assert(tms.classIsSelectedOnPage(aSelected, '30496'), 'classIsSelectedOnPage via a.selected');
+}
+
+{
+    // Nested <div> inside class_select must not truncate later classes.
+    const nested = `
+<div class="class_select">
+  <ul>
+    <li class="selected">
+      <a href="javascript:__doPostBack('repe1$ctl00$LinkButton1','')">NavyM_26SP</a>
+      <div class="badge">x</div>
+      <input type="hidden" name="repe1$ctl00$Hsubclass" value="30496">
+    </li>
+    <li>
+      <a href="javascript:__doPostBack('repe1$ctl01$LinkButton1','')">OrangeM^2606</a>
+      <input type="hidden" name="repe1$ctl01$Hsubclass" value="30964">
+    </li>
+  </ul>
+</div>`;
+    const list = tms.parseClassSelectList(nested);
+    assert(list.length === 2, `nested div must keep both classes, got ${list.length}`);
+    assert(list[1].tmsClassId === '30964', 'second class after nested div');
+}
+
+{
+    // Same Hangul, different mpidx — keep both (second gets ◆ when unmarked).
+    const twins = tms.parseStudentsFromClassPopup(`
+      <td><a href="javascript:studentinf(1)">유마</a></td>
+      <td><a href="javascript:studentinf(2)">유마</a></td>
+    `);
+    assert(twins.length === 2, `unmarked twins kept, got ${twins.length}`);
+    assert(twins[0].name === '유마', 'first twin plain');
+    assert(twins[1].name === '유마◆', 'second twin auto-marked');
+    assert(twins[0].mpidx === '1' && twins[1].mpidx === '2', 'both mpidx kept');
+}
+
+{
+    // Alternate TMS link shape.
+    const popup = tms.parseStudentsFromClassPopup(`
+      <a href="StudentPopup.aspx?mpidx=555">조하연</a>(Alice)
+      <a href="StudentPopup.aspx?mpidx=556">김민수</a>
+    `);
+    assert(popup.length === 2, `StudentPopup.aspx links parsed, got ${popup.length}`);
+    assert(popup[0].name === '조하연' && popup[0].nameEn === 'Alice', 'popup first');
+    assert(popup[1].mpidx === '556', 'popup second mpidx');
+}
+
+{
     const html = `
 <form>
   <input type="hidden" name="__VIEWSTATE" value="vs1" />
