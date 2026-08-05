@@ -361,9 +361,11 @@
     }
 
     /**
-     * TMS names that are not exact match-key hits but share Hangul core / variant
-     * with one or more CM students — need user review (map / add / skip).
-     * Candidates: Hangul peers first, then the rest of the active/off_roster cohort.
+     * TMS names that need user review (map / add / skip):
+     * - not an exact match-key hit but share Hangul with CM students
+     * - duplicate exact keys in the cohort
+     * - unmatched (no Hangul peer) — Map to any active cohort student, Add, or Skip
+     * Candidates: Hangul peers first (when any), then the rest of the active/off_roster cohort.
      */
     function listUnclearTmsStudentMatches(existingStudents, tmsStudents) {
         const existing = cohortStudentsForMapCandidates(existingStudents);
@@ -423,6 +425,14 @@
             }
             const peers = existing.filter((s) => sharesHangulCoreOrVariant(s.name, imp.name));
             if (!peers.length) {
+                // No Hangul peer — still review so user can Map onto any cohort student.
+                unclear.push({
+                    tmsName: imp.name,
+                    tmsNameEn: imp.nameEn,
+                    tmsKey: k,
+                    reason: 'unmatched',
+                    candidates: buildFullCohortMapCandidates(existing, [])
+                });
                 return;
             }
             const reason =
@@ -533,7 +543,8 @@
      * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
      * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored).
      * - On exact match or confirmed map, adopt TMS display name when it differs, and nameEn when set.
-     * - Add students whose match key is not in the cohort (unless unclear without resolution).
+     * - Add students only via resolution action 'add' (or exact-new when no review needed —
+     *   unmatched / unclear without Map/Add/Skip never auto-add).
      * - Flag existing students missing from TMS with off_roster (never delete).
      * - Clear off_roster when they reappear on TMS (Korean match / map only — English never affects this).
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
@@ -689,39 +700,40 @@
                 adoptTmsIdentity(match, imp, { matchedBy: 'name' });
                 return;
             }
-            // Unclear without resolution: do not auto-add (wizard must decide).
+            // Unclear / unmatched without resolution: do not auto-add (wizard must decide).
             const unclearCandidates = existing.filter((s) =>
                 sharesHangulCoreOrVariant(s.name, imp.name)
             );
-            if (unclearCandidates.length && !resolution) {
-                warnings.push({
-                    code: 'unresolved_unclear_name',
-                    name: imp.name,
-                    candidates: unclearCandidates.map((s) => s.id)
-                });
-                skipTmsKeys.add(k);
-                unclearCandidates.forEach((s) => {
-                    if (s && s.id) {
-                        if (opts.softUnclear) {
+            if (!resolution) {
+                if (unclearCandidates.length) {
+                    warnings.push({
+                        code: 'unresolved_unclear_name',
+                        name: imp.name,
+                        candidates: unclearCandidates.map((s) => s.id)
+                    });
+                    skipTmsKeys.add(k);
+                    unclearCandidates.forEach((s) => {
+                        if (s && s.id && opts.softUnclear) {
                             exactMatchedIds.add(s.id);
                         }
-                    }
+                    });
+                    return;
+                }
+                // Unmatched (no Hangul peer) — require Map / Add / Skip.
+                warnings.push({
+                    code: 'unresolved_unmatched_name',
+                    name: imp.name,
+                    candidates: existing.map((s) => s.id)
                 });
+                skipTmsKeys.add(k);
                 return;
             }
-            added.push({
-                id: makeId(),
-                name: imp.name,
-                nameEn: imp.nameEn,
-                locationTag: imp.locationTag,
-                sortOrder: existing.length + added.length,
-                active: true,
-                tags: [],
-                memo: imp.memo,
-                archivedAt: '',
-                archiveReason: '',
-                expectedStartDate: ''
+            // Fallback: resolution was present but invalid (e.g. map target missing already warned).
+            warnings.push({
+                code: 'unresolved_unmatched_name',
+                name: imp.name
             });
+            skipTmsKeys.add(k);
         });
 
         const fuzzyMatchedIds = new Set();

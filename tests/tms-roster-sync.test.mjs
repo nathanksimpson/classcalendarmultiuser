@@ -57,8 +57,10 @@ function assert(cond, msg) {
         { name: '이서연' },
         { name: '박지훈' }
     ];
+    const keyNew = D.koreanMatchKey('박지훈');
     const result = D.mergeRosterByKoreanName(existing, tms, {
-        newStudentId: () => 'stu_new'
+        newStudentId: () => 'stu_new',
+        studentResolutions: { [keyNew]: { action: 'add' } }
     });
     assert(result.summary.added.length === 1, 'one new student');
     assert(result.summary.added[0].name === '박지훈', 'new is 박지훈');
@@ -376,11 +378,15 @@ function assert(cond, msg) {
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
         { id: 'stu_b', name: '김민수아', tags: ['off_roster'] }
     ];
+    const keyPark = D.koreanMatchKey('박지훈');
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수XX' },
         { name: '박지훈' }
-    ]);
-    assert(result.summary.added.length === 1, '박지훈 still added');
+    ], {
+        studentResolutions: { [keyPark]: { action: 'add' } },
+        newStudentId: () => 'stu_new'
+    });
+    assert(result.summary.added.length === 1, '박지훈 still added via Add resolution');
     assert(
         result.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
         '김민수XX needs review'
@@ -441,30 +447,59 @@ function assert(cond, msg) {
     assert(result.summary.flagged[0].id === 'stu_gone', 'flagged is 최유나');
 }
 
-// Unrelated TMS name with no 3-syllable overlap still adds + flags
+// Unrelated TMS name needs review (no silent add); Map updates identity
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '박지훈' }]);
-    assert(result.summary.fuzzyCleared.length === 0, 'no fuzzy for unrelated name');
-    assert(result.summary.added.length === 1, '박지훈 added as new');
-    assert(result.summary.flagged.length === 2, 'both CM flagged as missing');
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '박지훈', nameEn: 'Jihoon' }]);
+    assert(unclear.length === 1, 'unmatched queued for review');
+    assert(unclear[0].reason === 'unmatched', 'unmatched reason');
+    assert(
+        unclear[0].candidates.some((c) => c.id === 'stu_a') &&
+            unclear[0].candidates.some((c) => c.id === 'stu_b'),
+        'full cohort map candidates'
+    );
+
+    const unresolved = D.mergeRosterByKoreanName(existing, [{ name: '박지훈' }]);
+    assert(unresolved.summary.added.length === 0, 'no silent add without resolution');
+    assert(
+        unresolved.summary.warnings.some((w) => w.code === 'unresolved_unmatched_name'),
+        'unresolved unmatched warning'
+    );
+    assert(unresolved.summary.flagged.length === 2, 'both CM still missing from TMS');
+
+    const key = D.koreanMatchKey('박지훈');
+    const mapped = D.mergeRosterByKoreanName(existing, [{ name: '박지훈', nameEn: 'Jihoon' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+    });
+    assert(mapped.summary.added.length === 0, 'map does not add');
+    const target = mapped.students.find((s) => s.id === 'stu_a');
+    assert(target.name === '박지훈', 'adopted TMS Korean name');
+    assert(target.nameEn === 'Jihoon', 'adopted TMS English');
+    assert(!target.tags.includes('off_roster'), 'cleared off_roster on map');
+    assert(mapped.summary.flagged.length === 1, '이서연 still flagged');
+    assert(
+        D.listUnclearTmsStudentMatches(mapped.students, [{ name: '박지훈' }]).length === 0,
+        'second sync exact-matches'
+    );
 }
 
-// New Korean-only TMS student should add even with empty English name
+// Unmatched Add resolution creates new student (including empty English)
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
     let n = 0;
+    const key = D.koreanMatchKey('권이안');
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수' },
         { name: '권이안', nameEn: '' }
     ], {
-        newStudentId: () => `stu_new${++n}`
+        newStudentId: () => `stu_new${++n}`,
+        studentResolutions: { [key]: { action: 'add' } }
     });
     assert(result.summary.added.length === 1, 'one korean-only student added');
     assert(result.summary.added[0].name === '권이안', '권이안 added');
@@ -493,12 +528,14 @@ function assert(cond, msg) {
         { id: 'c1', name: 'Purple T', students: [{ id: 'stu_a', name: '김민수', tags: [] }] },
         { id: 'c2', name: 'Navy T', students: [] }
     ];
+    const keySeo = D.koreanMatchKey('이서연');
     const plan = [
         {
             userAction: 'map',
             userTargetId: 'c1',
             importCohortName: 'Purple T',
-            students: [{ name: '김민수' }, { name: '이서연' }]
+            students: [{ name: '김민수' }, { name: '이서연' }],
+            studentResolutions: { [keySeo]: { action: 'add' } }
         },
         { userAction: 'skip', importCohortName: 'Other', students: [{ name: '무시' }] }
     ];

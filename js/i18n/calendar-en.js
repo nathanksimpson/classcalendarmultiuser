@@ -973,6 +973,8 @@
         rosterTmsReviewReasonSharedCore: 'Same Hangul as an existing student — choose whether this is the same person or a new student (disambiguator marks like ◆ are kept).',
         rosterTmsReviewReasonFuzzy: 'Name looks like a variant of an existing student — confirm the mapping.',
         rosterTmsReviewReasonDuplicate: 'This Korean name appears more than once in the cohort — pick which student it is.',
+        rosterTmsReviewReasonUnmatched:
+            'No Hangul match in this class — map to an existing student, add as new, or skip.',
         rosterTmsReviewMapTo: 'Map to existing: {name}',
         rosterTmsReviewAddNew: 'Add as a new student',
         rosterTmsReviewSkip: 'Skip this TMS name',
