@@ -963,6 +963,12 @@
         rosterTmsSyncSkipAll: '모두 건너뛰기',
         rosterTmsSyncSkipUnmapped: '미선택만 건너뛰기',
         rosterTmsSyncChoose: '코호트 선택…',
+        rosterTmsSyncCreate: '적용할 때 새 코호트 만들기…',
+        rosterTmsSyncCreateUnavailable:
+            '코호트 편집기를 열 수 없습니다. 그래도 적용할 때 코호트를 자동으로 만들 수 있습니다.',
+        rosterTmsSyncCreateEditorHint:
+            '코호트 정보를 마친 뒤 여기로 돌아와 동기화를 계속하세요.',
+        rosterTmsSyncCreatedMapped: '적용할 때 새 코호트를 만듭니다',
         rosterTmsSyncConfirm: '동기화 적용',
         rosterTmsSyncContinueReview: '불명확한 이름 {count}개 확인…',
         rosterTmsSyncUnclearHint: '확인 필요: {names}',
