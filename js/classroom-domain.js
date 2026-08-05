@@ -206,6 +206,19 @@
         return Boolean(nameLatinDisambiguatorSuffix(name));
     }
 
+    /**
+     * Identity key that ignores ★/◆ status marks but keeps Latin letters (김민수A).
+     * Same as koreanMatchKey in the current matching model; exported for paste/import.
+     */
+    function koreanMarkAgnosticKey(name) {
+        return koreanMatchKey(name);
+    }
+
+    /** True when match keys equal but stored/display Hangul (incl. marks) differs. */
+    function koreanDisplayNameDiffers(nameA, nameB) {
+        return koreanNameDisplayKey(nameA) !== koreanNameDisplayKey(nameB);
+    }
+
     function hasNameDisambiguator(name) {
         return Boolean(nameDisambiguatorSuffix(name));
     }
@@ -341,9 +354,14 @@
     }
 
     /**
-     * TMS names that are not exact match-key matches but share Hangul core / variant
-     * with one or more CM students — need user review (map / add / skip).
-     * Status-symbol-only differences are exact matches (not unclear).
+     * TMS names that need user review (map / add / skip) before sync applies:
+     * - ★/◆ gain/loss vs CM (same match key, different display) → name_mark_change
+     * - Multiple CM students share the same match key → duplicate_existing
+     * - Latin letter difference (김민수 vs 김민수A) → shared_hangul_core
+     * - Contiguous Hangul variant → fuzzy_variant
+     * - No Hangul peer → unmatched (still offers Map to any cohort student)
+     * Identical Hangul+mark display is not unclear (silent match).
+     * TMS display name is source of truth when the user maps.
      */
     function listUnclearTmsStudentMatches(existingStudents, tmsStudents) {
         const existing = (Array.isArray(existingStudents) ? existingStudents : [])
@@ -399,6 +417,22 @@
                             .filter((s) => koreanMatchKey(s.name) === k)
                             .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }))
                     });
+                    return;
+                }
+                if (koreanDisplayNameDiffers(exact.name, imp.name)) {
+                    unclear.push({
+                        tmsName: imp.name,
+                        tmsNameEn: imp.nameEn,
+                        tmsKey: k,
+                        reason: 'name_mark_change',
+                        candidates: [
+                            {
+                                id: exact.id,
+                                name: exact.name,
+                                nameEn: exact.nameEn || ''
+                            }
+                        ]
+                    });
                 }
                 return;
             }
@@ -441,9 +475,10 @@
 
     /**
      * Merge a TMS (or similar) Korean-name roster into an existing cohort student list.
-     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored).
-     * - On match, adopt TMS display name when symbols/spacing differ, and TMS nameEn when set.
-     * - Add students whose match key is not in the cohort.
+     * - Match by koreanMatchKey (Hangul + Latin; status symbols ignored for the key).
+     * - Identical display → adopt nameEn/mpidx; ★/◆ display diffs need studentResolutions.
+     * - Duplicate CM rows for the same match key need studentResolutions (no silent pick).
+     * - Add students whose match key is not in the cohort (unless unclear/unmatched).
      * - Flag existing students missing from TMS with off_roster (never delete).
      *   Preview `flagged` includes students who already had the tag (still missing).
      * - Clear off_roster when they reappear on TMS (always strip on match).
@@ -589,7 +624,38 @@
             const match = existingByKey.get(k);
             if (match) {
                 if (duplicateKeys.has(k)) {
-                    warnings.push({ code: 'duplicate_existing_name', name: imp.name, matchedId: match.id });
+                    const dupCandidates = existing.filter((s) => koreanMatchKey(s.name) === k);
+                    warnings.push({
+                        code: 'duplicate_existing_name',
+                        name: imp.name,
+                        matchedId: match.id
+                    });
+                    warnings.push({
+                        code: 'unresolved_unclear_name',
+                        name: imp.name,
+                        candidates: dupCandidates.map((s) => s.id)
+                    });
+                    skipTmsKeys.add(k);
+                    if (opts.softUnclear) {
+                        dupCandidates.forEach((s) => {
+                            if (s && s.id) {
+                                exactMatchedIds.add(s.id);
+                            }
+                        });
+                    }
+                    return;
+                }
+                if (koreanDisplayNameDiffers(match.name, imp.name)) {
+                    warnings.push({
+                        code: 'unresolved_unclear_name',
+                        name: imp.name,
+                        candidates: [match.id]
+                    });
+                    skipTmsKeys.add(k);
+                    if (opts.softUnclear && match.id) {
+                        exactMatchedIds.add(match.id);
+                    }
+                    return;
                 }
                 adoptTmsIdentity(match, imp, { matchedBy: 'name' });
                 return;
@@ -5464,6 +5530,7 @@
         DEFAULT_ARCHIVE_RETENTION_DAYS,
         koreanNameKey,
         koreanMatchKey,
+        koreanMarkAgnosticKey,
         koreanNameDisplayKey,
         nameDisambiguatorSuffix,
         nameStatusSymbolSuffix,

@@ -972,8 +972,11 @@
         rosterTmsReviewTmsName: 'TMS student name',
         rosterTmsReviewChoicesLabel: 'How should this TMS name be handled?',
         rosterTmsReviewReasonSharedCore: 'Same Hangul as an existing student — choose whether this is the same person or a new student (disambiguator marks like ◆ are kept).',
+        rosterTmsReviewReasonMarkChange:
+            'Same Korean name with a different ★/◆ (or similar) mark — confirm update to the TMS name (TMS is the source of truth).',
         rosterTmsReviewReasonFuzzy: 'Name looks like a variant of an existing student — confirm the mapping.',
-        rosterTmsReviewReasonDuplicate: 'This Korean name appears more than once in the cohort — pick which student it is.',
+        rosterTmsReviewReasonDuplicate:
+            'This Korean name appears more than once in the cohort — pick which student it is (merge if they are the same person).',
         rosterTmsReviewReasonUnmatched:
             'No Hangul match in this class — map to an existing student, add as new, or skip.',
         rosterTmsReviewReasonMissingFromTms:

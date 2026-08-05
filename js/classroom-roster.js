@@ -775,7 +775,8 @@
             candidateTargetIds: [selectedCohortId],
             userAction: 'map',
             userTargetId: selectedCohortId,
-            mergeMode: getPasteMergeMode()
+            mergeMode: getPasteMergeMode(),
+            mergeByName: true
         };
     }
 
@@ -1525,6 +1526,9 @@
         }
         if (reason === 'fuzzy_variant') {
             return t('rosterTmsReviewReasonFuzzy');
+        }
+        if (reason === 'name_mark_change') {
+            return t('rosterTmsReviewReasonMarkChange');
         }
         return t('rosterTmsReviewReasonSharedCore');
     }

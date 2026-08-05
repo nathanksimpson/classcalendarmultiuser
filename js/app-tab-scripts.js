@@ -30,10 +30,10 @@
         homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
         students: [
             'js/essay-tracker-import.js?v=20260630-essay-import',
-            'js/roster-import.js?v=20260723-tms-sync',
+            'js/roster-import.js?v=20260805-mark-ask',
             'js/classroom-access.js?v=20260612-classroom-mvp',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260805-tms-missing-map'
+            'js/classroom-roster.js?v=20260805-mark-ask'
         ],
         attendance: [
             'js/classroom-access.js?v=20260612-classroom-mvp',
