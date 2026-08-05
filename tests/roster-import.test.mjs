@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import vm from 'vm';
@@ -159,14 +159,17 @@ function findStudent(result, cohortName, studentName) {
     assert(tailParsed.cohort.students.length === 8, 'homework tail trimmed');
 }
 
-// parseRosterPack (amalgamated JSON export)
+// parseRosterPack (amalgamated JSON export — local fixture under gitignored data/)
 {
-    const json = JSON.parse(readFileSync(path.join(root, 'data', 'roster-import-jun2026.json'), 'utf8'));
-    const parsed = RI.parseRosterPack(json);
-    assert(!parsed.error, parsed.error || 'parse pack');
-    assert(parsed.pack.cohorts.length === 15, 'pack cohort count');
-    const totalStudents = parsed.pack.cohorts.reduce((n, c) => n + c.students.length, 0);
-    assert(totalStudents === 103, `expected 103 students in amalgamated JSON, got ${totalStudents}`);
+    const packPath = path.join(root, 'data', 'roster-import-jun2026.json');
+    if (existsSync(packPath)) {
+        const json = JSON.parse(readFileSync(packPath, 'utf8'));
+        const parsed = RI.parseRosterPack(json);
+        assert(!parsed.error, parsed.error || 'parse pack');
+        assert(parsed.pack.cohorts.length === 15, 'pack cohort count');
+        const totalStudents = parsed.pack.cohorts.reduce((n, c) => n + c.students.length, 0);
+        assert(totalStudents === 103, `expected 103 students in amalgamated JSON, got ${totalStudents}`);
+    }
 }
 
 // matchImportCohorts
