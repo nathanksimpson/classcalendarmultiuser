@@ -150,6 +150,14 @@
         // Identity matching should ignore that parenthesized suffix.
         s = s.replace(/\([^)]*\)/g, '');
         s = s.replace(/（[^）]*）/g, '');
+        // TMS roster sometimes formats Korean as "Name[]" or "Name[English]".
+        // Ignore bracketed suffix content for identity matching.
+        s = s.replace(/\[[^\]]*\]/g, '');
+        s = s.replace(/［[^］]*］/g, '');
+        // Some TMS roster layouts append a trailing label like "...[] 학생".
+        // After removing brackets/whitespace, this becomes "...학생" and would
+        // otherwise pollute the identity match key.
+        s = s.replace(/학생$/u, '');
         return s;
     }
 
@@ -162,6 +170,9 @@
         let s = koreanNameDisplayKey(name);
         s = s.replace(NAME_STATUS_SYMBOL_RE, '');
         s = s.replace(/[0-9]/g, '');
+        // Final safety: keep only Hangul syllables and Latin letters.
+        // (So leftover punctuation like brackets cannot affect identity matching.)
+        s = s.replace(/[^\uac00-\ud7a3A-Za-z]/g, '');
         return s;
     }
 
