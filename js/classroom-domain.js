@@ -146,6 +146,10 @@
         s = s.replace(/[\uFF01-\uFF5E]/g, (ch) =>
             String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
         );
+        // TMS roster often formats Korean as "Name(English)" or "Name()".
+        // Identity matching should ignore that parenthesized suffix.
+        s = s.replace(/\([^)]*\)/g, '');
+        s = s.replace(/（[^）]*）/g, '');
         return s;
     }
 
