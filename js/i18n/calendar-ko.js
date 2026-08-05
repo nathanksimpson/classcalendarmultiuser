@@ -971,8 +971,11 @@
         rosterTmsReviewTmsName: 'TMS 학생 이름',
         rosterTmsReviewChoicesLabel: '이 TMS 이름을 어떻게 처리할까요?',
         rosterTmsReviewReasonSharedCore: '기존 학생과 같은 한글 이름입니다. 같은 사람인지, ◆ 등 구분 기호가 있는 새 학생인지 선택하세요.',
+        rosterTmsReviewReasonMarkChange:
+            '같은 한글 이름인데 ★/◆ 등 표시만 다릅니다. TMS 이름으로 업데이트할지 확인하세요 (TMS가 기준입니다).',
         rosterTmsReviewReasonFuzzy: '기존 학생 이름과 비슷합니다. 매핑을 확인해 주세요.',
-        rosterTmsReviewReasonDuplicate: '코호트에 같은 한글 이름이 둘 이상 있습니다. 어느 학생인지 선택하세요.',
+        rosterTmsReviewReasonDuplicate:
+            '코호트에 같은 한글 이름이 둘 이상 있습니다. 어느 학생인지 선택하세요 (같은 사람이면 병합).',
         rosterTmsReviewReasonUnmatched:
             '이 반에 같은 한글 이름이 없습니다. 기존 학생에 연결하거나, 새로 추가하거나, 건너뛰세요.',
         rosterTmsReviewReasonMissingFromTms:

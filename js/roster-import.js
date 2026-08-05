@@ -584,12 +584,17 @@
     }
 
     function studentIdentityKey(s) {
-        const n = normalizeCohortLabel(s && s.name);
-        const e = normalizeCohortLabel(s && s.nameEn);
-        if (!n && !e) {
-            return '';
+        if (global.CCPClassroomDomain && typeof global.CCPClassroomDomain.koreanMarkAgnosticKey === 'function') {
+            return global.CCPClassroomDomain.koreanMarkAgnosticKey(s && s.name) || '';
         }
-        return `${n}|${e}`;
+        if (global.CCPClassroomDomain && typeof global.CCPClassroomDomain.koreanNameKey === 'function') {
+            return String(global.CCPClassroomDomain.koreanNameKey(s && s.name) || '').replace(
+                /[◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]/g,
+                ''
+            );
+        }
+        const n = normalizeCohortLabel(s && s.name);
+        return n || '';
     }
 
     function computeRowPreviewByIdentity(row, targetCohort) {

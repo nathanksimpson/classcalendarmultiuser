@@ -174,21 +174,26 @@ function assert(cond, msg) {
     assert(D.hangulNameVariantPair('김민수', '김민수A') === false, 'no auto fuzzy across Latin suffix');
 }
 
-// Status symbol auto-matches; Latin suffix stays unclear
+// ★/◆ display diffs ask; Latin suffix stays unclear
 {
     const existing = [
         { id: 'stu_a', name: '권이안', tags: ['off_roster'] },
         { id: 'stu_b', name: '김민수', tags: [] },
         { id: 'stu_c', name: '이서연', nameEn: 'Seoyeon', tags: [] }
     ];
-    const diamond = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆', nameEn: 'Ian' }]);
-    assert(diamond.summary.added.length === 0, 'diamond not added as new');
-    assert(diamond.summary.matched.some((m) => m.id === 'stu_a'), 'diamond matched');
-    const mapped = diamond.students.find((s) => s.id === 'stu_a');
-    assert(mapped.name === '권이안◆', 'adopted TMS display with diamond');
-    assert(mapped.nameEn === 'Ian', 'adopted TMS English on exact match');
-    assert(!mapped.tags.includes('off_roster'), 'cleared off_roster on symbol match');
-    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '권이안◆' }]).length === 0, 'diamond not unclear');
+    assert(D.koreanMarkAgnosticKey('권이안◆') === D.koreanMarkAgnosticKey('권이안'), 'mark-agnostic equal');
+    const unclearMark = D.listUnclearTmsStudentMatches(existing, [{ name: '권이안◆' }]);
+    assert(unclearMark.length === 1, 'diamond mark change unclear');
+    assert(unclearMark[0].reason === 'name_mark_change', 'mark change reason');
+    assert(unclearMark[0].candidates[0].id === 'stu_a', 'candidate is bare name');
+    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '권이안◆', nameEn: 'Ian' }]);
+    assert(blocked.summary.added.length === 0, 'no silent add on mark change');
+    assert(blocked.summary.matched.length === 0, 'no silent match on mark change');
+    assert(
+        blocked.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
+        'mark change unresolved without resolution'
+    );
+    assert(blocked.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'), 'keeps off_roster until map');
 
     const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '김민수A', nameEn: '' }]);
     assert(unclear.length === 1, 'Latin suffix unclear');
@@ -205,6 +210,28 @@ function assert(cond, msg) {
         unclear[0].candidates.some((c) => c.id === 'stu_a'),
         'off_roster included in map candidates'
     );
+}
+
+// ★ gain/loss and existing CM duplicates (정태희★ + 정태희)
+{
+    const starOnly = [{ id: 'stu_star', name: '정태희★', nameEn: 'Taeheu', tags: [] }];
+    const unclearStar = D.listUnclearTmsStudentMatches(starOnly, [{ name: '정태희', nameEn: 'Taeheu' }]);
+    assert(unclearStar.length === 1 && unclearStar[0].reason === 'name_mark_change', 'star loss asks');
+    const both = [
+        { id: 'stu_star', name: '정태희★', nameEn: 'Taeheu', tags: [] },
+        { id: 'stu_plain', name: '정태희', nameEn: 'Taeheu', tags: [] }
+    ];
+    const unclearBoth = D.listUnclearTmsStudentMatches(both, [{ name: '정태희', nameEn: 'Taeheu' }]);
+    assert(unclearBoth.length === 1 && unclearBoth[0].reason === 'duplicate_existing', 'both dups ask');
+    assert(unclearBoth[0].candidates.length === 2, 'both candidates');
+    const blockedBoth = D.mergeRosterByKoreanName(both, [{ name: '정태희' }]);
+    assert(blockedBoth.summary.added.length === 0, 'no third student');
+    assert(blockedBoth.summary.matched.length === 0, 'no silent adopt onto one dup');
+    const key = D.koreanMatchKey('정태희');
+    const mapped = D.mergeRosterByKoreanName(both, [{ name: '정태희' }], {
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_star' } }
+    });
+    assert(mapped.students.find((s) => s.id === 'stu_star').name === '정태희', 'TMS name wins on map');
 }
 
 // Resolution add keeps diamond name (forced add even though keys match)
