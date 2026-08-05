@@ -183,6 +183,45 @@ const FIXTURE_CLASS_SELECT = `
     assert(byId.eventTarget === 'repe1$ctl01$LinkButton1', 'live postback target');
     assert(byId.selected === false, 'OrangeM not selected');
     assert(!tms.findClassSelectById(FIXTURE_CLASS_SELECT, '99999'), 'missing id returns null');
+    assert(tms.classIsSelectedOnPage(FIXTURE_CLASS_SELECT, '30496'), 'NavyM selected on page');
+    assert(!tms.classIsSelectedOnPage(FIXTURE_CLASS_SELECT, '30964'), 'OrangeM not selected on page');
+}
+
+{
+    // Inner HTML containing the word "selected" must NOT mark the <li> selected —
+    // that bug assigned one roster to every class and removed reverse Map options.
+    const poison = `
+<div class="class_select">
+  <ul>
+    <li class="selected">
+      <a href="javascript:__doPostBack('repe1$ctl00$LinkButton1','')">NavyM_26SP</a>
+      <input type="hidden" name="repe1$ctl00$Hsubclass" value="30496">
+    </li>
+    <li>
+      <a href="javascript:__doPostBack('repe1$ctl01$LinkButton1','')">OrangeM^2606</a>
+      <span>previously selected note</span>
+      <input type="hidden" name="repe1$ctl01$Hsubclass" value="30964">
+    </li>
+  </ul>
+</div>`;
+    const list = tms.parseClassSelectList(poison);
+    assert(list[0].selected === true, 'li class=selected still true');
+    assert(list[1].selected === false, 'inner text "selected" must not mark li selected');
+}
+
+{
+    const html = `
+<form>
+  <input type="hidden" name="__VIEWSTATE" value="vs1" />
+  <input type="hidden" name="__EVENTVALIDATION" value="ev1" />
+  <input type="hidden" name="repe1$ctl00$Hsubclass" id="repe1_Hsubclass_0" value="30496" />
+  <input type="text" name="q" value="nope" />
+</form>`;
+    const fields = tms.extractHiddenInputs(html);
+    assert(fields.__VIEWSTATE === 'vs1', 'viewstate extracted');
+    assert(fields.__EVENTVALIDATION === 'ev1', 'eventvalidation extracted');
+    assert(fields['repe1$ctl00$Hsubclass'] === '30496', 'Hsubclass hidden included');
+    assert(fields.q == null, 'non-hidden inputs excluded');
 }
 
 {

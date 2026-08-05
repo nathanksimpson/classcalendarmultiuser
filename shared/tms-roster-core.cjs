@@ -332,6 +332,35 @@ function extractHidden(html, name) {
     return m2 ? m2[1] : '';
 }
 
+/**
+ * Collect all hidden inputs for an ASP.NET postback (browser submits the whole form).
+ * ViewState alone is often not enough — missing fields → invalid postback / no class switch.
+ */
+function extractHiddenInputs(html) {
+    const fields = {};
+    const inputRe = /<input\b([^>]*)>/gi;
+    let m;
+    while ((m = inputRe.exec(String(html || '')))) {
+        const attrs = m[1] || '';
+        const typeMatch = attrs.match(/\btype\s*=\s*["']([^"']*)["']/i);
+        const type = typeMatch ? String(typeMatch[1] || '').toLowerCase() : 'text';
+        if (type && type !== 'hidden') {
+            continue;
+        }
+        const nameMatch = attrs.match(/\bname\s*=\s*["']([^"']*)["']/i);
+        if (!nameMatch) {
+            continue;
+        }
+        const name = nameMatch[1];
+        if (!name || Object.prototype.hasOwnProperty.call(fields, name)) {
+            continue;
+        }
+        const valueMatch = attrs.match(/\bvalue\s*=\s*["']([^"']*)["']/i);
+        fields[name] = valueMatch ? decodeHtmlEntities(valueMatch[1]) : '';
+    }
+    return fields;
+}
+
 function encodeForm(fields) {
     return Object.keys(fields)
         .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(fields[k] == null ? '' : fields[k])}`)
@@ -722,7 +751,7 @@ function parseClassSelectList(html) {
         if (!/Hsubclass/i.test(li)) {
             continue;
         }
-        const selected = /\bselected\b/i.test(liAttrs) || /\bselected\b/i.test(li);
+        const selected = /\bselected\b/i.test(liAttrs);
         const aMatch = li.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i);
         const name = aMatch
             ? stripTags(decodeHtmlEntities(aMatch[1]))
@@ -772,9 +801,16 @@ function findClassSelectById(html, tmsClassId) {
     return parseClassSelectList(html).find((c) => c.tmsClassId === id) || null;
 }
 
+/** True when the popup sidebar marks this Hsubclass as the active class. */
+function classIsSelectedOnPage(html, tmsClassId) {
+    const live = findClassSelectById(html, tmsClassId);
+    return Boolean(live && live.selected);
+}
+
 /**
  * Switch class popup via ASP.NET LinkButton postback (same as the TMS UI).
  * GET ?classidx= is unreliable — often returns the previously selected class.
+ * Submit all hidden fields (browser form submit), not only ViewState.
  */
 async function fetchClassPopupPostback(jar, popupUrl, pageHtml, eventTarget, eventArgument) {
     const target = String(eventTarget || '').trim();
@@ -783,16 +819,20 @@ async function fetchClassPopupPostback(jar, popupUrl, pageHtml, eventTarget, eve
         err.code = 'TMS_POSTBACK_TARGET_MISSING';
         throw err;
     }
-    const viewState = extractHidden(pageHtml, '__VIEWSTATE');
-    const viewStateGen = extractHidden(pageHtml, '__VIEWSTATEGENERATOR');
-    const eventValidation = extractHidden(pageHtml, '__EVENTVALIDATION');
-    const body = encodeForm({
-        __EVENTTARGET: target,
-        __EVENTARGUMENT: eventArgument == null ? '' : String(eventArgument),
-        __VIEWSTATE: viewState,
-        __VIEWSTATEGENERATOR: viewStateGen,
-        __EVENTVALIDATION: eventValidation
-    });
+    const fields = extractHiddenInputs(pageHtml);
+    // Ensure core ASP.NET fields exist even if attribute order confused the scanner.
+    if (!fields.__VIEWSTATE) {
+        fields.__VIEWSTATE = extractHidden(pageHtml, '__VIEWSTATE');
+    }
+    if (!fields.__VIEWSTATEGENERATOR) {
+        fields.__VIEWSTATEGENERATOR = extractHidden(pageHtml, '__VIEWSTATEGENERATOR');
+    }
+    if (!fields.__EVENTVALIDATION) {
+        fields.__EVENTVALIDATION = extractHidden(pageHtml, '__EVENTVALIDATION');
+    }
+    fields.__EVENTTARGET = target;
+    fields.__EVENTARGUMENT = eventArgument == null ? '' : String(eventArgument);
+    const body = encodeForm(fields);
     return requestFollow(popupUrl, {
         method: 'POST',
         jar,
@@ -1049,26 +1089,31 @@ async function scrapeRosters(options) {
                 let pageStatus = 0;
                 let pageOk = false;
                 let pageError = '';
+                let accepted = false;
 
                 // Re-resolve LinkButton target from the latest popup HTML (ViewState-safe).
-                const live = findClassSelectById(currentHtml, cls.tmsClassId) || cls;
-                const eventTarget = live.eventTarget || cls.eventTarget || '';
+                // Do NOT fall back to the initial cls.selected — that poisons other classes
+                // with the first page's roster and wipes reverse-map candidates.
+                const live = findClassSelectById(currentHtml, cls.tmsClassId);
+                const eventTarget =
+                    (live && live.eventTarget) || cls.eventTarget || '';
                 const eventArgument =
-                    live.eventArgument != null ? live.eventArgument : cls.eventArgument || '';
+                    live && live.eventArgument != null
+                        ? live.eventArgument
+                        : cls.eventArgument || '';
 
                 // Already selected on this page → use current roster (no redundant postback).
-                if (live.selected) {
+                if (live && live.selected) {
                     students = parseStudentsFromClassPopup(currentHtml);
-                    if (students.length) {
-                        source = 'class-popup-selected';
-                        pageUrl = popupUrl;
-                        pageStatus = 200;
-                        pageOk = true;
-                    }
+                    source = 'class-popup-selected';
+                    pageUrl = popupUrl;
+                    pageStatus = 200;
+                    pageOk = true;
+                    accepted = true;
                 }
 
                 // Prefer ASP.NET LinkButton postback (fresh roster for that Hsubclass).
-                if (!students.length && eventTarget) {
+                if (!accepted && eventTarget) {
                     try {
                         const posted = await fetchClassPopupPostback(
                             jar,
@@ -1083,10 +1128,24 @@ async function scrapeRosters(options) {
                             posted.status < 400 &&
                             !stillOnLoginPage(posted.text, posted.finalUrl)
                         ) {
-                            currentHtml = posted.text;
-                            students = parseStudentsFromClassPopup(posted.text);
-                            source = 'class-popup-postback';
-                            pageOk = true;
+                            const switched = classIsSelectedOnPage(
+                                posted.text,
+                                cls.tmsClassId
+                            );
+                            const parsed = parseStudentsFromClassPopup(posted.text);
+                            // Accept only when the sidebar shows this class selected
+                            // (prevents keeping the previous class roster with studentCount > 0).
+                            if (switched) {
+                                currentHtml = posted.text;
+                                students = parsed;
+                                source = 'class-popup-postback';
+                                pageOk = true;
+                                accepted = true;
+                            } else {
+                                pageError =
+                                    pageError ||
+                                    'Postback did not select requested class';
+                            }
                         }
                     } catch (e) {
                         pageError = e.message || String(e);
@@ -1094,7 +1153,7 @@ async function scrapeRosters(options) {
                 }
 
                 // Fallback: GET ?classidx= (legacy; may return previously selected class).
-                if (!students.length) {
+                if (!accepted) {
                     try {
                         const page = await fetchPage(jar, getUrl);
                         pageStatus = page.status || 0;
@@ -1116,14 +1175,41 @@ async function scrapeRosters(options) {
                             });
                             continue;
                         }
-                        students = parseStudentsFromClassPopup(page.text);
-                        source = pageError || eventTarget
-                            ? 'class-popup-get-fallback'
-                            : 'class-popup';
-                        pageOk = true;
-                        // Keep postback ViewState chain when GET is only a fallback.
-                        if (!eventTarget) {
+                        const parsed = parseStudentsFromClassPopup(page.text);
+                        const switched = classIsSelectedOnPage(page.text, cls.tmsClassId);
+                        if (switched) {
                             currentHtml = page.text;
+                            students = parsed;
+                            source = pageError || eventTarget
+                                ? 'class-popup-get-fallback'
+                                : 'class-popup';
+                            pageOk = true;
+                            accepted = true;
+                        } else if (parsed.length) {
+                            // Last resort: keep students for reverse Map, but do not
+                            // poison the ViewState chain with an unverified page.
+                            students = parsed;
+                            source = 'class-popup-get-unverified';
+                            pageOk = true;
+                            accepted = true;
+                        } else {
+                            pageOk = false;
+                            pages.push({
+                                url: pageUrl,
+                                status: pageStatus,
+                                ok: false,
+                                error:
+                                    pageError ||
+                                    'GET classidx did not select requested class',
+                                source: 'class-popup'
+                            });
+                            allCohorts.push({
+                                cohortName: cls.cohortName,
+                                tmsClassId: cls.tmsClassId,
+                                students: [],
+                                source: 'class-popup'
+                            });
+                            continue;
                         }
                     } catch (e) {
                         pages.push({
@@ -1233,6 +1319,8 @@ module.exports = {
     trimRosterPasteTail,
     parseClassSelectList,
     findClassSelectById,
+    classIsSelectedOnPage,
+    extractHiddenInputs,
     fetchClassPopupPostback,
     mergeCohortLists,
     isLikelyStudentName,
