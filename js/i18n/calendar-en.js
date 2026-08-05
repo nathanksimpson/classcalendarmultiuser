@@ -959,6 +959,8 @@
         rosterTmsSyncFlaggedHint: 'Missing from this TMS list: {names}',
         rosterTmsSyncIncompleteHint:
             'TMS returned no students for this class, so Off roster changes are skipped until the scrape looks complete.',
+        rosterTmsSyncMissingSuppressedHint:
+            'This TMS roster may be incomplete for this class, so Missing-from-TMS / Off roster review is suppressed.',
         rosterTmsSyncAllMatchedHint: 'All names match — Off roster tags will be removed on Apply.',
         rosterTmsSyncSkip: 'Skip',
         rosterTmsSyncSkipAll: 'Skip all',
