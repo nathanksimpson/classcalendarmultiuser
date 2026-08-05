@@ -1278,7 +1278,21 @@
                 row.studentResolutions = {};
             }
             const unclear = domain().listUnclearTmsStudentMatches(target.students, row.students);
-            unclear.forEach((item) => {
+            const still = domain().applyRememberedTmsStudentResolutions
+                ? domain().applyRememberedTmsStudentResolutions(target, unclear, row)
+                : unclear;
+            still.forEach((item) => {
+                // Already resolved this session (or just applied from memory) — skip UI.
+                const key = item && item.tmsKey;
+                const res = key && row.studentResolutions ? row.studentResolutions[key] : null;
+                if (
+                    res &&
+                    (res.action === 'skip' ||
+                        res.action === 'add' ||
+                        (res.action === 'map' && res.studentId))
+                ) {
+                    return;
+                }
                 queue.push({
                     rowIdx,
                     importCohortName: row.importCohortName,
