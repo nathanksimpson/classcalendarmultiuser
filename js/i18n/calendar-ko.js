@@ -958,6 +958,8 @@
         rosterTmsSyncFlaggedHint: '이 TMS 목록에 없음: {names}',
         rosterTmsSyncIncompleteHint:
             '이 반은 TMS에서 학생 0명으로 돌아와서, 스크레이프가 정상일 때까지 명단외 변경을 건너뜁니다.',
+        rosterTmsSyncMissingSuppressedHint:
+            '이 반의 TMS 명단이 불완전할 수 있어, TMS에 없음 / 명단외 확인을 건너뜁니다.',
         rosterTmsSyncAllMatchedHint: '이름이 모두 일치합니다 — 적용 시 명단외 태그가 제거됩니다.',
         rosterTmsSyncSkip: '건너뛰기',
         rosterTmsSyncSkipAll: '모두 건너뛰기',

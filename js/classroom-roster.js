@@ -1278,6 +1278,12 @@
     function buildTmsPlanRowFromScrape(c, calendar, links) {
         const name = (c && c.cohortName) || '';
         const tmsClassId = (c && (c.tmsClassId || c.cohortId)) || '';
+        const scrapeSource = (c && c.source) || '';
+        const suppressMissingReview =
+            !Array.isArray(c && c.students) ||
+            !c.students.length ||
+            scrapeSource === 'class-popup-get-unverified' ||
+            scrapeSource === 'class-popup-get-fallback';
         const resolved = domain().resolveTmsRosterLink
             ? domain().resolveTmsRosterLink(links, name, calendar, { tmsClassId })
             : {
@@ -1296,6 +1302,8 @@
             tmsLinkKey: resolved.key || '',
             studentCount: Array.isArray(c.students) ? c.students.length : 0,
             students: Array.isArray(c.students) ? c.students.slice() : [],
+            scrapeSource,
+            suppressMissingReview,
             schedule: c && c.schedule ? Object.assign({}, c.schedule) : null,
             studentResolutions: {},
             missingStudentActions: {},
@@ -1328,6 +1336,9 @@
 
     function buildTmsPreviewExtraHint(summary) {
         const s = summary || {};
+        if (s.suppressMissingReview) {
+            return t('rosterTmsSyncMissingSuppressedHint');
+        }
         const added = Array.isArray(s.added) ? s.added : [];
         const fuzzyCleared = Array.isArray(s.fuzzyCleared) ? s.fuzzyCleared : [];
         const cleared = Array.isArray(s.cleared) ? s.cleared : [];
@@ -1417,8 +1428,10 @@
             : unclearRaw;
         const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
             studentResolutions: row.studentResolutions || {},
-            softUnclear: true
+            softUnclear: true,
+            suppressMissing: Boolean(row.suppressMissingReview)
         }).summary;
+        summary.suppressMissingReview = Boolean(row.suppressMissingReview);
         summary.unclear = unclear;
         return summary;
     }
@@ -1478,12 +1491,16 @@
             }
             const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
                 studentResolutions: row.studentResolutions || {},
-                softUnclear: true
+                softUnclear: true,
+                suppressMissing: Boolean(row.suppressMissingReview)
             }).summary;
             if (
                 Array.isArray(summary.warnings) &&
                 summary.warnings.some((w) => w && w.code === 'incomplete_tms_scrape')
             ) {
+                return;
+            }
+            if (row.suppressMissingReview) {
                 return;
             }
             const flagged = Array.isArray(summary.flagged) ? summary.flagged : [];
@@ -1625,6 +1642,13 @@
                 action: 'archive',
                 archiveReason: archiveReason || 'left',
                 expectedStartDate: expectedStartDate || ''
+            };
+        } else if (action === 'map') {
+            row.missingStudentActions[sid] = {
+                action: 'map',
+                tmsName: archiveReason || '',
+                tmsNameEn: expectedStartDate || '',
+                tmsMpidx: toCohortId || ''
             };
         } else if (action === 'move') {
             const dest =
@@ -1821,6 +1845,7 @@
             return;
         }
         const student = entry.student || {};
+        const row = tmsSyncPlan[entry.rowIdx];
         const progress = document.getElementById('rosterTmsStudentReviewProgress');
         const reasonEl = document.getElementById('rosterTmsStudentReviewReason');
         const nameEl = document.getElementById('rosterTmsStudentReviewName');
@@ -1860,11 +1885,22 @@
         }
         const existing = getCurrentMissingAction() || { action: 'keep' };
         const hasTransfer = Boolean(entry.transfer && entry.transfer.toCohortId);
+        const tmsCandidates = Array.isArray(row && row.students)
+            ? row.students
+                  .filter((s) => s && s.name)
+                  .map((s) => ({
+                      name: String(s.name || ''),
+                      nameEn: String(s.nameEn || ''),
+                      mpidx: String(s.mpidx || '')
+                  }))
+            : [];
         let selected = 'keep';
         if (existing.action === 'archive') {
             selected = 'archive';
         } else if (existing.action === 'move' && hasTransfer) {
             selected = 'move';
+        } else if (existing.action === 'map' && existing.tmsName) {
+            selected = `map:${existing.tmsName}|${existing.tmsNameEn || ''}|${existing.tmsMpidx || ''}`;
         }
         if (optionsEl) {
             const moveLabel = hasTransfer
@@ -1881,6 +1917,17 @@
                     }><span>${escapeHtml(moveLabel)}</span></label>`
                 );
             }
+            tmsCandidates.forEach((cand) => {
+                const en = cand.nameEn ? ` (${cand.nameEn})` : '';
+                const value = `map:${cand.name}|${cand.nameEn || ''}|${cand.mpidx || ''}`;
+                chips.push(
+                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="${escapeHtml(
+                        value
+                    )}"${selected === value ? ' checked' : ''}><span>${escapeHtml(
+                        t('rosterTmsReviewReverseMapTo').replace('{name}', `${cand.name}${en}`)
+                    )}</span></label>`
+                );
+            });
             chips.push(
                 `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="keep"${
                     selected === 'keep' ? ' checked' : ''
@@ -1900,6 +1947,14 @@
                         setCurrentMissingAction('archive', reason, start);
                     } else if (input.value === 'move') {
                         setCurrentMissingAction('move');
+                    } else if (input.value.startsWith('map:')) {
+                        const payload = input.value.slice('map:'.length).split('|');
+                        setCurrentMissingAction(
+                            'map',
+                            payload[0] || '',
+                            payload[1] || '',
+                            payload[2] || ''
+                        );
                     } else {
                         setCurrentMissingAction('keep');
                     }
@@ -1997,6 +2052,7 @@
         let ok =
             action.action === 'keep' ||
             action.action === 'archive' ||
+            (action.action === 'map' && Boolean(action.tmsName)) ||
             (action.action === 'move' && Boolean(action.toCohortId));
         if (action.action === 'archive' && action.archiveReason === 'starting_soon') {
             ok = Boolean(String(action.expectedStartDate || '').trim());
@@ -2668,6 +2724,29 @@
                     continue;
                 }
                 const act = actions[sid];
+                if (act && act.action === 'map' && act.tmsName) {
+                    cohorts = cohorts.map((cohort) => {
+                        if (!cohort || cohort.id !== row.userTargetId) {
+                            return cohort;
+                        }
+                        const students = (cohort.students || []).map((stu) => {
+                            if (!stu || stu.id !== sid) {
+                                return stu;
+                            }
+                            const tags = Array.isArray(stu.tags)
+                                ? stu.tags.filter((tag) => tag !== 'off_roster')
+                                : [];
+                            return Object.assign({}, stu, {
+                                name: act.tmsName || stu.name,
+                                nameEn: act.tmsNameEn || stu.nameEn || '',
+                                tmsMpidx: act.tmsMpidx || stu.tmsMpidx || '',
+                                tags
+                            });
+                        });
+                        return Object.assign({}, cohort, { students });
+                    });
+                    continue;
+                }
                 if (!act || act.action !== 'archive') {
                     continue;
                 }

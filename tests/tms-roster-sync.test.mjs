@@ -102,6 +102,23 @@ function assert(cond, msg) {
     );
 }
 
+// Unreliable partial roster can suppress missing/off_roster inference
+{
+    const existing = [
+        { id: 'stu_a', name: '황연진', tags: [] },
+        { id: 'stu_b', name: '김민수', tags: [] }
+    ];
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }], {
+        suppressMissing: true
+    });
+    assert(result.summary.flagged.length === 0, 'suppressed rows do not flag missing students');
+    assert(
+        !result.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
+        'suppressed rows do not add off_roster'
+    );
+    assert(result.summary.matched.length === 1, 'positive match still applied');
+}
+
 // Never deletes students
 {
     const existing = [

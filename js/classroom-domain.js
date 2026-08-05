@@ -482,7 +482,8 @@
      * - ★/◆ gain/loss or Latin letter differences require studentResolutions (map/add/skip).
      * - On confirmed map (or identical display), adopt TMS display name / nameEn / mpidx.
      * - Add students whose match key is not in the cohort (and not unclear).
-     * - Flag existing students missing from TMS with off_roster (never delete).
+     * - Flag existing students missing from TMS with off_roster (never delete),
+     *   unless options.suppressMissing is true for an unreliable partial roster.
      *   Preview `flagged` includes students who already had the tag (still missing).
      * - Clear off_roster when they reappear on TMS (always strip on match).
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
@@ -746,6 +747,9 @@
                 }
                 return withoutStudentTag(next, OFF_ROSTER_TAG);
             }
+            if (opts.suppressMissing) {
+                return next;
+            }
             // Count every student missing from TMS in flagged (including ones already tagged),
             // so preview "0 off roster" means no Off roster tags will remain after Apply.
             flagged.push({ id: next.id, name: next.name });
@@ -943,7 +947,8 @@
             const merged = mergeRosterByKoreanName(target.students, row.students, {
                 newStudentId: opts.newStudentId,
                 studentResolutions: sessionResolutions,
-                softUnclear: Boolean(opts.softUnclear)
+                softUnclear: Boolean(opts.softUnclear),
+                suppressMissing: Boolean(row && row.suppressMissingReview)
             });
             cohorts[idx] = Object.assign({}, target, {
                 students: merged.students,
@@ -988,7 +993,8 @@
             }
             const summary = mergeRosterByKoreanName(target.students, row.students, {
                 studentResolutions: row.studentResolutions || {},
-                softUnclear: true
+                softUnclear: true,
+                suppressMissing: Boolean(row && row.suppressMissingReview)
             }).summary;
             if (
                 Array.isArray(summary.warnings) &&
