@@ -207,6 +207,25 @@ function assert(cond, msg) {
     assert(strip.students[0].name === '권이안', 'adopted TMS without symbol');
 }
 
+// Parenthesized suffix from TMS roster ("Name()" or "Name(English)") should be ignored for identity
+{
+    assert(D.koreanNameKey('황연진()') === '황연진', 'strip empty parens');
+    assert(D.koreanNameKey('황연진(Leo)') === '황연진', 'strip parens with English');
+    assert(D.koreanNameKey('양민아()') === '양민아', 'strip empty parens for 양민아');
+}
+
+{
+    const existing = [{ id: 'stu_a', name: '황연진', tags: [] }];
+    const matched = D.mergeRosterByKoreanName(existing, [{ name: '황연진()' }]);
+    assert(matched.summary.matched.length === 1, '황연진() matches 황연진');
+    assert(matched.summary.flagged.length === 0, 'not flagged missing when parens present');
+    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '황연진()' }]).length === 0, 'no unclear queue for parens');
+
+    const matchedEn = D.mergeRosterByKoreanName(existing, [{ name: '황연진(Leo)', nameEn: '' }]);
+    assert(matchedEn.summary.matched.length === 1, '황연진(Leo) matches 황연진 identity');
+    assert(matchedEn.summary.flagged.length === 0, 'no missing when parens with English');
+}
+
 // Identical Hangul+mark still silent-matches
 {
     const existing = [{ id: 'stu_a', name: '정태희★', nameEn: 'Taeheu', tags: [] }];
