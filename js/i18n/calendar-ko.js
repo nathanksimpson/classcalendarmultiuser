@@ -975,7 +975,7 @@
         rosterTmsReviewReasonUnmatched:
             '이 반에 같은 한글 이름이 없습니다. 기존 학생에 연결하거나, 새로 추가하거나, 건너뛰세요.',
         rosterTmsReviewReasonMissingFromTms:
-            '이 ClassManager 학생이 TMS 목록에 없거나 명단외입니다. 맞는 TMS 이름을 고르면 ClassManager에 반영됩니다(TMS에는 쓸 수 없음). 또는 명단외로 유지하세요.',
+            '이 ClassManager 학생이 TMS 목록에 없거나 명단외입니다. TMS 이름을 고르면 ClassManager에 반영됩니다(이미 다른 학생과 맞은 이름도 다시 연결 가능). 또는 명단외로 유지하세요. TMS에는 쓸 수 없습니다.',
         rosterTmsReviewCmName: 'ClassManager 학생',
         rosterTmsReviewReverseChoicesLabel: '이 학생을 어떤 TMS 이름으로 업데이트할까요?',
         rosterTmsReviewReverseMapTo: 'TMS 이름 사용: {name} (ClassManager에 반영)',

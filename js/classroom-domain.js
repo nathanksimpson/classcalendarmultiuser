@@ -535,8 +535,10 @@
     }
 
     /**
-     * CM students who are (or will be) missing from TMS — offer reverse Map to an unmatched TMS name.
-     * Choosing Map stores studentResolutions[tmsKey]={map,studentId} so merge writes TMS name/nameEn onto CCMU.
+     * CM students who are (or will be) missing from TMS — reverse Map to a TMS name
+     * (writes TMS → CCMU) or Keep Off roster. Always queued when someone would be flagged,
+     * even if every TMS name already exact-matched someone else (candidates then include
+     * those TMS names for rematch). Never silently Off-roster without this review.
      */
     function listReverseTmsStudentMatches(existingStudents, tmsStudents, options) {
         const opts = options || {};
@@ -582,18 +584,22 @@
         });
 
         const exactMatchedStudentIds = new Set();
-        const claimedTmsKeys = new Set();
+        const exactMatchedTmsKeys = new Set();
+        const claimedByResolution = new Set();
         const seenTms = new Set();
+        /** @type {Map<string, { name: string, nameEn: string }>} */
+        const tmsByKey = new Map();
         incoming.forEach((imp) => {
             const k = koreanMatchKey(imp.name);
             if (!k || seenTms.has(k)) {
                 return;
             }
             seenTms.add(k);
+            tmsByKey.set(k, { name: imp.name, nameEn: imp.nameEn || '' });
             const exact = existingByKey.get(k);
             if (exact && !duplicateKeys.has(k)) {
                 exactMatchedStudentIds.add(exact.id);
-                claimedTmsKeys.add(k);
+                exactMatchedTmsKeys.add(k);
             }
         });
 
@@ -605,25 +611,27 @@
             }
             if (r.action === 'map' && r.studentId) {
                 mappedStudentIds.add(r.studentId);
-                claimedTmsKeys.add(k);
+                claimedByResolution.add(k);
             } else if (r.action === 'skip' || r.action === 'add') {
-                claimedTmsKeys.add(k);
+                claimedByResolution.add(k);
             }
         });
 
-        const tmsCandidates = [];
-        const seenCand = new Set();
-        incoming.forEach((imp) => {
-            const k = koreanMatchKey(imp.name);
-            if (!k || seenCand.has(k) || claimedTmsKeys.has(k)) {
+        // Unmatched first (best reverse targets), then already-matched TMS for rematch.
+        const unmatched = [];
+        const matched = [];
+        tmsByKey.forEach((row, k) => {
+            if (claimedByResolution.has(k)) {
                 return;
             }
-            seenCand.add(k);
-            tmsCandidates.push({ tmsKey: k, name: imp.name, nameEn: imp.nameEn || '' });
+            const cand = { tmsKey: k, name: row.name, nameEn: row.nameEn };
+            if (exactMatchedTmsKeys.has(k)) {
+                matched.push(cand);
+            } else {
+                unmatched.push(cand);
+            }
         });
-        if (!tmsCandidates.length) {
-            return [];
-        }
+        const tmsCandidates = unmatched.concat(matched);
 
         const missing = existing
             .filter((s) => {
@@ -634,7 +642,8 @@
                 if (rev && rev.action === 'skip') {
                     return false;
                 }
-                if (rev && rev.action === 'map' && rev.tmsKey && claimedTmsKeys.has(rev.tmsKey)) {
+                if (rev && rev.action === 'map' && rev.tmsKey) {
+                    // Already reverse-mapped this session / memory — drop from queue.
                     return false;
                 }
                 return true;
@@ -763,9 +772,12 @@
      * - On exact match or confirmed map, adopt TMS display name when it differs, and nameEn when set.
      * - Add students only via resolution action 'add' (or exact-new when no review needed —
      *   unmatched / unclear without Map/Add/Skip never auto-add).
-     * - Flag existing students missing from TMS with off_roster (never delete).
+     * - Flag existing students missing from TMS with off_roster only after reverse
+     *   review confirms Keep Off roster (reverseResolutions[id].action === 'skip'),
+     *   unless options.allowSilentOffRoster is true (legacy).
      * - Clear off_roster when they reappear on TMS (Korean match / map only — English never affects this).
      * - options.studentResolutions: { [tmsKey]: { action:'map'|'add'|'skip', studentId? } }
+     * - options.reverseResolutions: { [studentId]: { action:'skip'|'map', tmsKey? } }
      */
     function mergeRosterByKoreanName(existingStudents, tmsStudents, options) {
         const opts = options || {};
@@ -778,6 +790,12 @@
                 ? opts.studentResolutions
                 : {}
         );
+        const reverseRes = normalizeTmsReverseResolutions(
+            opts.reverseResolutions && typeof opts.reverseResolutions === 'object'
+                ? opts.reverseResolutions
+                : {}
+        );
+        const allowSilentOffRoster = opts.allowSilentOffRoster === true;
         const existing = (Array.isArray(existingStudents) ? existingStudents : [])
             .map(normalizeStudent)
             .filter(Boolean);
@@ -1007,6 +1025,14 @@
                 }
                 return withoutStudentTag(next, OFF_ROSTER_TAG);
             }
+            const rev = reverseRes[s.id];
+            // Require reverse Keep Off roster (or legacy silent) before newly tagging.
+            const confirmOff =
+                allowSilentOffRoster || (rev && rev.action === 'skip');
+            if (!confirmOff) {
+                // Pending reverse review — do not silently Off-roster.
+                return next;
+            }
             flagged.push({ id: next.id, name: next.name });
             return hadOff ? next : withStudentTag(next, OFF_ROSTER_TAG);
         });
@@ -1070,6 +1096,7 @@
             const merged = mergeRosterByKoreanName(target.students, row.students, {
                 newStudentId: opts.newStudentId,
                 studentResolutions: sessionResolutions,
+                reverseResolutions: sessionReverse,
                 softUnclear: Boolean(opts.softUnclear)
             });
             cohorts[idx] = Object.assign({}, target, {
