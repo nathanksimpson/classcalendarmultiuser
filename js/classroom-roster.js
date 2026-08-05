@@ -1266,6 +1266,7 @@
                 : [];
         const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
             studentResolutions: row.studentResolutions || {},
+            reverseResolutions: row.reverseResolutions || {},
             softUnclear: true
         }).summary;
         summary.unclear = unclear.concat(reverse);

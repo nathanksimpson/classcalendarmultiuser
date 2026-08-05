@@ -82,14 +82,29 @@ function assert(cond, msg) {
     assert(student.nameEn === 'Bob', 'English updated separately from off_roster');
 }
 
-// Flag missing from TMS; clear when they return
+// Flag missing from TMS only after reverse Keep Off roster; clear when they return
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
         { id: 'stu_b', name: '이서연', tags: [] }
     ];
-    const first = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }]);
-    assert(first.summary.flagged.length === 1, 'flagged one');
+    const pending = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }]);
+    assert(pending.summary.flagged.length === 0, 'no silent Off roster without reverse review');
+    assert(
+        !pending.students.find((s) => s.id === 'stu_b').tags.includes('off_roster'),
+        '이서연 not tagged until Keep Off roster'
+    );
+    assert(
+        D.listReverseTmsStudentMatches(existing, [{ name: '김민수' }], {}).some(
+            (r) => r.studentId === 'stu_b'
+        ),
+        'reverse review queued for missing student'
+    );
+
+    const first = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }], {
+        reverseResolutions: { stu_b: { action: 'skip' } }
+    });
+    assert(first.summary.flagged.length === 1, 'flagged one after Keep Off roster');
     assert(first.summary.flagged[0].name === '이서연', 'flagged 이서연');
     const flagged = first.students.find((s) => s.id === 'stu_b');
     assert(flagged.tags.includes('off_roster'), 'has off_roster tag');
@@ -112,21 +127,25 @@ function assert(cond, msg) {
         { id: 'stu_a', name: '김민수', tags: ['new'] },
         { id: 'stu_gone', name: '최유나', tags: ['interested'] }
     ];
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }]);
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }], {
+        reverseResolutions: { stu_gone: { action: 'skip' } }
+    });
     assert(result.students.length === 2, 'still two students');
     const gone = result.students.find((s) => s.id === 'stu_gone');
     assert(gone, 'kept gone student');
     assert(gone.tags.includes('interested'), 'kept other tags');
-    assert(gone.tags.includes('off_roster'), 'added off_roster');
+    assert(gone.tags.includes('off_roster'), 'added off_roster after Keep Off roster');
 }
 
-// Already Off roster + still missing from TMS still counts in flagged preview
+// Already Off roster + still missing from TMS still counts in flagged preview after Keep Off roster
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
         { id: 'stu_gone', name: '최유나', tags: ['off_roster'] }
     ];
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }]);
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }], {
+        reverseResolutions: { stu_gone: { action: 'skip' } }
+    });
     assert(result.summary.flagged.length === 1, 'already-tagged missing still flagged');
     assert(result.summary.flagged[0].id === 'stu_gone', 'flagged is 최유나');
     assert(
@@ -409,7 +428,8 @@ function assert(cond, msg) {
     ];
     const key = D.koreanNameKey('김민수아');
     const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수아' }], {
-        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } },
+        reverseResolutions: { stu_b: { action: 'skip' } }
     });
     assert(result.summary.added.length === 0, 'no duplicate add for resolved variant');
     assert(
@@ -438,7 +458,8 @@ function assert(cond, msg) {
         { name: '김민수아' },
         { name: '이서연' }
     ], {
-        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } },
+        reverseResolutions: { stu_gone: { action: 'skip' } }
     });
     assert(result.summary.matched.length === 2, 'exact + resolved matched');
     assert(result.summary.added.length === 0, 'no false New for 김민수아');
@@ -468,11 +489,20 @@ function assert(cond, msg) {
         unresolved.summary.warnings.some((w) => w.code === 'unresolved_unmatched_name'),
         'unresolved unmatched warning'
     );
-    assert(unresolved.summary.flagged.length === 2, 'both CM still missing from TMS');
+    assert(unresolved.summary.flagged.length === 0, 'no silent Off roster without reverse Keep');
+    assert(
+        unresolved.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'),
+        'existing off_roster kept while pending'
+    );
+    assert(
+        !unresolved.students.find((s) => s.id === 'stu_b').tags.includes('off_roster'),
+        '이서연 not newly tagged without Keep Off roster'
+    );
 
     const key = D.koreanMatchKey('박지훈');
     const mapped = D.mergeRosterByKoreanName(existing, [{ name: '박지훈', nameEn: 'Jihoon' }], {
-        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
+        studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } },
+        reverseResolutions: { stu_b: { action: 'skip' } }
     });
     assert(mapped.summary.added.length === 0, 'map does not add');
     const target = mapped.students.find((s) => s.id === 'stu_a');
@@ -499,7 +529,8 @@ function assert(cond, msg) {
         { name: '권이안', nameEn: '' }
     ], {
         newStudentId: () => `stu_new${++n}`,
-        studentResolutions: { [key]: { action: 'add' } }
+        studentResolutions: { [key]: { action: 'add' } },
+        reverseResolutions: { stu_b: { action: 'skip' } }
     });
     assert(result.summary.added.length === 1, 'one korean-only student added');
     assert(result.summary.added[0].name === '권이안', '권이안 added');
@@ -569,8 +600,12 @@ function assert(cond, msg) {
         'TMS name offered as reverse candidate'
     );
     assert(
-        !reverse[0].candidates.some((c) => c.name === '김민수'),
-        'exact-matched TMS not offered for reverse'
+        reverse[0].candidates.some((c) => c.name === '김민수'),
+        'exact-matched TMS also offered for rematch'
+    );
+    assert(
+        reverse[0].candidates[0].name === '황연진◆',
+        'unmatched TMS listed before rematch candidates'
     );
 
     const tmsKey = D.koreanMatchKey('황연진◆');
@@ -638,6 +673,69 @@ function assert(cond, msg) {
         reverse[0].candidates.some((c) => D.koreanMatchKey(c.name) === D.koreanMatchKey('박지훈')),
         'TMS still available for other student'
     );
+}
+
+// NavyM / 유마T / 레오M style: TMS exact-matches a subset — extras need reverse review
+// (previously silent Off roster because unmatched TMS list was empty)
+{
+    const existing = [
+        { id: 'stu_1', name: '김민수', tags: [] },
+        { id: 'stu_2', name: '이서연', tags: [] },
+        { id: 'stu_3', name: '황연진', tags: [] },
+        { id: 'stu_4', name: '박지훈', tags: ['off_roster'] }
+    ];
+    const tms = [
+        { name: '김민수', nameEn: 'Min' },
+        { name: '이서연', nameEn: 'Seo' }
+    ];
+    const reverse = D.listReverseTmsStudentMatches(existing, tms, {});
+    assert(reverse.length === 2, 'two missing CM students need reverse (황연진 + 박지훈)');
+    assert(reverse[0].studentId === 'stu_4', 'already Off roster listed first');
+    assert(
+        reverse.every((r) => r.candidates.length === 2),
+        'rematch candidates include already-matched TMS names'
+    );
+    assert(
+        reverse[0].candidates.some((c) => c.name === '김민수') &&
+            reverse[0].candidates.some((c) => c.name === '이서연'),
+        'can rematch onto TMS names that exact-matched someone else'
+    );
+
+    const silent = D.mergeRosterByKoreanName(existing, tms, {});
+    assert(silent.summary.flagged.length === 0, 'NavyM-style: no silent Off roster');
+    assert(
+        !silent.students.find((s) => s.id === 'stu_3').tags.includes('off_roster'),
+        '황연진 not silently tagged'
+    );
+    assert(
+        silent.students.find((s) => s.id === 'stu_4').tags.includes('off_roster'),
+        'existing Off roster kept while pending reverse'
+    );
+
+    const confirmed = D.mergeRosterByKoreanName(existing, tms, {
+        reverseResolutions: {
+            stu_3: { action: 'skip' },
+            stu_4: { action: 'skip' }
+        }
+    });
+    assert(confirmed.summary.flagged.length === 2, 'flagged after Keep Off roster');
+    assert(confirmed.students.find((s) => s.id === 'stu_3').tags.includes('off_roster'), '황연진 Off roster after confirm');
+
+    const rematchKey = D.koreanMatchKey('김민수');
+    const rematched = D.mergeRosterByKoreanName(existing, tms, {
+        studentResolutions: { [rematchKey]: { action: 'map', studentId: 'stu_3' } },
+        reverseResolutions: {
+            stu_3: { action: 'map', tmsKey: rematchKey },
+            stu_4: { action: 'skip' }
+        }
+    });
+    assert(rematched.students.find((s) => s.id === 'stu_3').name === '김민수', 'rematch wrote TMS name onto 황연진 slot');
+    assert(!rematched.students.find((s) => s.id === 'stu_3').tags.includes('off_roster'), 'rematch cleared Off roster');
+    assert(
+        !rematched.students.find((s) => s.id === 'stu_1').tags.includes('off_roster'),
+        'displaced 김민수 not silently Off-rostered (needs own reverse Keep)'
+    );
+    assert(rematched.summary.flagged.some((f) => f.id === 'stu_4'), 'stu_4 Keep Off roster still flagged');
 }
 
 // TMS class → cohort link memory

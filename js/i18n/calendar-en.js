@@ -976,7 +976,7 @@
         rosterTmsReviewReasonUnmatched:
             'No Hangul match in this class — map to an existing student, add as new, or skip.',
         rosterTmsReviewReasonMissingFromTms:
-            'This ClassManager student is not on the TMS list (or is Off roster). Pick the matching TMS name to pull into ClassManager — we cannot write names back to TMS. Or keep Off roster.',
+            'This ClassManager student is not on the TMS list (or is Off roster). Pick a TMS name to pull into ClassManager (including rematch), or keep Off roster. We cannot write names back to TMS.',
         rosterTmsReviewCmName: 'ClassManager student',
         rosterTmsReviewReverseChoicesLabel: 'Which TMS name should update this student?',
         rosterTmsReviewReverseMapTo: 'Use TMS name: {name} (write into ClassManager)',
