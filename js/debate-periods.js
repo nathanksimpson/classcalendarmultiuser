@@ -194,6 +194,75 @@
         });
     }
 
+    /**
+     * Re-key compressionMergesByPeriod when debate period ids change.
+     * Match old→new periods by startDate, then by YYYY-MM month key.
+     * @param {object} oldMap periodId → merge start numbers
+     * @param {Array<{id?: string, startDate?: string}>} oldPeriods
+     * @param {Array<{id?: string, startDate?: string}>} newPeriods
+     * @returns {object}
+     */
+    function remapCompressionMergesByPeriod(oldMap, oldPeriods, newPeriods) {
+        const source = oldMap && typeof oldMap === 'object' ? oldMap : {};
+        const oldList = Array.isArray(oldPeriods) ? oldPeriods : [];
+        const newList = Array.isArray(newPeriods) ? newPeriods : [];
+        if (!newList.length) {
+            return {};
+        }
+
+        const byId = new Map();
+        const byStart = new Map();
+        const byMonth = new Map();
+        oldList.forEach((period) => {
+            if (!period || !period.id) {
+                return;
+            }
+            const merges = source[period.id];
+            if (!Array.isArray(merges) || !merges.length) {
+                return;
+            }
+            byId.set(period.id, merges.slice());
+            const start = String(period.startDate || '').trim();
+            if (ISO_DATE.test(start)) {
+                byStart.set(start, merges.slice());
+                const monthKey = start.slice(0, 7);
+                if (!byMonth.has(monthKey)) {
+                    byMonth.set(monthKey, merges.slice());
+                }
+            }
+        });
+
+        // Orphan keys in map (no matching old period row) — still try id match on new periods.
+        Object.keys(source).forEach((id) => {
+            if (byId.has(id)) {
+                return;
+            }
+            const merges = source[id];
+            if (Array.isArray(merges) && merges.length) {
+                byId.set(id, merges.slice());
+            }
+        });
+
+        const result = {};
+        newList.forEach((period) => {
+            if (!period || !period.id) {
+                return;
+            }
+            let merges = byId.get(period.id);
+            const start = String(period.startDate || '').trim();
+            if (!merges && ISO_DATE.test(start)) {
+                merges = byStart.get(start);
+            }
+            if (!merges && ISO_DATE.test(start)) {
+                merges = byMonth.get(start.slice(0, 7));
+            }
+            if (Array.isArray(merges) && merges.length) {
+                result[period.id] = merges.slice();
+            }
+        });
+        return result;
+    }
+
     function ensureDebateBookPeriodsForClass(classData) {
         if (!classData || typeof classData !== 'object') {
             return [];
@@ -289,6 +358,11 @@
         }).join('; ');
     }
 
+    /** Manual and per-book-period modes are user-owned (no auto propose-on-save). */
+    function isManualCompressionMode(mode) {
+        return mode === 'manual' || mode === 'manualPerMonth';
+    }
+
     const api = {
         parseISODateLocal,
         formatDateISO,
@@ -300,6 +374,8 @@
         normalizeDebateBookPeriods,
         migrateBooksByMonthToPeriods,
         ensureDebateBookPeriodsForClass,
+        remapCompressionMergesByPeriod,
+        isManualCompressionMode,
         getDebatePeriodForDate,
         getBookForDate,
         enumerateDebatePeriodsInTerm,

@@ -140,4 +140,32 @@ const collapsedLessons = simulateDebatePeriodLessonCount(collapsedClass, debateC
 assert(collapsedLessons <= 4, 'single fallback period schedules at most one Day 1–4 cycle');
 assert(multiPeriodLessons > collapsedLessons, 'saved periods must out-schedule collapsed fallback');
 
+{
+    const oldPeriods = [
+        { id: 'old-a', startDate: '2026-01-06', book: 'A' },
+        { id: 'old-b', startDate: '2026-02-01', book: 'B' }
+    ];
+    const newPeriods = [
+        { id: 'new-a', startDate: '2026-01-06', book: 'A' },
+        { id: 'new-b', startDate: '2026-02-01', book: 'B' }
+    ];
+    const oldMap = { 'old-a': [1], 'old-b': [2] };
+    const remapped = DP.remapCompressionMergesByPeriod(oldMap, oldPeriods, newPeriods);
+    assert(Array.isArray(remapped['new-a']) && remapped['new-a'][0] === 1, 'remap keeps merges by startDate');
+    assert(Array.isArray(remapped['new-b']) && remapped['new-b'][0] === 2, 'remap last period Day2+3 start');
+    assert(!remapped['old-a'], 'old period ids are not kept');
+}
+
+{
+    const oldPeriods = [{ id: 'x1', startDate: '2026-03-15', book: 'C' }];
+    const newPeriods = [{ id: 'y1', startDate: '2026-03-01', book: 'C' }];
+    const oldMap = { x1: [2] };
+    const remapped = DP.remapCompressionMergesByPeriod(oldMap, oldPeriods, newPeriods);
+    assert(Array.isArray(remapped.y1) && remapped.y1[0] === 2, 'remap falls back to month key');
+}
+
+assert(DP.isManualCompressionMode('manual') === true, 'manual is manual mode');
+assert(DP.isManualCompressionMode('manualPerMonth') === true, 'per-period is manual mode');
+assert(DP.isManualCompressionMode('autoWhenNeeded') === false, 'auto is not manual mode');
+
 console.log('debate-periods.test.mjs: all passed');

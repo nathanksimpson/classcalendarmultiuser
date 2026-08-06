@@ -3040,7 +3040,8 @@ function updateCompressionUiForScheduleModel() {
     initScheduleAdjustmentDetailsToggle('classForm');
 }
 
-function syncCompressionSectionsForMode(surface, classData) {
+function syncCompressionSectionsForMode(surface, classData, options) {
+    options = options || {};
     const sid = surface || getScheduleAdjustmentSurface();
     const debate = sid === 'syllabus'
         ? classUsesDebateCompression(classData || getSelectedSyllabusClass())
@@ -3072,10 +3073,34 @@ function syncCompressionSectionsForMode(surface, classData) {
         byMonthSection.style.display = perPeriod ? '' : 'none';
     }
     if (perPeriod) {
-        const periods = sid === 'syllabus'
-            ? ((classData || getSelectedSyllabusClass())?.debateBookPeriods || [])
-            : collectDebateBookPeriodsFromForm();
-        renderCompressionByPeriodRows(periods, sid);
+        const container = scheduleAdjEl(sid, 'compressionByMonthRows');
+        const oldPeriods = collectCompressionPeriodMetaFromForm(sid);
+        const formMerges = collectCompressionMergesByPeriodFromForm(sid);
+        const periods = Array.isArray(options.periods)
+            ? options.periods
+            : (sid === 'syllabus'
+                ? ((classData || getSelectedSyllabusClass())?.debateBookPeriods || [])
+                : collectDebateBookPeriodsFromForm());
+        let mergeMap = options.mergeMap;
+        if (!mergeMap) {
+            const classId = sid === 'syllabus'
+                ? ((getSelectedSyllabusClass() && getSelectedSyllabusClass().id) || '')
+                : (elements.classId ? elements.classId.value : '');
+            const existingClass = classId ? appData.classes.find(c => c.id === classId) : null;
+            const savedMap = (classData && classData.compressionMergesByPeriod)
+                || (existingClass && existingClass.compressionMergesByPeriod)
+                || {};
+            const hasFormBlocks = !!(container && container.querySelector('.compression-period-block'));
+            if (hasFormBlocks && Object.keys(formMerges).length) {
+                mergeMap = remapCompressionMergesByPeriodForUi(formMerges, oldPeriods, periods);
+            } else {
+                const savedPeriods = (classData && classData.debateBookPeriods)
+                    || (existingClass && existingClass.debateBookPeriods)
+                    || oldPeriods;
+                mergeMap = remapCompressionMergesByPeriodForUi(savedMap, savedPeriods, periods);
+            }
+        }
+        renderCompressionByPeriodRows(periods, sid, mergeMap);
     }
 }
 
@@ -3239,7 +3264,7 @@ function resolveScheduleGroupsForClass(classData, availableSlots, options) {
 
     if (classUsesDebateCompression(classData) && period) {
         const userMerges = getCompressionMergesFromClass(classData, totalLessons);
-        const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
+        const mode = isManualCompressionMode(classData.compressionMode) ? 'manual' : 'autoWhenNeeded';
         const mergesForPeriod = classData.compressionMode === 'manualPerMonth'
             ? getCompressionMergesForPeriod(classData, period, totalLessons)
             : userMerges;
@@ -3300,18 +3325,47 @@ function formatScheduleAdjustmentSummary(classData) {
             );
         }
     });
-    merges.forEach(s => {
-        if (skipped.includes(s) || skipped.includes(s + 1)) {
-            return;
-        }
-        combiningLines.push(
-            t('scheduleAdjustmentCombine')
-                .replace('{start}', s)
-                .replace('{end}', s + 1)
-                .replace('{startLabel}', getSequentialLessonLabel(classData, s))
-                .replace('{endLabel}', getSequentialLessonLabel(classData, s + 1))
-        );
-    });
+    if (classData.compressionMode === 'manualPerMonth'
+        && classData.compressionMergesByPeriod
+        && typeof classData.compressionMergesByPeriod === 'object') {
+        const periods = Array.isArray(classData.debateBookPeriods) ? classData.debateBookPeriods : [];
+        const byId = new Map(periods.map((p) => [p.id, p]));
+        Object.keys(classData.compressionMergesByPeriod).forEach((periodId) => {
+            const periodMerges = normalizeCompressionMerges(
+                classData.compressionMergesByPeriod[periodId],
+                totalLessons
+            );
+            const period = byId.get(periodId);
+            const periodLabel = period
+                ? `${period.startDate}${period.book ? ` · ${period.book}` : ''}`
+                : periodId;
+            periodMerges.forEach((s) => {
+                if (skipped.includes(s) || skipped.includes(s + 1)) {
+                    return;
+                }
+                combiningLines.push(
+                    `${periodLabel}: ${t('scheduleAdjustmentCombine')
+                        .replace('{start}', s)
+                        .replace('{end}', s + 1)
+                        .replace('{startLabel}', getSequentialLessonLabel(classData, s))
+                        .replace('{endLabel}', getSequentialLessonLabel(classData, s + 1))}`
+                );
+            });
+        });
+    } else {
+        merges.forEach((s) => {
+            if (skipped.includes(s) || skipped.includes(s + 1)) {
+                return;
+            }
+            combiningLines.push(
+                t('scheduleAdjustmentCombine')
+                    .replace('{start}', s)
+                    .replace('{end}', s + 1)
+                    .replace('{startLabel}', getSequentialLessonLabel(classData, s))
+                    .replace('{endLabel}', getSequentialLessonLabel(classData, s + 1))
+            );
+        });
+    }
     return {
         skippingLines,
         combiningLines,
@@ -13009,7 +13063,17 @@ function refreshBookRowsForTermRange() {
     if (!start || !end) {
         return;
     }
-    const existing = collectDebateBookPeriodsFromForm().filter(p => p.startDate >= start && p.startDate <= end);
+    const oldPeriods = collectDebateBookPeriodsFromForm();
+    const formMerges = collectCompressionMergesByPeriodFromForm('classForm');
+    const classId = elements.classId ? elements.classId.value : '';
+    const existingClass = classId ? appData.classes.find(c => c.id === classId) : null;
+    const savedMap = (existingClass && existingClass.compressionMergesByPeriod) || {};
+    const mergeSource = Object.keys(formMerges).length ? formMerges : savedMap;
+    const mergeSourcePeriods = Object.keys(formMerges).length
+        ? collectCompressionPeriodMetaFromForm('classForm').concat(oldPeriods)
+        : ((existingClass && existingClass.debateBookPeriods) || oldPeriods);
+
+    const existing = oldPeriods.filter(p => p.startDate >= start && p.startDate <= end);
     if (existing.length > 0) {
         renderDebateBookPeriodRows(existing);
     } else {
@@ -13022,7 +13086,12 @@ function refreshBookRowsForTermRange() {
             renderDebateBookPeriodRows([]);
         }
     }
-    syncCompressionSectionsForMode();
+    const newPeriods = collectDebateBookPeriodsFromForm();
+    const remapped = remapCompressionMergesByPeriodForUi(mergeSource, mergeSourcePeriods, newPeriods);
+    syncCompressionSectionsForMode('classForm', existingClass, {
+        periods: newPeriods,
+        mergeMap: remapped
+    });
 }
 
 function syncClassTermEndAndBooks() {
@@ -13390,7 +13459,7 @@ function fillBooksFromTermDefaultBook() {
     syncCompressionSectionsForMode();
 }
 
-function renderCompressionByPeriodRows(periods, surface) {
+function renderCompressionByPeriodRows(periods, surface, mergeMapOverride) {
     const sid = surface || getScheduleAdjustmentSurface();
     const container = scheduleAdjEl(sid, 'compressionByMonthRows');
     if (!container) {
@@ -13401,9 +13470,11 @@ function renderCompressionByPeriodRows(periods, surface) {
         ? ((getSelectedSyllabusClass() && getSelectedSyllabusClass().id) || '')
         : (elements.classId ? elements.classId.value : '');
     const existingClass = classId ? appData.classes.find(c => c.id === classId) : null;
-    const mergeMap = existingClass && existingClass.compressionMergesByPeriod
-        ? existingClass.compressionMergesByPeriod
-        : {};
+    const mergeMap = mergeMapOverride && typeof mergeMapOverride === 'object'
+        ? mergeMapOverride
+        : (existingClass && existingClass.compressionMergesByPeriod
+            ? existingClass.compressionMergesByPeriod
+            : {});
     const totalLessons = getTotalLessonsValue(sid);
     container.innerHTML = '';
 
@@ -13414,6 +13485,7 @@ function renderCompressionByPeriodRows(periods, surface) {
         const block = document.createElement('div');
         block.className = 'compression-period-block';
         block.dataset.periodId = period.id;
+        block.dataset.periodStart = period.startDate;
         const heading = document.createElement('p');
         heading.className = 'compression-period-label';
         const bookLabel = period.book ? ` · ${period.book}` : '';
@@ -13475,6 +13547,36 @@ function collectCompressionMergesByPeriodFromForm(surface) {
         }
     });
     return map;
+}
+
+/** Period id/startDate pairs from current per-period compression checkbox blocks. */
+function collectCompressionPeriodMetaFromForm(surface) {
+    const sid = surface || getScheduleAdjustmentSurface();
+    const container = scheduleAdjEl(sid, 'compressionByMonthRows');
+    if (!container) {
+        return [];
+    }
+    return Array.from(container.querySelectorAll('.compression-period-block')).map((block) => ({
+        id: block.dataset.periodId || '',
+        startDate: block.dataset.periodStart || ''
+    })).filter((p) => p.id);
+}
+
+function remapCompressionMergesByPeriodForUi(oldMap, oldPeriods, newPeriods) {
+    const debateApi = getCCPDebatePeriods();
+    if (debateApi && typeof debateApi.remapCompressionMergesByPeriod === 'function') {
+        return debateApi.remapCompressionMergesByPeriod(oldMap, oldPeriods, newPeriods);
+    }
+    return oldMap && typeof oldMap === 'object' ? { ...oldMap } : {};
+}
+
+/** Manual / per-book-period modes skip auto propose-on-save. */
+function isManualCompressionMode(mode) {
+    const debateApi = getCCPDebatePeriods();
+    if (debateApi && typeof debateApi.isManualCompressionMode === 'function') {
+        return debateApi.isManualCompressionMode(mode);
+    }
+    return mode === 'manual' || mode === 'manualPerMonth';
 }
 
 // ============================================
@@ -26469,10 +26571,7 @@ function populateClassForm(classData = null, options = {}) {
         } else {
             renderBooksByMonthRows(classData.booksByMonth || {});
         }
-        if (classData.useAutoTermEnd === true && classData.startDate) {
-            syncClassTermEndAndBooks();
-        }
-        
+
         // Handle custom schedule
         const hasCustom = classData.customSchedule && classData.customSchedule.enabled;
         elements.customScheduleEnabled.checked = hasCustom;
@@ -26503,8 +26602,37 @@ function populateClassForm(classData = null, options = {}) {
         }
         renderCustomLessonDates(totalLessons, customDates);
         renderCompressionOptions(totalLessons, compressionMerges, 'classForm');
-        updateCompressionUiForScheduleModel();
-        syncCompressionSectionsForMode('classForm', classData);
+        // Auto term-end refresh AFTER mode radios are set so per-period merges remap correctly.
+        if (classData.useAutoTermEnd === true && classData.startDate) {
+            syncClassTermEndAndBooks();
+        } else {
+            updateCompressionUiForScheduleModel();
+            syncCompressionSectionsForMode('classForm', classData, {
+                periods: classData.debateBookPeriods || collectDebateBookPeriodsFromForm(),
+                mergeMap: classData.compressionMergesByPeriod || {}
+            });
+        }
+        // Re-apply mode in case term-end refresh touched radios indirectly; restore per-period map.
+        if (classUsesDebateCompression(classData)) {
+            const compressionMode = classData.compressionMode || 'autoWhenNeeded';
+            if (compressionMode === 'manual' && modeManual) {
+                modeManual.checked = true;
+            } else if (compressionMode === 'manualPerMonth' && modePerPeriod) {
+                modePerPeriod.checked = true;
+            } else if (modeAuto) {
+                modeAuto.checked = true;
+            }
+            const periodsAfter = collectDebateBookPeriodsFromForm();
+            const remapped = remapCompressionMergesByPeriodForUi(
+                classData.compressionMergesByPeriod || {},
+                classData.debateBookPeriods || [],
+                periodsAfter
+            );
+            syncCompressionSectionsForMode('classForm', classData, {
+                periods: periodsAfter,
+                mergeMap: remapped
+            });
+        }
         renderScheduleAdjustmentRows(totalLessons, classData, 'classForm');
         renderScheduleGapWarning(classData, 'classForm');
         renderScheduleAdjustmentSummaryBlock(classData);
@@ -26551,10 +26679,23 @@ function populateClassForm(classData = null, options = {}) {
     if (!classData) {
         applyDefaultClassTypeToNewClassForm();
         updateMeetingDayChipLabels();
+        updateCompressionUiForScheduleModel();
     } else {
         syncClassTypeHint();
+        // Do not call bare updateCompressionUiForScheduleModel() here — it would
+        // re-sync per-period rows without the remapped merge map from above.
+        const debate = classUsesDebateCompression(classData);
+        const compressionGroup = document.querySelector('#classCompressionDetails .compression-mode-group');
+        if (compressionGroup) {
+            compressionGroup.style.display = debate ? '' : 'none';
+        }
+        const debateHint = scheduleAdjEl('classForm', 'debateHint');
+        const sequentialHint = scheduleAdjEl('classForm', 'sequentialHint');
+        if (debateHint && sequentialHint) {
+            debateHint.hidden = !debate;
+            sequentialHint.hidden = debate;
+        }
     }
-    updateCompressionUiForScheduleModel();
     syncDeleteCustomClassTypeButtonVisibility();
     syncPeriodByDayUi();
     syncClassOpenEditorButton();
@@ -27066,14 +27207,12 @@ function handleClassSubmit(e) {
     const isDebateSchedule = scheduleModel === SCHEDULE_MODEL_DEBATE_MONTHLY;
     const isCustomSchedule = elements.customScheduleEnabled.checked;
     const totalLessons = getTotalLessonsValue();
-    const compressionFields = collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule });
     const levelPreset = elements.classLevel.value;
     const levelCustom = (elements.classLevelCustom.value || '').trim();
     if (!levelPreset && !levelCustom) {
         alert(t('levelRequired'));
         return;
     }
-    const compressionMode = compressionFields.compressionMode;
     const levelDisplay = getClassLevelDisplayFromParts(levelPreset, levelCustom);
     
     let termCalendarMonths = parseInt(elements.classTermMonths.value, 10);
@@ -27085,6 +27224,7 @@ function handleClassSubmit(e) {
     const termEndMode = modeEl && modeEl.value === 'exactMonths' ? 'exactMonths' : 'calendarMonths';
     let startDate = elements.classStartDate.value;
     let endDate = elements.classEndDate.value;
+    // Finalize book periods before collecting compression merges so period ids match.
     if (useAutoTermEnd && startDate) {
         const endD = termEndMode === 'exactMonths'
             ? computeTermEndDateExactMonths(startDate, termCalendarMonths)
@@ -27095,6 +27235,8 @@ function handleClassSubmit(e) {
         }
         refreshBookRowsForTermRange();
     }
+    const compressionFields = collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule });
+    const compressionMode = compressionFields.compressionMode;
     const meetingDays = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
     if (!isCustomSchedule && meetingDays.length === 0) {
         alert(t('meetingDaysRequired'));
@@ -27243,6 +27385,13 @@ function handleClassSubmit(e) {
     refreshTimetablePanels();
     const savedTotal = sanitizeTotalLessons(classData.totalLessons || 4);
     renderScheduleAdjustmentRows(savedTotal, classData);
+    if (isDebateSchedule) {
+        setCompressionModeRadiosOnSurface(classData, 'classForm');
+        syncCompressionSectionsForMode('classForm', classData, {
+            periods: classData.debateBookPeriods || [],
+            mergeMap: classData.compressionMergesByPeriod || {}
+        });
+    }
     renderScheduleGapWarning(classData);
     renderScheduleAdjustmentSummaryBlock(classData);
     syncSyllabusEditorChrome();
@@ -27935,8 +28084,8 @@ function maybeConfirmScheduleAdjustments(classSnapshot) {
     if (!classUsesDebateCompression(classSnapshot)) {
         return true;
     }
-    const mode = classSnapshot.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
-    if (mode !== 'autoWhenNeeded') {
+    // Manual and per-book-period merges are user-owned; do not auto-propose.
+    if (isManualCompressionMode(classSnapshot.compressionMode)) {
         return true;
     }
     const gap = getClassScheduleGapStatus(classSnapshot);
@@ -28240,7 +28389,7 @@ function calculateAutoLessonDates(classData) {
     const meetingDays = getMeetingDaysFromClass(classData);
     const totalLessons = sanitizeTotalLessons(classData.totalLessons || 4);
     const userMerges = getCompressionMergesFromClass(classData, totalLessons);
-    const mode = classData.compressionMode === 'manual' ? 'manual' : 'autoWhenNeeded';
+    const mode = isManualCompressionMode(classData.compressionMode) ? 'manual' : 'autoWhenNeeded';
 
     if (meetingDays.length === 0) {
         const emptyGroups = buildLessonGroups(totalLessons, userMerges).groups;
