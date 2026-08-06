@@ -76,7 +76,10 @@
                 const students = d.resolveStudentsForClass(classData, appData.cohorts || []);
                 const totalStudents = students.length;
                 const submissionWithRecords = d.ensureEssayRecordsForStudents(submission, students);
-                const counts = d.countEssayByStatus(submissionWithRecords);
+                const activeStudentIds = students
+                    .map((entry) => entry && entry.student && entry.student.id)
+                    .filter(Boolean);
+                const counts = d.countEssayByStatus(submissionWithRecords, activeStudentIds);
                 const ssDue =
                     submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
                 const teDue =

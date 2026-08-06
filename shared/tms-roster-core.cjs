@@ -18,6 +18,9 @@
 const DEFAULT_BASE = 'http://tms.esimson.com';
 const LOGIN_PATH = '/member/login.aspx';
 const CLASS_POPUP_PATH = '/class/class_Main_New_PopUp.aspx';
+const WRITING_LIST_PATH = '/lms/Writing_list.aspx';
+/** Max Writing_list pagination posts after the first page (ctl00… ≈ pages 2+). */
+const MAX_WRITING_LIST_PAGES = 12;
 
 function envGet(key) {
     try {
@@ -52,6 +55,7 @@ const STUDENT_NOISE_NAMES = new Set([
     '불합격',
     '관심',
     '신규',
+    '신규학생', // status label "New student" — never a person name
     '종료예정',
     '전체선택',
     '촬영',
@@ -148,6 +152,7 @@ const HEADER_JUNK_TOKENS = new Set([
 ]);
 const SKIP_NAME_WORDS = new Set([
     '학생',
+    '신규학생', // UI status "New student" — not a person
     '이름',
     '성명',
     '출석',
@@ -396,13 +401,23 @@ function decodeHtmlEntities(s) {
         });
 }
 
-/** Trailing identity marks used academy-wide to disambiguate same Hangul names. */
-// Includes geometric diamonds (◆◇⬥), card-suit diamonds (♦♢), stars, bullets, Latin/digit.
-const TMS_DISAMBIGUATOR_CHARS = '◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※A-Za-z0-9';
-const TMS_NAME_DISAMBIGUATOR_RE = new RegExp(`[${TMS_DISAMBIGUATOR_CHARS}]`);
-const TMS_NAME_DISAMBIGUATOR_ONLY_RE = new RegExp(`^[${TMS_DISAMBIGUATOR_CHARS}]$`);
+/** Trailing name marks from TMS. A-D are identity; S/★/◆ are expirable status. */
+const TMS_TRANSFER_MARK_CHARS = '◆◇♦♢⬥⬦◈';
+const TMS_NEW_MARK_CHARS = '★☆✦✧';
+const TMS_NEUTRAL_STATUS_MARK_CHARS = '＊●○■□▲△▼▽※';
+const TMS_STATUS_SYMBOL_CHARS =
+    `${TMS_TRANSFER_MARK_CHARS}${TMS_NEW_MARK_CHARS}${TMS_NEUTRAL_STATUS_MARK_CHARS}`;
+const TMS_IDENTITY_LETTER_CHARS = 'A-D';
+const TMS_SHUTTLE_MARK_CHAR = 'S';
+const TMS_NAME_MARK_CHARS = `${TMS_STATUS_SYMBOL_CHARS}${TMS_IDENTITY_LETTER_CHARS}${TMS_SHUTTLE_MARK_CHAR}`;
+const TMS_NAME_MARK_RE = new RegExp(`[${TMS_NAME_MARK_CHARS}]`);
+const TMS_STATUS_SYMBOL_RE = new RegExp(`[${TMS_STATUS_SYMBOL_CHARS}]`, 'g');
+const TMS_STATUS_SYMBOL_ONLY_RE = new RegExp(`^[${TMS_STATUS_SYMBOL_CHARS}]$`);
+const TMS_TRANSFER_MARK_RE = new RegExp(`[${TMS_TRANSFER_MARK_CHARS}]`);
+const TMS_NEW_MARK_RE = new RegExp(`[${TMS_NEW_MARK_CHARS}]`);
+const TMS_EMPTY_NAME_SUFFIX_RE = /(?:\(\s*\)|（\s*）|\[\s*\]|［\s*］)+$/u;
 const TMS_STUDENT_NAME_RE = new RegExp(
-    `^[\\uac00-\\ud7a3]{2,6}\\s*[${TMS_DISAMBIGUATOR_CHARS}]?$`
+    `^([\\uac00-\\ud7a3]{2,6})([${TMS_IDENTITY_LETTER_CHARS}]?)(?:${TMS_SHUTTLE_MARK_CHAR})?([${TMS_STATUS_SYMBOL_CHARS}]*)$`
 );
 
 function stripInvisibleNameNoise(name) {
@@ -425,37 +440,100 @@ function stripTmsAttendanceNoise(name) {
         .trim();
 }
 
+function stripEmptyNameSuffixGroups(name) {
+    let current = String(name || '');
+    let previous = '';
+    while (current && current !== previous) {
+        previous = current;
+        current = current.replace(TMS_EMPTY_NAME_SUFFIX_RE, '').trim();
+    }
+    return current;
+}
+
+function collapseTmsNameMarkSpacing(name) {
+    return String(name || '')
+        .replace(
+            new RegExp(`([\\uac00-\\ud7a3]{2,6})\\s+([${TMS_IDENTITY_LETTER_CHARS}${TMS_SHUTTLE_MARK_CHAR}${TMS_STATUS_SYMBOL_CHARS}])$`, 'u'),
+            '$1$2'
+        )
+        .replace(
+            new RegExp(`([\\uac00-\\ud7a3]{2,6}[${TMS_IDENTITY_LETTER_CHARS}]?)\\s+(${TMS_SHUTTLE_MARK_CHAR}|[${TMS_STATUS_SYMBOL_CHARS}])$`, 'u'),
+            '$1$2'
+        )
+        .replace(
+            new RegExp(`([\\uac00-\\ud7a3]{2,6}[${TMS_IDENTITY_LETTER_CHARS}]?${TMS_SHUTTLE_MARK_CHAR}?)\\s+([${TMS_STATUS_SYMBOL_CHARS}]+)$`, 'u'),
+            '$1$2'
+        )
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function parseTmsStudentNameParts(raw) {
+    let source = stripTmsAttendanceNoise(raw);
+    source = stripEmptyNameSuffixGroups(source);
+    source = collapseTmsNameMarkSpacing(source);
+    if (!source) {
+        return {
+            source,
+            name: '',
+            statusMarks: { isNew: false, shuttle: false, transferIn: false },
+            parseUncertain: false
+        };
+    }
+    const match = source.match(TMS_STUDENT_NAME_RE);
+    if (!match) {
+        return {
+            source,
+            name: source,
+            statusMarks: { isNew: false, shuttle: false, transferIn: false },
+            parseUncertain: true
+        };
+    }
+    const hangul = match[1] || '';
+    const identityLetter = match[2] || '';
+    const suffix = source.slice((hangul + identityLetter).length);
+    return {
+        source,
+        name: `${hangul}${identityLetter}`,
+        statusMarks: {
+            isNew: TMS_NEW_MARK_RE.test(suffix),
+            shuttle: suffix.includes(TMS_SHUTTLE_MARK_CHAR),
+            transferIn: TMS_TRANSFER_MARK_RE.test(suffix)
+        },
+        parseUncertain: false
+    };
+}
+
 /**
- * Keep Hangul + optional trailing disambiguator (권이안◆ / 김민수A).
- * Collapses spaces between Hangul and the mark. Strips attendance only.
+ * Canonical TMS identity: Hangul + optional permanent A-D disambiguator.
+ * Expirable marks (S / ★ / ◆) are parsed into status flags, not kept in name.
+ * Grammar failures keep best-effort text and set parseUncertain (never-drop).
  */
 function normalizeTmsStudentName(raw) {
-    let name = stripTmsAttendanceNoise(raw);
-    if (!name) {
-        return { name: '', nameEnHint: '' };
+    const parsed = parseTmsStudentNameParts(raw);
+    if (!parsed.name) {
+        return {
+            name: '',
+            nameEnHint: '',
+            statusMarks: parsed.statusMarks,
+            parseUncertain: Boolean(parsed.parseUncertain)
+        };
     }
-    // 권이안 ◆ → 권이안◆
-    name = name.replace(
-        new RegExp(`([\\uac00-\\ud7a3]{2,6})\\s+([${TMS_DISAMBIGUATOR_CHARS}])$`),
-        '$1$2'
-    );
-    if (!TMS_STUDENT_NAME_RE.test(name)) {
-        return { name: '', nameEnHint: '' };
-    }
-    // Canonical form: no space before mark
-    name = name.replace(
-        new RegExp(`([\\uac00-\\ud7a3]{2,6})\\s*([${TMS_DISAMBIGUATOR_CHARS}])$`),
-        '$1$2'
-    );
-    return { name, nameEnHint: '' };
+    return {
+        name: parsed.name,
+        nameEnHint: '',
+        statusMarks: parsed.statusMarks,
+        parseUncertain: Boolean(parsed.parseUncertain)
+    };
 }
 
 function isLikelyStudentName(name) {
-    const normalized = normalizeTmsStudentName(name).name;
+    const parsed = parseTmsStudentNameParts(name);
+    const normalized = parsed.name;
     if (!normalized || normalized.length < 2 || normalized.length > 7) {
         return false;
     }
-    const hangulOnly = normalized.replace(TMS_NAME_DISAMBIGUATOR_RE, '');
+    const hangulOnly = normalized.replace(/[A-D]/g, '');
     if (SKIP_NAME_WORDS.has(hangulOnly) || STUDENT_NOISE_NAMES.has(hangulOnly)) {
         return false;
     }
@@ -478,18 +556,18 @@ function extractTrailingDisambiguator(afterHtml) {
     if (!text) {
         return '';
     }
-    // ◆ right after </a>, or after an English (Name) group: (Alice)◆ / (Alice) ◆
+    // Status marks may sit right after </a>, or after an English (Name) group.
     const m = text.match(
         new RegExp(
-            `^(?:\\([^)]{0,40}\\)\\s*)?([${TMS_DISAMBIGUATOR_CHARS}])(?:\\s|$|[\\(（])`
+            `^(?:(?:\\([^)]{0,40}\\)|\\[[^\\]]{0,40}\\])\\s*)?([${TMS_NAME_MARK_CHARS}]+)(?:\\s|$|[\\(（\\[［])`
         )
     );
-    if (m && TMS_NAME_DISAMBIGUATOR_ONLY_RE.test(m[1])) {
+    if (m && m[1]) {
         return m[1];
     }
-    const first = text.charAt(0);
-    if (TMS_NAME_DISAMBIGUATOR_ONLY_RE.test(first)) {
-        return first;
+    const firstChunk = (text.match(new RegExp(`^[${TMS_NAME_MARK_CHARS}]+`)) || [])[0] || '';
+    if (firstChunk) {
+        return firstChunk;
     }
     return '';
 }
@@ -589,6 +667,8 @@ function parseStudentsFromNumberedBlocks(text) {
         }
         let name = '';
         let nameEn = '';
+        let statusMarks = { isNew: false, shuttle: false, transferIn: false };
+        let parseUncertain = false;
         const firstLine = stripTmsAttendanceNoise(
             String(line || '').replace(STUDENT_NUM_BLOCK_RE, '').trim()
         );
@@ -602,17 +682,25 @@ function parseStudentsFromNumberedBlocks(text) {
             if (/^출석\s/.test(L) || /^:\s*관심/.test(L)) {
                 break;
             }
-            const enParen = L.match(/^\(([^)]*)\)$/);
+            const enParen = L.match(/^(?:\(([^)]*)\)|（([^）]*)）|\[([^\]]*)\]|［([^］]*)］)$/);
             if (enParen) {
                 if (!nameEn) {
-                    nameEn = enParen[1].trim();
+                    nameEn = String(
+                        enParen[1] != null ? enParen[1] :
+                        enParen[2] != null ? enParen[2] :
+                        enParen[3] != null ? enParen[3] :
+                        enParen[4] != null ? enParen[4] : ''
+                    ).trim();
                 }
                 j += 1;
                 continue;
             }
-            const cleanL = normalizeTmsStudentName(L).name;
+            const parsedLine = parseTmsStudentNameParts(L);
+            const cleanL = parsedLine.name;
             if (!name && cleanL && isLikelyStudentName(cleanL)) {
                 name = cleanL;
+                statusMarks = parsedLine.statusMarks;
+                parseUncertain = parsedLine.parseUncertain;
                 j += 1;
                 continue;
             }
@@ -624,14 +712,22 @@ function parseStudentsFromNumberedBlocks(text) {
             j += 1;
         }
         if (!name) {
-            const fromFirst = normalizeTmsStudentName(firstLine).name;
+            const parsedFirst = parseTmsStudentNameParts(firstLine);
+            const fromFirst = parsedFirst.name;
             if (fromFirst && isLikelyStudentName(fromFirst)) {
                 name = fromFirst;
+                statusMarks = parsedFirst.statusMarks;
+                parseUncertain = parsedFirst.parseUncertain;
             }
         }
         if (name && isLikelyStudentName(name) && !seen.has(name)) {
             seen.add(name);
-            students.push({ name, nameEn: nameEn || '' });
+            students.push({
+                name,
+                nameEn: nameEn || '',
+                statusMarks,
+                parseUncertain: Boolean(parseUncertain)
+            });
         }
         i = j > i ? j : i + 1;
     }
@@ -660,8 +756,11 @@ function parseStudentsFromClassPopup(html) {
         const innerText = stripInvisibleNameNoise(
             stripTags(decodeHtmlEntities(rawInner))
         );
-        let name = normalizeTmsStudentName(innerText).name;
-        if (!id || !name || !isLikelyStudentName(name)) {
+        const parsedInner = parseTmsStudentNameParts(innerText);
+        let name = parsedInner.name;
+        let statusMarks = parsedInner.statusMarks;
+        let parseUncertain = parsedInner.parseUncertain;
+        if (!id || (!name && !parseUncertain) || (!parseUncertain && !isLikelyStudentName(name))) {
             return;
         }
         if (seenMpidx.has(id)) {
@@ -671,29 +770,18 @@ function parseStudentsFromClassPopup(html) {
         const windowText = String(afterWindow || '');
         // Disambiguator often sits just after </a>, not inside the link text.
         // Apply BEFORE name dedupe so 김민수</a>◆ is not dropped as a duplicate of 김민수.
-        if (!TMS_NAME_DISAMBIGUATOR_RE.test(name.slice(-1))) {
+        if (!parseUncertain && name && !/[A-D]$/.test(name)) {
             const trailingMark = extractTrailingDisambiguator(windowText);
             if (trailingMark) {
-                const withMark = normalizeTmsStudentName(name + trailingMark).name;
-                if (withMark && isLikelyStudentName(withMark)) {
-                    name = withMark;
+                const reparsed = parseTmsStudentNameParts(name + trailingMark);
+                if (reparsed.name && isLikelyStudentName(reparsed.name)) {
+                    name = reparsed.name;
+                    statusMarks = reparsed.statusMarks;
+                    parseUncertain = reparsed.parseUncertain;
                 }
             }
         }
-        if (seenName.has(name)) {
-            // Same Hangul display, different mpidx (twins without a mark on the first).
-            // Keep both — Sync reverse Map / rematch need every TMS person.
-            if (!TMS_NAME_DISAMBIGUATOR_RE.test(name.slice(-1))) {
-                const alt = normalizeTmsStudentName(`${name}◆`).name;
-                if (alt && isLikelyStudentName(alt) && !seenName.has(alt)) {
-                    name = alt;
-                } else {
-                    return;
-                }
-            } else {
-                return;
-            }
-        }
+        const nameKey = parseUncertain ? `${name || innerText}#${id}` : name;
         const enMatch =
             windowText.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
             windowText.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
@@ -709,8 +797,14 @@ function parseStudentsFromClassPopup(html) {
             }
         }
         seenMpidx.add(id);
-        seenName.add(name);
-        students.push({ name, nameEn, mpidx: id });
+        seenName.add(nameKey);
+        students.push({
+            name: name || parsedInner.source || innerText,
+            nameEn,
+            mpidx: id,
+            statusMarks,
+            parseUncertain: Boolean(parseUncertain)
+        });
     }
 
     // Capture full anchor inner HTML (nested <span>/<font> allowed).
@@ -742,7 +836,9 @@ function parseStudentsFromClassPopup(html) {
         return students.map((s) => ({
             name: s.name,
             nameEn: s.nameEn || '',
-            mpidx: s.mpidx || ''
+            mpidx: s.mpidx || '',
+            statusMarks: s.statusMarks || { isNew: false, shuttle: false, transferIn: false },
+            parseUncertain: s.parseUncertain === true
         }));
     }
 
@@ -1065,7 +1161,9 @@ function mergeCohortLists(lists) {
             bucket.students.push({
                 name: s.name,
                 nameEn: s.nameEn || '',
-                mpidx: mpidx || ''
+                mpidx: mpidx || '',
+                statusMarks: s.statusMarks || { isNew: false, shuttle: false, transferIn: false },
+                parseUncertain: s.parseUncertain === true
             });
         });
     });
@@ -1138,6 +1236,462 @@ async function scrapeLegacyRosterPages(cfg, jar, homeHtml, homeUrl, pages) {
             .forEach((c) => allCohorts.push(c));
     }
     return allCohorts;
+}
+
+/** Strip campus bracket prefixes like `[잠실르엘C]` from TMS class labels. */
+function cleanTmsCohortDisplayName(name) {
+    return String(name || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/^\[[^\]]*\]\s*/, '')
+        .trim();
+}
+
+/**
+ * Infer MWF/TTh from common TMS class suffixes (…M^ / …T^).
+ * @returns {{ schedulePattern: 'mwf'|'tth'|'', meetingDays: number[] }}
+ */
+function inferScheduleFromTmsClassName(name) {
+    const s = cleanTmsCohortDisplayName(name);
+    if (/T\^/i.test(s) || /(?:^|[^A-Za-z])T(?:\d|$)/.test(s)) {
+        return { schedulePattern: 'tth', meetingDays: [2, 4] };
+    }
+    if (/M\^/i.test(s) || /(?:^|[^A-Za-z])M(?:\d|$)/.test(s)) {
+        return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
+    }
+    return { schedulePattern: '', meetingDays: [] };
+}
+
+/** Merge class_select-style lists by tmsClassId (later entries win non-empty fields). */
+function unionTmsClassLists(lists) {
+    const byId = new Map();
+    (Array.isArray(lists) ? lists : []).forEach((list) => {
+        (Array.isArray(list) ? list : []).forEach((row) => {
+            if (!row) {
+                return;
+            }
+            const id = String(row.tmsClassId || '').trim();
+            if (!id) {
+                return;
+            }
+            const prev = byId.get(id) || {};
+            byId.set(
+                id,
+                Object.assign({}, prev, row, {
+                    cohortName: row.cohortName || prev.cohortName || '',
+                    tmsClassId: id
+                })
+            );
+        });
+    });
+    return Array.from(byId.values());
+}
+
+/** Parse Writing_list.aspx cmbban class filter options. */
+function parseWritingCmbbanOptions(html) {
+    const raw = String(html || '');
+    const selectMatch =
+        raw.match(/<select[^>]*name=["']cmbban["'][^>]*>([\s\S]*?)<\/select>/i) ||
+        raw.match(/<select[^>]*id=["'][^"']*cmbban[^"']*["'][^>]*>([\s\S]*?)<\/select>/i);
+    if (!selectMatch) {
+        return [];
+    }
+    const out = [];
+    const optRe = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
+    let m;
+    while ((m = optRe.exec(selectMatch[1]))) {
+        const attrs = m[1] || '';
+        const valueMatch = attrs.match(/\bvalue=["']([^"']*)["']/i);
+        const value = valueMatch ? String(valueMatch[1] || '').trim() : '';
+        if (!value) {
+            continue;
+        }
+        const label = cleanTmsCohortDisplayName(stripTags(decodeHtmlEntities(m[2])));
+        if (!label) {
+            continue;
+        }
+        out.push({ tmsClassId: value, className: label, cohortName: label });
+    }
+    return out;
+}
+
+/**
+ * Parse student cell from Writing_list: "박세빈S(Sally)" / "김유겸(YooGyum)" / "황연진()".
+ * Uses the same mark grammar as roster scrape (canonical Hangul+A–D + statusMarks).
+ */
+function parseWritingStudentLabel(raw) {
+    let text = stripTags(decodeHtmlEntities(String(raw || '')))
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!text) {
+        return {
+            name: '',
+            nameEn: '',
+            statusMarks: { isNew: false, shuttle: false, transferIn: false },
+            parseUncertain: false
+        };
+    }
+    let nameEn = '';
+    const paren = text.match(/^(.*)[\(（]\s*([^）)]*)\s*[\)）]\s*$/);
+    if (paren) {
+        text = paren[1].trim();
+        nameEn = String(paren[2] || '').trim();
+    }
+    const parsed = parseTmsStudentNameParts(text);
+    if (parsed.name && (STUDENT_NOISE_NAMES.has(parsed.name) || SKIP_NAME_WORDS.has(parsed.name))) {
+        return {
+            name: '',
+            nameEn: '',
+            statusMarks: { isNew: false, shuttle: false, transferIn: false },
+            parseUncertain: false
+        };
+    }
+    if (parsed.name) {
+        return {
+            name: parsed.name,
+            nameEn,
+            statusMarks: parsed.statusMarks,
+            parseUncertain: Boolean(parsed.parseUncertain)
+        };
+    }
+    const loose = text.match(/^([\uac00-\ud7a3]{2,6}\s*[A-Da-dSs★☆◆◇♦♢]?)/u);
+    if (loose) {
+        const n2 = parseTmsStudentNameParts(loose[1]);
+        if (n2.name) {
+            return {
+                name: n2.name,
+                nameEn,
+                statusMarks: n2.statusMarks,
+                parseUncertain: Boolean(n2.parseUncertain)
+            };
+        }
+    }
+    return {
+        name: '',
+        nameEn,
+        statusMarks: { isNew: false, shuttle: false, transferIn: false },
+        parseUncertain: true
+    };
+}
+
+function parseYyyymmddToIso(raw) {
+    const s = String(raw || '').replace(/\D/g, '');
+    if (s.length !== 8) {
+        return '';
+    }
+    return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+}
+
+function parseIsoDateLoose(raw) {
+    const s = String(raw || '').trim();
+    const m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (!m) {
+        return '';
+    }
+    const y = m[1];
+    const mo = String(m[2]).padStart(2, '0');
+    const d = String(m[3]).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+}
+
+/**
+ * Parse assigned date from TMS 포트폴리오제목 (YYYY-MM-DD or YYYYMMDD).
+ */
+function parsePortfolioAssignedDate(raw) {
+    const text = String(raw || '').trim();
+    if (!text) {
+        return '';
+    }
+    const iso = parseIsoDateLoose(text);
+    if (iso) {
+        return iso;
+    }
+    const compact = text.match(/(\d{8})/);
+    return compact ? parseYyyymmddToIso(compact[1]) : '';
+}
+
+function extractLabeledFieldValue(html, label) {
+    const raw = String(html || '');
+    const escaped = String(label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!escaped) {
+        return '';
+    }
+    const pairRe = new RegExp(
+        `<(?:th|td|label|span|div)[^>]*>\\s*${escaped}\\s*(?:[:：])?\\s*<\\/(?:th|td|label|span|div)>\\s*<(?:td|span|div)[^>]*>([\\s\\S]*?)<\\/(?:td|span|div)>`,
+        'i'
+    );
+    const pair = raw.match(pairRe);
+    if (pair) {
+        return stripTags(decodeHtmlEntities(pair[1])).replace(/\s+/g, ' ').trim();
+    }
+    return '';
+}
+
+function parseEssayDetailMeta(html) {
+    const portfolioTitle = extractLabeledFieldValue(html, '포트폴리오제목');
+    const assignedDate = parsePortfolioAssignedDate(portfolioTitle);
+    return {
+        portfolioTitle,
+        assignedDate,
+        assignedMonth: assignedDate ? assignedDate.slice(0, 7) : ''
+    };
+}
+
+/**
+ * Parse 에세이관리 Writing_list.aspx submission table rows.
+ * Presence on this list means the student submitted (submitted: true).
+ */
+function parseWritingListRows(html) {
+    const raw = String(html || '');
+    const tableMatch =
+        raw.match(
+            /<div[^>]*class=["'][^"']*\bboardlisttable\b[^"']*["'][^>]*>[\s\S]*?<table[\s\S]*?<\/table>/i
+        ) || raw.match(/<th[^>]*>\s*student\s*name\s*<\/th>[\s\S]*?<\/table>/i);
+    if (!tableMatch) {
+        return [];
+    }
+    const tableHtml = tableMatch[0];
+    const rows = [];
+    const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+    let tr;
+    while ((tr = trRe.exec(tableHtml))) {
+        const rowHtml = tr[1];
+        if (/<th\b/i.test(rowHtml)) {
+            continue;
+        }
+        const cells = Array.from(rowHtml.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)).map((m) => m[1]);
+        if (cells.length < 7) {
+            continue;
+        }
+        const student = parseWritingStudentLabel(cells[0]);
+        if (!student.name) {
+            continue;
+        }
+        const classCell = cells[1] || '';
+        const photo =
+            classCell.match(
+                /photopoliview\s*\(\s*['"]?(\d+)['"]?\s*,\s*['"]?(\d+)['"]?\s*,\s*['"]?(\d+)['"]?\s*,\s*['"]?(\d{8})['"]?\s*\)/i
+            ) || null;
+        const className = cleanTmsCohortDisplayName(stripTags(decodeHtmlEntities(classCell)));
+        if (!className || isNoiseClassName(className)) {
+            continue;
+        }
+        const title = stripTags(decodeHtmlEntities(cells[3] || ''))
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (!title) {
+            continue;
+        }
+        const correct = stripTags(decodeHtmlEntities(cells[4] || ''))
+            .replace(/\s+/g, ' ')
+            .trim();
+        const submittedAt = parseIsoDateLoose(stripTags(decodeHtmlEntities(cells[6] || '')));
+        rows.push({
+            name: student.name,
+            nameEn: student.nameEn,
+            statusMarks: student.statusMarks,
+            parseUncertain: Boolean(student.parseUncertain),
+            className,
+            tmsClassId: photo ? photo[2] : '',
+            mpidx: photo ? photo[1] : '',
+            homeworkItemIdx: photo ? photo[3] : '',
+            lessonDate: photo ? parseYyyymmddToIso(photo[4]) : '',
+            title,
+            correct,
+            submitted: true,
+            submittedAt
+        });
+    }
+    return rows;
+}
+
+function extractWritingPagingTargets(html) {
+    const targets = [];
+    const seen = new Set();
+    const decoded = decodeHtmlEntities(String(html || ''));
+    const re = /__doPostBack\s*\(\s*['"](pagingHelper\$ctl\d+)['"]/gi;
+    let m;
+    while ((m = re.exec(decoded))) {
+        const t = m[1];
+        if (!seen.has(t)) {
+            seen.add(t);
+            targets.push(t);
+        }
+    }
+    return targets;
+}
+
+/**
+ * Group flat Writing_list rows into assignment buckets.
+ */
+function groupWritingRowsIntoAssignments(rows) {
+    const byKey = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+        if (!row || !row.name || !row.title) {
+            return;
+        }
+        const key = row.homeworkItemIdx
+            ? `hw:${row.homeworkItemIdx}`
+            : `n:${String(row.className || '').toLowerCase()}|${String(row.title || '').toLowerCase()}|${row.lessonDate || ''}`;
+        if (!byKey.has(key)) {
+            byKey.set(key, {
+                tmsClassId: String(row.tmsClassId || ''),
+                className: String(row.className || ''),
+                title: String(row.title || ''),
+                mpidx: String(row.mpidx || ''),
+                homeworkItemIdx: String(row.homeworkItemIdx || ''),
+                lessonDate: String(row.lessonDate || ''),
+                assignedDate: '',
+                assignedMonth: '',
+                portfolioTitle: '',
+                dueDate: '',
+                students: []
+            });
+        }
+        const bucket = byKey.get(key);
+        if (!bucket.tmsClassId && row.tmsClassId) {
+            bucket.tmsClassId = String(row.tmsClassId);
+        }
+        if (!bucket.className && row.className) {
+            bucket.className = String(row.className);
+        }
+        if (!bucket.lessonDate && row.lessonDate) {
+            bucket.lessonDate = String(row.lessonDate);
+        }
+        if (!bucket.mpidx && row.mpidx) {
+            bucket.mpidx = String(row.mpidx);
+        }
+        const seen = new Set(bucket.students.map((s) => `${s.mpidx || ''}|${s.name}`));
+        const studentKey = `${row.mpidx || ''}|${row.name}`;
+        if (!seen.has(studentKey)) {
+            bucket.students.push({
+                name: row.name,
+                nameEn: row.nameEn || '',
+                mpidx: row.mpidx || '',
+                statusMarks: row.statusMarks || { isNew: false, shuttle: false, transferIn: false },
+                parseUncertain: row.parseUncertain === true,
+                submitted: true,
+                submittedAt: row.submittedAt || ''
+            });
+        }
+    });
+    return Array.from(byKey.values());
+}
+
+function collectWritingFormFields(html) {
+    return {
+        __VIEWSTATE: extractHidden(html, '__VIEWSTATE'),
+        __VIEWSTATEGENERATOR: extractHidden(html, '__VIEWSTATEGENERATOR'),
+        __EVENTVALIDATION: extractHidden(html, '__EVENTVALIDATION'),
+        cmbBanInd: '1',
+        cmbban: '',
+        cmbCorrect: '',
+        cmbboardkind: '1'
+    };
+}
+
+/**
+ * Scrape TMS 에세이관리 (/lms/Writing_list.aspx) submission list.
+ * Rows on this page are submissions; status write in ClassManager is Received only.
+ */
+async function scrapeEssaySubmissions(options) {
+    const cfg = Object.assign({}, getConfig(), options || {});
+    if (!credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        throw err;
+    }
+    const jar = createJar();
+    const pages = [];
+    const loginInfo = await login(cfg, jar);
+    const listUrl = `${cfg.baseUrl}${WRITING_LIST_PATH}`;
+    let page = await fetchPage(jar, listUrl);
+    if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
+        const err = new Error('TMS Writing list failed');
+        err.code = 'TMS_SCRAPE_FAILED';
+        throw err;
+    }
+    pages.push({
+        url: page.finalUrl || listUrl,
+        status: page.status,
+        ok: true,
+        source: 'writing-list',
+        rowCount: 0
+    });
+
+    let allRows = parseWritingListRows(page.text);
+    pages[0].rowCount = allRows.length;
+
+    const pagingTargets = extractWritingPagingTargets(page.text).slice(0, MAX_WRITING_LIST_PAGES);
+    for (const target of pagingTargets) {
+        try {
+            const fields = Object.assign(collectWritingFormFields(page.text), {
+                __EVENTTARGET: target,
+                __EVENTARGUMENT: ''
+            });
+            page = await requestFollow(listUrl, {
+                method: 'POST',
+                jar,
+                headers: { Referer: listUrl },
+                body: encodeForm(fields)
+            });
+            if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
+                pages.push({
+                    url: page.finalUrl || listUrl,
+                    status: page.status,
+                    ok: false,
+                    source: 'writing-list-page',
+                    eventTarget: target
+                });
+                break;
+            }
+            const rows = parseWritingListRows(page.text);
+            pages.push({
+                url: page.finalUrl || listUrl,
+                status: page.status,
+                ok: true,
+                source: 'writing-list-page',
+                eventTarget: target,
+                rowCount: rows.length
+            });
+            allRows = allRows.concat(rows);
+        } catch (e) {
+            pages.push({
+                url: listUrl,
+                status: 0,
+                ok: false,
+                error: e.message || String(e),
+                source: 'writing-list-page',
+                eventTarget: target
+            });
+            break;
+        }
+    }
+
+    const seenRow = new Set();
+    const deduped = [];
+    allRows.forEach((r) => {
+        const k = `${r.tmsClassId}|${r.homeworkItemIdx}|${r.mpidx || ''}|${r.name}|${r.title}|${r.lessonDate}`;
+        if (seenRow.has(k)) {
+            return;
+        }
+        seenRow.add(k);
+        deduped.push(r);
+    });
+
+    const assignments = groupWritingRowsIntoAssignments(deduped);
+    return {
+        assignments,
+        rows: deduped,
+        meta: {
+            homeUrl: loginInfo.homeUrl,
+            pagesFetched: pages.length,
+            source: 'writing-list',
+            assignmentCount: assignments.length,
+            studentRowCount: deduped.length,
+            pages
+        }
+    };
 }
 
 async function scrapeRosters(options) {
@@ -1423,6 +1977,17 @@ module.exports = {
     credentialsConfigured,
     login,
     scrapeRosters,
+    scrapeEssaySubmissions,
+    parseWritingListRows,
+    parseWritingStudentLabel,
+    groupWritingRowsIntoAssignments,
+    extractWritingPagingTargets,
+    parseEssayDetailMeta,
+    parsePortfolioAssignedDate,
+    parseWritingCmbbanOptions,
+    cleanTmsCohortDisplayName,
+    inferScheduleFromTmsClassName,
+    unionTmsClassLists,
     probe,
     parseCohortsFromHtml,
     parseStudentsFromTextLines,
@@ -1440,7 +2005,9 @@ module.exports = {
     isLikelyStudentName,
     stripTmsAttendanceNoise,
     normalizeTmsStudentName,
+    parseTmsStudentNameParts,
     isNoiseClassName,
     isJunkHeaderCohortName,
-    CLASS_POPUP_PATH
+    CLASS_POPUP_PATH,
+    WRITING_LIST_PATH
 };

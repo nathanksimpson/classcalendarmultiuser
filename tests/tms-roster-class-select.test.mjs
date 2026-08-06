@@ -105,6 +105,12 @@ const FIXTURE_CLASS_SELECT = `
 {
     assert(!tms.isLikelyStudentName('매우만족'), '매우만족 not a student name');
     assert(!tms.isLikelyStudentName('만족'), '만족 not a student name');
+    assert(!tms.isLikelyStudentName('신규'), '신규 is status tag, not a name');
+    assert(!tms.isLikelyStudentName('신규학생'), '신규학생 is New-student status, not a name');
+    // Exact-only noise: rare real names sharing 신/신규 syllables must stay valid.
+    assert(tms.isLikelyStudentName('신규학'), '신규학 is a plausible real name');
+    assert(tms.isLikelyStudentName('신규생'), '신규생 is a plausible real name');
+    assert(tms.isLikelyStudentName('신선우'), '신선우 is a real name');
     assert(tms.isLikelyStudentName('조하연'), '조하연 is a student name');
     assert(tms.isLikelyStudentName('권이안◆'), 'disambiguator diamond allowed');
     assert(tms.isLikelyStudentName('권이안♦'), 'card-suit diamond allowed');
@@ -113,8 +119,9 @@ const FIXTURE_CLASS_SELECT = `
     assert(!tms.isLikelyStudentName('◆'), 'symbol alone rejected');
     assert(tms.stripTmsAttendanceNoise('권이안 (Absent)') === '권이안', 'strip english attendance');
     assert(tms.stripTmsAttendanceNoise('권이안 결석') === '권이안', 'strip korean attendance');
-    assert(tms.normalizeTmsStudentName('권이안◆ 결석').name === '권이안◆', 'keep diamond after attendance strip');
-    assert(tms.normalizeTmsStudentName('권이안 ◆').name === '권이안◆', 'collapse space before mark');
+    assert(tms.normalizeTmsStudentName('권이안◆ 결석').name === '권이안', 'strip transfer mark after attendance strip');
+    assert(tms.normalizeTmsStudentName('권이안◆ 결석').statusMarks.transferIn === true, 'transfer tag detected');
+    assert(tms.normalizeTmsStudentName('권이안 ◆').name === '권이안', 'collapse space before mark');
 }
 
 {
@@ -145,6 +152,19 @@ const FIXTURE_CLASS_SELECT = `
 }
 
 {
+    // Exact-only: rare 신* names scrape; status label 신규학생 does not
+    const html = `
+      <td><a href="javascript:studentinf(20101)">신규학</a></td>
+      <td><a href="javascript:studentinf(20102)">신선우</a></td>
+      <td><a href="javascript:studentinf(20103)">신규학생</a></td>
+    `;
+    const students = tms.parseStudentsFromClassPopup(html);
+    assert(students.some((s) => s.name === '신규학' && s.mpidx === '20101'), '신규학 scraped');
+    assert(students.some((s) => s.name === '신선우' && s.mpidx === '20102'), '신선우 scraped');
+    assert(!students.some((s) => s.name === '신규학생'), '신규학생 status not scraped as name');
+}
+
+{
     const html = `
       <td><a href="javascript:studentinf(10101)">권이안◆</a></td>
       <td><a href="javascript:studentinf(10102)">김민수A</a></td>
@@ -154,13 +174,17 @@ const FIXTURE_CLASS_SELECT = `
     `;
     const students = tms.parseStudentsFromClassPopup(html);
     assert(students.length === 5, `disambiguator names expected 5, got ${students.length}`);
-    assert(students[0].name === '권이안◆', 'kept diamond disambiguator');
+    assert(students[0].name === '권이안', 'canonical transfer student name');
+    assert(students[0].statusMarks.transferIn === true, 'transfer mark detected');
     assert(students[0].nameEn === '', 'empty english preserved');
     assert(students[1].name === '김민수A', 'kept latin disambiguator');
-    assert(students[2].name === '이서연◆', 'attendance stripped, diamond kept');
-    assert(students[3].name === '박지훈◆', 'mark after </a> captured');
+    assert(students[2].name === '이서연', 'attendance stripped, transfer mark not kept in name');
+    assert(students[2].statusMarks.transferIn === true, 'attendance row keeps transfer status');
+    assert(students[3].name === '박지훈', 'mark after </a> captured as status');
+    assert(students[3].statusMarks.transferIn === true, 'trailing transfer status captured');
     assert(students[3].nameEn === 'Alice', 'english after trailing mark');
-    assert(students[4].name === '최유나♦', 'card-suit diamond after </a>');
+    assert(students[4].name === '최유나', 'card-suit diamond after </a> stripped from canonical name');
+    assert(students[4].statusMarks.transferIn === true, 'card-suit diamond maps to transfer status');
 }
 
 {
@@ -172,7 +196,8 @@ const FIXTURE_CLASS_SELECT = `
     const twins = tms.parseStudentsFromClassPopup(twinHtml);
     assert(twins.length === 2, `trailing ◆ must keep both twins, got ${twins.length}`);
     assert(twins[0].name === '유마', 'first twin plain');
-    assert(twins[1].name === '유마◆', 'second twin with trailing mark');
+    assert(twins[1].name === '유마', 'second twin keeps canonical name');
+    assert(twins[1].statusMarks.transferIn === true, 'second twin carries transfer status');
     assert(twins[0].mpidx === '90001', 'first mpidx');
     assert(twins[1].mpidx === '90002', 'second mpidx');
 }
@@ -252,14 +277,15 @@ const FIXTURE_CLASS_SELECT = `
 }
 
 {
-    // Same Hangul, different mpidx — keep both (second gets ◆ when unmarked).
+    // Same Hangul, different mpidx — keep both without inventing a transfer mark.
     const twins = tms.parseStudentsFromClassPopup(`
       <td><a href="javascript:studentinf(1)">유마</a></td>
       <td><a href="javascript:studentinf(2)">유마</a></td>
     `);
     assert(twins.length === 2, `unmarked twins kept, got ${twins.length}`);
     assert(twins[0].name === '유마', 'first twin plain');
-    assert(twins[1].name === '유마◆', 'second twin auto-marked');
+    assert(twins[1].name === '유마', 'second twin canonical name unchanged');
+    assert(twins[1].statusMarks.transferIn === false, 'no fabricated transfer status');
     assert(twins[0].mpidx === '1' && twins[1].mpidx === '2', 'both mpidx kept');
 }
 
@@ -301,13 +327,16 @@ const FIXTURE_CLASS_SELECT = `
     `;
     const students = tms.parseStudentsFromClassPopup(html);
     assert(students.length === 6, `nested/entity names expected 6, got ${students.length}`);
-    assert(students[0].name === '권이안◆', 'mark inside nested span kept');
-    assert(students[1].name === '서하린◆', 'font wrap + mark after </a>');
-    assert(students[2].name === '민서아◆', 'mark after English paren kept');
+    assert(students[0].name === '권이안', 'mark inside nested span becomes status');
+    assert(students[0].statusMarks.transferIn === true, 'nested span transfer status');
+    assert(students[1].name === '서하린', 'font wrap + mark after </a>');
+    assert(students[1].statusMarks.transferIn === true, 'font wrap transfer status');
+    assert(students[2].name === '민서아', 'mark after English paren becomes status');
     assert(students[2].nameEn === 'Mina', 'english before trailing mark');
-    assert(students[3].name === '윤도현◆', 'decimal &#9670; decoded');
-    assert(students[4].name === '하은별◆', 'hex &#x25C6; decoded');
-    assert(students[5].name === '채원◆', 'emoji variation selector stripped');
+    assert(students[2].statusMarks.transferIn === true, 'english paren transfer status');
+    assert(students[3].name === '윤도현', 'decimal &#9670; decoded to transfer status');
+    assert(students[4].name === '하은별', 'hex &#x25C6; decoded to transfer status');
+    assert(students[5].name === '채원', 'emoji variation selector stripped from transfer status');
 }
 
 {
@@ -343,6 +372,28 @@ Garam M
     assert(students[0].name === '권이안', 'numbered first-line korean name');
     assert(students[0].nameEn === '', 'numbered first-line english empty');
     assert(students[1].name === '김민수', 'numbered second student');
+}
+
+{
+    // Never-drop: valid mpidx with grammar-failing label still scraped as uncertain.
+    const uncertain = tms.parseStudentsFromClassPopup(`
+      <td><a href="javascript:studentinf(77701)">???</a></td>
+      <td><a href="javascript:studentinf(77702)">김민수</a></td>
+    `);
+    assert(uncertain.length === 2, `never-drop kept uncertain row, got ${uncertain.length}`);
+    const bad = uncertain.find((s) => s.mpidx === '77701');
+    assert(bad && bad.parseUncertain === true, 'uncertain flagged');
+    assert(bad.name, 'uncertain keeps best-effort name text');
+    assert(uncertain.find((s) => s.mpidx === '77702').name === '김민수', 'valid row still parsed');
+}
+
+{
+    const multi = tms.normalizeTmsStudentName('박세빈S◆');
+    assert(multi.name === '박세빈', 'multi-mark canonical name');
+    assert(multi.statusMarks.shuttle === true && multi.statusMarks.transferIn === true, 'S+◆ marks');
+    const letterStar = tms.normalizeTmsStudentName('김민수AS★');
+    assert(letterStar.name === '김민수A', 'A kept, S/★ status');
+    assert(letterStar.statusMarks.shuttle && letterStar.statusMarks.isNew, 'AS★ marks');
 }
 
 // Domain still resolves tmsClassId from scrape rows

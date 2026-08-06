@@ -256,23 +256,13 @@ function findStudent(result, cohortName, studentName) {
     assert(!v.ok && v.error === 'duplicateTargetCohort', 'duplicate target');
 }
 
-// Korean mark-agnostic key ignores ★ and English for paste identity merge
+// Korean match key ignores ★ and English for paste identity merge
 {
     const calendar = [
         {
             id: 'c1',
             name: 'NavyM',
-            students: [
-                {
-                    id: 'stu_star',
-                    name: '정태희★',
-                    nameEn: 'Taeheu',
-                    sortOrder: 0,
-                    active: true,
-                    tags: [],
-                    memo: ''
-                }
-            ]
+            students: [{ id: 'stu_star', name: '정태희★', nameEn: 'Taeheu', sortOrder: 0, active: true, tags: [], memo: '' }]
         }
     ];
     const plan = [
@@ -280,15 +270,7 @@ function findStudent(result, cohortName, studentName) {
             importKey: 'name:NavyM',
             importCohortName: 'NavyM',
             students: [
-                {
-                    id: 'stu_paste',
-                    name: '정태희',
-                    nameEn: 'Taeheui',
-                    sortOrder: 0,
-                    active: true,
-                    tags: [],
-                    memo: ''
-                }
+                { id: 'stu_paste', name: '정태희', nameEn: 'Taeheui', sortOrder: 0, active: true, tags: [], memo: '' }
             ],
             userAction: 'map',
             userTargetId: 'c1',
@@ -302,7 +284,7 @@ function findStudent(result, cohortName, studentName) {
     const applied = RI.applyRosterImport(calendar, plan);
     assert(applied.cohorts[0].students.length === 1, 'still one student');
     assert(applied.cohorts[0].students[0].id === 'stu_star', 'kept CM id');
-    assert(applied.cohorts[0].students[0].name === '정태희', 'paste name wins');
+    assert(applied.cohorts[0].students[0].name === '정태희', 'paste/TMS name wins');
 }
 
 console.log('roster-import.test.mjs: all passed');

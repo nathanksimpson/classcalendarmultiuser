@@ -106,10 +106,50 @@
         return out;
     }
 
+    function marksToTags(marks) {
+        const tags = [];
+        if (marks && marks.isNew) {
+            tags.push('new');
+        }
+        if (marks && marks.shuttle) {
+            tags.push('shuttle');
+        }
+        if (marks && marks.transferIn) {
+            tags.push('transfer_in');
+        }
+        return tags;
+    }
+
+    function parseImportStudentName(raw) {
+        const source = normalizeStr(raw);
+        if (!source) {
+            return { name: '', tags: [] };
+        }
+        const domain = global.CCPClassroomDomain;
+        if (
+            domain &&
+            typeof domain.parseKoreanNameMarks === 'function' &&
+            typeof domain.koreanNameDisplayKey === 'function'
+        ) {
+            const marks = domain.parseKoreanNameMarks(source);
+            const stored =
+                typeof domain.canonicalKoreanStoredName === 'function'
+                    ? domain.canonicalKoreanStoredName(source)
+                    : '';
+            const display = domain.koreanNameDisplayKey(source);
+            return {
+                name: normalizeStr(stored || marks.identityKey || display || source),
+                tags: marksToTags(marks)
+            };
+        }
+        return { name: source, tags: [] };
+    }
+
     function parseStudentBlock(lines, cohortName, sortOrder) {
         let locationTag = '';
         let name = '';
         let nameEn = '';
+        let tags = [];
         const memoParts = [];
 
         for (const raw of lines) {
@@ -126,7 +166,9 @@
 
             const shootingName = line.match(SHOOTING_NAME_RE);
             if (shootingName) {
-                name = shootingName[1].trim();
+                const parsed = parseImportStudentName(shootingName[1].trim());
+                name = parsed.name;
+                tags = parsed.tags;
                 continue;
             }
 
@@ -170,7 +212,9 @@
             }
 
             if (!name && !line.startsWith('(')) {
-                name = line;
+                const parsed = parseImportStudentName(line);
+                name = parsed.name;
+                tags = parsed.tags;
             }
         }
 
@@ -185,7 +229,7 @@
             locationTag,
             sortOrder,
             active: true,
-            tags: [],
+            tags,
             memo: memoParts.join('; ')
         };
     }
@@ -195,7 +239,8 @@
         if (meaningful.length < 2) {
             return null;
         }
-        const name = meaningful[0];
+        const parsedName = parseImportStudentName(meaningful[0]);
+        const name = parsedName.name;
         let nameEn = '';
         const second = meaningful[1];
         const paren = second.match(/^\(([^)]*)\)$/);
@@ -211,7 +256,7 @@
             locationTag: '',
             sortOrder,
             active: true,
-            tags: [],
+            tags: parsedName.tags,
             memo: ''
         };
     }
@@ -343,7 +388,7 @@
         return { error: null, cohort };
     }
 
-    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'off_roster'];
+    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'off_roster', 'shuttle', 'transfer_in'];
 
     function normalizeStr(v) {
         return String(v == null ? '' : v).trim();

@@ -13,8 +13,9 @@
         'incomplete',
         'exempt'
     ];
-    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon', 'off_roster'];
+    const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon', 'off_roster', 'shuttle', 'transfer_in'];
     const OFF_ROSTER_TAG = 'off_roster';
+    const SYNC_MANAGED_STUDENT_TAGS = ['new', 'shuttle', 'transfer_in'];
     const ARCHIVE_REASONS = ['break', 'new', 'left', 'starting_soon'];
     const ARCHIVE_COHORT_ID = 'cohort-student-archive';
     const DEFAULT_ARCHIVE_RETENTION_DAYS = 90;
@@ -127,8 +128,11 @@
         };
     }
 
-    /** Status marks pasted from TMS (transfer / new / etc.) — not identity. */
+    /** Status marks pasted from TMS (transfer / new / shuttle / etc.) — not identity. */
+    const NAME_TRANSFER_SYMBOL_RE = /[◆◇♦♢⬥⬦◈]/;
+    const NAME_NEW_SYMBOL_RE = /[★☆✦✧]/;
     const NAME_STATUS_SYMBOL_RE = /[◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]/g;
+    const NAME_IDENTITY_SUFFIX_RE = /^([\uac00-\ud7a3]{2,6})([A-D]?)(S?)([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※]*)$/u;
 
     /**
      * Display-oriented cleanup (NFC, spaces, separators, fullwidth ASCII).
@@ -167,11 +171,13 @@
      * 권이안◆ and 권이안 share the same match key.
      */
     function koreanMatchKey(name) {
+        const parsed = parseKoreanNameMarks(name);
+        if (parsed.identityKey) {
+            return parsed.identityKey;
+        }
         let s = koreanNameDisplayKey(name);
         s = s.replace(NAME_STATUS_SYMBOL_RE, '');
         s = s.replace(/[0-9]/g, '');
-        // Final safety: keep only Hangul syllables and Latin letters.
-        // (So leftover punctuation like brackets cannot affect identity matching.)
         s = s.replace(/[^\uac00-\ud7a3A-Za-z]/g, '');
         return s;
     }
@@ -184,18 +190,102 @@
         return koreanMatchKey(name);
     }
 
+    function koreanMarkAgnosticKey(name) {
+        return koreanMatchKey(name);
+    }
+
+    function parseKoreanNameMarks(name) {
+        const displayKey = koreanNameDisplayKey(name);
+        const match = displayKey.match(NAME_IDENTITY_SUFFIX_RE);
+        if (!match) {
+            return {
+                displayKey,
+                identityKey: '',
+                identityLetter: '',
+                shuttle: false,
+                isNew: false,
+                transferIn: false,
+                statusSuffix: '',
+                symbolSuffix: ''
+            };
+        }
+        const hangul = match[1] || '';
+        const identityLetter = match[2] || '';
+        const shuttle = match[3] === 'S';
+        const symbolSuffix = match[4] || '';
+        return {
+            displayKey,
+            identityKey: `${hangul}${identityLetter}`,
+            identityLetter,
+            shuttle,
+            isNew: NAME_NEW_SYMBOL_RE.test(symbolSuffix),
+            transferIn: NAME_TRANSFER_SYMBOL_RE.test(symbolSuffix),
+            statusSuffix: `${shuttle ? 'S' : ''}${symbolSuffix}`,
+            symbolSuffix
+        };
+    }
+
+    /**
+     * Exact TMS / roster UI status labels — never person names.
+     * Exact-token only (never startsWith / prefix). Real names like 신규학, 신규생, 신선우 must pass.
+     * 신규 and 신규학생 are the same status phrase ("New student"); both are listed as exact forms.
+     */
+    const ROSTER_STATUS_NOISE_NAMES = new Set([
+        '신규',
+        '신규학생',
+        '관심',
+        '종료예정',
+        '전체선택',
+        '학생'
+    ]);
+
+    function isRosterStatusNoiseName(name) {
+        // Exact forms only — do not treat 신규학 / 신규생 as noise via prefix matching.
+        const raw = normalizeStr(name).replace(/\s+/g, '');
+        if (raw && ROSTER_STATUS_NOISE_NAMES.has(raw)) {
+            return true;
+        }
+        // koreanNameDisplayKey strips a trailing 학생 for match keys (TMS "…[] 학생" layout).
+        // That maps exact status phrase 신규학생 → 신규; both are already in the set above.
+        // Do NOT rebuild `${display}학생` — that pattern is easy to misread as fuzzy matching.
+        const display = koreanNameDisplayKey(name);
+        return Boolean(display && ROSTER_STATUS_NOISE_NAMES.has(display));
+    }
+
+    /**
+     * Canonical stored Korean name: Hangul + optional A–D only.
+     * Unlike koreanNameDisplayKey / identityKey, does NOT strip a trailing 학생
+     * (that cleanup is match-only for TMS "…[] 학생" labels).
+     */
+    function canonicalKoreanStoredName(name) {
+        let s = String(name == null ? '' : name).normalize('NFC').trim();
+        s = s.replace(/[\s\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, '');
+        s = s.replace(/[\u200C\u200D\uFEFF\u2060]/g, '');
+        s = s.replace(/[·•ㆍ\-–—_./]/g, '');
+        s = s.replace(/[\uFF01-\uFF5E]/g, (ch) =>
+            String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+        );
+        s = s.replace(/\([^)]*\)/g, '');
+        s = s.replace(/（[^）]*）/g, '');
+        s = s.replace(/\[[^\]]*\]/g, '');
+        s = s.replace(/［[^］]*］/g, '');
+        const match = s.match(NAME_IDENTITY_SUFFIX_RE);
+        if (!match) {
+            return normalizeStr(s);
+        }
+        return `${match[1] || ''}${match[2] || ''}`;
+    }
+
     /** Trailing status symbol after Hangul core, if any (e.g. ◆ on 권이안◆). */
     function nameStatusSymbolSuffix(name) {
-        const key = koreanNameDisplayKey(name);
-        const m = key.match(/[\uac00-\ud7a3]+([◆◇♦♢⬥⬦◈＊★☆✦✧●○■□▲△▼▽※])$/);
-        return m ? m[1] : '';
+        const parsed = parseKoreanNameMarks(name);
+        return parsed.statusSuffix || '';
     }
 
     /** Trailing Latin letter used to disambiguate same Hangul names (e.g. A on 김민수A). */
     function nameLatinDisambiguatorSuffix(name) {
-        const key = koreanMatchKey(name);
-        const m = key.match(/[\uac00-\ud7a3]+([A-Za-z]+)$/);
-        return m ? m[1] : '';
+        const parsed = parseKoreanNameMarks(name);
+        return parsed.identityLetter || '';
     }
 
     /** Trailing mark after Hangul: status symbol or Latin/digit (legacy helper). */
@@ -234,6 +324,36 @@
         const a = koreanDisplayCompareKey(nameA);
         const b = koreanDisplayCompareKey(nameB);
         return Boolean(a && b && a !== b);
+    }
+
+    function marksToStudentTags(statusMarks) {
+        const tags = [];
+        if (statusMarks && statusMarks.isNew) {
+            tags.push('new');
+        }
+        if (statusMarks && statusMarks.shuttle) {
+            tags.push('shuttle');
+        }
+        if (statusMarks && statusMarks.transferIn) {
+            tags.push('transfer_in');
+        }
+        return tags;
+    }
+
+    function applySyncManagedStudentTags(student, statusMarks) {
+        const s = normalizeStudent(student);
+        if (!s) {
+            return s;
+        }
+        const tags = (Array.isArray(s.tags) ? s.tags : []).filter(
+            (tag) => !SYNC_MANAGED_STUDENT_TAGS.includes(tag)
+        );
+        marksToStudentTags(statusMarks).forEach((tag) => {
+            if (!tags.includes(tag)) {
+                tags.push(tag);
+            }
+        });
+        return Object.assign({}, s, { tags });
     }
 
     function hasLatinNameDisambiguator(name) {
@@ -375,15 +495,42 @@
     }
 
     /**
-     * TMS names that need user review (map / add / skip) before sync applies:
-     * - Same Hangul match key but ★/◆ (etc.) gained/lost vs CM → name_mark_change
+     * Match a scraped TMS student against archive-cohort students (mpidx, then Korean key).
+     */
+    function findArchivedStudentForTmsMatch(archiveStudents, tmsStudent) {
+        const archive = (Array.isArray(archiveStudents) ? archiveStudents : [])
+            .map(normalizeStudent)
+            .filter(Boolean);
+        if (!archive.length || !tmsStudent) {
+            return null;
+        }
+        const mp = normalizeStr(tmsStudent.mpidx || tmsStudent.tmsMpidx);
+        if (mp) {
+            const byMp = archive.find((s) => normalizeStr(s.tmsMpidx) === mp);
+            if (byMp) {
+                return byMp;
+            }
+        }
+        const key = koreanMatchKey(tmsStudent.name);
+        if (!key) {
+            return null;
+        }
+        const byKey = archive.filter((s) => koreanMatchKey(s.name) === key);
+        return byKey.length === 1 ? byKey[0] : null;
+    }
+
+    /**
+     * TMS names that need user review (map / add / skip / restore) before sync applies:
      * - Same Hangul core with Latin letter difference → shared_hangul_core
      * - Contiguous Hangul variant → fuzzy_variant
      * - Multiple CM students share the match key → duplicate_existing
+     * - No active match but archive hit → restore_from_archive
      * Identical Hangul+mark display is not unclear (silent match).
      * TMS display name is source of truth when the user maps.
      */
-    function listUnclearTmsStudentMatches(existingStudents, tmsStudents) {
+    function listUnclearTmsStudentMatches(existingStudents, tmsStudents, options) {
+        const opts = options || {};
+        const archiveStudents = Array.isArray(opts.archiveStudents) ? opts.archiveStudents : [];
         const existing = (Array.isArray(existingStudents) ? existingStudents : [])
             .map(normalizeStudent)
             .filter(Boolean);
@@ -393,18 +540,27 @@
                     return null;
                 }
                 const name = normalizeStr(raw.name);
-                if (!name) {
+                if (!name || isRosterStatusNoiseName(name)) {
                     return null;
                 }
+                const parsedMarks = parseKoreanNameMarks(name);
                 return {
-                    name,
-                    nameEn: normalizeStr(raw.nameEn)
+                    name: normalizeStr(canonicalKoreanStoredName(name) || parsedMarks.identityKey || name),
+                    nameEn: normalizeStr(raw.nameEn),
+                    mpidx: normalizeStr(raw.mpidx || raw.tmsMpidx),
+                    statusMarks: raw.statusMarks || {
+                        isNew: parsedMarks.isNew,
+                        shuttle: parsedMarks.shuttle,
+                        transferIn: parsedMarks.transferIn
+                    },
+                    parseUncertain: raw.parseUncertain === true
                 };
             })
             .filter(Boolean);
 
         const existingByKey = new Map();
         const duplicateKeys = new Set();
+        const existingByMpidx = new Map();
         existing.forEach((s) => {
             const k = koreanMatchKey(s.name);
             if (!k) {
@@ -414,6 +570,9 @@
                 duplicateKeys.add(k);
             } else {
                 existingByKey.set(k, s);
+            }
+            if (s.tmsMpidx && !existingByMpidx.has(s.tmsMpidx)) {
+                existingByMpidx.set(s.tmsMpidx, s);
             }
         });
 
@@ -425,12 +584,17 @@
                 return;
             }
             seenTmsKeys.add(k);
+            if (imp.mpidx && existingByMpidx.has(imp.mpidx)) {
+                return;
+            }
             const sameKeyStudents = existing.filter((s) => koreanMatchKey(s.name) === k);
             if (sameKeyStudents.length > 1 || duplicateKeys.has(k)) {
                 unclear.push({
                     tmsName: imp.name,
                     tmsNameEn: imp.nameEn,
                     tmsKey: k,
+                    tmsMpidx: imp.mpidx || '',
+                    parseUncertain: imp.parseUncertain,
                     reason: 'duplicate_existing',
                     candidates: sameKeyStudents.map((s) => ({
                         id: s.id,
@@ -442,36 +606,46 @@
             }
             const exact = existingByKey.get(k);
             if (exact) {
-                if (koreanDisplaysDiffer(exact.name, imp.name)) {
-                    unclear.push({
-                        tmsName: imp.name,
-                        tmsNameEn: imp.nameEn,
-                        tmsKey: k,
-                        reason: 'name_mark_change',
-                        candidates: [
-                            { id: exact.id, name: exact.name, nameEn: exact.nameEn || '' }
-                        ]
-                    });
-                }
                 return;
             }
             const candidates = existing
                 .filter((s) => sharesHangulCoreOrVariant(s.name, imp.name))
                 .map((s) => ({ id: s.id, name: s.name, nameEn: s.nameEn || '' }));
-            if (!candidates.length) {
+            if (candidates.length) {
+                const reason =
+                    candidates.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
+                        ? 'shared_hangul_core'
+                        : 'fuzzy_variant';
+                unclear.push({
+                    tmsName: imp.name,
+                    tmsNameEn: imp.nameEn,
+                    tmsKey: k,
+                    tmsMpidx: imp.mpidx || '',
+                    parseUncertain: imp.parseUncertain,
+                    reason,
+                    candidates
+                });
                 return;
             }
-            const reason =
-                candidates.some((c) => hangulCoreKey(c.name) === hangulCoreKey(imp.name))
-                    ? 'shared_hangul_core'
-                    : 'fuzzy_variant';
-            unclear.push({
-                tmsName: imp.name,
-                tmsNameEn: imp.nameEn,
-                tmsKey: k,
-                reason,
-                candidates
-            });
+            const archived = findArchivedStudentForTmsMatch(archiveStudents, imp);
+            if (archived) {
+                unclear.push({
+                    tmsName: imp.name,
+                    tmsNameEn: imp.nameEn,
+                    tmsKey: k,
+                    tmsMpidx: imp.mpidx || '',
+                    parseUncertain: imp.parseUncertain,
+                    reason: 'restore_from_archive',
+                    candidates: [
+                        {
+                            id: archived.id,
+                            name: archived.name,
+                            nameEn: archived.nameEn || '',
+                            archived: true
+                        }
+                    ]
+                });
+            }
         });
         return unclear;
     }
@@ -498,6 +672,9 @@
             opts.studentResolutions && typeof opts.studentResolutions === 'object'
                 ? opts.studentResolutions
                 : {};
+        const archiveStudents = Array.isArray(opts.archiveStudents)
+            ? opts.archiveStudents.map(normalizeStudent).filter(Boolean)
+            : [];
         const existing = (Array.isArray(existingStudents) ? existingStudents : [])
             .map(normalizeStudent)
             .filter(Boolean);
@@ -508,15 +685,22 @@
                     return null;
                 }
                 const name = normalizeStr(raw.name);
-                if (!name) {
+                if (!name || isRosterStatusNoiseName(name)) {
                     return null;
                 }
+                const parsedMarks = parseKoreanNameMarks(name);
                 return {
-                    name,
+                    name: normalizeStr(canonicalKoreanStoredName(name) || parsedMarks.identityKey || name),
                     nameEn: normalizeStr(raw.nameEn),
                     locationTag: normalizeStr(raw.locationTag),
                     memo: normalizeStr(raw.memo),
-                    mpidx: normalizeStr(raw.mpidx || raw.tmsMpidx)
+                    mpidx: normalizeStr(raw.mpidx || raw.tmsMpidx),
+                    statusMarks: raw.statusMarks || {
+                        isNew: parsedMarks.isNew,
+                        shuttle: parsedMarks.shuttle,
+                        transferIn: parsedMarks.transferIn
+                    },
+                    parseUncertain: raw.parseUncertain === true
                 };
             })
             .filter(Boolean);
@@ -555,7 +739,8 @@
                 name: nameUpdated ? imp.name : target.name,
                 // TMS scrape (상담) supplies full English; empty keeps existing CM name.
                 nameEn: imp.nameEn || target.nameEn || '',
-                tmsMpidx: imp.mpidx || target.tmsMpidx || ''
+                tmsMpidx: imp.mpidx || target.tmsMpidx || '',
+                statusMarks: imp.statusMarks || { isNew: false, shuttle: false, transferIn: false }
             });
             matched.push(
                 Object.assign(
@@ -607,7 +792,7 @@
                     locationTag: imp.locationTag,
                     sortOrder: existing.length + added.length,
                     active: true,
-                    tags: [],
+                    tags: marksToStudentTags(imp.statusMarks),
                     memo: imp.memo,
                     archivedAt: '',
                     archiveReason: '',
@@ -615,6 +800,21 @@
                     tmsMpidx: imp.mpidx || ''
                 });
                 return;
+            }
+            if (resolution && resolution.action === 'restore') {
+                // Applied earlier in applyTmsRosterPlan (student already in cohort as map).
+                const targetId = normalizeStr(resolution.studentId);
+                const target = existingById.get(targetId);
+                if (target) {
+                    adoptTmsIdentity(target, imp, { resolved: true, restored: true });
+                    resolutionMatchedIds.add(target.id);
+                    return;
+                }
+                warnings.push({
+                    code: 'resolution_restore_missing',
+                    name: imp.name,
+                    studentId: targetId
+                });
             }
 
             // Prefer stable TMS student id when both sides have it.
@@ -629,8 +829,7 @@
                 const sameKeyStudents = existing.filter((s) => koreanMatchKey(s.name) === k);
                 const needsReview =
                     duplicateKeys.has(k) ||
-                    sameKeyStudents.length > 1 ||
-                    koreanDisplaysDiffer(match.name, imp.name);
+                    sameKeyStudents.length > 1;
                 if (needsReview) {
                     if (duplicateKeys.has(k) || sameKeyStudents.length > 1) {
                         warnings.push({
@@ -678,6 +877,16 @@
                 });
                 return;
             }
+            const archivedHit = findArchivedStudentForTmsMatch(archiveStudents, imp);
+            if (archivedHit) {
+                warnings.push({
+                    code: 'needs_archive_restore',
+                    name: imp.name,
+                    studentId: archivedHit.id
+                });
+                skipTmsKeys.add(k);
+                return;
+            }
             added.push({
                 id: makeId(),
                 name: imp.name,
@@ -685,7 +894,7 @@
                 locationTag: imp.locationTag,
                 sortOrder: existing.length + added.length,
                 active: true,
-                tags: [],
+                tags: marksToStudentTags(imp.statusMarks),
                 memo: imp.memo,
                 archivedAt: '',
                 archiveReason: '',
@@ -730,7 +939,7 @@
                 if (nameUpdate.tmsMpidx) {
                     patch.tmsMpidx = nameUpdate.tmsMpidx;
                 }
-                next = Object.assign({}, s, patch);
+                next = applySyncManagedStudentTags(Object.assign({}, s, patch), nameUpdate.statusMarks);
             }
             // Only explicitly matched IDs count as on TMS — not every student who
             // shares a duplicate Korean key with a matched row.
@@ -788,11 +997,11 @@
                 return;
             }
             const action = entry.action;
-            if (action !== 'skip' && action !== 'map' && action !== 'add') {
+            if (action !== 'skip' && action !== 'map' && action !== 'add' && action !== 'restore') {
                 return;
             }
             const next = { action };
-            if (action === 'map') {
+            if (action === 'map' || action === 'restore') {
                 const sid = normalizeStr(entry.studentId);
                 if (!sid) {
                     return;
@@ -844,6 +1053,14 @@
             }
             if (remembered.action === 'add') {
                 row.studentResolutions[key] = { action: 'add' };
+                return;
+            }
+            if (remembered.action === 'restore') {
+                // Restore targets live in the archive cohort, not the mapped class.
+                row.studentResolutions[key] = {
+                    action: 'restore',
+                    studentId: remembered.studentId
+                };
                 return;
             }
             if (remembered.action === 'map') {
@@ -943,24 +1160,48 @@
                 return;
             }
             const target = cohorts[idx];
-            const sessionResolutions = row.studentResolutions || opts.studentResolutions || {};
-            const merged = mergeRosterByKoreanName(target.students, row.students, {
+            const archiveCohort = findArchiveCohort(cohorts);
+            const archiveStudents = archiveCohort
+                ? normalizeCohortStudents(archiveCohort).filter((s) => s && s.active !== false)
+                : [];
+            let sessionResolutions = Object.assign(
+                {},
+                row.studentResolutions || opts.studentResolutions || {}
+            );
+            // Restore archived students into the target cohort before merge so map/mpidx can adopt.
+            Object.keys(sessionResolutions).forEach((key) => {
+                const res = sessionResolutions[key];
+                if (!res || res.action !== 'restore' || !res.studentId) {
+                    return;
+                }
+                const restored = restoreStudentFromArchive(cohorts, res.studentId, targetId);
+                if (!restored.error) {
+                    cohorts = restored.cohorts;
+                    sessionResolutions[key] = {
+                        action: 'map',
+                        studentId: res.studentId
+                    };
+                }
+            });
+            const targetAfterRestore = cohorts[idx] || target;
+            const merged = mergeRosterByKoreanName(targetAfterRestore.students, row.students, {
                 newStudentId: opts.newStudentId,
                 studentResolutions: sessionResolutions,
                 softUnclear: Boolean(opts.softUnclear),
-                suppressMissing: Boolean(row && row.suppressMissingReview)
+                suppressMissing: Boolean(row && row.suppressMissingReview),
+                archiveStudents
             });
-            cohorts[idx] = Object.assign({}, target, {
+            cohorts[idx] = Object.assign({}, targetAfterRestore, {
                 students: merged.students,
                 tmsStudentResolutions: mergeTmsStudentResolutions(
-                    target.tmsStudentResolutions,
+                    targetAfterRestore.tmsStudentResolutions,
                     sessionResolutions
                 )
             });
             results.push({
                 importCohortName: row.importCohortName,
                 targetId,
-                targetName: target.name,
+                targetName: targetAfterRestore.name,
                 created: row.userAction === 'create',
                 summary: merged.summary
             });
@@ -994,7 +1235,11 @@
             const summary = mergeRosterByKoreanName(target.students, row.students, {
                 studentResolutions: row.studentResolutions || {},
                 softUnclear: true,
-                suppressMissing: Boolean(row && row.suppressMissingReview)
+                suppressMissing: Boolean(row && row.suppressMissingReview),
+                archiveStudents: (() => {
+                    const archive = findArchiveCohort(list);
+                    return archive ? normalizeCohortStudents(archive) : [];
+                })()
             }).summary;
             if (
                 Array.isArray(summary.warnings) &&
@@ -1534,6 +1779,26 @@
         return { error: null, cohorts: list };
     }
 
+    function restoreStudentsFromArchive(cohorts, studentIds, toCohortId) {
+        const ids = Array.isArray(studentIds)
+            ? studentIds.map((id) => normalizeStr(id)).filter(Boolean)
+            : [];
+        if (!ids.length) {
+            return { error: 'missing_student', cohorts, restoredCount: 0 };
+        }
+        let list = cohorts;
+        let restoredCount = 0;
+        for (const sid of ids) {
+            const result = restoreStudentFromArchive(list, sid, toCohortId);
+            if (result.error) {
+                return { error: result.error, cohorts: result.cohorts, restoredCount };
+            }
+            list = result.cohorts;
+            restoredCount += 1;
+        }
+        return { error: null, cohorts: list, restoredCount };
+    }
+
     function moveStudentsBetweenCohorts(cohorts, fromCohortId, toCohortId, studentIds) {
         const fromId = normalizeStr(fromCohortId);
         const toId = normalizeStr(toCohortId);
@@ -1694,6 +1959,9 @@
         }
         if (!base.submittedRetest && other.submittedRetest) {
             base.submittedRetest = true;
+        }
+        if (!base.debateVideoMissing && other.debateVideoMissing) {
+            base.debateVideoMissing = true;
         }
         if (!base.submissionLate && other.submissionLate) {
             base.submissionLate = true;
@@ -2150,6 +2418,26 @@
         return { error: null, cohorts: list, studentId: sid };
     }
 
+    function deleteStudentsPermanently(cohorts, studentIds, cohortId) {
+        const ids = Array.isArray(studentIds)
+            ? studentIds.map((id) => normalizeStr(id)).filter(Boolean)
+            : [];
+        if (!ids.length) {
+            return { error: 'missing_student', cohorts, deletedIds: [] };
+        }
+        let list = cohorts;
+        const deletedIds = [];
+        for (const sid of ids) {
+            const result = deleteStudentPermanently(list, sid, cohortId);
+            if (result.error) {
+                return { error: result.error, cohorts: result.cohorts, deletedIds };
+            }
+            list = result.cohorts;
+            deletedIds.push(sid);
+        }
+        return { error: null, cohorts: list, deletedIds };
+    }
+
     function isPastArchiveRetention(student, retentionDays, refDate) {
         const days = Number(retentionDays);
         if (!student || !student.archivedAt || !Number.isFinite(days) || days <= 0) {
@@ -2592,6 +2880,7 @@
             studentId: normalizeStr(raw.studentId),
             status: validStatus,
             submittedRetest: Boolean(raw.submittedRetest),
+            debateVideoMissing: Boolean(raw.debateVideoMissing),
             note: normalizeStr(raw.note),
             submissionLate: Boolean(raw.submissionLate),
             overdueDismissed: Boolean(raw.overdueDismissed)
@@ -2671,6 +2960,7 @@
                 studentId: sid,
                 status: 'not_submitted',
                 submittedRetest: false,
+                debateVideoMissing: false,
                 note: '',
                 submissionLate: false,
                 overdueDismissed: false
@@ -2679,6 +2969,19 @@
         });
         base.records = records;
         return base;
+    }
+
+    function filterEssayRecordsToStudentIds(submission, activeStudentIds) {
+        const rosterIds = Array.isArray(activeStudentIds)
+            ? activeStudentIds.map(normalizeStr).filter(Boolean)
+            : null;
+        if (!rosterIds) {
+            return Array.isArray(submission && submission.records) ? submission.records : [];
+        }
+        const allowed = new Set(rosterIds);
+        return Array.isArray(submission && submission.records)
+            ? submission.records.filter((r) => r && allowed.has(normalizeStr(r.studentId)))
+            : [];
     }
 
     function emptyEssayStatusCounts() {
@@ -2692,12 +2995,13 @@
         };
     }
 
-    function countEssayByStatus(submission) {
+    function countEssayByStatus(submission, activeStudentIds) {
         const counts = emptyEssayStatusCounts();
-        if (!submission || !Array.isArray(submission.records)) {
+        const records = filterEssayRecordsToStudentIds(submission, activeStudentIds);
+        if (!records.length) {
             return counts;
         }
-        submission.records.forEach((r) => {
+        records.forEach((r) => {
             const status = r && ESSAY_STATUSES.includes(r.status) ? r.status : 'not_submitted';
             counts[status] += 1;
         });
@@ -2719,8 +3023,22 @@
         return Math.round(((counts && counts.complete ? counts.complete : 0) / denom) * 100);
     }
 
-    function essayResubmitCount(submission) {
-        return countEssayByStatus(submission).resubmit_required;
+    function essayResubmitCount(submission, activeStudentIds) {
+        return countEssayByStatus(submission, activeStudentIds).resubmit_required;
+    }
+
+    function essayDebateVideoMissingCount(submission, activeStudentIds) {
+        const records = filterEssayRecordsToStudentIds(submission, activeStudentIds);
+        if (!records.length) {
+            return 0;
+        }
+        let total = 0;
+        records.forEach((rec) => {
+            if (rec && rec.debateVideoMissing) {
+                total += 1;
+            }
+        });
+        return total;
     }
 
     function essayResubmitCountForClass(submissions, classId) {
@@ -2874,15 +3192,15 @@
         return count;
     }
 
-    function essayPendingTeacherEvalCount(submission) {
-        return countEssayByStatus(submission).submitted || 0;
+    function essayPendingTeacherEvalCount(submission, activeStudentIds) {
+        return countEssayByStatus(submission, activeStudentIds).submitted || 0;
     }
 
-    function isEssayTeacherEvalOverdue(submission, teacherEvalDueDate) {
+    function isEssayTeacherEvalOverdue(submission, teacherEvalDueDate, activeStudentIds) {
         if (!isEssaySsOverdueISO(teacherEvalDueDate)) {
             return false;
         }
-        return essayPendingTeacherEvalCount(submission) > 0;
+        return essayPendingTeacherEvalCount(submission, activeStudentIds) > 0;
     }
 
     function essayAlertCountsForAssignment(submission, ssDueDate, studentCount, activeStudentIds) {
@@ -2890,7 +3208,7 @@
             ? activeStudentIds.map(normalizeStr).filter(Boolean)
             : null;
         const counts = submission
-            ? countEssayByStatus(submission)
+            ? countEssayByStatus(submission, rosterIds || undefined)
             : Object.assign(emptyEssayStatusCounts(), {
                 not_submitted: Math.max(0, studentCount || 0)
             });
@@ -2908,14 +3226,15 @@
                 studentCount,
                 rosterIds || undefined
             ),
-            ae: essayPendingTeacherEvalCount(submission),
+            ae: essayPendingTeacherEvalCount(submission, rosterIds || undefined),
+            nv: essayDebateVideoMissingCount(submission, rosterIds || undefined),
             counts
         };
     }
 
     function essayAlertCountsForClass(submissions, classData, cohorts) {
         if (!classData || !classData.id) {
-            return { rs: 0, as: 0, od: 0, ae: 0 };
+            return { rs: 0, as: 0, od: 0, ae: 0, nv: 0 };
         }
         const students = resolveStudentsForClass(classData, cohorts);
         const totalStudents = students.length;
@@ -2926,6 +3245,7 @@
         let asCount = 0;
         let od = 0;
         let ae = 0;
+        let nv = 0;
         getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
             const syllabusRowId = getSyllabusRowKey(row);
             if (!syllabusRowId) {
@@ -2944,8 +3264,9 @@
             asCount += alerts.as;
             od += alerts.od;
             ae += alerts.ae;
+            nv += alerts.nv;
         });
-        return { rs, as: asCount, od, ae };
+        return { rs, as: asCount, od, ae, nv };
     }
 
     function formatEssayClassAlertSuffix(counts) {
@@ -2962,6 +3283,9 @@
         }
         if (c.ae > 0) {
             parts.push(`AE:${c.ae}`);
+        }
+        if (c.nv > 0) {
+            parts.push(`NV:${c.nv}`);
         }
         return parts.length ? ` ${parts.join(' ')}` : '';
     }
@@ -3026,7 +3350,12 @@
                     : ssDue && addDaysISO
                         ? addDaysISO(ssDue, 2)
                         : '';
-            const alerts = essayAlertCountsForAssignment(submission, ssDue, totalStudents);
+            const alerts = essayAlertCountsForAssignment(
+                submission,
+                ssDue,
+                totalStudents,
+                students.map((entry) => entry && entry.student && entry.student.id).filter(Boolean)
+            );
             return {
                 key: `${classData.id}|${syllabusRowId}`,
                 classId: classData.id,
@@ -3089,12 +3418,16 @@
                     return;
                 }
                 const assignmentLabel = getEssayAssignmentLabel(row);
+                const activeStudentIds = students
+                    .map((entry) => entry && entry.student && entry.student.id)
+                    .filter(Boolean);
+                const activeStudentSet = new Set(activeStudentIds.map(normalizeStr));
                 submission.records.forEach((rec) => {
                     if (!rec || rec.status !== 'resubmit_required') {
                         return;
                     }
                     const studentId = normalizeStr(rec.studentId);
-                    if (!studentId) {
+                    if (!studentId || !activeStudentSet.has(studentId)) {
                         return;
                     }
                     rows.push({
@@ -3112,7 +3445,8 @@
                         studentId,
                         studentName: nameMap.get(studentId) || studentId,
                         note: normalizeStr(rec.note),
-                        submittedRetest: Boolean(rec.submittedRetest)
+                        submittedRetest: Boolean(rec.submittedRetest),
+                        debateVideoMissing: Boolean(rec.debateVideoMissing)
                     });
                 });
             });
@@ -3206,6 +3540,7 @@
                         // Detail line uses ssOverdueKind (overdue / received late), not feedback notes.
                         note: '',
                         submittedRetest: false,
+                        debateVideoMissing: Boolean(rec.debateVideoMissing),
                         status,
                         submissionLate: Boolean(rec.submissionLate),
                         overdueDismissed: Boolean(rec.overdueDismissed),
@@ -3312,6 +3647,7 @@
                         status,
                         note: rec ? normalizeStr(rec.note) : '',
                         submittedRetest: rec ? Boolean(rec.submittedRetest) : false,
+                        debateVideoMissing: rec ? Boolean(rec.debateVideoMissing) : false,
                         submissionLate: rec ? Boolean(rec.submissionLate) : false,
                         overdueDismissed: rec ? Boolean(rec.overdueDismissed) : false,
                         ssDueDate: ssDue,
@@ -4781,6 +5117,10 @@
                 if (!stu || !stu.submitted || !stu.name) {
                     return;
                 }
+                // Status labels like 신규학생 ("New student") are never person names.
+                if (isRosterStatusNoiseName(stu.name)) {
+                    return;
+                }
                 const tmsKey = koreanMatchKey(stu.name);
                 if (!tmsKey) {
                     return;
@@ -4871,9 +5211,18 @@
                 }
 
                 const studentId = addNew ? `pending_add_${rowIdx}_${tmsKey}` : student.id;
-                const studentName = addNew ? stu.name : student.name;
+                const parsedIncoming = parseKoreanNameMarks(stu.name);
+                const canonicalTmsName = normalizeStr(
+                    canonicalKoreanStoredName(stu.name) || parsedIncoming.identityKey || stu.name
+                );
+                const statusMarks = stu.statusMarks || {
+                    isNew: parsedIncoming.isNew,
+                    shuttle: parsedIncoming.shuttle,
+                    transferIn: parsedIncoming.transferIn
+                };
+                const studentName = addNew ? canonicalTmsName : student.name;
                 const nameUpdated =
-                    !addNew && normalizeStr(student.name) !== normalizeStr(stu.name);
+                    !addNew && normalizeStr(student.name) !== canonicalTmsName;
                 const nameEnToWrite = addNew
                     ? normalizeStr(stu.nameEn)
                     : preferLongerNameEn(student.nameEn, stu.nameEn);
@@ -4898,7 +5247,7 @@
                         assignmentLabel: getEssayAssignmentLabel(essayRow),
                         studentId,
                         studentName,
-                        tmsName: stu.name,
+                        tmsName: canonicalTmsName,
                         prevStatus,
                         tmsTitle: row.title
                     });
@@ -4912,10 +5261,11 @@
                     assignmentLabel: getEssayAssignmentLabel(essayRow),
                     lessonDate: normalizeStr(essayRow.date) || row.lessonDate || '',
                     studentId,
-                    studentName: addNew || nameUpdated ? stu.name : studentName,
-                    tmsName: stu.name,
+                    studentName: addNew || nameUpdated ? canonicalTmsName : studentName,
+                    tmsName: canonicalTmsName,
                     tmsNameEn: nameEnToWrite,
                     tmsMpidx: mpidxToWrite,
+                    statusMarks,
                     prevStatus: 'not_submitted',
                     nextStatus: 'submitted',
                     submittedAt: stu.submittedAt || '',
@@ -5016,26 +5366,42 @@
                 );
                 if (idx >= 0) {
                     const students = normalizeCohortStudents(cohorts[idx]).slice();
-                    students.push({
-                        id: newIdVal,
-                        name: normalizeStr(u.tmsName || u.studentName),
-                        nameEn: normalizeStr(u.tmsNameEn),
-                        locationTag: '',
-                        sortOrder: students.length,
-                        active: true,
-                        tags: [],
-                        memo: '',
-                        archivedAt: '',
-                        archiveReason: '',
-                        expectedStartDate: '',
-                        tmsMpidx: normalizeStr(u.tmsMpidx)
-                    });
+                    const parsedMarks = parseKoreanNameMarks(u.tmsName || u.studentName);
+                    const canonicalName = normalizeStr(
+                        canonicalKoreanStoredName(u.tmsName || u.studentName) ||
+                            parsedMarks.identityKey ||
+                            u.tmsName ||
+                            u.studentName
+                    );
+                    students.push(
+                        applySyncManagedStudentTags(
+                            {
+                                id: newIdVal,
+                                name: canonicalName,
+                                nameEn: normalizeStr(u.tmsNameEn),
+                                locationTag: '',
+                                sortOrder: students.length,
+                                active: true,
+                                tags: [],
+                                memo: '',
+                                archivedAt: '',
+                                archiveReason: '',
+                                expectedStartDate: '',
+                                tmsMpidx: normalizeStr(u.tmsMpidx)
+                            },
+                            u.statusMarks || {
+                                isNew: parsedMarks.isNew,
+                                shuttle: parsedMarks.shuttle,
+                                transferIn: parsedMarks.transferIn
+                            }
+                        )
+                    );
                     cohorts[idx] = Object.assign({}, cohorts[idx], { students });
                 }
                 u.studentId = newIdVal;
             } else if (
                 u.studentId &&
-                (u.nameUpdated || u.nameEnUpdated || u.mpidxUpdated)
+                (u.nameUpdated || u.nameEnUpdated || u.mpidxUpdated || u.statusMarks)
             ) {
                 cohorts = cohorts.map((c) => {
                     if (!c || !Array.isArray(c.students)) {
@@ -5049,7 +5415,9 @@
                         changed = true;
                         const patch = {};
                         if (u.nameUpdated && u.tmsName) {
-                            patch.name = normalizeStr(u.tmsName);
+                            patch.name = normalizeStr(
+                                canonicalKoreanStoredName(u.tmsName) || u.tmsName
+                            );
                         }
                         if (u.nameEnUpdated || u.tmsNameEn) {
                             patch.nameEn = preferLongerNameEn(s.nameEn, u.tmsNameEn);
@@ -5060,7 +5428,19 @@
                                 patch.tmsMpidx = mp;
                             }
                         }
-                        return Object.assign({}, s, patch);
+                        let next = Object.assign({}, s, patch);
+                        if (u.statusMarks || u.nameUpdated) {
+                            const parsed = parseKoreanNameMarks(u.tmsName || next.name);
+                            next = applySyncManagedStudentTags(
+                                next,
+                                u.statusMarks || {
+                                    isNew: parsed.isNew,
+                                    shuttle: parsed.shuttle,
+                                    transferIn: parsed.transferIn
+                                }
+                            );
+                        }
+                        return next;
                     });
                     return changed ? Object.assign({}, c, { students }) : c;
                 });
@@ -5156,6 +5536,7 @@
                     studentId: u.studentId,
                     status: 'submitted',
                     submittedRetest: false,
+                    debateVideoMissing: prev ? Boolean(prev.debateVideoMissing) : false,
                     submissionLate: Boolean(u.submissionLate),
                     overdueDismissed: prev ? Boolean(prev.overdueDismissed) : false
                 });
@@ -5598,8 +5979,12 @@
         ARCHIVE_COHORT_ID,
         DEFAULT_ARCHIVE_RETENTION_DAYS,
         koreanNameKey,
+        koreanMarkAgnosticKey,
         koreanMatchKey,
         koreanNameDisplayKey,
+        parseKoreanNameMarks,
+        canonicalKoreanStoredName,
+        isRosterStatusNoiseName,
         nameDisambiguatorSuffix,
         nameStatusSymbolSuffix,
         nameLatinDisambiguatorSuffix,
@@ -5616,6 +6001,7 @@
         shareThreeHangulSyllables,
         pairFuzzyRosterMatches,
         listUnclearTmsStudentMatches,
+        findArchivedStudentForTmsMatch,
         normalizeTmsStudentResolutions,
         mergeTmsStudentResolutions,
         applyRememberedTmsStudentResolutions,
@@ -5653,8 +6039,10 @@
         archiveStudents,
         updateStudentsInCohort,
         restoreStudentFromArchive,
+        restoreStudentsFromArchive,
         moveStudentsBetweenCohorts,
         deleteStudentPermanently,
+        deleteStudentsPermanently,
         purgeStudentRecords,
         mergeStudentRecords,
         listSuspectedDuplicateStudents,
@@ -5693,6 +6081,7 @@
         essayProgressDenominator,
         essayPercentComplete,
         essayResubmitCount,
+        essayDebateVideoMissingCount,
         essayResubmitCountForClass,
         isEssaySsOverdueISO,
         isEssayReceivedStatus,

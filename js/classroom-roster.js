@@ -23,6 +23,8 @@
     let tmsReviewIndex = 0;
     let tmsMissingQueue = [];
     let tmsMissingIndex = 0;
+    let tmsCohortConflictQueue = [];
+    let tmsCohortConflictIndex = 0;
     let tmsCreateEditorUnsub = null;
     const selectedStudentIds = new Set();
     const TMS_CREATE_VALUE = '__create__';
@@ -936,20 +938,33 @@
         const moveBtn = document.getElementById('classroomRosterMoveBtn');
         const statusBtn = document.getElementById('classroomRosterBulkStatusBtn');
         const archiveBtn = document.getElementById('classroomRosterBulkArchiveBtn');
+        const restoreBtn = document.getElementById('classroomRosterBulkRestoreBtn');
+        const deleteBtn = document.getElementById('classroomRosterBulkDeleteBtn');
         const cohort = getSelectedCohort();
-        const editable = cohort && canEditRoster() && !isArchiveCohort(cohort);
+        const inArchive = cohort && isArchiveCohort(cohort);
+        const editable = cohort && canEditRoster();
         if (wrap) {
             wrap.hidden = !editable;
         }
         const hasSel = selectedStudentIds.size > 0;
         if (moveBtn) {
+            moveBtn.hidden = Boolean(inArchive);
             moveBtn.disabled = !hasSel;
         }
         if (statusBtn) {
+            statusBtn.hidden = Boolean(inArchive);
             statusBtn.disabled = !hasSel;
         }
         if (archiveBtn) {
+            archiveBtn.hidden = Boolean(inArchive);
             archiveBtn.disabled = !hasSel;
+        }
+        if (restoreBtn) {
+            restoreBtn.hidden = !inArchive;
+            restoreBtn.disabled = !hasSel;
+        }
+        if (deleteBtn) {
+            deleteBtn.disabled = !hasSel;
         }
     }
 
@@ -1188,6 +1203,8 @@
         tmsReviewIndex = 0;
         tmsMissingQueue = [];
         tmsMissingIndex = 0;
+        tmsCohortConflictQueue = [];
+        tmsCohortConflictIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
         clearTmsPasswordField();
@@ -1234,6 +1251,25 @@
             row.userAction = 'skip';
             row.userTargetId = '';
             row.remembered = false;
+            row.cohortConflictChoice = '';
+        });
+        setTmsSyncError('');
+        renderTmsSyncTable();
+    }
+
+    function createAllTmsSyncRows() {
+        tmsSyncPlan.forEach((row) => {
+            if (!row) {
+                return;
+            }
+            row.userAction = 'create';
+            row.userTargetId = '';
+            row.createdCohortId = '';
+            row.tmsCreatedCohortId = '';
+            row.remembered = false;
+            row.studentResolutions = {};
+            row.missingStudentActions = {};
+            row.cohortConflictChoice = '';
         });
         setTmsSyncError('');
         renderTmsSyncTable();
@@ -1241,10 +1277,11 @@
 
     function skipUnmappedTmsSyncRows() {
         tmsSyncPlan.forEach((row) => {
-            if (row.userAction === 'choose' || (!row.userTargetId && row.userAction !== 'skip' && row.userAction !== 'map')) {
+            if (row.userAction === 'choose' || (!row.userTargetId && row.userAction !== 'skip' && row.userAction !== 'map' && row.userAction !== 'create')) {
                 row.userAction = 'skip';
                 row.userTargetId = '';
                 row.remembered = false;
+                row.cohortConflictChoice = '';
             }
         });
         setTmsSyncError('');
@@ -1401,6 +1438,14 @@
         return '';
     }
 
+    function getArchiveStudentsForSync() {
+        const archive = getCohorts().find((c) => c && domain().isArchiveCohort && domain().isArchiveCohort(c));
+        if (!archive) {
+            return [];
+        }
+        return Array.isArray(archive.students) ? archive.students.slice() : [];
+    }
+
     function previewTmsRow(row) {
         if (!row) {
             return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
@@ -1420,8 +1465,11 @@
         if (!target || !domain().mergeRosterByKoreanName) {
             return { added: [], matched: [], flagged: [], cleared: [], warnings: [], unclear: [] };
         }
+        const archiveStudents = getArchiveStudentsForSync();
         const unclearRaw = domain().listUnclearTmsStudentMatches
-            ? domain().listUnclearTmsStudentMatches(target.students, row.students)
+            ? domain().listUnclearTmsStudentMatches(target.students, row.students, {
+                  archiveStudents
+              })
             : [];
         const unclear = domain().applyRememberedTmsStudentResolutions
             ? domain().applyRememberedTmsStudentResolutions(target, unclearRaw, row)
@@ -1429,7 +1477,8 @@
         const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
             studentResolutions: row.studentResolutions || {},
             softUnclear: true,
-            suppressMissing: Boolean(row.suppressMissingReview)
+            suppressMissing: Boolean(row.suppressMissingReview),
+            archiveStudents
         }).summary;
         summary.suppressMissingReview = Boolean(row.suppressMissingReview);
         summary.unclear = unclear;
@@ -1438,6 +1487,8 @@
 
     function collectTmsReviewQueue() {
         const queue = [];
+        const archiveStudents = getArchiveStudentsForSync();
+        const seenDupMpidx = new Set();
         tmsSyncPlan.forEach((row, rowIdx) => {
             if (!row || row.userAction !== 'map' || !row.userTargetId) {
                 return;
@@ -1449,7 +1500,9 @@
             if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
                 row.studentResolutions = {};
             }
-            const unclear = domain().listUnclearTmsStudentMatches(target.students, row.students);
+            const unclear = domain().listUnclearTmsStudentMatches(target.students, row.students, {
+                archiveStudents
+            });
             const stillUnclear =
                 domain().applyRememberedTmsStudentResolutions
                     ? domain().applyRememberedTmsStudentResolutions(target, unclear, row)
@@ -1462,6 +1515,40 @@
                     item
                 });
             });
+            if (domain().listSuspectedDuplicateStudents) {
+                const dups = domain().listSuspectedDuplicateStudents(target) || [];
+                dups.forEach((dup) => {
+                    if (!dup || dup.reason !== 'duplicate_tms_mpidx' || !dup.tmsMpidx) {
+                        return;
+                    }
+                    const dedupeKey = `${row.userTargetId}|${dup.tmsMpidx}`;
+                    if (seenDupMpidx.has(dedupeKey)) {
+                        return;
+                    }
+                    seenDupMpidx.add(dedupeKey);
+                    const tmsKey = `dup_mpidx:${dup.tmsMpidx}`;
+                    if (row.studentResolutions[tmsKey]) {
+                        return;
+                    }
+                    queue.push({
+                        rowIdx,
+                        importCohortName: row.importCohortName,
+                        targetName: target.name || row.userTargetId,
+                        item: {
+                            tmsName: (dup.students || []).map((s) => s.name).filter(Boolean).join(' / '),
+                            tmsNameEn: '',
+                            tmsKey,
+                            tmsMpidx: dup.tmsMpidx,
+                            reason: 'duplicate_tms_mpidx',
+                            candidates: (dup.students || []).map((s) => ({
+                                id: s.id,
+                                name: s.name,
+                                nameEn: s.nameEn || ''
+                            }))
+                        }
+                    });
+                });
+            }
         });
         return queue;
     }
@@ -1492,7 +1579,8 @@
             const summary = domain().mergeRosterByKoreanName(target.students, row.students, {
                 studentResolutions: row.studentResolutions || {},
                 softUnclear: true,
-                suppressMissing: Boolean(row.suppressMissingReview)
+                suppressMissing: Boolean(row.suppressMissingReview),
+                archiveStudents: getArchiveStudentsForSync()
             }).summary;
             if (
                 Array.isArray(summary.warnings) &&
@@ -1552,6 +1640,12 @@
         if (reason === 'duplicate_existing') {
             return t('rosterTmsReviewReasonDuplicate');
         }
+        if (reason === 'duplicate_tms_mpidx') {
+            return t('rosterTmsReviewReasonDuplicateMpidx');
+        }
+        if (reason === 'restore_from_archive') {
+            return t('rosterTmsReviewReasonRestoreArchive');
+        }
         if (reason === 'fuzzy_variant') {
             return t('rosterTmsReviewReasonFuzzy');
         }
@@ -1593,6 +1687,11 @@
         );
         if (action === 'map') {
             row.studentResolutions[key] = { action: 'map', studentId: String(studentId || '') };
+        } else if (action === 'restore') {
+            row.studentResolutions[key] = {
+                action: 'restore',
+                studentId: String(studentId || '')
+            };
         } else if (action === 'merge_map') {
             const keepId = String(studentId || '');
             const drops = Array.isArray(mergeDropIds)
@@ -1664,15 +1763,96 @@
         }
     }
 
+    function findEditableCohortsMatchingName(tmsName) {
+        const cleaned = cleanTmsSyncCohortName(tmsName);
+        const exact = String(cleaned || '').trim();
+        const norm = normalizeCohortLabelLocal(cleaned);
+        return getCohorts().filter((c) => {
+            if (!c || domain().isArchiveCohort(c) || !canEditCohort(c)) {
+                return false;
+            }
+            const name = String(c.name || '').trim();
+            if (exact && name === exact) {
+                return true;
+            }
+            return Boolean(norm) && normalizeCohortLabelLocal(c.name) === norm;
+        });
+    }
+
+    function collectTmsCohortConflictQueue() {
+        const queue = [];
+        tmsSyncPlan.forEach((row, rowIdx) => {
+            if (!row || row.userAction !== 'create') {
+                return;
+            }
+            // Already resolved this session as create-anyway.
+            if (row.cohortConflictChoice === 'create') {
+                return;
+            }
+            const candidates = findEditableCohortsMatchingName(row.importCohortName);
+            if (!candidates.length) {
+                return;
+            }
+            queue.push({
+                rowIdx,
+                importCohortName: row.importCohortName,
+                cleanedName: cleanTmsSyncCohortName(row.importCohortName),
+                candidates,
+                userChoice: row.cohortConflictChoice || ''
+            });
+        });
+        return queue;
+    }
+
+    function getCurrentCohortConflictChoice() {
+        const entry = tmsCohortConflictQueue[tmsCohortConflictIndex];
+        if (!entry) {
+            return null;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        return row ? row.cohortConflictChoice || '' : '';
+    }
+
+    function setCurrentCohortConflictChoice(choice, mapTargetId) {
+        const entry = tmsCohortConflictQueue[tmsCohortConflictIndex];
+        if (!entry) {
+            return;
+        }
+        const row = tmsSyncPlan[entry.rowIdx];
+        if (!row) {
+            return;
+        }
+        if (choice === 'map' && mapTargetId) {
+            row.cohortConflictChoice = `map:${mapTargetId}`;
+            row.userAction = 'map';
+            row.userTargetId = String(mapTargetId);
+            row.createdCohortId = '';
+            row.tmsCreatedCohortId = '';
+            row.remembered = false;
+            row.studentResolutions = {};
+            row.missingStudentActions = {};
+            return;
+        }
+        row.cohortConflictChoice = 'create';
+        row.userAction = 'create';
+        row.userTargetId = '';
+        row.createdCohortId = '';
+        row.tmsCreatedCohortId = '';
+        row.remembered = false;
+        row.studentResolutions = {};
+        row.missingStudentActions = {};
+    }
+
     function renderTmsWizardPanel() {
         const review = document.getElementById('rosterTmsStudentReview');
         const mapping = document.getElementById('rosterTmsSyncMappingTable');
         const batchBar = document.getElementById('rosterTmsSyncBatchBar');
         const credForm = document.getElementById('rosterTmsCredForm');
         const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        const onConflict = tmsSyncWizardStep === 4 && tmsCohortConflictQueue.length > 0;
         const onUnclear = tmsSyncWizardStep === 2 && tmsReviewQueue.length > 0;
         const onMissing = tmsSyncWizardStep === 3 && tmsMissingQueue.length > 0;
-        const onReview = onUnclear || onMissing;
+        const onReview = onConflict || onUnclear || onMissing;
         if (review) {
             review.hidden = !onReview;
         }
@@ -1692,10 +1872,106 @@
             }
             return;
         }
-        if (onUnclear) {
+        if (onConflict) {
+            renderTmsCohortConflictReview();
+        } else if (onUnclear) {
             renderTmsStudentReview();
         } else {
             renderTmsMissingReview();
+        }
+    }
+
+    function updateTmsCohortConflictNavButtons() {
+        const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        const choice = getCurrentCohortConflictChoice();
+        const ok = choice === 'create' || (typeof choice === 'string' && choice.startsWith('map:'));
+        if (nextBtn) {
+            nextBtn.disabled = !ok;
+        }
+    }
+
+    function renderTmsCohortConflictReview() {
+        const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
+        const entry = tmsCohortConflictQueue[tmsCohortConflictIndex];
+        if (!entry) {
+            return;
+        }
+        const progress = document.getElementById('rosterTmsStudentReviewProgress');
+        const reasonEl = document.getElementById('rosterTmsStudentReviewReason');
+        const nameEl = document.getElementById('rosterTmsStudentReviewName');
+        const labelEl = document.getElementById('rosterTmsStudentReviewNameLabel');
+        const optionsEl = document.getElementById('rosterTmsStudentReviewOptions');
+        const choicesLegend = document.querySelector('#rosterTmsStudentReviewChoices legend');
+        const backBtn = document.getElementById('rosterTmsStudentReviewBackBtn');
+        const nextBtn = document.getElementById('rosterTmsStudentReviewNextBtn');
+        const archiveExtra = document.getElementById('rosterTmsMissingArchiveExtra');
+        if (archiveExtra) {
+            archiveExtra.hidden = true;
+        }
+        if (progress) {
+            progress.textContent = t('rosterTmsCohortConflictProgress')
+                .replace('{current}', String(tmsCohortConflictIndex + 1))
+                .replace('{total}', String(tmsCohortConflictQueue.length));
+        }
+        if (reasonEl) {
+            reasonEl.textContent = t('rosterTmsCohortConflictWarn');
+        }
+        if (labelEl) {
+            labelEl.textContent = t('rosterTmsCohortConflictTmsLabel');
+        }
+        if (nameEl) {
+            nameEl.textContent = entry.cleanedName || entry.importCohortName || '';
+        }
+        if (choicesLegend) {
+            choicesLegend.textContent = t('rosterTmsCohortConflictChoicesLabel');
+        }
+        const selected = getCurrentCohortConflictChoice() || '';
+        const opts = [];
+        opts.push(
+            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsCohortConflictChoice" value="create"${
+                selected === 'create' ? ' checked' : ''
+            }><span>${escapeHtml(t('rosterTmsCohortConflictCreateAnyway'))}</span></label>`
+        );
+        (entry.candidates || []).forEach((c) => {
+            const val = `map:${c.id}`;
+            opts.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsCohortConflictChoice" value="${escapeHtml(val)}"${
+                    selected === val ? ' checked' : ''
+                }><span>${escapeHtml(
+                    t('rosterTmsCohortConflictMapTo').replace('{name}', c.name || c.id)
+                )}</span></label>`
+            );
+        });
+        if (optionsEl) {
+            optionsEl.innerHTML = opts.join('');
+            optionsEl.querySelectorAll('input[name="rosterTmsCohortConflictChoice"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    const val = input.value;
+                    if (val === 'create') {
+                        setCurrentCohortConflictChoice('create');
+                    } else if (val.startsWith('map:')) {
+                        setCurrentCohortConflictChoice('map', val.slice(4));
+                    }
+                    updateTmsCohortConflictNavButtons();
+                });
+            });
+        }
+        if (backBtn) {
+            backBtn.disabled = false;
+            backBtn.textContent =
+                tmsCohortConflictIndex === 0
+                    ? t('rosterTmsReviewBackToMapping')
+                    : t('rosterTmsReviewBack');
+        }
+        if (nextBtn) {
+            nextBtn.textContent =
+                tmsCohortConflictIndex >= tmsCohortConflictQueue.length - 1
+                    ? t('rosterTmsCohortConflictContinueReview')
+                    : t('rosterTmsReviewNext');
+        }
+        updateTmsCohortConflictNavButtons();
+        if (confirmBtn) {
+            confirmBtn.hidden = true;
         }
     }
 
@@ -1741,19 +2017,34 @@
         const selected =
             existing && existing.action === 'map'
                 ? `map:${existing.studentId}`
-                : existing && existing.action === 'add'
-                  ? 'add'
-                  : existing && existing.action === 'skip'
-                    ? 'skip'
-                    : '';
+                : existing && existing.action === 'restore'
+                  ? `restore:${existing.studentId}`
+                  : existing && existing.action === 'add'
+                    ? 'add'
+                    : existing && existing.action === 'skip'
+                      ? 'skip'
+                      : '';
         const pendingMerges =
             (tmsSyncPlan[entry.rowIdx] && tmsSyncPlan[entry.rowIdx].pendingStudentMerges) || [];
         const mergeForKey = pendingMerges.find((m) => m && m.tmsKey === item.tmsKey);
         const selectedMerge = mergeForKey ? `merge_map:${mergeForKey.keepId}` : '';
         const opts = [];
         const candidates = item.candidates || [];
+        const isRestore = item.reason === 'restore_from_archive';
+        const isDupMpidx = item.reason === 'duplicate_tms_mpidx';
         candidates.forEach((c) => {
             const en = c.nameEn ? ` (${c.nameEn})` : '';
+            if (isRestore) {
+                const val = `restore:${c.id}`;
+                opts.push(
+                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
+                        selected === val && !selectedMerge ? ' checked' : ''
+                    }><span>${escapeHtml(
+                        t('rosterTmsReviewRestoreFromArchive').replace('{name}', `${c.name}${en}`)
+                    )}</span></label>`
+                );
+                return;
+            }
             const val = `map:${c.id}`;
             opts.push(
                 `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="${escapeHtml(val)}"${
@@ -1761,7 +2052,7 @@
                 }><span>${escapeHtml(t('rosterTmsReviewMapTo').replace('{name}', `${c.name}${en}`))}</span></label>`
             );
         });
-        if (item.reason === 'duplicate_existing' && candidates.length >= 2) {
+        if ((item.reason === 'duplicate_existing' || isDupMpidx) && candidates.length >= 2) {
             candidates.forEach((c) => {
                 const en = c.nameEn ? ` (${c.nameEn})` : '';
                 const val = `merge_map:${c.id}`;
@@ -1774,11 +2065,13 @@
                 );
             });
         }
-        opts.push(
-            `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
-                selected === 'add' && !selectedMerge ? ' checked' : ''
-            }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
-        );
+        if (!isDupMpidx) {
+            opts.push(
+                `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="add"${
+                    selected === 'add' && !selectedMerge ? ' checked' : ''
+                }><span>${escapeHtml(t('rosterTmsReviewAddNew'))}</span></label>`
+            );
+        }
         opts.push(
             `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsReviewChoice" value="skip"${
                 selected === 'skip' && !selectedMerge ? ' checked' : ''
@@ -1793,6 +2086,8 @@
                         setCurrentReviewResolution('add');
                     } else if (val === 'skip') {
                         setCurrentReviewResolution('skip');
+                    } else if (val.startsWith('restore:')) {
+                        setCurrentReviewResolution('restore', val.slice('restore:'.length));
                     } else if (val.startsWith('merge_map:')) {
                         const keepId = val.slice('merge_map:'.length);
                         const dropIds = candidates
@@ -1891,7 +2186,8 @@
                   .map((s) => ({
                       name: String(s.name || ''),
                       nameEn: String(s.nameEn || ''),
-                      mpidx: String(s.mpidx || '')
+                      mpidx: String(s.mpidx || ''),
+                      parseUncertain: s.parseUncertain === true
                   }))
             : [];
         let selected = 'keep';
@@ -1919,12 +2215,21 @@
             }
             tmsCandidates.forEach((cand) => {
                 const en = cand.nameEn ? ` (${cand.nameEn})` : '';
+                const uncertain = cand.parseUncertain
+                    ? ` ${t('rosterTmsCandidateUncertain')}`
+                    : '';
                 const value = `map:${cand.name}|${cand.nameEn || ''}|${cand.mpidx || ''}`;
+                const chipClass = cand.parseUncertain
+                    ? 'checkbox-label selection-chip is-uncertain'
+                    : 'checkbox-label selection-chip';
                 chips.push(
-                    `<label class="checkbox-label selection-chip"><input type="radio" name="rosterTmsMissingChoice" value="${escapeHtml(
+                    `<label class="${chipClass}"><input type="radio" name="rosterTmsMissingChoice" value="${escapeHtml(
                         value
                     )}"${selected === value ? ' checked' : ''}><span>${escapeHtml(
-                        t('rosterTmsReviewReverseMapTo').replace('{name}', `${cand.name}${en}`)
+                        t('rosterTmsReviewReverseMapTo').replace(
+                            '{name}',
+                            `${cand.name}${en}${uncertain}`
+                        )
                     )}</span></label>`
                 );
             });
@@ -2040,7 +2345,8 @@
             res &&
             (res.action === 'add' ||
                 res.action === 'skip' ||
-                (res.action === 'map' && res.studentId));
+                (res.action === 'map' && res.studentId) ||
+                (res.action === 'restore' && res.studentId));
         if (nextBtn) {
             nextBtn.disabled = !ok;
         }
@@ -2060,6 +2366,21 @@
         if (nextBtn) {
             nextBtn.disabled = !ok;
         }
+    }
+
+    function enterTmsCohortConflictReview() {
+        tmsCohortConflictQueue = collectTmsCohortConflictQueue();
+        if (!tmsCohortConflictQueue.length) {
+            if (!validateTmsMappedTargets()) {
+                return;
+            }
+            enterTmsStudentReview();
+            return;
+        }
+        tmsSyncWizardStep = 4;
+        tmsCohortConflictIndex = 0;
+        setTmsSyncError('');
+        renderTmsWizardPanel();
     }
 
     function enterTmsStudentReview() {
@@ -2097,7 +2418,30 @@
         renderTmsWizardPanel();
     }
 
+    function advanceTmsCohortConflictReview() {
+        const choice = getCurrentCohortConflictChoice();
+        if (!(choice === 'create' || (typeof choice === 'string' && choice.startsWith('map:')))) {
+            setTmsSyncError(t('rosterTmsCohortConflictChoiceRequired'));
+            return;
+        }
+        setTmsSyncError('');
+        if (tmsCohortConflictIndex < tmsCohortConflictQueue.length - 1) {
+            tmsCohortConflictIndex += 1;
+            renderTmsWizardPanel();
+            return;
+        }
+        if (!validateTmsMappedTargets()) {
+            leaveTmsStudentReviewToMapping();
+            return;
+        }
+        enterTmsStudentReview();
+    }
+
     function advanceTmsWizard() {
+        if (tmsSyncWizardStep === 4) {
+            advanceTmsCohortConflictReview();
+            return;
+        }
         if (tmsSyncWizardStep === 3) {
             advanceTmsMissingReview();
             return;
@@ -2106,11 +2450,24 @@
     }
 
     function backTmsWizard() {
+        if (tmsSyncWizardStep === 4) {
+            if (tmsCohortConflictIndex === 0) {
+                leaveTmsStudentReviewToMapping();
+                return;
+            }
+            tmsCohortConflictIndex -= 1;
+            renderTmsWizardPanel();
+            return;
+        }
         if (tmsSyncWizardStep === 3) {
             if (tmsMissingIndex === 0) {
                 if (tmsReviewQueue.length) {
                     tmsSyncWizardStep = 2;
                     tmsReviewIndex = tmsReviewQueue.length - 1;
+                    renderTmsWizardPanel();
+                } else if (tmsCohortConflictQueue.length) {
+                    tmsSyncWizardStep = 4;
+                    tmsCohortConflictIndex = tmsCohortConflictQueue.length - 1;
                     renderTmsWizardPanel();
                 } else {
                     leaveTmsStudentReviewToMapping();
@@ -2122,7 +2479,13 @@
             return;
         }
         if (tmsReviewIndex === 0) {
-            leaveTmsStudentReviewToMapping();
+            if (tmsCohortConflictQueue.length) {
+                tmsSyncWizardStep = 4;
+                tmsCohortConflictIndex = tmsCohortConflictQueue.length - 1;
+                renderTmsWizardPanel();
+            } else {
+                leaveTmsStudentReviewToMapping();
+            }
             return;
         }
         tmsReviewIndex -= 1;
@@ -2136,7 +2499,8 @@
             !(
                 res.action === 'add' ||
                 res.action === 'skip' ||
-                (res.action === 'map' && res.studentId)
+                (res.action === 'map' && res.studentId) ||
+                (res.action === 'restore' && res.studentId)
             )
         ) {
             setTmsSyncError(t('rosterTmsReviewChoiceRequired'));
@@ -2162,6 +2526,7 @@
         if (
             action.action !== 'keep' &&
             action.action !== 'archive' &&
+            !(action.action === 'map' && action.tmsName) &&
             !(action.action === 'move' && action.toCohortId)
         ) {
             setTmsSyncError(t('rosterTmsMissingChoiceRequired'));
@@ -2288,6 +2653,7 @@
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
+                    row.cohortConflictChoice = '';
                 } else if (val === TMS_CREATE_VALUE) {
                     row.userAction = 'create';
                     row.userTargetId = '';
@@ -2295,6 +2661,7 @@
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
+                    row.cohortConflictChoice = '';
                 } else if (!val) {
                     row.userAction = 'choose';
                     row.userTargetId = '';
@@ -2302,6 +2669,7 @@
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
+                    row.cohortConflictChoice = '';
                 } else {
                     row.userAction = 'map';
                     row.userTargetId = val;
@@ -2309,6 +2677,7 @@
                     row.remembered = false;
                     row.studentResolutions = {};
                     row.missingStudentActions = {};
+                    row.cohortConflictChoice = '';
                 }
                 renderTmsSyncTable();
             });
@@ -2328,7 +2697,8 @@
             unclearCount = collectTmsReviewQueue().length;
         }
         if (confirmBtn) {
-            confirmBtn.hidden = tmsSyncWizardStep === 2 || tmsSyncWizardStep === 3;
+            confirmBtn.hidden =
+                tmsSyncWizardStep === 2 || tmsSyncWizardStep === 3 || tmsSyncWizardStep === 4;
             confirmBtn.disabled = !canApply;
             confirmBtn.textContent = unclearCount
                 ? t('rosterTmsSyncContinueReview').replace('{count}', String(unclearCount))
@@ -2336,7 +2706,7 @@
             confirmBtn.dataset.needsReview = unclearCount ? '1' : '0';
         }
         syncTmsBatchBarVisibility();
-        if (tmsSyncWizardStep === 2 || tmsSyncWizardStep === 3) {
+        if (tmsSyncWizardStep === 2 || tmsSyncWizardStep === 3 || tmsSyncWizardStep === 4) {
             renderTmsWizardPanel();
         }
     }
@@ -2353,6 +2723,8 @@
         tmsReviewIndex = 0;
         tmsMissingQueue = [];
         tmsMissingIndex = 0;
+        tmsCohortConflictQueue = [];
+        tmsCohortConflictIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
         hydrateTmsCredForm();
@@ -2586,29 +2958,36 @@
         renderTmsSyncTable();
     }
 
+    function validateTmsMappedTargets() {
+        const mappedTargets = new Set();
+        for (const row of tmsSyncPlan) {
+            if (!row || row.userAction !== 'map') {
+                continue;
+            }
+            if (!row.userTargetId) {
+                setTmsSyncError(t('rosterTmsSyncMappingRequired'));
+                return false;
+            }
+            if (mappedTargets.has(row.userTargetId)) {
+                setTmsSyncError(t('rosterTmsSyncDuplicateTarget'));
+                return false;
+            }
+            mappedTargets.add(row.userTargetId);
+            const target = getCohorts().find((c) => c && c.id === row.userTargetId);
+            if (!canEditCohort(target)) {
+                setTmsSyncError(t('rosterTmsSyncNoPermission'));
+                return false;
+            }
+        }
+        return true;
+    }
+
     async function confirmTmsSync() {
         setTmsSyncError('');
-        const mappedTargets = new Set();
         for (const row of tmsSyncPlan) {
             if (row.userAction === 'choose') {
                 setTmsSyncError(t('rosterTmsSyncMappingRequired'));
                 return;
-            }
-            if (row.userAction === 'map') {
-                if (!row.userTargetId) {
-                    setTmsSyncError(t('rosterTmsSyncMappingRequired'));
-                    return;
-                }
-                if (mappedTargets.has(row.userTargetId)) {
-                    setTmsSyncError(t('rosterTmsSyncDuplicateTarget'));
-                    return;
-                }
-                mappedTargets.add(row.userTargetId);
-                const target = getCohorts().find((c) => c && c.id === row.userTargetId);
-                if (!canEditCohort(target)) {
-                    setTmsSyncError(t('rosterTmsSyncNoPermission'));
-                    return;
-                }
             }
             if (row.userAction === 'create') {
                 row.userTargetId = '';
@@ -2622,6 +3001,15 @@
             closeTmsSyncModal();
             return;
         }
+        // Resolve cohort-name collisions for create rows before map validation / student review.
+        const conflicts = collectTmsCohortConflictQueue();
+        if (conflicts.length) {
+            enterTmsCohortConflictReview();
+            return;
+        }
+        if (!validateTmsMappedTargets()) {
+            return;
+        }
         const pendingUnclear = collectTmsReviewQueue().filter((entry) => {
             const row = tmsSyncPlan[entry.rowIdx];
             const key = entry.item && entry.item.tmsKey;
@@ -2630,7 +3018,8 @@
                 res &&
                 (res.action === 'add' ||
                     res.action === 'skip' ||
-                    (res.action === 'map' && res.studentId))
+                    (res.action === 'map' && res.studentId) ||
+                    (res.action === 'restore' && res.studentId))
             );
         });
         if (pendingUnclear.length) {
@@ -2725,6 +3114,58 @@
                 }
                 const act = actions[sid];
                 if (act && act.action === 'map' && act.tmsName) {
+                    const parsedMarks = domain().parseKoreanNameMarks
+                        ? domain().parseKoreanNameMarks(act.tmsName)
+                        : null;
+                    const canonicalName =
+                        (domain().canonicalKoreanStoredName &&
+                            domain().canonicalKoreanStoredName(act.tmsName)) ||
+                        (parsedMarks && parsedMarks.identityKey) ||
+                        act.tmsName ||
+                        '';
+                    const syncedTags = [];
+                    if (parsedMarks && parsedMarks.isNew) {
+                        syncedTags.push('new');
+                    }
+                    if (parsedMarks && parsedMarks.shuttle) {
+                        syncedTags.push('shuttle');
+                    }
+                    if (parsedMarks && parsedMarks.transferIn) {
+                        syncedTags.push('transfer_in');
+                    }
+                    if (act.tmsMpidx && domain().mergeStudentRecords) {
+                        let conflictingId = '';
+                        cohorts.some((cohort) =>
+                            (cohort && Array.isArray(cohort.students) ? cohort.students : []).some((stu) => {
+                                if (!stu || stu.id === sid) {
+                                    return false;
+                                }
+                                if (String(stu.tmsMpidx || '') !== String(act.tmsMpidx || '')) {
+                                    return false;
+                                }
+                                conflictingId = stu.id;
+                                return true;
+                            })
+                        );
+                        if (conflictingId) {
+                            const baseApp = mergedWorking || (hooks.getAppData ? hooks.getAppData() : {});
+                            const merged = domain().mergeStudentRecords(
+                                Object.assign({}, baseApp, { cohorts }),
+                                {
+                                    keepId: sid,
+                                    dropId: conflictingId,
+                                    profileFrom: 'keep',
+                                    clearOffRoster: true
+                                }
+                            );
+                            if (merged.error) {
+                                setTmsSyncError(t('studentMergeFailed'));
+                                return;
+                            }
+                            mergedWorking = merged.appData;
+                            cohorts = merged.appData.cohorts;
+                        }
+                    }
                     cohorts = cohorts.map((cohort) => {
                         if (!cohort || cohort.id !== row.userTargetId) {
                             return cohort;
@@ -2734,10 +3175,21 @@
                                 return stu;
                             }
                             const tags = Array.isArray(stu.tags)
-                                ? stu.tags.filter((tag) => tag !== 'off_roster')
+                                ? stu.tags.filter(
+                                      (tag) =>
+                                          tag !== 'off_roster' &&
+                                          tag !== 'new' &&
+                                          tag !== 'shuttle' &&
+                                          tag !== 'transfer_in'
+                                  )
                                 : [];
+                            syncedTags.forEach((tag) => {
+                                if (!tags.includes(tag)) {
+                                    tags.push(tag);
+                                }
+                            });
                             return Object.assign({}, stu, {
-                                name: act.tmsName || stu.name,
+                                name: canonicalName || stu.name,
                                 nameEn: act.tmsNameEn || stu.nameEn || '',
                                 tmsMpidx: act.tmsMpidx || stu.tmsMpidx || '',
                                 tags
@@ -2855,6 +3307,9 @@
         });
         document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
             skipAllTmsSyncRows();
+        });
+        document.getElementById('rosterTmsSyncCreateAllBtn')?.addEventListener('click', () => {
+            createAllTmsSyncRows();
         });
         document.getElementById('rosterTmsSyncSkipUnmappedBtn')?.addEventListener('click', () => {
             skipUnmappedTmsSyncRows();
@@ -2992,7 +3447,7 @@
         const d = domain();
         const students = d ? d.normalizeCohortStudents(cohort) : [];
         const retentionDays = getArchiveRetentionDays();
-        const bulkEditable = canEditRoster() && !isArchiveCohort(cohort);
+        const bulkEditable = canEditRoster();
         const searchQ = (mountEl.querySelector('#classroomRosterStudentSearch')?.value || '').trim().toLowerCase();
         const visibleStudents = searchQ
             ? students.filter((student) => studentSearchHaystack(student).includes(searchQ))
@@ -3102,6 +3557,12 @@
         if (document.getElementById('classroomStudentTagOffRoster')?.checked) {
             tags.push('off_roster');
         }
+        if (document.getElementById('classroomStudentTagShuttle')?.checked) {
+            tags.push('shuttle');
+        }
+        if (document.getElementById('classroomStudentTagTransferIn')?.checked) {
+            tags.push('transfer_in');
+        }
         return { name, nameEn, locationTag, memo, active, tags };
     }
 
@@ -3129,6 +3590,8 @@
         setChk('classroomStudentTagEnding', tags.includes('ending_soon'));
         setChk('classroomStudentTagInterested', tags.includes('interested'));
         setChk('classroomStudentTagOffRoster', tags.includes('off_roster'));
+        setChk('classroomStudentTagShuttle', tags.includes('shuttle'));
+        setChk('classroomStudentTagTransferIn', tags.includes('transfer_in'));
     }
 
     function buildStudentTaggedNotesHtml(student) {
@@ -3220,6 +3683,8 @@
               <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagEnding" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagEndingSoon'))}</label>
               <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagInterested" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagInterested'))}</label>
               <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagOffRoster" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagOffRoster'))}</label>
+              <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagShuttle" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagShuttle'))}</label>
+              <label class="checkbox-label selection-chip"><input type="checkbox" id="classroomStudentTagTransferIn" ${editable ? '' : 'disabled'} /> ${escapeHtml(t('classroomTagTransferIn'))}</label>
               </fieldset>
             </section>
             <div class="form-actions classroom-student-actions classroom-roster-student-actions">
@@ -3456,10 +3921,14 @@
             'studentBulkAddTagEnding',
             'studentBulkAddTagInterested',
             'studentBulkAddTagOffRoster',
+            'studentBulkAddTagShuttle',
+            'studentBulkAddTagTransferIn',
             'studentBulkRemoveTagNew',
             'studentBulkRemoveTagEnding',
             'studentBulkRemoveTagInterested',
-            'studentBulkRemoveTagOffRoster'
+            'studentBulkRemoveTagOffRoster',
+            'studentBulkRemoveTagShuttle',
+            'studentBulkRemoveTagTransferIn'
         ].forEach((id) => {
             const el = document.getElementById(id);
             if (el) {
@@ -3506,7 +3975,9 @@
             [`${prefix}New`, 'new'],
             [`${prefix}Ending`, 'ending_soon'],
             [`${prefix}Interested`, 'interested'],
-            [`${prefix}OffRoster`, 'off_roster']
+            [`${prefix}OffRoster`, 'off_roster'],
+            [`${prefix}Shuttle`, 'shuttle'],
+            [`${prefix}TransferIn`, 'transfer_in']
         ];
         return map
             .filter(([id]) => document.getElementById(id)?.checked)
@@ -3585,10 +4056,17 @@
     async function confirmRestoreStudent() {
         const d = domain();
         const toId = document.getElementById('studentRestoreCohortSelect')?.value;
-        if (!d || !selectedStudentId || !toId) {
+        const restoringIds = selectedStudentIds.size
+            ? Array.from(selectedStudentIds)
+            : selectedStudentId
+                ? [selectedStudentId]
+                : [];
+        if (!d || !restoringIds.length || !toId) {
             return;
         }
-        const result = d.restoreStudentFromArchive(getCohorts(), selectedStudentId, toId);
+        const result = restoringIds.length > 1 && d.restoreStudentsFromArchive
+            ? d.restoreStudentsFromArchive(getCohorts(), restoringIds, toId)
+            : d.restoreStudentFromArchive(getCohorts(), restoringIds[0], toId);
         if (result.error) {
             hooks.showToast(t('studentRestoreFailed'), true);
             return;
@@ -3596,6 +4074,7 @@
         try {
             await saveCohorts(result.cohorts);
             selectedCohortId = toId;
+            clearStudentBulkSelection();
             closeRestoreModal();
             hooks.showToast(t('studentRestoreDone'));
             render(document.getElementById('panel-students'));
@@ -3751,7 +4230,12 @@
         const d = domain();
         const pwd = document.getElementById('studentDeletePassword')?.value || '';
         const errEl = document.getElementById('studentDeleteError');
-        if (!d || !selectedStudentId || !selectedCohortId || !pwd) {
+        const deletingIds = selectedStudentIds.size
+            ? Array.from(selectedStudentIds)
+            : selectedStudentId
+                ? [selectedStudentId]
+                : [];
+        if (!d || !deletingIds.length || !selectedCohortId || !pwd) {
             if (errEl) {
                 errEl.textContent = t('studentDeletePasswordRequired');
                 errEl.hidden = false;
@@ -3767,19 +4251,21 @@
             }
             return;
         }
-        const del = d.deleteStudentPermanently(getCohorts(), selectedStudentId, selectedCohortId);
+        const del = deletingIds.length > 1 && d.deleteStudentsPermanently
+            ? d.deleteStudentsPermanently(getCohorts(), deletingIds, selectedCohortId)
+            : d.deleteStudentPermanently(getCohorts(), deletingIds[0], selectedCohortId);
         if (del.error) {
             hooks.showToast(t('studentDeleteFailed'), true);
             return;
         }
         const appData = hooks.getAppData ? hooks.getAppData() : {};
-        const purged = d.purgeStudentRecords(
-            Object.assign({}, appData, { cohorts: del.cohorts }),
-            selectedStudentId
-        );
+        let purged = Object.assign({}, appData, { cohorts: del.cohorts });
+        deletingIds.forEach((sid) => {
+            purged = d.purgeStudentRecords(purged, sid);
+        });
         try {
             await hooks.saveClassroom({
-                cohorts: del.cohorts,
+                cohorts: purged.cohorts,
                 attendanceSessions: purged.attendanceSessions,
                 homeworkCompletions: purged.homeworkCompletions,
                 essaySubmissions: purged.essaySubmissions,
@@ -3787,6 +4273,7 @@
                 studentTests: purged.studentTests
             });
             selectedStudentId = null;
+            clearStudentBulkSelection();
             closeDeleteModal();
             hooks.showToast(t('studentDeleteDone'));
             render(document.getElementById('panel-students'));
@@ -3834,6 +4321,12 @@
         );
         document.getElementById('classroomRosterBulkArchiveBtn')?.addEventListener('click', () =>
             openBulkArchiveModal()
+        );
+        document.getElementById('classroomRosterBulkRestoreBtn')?.addEventListener('click', () =>
+            openRestoreModal()
+        );
+        document.getElementById('classroomRosterBulkDeleteBtn')?.addEventListener('click', () =>
+            openDeleteModal()
         );
         document.getElementById('closeStudentMoveModal')?.addEventListener('click', closeMoveModal);
         document.getElementById('cancelStudentMoveBtn')?.addEventListener('click', closeMoveModal);
