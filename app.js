@@ -15317,6 +15317,7 @@ function initSyllabusEditorListeners() {
     if (elements.homeworkImportApplyBtn) {
         elements.homeworkImportApplyBtn.addEventListener('click', applyHomeworkImport);
     }
+    initSyllabusTableRowReorder();
 }
 
 function getActiveTab() {
@@ -25486,6 +25487,150 @@ function buildClassSnapshotFromForm() {
     };
 }
 
+/**
+ * Pointer drag-reorder for syllabus editor rows (handle only — keeps text fields editable).
+ * Order is DOM order; collectSyllabusRowsFromForm / Save persist it.
+ */
+function initSyllabusTableRowReorder() {
+    const tbody = elements.syllabusTableBody || document.getElementById('syllabusTableBody');
+    if (!tbody || tbody.dataset.rowReorderInit === '1') {
+        return;
+    }
+    tbody.dataset.rowReorderInit = '1';
+
+    const MOVE_START_PX = 6;
+    let dragState = null;
+    let documentBound = false;
+
+    function bindDocument() {
+        if (documentBound) {
+            return;
+        }
+        documentBound = true;
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
+    }
+
+    function unbindDocument() {
+        if (!documentBound) {
+            return;
+        }
+        documentBound = false;
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerUp);
+    }
+
+    function clearDropIndicators() {
+        tbody.querySelectorAll('.syllabus-row--drop-before, .syllabus-row--drop-after').forEach((row) => {
+            row.classList.remove('syllabus-row--drop-before', 'syllabus-row--drop-after');
+        });
+    }
+
+    function endDrag() {
+        if (!dragState) {
+            return;
+        }
+        const { row, handle, pointerId } = dragState;
+        try {
+            if (handle && handle.hasPointerCapture && handle.hasPointerCapture(pointerId)) {
+                handle.releasePointerCapture(pointerId);
+            }
+        } catch (err) {
+            /* ignore */
+        }
+        if (row) {
+            row.classList.remove('syllabus-row--dragging');
+        }
+        tbody.classList.remove('syllabus-table-body--reordering');
+        clearDropIndicators();
+        dragState = null;
+        unbindDocument();
+    }
+
+    function rowFromPoint(clientX, clientY) {
+        const el = document.elementFromPoint(clientX, clientY);
+        if (!el || !tbody.contains(el)) {
+            return null;
+        }
+        const row = el.closest('tr.syllabus-row');
+        return row && tbody.contains(row) ? row : null;
+    }
+
+    function placeDraggedRow(targetRow, clientY) {
+        if (!dragState || !dragState.active || !targetRow || targetRow === dragState.row) {
+            return;
+        }
+        const rect = targetRow.getBoundingClientRect();
+        const before = clientY < rect.top + rect.height / 2;
+        clearDropIndicators();
+        targetRow.classList.add(before ? 'syllabus-row--drop-before' : 'syllabus-row--drop-after');
+        if (before) {
+            tbody.insertBefore(dragState.row, targetRow);
+        } else {
+            tbody.insertBefore(dragState.row, targetRow.nextSibling);
+        }
+    }
+
+    function onPointerMove(e) {
+        if (!dragState || e.pointerId !== dragState.pointerId) {
+            return;
+        }
+        const dx = e.clientX - dragState.startX;
+        const dy = e.clientY - dragState.startY;
+        if (!dragState.active) {
+            if (Math.abs(dx) < MOVE_START_PX && Math.abs(dy) < MOVE_START_PX) {
+                return;
+            }
+            dragState.active = true;
+            dragState.row.classList.add('syllabus-row--dragging');
+            tbody.classList.add('syllabus-table-body--reordering');
+            try {
+                dragState.handle.setPointerCapture(dragState.pointerId);
+            } catch (err) {
+                /* ignore */
+            }
+        }
+        e.preventDefault();
+        const over = rowFromPoint(e.clientX, e.clientY);
+        if (over) {
+            placeDraggedRow(over, e.clientY);
+        }
+    }
+
+    function onPointerUp(e) {
+        if (!dragState || e.pointerId !== dragState.pointerId) {
+            return;
+        }
+        endDrag();
+    }
+
+    tbody.addEventListener('pointerdown', (e) => {
+        if (e.button != null && e.button !== 0) {
+            return;
+        }
+        const handle = e.target && e.target.closest ? e.target.closest('.syllabus-row-drag-handle') : null;
+        if (!handle || !tbody.contains(handle)) {
+            return;
+        }
+        const row = handle.closest('tr.syllabus-row');
+        if (!row || !tbody.contains(row)) {
+            return;
+        }
+        e.preventDefault();
+        dragState = {
+            row,
+            handle,
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            active: false
+        };
+        bindDocument();
+    });
+}
+
 function renderSyllabusEditorTable(rows) {
     if (!elements.syllabusTableBody) {
         return;
@@ -25539,7 +25684,13 @@ function renderSyllabusEditorTable(rows) {
         const essayCell = isEssayTrackable
             ? `<td class="syllabus-col-essay"><label class="checkbox-label syllabus-ed-essay-label"><input type="checkbox" class="syllabus-ed-track-essay"${essayChecked ? ' checked' : ''} /><span class="sr-only">${escapeHtml(t('syllabusEssayAssignmentLabel'))}</span></label></td>`
             : '<td class="syllabus-col-essay"></td>';
+        const reorderLabel = escapeAttr(t('syllabusColReorder'));
         tr.innerHTML = `
+            <td class="syllabus-col-drag">
+                <button type="button" class="syllabus-row-drag-handle" aria-label="${reorderLabel}" title="${reorderLabel}">
+                    <span class="syllabus-row-drag-grip" aria-hidden="true"></span>
+                </button>
+            </td>
             <td class="syllabus-ed-week syllabus-col-week">${escapeHtml(weekDisplay)}</td>
             <td class="syllabus-ed-num syllabus-col-num">${row.sessionNumber > 0 ? row.sessionNumber : ''}</td>
             <td class="syllabus-col-plan"><input type="text" class="syllabus-ed-title" value="${escapeAttr(row.planTitle || '')}" ${titleReadonly ? 'readonly' : ''}></td>

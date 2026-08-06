@@ -60,6 +60,7 @@
                 <section class="syllabus-editor-block syllabus-table-section">
                     <h3 class="syllabus-block-title" data-i18n="syllabusTable">Lesson schedule table</h3>
                     <p class="section-hint" data-i18n="syllabusTableHint">Build a printable table (Month, Week, Class #, lesson plan, pages/work). Refresh after you change the calendar schedule.</p>
+                    <p class="section-hint" data-i18n="syllabusReorderHint">Drag the handle on the left to rearrange rows. Save to keep the order. Refresh from calendar restores date order for scheduled lessons.</p>
                     <div class="syllabus-table-actions">
                         <button type="button" id="refreshSyllabusBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
                         <button type="button" id="refreshSyllabusFromCurriculumBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCurriculum">Refresh from curriculum</button>
@@ -73,6 +74,7 @@
                         <table class="syllabus-editor-table" aria-label="Syllabus editor">
                             <thead>
                                 <tr>
+                                    <th class="syllabus-col-drag"><span class="sr-only" data-i18n="syllabusColReorder">Reorder</span></th>
                                     <th class="syllabus-col-week" data-i18n="syllabusColWeek">Week</th>
                                     <th class="syllabus-col-num" data-i18n="syllabusColClass">Class</th>
                                     <th class="syllabus-col-plan" data-i18n="syllabusColPlan">Weekly Lesson Plan</th>
