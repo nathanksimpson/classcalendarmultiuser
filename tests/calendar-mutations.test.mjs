@@ -1,4 +1,3 @@
-import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
@@ -17,7 +16,19 @@ const base = {
     schemaVersion: 3,
     classes: [{ id: 'c1', name: 'Alpha' }],
     events: [{ id: 'e1', name: 'Holiday' }],
-    dayNotes: [{ id: 'n1', classId: 'c1', date: '2026-06-01', text: 'Hi' }]
+    dayNotes: [{ id: 'n1', classId: 'c1', date: '2026-06-01', text: 'Hi' }],
+    attendanceSessions: [
+        {
+            id: 'att1',
+            classId: 'c1',
+            date: '2026-06-01',
+            records: [
+                { studentId: 's1', status: 'present' },
+                { studentId: 's2', status: 'present' }
+            ]
+        }
+    ],
+    studentPoints: [{ id: 'p1', studentId: 's1', delta: 1 }]
 };
 
 {
@@ -71,6 +82,101 @@ const base = {
         { entity: 'classes', action: 'upsert', payload: { class: { id: 'x' } } }
     ]);
     assert(good.ok, 'valid mutations');
+}
+
+{
+    const merged = mutations.mergeSessionRecords(
+        [{ studentId: 's1', status: 'absent' }, { studentId: 's3', status: 'late' }],
+        [
+            { studentId: 's1', status: 'present' },
+            { studentId: 's2', status: 'present' }
+        ]
+    );
+    const byId = Object.fromEntries(merged.map((r) => [r.studentId, r.status]));
+    assert(byId.s1 === 'absent', 'local wins for s1');
+    assert(byId.s2 === 'present', 'server kept for s2');
+    assert(byId.s3 === 'late', 'local-only student added');
+
+    const touchedOnly = mutations.mergeSessionRecords(
+        [
+            { studentId: 's1', status: 'absent' },
+            { studentId: 's2', status: 'early_leave' }
+        ],
+        [
+            { studentId: 's1', status: 'present' },
+            { studentId: 's2', status: 'present' }
+        ],
+        'studentId',
+        ['s1']
+    );
+    const touchedMap = Object.fromEntries(touchedOnly.map((r) => [r.studentId, r.status]));
+    assert(touchedMap.s1 === 'absent', 'touched s1 overlaid');
+    assert(touchedMap.s2 === 'present', 'untouched s2 kept from server');
+}
+
+{
+    const next = mutations.applyCalendarMutations(base, [
+        {
+            entity: 'attendanceSessions',
+            action: 'upsert',
+            payload: {
+                session: {
+                    id: 'att1',
+                    classId: 'c1',
+                    date: '2026-06-01',
+                    records: [{ studentId: 's1', status: 'absent' }],
+                    touchedStudentIds: ['s1']
+                }
+            }
+        }
+    ]);
+    const session = next.attendanceSessions[0];
+    const byId = Object.fromEntries(session.records.map((r) => [r.studentId, r.status]));
+    assert(byId.s1 === 'absent', 'attendance upsert merges touched student');
+    assert(byId.s2 === 'present', 'attendance upsert keeps other student');
+}
+
+{
+    const next = mutations.applyCalendarMutations(base, [
+        {
+            entity: 'studentPoints',
+            action: 'upsert',
+            payload: { entry: { id: 'p1', studentId: 's1', delta: 5 } }
+        },
+        {
+            entity: 'studentPoints',
+            action: 'upsert',
+            payload: { entry: { id: 'p2', studentId: 's2', delta: 2 } }
+        }
+    ]);
+    assert(next.studentPoints.length === 2, 'points upsert add');
+    assert(next.studentPoints.find((p) => p.id === 'p1').delta === 5, 'points upsert merge');
+}
+
+{
+    const classif = mutations.classifyMutations([
+        { entity: 'classes', action: 'upsert', payload: { class: { id: 'c1' } } },
+        { entity: 'attendanceSessions', action: 'upsert', payload: { session: { id: 'a1' } } },
+        { entity: 'dayNotes', action: 'mutate', payload: { op: 'upsert', note: { id: 'n1' } } }
+    ]);
+    assert(classif.schedule === true, 'classify schedule');
+    assert(classif.classroom === true, 'classify classroom');
+    assert(classif.dayNotes === true, 'classify dayNotes');
+
+    const classOnly = mutations.classifyMutations([
+        { entity: 'essaySubmissions', action: 'upsert', payload: { submission: { id: 'e1' } } }
+    ]);
+    assert(classOnly.schedule === false, 'classroom-only no schedule');
+    assert(classOnly.classroom === true, 'classroom-only classroom');
+}
+
+{
+    const muts = mutations.classroomFieldsToMutations({
+        attendanceSessions: [{ id: 'att1', classId: 'c1', records: [] }],
+        studentPoints: [{ id: 'p1', delta: 1 }]
+    });
+    assert(muts.length === 2, 'fields to mutations count');
+    assert(muts[0].entity === 'attendanceSessions', 'fields to mutations entity');
 }
 
 console.log('calendar-mutations.test.mjs: all passed');

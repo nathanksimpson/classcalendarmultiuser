@@ -2168,27 +2168,44 @@ export default {
                 if (!existingRow) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
-                if (!(await CalAccess.canEditCalendar(env, user, calId))) {
+                const domains = CalendarMutations.classifyMutations(body.mutations);
+                const needsScheduleLock = domains.schedule;
+                const canEdit = await CalAccess.canEditCalendar(env, user, calId);
+                const canSuggest = await CalAccess.canSuggestChanges(env, user, calId);
+                if (needsScheduleLock && !canEdit) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
                 }
-                const lock = await Lock.ensureSameUserSessionCanSave(env, calId, user);
+                if (!needsScheduleLock && !canEdit && !canSuggest) {
+                    return json({ error: 'You do not have edit access to this calendar' }, 403);
+                }
+                let lock = await Lock.lockStatus(env, calId, user.id, user);
                 const forceAllowed =
                     Boolean(body.force) &&
                     (Auth.canForceUnlock(user) ||
                         Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
                         Boolean(lock.holdsLock));
-                if (lock.readOnly && !forceAllowed) {
-                    return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
-                }
-                const lockRow = await Lock.getLock(env, calId);
-                if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
-                    return json(
-                        {
-                            error: 'Calendar is locked by another user',
-                            lock: lock.lock
-                        },
-                        423
-                    );
+                if (needsScheduleLock) {
+                    lock = await Lock.ensureSameUserSessionCanSave(env, calId, user);
+                    if (lock.readOnly && !forceAllowed) {
+                        return json(
+                            { error: 'Calendar is locked by another user', lock: lock.lock },
+                            423
+                        );
+                    }
+                    const lockRow = await Lock.getLock(env, calId);
+                    if (
+                        !forceAllowed &&
+                        lockRow &&
+                        !Lock.lockHeldByCaller(lockRow, user.id, Lock.sessionTokenOf(user))
+                    ) {
+                        return json(
+                            {
+                                error: 'Calendar is locked by another user',
+                                lock: lock.lock
+                            },
+                            423
+                        );
+                    }
                 }
                 if (
                     !forceAllowed &&
@@ -2199,8 +2216,18 @@ export default {
                 }
                 const existingData = parseDataObjectFromRow(existingRow, calId, env);
                 let mergedData = CalendarMutations.applyCalendarMutations(existingData, body.mutations);
-                const touchesDayNotes = body.mutations.some((m) => m && m.entity === 'dayNotes');
-                if (touchesDayNotes) {
+                if (domains.classroom) {
+                    const classroomPayload = CalendarMutations.classroomMutationsToPayload(
+                        body.mutations,
+                        existingData
+                    );
+                    const prepared = prepareClassroomForSave(user, existingData, classroomPayload);
+                    if (prepared.error) {
+                        return json({ error: prepared.error }, 403);
+                    }
+                    mergedData = Object.assign({}, mergedData, prepared.merged);
+                }
+                if (domains.dayNotes) {
                     const prepared = prepareDayNotesForSave(user, existingData, mergedData.dayNotes);
                     if (prepared.error) {
                         return json({ error: prepared.error }, 403);
@@ -2233,7 +2260,7 @@ export default {
                     );
                     return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
                 }
-                if (lock.holdsLock) {
+                if (needsScheduleLock && lock.holdsLock) {
                     await Lock.touchLockHolder(env, calId, user.id, Lock.sessionTokenOf(user));
                 }
                 await ActivityLog.recordActivityForUser(env, user, {
@@ -2241,7 +2268,15 @@ export default {
                     calendarId: calId,
                     calendarName: existingRow.name,
                     summary: `Patched calendar (${body.mutations.length} mutation(s), revision ${nextRev})`,
-                    detail: { revision: nextRev, mutationCount: body.mutations.length }
+                    detail: {
+                        revision: nextRev,
+                        mutationCount: body.mutations.length,
+                        domains: {
+                            schedule: domains.schedule,
+                            classroom: domains.classroom,
+                            dayNotes: domains.dayNotes
+                        }
+                    }
                 });
                 const saved = await dbOne(
                     env,

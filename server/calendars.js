@@ -320,27 +320,44 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
         return { ok: false, status: 404, error: 'Calendar not found' };
     }
 
-    if (!CalAccess.canEditCalendar(user, id)) {
+    const domains = CalendarMutations.classifyMutations(mutations);
+    const needsScheduleLock = domains.schedule;
+    const canEdit = CalAccess.canEditCalendar(user, id);
+    const canSuggest = CalAccess.canSuggestChanges(user, id);
+    // Schedule mutations require full edit access. Classroom/dayNotes-only may use suggester
+    // (same as classroomOnly / dayNotesOnly PUT paths).
+    if (needsScheduleLock && !canEdit) {
+        return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
+    }
+    if (!needsScheduleLock && !canEdit && !canSuggest) {
         return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
     }
 
-    const lockState = users.ensureSameUserSessionCanSave(id, user);
+    let lockState = users.lockStatusForClient(id, user.id, user);
     const forceAllowed =
         Boolean(force) &&
         (Auth.canForceUnlock(user) ||
             Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
             lockState.holdsLock);
-    if (lockState.readOnly && !forceAllowed) {
-        return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
-    }
-    const lockRow = users.getLock(id);
-    if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
-        return {
-            ok: false,
-            status: 423,
-            error: 'Calendar is locked by another user',
-            lock: lockState.lock
-        };
+    if (needsScheduleLock) {
+        lockState = users.ensureSameUserSessionCanSave(id, user);
+        if (lockState.readOnly && !forceAllowed) {
+            return {
+                ok: false,
+                status: 423,
+                error: 'Calendar is locked by another user',
+                lock: lockState.lock
+            };
+        }
+        const lockRow = users.getLock(id);
+        if (!forceAllowed && lockRow && !users.lockHeldByCaller(lockRow, user.id, users.sessionTokenOf(user))) {
+            return {
+                ok: false,
+                status: 423,
+                error: 'Calendar is locked by another user',
+                lock: lockState.lock
+            };
+        }
     }
 
     if (!forceAllowed && baseRevision != null && Number(baseRevision) !== Number(existing.revision)) {
@@ -350,9 +367,28 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     const existingDoc = getCalendar(id);
     let mergedData = CalendarMutations.applyCalendarMutations(existingDoc.data, mutations);
 
-    const touchesDayNotes = mutations.some((m) => m && m.entity === 'dayNotes');
-    if (touchesDayNotes) {
-        const prepared = DayNotesAccess.prepareDayNotesForSave(user, existingDoc.data, mergedData.dayNotes);
+    if (domains.classroom) {
+        const classroomPayload = CalendarMutations.classroomMutationsToPayload(
+            mutations,
+            existingDoc.data
+        );
+        const prepared = ClassroomAccess.prepareClassroomForSave(
+            user,
+            existingDoc.data,
+            classroomPayload
+        );
+        if (prepared.error) {
+            return { ok: false, status: 403, error: prepared.error };
+        }
+        mergedData = Object.assign({}, mergedData, prepared.merged);
+    }
+
+    if (domains.dayNotes) {
+        const prepared = DayNotesAccess.prepareDayNotesForSave(
+            user,
+            existingDoc.data,
+            mergedData.dayNotes
+        );
         if (prepared.error) {
             return { ok: false, status: 403, error: prepared.error };
         }
@@ -388,10 +424,18 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
         calendarId: id,
         calendarName: meta && meta.name,
         summary: `Patched calendar (${mutations.length} mutation(s), revision ${nextRevision})`,
-        detail: { revision: nextRevision, mutationCount: mutations.length }
+        detail: {
+            revision: nextRevision,
+            mutationCount: mutations.length,
+            domains: {
+                schedule: domains.schedule,
+                classroom: domains.classroom,
+                dayNotes: domains.dayNotes
+            }
+        }
     });
 
-    if (lockState.holdsLock) {
+    if (needsScheduleLock && lockState.holdsLock) {
         users.refreshLock(id, user.id, users.sessionTokenOf(user));
     }
 
