@@ -31973,6 +31973,32 @@ function isLockHeldByOtherUser() {
     );
 }
 
+/** Same account holds the lock on another browser/device (this session is view-only). */
+function isLockHeldBySameUserOtherSession(lockState) {
+    const lock =
+        (lockState && lockState.lock) ||
+        (typeof CalendarSync !== 'undefined' && CalendarSync.state ? CalendarSync.state.lock : null);
+    const holdsLock = Boolean(
+        lockState && lockState.holdsLock != null
+            ? lockState.holdsLock
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.holdsLock
+    );
+    const readOnly = Boolean(
+        lockState && lockState.readOnly != null
+            ? lockState.readOnly
+            : typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.readOnly
+    );
+    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser();
+    return Boolean(
+        lock &&
+            lock.holderUserId &&
+            me &&
+            String(lock.holderUserId) === String(me.id) &&
+            !holdsLock &&
+            readOnly
+    );
+}
+
 function getTeamLockSaveBlockedMessage() {
     if (typeof CalendarSync === 'undefined') {
         return t('teamNeedLockToSave');
@@ -32739,6 +32765,14 @@ function getTeamLockInteractionState(lockState) {
         summaryText = t('teamLockStatusWaiting').replace('{name}', formatLockParty(lock));
         actionLabel = t('teamLockActionWaiting');
         lockBtnDisabled = true;
+    } else if (readOnly && lock && isLockHeldBySameUserOtherSession(lockState || {
+        lock,
+        holdsLock,
+        readOnly
+    })) {
+        mode = 'blocked';
+        summaryText = t('teamLockStatusOtherDevice');
+        actionLabel = t('teamLockActionAcquire');
     } else if (readOnly && lock) {
         mode = 'blocked';
         summaryText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
@@ -32835,7 +32869,10 @@ function updateTeamLockRoster(lockState) {
     const remoteNewer = typeof CalendarSync !== 'undefined' && CalendarSync.state.remoteNewer;
     const pending = holdsLock && lock && lock.pendingRequester;
 
-    if (lock && readOnly && !holdsLock) {
+    if (lock && readOnly && !holdsLock && isLockHeldBySameUserOtherSession(lockState)) {
+        lineEditing.hidden = false;
+        lineEditing.textContent = t('teamLockStatusOtherDevice');
+    } else if (lock && readOnly && !holdsLock) {
         lineEditing.hidden = false;
         lineEditing.textContent = t('teamLockLineEditing').replace('{name}', formatLockParty(lock));
     } else if (holdsLock && !pending) {
@@ -36136,6 +36173,14 @@ async function initTeamSync() {
         },
         onLockChange(lockState) {
             applyTeamLockAccessState(lockState);
+            if (
+                lockState &&
+                lockState.wasHoldsLock &&
+                !lockState.holdsLock &&
+                isLockHeldBySameUserOtherSession(lockState)
+            ) {
+                showLockFlash(t('teamLockTakenOverFlash'), false);
+            }
             scheduleTabWarningsRefresh();
         },
         onLockDebugChange() {

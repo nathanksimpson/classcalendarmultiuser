@@ -326,11 +326,17 @@ function createSession(userId, deviceContext, options) {
     const maxAgeSec = profile.sessionMaxAgeSec;
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
+    const now = nowIso();
     const viewAsUserId =
         options && options.viewAsUserId ? String(options.viewAsUserId) : null;
+    const userAgent =
+        options && options.userAgent != null ? String(options.userAgent).slice(0, 400) : '';
     db.prepare(
-        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes, view_as_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO sessions (
+            token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes, view_as_user_id,
+            id, created_at, last_seen_at, user_agent
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
         token,
         userId,
@@ -338,7 +344,11 @@ function createSession(userId, deviceContext, options) {
         profile.loginContext,
         profile.idleLogoutMinutes,
         profile.idleWarningMinutes,
-        viewAsUserId
+        viewAsUserId,
+        token,
+        now,
+        now,
+        userAgent
     );
     return {
         token,
@@ -355,7 +365,7 @@ function createViewAsSession(actorUserId, targetUserId, deviceContext) {
 }
 
 function createLoginSession(userId, deviceContext) {
-    deleteAllSessionsForUser(userId);
+    // Keep other devices signed in; lock takeover is session-scoped.
     return createSession(userId, deviceContext);
 }
 
@@ -393,6 +403,7 @@ function getSessionContext(token) {
         return { effective: null, actor: null, viewAsActive: false, token: null };
     }
     const actor = applySessionPolicyToUser(rowToUser(actorRow), sessionRow);
+    actor.sessionToken = token;
     if (sessionRow.view_as_user_id) {
         if (!Auth.isSuperAdminRole(actor)) {
             db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
@@ -542,6 +553,28 @@ function permanentlyDeleteUser(targetId, actingAdminId) {
     return result.changes > 0;
 }
 
+function sessionTokenOf(user) {
+    if (!user || typeof user !== 'object') {
+        return '';
+    }
+    return String(user.sessionToken || '').trim();
+}
+
+function lockHeldByCaller(lock, userId, sessionToken) {
+    if (!lock || !userId) {
+        return false;
+    }
+    if (lock.holder_user_id !== userId) {
+        return false;
+    }
+    const holderSession = String(lock.holder_session_token || '').trim();
+    if (!holderSession) {
+        return true;
+    }
+    const mine = String(sessionToken || '').trim();
+    return Boolean(mine) && holderSession === mine;
+}
+
 function getLock(calendarId) {
     const db = getDb();
     return db.prepare('SELECT * FROM calendar_locks WHERE calendar_id = ?').get(calendarId);
@@ -570,11 +603,36 @@ function purgeStaleLock(calendarId) {
     return false;
 }
 
-function recordLockEditRequest(calendarId, userId, displayName) {
+function claimLegacyLockSession(lock, userId, sessionToken) {
+    if (!lock || !userId || !sessionToken) {
+        return lock;
+    }
+    if (lock.holder_user_id !== userId) {
+        return lock;
+    }
+    if (String(lock.holder_session_token || '').trim()) {
+        return lock;
+    }
+    getDb()
+        .prepare(
+            `UPDATE calendar_locks SET holder_session_token = ?, updated_at = ?
+             WHERE calendar_id = ? AND holder_user_id = ?
+               AND (holder_session_token IS NULL OR holder_session_token = '')`
+        )
+        .run(sessionToken, nowIso(), lock.calendar_id, userId);
+    return Object.assign({}, lock, { holder_session_token: sessionToken });
+}
+
+function recordLockEditRequest(calendarId, userId, displayName, sessionToken) {
     const db = getDb();
     db.prepare(
-        `UPDATE calendar_locks SET pending_requester_id = ?, pending_requester_name = ?, pending_requested_at = ? WHERE calendar_id = ?`
-    ).run(userId, displayName, nowIso(), calendarId);
+        `UPDATE calendar_locks SET
+            pending_requester_id = ?,
+            pending_requester_name = ?,
+            pending_requested_at = ?,
+            pending_requester_session_token = ?
+         WHERE calendar_id = ?`
+    ).run(userId, displayName, nowIso(), String(sessionToken || '').trim() || null, calendarId);
 }
 
 function lockToClient(lock) {
@@ -598,35 +656,44 @@ function lockToClient(lock) {
         holderName: lock.holder_name,
         holderEmail: holder && holder.email ? holder.email : null,
         updatedAt: lock.updated_at,
-        pendingRequester
+        pendingRequester,
+        holderSessionBound: Boolean(String(lock.holder_session_token || '').trim())
     };
 }
 
-function assignLockHolder(calendarId, userId, displayName) {
+function assignLockHolder(calendarId, userId, displayName, sessionToken) {
     const at = nowIso();
+    const sess = String(sessionToken || '').trim() || null;
     getDb()
         .prepare(
-            `INSERT INTO calendar_locks (calendar_id, holder_user_id, holder_name, updated_at, pending_requester_id, pending_requester_name, pending_requested_at)
-             VALUES (?, ?, ?, ?, NULL, NULL, NULL)
+            `INSERT INTO calendar_locks (
+                calendar_id, holder_user_id, holder_name, updated_at,
+                pending_requester_id, pending_requester_name, pending_requested_at,
+                holder_session_token, pending_requester_session_token
+             )
+             VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, NULL)
              ON CONFLICT(calendar_id) DO UPDATE SET
                holder_user_id = excluded.holder_user_id,
                holder_name = excluded.holder_name,
                updated_at = excluded.updated_at,
                pending_requester_id = NULL,
                pending_requester_name = NULL,
-               pending_requested_at = NULL`
+               pending_requested_at = NULL,
+               holder_session_token = excluded.holder_session_token,
+               pending_requester_session_token = NULL`
         )
-        .run(calendarId, userId, displayName, at);
+        .run(calendarId, userId, displayName, at, sess);
 }
 
 function acquireLock(calendarId, user, opts) {
     const userId = user.id;
     const displayName = user.displayName || user.email || 'Teacher';
+    const sessionToken = sessionTokenOf(user);
     const force = Boolean(opts && opts.force);
     purgeStaleLock(calendarId);
     const existing = getLock(calendarId);
     if (force && Auth.canForceUnlock(user)) {
-        assignLockHolder(calendarId, userId, displayName);
+        assignLockHolder(calendarId, userId, displayName, sessionToken);
         return {
             acquired: true,
             forced: true,
@@ -635,23 +702,22 @@ function acquireLock(calendarId, user, opts) {
         };
     }
     const stale = !existing || isLockStale(existing);
-    const heldByMe = existing && existing.holder_user_id === userId;
-    if (stale || heldByMe) {
-        assignLockHolder(calendarId, userId, displayName);
+    if (stale || (existing && existing.holder_user_id === userId)) {
+        assignLockHolder(calendarId, userId, displayName, sessionToken);
         return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false, forced: false };
     }
-    recordLockEditRequest(calendarId, userId, displayName);
+    recordLockEditRequest(calendarId, userId, displayName, sessionToken);
     return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true, forced: false };
 }
 
-function grantLockToPending(calendarId, holderUserId) {
+function grantLockToPending(calendarId, holderUserId, holderSessionToken) {
     const lock = getLock(calendarId);
     if (!lock || isLockStale(lock)) {
         const err = new Error('No active lock on this calendar');
         err.status = 400;
         throw err;
     }
-    if (lock.holder_user_id !== holderUserId) {
+    if (!lockHeldByCaller(lock, holderUserId, holderSessionToken)) {
         const err = new Error('Only the current editor can allow another user');
         err.status = 403;
         throw err;
@@ -663,37 +729,47 @@ function grantLockToPending(calendarId, holderUserId) {
     }
     const pendingId = lock.pending_requester_id;
     const label = lock.pending_requester_name || 'Teacher';
-    assignLockHolder(calendarId, pendingId, label);
+    const pendingSession = String(lock.pending_requester_session_token || '').trim() || null;
+    assignLockHolder(calendarId, pendingId, label, pendingSession);
     return getLock(calendarId);
 }
 
-function dismissLockRequest(calendarId, holderUserId) {
+function dismissLockRequest(calendarId, holderUserId, holderSessionToken) {
     const lock = getLock(calendarId);
     if (!lock || isLockStale(lock)) {
         const err = new Error('No active lock on this calendar');
         err.status = 400;
         throw err;
     }
-    if (lock.holder_user_id !== holderUserId) {
+    if (!lockHeldByCaller(lock, holderUserId, holderSessionToken)) {
         const err = new Error('Only the current editor can dismiss a request');
         err.status = 403;
         throw err;
     }
     getDb()
         .prepare(
-            `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL WHERE calendar_id = ?`
+            `UPDATE calendar_locks SET
+                pending_requester_id = NULL,
+                pending_requester_name = NULL,
+                pending_requested_at = NULL,
+                pending_requester_session_token = NULL
+             WHERE calendar_id = ?`
         )
         .run(calendarId);
     return getLock(calendarId);
 }
 
-function touchLock(calendarId, userId) {
-    return refreshLock(calendarId, userId);
+function touchLock(calendarId, userId, sessionToken) {
+    return refreshLock(calendarId, userId, sessionToken);
 }
 
-function refreshLock(calendarId, userId) {
-    const lock = getLock(calendarId);
-    if (!lock || lock.holder_user_id !== userId) {
+function refreshLock(calendarId, userId, sessionToken) {
+    let lock = getLock(calendarId);
+    if (!lock) {
+        return false;
+    }
+    lock = claimLegacyLockSession(lock, userId, sessionToken);
+    if (!lockHeldByCaller(lock, userId, sessionToken)) {
         return false;
     }
     getDb()
@@ -702,12 +778,13 @@ function refreshLock(calendarId, userId) {
     return true;
 }
 
-function releaseLock(calendarId, userId) {
-    const lock = getLock(calendarId);
+function releaseLock(calendarId, userId, sessionToken) {
+    let lock = getLock(calendarId);
     if (!lock) {
         return { released: false, reason: 'none' };
     }
-    if (lock.holder_user_id !== userId) {
+    lock = claimLegacyLockSession(lock, userId, sessionToken);
+    if (!lockHeldByCaller(lock, userId, sessionToken)) {
         return { released: false, reason: 'not_holder' };
     }
     getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
@@ -721,19 +798,65 @@ function releaseAllLocksHeldByUser(userId) {
     }
     const db = getDb();
     db.prepare(
-        `UPDATE calendar_locks SET pending_requester_id = NULL, pending_requester_name = NULL, pending_requested_at = NULL
+        `UPDATE calendar_locks SET
+            pending_requester_id = NULL,
+            pending_requester_name = NULL,
+            pending_requested_at = NULL,
+            pending_requester_session_token = NULL
          WHERE pending_requester_id = ?`
     ).run(userId);
     const result = db.prepare('DELETE FROM calendar_locks WHERE holder_user_id = ?').run(userId);
     return { released: result.changes || 0 };
 }
 
+function releaseLocksHeldBySession(sessionToken) {
+    const token = String(sessionToken || '').trim();
+    if (!token) {
+        return { released: 0 };
+    }
+    const db = getDb();
+    db.prepare(
+        `UPDATE calendar_locks SET
+            pending_requester_id = NULL,
+            pending_requester_name = NULL,
+            pending_requested_at = NULL,
+            pending_requester_session_token = NULL
+         WHERE pending_requester_session_token = ?`
+    ).run(token);
+    const result = db.prepare('DELETE FROM calendar_locks WHERE holder_session_token = ?').run(token);
+    return { released: result.changes || 0 };
+}
+
+function countSessionsForUser(userId) {
+    if (!userId) {
+        return 0;
+    }
+    const row = getDb()
+        .prepare('SELECT COUNT(*) AS c FROM sessions WHERE user_id = ?')
+        .get(userId);
+    return row && row.c ? Number(row.c) : 0;
+}
+
+function ensureSameUserSessionCanSave(calendarId, user) {
+    const sessionToken = sessionTokenOf(user);
+    let lock = getLock(calendarId);
+    if (!lock || isLockStale(lock)) {
+        return lockStatusForClient(calendarId, user.id, user);
+    }
+    if (lock.holder_user_id === user.id && !lockHeldByCaller(lock, user.id, sessionToken)) {
+        const name = user.displayName || user.email || 'Teacher';
+        assignLockHolder(calendarId, user.id, name, sessionToken);
+    }
+    return lockStatusForClient(calendarId, user.id, user);
+}
+
 function lockStatusForClient(calendarId, userId, user) {
     const lockTimedOut = purgeStaleLock(calendarId);
-    const lock = getLock(calendarId);
+    let lock = getLock(calendarId);
     const lockStaleMinutes = appSettings.getLockStaleMinutes();
     const bypassLock =
         user && Auth.hasPermission(user, Auth.PERMS.BYPASS_COLLABORATIVE_LOCK);
+    const sessionToken = sessionTokenOf(user);
     if (!lock || isLockStale(lock)) {
         return {
             held: false,
@@ -747,8 +870,14 @@ function lockStatusForClient(calendarId, userId, user) {
             lockTimedOut: Boolean(lockTimedOut)
         };
     }
-    const heldByMe = lock.holder_user_id === userId;
-    const pendingEditRequest = Boolean(lock.pending_requester_id && lock.pending_requester_id === userId);
+    lock = claimLegacyLockSession(lock, userId, sessionToken);
+    const heldByMe = lockHeldByCaller(lock, userId, sessionToken);
+    const pendingEditRequest = Boolean(
+        lock.pending_requester_id &&
+            lock.pending_requester_id === userId &&
+            (!lock.pending_requester_session_token ||
+                lock.pending_requester_session_token === sessionToken)
+    );
     const readOnly = bypassLock ? false : !heldByMe;
     return {
         held: true,
@@ -823,6 +952,11 @@ module.exports = {
     refreshLock,
     releaseLock,
     releaseAllLocksHeldByUser,
+    releaseLocksHeldBySession,
+    ensureSameUserSessionCanSave,
+    sessionTokenOf,
+    lockHeldByCaller,
+    countSessionsForUser,
     lockStatusForClient,
     lockPayloadForClient
 };

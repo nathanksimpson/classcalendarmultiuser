@@ -109,7 +109,7 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         }
     }
 
-    const lockState = users.lockStatusForClient(id, user.id, user);
+    const lockState = users.ensureSameUserSessionCanSave(id, user);
     const forceAllowed =
         Boolean(force) &&
         (Auth.canForceUnlock(user) ||
@@ -196,7 +196,7 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     });
 
     if (lockState.holdsLock) {
-        users.refreshLock(id, user.id);
+        users.refreshLock(id, user.id, users.sessionTokenOf(user));
     }
 
     return { ok: true, document: getCalendar(id) };
@@ -324,7 +324,7 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
         return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
     }
 
-    const lockState = users.lockStatusForClient(id, user.id, user);
+    const lockState = users.ensureSameUserSessionCanSave(id, user);
     const forceAllowed =
         Boolean(force) &&
         (Auth.canForceUnlock(user) ||
@@ -392,7 +392,7 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     });
 
     if (lockState.holdsLock) {
-        users.refreshLock(id, user.id);
+        users.refreshLock(id, user.id, users.sessionTokenOf(user));
     }
 
     return { ok: true, document: getCalendar(id) };

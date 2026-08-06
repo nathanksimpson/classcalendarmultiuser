@@ -70,7 +70,8 @@ function migrate(db) {
         );
         CREATE INDEX IF NOT EXISTS idx_history_calendar ON calendar_history(calendar_id, revision DESC);
     `);
-    migrateLockPendingColumns(db);
+        migrateLockPendingColumns(db);
+        migrateSessionDeviceAndLockSession(db);
     migrateCalendarAccessTables(db);
     migrateAppSettings(db);
     migrateSessionLoginContext(db);
@@ -314,6 +315,37 @@ function migrateLockPendingColumns(db) {
     }
     if (!names.has('pending_requested_at')) {
         db.exec('ALTER TABLE calendar_locks ADD COLUMN pending_requested_at TEXT');
+    }
+}
+
+/** Multi-device sessions + session-scoped calendar locks (mirrors D1 0018). */
+function migrateSessionDeviceAndLockSession(db) {
+    const sessionCols = db.prepare('PRAGMA table_info(sessions)').all();
+    const sessionNames = new Set(sessionCols.map((c) => c.name));
+    if (!sessionNames.has('id')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN id TEXT');
+    }
+    if (!sessionNames.has('created_at')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN created_at TEXT');
+    }
+    if (!sessionNames.has('last_seen_at')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN last_seen_at TEXT');
+    }
+    if (!sessionNames.has('user_agent')) {
+        db.exec('ALTER TABLE sessions ADD COLUMN user_agent TEXT');
+    }
+    db.exec(`UPDATE sessions SET id = token WHERE id IS NULL OR id = ''`);
+    db.exec(`UPDATE sessions SET created_at = expires_at WHERE created_at IS NULL OR created_at = ''`);
+    db.exec(`UPDATE sessions SET last_seen_at = expires_at WHERE last_seen_at IS NULL OR last_seen_at = ''`);
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_id ON sessions(id)');
+
+    const lockCols = db.prepare('PRAGMA table_info(calendar_locks)').all();
+    const lockNames = new Set(lockCols.map((c) => c.name));
+    if (!lockNames.has('holder_session_token')) {
+        db.exec('ALTER TABLE calendar_locks ADD COLUMN holder_session_token TEXT');
+    }
+    if (!lockNames.has('pending_requester_session_token')) {
+        db.exec('ALTER TABLE calendar_locks ADD COLUMN pending_requester_session_token TEXT');
     }
 }
 

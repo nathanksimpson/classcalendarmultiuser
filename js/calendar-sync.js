@@ -307,11 +307,10 @@
             state.readOnly = true;
         }
         state.lock = (json && json.lock) || null;
+        // Trust server holdsLock (session-scoped). Do not infer from holderUserId —
+        // same user on another device must stay view-only until Start editing / save takeover.
         if (json && typeof json.holdsLock === 'boolean') {
             state.holdsLock = json.holdsLock;
-        } else if (json && json.lock && json.lock.holderUserId && typeof TeamAuth !== 'undefined' && TeamAuth.getUser()) {
-            const me = TeamAuth.getUser();
-            state.holdsLock = json.lock.holderUserId === me.id;
         } else {
             state.holdsLock = false;
         }

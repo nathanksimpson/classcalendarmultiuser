@@ -199,25 +199,43 @@ async function permanentlyDeleteUser(env, targetId, actingAdminId) {
     return { ok: true };
 }
 
+async function countSessionsForUser(env, userId) {
+    if (!userId) {
+        return 0;
+    }
+    const row = await dbOne(env, 'SELECT COUNT(*) AS c FROM sessions WHERE user_id = ?', userId);
+    return row && row.c ? Number(row.c) : 0;
+}
+
 async function createSession(env, userId, deviceContext, options) {
     const admin = await AppSettings.getAdminSettings(env);
     const profile = resolveLoginProfile(deviceContext, admin);
     const maxAgeSec = profile.sessionMaxAgeSec;
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
+    const now = nowIso();
     const viewAsUserId =
         options && options.viewAsUserId ? String(options.viewAsUserId) : null;
+    const userAgent =
+        options && options.userAgent != null ? String(options.userAgent).slice(0, 400) : '';
     await dbRun(
         env,
-        `INSERT INTO sessions (token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes, view_as_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (
+            token, user_id, expires_at, login_context, idle_logout_minutes, idle_warning_minutes, view_as_user_id,
+            id, created_at, last_seen_at, user_agent
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         token,
         userId,
         expires,
         profile.loginContext,
         profile.idleLogoutMinutes,
         profile.idleWarningMinutes,
-        viewAsUserId
+        viewAsUserId,
+        token,
+        now,
+        now,
+        userAgent || null
     );
     return {
         token,
@@ -264,6 +282,7 @@ async function getSessionContext(env, token) {
     }
     const admin = await AppSettings.getAdminSettings(env);
     const actor = applySessionPolicyToUser(rowToUser(actorRow), sessionRow, admin);
+    actor.sessionToken = token;
     if (sessionRow.view_as_user_id) {
         if (!Auth.isSuperAdminRole(actor)) {
             await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
@@ -293,9 +312,9 @@ async function getSessionUser(env, token) {
     return ctx.effective;
 }
 
-async function createLoginSession(env, userId, deviceContext) {
-    await deleteAllSessionsForUser(env, userId);
-    return createSession(env, userId, deviceContext);
+/** Normal login keeps other device sessions; password change / logout-all still wipe. */
+async function createLoginSession(env, userId, deviceContext, options) {
+    return createSession(env, userId, deviceContext, options);
 }
 
 function bytesToHex(bytes) {
@@ -1006,11 +1025,12 @@ export default {
             const token = parseCookies(request)[SESSION_COOKIE];
             if (token) {
                 const sessionRow = await dbOne(env, 'SELECT user_id FROM sessions WHERE token = ?', token);
-                if (sessionRow && sessionRow.user_id) {
-                    await Lock.releaseAllLocksHeldByUser(env, sessionRow.user_id);
-                    await Presence.removePresence(env, sessionRow.user_id);
-                }
+                const userId = sessionRow && sessionRow.user_id ? sessionRow.user_id : null;
+                await Lock.releaseLocksHeldBySession(env, token);
                 await dbRun(env, 'DELETE FROM sessions WHERE token = ?', token);
+                if (userId && (await countSessionsForUser(env, userId)) === 0) {
+                    await Presence.removePresence(env, userId);
+                }
             }
             return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie(secure) });
         }
@@ -1687,7 +1707,12 @@ export default {
                 if (blocked) {
                     return blocked;
                 }
-                const touched = await Lock.touchLockHolder(env, calId, user.id);
+                const touched = await Lock.touchLockHolder(
+                    env,
+                    calId,
+                    user.id,
+                    Lock.sessionTokenOf(user)
+                );
                 if (!touched) {
                     return json({ error: 'Only the current editor can refresh the lock', touched: false }, 403);
                 }
@@ -1709,7 +1734,12 @@ export default {
                         }
                     }
                 }
-                const result = await Lock.grantLockToPending(env, calId, user.id);
+                const result = await Lock.grantLockToPending(
+                    env,
+                    calId,
+                    user.id,
+                    Lock.sessionTokenOf(user)
+                );
                 if (result.error) {
                     return json({ error: result.error }, result.status || 400);
                 }
@@ -1726,7 +1756,12 @@ export default {
                 if (blocked) {
                     return blocked;
                 }
-                const result = await Lock.dismissLockRequest(env, calId, user.id);
+                const result = await Lock.dismissLockRequest(
+                    env,
+                    calId,
+                    user.id,
+                    Lock.sessionTokenOf(user)
+                );
                 if (result.error) {
                     return json({ error: result.error }, result.status || 400);
                 }
@@ -1755,36 +1790,16 @@ export default {
                     body = {};
                 }
                 const force = Boolean(body.force);
-                const existing = await Lock.getLock(env, calId);
-                let editRequestRecorded = false;
-                let forced = false;
-                let acquired = false;
-                if (force && Auth.canForceUnlock(user)) {
-                    const name = user.displayName || user.email || 'Teacher';
-                    await Lock.assignLockHolder(env, calId, user.id, name);
-                    forced = true;
-                    acquired = true;
-                } else {
-                    const stale = !existing || (await Lock.isLockStale(env, existing));
-                    const heldByMe = existing && existing.holder_user_id === user.id;
-                    if (stale || heldByMe) {
-                        const name = user.displayName || user.email || 'Teacher';
-                        await Lock.assignLockHolder(env, calId, user.id, name);
-                        acquired = true;
-                    } else if (existing && existing.holder_user_id !== user.id) {
-                        await Lock.recordLockEditRequest(env, calId, user);
-                        editRequestRecorded = true;
-                    }
-                }
+                const result = await Lock.acquireOrRequestLock(env, calId, user, { force });
                 const metaRow = await dbOne(
                     env,
                     'SELECT id, name, revision, updated_at AS updatedAt, updated_by AS updatedBy, created_by_user_id AS createdByUserId FROM calendars WHERE id = ?',
                     calId
                 );
                 const payload = await CalendarMeta.calendarMetaExtras(env, user, calId, metaRow || { id: calId });
-                payload.editRequestRecorded = editRequestRecorded;
-                payload.forced = forced;
-                payload.acquired = acquired;
+                payload.editRequestRecorded = Boolean(result.editRequestRecorded);
+                payload.forced = Boolean(result.forced);
+                payload.acquired = Boolean(result.acquired);
                 return json(payload);
             }
 
@@ -1797,8 +1812,14 @@ export default {
                 if (!lock) {
                     return json({ ok: true, released: false });
                 }
-                if (lock.holder_user_id !== user.id) {
-                    return json({ error: 'Only the current editor can release this lock', lock: await Lock.lockToClient(env, lock) }, 403);
+                if (!Lock.lockHeldByCaller(lock, user.id, Lock.sessionTokenOf(user))) {
+                    return json(
+                        {
+                            error: 'Only the current editor can release this lock',
+                            lock: await Lock.lockToClient(env, lock)
+                        },
+                        403
+                    );
                 }
                 await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
                 return json({ ok: true, released: true });
@@ -2010,7 +2031,7 @@ export default {
                 if (!(await CalAccess.canEditCalendar(env, user, calId))) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
                 }
-                const lock = await Lock.lockStatus(env, calId, user.id, user);
+                const lock = await Lock.ensureSameUserSessionCanSave(env, calId, user);
                 const forceAllowed =
                     Boolean(body.force) &&
                     (Auth.canForceUnlock(user) ||
@@ -2020,13 +2041,7 @@ export default {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
                 }
                 const lockRow = await Lock.getLock(env, calId);
-                const lockStale = !lockRow || (await Lock.isLockStale(env, lockRow));
-                if (
-                    !forceAllowed &&
-                    !lockStale &&
-                    lockRow &&
-                    lockRow.holder_user_id !== user.id
-                ) {
+                if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
                     return json(
                         {
                             error: 'Calendar is locked by another user',
@@ -2035,8 +2050,8 @@ export default {
                         423
                     );
                 }
-                if (!lockStale && lockRow && lockRow.holder_user_id === user.id) {
-                    await Lock.touchLockHolder(env, calId, user.id);
+                if (lock.holdsLock) {
+                    await Lock.touchLockHolder(env, calId, user.id, Lock.sessionTokenOf(user));
                 }
                 if (!forceAllowed && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
                     const doc = await dbOne(
@@ -2156,7 +2171,7 @@ export default {
                 if (!(await CalAccess.canEditCalendar(env, user, calId))) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
                 }
-                const lock = await Lock.lockStatus(env, calId, user.id, user);
+                const lock = await Lock.ensureSameUserSessionCanSave(env, calId, user);
                 const forceAllowed =
                     Boolean(body.force) &&
                     (Auth.canForceUnlock(user) ||
@@ -2166,13 +2181,7 @@ export default {
                     return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
                 }
                 const lockRow = await Lock.getLock(env, calId);
-                const lockStale = !lockRow || (await Lock.isLockStale(env, lockRow));
-                if (
-                    !forceAllowed &&
-                    !lockStale &&
-                    lockRow &&
-                    lockRow.holder_user_id !== user.id
-                ) {
+                if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
                     return json(
                         {
                             error: 'Calendar is locked by another user',
@@ -2224,8 +2233,8 @@ export default {
                     );
                     return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
                 }
-                if (!lockStale && lockRow && lockRow.holder_user_id === user.id) {
-                    await Lock.touchLockHolder(env, calId, user.id);
+                if (lock.holdsLock) {
+                    await Lock.touchLockHolder(env, calId, user.id, Lock.sessionTokenOf(user));
                 }
                 await ActivityLog.recordActivityForUser(env, user, {
                     action: 'calendar_patch',
@@ -2304,7 +2313,7 @@ export default {
             }
             const groupIds = Array.isArray(body.groupIds) ? body.groupIds.map(String) : [];
             await CalAccess.setCalendarAccess(env, id, { userIds: memberIds, groupIds }, null, user.id);
-            await Lock.assignLockHolder(env, id, user.id, label);
+            await Lock.assignLockHolder(env, id, user.id, label, Lock.sessionTokenOf(user));
             await ActivityLog.recordActivityForUser(env, user, {
                 action: 'calendar_create',
                 calendarId: id,
