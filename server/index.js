@@ -139,6 +139,9 @@ function applyUserContext(req, ctx) {
         return;
     }
     req.user = ctx.effective;
+    if (req.user && ctx.token) {
+        req.user.sessionToken = ctx.token;
+    }
     req.actorUser = ctx.actor;
     req.viewAsSession = Boolean(ctx.viewAsActive);
     req.sessionToken = ctx.token;
@@ -389,9 +392,12 @@ app.get('/api/auth/me', optionalUser, (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
     const token = getSessionToken(req);
-    const user = token ? users.getSessionUser(token) : null;
-    if (user) {
-        users.releaseAllLocksHeldByUser(user.id);
+    const ctx = token ? users.getSessionContext(token) : null;
+    const user = ctx && ctx.effective;
+    if (token) {
+        users.releaseLocksHeldBySession(token);
+    }
+    if (user && users.countSessionsForUser(user.id) <= 1) {
         Presence.removePresence(user.id);
     }
     users.deleteSession(token);
@@ -1340,7 +1346,7 @@ app.post('/api/calendars/:id/lock/touch', requireUser, rejectViewAsWrites, (req,
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    if (!users.touchLock(req.params.id, req.user.id)) {
+    if (!users.touchLock(req.params.id, req.user.id, req.sessionToken || req.user.sessionToken)) {
         res.status(403).json({ error: 'Only the current editor can refresh the lock', touched: false });
         return;
     }
@@ -1395,7 +1401,7 @@ app.post('/api/calendars/:id/lock/grant', requireUser, rejectViewAsWrites, (req,
                 return;
             }
         }
-        users.grantLockToPending(calId, req.user.id);
+        users.grantLockToPending(calId, req.user.id, req.sessionToken || req.user.sessionToken);
         const meta = calendars.getCalendarMeta(calId) || { id: calId };
         res.json(CalendarMeta.calendarMetaExtras(req.user, calId, meta));
     } catch (err) {
@@ -1409,7 +1415,7 @@ app.post('/api/calendars/:id/lock/dismiss', requireUser, rejectViewAsWrites, (re
         return;
     }
     try {
-        users.dismissLockRequest(req.params.id, req.user.id);
+        users.dismissLockRequest(req.params.id, req.user.id, req.sessionToken || req.user.sessionToken);
         res.json(users.lockPayloadForClient(req.params.id, req.user.id, req.user));
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Dismiss failed' });
@@ -1421,7 +1427,11 @@ app.delete('/api/calendars/:id/lock', requireUser, rejectViewAsWrites, (req, res
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
-    const result = users.releaseLock(req.params.id, req.user.id);
+    const result = users.releaseLock(
+        req.params.id,
+        req.user.id,
+        req.sessionToken || req.user.sessionToken
+    );
     if (result.reason === 'not_holder') {
         const status = users.lockStatusForClient(req.params.id, req.user.id, req.user);
         res.status(403).json({ error: 'Only the current editor can release this lock', lock: status.lock });
@@ -1452,7 +1462,7 @@ app.post('/api/calendars', requireUser, rejectViewAsWrites, requirePermission(Au
     }
     const gids = Array.isArray(groupIds) ? groupIds.map(String) : [];
     CalAccess.setCalendarAccess(id, { userIds: memberIds, groupIds: gids }, null, req.user.id);
-    users.assignLockHolder(id, req.user.id, label);
+    users.assignLockHolder(id, req.user.id, label, req.sessionToken || req.user.sessionToken);
     ActivityLog.recordActivityForUser(req.user, {
         action: 'calendar_create',
         calendarId: id,
