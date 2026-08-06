@@ -5858,7 +5858,11 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     }
 }
 
-/* Homework tab (copy for external websites) */
+/* Homework tab (copy for external websites)
+ * Page scrolls the editor; left sidebar sticks under app chrome.
+ * Do not set min-height:0 / flex-basis:0 on .homework-layout — that caps the
+ * sticky containing block at the viewport and the sidebar scrolls away while
+ * tall copy blocks overflow. */
 #panel-homework {
     display: flex;
     flex-direction: column;
@@ -5870,8 +5874,8 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 }
 
 #panel-homework .homework-layout.module-split-layout--homework {
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 1 1 auto;
+    min-height: auto;
     align-self: stretch;
     align-items: start;
 }
@@ -6259,13 +6263,15 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     overflow-wrap: anywhere;
 }
 
-/* Homework sidebar: sticky under chrome; class list scrolls in the flex remainder */
+/* Homework sidebar: sticky under chrome; class list scrolls in the flex remainder.
+ * Height uses sticky-top (not layout document offset) so the panel fills the
+ * viewport once the reference-date chrome has scrolled away. */
 #panel-homework .homework-sidebar-panel.module-list-panel {
     position: sticky;
     top: calc(var(--app-chrome-sticky-top, 72px) + 8px);
     align-self: start;
-    height: calc(100dvh - var(--homework-sidebar-chrome-offset, 12rem) - var(--space-4));
-    max-height: calc(100dvh - var(--homework-sidebar-chrome-offset, 12rem) - var(--space-4));
+    height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 8px - var(--space-4));
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 8px - var(--space-4));
     overflow: hidden;
     z-index: 2;
 }
@@ -10571,8 +10577,8 @@ html[data-viewport="tablet"] .app-top-bar-toggle {
         position: sticky;
         top: calc(var(--app-chrome-sticky-top, 72px) + 8px);
         align-self: start;
-        height: calc(100dvh - var(--homework-sidebar-chrome-offset, 12rem) - var(--space-4));
-        max-height: calc(100dvh - var(--homework-sidebar-chrome-offset, 12rem) - var(--space-4));
+        height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 8px - var(--space-4));
+        max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 8px - var(--space-4));
         overflow: hidden;
     }
 
