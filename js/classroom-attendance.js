@@ -20,6 +20,9 @@
 
     let autosave = null;
 
+    /** Student ids edited since last load — used for concurrent merge. */
+    let touchedStudentIds = new Set();
+
     const ATTENDANCE_AUTOSAVE_DELAY_MS = 500;
 
 
@@ -176,6 +179,8 @@
 
             };
 
+        touchedStudentIds = new Set();
+
         draftMemos = {};
 
         getStudents().forEach((entry) => {
@@ -229,6 +234,12 @@
         }
 
         draftSession.records = records;
+
+        if (studentId != null) {
+
+            touchedStudentIds.add(String(studentId));
+
+        }
 
     }
 
@@ -491,15 +502,38 @@
 
         const sessions = d.upsertAttendanceSession(data.attendanceSessions, draftSession);
 
+        const sessionPayload = Object.assign({}, draftSession, {
+            touchedStudentIds: Array.from(touchedStudentIds)
+        });
+
         try {
 
-            await hooks.saveClassroom({
-
-                cohorts,
-
-                attendanceSessions: sessions
-
+            const mutations = [
+                {
+                    entity: 'attendanceSessions',
+                    action: 'upsert',
+                    payload: { session: sessionPayload },
+                    timestamp: Date.now()
+                }
+            ];
+            (cohorts || []).forEach((cohort) => {
+                if (cohort && cohort.id) {
+                    mutations.push({
+                        entity: 'cohorts',
+                        action: 'upsert',
+                        payload: { cohort },
+                        timestamp: Date.now()
+                    });
+                }
             });
+
+            await hooks.saveClassroom({
+                cohorts,
+                attendanceSessions: sessions,
+                mutations
+            });
+
+            touchedStudentIds = new Set();
 
             if (!opt.silent) {
 

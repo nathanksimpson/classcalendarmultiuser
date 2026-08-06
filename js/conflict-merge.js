@@ -2,6 +2,25 @@
  * Conflict merge assistant — summarize differences between local and server calendar JSON.
  */
 (function (global) {
+    const SESSION_RECORD_ENTITIES = new Set([
+        'attendanceSessions',
+        'homeworkCompletions',
+        'essaySubmissions'
+    ]);
+
+    const CLASSROOM_ENTITY_PAYLOAD_KEY = {
+        cohorts: 'cohort',
+        attendanceSessions: 'session',
+        homeworkCompletions: 'completion',
+        essaySubmissions: 'submission',
+        studentPoints: 'entry',
+        studentTests: 'test',
+        debateTeamSessions: 'session',
+        debateScores: 'score',
+        debateCustomFormats: 'format',
+        speakingTestRecords: 'record'
+    };
+
     function countById(arr) {
         const set = new Set();
         (arr || []).forEach((item) => {
@@ -41,6 +60,36 @@
         return { addedLocal, addedServer, changed };
     }
 
+    function studentRecordsOverlap(localRecords, serverRecords, studentIdKey) {
+        if (
+            typeof global.CCPCalendarMutations !== 'undefined' &&
+            global.CCPCalendarMutations.studentRecordsOverlap
+        ) {
+            return global.CCPCalendarMutations.studentRecordsOverlap(
+                localRecords,
+                serverRecords,
+                studentIdKey
+            );
+        }
+        const key = studentIdKey || 'studentId';
+        const serverMap = new Map();
+        (serverRecords || []).forEach((row) => {
+            if (row && row[key] != null) {
+                serverMap.set(String(row[key]), row);
+            }
+        });
+        for (const row of localRecords || []) {
+            if (!row || row[key] == null) {
+                continue;
+            }
+            const serverRow = serverMap.get(String(row[key]));
+            if (serverRow && JSON.stringify(serverRow) !== JSON.stringify(row)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function summarizeConflict(localData, serverData) {
         const local = localData || {};
         const server = serverData || {};
@@ -48,7 +97,15 @@
             { key: 'classes', labelKey: 'syncConflictClasses' },
             { key: 'events', labelKey: 'syncConflictEvents' },
             { key: 'dayNotes', labelKey: 'syncConflictDayNotes' },
-            { key: 'cohorts', labelKey: 'syncConflictCohorts' }
+            { key: 'cohorts', labelKey: 'syncConflictCohorts' },
+            { key: 'attendanceSessions', labelKey: 'syncConflictAttendance' },
+            { key: 'homeworkCompletions', labelKey: 'syncConflictHomework' },
+            { key: 'essaySubmissions', labelKey: 'syncConflictEssays' },
+            { key: 'studentPoints', labelKey: 'syncConflictPoints' },
+            { key: 'studentTests', labelKey: 'syncConflictTests' },
+            { key: 'debateTeamSessions', labelKey: 'syncConflictDebateSessions' },
+            { key: 'debateScores', labelKey: 'syncConflictDebateScores' },
+            { key: 'speakingTestRecords', labelKey: 'syncConflictSpeakingTests' }
         ];
         const lines = [];
         sections.forEach((section) => {
@@ -68,57 +125,68 @@
         return lines;
     }
 
+    function extractUpsertItem(entity, payload) {
+        const body = payload || {};
+        if (entity === 'classes') {
+            return body.class || body;
+        }
+        if (entity === 'events') {
+            return body.event || body;
+        }
+        if (entity === 'timetableTimeSlots') {
+            return body.slot || body;
+        }
+        const key = CLASSROOM_ENTITY_PAYLOAD_KEY[entity];
+        if (key && body[key]) {
+            return body[key];
+        }
+        return body.id != null ? body : null;
+    }
+
+    function extractRemoveId(entity, payload) {
+        const body = payload || {};
+        if (entity === 'classes') {
+            return body.classId || body.id;
+        }
+        if (entity === 'events') {
+            return body.eventId || body.id;
+        }
+        if (entity === 'timetableTimeSlots') {
+            return body.slotId || body.id;
+        }
+        const idKeys = {
+            cohorts: 'cohortId',
+            attendanceSessions: 'sessionId',
+            homeworkCompletions: 'completionId',
+            essaySubmissions: 'submissionId',
+            studentPoints: 'entryId',
+            studentTests: 'testId',
+            debateTeamSessions: 'sessionId',
+            debateScores: 'scoreId',
+            debateCustomFormats: 'formatId',
+            speakingTestRecords: 'recordId'
+        };
+        const key = idKeys[entity];
+        if (key && body[key] != null) {
+            return body[key];
+        }
+        return body.id;
+    }
+
+    function entityArray(server, entity) {
+        return Array.isArray(server[entity]) ? server[entity] : [];
+    }
+
     function mutationsOverlap(mutations, serverData) {
         const server = serverData || {};
         for (const m of mutations || []) {
             if (!m || !m.entity) {
                 continue;
             }
-            if (m.entity === 'classes' && m.action === 'upsert') {
-                const localItem = (m.payload && (m.payload.class || m.payload)) || {};
-                const id = localItem.id;
-                if (!id) {
-                    continue;
-                }
-                const serverItem = (server.classes || []).find(
-                    (c) => c && String(c.id) === String(id)
-                );
-                if (serverItem && JSON.stringify(serverItem) !== JSON.stringify(localItem)) {
-                    return true;
-                }
-            }
-            if (m.entity === 'classes' && m.action === 'remove') {
-                const id = m.payload && m.payload.classId;
-                const serverItem = (server.classes || []).find(
-                    (c) => c && String(c.id) === String(id)
-                );
-                if (serverItem) {
-                    return true;
-                }
-            }
-            if (m.entity === 'events' && m.action === 'upsert') {
-                const localItem = (m.payload && (m.payload.event || m.payload)) || {};
-                const id = localItem.id;
-                if (!id) {
-                    continue;
-                }
-                const serverItem = (server.events || []).find(
-                    (e) => e && String(e.id) === String(id)
-                );
-                if (serverItem && JSON.stringify(serverItem) !== JSON.stringify(localItem)) {
-                    return true;
-                }
-            }
-            if (m.entity === 'events' && m.action === 'remove') {
-                const id = m.payload && m.payload.eventId;
-                const serverItem = (server.events || []).find(
-                    (e) => e && String(e.id) === String(id)
-                );
-                if (serverItem) {
-                    return true;
-                }
-            }
-            if (m.entity === 'dayNotes' && m.action === 'mutate') {
+            const entity = m.entity;
+            const action = m.action;
+
+            if (entity === 'dayNotes' && action === 'mutate') {
                 const payload = m.payload || {};
                 if (payload.op === 'upsert' && payload.note && payload.note.id) {
                     const id = payload.note.id;
@@ -138,6 +206,61 @@
                         return true;
                     }
                 }
+                continue;
+            }
+
+            if (entity === 'tmsRosterLinks' || entity === 'tmsEssayLinks') {
+                continue;
+            }
+
+            if (action === 'remove') {
+                const id = extractRemoveId(entity, m.payload);
+                const serverItem = entityArray(server, entity).find(
+                    (row) => row && String(row.id) === String(id)
+                );
+                if (serverItem) {
+                    return true;
+                }
+                continue;
+            }
+
+            if (action !== 'upsert') {
+                continue;
+            }
+
+            const localItem = extractUpsertItem(entity, m.payload);
+            if (!localItem || localItem.id == null) {
+                continue;
+            }
+            const serverItem = entityArray(server, entity).find(
+                (row) => row && String(row.id) === String(localItem.id)
+            );
+            if (!serverItem) {
+                continue;
+            }
+            if (SESSION_RECORD_ENTITIES.has(entity)) {
+                const touched = Array.isArray(localItem.touchedStudentIds)
+                    ? localItem.touchedStudentIds.map(String)
+                    : null;
+                if (touched && touched.length) {
+                    const localTouched = (localItem.records || []).filter(
+                        (r) => r && r.studentId != null && touched.includes(String(r.studentId))
+                    );
+                    const serverTouched = (serverItem.records || []).filter(
+                        (r) => r && r.studentId != null && touched.includes(String(r.studentId))
+                    );
+                    if (studentRecordsOverlap(localTouched, serverTouched)) {
+                        return true;
+                    }
+                    continue;
+                }
+                if (studentRecordsOverlap(localItem.records, serverItem.records)) {
+                    return true;
+                }
+                continue;
+            }
+            if (JSON.stringify(serverItem) !== JSON.stringify(localItem)) {
+                return true;
             }
         }
         return false;
@@ -177,6 +300,7 @@
         summarizeConflict,
         renderSummaryHtml,
         diffIdSets,
-        mutationsOverlap
+        mutationsOverlap,
+        studentRecordsOverlap
     };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2,6 +2,66 @@
  * Pure calendar mutation applier — shared by local server and Cloudflare worker.
  */
 
+const SCHEDULE_ENTITIES = new Set([
+    'classes',
+    'events',
+    'timetableTimeSlots',
+    'periodSlotMap',
+    'customClassTypes',
+    'customSyllabusTemplates'
+]);
+
+/** Classroom / roster slices — no schedule edit lock (matches classroomOnly PUT). */
+const CLASSROOM_ENTITIES = new Set([
+    'cohorts',
+    'attendanceSessions',
+    'homeworkCompletions',
+    'essaySubmissions',
+    'studentPoints',
+    'studentTests',
+    'debateTeamSessions',
+    'debateScores',
+    'debateCustomFormats',
+    'speakingTestRecords',
+    'tmsRosterLinks',
+    'tmsEssayLinks'
+]);
+
+const DAYNOTES_ENTITIES = new Set(['dayNotes']);
+
+/** Entities that carry nested student records[] merged by studentId. */
+const SESSION_RECORD_ENTITIES = new Set([
+    'attendanceSessions',
+    'homeworkCompletions',
+    'essaySubmissions'
+]);
+
+const CLASSROOM_ENTITY_PAYLOAD_KEY = {
+    cohorts: 'cohort',
+    attendanceSessions: 'session',
+    homeworkCompletions: 'completion',
+    essaySubmissions: 'submission',
+    studentPoints: 'entry',
+    studentTests: 'test',
+    debateTeamSessions: 'session',
+    debateScores: 'score',
+    debateCustomFormats: 'format',
+    speakingTestRecords: 'record'
+};
+
+const CLASSROOM_ENTITY_ID_KEY = {
+    cohorts: 'cohortId',
+    attendanceSessions: 'sessionId',
+    homeworkCompletions: 'completionId',
+    essaySubmissions: 'submissionId',
+    studentPoints: 'entryId',
+    studentTests: 'testId',
+    debateTeamSessions: 'sessionId',
+    debateScores: 'scoreId',
+    debateCustomFormats: 'formatId',
+    speakingTestRecords: 'recordId'
+};
+
 function deepClone(data) {
     return JSON.parse(JSON.stringify(data || {}));
 }
@@ -30,6 +90,98 @@ function removeById(arr, id, idKey) {
     return (Array.isArray(arr) ? arr : []).filter((row) => !row || String(row[key]) !== String(id));
 }
 
+/**
+ * Merge nested student records by studentId.
+ * Starts from serverRecords, overlays localRecords (optionally only touchedStudentIds).
+ */
+function mergeSessionRecords(localRecords, serverRecords, studentIdKey, touchedStudentIds) {
+    const key = studentIdKey || 'studentId';
+    const map = new Map();
+    (serverRecords || []).forEach((row) => {
+        if (row && row[key] != null) {
+            map.set(String(row[key]), Object.assign({}, row));
+        }
+    });
+    const touched =
+        Array.isArray(touchedStudentIds) && touchedStudentIds.length
+            ? new Set(touchedStudentIds.map((id) => String(id)))
+            : null;
+    (localRecords || []).forEach((row) => {
+        if (!row || row[key] == null) {
+            return;
+        }
+        const id = String(row[key]);
+        if (touched && !touched.has(id)) {
+            return;
+        }
+        const existing = map.get(id);
+        map.set(id, existing ? Object.assign({}, existing, row) : Object.assign({}, row));
+    });
+    return Array.from(map.values());
+}
+
+/**
+ * True when local and server share a studentId whose record JSON differs.
+ */
+function studentRecordsOverlap(localRecords, serverRecords, studentIdKey) {
+    const key = studentIdKey || 'studentId';
+    const serverMap = new Map();
+    (serverRecords || []).forEach((row) => {
+        if (row && row[key] != null) {
+            serverMap.set(String(row[key]), row);
+        }
+    });
+    for (const row of localRecords || []) {
+        if (!row || row[key] == null) {
+            continue;
+        }
+        const serverRow = serverMap.get(String(row[key]));
+        if (serverRow && JSON.stringify(serverRow) !== JSON.stringify(row)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function mergeSessionLikeItem(existing, incoming) {
+    if (!existing) {
+        return Object.assign({}, incoming);
+    }
+    if (!incoming) {
+        return Object.assign({}, existing);
+    }
+    const touched = Array.isArray(incoming.touchedStudentIds)
+        ? incoming.touchedStudentIds
+        : null;
+    const merged = Object.assign({}, existing, incoming);
+    delete merged.touchedStudentIds;
+    if (Array.isArray(incoming.records) || Array.isArray(existing.records)) {
+        merged.records = mergeSessionRecords(
+            incoming.records,
+            existing.records,
+            'studentId',
+            touched
+        );
+    }
+    return merged;
+}
+
+function upsertSessionLike(arr, item) {
+    const list = Array.isArray(arr) ? arr.slice() : [];
+    if (!item || item.id == null) {
+        return list;
+    }
+    const idx = list.findIndex((row) => row && String(row.id) === String(item.id));
+    if (idx >= 0) {
+        list[idx] = mergeSessionLikeItem(list[idx], item);
+    } else {
+        const copy = Object.assign({}, item);
+        delete copy.touchedStudentIds;
+        list.push(copy);
+    }
+    return list;
+}
+
 function applyDayNoteMutation(dayNotes, payload) {
     const list = Array.isArray(dayNotes) ? dayNotes.slice() : [];
     const op = payload && payload.op;
@@ -44,6 +196,59 @@ function applyDayNoteMutation(dayNotes, payload) {
         return upsertById(list, payload.note, 'id');
     }
     return list;
+}
+
+function extractClassroomItem(entity, payload) {
+    const body = payload || {};
+    const key = CLASSROOM_ENTITY_PAYLOAD_KEY[entity];
+    if (key && body[key] && typeof body[key] === 'object') {
+        return body[key];
+    }
+    if (body.id != null) {
+        return body;
+    }
+    return null;
+}
+
+function extractClassroomRemoveId(entity, payload) {
+    const body = payload || {};
+    const idKey = CLASSROOM_ENTITY_ID_KEY[entity];
+    if (idKey && body[idKey] != null) {
+        return body[idKey];
+    }
+    return body.id != null ? body.id : null;
+}
+
+function applyClassroomMutation(next, m) {
+    const entity = m.entity;
+    const action = m.action;
+    const payload = m.payload || {};
+    if (entity === 'tmsRosterLinks' || entity === 'tmsEssayLinks') {
+        if (action === 'upsert' || action === 'replace') {
+            const value = payload[entity] != null ? payload[entity] : payload.value;
+            if (value && typeof value === 'object') {
+                next[entity] = Object.assign({}, next[entity] || {}, value);
+            }
+        }
+        return;
+    }
+    if (action === 'remove') {
+        const id = extractClassroomRemoveId(entity, payload);
+        next[entity] = removeById(next[entity], id, 'id');
+        return;
+    }
+    if (action !== 'upsert') {
+        return;
+    }
+    const item = extractClassroomItem(entity, payload);
+    if (!item || item.id == null) {
+        return;
+    }
+    if (SESSION_RECORD_ENTITIES.has(entity)) {
+        next[entity] = upsertSessionLike(next[entity], item);
+    } else {
+        next[entity] = upsertById(next[entity], item, 'id');
+    }
 }
 
 function applyCalendarMutations(data, mutations) {
@@ -84,7 +289,33 @@ function applyCalendarMutations(data, mutations) {
                 next.dayNotes = applyDayNoteMutation(next.dayNotes, payload);
                 break;
             }
+            case 'timetableTimeSlots/upsert': {
+                const slot = payload.slot || payload;
+                if (slot && slot.id) {
+                    next.timetableTimeSlots = upsertById(next.timetableTimeSlots, slot, 'id');
+                }
+                break;
+            }
+            case 'timetableTimeSlots/remove': {
+                next.timetableTimeSlots = removeById(
+                    next.timetableTimeSlots,
+                    payload.slotId || payload.id,
+                    'id'
+                );
+                break;
+            }
+            case 'periodSlotMap/upsert': {
+                next.periodSlotMap = Object.assign(
+                    {},
+                    next.periodSlotMap || {},
+                    payload.periodSlotMap || payload.map || payload
+                );
+                break;
+            }
             default:
+                if (CLASSROOM_ENTITIES.has(m.entity)) {
+                    applyClassroomMutation(next, m);
+                }
                 break;
         }
     }
@@ -106,10 +337,120 @@ function validateMutations(mutations) {
     return { ok: true };
 }
 
+function classifyMutations(mutations) {
+    const result = {
+        schedule: false,
+        classroom: false,
+        dayNotes: false,
+        entities: []
+    };
+    const seen = new Set();
+    for (const m of mutations || []) {
+        if (!m || !m.entity) {
+            continue;
+        }
+        const entity = String(m.entity);
+        if (!seen.has(entity)) {
+            seen.add(entity);
+            result.entities.push(entity);
+        }
+        if (SCHEDULE_ENTITIES.has(entity)) {
+            result.schedule = true;
+        } else if (DAYNOTES_ENTITIES.has(entity)) {
+            result.dayNotes = true;
+        } else if (CLASSROOM_ENTITIES.has(entity)) {
+            result.classroom = true;
+        } else {
+            // Unknown entities treated as schedule (require lock) for safety.
+            result.schedule = true;
+        }
+    }
+    return result;
+}
+
+/**
+ * Convert classroomOnly-style field bags into upsert mutations.
+ * Each array item becomes one upsert; object maps become one replace upsert.
+ */
+function classroomFieldsToMutations(fields) {
+    const body = fields || {};
+    const mutations = [];
+    const ts = Date.now();
+    Object.keys(CLASSROOM_ENTITY_PAYLOAD_KEY).forEach((entity) => {
+        if (!Object.prototype.hasOwnProperty.call(body, entity)) {
+            return;
+        }
+        const arr = body[entity];
+        if (!Array.isArray(arr)) {
+            return;
+        }
+        const payloadKey = CLASSROOM_ENTITY_PAYLOAD_KEY[entity];
+        arr.forEach((item) => {
+            if (!item || item.id == null) {
+                return;
+            }
+            const payload = {};
+            payload[payloadKey] = item;
+            mutations.push({
+                entity,
+                action: 'upsert',
+                payload,
+                timestamp: ts
+            });
+        });
+    });
+    if (Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks')) {
+        mutations.push({
+            entity: 'tmsRosterLinks',
+            action: 'upsert',
+            payload: { tmsRosterLinks: body.tmsRosterLinks || {} },
+            timestamp: ts
+        });
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'tmsEssayLinks')) {
+        mutations.push({
+            entity: 'tmsEssayLinks',
+            action: 'upsert',
+            payload: { tmsEssayLinks: body.tmsEssayLinks || {} },
+            timestamp: ts
+        });
+    }
+    return mutations;
+}
+
+/**
+ * Build a classroomOnly-style payload from mutations for ClassroomAccess.prepareClassroomForSave.
+ */
+function classroomMutationsToPayload(mutations, baseData) {
+    const base = baseData || {};
+    const applied = applyCalendarMutations(base, mutations);
+    const payload = {};
+    const classif = classifyMutations(mutations);
+    classif.entities.forEach((entity) => {
+        if (!CLASSROOM_ENTITIES.has(entity)) {
+            return;
+        }
+        if (Object.prototype.hasOwnProperty.call(applied, entity)) {
+            payload[entity] = applied[entity];
+        }
+    });
+    return payload;
+}
+
 module.exports = {
+    SCHEDULE_ENTITIES,
+    CLASSROOM_ENTITIES,
+    DAYNOTES_ENTITIES,
+    SESSION_RECORD_ENTITIES,
     applyCalendarMutations,
     validateMutations,
+    classifyMutations,
+    classroomFieldsToMutations,
+    classroomMutationsToPayload,
     upsertById,
     removeById,
-    applyDayNoteMutation
+    applyDayNoteMutation,
+    mergeSessionRecords,
+    studentRecordsOverlap,
+    mergeSessionLikeItem
 };

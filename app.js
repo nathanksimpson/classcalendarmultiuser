@@ -7959,6 +7959,8 @@ let classDayNoteModalState = null;
 let dayNoteSaveInFlight = false;
 /** @type {Promise<unknown>} */
 let dayNotesPersistChain = Promise.resolve();
+/** @type {Promise<unknown>} */
+let classroomPersistChain = Promise.resolve();
 /** @type {ReturnType<typeof CCPDayNotesSave.createDayNotesSave>|null} */
 let dayNotesSaver = null;
 
@@ -20180,50 +20182,83 @@ function mergeClassroomFieldsFromServer(serverData, options) {
 }
 
 async function saveClassroomPartial(fields, options) {
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'cohorts')) {
-        appData.cohorts = fields.cohorts;
+    const opts = options || {};
+    const explicitMutations =
+        fields && Array.isArray(fields.mutations)
+            ? fields.mutations
+            : opts.mutations || null;
+    const fieldBag = fields ? Object.assign({}, fields) : null;
+    if (fieldBag && Object.prototype.hasOwnProperty.call(fieldBag, 'mutations')) {
+        delete fieldBag.mutations;
     }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'attendanceSessions')) {
-        appData.attendanceSessions = fields.attendanceSessions;
+
+    if (fieldBag) {
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'cohorts')) {
+            appData.cohorts = fieldBag.cohorts;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'attendanceSessions')) {
+            appData.attendanceSessions = fieldBag.attendanceSessions;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'homeworkCompletions')) {
+            appData.homeworkCompletions = fieldBag.homeworkCompletions;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'essaySubmissions')) {
+            appData.essaySubmissions = fieldBag.essaySubmissions;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'studentPoints')) {
+            appData.studentPoints = fieldBag.studentPoints;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'studentTests')) {
+            appData.studentTests = fieldBag.studentTests;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'debateTeamSessions')) {
+            appData.debateTeamSessions = fieldBag.debateTeamSessions;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'debateScores')) {
+            appData.debateScores = fieldBag.debateScores;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'debateCustomFormats')) {
+            appData.debateCustomFormats = fieldBag.debateCustomFormats;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'speakingTestRecords')) {
+            appData.speakingTestRecords = fieldBag.speakingTestRecords;
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'tmsRosterLinks')) {
+            appData.tmsRosterLinks =
+                typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
+                    ? CCPClassroomDomain.normalizeTmsRosterLinks(fieldBag.tmsRosterLinks)
+                    : fieldBag.tmsRosterLinks && typeof fieldBag.tmsRosterLinks === 'object'
+                      ? fieldBag.tmsRosterLinks
+                      : {};
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'ui')) {
+            Object.assign(appData.ui, fieldBag.ui);
+            saveUiStateToLocalStorage();
+        }
     }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'homeworkCompletions')) {
-        appData.homeworkCompletions = fields.homeworkCompletions;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'essaySubmissions')) {
-        appData.essaySubmissions = fields.essaySubmissions;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentPoints')) {
-        appData.studentPoints = fields.studentPoints;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentTests')) {
-        appData.studentTests = fields.studentTests;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateTeamSessions')) {
-        appData.debateTeamSessions = fields.debateTeamSessions;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateScores')) {
-        appData.debateScores = fields.debateScores;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateCustomFormats')) {
-        appData.debateCustomFormats = fields.debateCustomFormats;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'speakingTestRecords')) {
-        appData.speakingTestRecords = fields.speakingTestRecords;
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsRosterLinks')) {
-        appData.tmsRosterLinks =
-            typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
-                ? CCPClassroomDomain.normalizeTmsRosterLinks(fields.tmsRosterLinks)
-                : fields.tmsRosterLinks && typeof fields.tmsRosterLinks === 'object'
-                  ? fields.tmsRosterLinks
-                  : {};
-    }
-    if (fields && Object.prototype.hasOwnProperty.call(fields, 'ui')) {
-        Object.assign(appData.ui, fields.ui);
-        saveUiStateToLocalStorage();
+    if (explicitMutations && explicitMutations.length && typeof CCPCalendarMutations !== 'undefined') {
+        const applied = CCPCalendarMutations.applyCalendarMutations(appData, explicitMutations);
+        [
+            'cohorts',
+            'attendanceSessions',
+            'homeworkCompletions',
+            'essaySubmissions',
+            'studentPoints',
+            'studentTests',
+            'debateTeamSessions',
+            'debateScores',
+            'debateCustomFormats',
+            'speakingTestRecords',
+            'tmsRosterLinks',
+            'tmsEssayLinks'
+        ].forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(applied, key)) {
+                appData[key] = applied[key];
+            }
+        });
     }
     saveDataToLocalCache();
-    if (!teamSyncEnabled || typeof CalendarSync === 'undefined' || !CalendarSync.saveClassroomData) {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
         return null;
     }
     const activeCalId =
@@ -20235,22 +20270,37 @@ async function saveClassroomPartial(fields, options) {
     if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
         return null;
     }
-    try {
-        const doc = await CalendarSync.saveClassroomData(fields);
-        if (doc && doc.data) {
-            mergeClassroomFieldsFromServer(doc.data, options);
-            saveDataToLocalCache();
+
+    const task = async () => {
+        try {
+            let doc = null;
+            if (
+                explicitMutations &&
+                explicitMutations.length &&
+                typeof CalendarSync.saveClassroomMutations === 'function'
+            ) {
+                doc = await CalendarSync.saveClassroomMutations(explicitMutations, opts);
+            } else if (fieldBag && CalendarSync.saveClassroomData) {
+                doc = await CalendarSync.saveClassroomData(fieldBag, opts);
+            }
+            if (doc && doc.data) {
+                mergeClassroomFieldsFromServer(doc.data, opts);
+                saveDataToLocalCache();
+            }
+            return doc;
+        } catch (err) {
+            // Local write already succeeded. Keep it when team sync is unavailable or fails
+            // for non-conflict reasons (auth, network, missing calendar).
+            if (err && Number(err.status) === 409) {
+                throw err;
+            }
+            console.warn('Classroom team sync failed after local save', err);
+            return null;
         }
-        return doc;
-    } catch (err) {
-        // Local write already succeeded. Keep it when team sync is unavailable or fails
-        // for non-conflict reasons (auth, network, missing calendar).
-        if (err && Number(err.status) === 409) {
-            throw err;
-        }
-        console.warn('Classroom team sync failed after local save', err);
-        return null;
-    }
+    };
+
+    classroomPersistChain = classroomPersistChain.then(task, task);
+    return classroomPersistChain;
 }
 
 function getClassroomHooks() {
@@ -34917,6 +34967,10 @@ function showConflictModal(serverDoc, localData) {
         } else if (summaryMount) {
             summaryMount.innerHTML = '';
         }
+        const smartBtn = document.getElementById('conflictSmartMerge');
+        if (smartBtn) {
+            smartBtn.hidden = false;
+        }
         conflictResolver = resolve;
         modal.style.display = 'flex';
 
@@ -34924,6 +34978,9 @@ function showConflictModal(serverDoc, localData) {
             modal.style.display = 'none';
             if (summaryMount) {
                 summaryMount.innerHTML = '';
+            }
+            if (smartBtn) {
+                smartBtn.hidden = false;
             }
             conflictResolver = null;
         };
@@ -34940,6 +34997,85 @@ function showConflictModal(serverDoc, localData) {
             close();
             resolve('merge');
         };
+        document.getElementById('conflictModalClose').onclick = () => {
+            close();
+            resolve('cancel');
+        };
+    });
+}
+
+/** Classroom same-row conflict: Keep mine / Use theirs (no smart merge). */
+function showClassroomConflictChoice(serverDoc, mutations) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('conflictModal');
+        if (!modal) {
+            showSyncToast(t('classroomConflictToast'), true);
+            resolve('mine');
+            return;
+        }
+        const summaryMount = document.getElementById('conflictMergeSummary');
+        const localSnapshot =
+            typeof CCPCalendarMutations !== 'undefined' && Array.isArray(mutations)
+                ? CCPCalendarMutations.applyCalendarMutations(
+                      (serverDoc && serverDoc.data) || {},
+                      mutations
+                  )
+                : appData;
+        if (summaryMount && typeof CCPConflictMerge !== 'undefined') {
+            const lines = CCPConflictMerge.summarizeConflict(
+                localSnapshot,
+                serverDoc && serverDoc.data
+            );
+            summaryMount.innerHTML =
+                `<p class="section-hint">${escapeHtml(t('classroomConflictToast'))}</p>` +
+                CCPConflictMerge.renderSummaryHtml(lines, t, escapeHtml);
+        } else if (summaryMount) {
+            summaryMount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomConflictToast'))}</p>`;
+        }
+        const smartBtn = document.getElementById('conflictSmartMerge');
+        if (smartBtn) {
+            smartBtn.hidden = true;
+        }
+        const mineBtn = document.getElementById('conflictUseMine');
+        const theirsBtn = document.getElementById('conflictUseTheirs');
+        if (mineBtn) {
+            mineBtn.textContent = t('classroomConflictKeepMine');
+        }
+        if (theirsBtn) {
+            theirsBtn.textContent = t('classroomConflictUseTheirs');
+        }
+        conflictResolver = resolve;
+        modal.style.display = 'flex';
+
+        const close = () => {
+            modal.style.display = 'none';
+            if (summaryMount) {
+                summaryMount.innerHTML = '';
+            }
+            if (smartBtn) {
+                smartBtn.hidden = false;
+            }
+            if (mineBtn) {
+                mineBtn.textContent = t('syncUseMine');
+            }
+            if (theirsBtn) {
+                theirsBtn.textContent = t('syncUseTheirs');
+            }
+            conflictResolver = null;
+        };
+
+        if (theirsBtn) {
+            theirsBtn.onclick = () => {
+                close();
+                resolve('theirs');
+            };
+        }
+        if (mineBtn) {
+            mineBtn.onclick = () => {
+                close();
+                resolve('mine');
+            };
+        }
         document.getElementById('conflictModalClose').onclick = () => {
             close();
             resolve('cancel');
@@ -36271,6 +36407,23 @@ async function initTeamSync() {
                     appStore.clearMutationQueue();
                 }
                 await CalendarSync.saveCalendar(payload, { force: true });
+            }
+        },
+        async onClassroomConflict(serverDocument, mutations) {
+            const choice = await showClassroomConflictChoice(serverDocument, mutations);
+            if (choice === 'theirs') {
+                if (serverDocument && serverDocument.data) {
+                    mergeClassroomFieldsFromServer(serverDocument.data, {});
+                    if (serverDocument.revision != null) {
+                        CalendarSync.state.revision = serverDocument.revision;
+                    }
+                    saveDataToLocalCache();
+                    refreshCalendarScopedUi();
+                }
+                return;
+            }
+            if (choice === 'mine' && Array.isArray(mutations) && mutations.length) {
+                await CalendarSync.saveClassroomMutations(mutations, { force: true });
             }
         }
     });

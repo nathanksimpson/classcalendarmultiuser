@@ -54,6 +54,7 @@
         onStatusChange: null,
         onRemoteNewer: null,
         onConflict: null,
+        onClassroomConflict: null,
         onLockChange: null,
         onLockOrRevisionChange: null,
         onLockDebugChange: null,
@@ -909,11 +910,22 @@
                 err.status = 403;
                 throw err;
             }
+            const opts = options || {};
+            // Prefer granular PATCH mutations (no schedule lock) when available.
+            if (
+                !opts.forcePut &&
+                typeof global.CCPCalendarMutations !== 'undefined' &&
+                global.CCPCalendarMutations.classroomFieldsToMutations
+            ) {
+                const mutations = global.CCPCalendarMutations.classroomFieldsToMutations(fields);
+                if (mutations.length) {
+                    return CalendarSync.saveClassroomMutations(mutations, opts);
+                }
+            }
             const id = CalendarSync.getActiveCalendarId();
             if (!id) {
                 throw new Error('No active team calendar');
             }
-            const opts = options || {};
             const body = {
                 classroomOnly: true,
                 revision: opts.force ? undefined : state.revision,
@@ -1003,6 +1015,24 @@
                             serverData.speakingTestRecords
                         );
                     }
+                    if (Array.isArray(body.attendanceSessions) && Array.isArray(serverData.attendanceSessions)) {
+                        retryBody.attendanceSessions = mergeArrayById(
+                            body.attendanceSessions,
+                            serverData.attendanceSessions
+                        );
+                    }
+                    if (Array.isArray(body.homeworkCompletions) && Array.isArray(serverData.homeworkCompletions)) {
+                        retryBody.homeworkCompletions = mergeArrayById(
+                            body.homeworkCompletions,
+                            serverData.homeworkCompletions
+                        );
+                    }
+                    if (Array.isArray(body.studentPoints) && Array.isArray(serverData.studentPoints)) {
+                        retryBody.studentPoints = mergeArrayById(
+                            body.studentPoints,
+                            serverData.studentPoints
+                        );
+                    }
                     try {
                         const retryDoc = await apiFetch('/calendars/' + encodeURIComponent(id), {
                             method: 'PUT',
@@ -1025,6 +1055,96 @@
                 }
                 if (err.status === 409 && err.body && err.body.document) {
                     setStatus('conflict');
+                    throw err;
+                }
+                setStatus('error', err.message);
+                throw err;
+            } finally {
+                state.saving = false;
+            }
+        },
+
+        /**
+         * Classroom / day-notes domain PATCH — no schedule edit lock.
+         * Auto-retries non-overlapping 409s; overlaps surface via onConflict / throw.
+         */
+        async saveClassroomMutations(mutations, options) {
+            assertSignedIn();
+            if (isViewAsMode()) {
+                viewAsNotice('View As: change not saved');
+                setStatus('saved');
+                return { simulated: true, revision: state.revision };
+            }
+            if (state.canEdit === false && state.accessLevel !== 'suggester') {
+                const err = new Error('You do not have edit access to this calendar');
+                err.status = 403;
+                throw err;
+            }
+            const id = CalendarSync.getActiveCalendarId();
+            if (!id) {
+                throw new Error('No active team calendar');
+            }
+            const list = Array.isArray(mutations) ? mutations : [];
+            if (!list.length) {
+                return null;
+            }
+            const opts = options || {};
+            setStatus('saving');
+            state.saving = true;
+            try {
+                const doc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                    method: 'PATCH',
+                    body: {
+                        baseRevision: opts.force ? undefined : state.revision,
+                        mutations: list,
+                        force: Boolean(opts.force)
+                    }
+                });
+                state.revision = doc.revision || state.revision;
+                setStatus('saved');
+                if (typeof handlers.onSaved === 'function') {
+                    handlers.onSaved(doc);
+                }
+                return doc;
+            } catch (err) {
+                if (err.status === 409 && err.body && err.body.document) {
+                    const serverDoc = err.body.document;
+                    const serverData = serverDoc.data || serverDoc;
+                    if (!mutationsOverlapWithServer(list, serverData)) {
+                        setStatus('saving');
+                        try {
+                            const retryDoc = await apiFetch('/calendars/' + encodeURIComponent(id), {
+                                method: 'PATCH',
+                                body: {
+                                    baseRevision: serverDoc.revision,
+                                    mutations: list,
+                                    force: Boolean(opts.force)
+                                }
+                            });
+                            state.revision = retryDoc.revision || state.revision;
+                            setStatus('saved');
+                            if (typeof handlers.onSaved === 'function') {
+                                handlers.onSaved(retryDoc);
+                            }
+                            return retryDoc;
+                        } catch (retryErr) {
+                            if (retryErr.status === 409 && retryErr.body && retryErr.body.document) {
+                                setStatus('conflict');
+                                if (typeof handlers.onClassroomConflict === 'function') {
+                                    await handlers.onClassroomConflict(
+                                        retryErr.body.document,
+                                        list
+                                    );
+                                }
+                                throw retryErr;
+                            }
+                            throw retryErr;
+                        }
+                    }
+                    setStatus('conflict');
+                    if (typeof handlers.onClassroomConflict === 'function') {
+                        await handlers.onClassroomConflict(serverDoc, list);
+                    }
                     throw err;
                 }
                 setStatus('error', err.message);
@@ -1059,6 +1179,52 @@
                 throw new Error('No active team calendar');
             }
             const opts = options || {};
+            const notes = Array.isArray(dayNotes) ? dayNotes : [];
+            // Prefer PATCH mutations when not forcing a full replace.
+            if (!opts.forcePut && !opts.force) {
+                const mutations = notes
+                    .filter((n) => n && n.id)
+                    .map((note) => ({
+                        entity: 'dayNotes',
+                        action: 'mutate',
+                        payload: { op: 'upsert', note },
+                        timestamp: Date.now()
+                    }));
+                if (mutations.length) {
+                    try {
+                        return await CalendarSync.saveClassroomMutations(mutations, opts);
+                    } catch (err) {
+                        if (err && err.status === 409 && err.body && err.body.document) {
+                            const serverList =
+                                err.body.document.data && Array.isArray(err.body.document.data.dayNotes)
+                                    ? err.body.document.data.dayNotes
+                                    : [];
+                            let merged = notes;
+                            if (
+                                typeof global.CCPDayNotes !== 'undefined' &&
+                                global.CCPDayNotes.mergeDayNotesById
+                            ) {
+                                merged = global.CCPDayNotes.mergeDayNotesById(notes, serverList);
+                            }
+                            const retryMutations = (merged || [])
+                                .filter((n) => n && n.id)
+                                .map((note) => ({
+                                    entity: 'dayNotes',
+                                    action: 'mutate',
+                                    payload: { op: 'upsert', note },
+                                    timestamp: Date.now()
+                                }));
+                            if (retryMutations.length) {
+                                state.revision = err.body.document.revision || state.revision;
+                                return await CalendarSync.saveClassroomMutations(retryMutations, {
+                                    force: true
+                                });
+                            }
+                        }
+                        throw err;
+                    }
+                }
+            }
             setStatus('saving');
             state.saving = true;
             try {
@@ -1066,7 +1232,7 @@
                     method: 'PUT',
                     body: {
                         dayNotesOnly: true,
-                        dayNotes: Array.isArray(dayNotes) ? dayNotes : [],
+                        dayNotes: notes,
                         revision: opts.force ? undefined : state.revision,
                         force: Boolean(opts.force)
                     }

@@ -39,7 +39,7 @@
             'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
-            'js/classroom-attendance.js?v=20260703-zone-context'
+            'js/classroom-attendance.js?v=20260806-patch-mutations'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260803-homeroom-access',
