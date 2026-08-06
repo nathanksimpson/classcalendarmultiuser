@@ -6,8 +6,8 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260612-timetable-conflicts',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260629-ui-fixes',
-            'js/setup-board.js?v=20260629-ui-fixes',
+            'js/cohort-management.js?v=20260806-cohort-color',
+            'js/setup-board.js?v=20260806-cohort-color',
             'js/cohorts-class-detail.js?v=20260703-design-fidelity'
         ],
         timetable: [
@@ -30,52 +30,52 @@
         homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
         students: [
             'js/essay-tracker-import.js?v=20260630-essay-import',
-            'js/roster-import.js?v=20260805-mark-ask',
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/roster-import.js?v=20260806-name-marks',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260805-mark-ask'
+            'js/classroom-roster.js?v=20260806-name-marks'
         ],
         attendance: [
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-attendance.js?v=20260703-zone-context'
         ],
         'homework-tracking': [
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
-            'js/classroom-homework.js?v=20260703-zone-context'
+            'js/classroom-homework.js?v=20260806-status-chip',
         ],
         essays: [
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
             'js/classroom-essay-progress.js?v=20260721-essay-inc-exempt',
-            'js/classroom-essay-progress-print.js?v=20260724-essay-overdue',
-            'js/classroom-essay-resubmit-print.js?v=20260707-essay-context',
+            'js/classroom-essay-progress-print.js?v=20260805-essay-nv',
+            'js/classroom-essay-resubmit-print.js?v=20260805-essay-nv',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
-            'js/classroom-essay-class-summary.js?v=20260724-class-summary-filters',
-            'js/classroom-essay-class-summary-print.js?v=20260727-class-summary-blank-page',
+            'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
+            'js/classroom-essay-class-summary-print.js?v=20260729-essay-print-headers',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260729-awaiting-sub'
+            'js/classroom-essays.js?v=20260806-zone-context'
         ],
         ledger: [
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-ledger-bridge.js?v=20260619-ui-overhaul',
-            'js/classroom-ledger.js?v=20260703-zone-context'
+            'js/classroom-ledger.js?v=20260806-status-chips'
         ],
         'command-center': [
-            'js/command-center.js?v=20260703-design-fidelity'
+            'js/command-center.js?v=20260806-toolbar'
         ],
         points: [
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-point-reasons.js?v=20260618-point-reasons',
-            'js/classroom-points.js?v=20260703-zone-context'
+            'js/classroom-points.js?v=20260806-toolbar'
         ],
         tests: [
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260703-zone-context',
             'js/classroom-tests.js?v=20260703-zone-context'
@@ -85,22 +85,22 @@
             'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
-            'js/debate/debate-teams-v2.js?v=20260720-debate-assign',
-            'js/classroom-access.js?v=20260612-classroom-mvp',
-            'js/classroom-debate-teams.js?v=20260720-debate-assign'
+            'js/debate/debate-teams-v2.js?v=20260806-notice',
+            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-debate-teams.js?v=20260803-purple-swap'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
             'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
-            'js/debate/debate-teams-v2.js?v=20260720-debate-assign',
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/debate/debate-teams-v2.js?v=20260806-notice',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-debate-scores.js?v=20260721-numpad-place'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',
-            'js/classroom-access.js?v=20260612-classroom-mvp',
+            'js/classroom-access.js?v=20260803-homeroom-access',
             'js/speaking-test/speaking-test-core.js?v=20260720-speaking-modal',
             'js/classroom-speaking-test.js?v=20260720-speaking-modal'
         ]
@@ -114,7 +114,7 @@
     const DEBATE_CORE_SCRIPTS = [
         'js/debate/feedback-templates.js?v=20260710-debate-v2',
         'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
-        'js/debate/debate-teams-v2.js?v=20260720-debate-assign'
+        'js/debate/debate-teams-v2.js?v=20260806-notice'
     ];
 
     const loaded = new Set();

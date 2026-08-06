@@ -18,7 +18,8 @@
     const classSummarySelectedKeys = new Set();
     let classSummaryFilters = {
         homeroomKey: '',
-        month: ''
+        month: '',
+        warnMode: 'all'
     };
     let resubmitDayNoteDirty = false;
     let resubmitDayNoteSyncInFlight = false;
@@ -37,6 +38,20 @@
         hasResubmitsOnly: true
     };
     let noteDebouncedSave = null;
+    const ESSAY_TMS_USERNAME_KEY = 'ccp.tmsRosterUsername';
+    const ESSAY_TMS_BRIDGE_TIMEOUT_MS = 120000;
+    const ESSAY_TMS_BRIDGE_STILL_LOADING_MS = 15000;
+    let essayTmsPreview = null;
+    let essayTmsPlan = [];
+    let essayTmsLoading = false;
+    let essayTmsApplying = false;
+    let essayTmsBound = false;
+    let essayTmsHasFetched = false;
+    let essayTmsFilterClassId = '';
+    let essayTmsFilteredOutOfTermCount = 0;
+    let essayTmsStudentQueue = [];
+    let essayTmsStudentIndex = 0;
+    let essayTmsWizardStep = 1;
 
     const ESSAY_STATUS_META = {
         not_submitted: { order: 0, cls: 'essay-status--not' },
@@ -282,12 +297,14 @@
             .some((r) => d.getSyllabusRowKey(r) === rowId);
     }
 
-    function resolveEssayAssignmentForClass(classData) {
+    function resolveEssayAssignmentForClass(classData, preferredDate) {
         const d = domain();
         if (!classData || !d) {
             return null;
         }
         const today = d.todayISO ? d.todayISO() : '';
+        const preferred = String(preferredDate || '').trim();
+        const refDate = preferred || today;
         const map = getEssayAssignmentMap();
         const savedId = map[classData.id] || '';
         if (savedId && rowExistsInClass(classData, savedId)) {
@@ -295,15 +312,15 @@
                 .getEssayRowsFromSyllabus(classData.syllabusRows)
                 .find((r) => d.getSyllabusRowKey(r) === savedId);
             if (saved) {
-                if (typeof d.sameCalendarMonth !== 'function') {
+                if (!preferred) {
                     return saved;
                 }
-                if (d.sameCalendarMonth(saved.date, today)) {
+                if (typeof d.sameCalendarMonth !== 'function' || d.sameCalendarMonth(saved.date, preferred)) {
                     return saved;
                 }
             }
         }
-        return d.pickDefaultEssaySyllabusRow(classData, today);
+        return d.pickDefaultEssaySyllabusRow(classData, refDate);
     }
 
     function persistEssayAssignmentForClass(cId, rowId) {
@@ -317,12 +334,15 @@
         }
     }
 
-    function applyResolvedAssignment(classData) {
+    function applyResolvedAssignment(classData, preferredDate) {
         const d = domain();
-        const row = resolveEssayAssignmentForClass(classData);
+        const row = resolveEssayAssignmentForClass(classData, preferredDate);
         if (row && d) {
             syllabusRowId = d.getSyllabusRowKey(row);
             lessonDate = row.date || '';
+            if (classData && classData.id && syllabusRowId) {
+                persistEssayAssignmentForClass(classData.id, syllabusRowId);
+            }
         } else {
             syllabusRowId = '';
         }
@@ -338,9 +358,10 @@
         if (classId && visible.some((c) => c && c.id === classId)) {
             return false;
         }
+        const preferredDate = lessonDate;
         const nextId = visible[0].id;
         if (typeof global.CCPActiveContext !== 'undefined') {
-            global.CCPActiveContext.set({ classId: nextId }, { source: 'essays-class-filter' });
+            global.CCPActiveContext.setFromClass(getAppData(), nextId, undefined, 'essays-class-filter');
         } else if (hooks && hooks.setUiPref) {
             hooks.setUiPref('classroomTabClassId', nextId);
             classId = nextId;
@@ -348,7 +369,7 @@
             classId = nextId;
         }
         syncClassIdFromContext();
-        applyResolvedAssignment(getClassData());
+        applyResolvedAssignment(getClassData(), preferredDate);
         selectedStudentIds.clear();
         loadSubmission();
         if (!silent && panel && hooks && hooks.showToast) {
@@ -450,6 +471,7 @@
             noStudentsInSection: t('classroomEssayProgressNoStudentsInSection'),
             noReason: t('classroomEssayResubmitNoReason'),
             retestReceived: t('classroomEssayResubmitRetestReceived'),
+            debateVideoNv: t('classroomEssayDebateVideoNv'),
             generatedAt: t('classroomEssayProgressGeneratedAt'),
             overdue: t('classroomEssayProgressOverdue'),
             receivedLate: t('classroomEssayProgressReceivedLate')
@@ -465,6 +487,13 @@
                 ? t('classroomEssayProgressReceivedLate')
                 : t('classroomEssayProgressOverdue');
         return ` <span class="classroom-essay-progress-overdue-chip">${escapeHtml(label)}</span>`;
+    }
+
+    function formatDebateVideoNvChip(row) {
+        if (!row || !row.debateVideoMissing) {
+            return '';
+        }
+        return ` <span class="classroom-essay-progress-overdue-chip">${escapeHtml(t('classroomEssayDebateVideoNv'))}</span>`;
     }
 
     function formatProgressAssignmentHint(row) {
@@ -501,14 +530,19 @@
                     const retest = row.submittedRetest
                         ? escapeHtml(t('classroomEssayResubmitRetestReceived'))
                         : '—';
+                    const nv = row.debateVideoMissing
+                        ? escapeHtml(t('classroomEssayDebateVideoNv'))
+                        : '—';
                     return `<tr>
                         <td>${escapeHtml(row.studentName || '')}</td>
                         <td>${escapeHtml(note)}</td>
                         <td>${retest}</td>
+                        <td>${nv}</td>
                     </tr>`;
                 }
                 const overdue = formatProgressOverdueChip(row);
-                return `<tr><td colspan="3">${escapeHtml(row.studentName || '')}${overdue}</td></tr>`;
+                const nv = formatDebateVideoNvChip(row);
+                return `<tr><td colspan="3">${escapeHtml(row.studentName || '')}${overdue}${nv}</td></tr>`;
             })
             .join('');
         const isResubmit = students[0] && students[0].status === 'resubmit_required';
@@ -517,6 +551,7 @@
                 <th>${escapeHtml(t('classroomEssayResubmitColStudent'))}</th>
                 <th>${escapeHtml(t('classroomEssayResubmitColNote'))}</th>
                 <th>${escapeHtml(t('classroomEssayResubmitColRetest'))}</th>
+                <th>${escapeHtml(t('classroomEssayDebateVideoNv'))}</th>
             </tr></thead>`
             : '';
         return `<div class="classroom-essay-resubmit-preview-assignment-section">
@@ -769,7 +804,12 @@
             });
         }
         const filtersRaw = data.ui && data.ui.essayClassSummaryFilters;
-        classSummaryFilters = { homeroomKey: '', month: '' };
+        classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        const normalizeWarn =
+            summaryApi && typeof summaryApi.normalizeWarnMode === 'function'
+                ? summaryApi.normalizeWarnMode
+                : (mode) => (mode === 'attention' || mode === 'overdue' || mode === 'resubmit' ? mode : 'all');
         if (typeof filtersRaw === 'string' && filtersRaw.trim()) {
             try {
                 const parsed = JSON.parse(filtersRaw);
@@ -777,17 +817,19 @@
                     classSummaryFilters = {
                         homeroomKey:
                             typeof parsed.homeroomKey === 'string' ? parsed.homeroomKey : '',
-                        month: typeof parsed.month === 'string' ? parsed.month : ''
+                        month: typeof parsed.month === 'string' ? parsed.month : '',
+                        warnMode: normalizeWarn(parsed.warnMode)
                     };
                 }
             } catch (_err) {
-                classSummaryFilters = { homeroomKey: '', month: '' };
+                classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
             }
         } else if (filtersRaw && typeof filtersRaw === 'object') {
             classSummaryFilters = {
                 homeroomKey:
                     typeof filtersRaw.homeroomKey === 'string' ? filtersRaw.homeroomKey : '',
-                month: typeof filtersRaw.month === 'string' ? filtersRaw.month : ''
+                month: typeof filtersRaw.month === 'string' ? filtersRaw.month : '',
+                warnMode: normalizeWarn(filtersRaw.warnMode)
             };
         }
     }
@@ -807,7 +849,8 @@
                 'essayClassSummaryFilters',
                 JSON.stringify({
                     homeroomKey: classSummaryFilters.homeroomKey || '',
-                    month: classSummaryFilters.month || ''
+                    month: classSummaryFilters.month || '',
+                    warnMode: classSummaryFilters.warnMode || 'all'
                 })
             );
         }
@@ -816,9 +859,16 @@
     function syncClassSummaryFiltersFromDom() {
         const hrEl = document.getElementById('essayClassSummaryHomeroomFilter');
         const monthEl = document.getElementById('essayClassSummaryMonthFilter');
+        const warnEl = document.getElementById('essayClassSummaryWarnModeFilter');
+        const summaryApi = global.CCPClassroomEssayClassSummary;
+        const normalizeWarn =
+            summaryApi && typeof summaryApi.normalizeWarnMode === 'function'
+                ? summaryApi.normalizeWarnMode
+                : (mode) => (mode === 'attention' || mode === 'overdue' || mode === 'resubmit' ? mode : 'all');
         classSummaryFilters = {
             homeroomKey: hrEl ? String(hrEl.value || '') : classSummaryFilters.homeroomKey || '',
-            month: monthEl ? String(monthEl.value || '') : classSummaryFilters.month || ''
+            month: monthEl ? String(monthEl.value || '') : classSummaryFilters.month || '',
+            warnMode: normalizeWarn(warnEl ? warnEl.value : classSummaryFilters.warnMode)
         };
         saveClassSummaryFilters();
     }
@@ -839,8 +889,17 @@
     }
 
     function getClassSummaryLabels() {
+        const mode = classSummaryFilters.warnMode || 'all';
+        let title = t('classroomEssayClassSummaryTitle');
+        if (mode === 'attention') {
+            title = t('classroomEssayClassSummaryTitleAttention');
+        } else if (mode === 'overdue') {
+            title = t('classroomEssayClassSummaryTitleOverdue');
+        } else if (mode === 'resubmit') {
+            title = t('classroomEssayClassSummaryTitleResubmit');
+        }
         return {
-            title: t('classroomEssayClassSummaryTitle'),
+            title,
             noStudents: t('classroomEssayClassSummaryNoStudents'),
             noStudentsInSection: t('classroomEssayClassSummaryNoStudentsInSection'),
             generatedAt: t('classroomEssayClassSummaryGeneratedAt'),
@@ -885,7 +944,10 @@
             return [];
         }
         const appData = getAppData();
-        const rows = summaryApi.listRowsForAssignments(appData, assignments);
+        let rows = summaryApi.listRowsForAssignments(appData, assignments);
+        if (typeof summaryApi.filterRowsByWarnMode === 'function') {
+            rows = summaryApi.filterRowsByWarnMode(rows, classSummaryFilters.warnMode);
+        }
         return summaryApi.groupRowsByHomeroom(rows, appData);
     }
 
@@ -980,6 +1042,7 @@
         const summaryApi = global.CCPClassroomEssayClassSummary;
         const hrEl = document.getElementById('essayClassSummaryHomeroomFilter');
         const monthEl = document.getElementById('essayClassSummaryMonthFilter');
+        const warnEl = document.getElementById('essayClassSummaryWarnModeFilter');
         const appData = getAppData();
         if (hrEl && summaryApi && summaryApi.listHomeroomFilterOptions) {
             const options = summaryApi.listHomeroomFilterOptions(allAssignments, appData);
@@ -1019,6 +1082,18 @@
             const valid = !prev || months.includes(prev);
             monthEl.value = valid ? prev : '';
             classSummaryFilters.month = monthEl.value || '';
+        }
+        if (warnEl) {
+            const normalizeWarn =
+                summaryApi && typeof summaryApi.normalizeWarnMode === 'function'
+                    ? summaryApi.normalizeWarnMode
+                    : (mode) =>
+                          mode === 'attention' || mode === 'overdue' || mode === 'resubmit'
+                              ? mode
+                              : 'all';
+            const mode = normalizeWarn(classSummaryFilters.warnMode);
+            warnEl.value = mode;
+            classSummaryFilters.warnMode = mode;
         }
     }
 
@@ -1115,6 +1190,10 @@
             syncClassSummaryFiltersFromDom();
             renderClassSummaryModal();
         });
+        document.getElementById('essayClassSummaryWarnModeFilter')?.addEventListener('change', () => {
+            syncClassSummaryFiltersFromDom();
+            renderClassSummaryModal();
+        });
         document.getElementById('essayClassSummarySelectAll')?.addEventListener('click', () => {
             listFilteredClassSummaryAssignments().forEach((row) => classSummarySelectedKeys.add(row.key));
             saveClassSummarySelection();
@@ -1157,24 +1236,40 @@
             noRows: t('classroomEssayResubmitNoRows'),
             noReason: t('classroomEssayResubmitNoReason'),
             retestReceived: t('classroomEssayResubmitRetestReceived'),
-            generatedAt: t('classroomEssayResubmitGeneratedAt')
+            debateVideoNv: t('classroomEssayDebateVideoNv'),
+            generatedAt: t('classroomEssayResubmitGeneratedAt'),
+            overdue: t('classroomEssayProgressOverdue'),
+            receivedLate: t('classroomEssayProgressReceivedLate')
         };
     }
 
-    function openResubmitPrint(rows) {
+    function getOverduePrintLabels() {
+        return {
+            title: t('classroomEssayOverduePrintTitle'),
+            noRows: t('classroomEssayOverdueNoRows'),
+            noReason: t('classroomEssayProgressOverdue'),
+            retestReceived: t('classroomEssayResubmitRetestReceived'),
+            debateVideoNv: t('classroomEssayDebateVideoNv'),
+            generatedAt: t('classroomEssayResubmitGeneratedAt'),
+            overdue: t('classroomEssayProgressOverdue'),
+            receivedLate: t('classroomEssayProgressReceivedLate')
+        };
+    }
+
+    function openResubmitPrint(rows, labelsOverride) {
         const printApi = global.CCPClassroomEssayResubmitPrint;
         const d = domain();
         if (!printApi || !d || !d.groupEssayStudentRowsByClass) {
             return;
         }
+        const labels = labelsOverride || getResubmitPrintLabels();
         if (!rows.length) {
             if (hooks && hooks.showToast) {
-                hooks.showToast(t('classroomEssayResubmitNoRows'), true);
+                hooks.showToast(labels.noRows, true);
             }
             return;
         }
         const groups = d.groupEssayStudentRowsByClass(rows);
-        const labels = getResubmitPrintLabels();
         const data = getAppData();
         const bodyHtml = printApi.renderDocumentHtml(
             {
@@ -1189,16 +1284,95 @@
         openInlinePrintDocument(title, bodyHtml, inlineCss);
     }
 
-    function printCurrentClassResubmits() {
+    function listCurrentClassAttentionRows(kind) {
         const d = domain();
         if (!d || !classId) {
-            return;
+            return [];
         }
-        const rows = d.listEssayResubmitRows(getAppData(), {
+        const opts = {
             classes: getAccessibleClasses(),
             classId
-        });
-        openResubmitPrint(rows);
+        };
+        if (kind === 'overdue' && d.listEssayOverdueRows) {
+            return d.listEssayOverdueRows(getAppData(), opts);
+        }
+        if (kind === 'resubmit' && d.listEssayResubmitRows) {
+            return d.listEssayResubmitRows(getAppData(), opts);
+        }
+        return [];
+    }
+
+    async function copyTextToClipboard(text, doneKey, failKey) {
+        const value = String(text || '').trim();
+        if (!value) {
+            return false;
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(value);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = value;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t(doneKey || 'classroomEssayWarnCopyDone'));
+            }
+            return true;
+        } catch (err) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t(failKey || 'classroomEssayWarnCopyFailed'), true);
+            }
+            return false;
+        }
+    }
+
+    async function copyAttentionRows(rows, labels) {
+        const printApi = global.CCPClassroomEssayResubmitPrint;
+        const d = domain();
+        if (!printApi || !printApi.formatCopyText || !d || !d.groupEssayStudentRowsByClass) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(labels.noRows, true);
+            }
+            return;
+        }
+        if (!rows.length) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(labels.noRows, true);
+            }
+            return;
+        }
+        const groups = d.groupEssayStudentRowsByClass(rows);
+        const text = printApi.formatCopyText(groups, labels);
+        if (!text || text === labels.noRows) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(labels.noRows, true);
+            }
+            return;
+        }
+        await copyTextToClipboard(text);
+    }
+
+    function printCurrentClassResubmits() {
+        openResubmitPrint(listCurrentClassAttentionRows('resubmit'), getResubmitPrintLabels());
+    }
+
+    function printCurrentClassOverdues() {
+        openResubmitPrint(listCurrentClassAttentionRows('overdue'), getOverduePrintLabels());
+    }
+
+    function copyCurrentClassResubmits() {
+        void copyAttentionRows(listCurrentClassAttentionRows('resubmit'), getResubmitPrintLabels());
+    }
+
+    function copyCurrentClassOverdues() {
+        void copyAttentionRows(listCurrentClassAttentionRows('overdue'), getOverduePrintLabels());
     }
 
     function loadResubmitSummaryFilters() {
@@ -1294,6 +1468,7 @@
                                     <td>${escapeHtml(row.studentName || '')}</td>
                                     <td>${escapeHtml(note)}</td>
                                     <td>${row.submittedRetest ? escapeHtml(t('classroomEssayResubmitRetestReceived')) : '—'}</td>
+                                    <td>${row.debateVideoMissing ? escapeHtml(t('classroomEssayDebateVideoNv')) : '—'}</td>
                                 </tr>`;
                             })
                             .join('');
@@ -1304,6 +1479,7 @@
                                     <th>${escapeHtml(t('classroomEssayResubmitColStudent'))}</th>
                                     <th>${escapeHtml(t('classroomEssayResubmitColNote'))}</th>
                                     <th>${escapeHtml(t('classroomEssayResubmitColRetest'))}</th>
+                                    <th>${escapeHtml(t('classroomEssayDebateVideoNv'))}</th>
                                 </tr></thead>
                                 <tbody>${studentRows}</tbody>
                             </table>
@@ -1563,7 +1739,7 @@
         const d = domain();
         const students = getStudents();
         if (!d || !draftSubmission) {
-            return { awaitingSub: 0, overdueSub: 0, evalOverdue: 0, resubmit: 0 };
+            return { awaitingSub: 0, overdueSub: 0, evalOverdue: 0, resubmit: 0, debateVideo: 0 };
         }
         const ssDue = draftSubmission.ssDueDate || '';
         const teDue = draftSubmission.teacherEvalDueDate || '';
@@ -1585,11 +1761,14 @@
             activeStudentIds
         );
         let evalOverdue = 0;
-        if (d.isEssayTeacherEvalOverdue(draftSubmission, teDue)) {
-            evalOverdue = d.essayPendingTeacherEvalCount(draftSubmission);
+        if (d.isEssayTeacherEvalOverdue(draftSubmission, teDue, activeStudentIds)) {
+            evalOverdue = d.essayPendingTeacherEvalCount(draftSubmission, activeStudentIds);
         }
-        const resubmit = d.essayResubmitCount(draftSubmission);
-        return { awaitingSub, overdueSub, evalOverdue, resubmit };
+        const resubmit = d.essayResubmitCount(draftSubmission, activeStudentIds);
+        const debateVideo = d.essayDebateVideoMissingCount
+            ? d.essayDebateVideoMissingCount(draftSubmission, activeStudentIds)
+            : 0;
+        return { awaitingSub, overdueSub, evalOverdue, resubmit, debateVideo };
     }
 
     function studentMatchesFilter(studentId) {
@@ -1598,6 +1777,9 @@
         const status = rec ? rec.status : 'not_submitted';
         if (currentFilter === 'all') {
             return true;
+        }
+        if (currentFilter === 'debate_video_missing') {
+            return !!(rec && rec.debateVideoMissing);
         }
         if (currentFilter === 'awaiting_sub') {
             const ssDue = draftSubmission ? draftSubmission.ssDueDate || '' : '';
@@ -1780,6 +1962,7 @@
                 studentId,
                 status: 'not_submitted',
                 submittedRetest: false,
+                debateVideoMissing: false,
                 note: '',
                 submissionLate: false,
                 overdueDismissed: false
@@ -1828,6 +2011,7 @@
                 studentId: rec.studentId || '',
                 status: rec.status || 'not_submitted',
                 submittedRetest: !!rec.submittedRetest,
+                debateVideoMissing: !!rec.debateVideoMissing,
                 note: rec.note || '',
                 submissionLate: !!rec.submissionLate,
                 overdueDismissed: !!rec.overdueDismissed
@@ -1838,8 +2022,11 @@
     function getEssayStatusCounts() {
         const d = domain();
         const students = getStudents();
+        const activeStudentIds = students
+            .map((entry) => entry && entry.student && entry.student.id)
+            .filter(Boolean);
         const counts = d && draftSubmission
-            ? d.countEssayByStatus(draftSubmission)
+            ? d.countEssayByStatus(draftSubmission, activeStudentIds)
             : { not_submitted: 0, submitted: 0, complete: 0, resubmit_required: 0, incomplete: 0, exempt: 0 };
         return Object.assign({ total: students.length }, counts);
     }
@@ -2038,7 +2225,10 @@
         if (!d || !isoDate || !d.isEssayTeacherEvalOverdue) {
             return '';
         }
-        if (!d.isEssayTeacherEvalOverdue(submission, isoDate)) {
+        const activeStudentIds = getStudents()
+            .map((entry) => entry && entry.student && entry.student.id)
+            .filter(Boolean);
+        if (!d.isEssayTeacherEvalOverdue(submission, isoDate, activeStudentIds)) {
             return '';
         }
         const days = d.daysUntilISO(isoDate);
@@ -2109,11 +2299,16 @@
         zone.render(mount);
     }
 
-    function buildAlertBadgesHtml(rs, od, ae) {
+    function buildAlertBadgesHtml(rs, od, ae, asCount, nv) {
         const parts = [];
         if (rs > 0) {
             parts.push(
                 `<span class="classroom-essay-alert-badge classroom-essay-alert-rs">${escapeHtml(tf('classroomEssayAlertRs', { count: rs }))}</span>`
+            );
+        }
+        if (asCount > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-as">${escapeHtml(tf('classroomEssayAlertAs', { count: asCount }))}</span>`
             );
         }
         if (od > 0) {
@@ -2124,6 +2319,11 @@
         if (ae > 0) {
             parts.push(
                 `<span class="classroom-essay-alert-badge classroom-essay-alert-ae">${escapeHtml(tf('classroomEssayAlertAe', { count: ae }))}</span>`
+            );
+        }
+        if (nv > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('classroomEssayDebateVideoMissing'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: nv }))}</span>`
             );
         }
         return parts.length
@@ -2162,7 +2362,7 @@
         await flushBeforeLeave();
         closeClassPicker();
         if (typeof global.CCPActiveContext !== 'undefined') {
-            global.CCPActiveContext.set({ classId: nextClassId }, { source: 'essays-class-picker' });
+            global.CCPActiveContext.setFromClass(getAppData(), nextClassId, undefined, 'essays-zone-context');
         } else if (hooks && hooks.setUiPref) {
             hooks.setUiPref('classroomTabClassId', nextClassId);
             classId = nextClassId;
@@ -2198,178 +2398,9 @@
         });
     }
 
-    function renderClassPickerPopover(panel) {
-        const mount = panel.querySelector('#classroomEssaysContextBar');
-        if (!mount) {
-            return;
-        }
-        const classData = getClassData();
-        const d = domain();
-        const data = getAppData();
-        const submissions = getEssaySubmissionsForAlerts();
-        const currentCounts =
-            classData && d
-                ? d.essayAlertCountsForClass(submissions, classData, data.cohorts || [])
-                : { rs: 0, od: 0, ae: 0 };
-        const currentName = classData ? classData.name || classData.id || '' : '';
-        const currentBadges = buildAlertBadgesHtml(
-            currentCounts.rs || 0,
-            currentCounts.od || 0,
-            currentCounts.ae || 0
-        );
-
-        const chip = (filter, labelKey) => {
-            const active = essayClassAttentionFilter === filter ? ' is-active' : '';
-            return `<button type="button" class="classroom-essay-class-filter-chip${active}" data-class-filter="${escapeAttr(filter)}">${escapeHtml(t(labelKey))}</button>`;
-        };
-
-        const classes = filterClassesForAttention(
-            filterEssayClassesForSearch(getEssayPickerClasses(), essayClassSearchQuery, classId)
-        );
-
-        const listHtml = classes.length
-            ? classes
-                .map((c) => {
-                    const selected = c.id === classId ? ' is-selected' : '';
-                    const label = c.name || c.id || '';
-                    const counts =
-                        d && c
-                            ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
-                            : { rs: 0, od: 0, ae: 0 };
-                    const rs = counts.rs || 0;
-                    const od = counts.od || 0;
-                    const ae = counts.ae || 0;
-                    const badgeHtml =
-                        rs > 0 || od > 0 || ae > 0
-                            ? buildAlertBadgesHtml(rs, od, ae)
-                            : `<span class="classroom-essay-class-clear section-hint">${escapeHtml(t('classroomEssayClassClear'))}</span>`;
-                    return `<button type="button" class="module-list-item classroom-essay-class-picker-item${selected}" role="option" aria-selected="${c.id === classId ? 'true' : 'false'}" data-class-id="${escapeAttr(c.id)}">
-                        <span class="classroom-essay-class-picker-item__label">${escapeHtml(label)}</span>
-                        <span class="classroom-essay-class-picker-item__badges">${badgeHtml}</span>
-                    </button>`;
-                })
-                .join('')
-            : `<p class="section-hint classroom-essay-class-picker-empty">${escapeHtml(t('classroomEssayClassComboboxEmpty'))}</p>`;
-
-        const hasEssaysHintHtml =
-            essayClassAttentionFilter === 'has_essays'
-                ? `<p class="section-hint classroom-essay-class-filter-hint">${escapeHtml(t('classroomEssayHasEssaysFilterHint'))}</p>`
-                : '';
-
-        function syncPickerChipsAndHint(popover) {
-            popover.querySelectorAll('[data-class-filter]').forEach((btn) => {
-                const filter = btn.getAttribute('data-class-filter') || '';
-                btn.classList.toggle('is-active', essayClassAttentionFilter === filter);
-            });
-            const chips = popover.querySelector('.classroom-essay-class-filter-chips');
-            let hint = popover.querySelector('.classroom-essay-class-filter-hint');
-            if (essayClassAttentionFilter === 'has_essays') {
-                if (!hint && chips) {
-                    chips.insertAdjacentHTML('afterend', hasEssaysHintHtml);
-                } else if (hint) {
-                    hint.textContent = t('classroomEssayHasEssaysFilterHint');
-                }
-            } else if (hint) {
-                hint.remove();
-            }
-        }
-
-        function bindPickerListClicks(listEl) {
-            if (!listEl) {
-                return;
-            }
-            listEl.querySelectorAll('[data-class-id]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-class-id') || '';
-                    if (id) {
-                        void selectClass(panel, id);
-                    }
-                });
-            });
-        }
-
-        const pickerField = mount.querySelector('.classroom-essay-class-picker');
-        if (pickerField) {
-            const trigger = pickerField.querySelector('#classroomEssaysClassPickerTrigger');
-            if (trigger) {
-                trigger.querySelector('.classroom-essay-class-picker__name').textContent = currentName;
-                const badgesEl = trigger.querySelector('.classroom-essay-class-picker__badges');
-                if (badgesEl) {
-                    badgesEl.innerHTML = currentBadges;
-                }
-                trigger.setAttribute('aria-expanded', classPickerOpen ? 'true' : 'false');
-                if (!trigger.dataset.bound) {
-                    trigger.dataset.bound = '1';
-                    trigger.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        classPickerOpen = !classPickerOpen;
-                        renderContextBar(panel);
-                    });
-                }
-            }
-
-            let existingPopover = pickerField.querySelector('#classroomEssaysClassPickerPopover');
-            if (!classPickerOpen) {
-                if (existingPopover) {
-                    existingPopover.remove();
-                }
-                return;
-            }
-
-            // Keep the search input mounted while filtering so typing does not steal focus.
-            if (existingPopover) {
-                const listEl = existingPopover.querySelector('#classroomEssaysClassList');
-                if (listEl) {
-                    listEl.innerHTML = listHtml;
-                    bindPickerListClicks(listEl);
-                }
-                syncPickerChipsAndHint(existingPopover);
-                const searchEl = existingPopover.querySelector('#classroomEssaysClassSearch');
-                if (searchEl && searchEl.value !== essayClassSearchQuery) {
-                    searchEl.value = essayClassSearchQuery;
-                }
-                return;
-            }
-
-            pickerField.insertAdjacentHTML(
-                'beforeend',
-                `<div id="classroomEssaysClassPickerPopover" class="classroom-essay-class-picker__popover lesson-filter-popover lesson-filter-popover-panel" role="dialog" aria-label="${escapeAttr(t('classroomEssaySidebarClassTitle'))}">
-                <input type="search" id="classroomEssaysClassSearch" class="field-input module-list-search" autocomplete="off" spellcheck="false" value="${escapeAttr(essayClassSearchQuery)}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" data-i18n-placeholder="classListSearchPlaceholder" />
-                <div class="classroom-essay-class-filter-chips" role="group">
-                    ${chip('all', 'classroomEssayFilterAll')}
-                    ${chip('has_essays', 'classroomZoneEssaysOnly')}
-                    ${chip('resubmits', 'classroomEssayClassFilterResubmits')}
-                    ${chip('overdue', 'classroomEssayClassFilterOverdue')}
-                    ${chip('mine', 'classroomZoneMyClassesOnly')}
-                </div>
-                ${hasEssaysHintHtml}
-                <div id="classroomEssaysClassList" class="module-list classroom-essay-class-picker-list" role="listbox">${listHtml}</div>
-            </div>`
-            );
-            existingPopover = pickerField.querySelector('#classroomEssaysClassPickerPopover');
-            const search = existingPopover && existingPopover.querySelector('#classroomEssaysClassSearch');
-            if (search && !search.dataset.bound) {
-                search.dataset.bound = '1';
-                search.addEventListener('input', (e) => {
-                    essayClassSearchQuery = e.target.value || '';
-                    renderClassPickerPopover(panel);
-                });
-            }
-            existingPopover?.querySelectorAll('[data-class-filter]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const next = btn.getAttribute('data-class-filter') || 'all';
-                    essayClassAttentionFilter = next;
-                    if (next === 'mine' && hooks && hooks.setUiPref) {
-                        hooks.setUiPref('classroomZoneMyClassesOnly', '1');
-                    }
-                    renderClassPickerPopover(panel);
-                });
-            });
-            bindPickerListClicks(existingPopover?.querySelector('#classroomEssaysClassList'));
-            if (search) {
-                search.focus();
-            }
-        }
+    /** Local class picker removed — shared #classroomZoneContextBar drives class selection. */
+    function renderClassPickerPopover() {
+        classPickerOpen = false;
     }
 
     function bindContextBarOutsideClick(panel) {
@@ -2381,12 +2412,7 @@
             if (!panel || panel.hidden) {
                 return;
             }
-            const picker = panel.querySelector('.classroom-essay-class-picker');
             const reports = panel.querySelector('.classroom-essay-reports-menu');
-            if (classPickerOpen && picker && !picker.contains(e.target)) {
-                closeClassPicker();
-                renderContextBar(panel);
-            }
             if (reportsMenuOpen && reports && !reports.contains(e.target)) {
                 closeReportsMenu();
                 renderReportsMenu(panel);
@@ -2468,21 +2494,14 @@
                 .join('')
             : `<option value="">${escapeHtml(t('classroomEssayNoAssignment'))}</option>`;
 
-        // Rebuild if missing inner shell or Add button (stale DOM from older Essays markup).
+        // Rebuild if missing inner shell, Add button, or leftover local class picker (migrated away).
         const needsShell =
             !mount.querySelector('.classroom-essays-context-bar-inner') ||
-            !mount.querySelector('#classroomEssaysAddAssignmentBtn');
+            !mount.querySelector('#classroomEssaysAddAssignmentBtn') ||
+            !!mount.querySelector('.classroom-essay-class-picker');
         if (needsShell) {
             mount.innerHTML = `
                 <div class="classroom-essays-context-bar-inner">
-                    <div class="classroom-essay-context-field classroom-essay-class-picker">
-                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomClassLabel'))}</span>
-                        <button type="button" id="classroomEssaysClassPickerTrigger" class="classroom-essay-class-picker__trigger" aria-expanded="false" aria-haspopup="listbox">
-                            <span class="classroom-essay-class-picker__name"></span>
-                            <span class="classroom-essay-class-picker__badges"></span>
-                            <span class="classroom-essay-class-picker__chevron" aria-hidden="true">▾</span>
-                        </button>
-                    </div>
                     <div class="classroom-essay-context-field classroom-essay-context-field--grow">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>
                         <div class="classroom-essay-assignment-row">
@@ -2526,7 +2545,7 @@
             }
         }
 
-        renderClassPickerPopover(panel);
+        renderClassPickerPopover();
     }
 
     async function selectAssignment(panel, nextSyllabusRowId, nextLessonDate) {
@@ -2778,7 +2797,10 @@
         }
         mount.hidden = false;
         const d = domain();
-        const counts = d.countEssayByStatus(draftSubmission);
+        const activeStudentIds = getStudents()
+            .map((entry) => entry && entry.student && entry.student.id)
+            .filter(Boolean);
+        const counts = d.countEssayByStatus(draftSubmission, activeStudentIds);
         const attention = getAttentionCounts();
         const progressKeys = [
             'complete',
@@ -2823,6 +2845,7 @@
                 ${tile('overdue_sub', attention.overdueSub, 'classroomEssayAttentionOverdueSub', 'classroomEssayAttentionOverdueSubHint', 'overdue')}
                 ${tile('eval_overdue', attention.evalOverdue, 'classroomEssayAttentionEvalOverdue', 'classroomEssayAttentionEvalOverdueHint', 'eval')}
                 ${tile('resubmit_required', attention.resubmit, 'classroomEssayAttentionResubmits', 'classroomEssayAttentionResubmitsHint', 'resubmit')}
+                ${tile('debate_video_missing', attention.debateVideo || 0, 'classroomEssayAttentionDebateVideo', 'classroomEssayAttentionDebateVideoHint', 'nv')}
             </div>`;
 
         mount.innerHTML = `
@@ -2867,6 +2890,7 @@
             overdue_sub: t('classroomEssayAttentionOverdueSub'),
             eval_overdue: t('classroomEssayAttentionEvalOverdue'),
             resubmit_required: t('classroomEssayAttentionResubmits'),
+            debate_video_missing: t('classroomEssayAttentionDebateVideo'),
             not_submitted: t('classroomEssayStatusNotSubmitted'),
             submitted: t('classroomEssayStatusReceived'),
             complete: t('classroomEssayStatusComplete'),
@@ -3077,7 +3101,10 @@
                     <button type="button" class="classroom-essay-reports-item" data-report-action="class-summary" role="menuitem">${escapeHtml(t('classroomEssayClassSummaryBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="progress" role="menuitem">${escapeHtml(t('classroomEssayProgressReportBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-summary" role="menuitem">${escapeHtml(t('classroomEssayResubmitSummaryBtn'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="overdue-print" role="menuitem">${escapeHtml(t('classroomEssayOverduePrintBtn'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="overdue-copy" role="menuitem">${escapeHtml(t('classroomEssayOverdueCopyBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-print" role="menuitem">${escapeHtml(t('classroomEssayResubmitPrintBtn'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="resubmit-copy" role="menuitem">${escapeHtml(t('classroomEssayResubmitCopyBtn'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="rescan" role="menuitem">${escapeHtml(t('classroomEssayRescanBtn'))}</button>
                 </div>
             </div>`;
@@ -3103,10 +3130,25 @@
             renderReportsMenu(panel);
             openResubmitSummaryModal();
         });
+        mount.querySelector('[data-report-action="overdue-print"]')?.addEventListener('click', () => {
+            closeReportsMenu();
+            renderReportsMenu(panel);
+            printCurrentClassOverdues();
+        });
+        mount.querySelector('[data-report-action="overdue-copy"]')?.addEventListener('click', () => {
+            closeReportsMenu();
+            renderReportsMenu(panel);
+            copyCurrentClassOverdues();
+        });
         mount.querySelector('[data-report-action="resubmit-print"]')?.addEventListener('click', () => {
             closeReportsMenu();
             renderReportsMenu(panel);
             printCurrentClassResubmits();
+        });
+        mount.querySelector('[data-report-action="resubmit-copy"]')?.addEventListener('click', () => {
+            closeReportsMenu();
+            renderReportsMenu(panel);
+            copyCurrentClassResubmits();
         });
         mount.querySelector('[data-report-action="rescan"]')?.addEventListener('click', () => {
             closeReportsMenu();
@@ -3209,7 +3251,8 @@
             stateMod = '--done';
         }
         const labelKey = essayStatusLabelKey(statusKey);
-        return `<button type="button" class="classroom-essay-stage ${meta.cls} classroom-essay-stage${stateMod}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(statusKey)}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
+        const pressed = statusKey === curStatus ? 'true' : 'false';
+        return `<button type="button" class="btn btn-outline btn-small selection-chip classroom-status-chip classroom-essay-stage ${meta.cls} classroom-essay-stage${stateMod}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(statusKey)}" aria-pressed="${pressed}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
     }
 
     function buildStatusCell(studentId, editable) {
@@ -3219,10 +3262,15 @@
             status === 'resubmit_required'
                 ? `<label class="classroom-essay-retest-toggle">
                     <input type="checkbox" class="classroom-essay-retest" data-student-id="${escapeAttr(studentId)}" ${rec && rec.submittedRetest ? 'checked' : ''}${editable ? '' : ' disabled'} />
-                    <span class="classroom-essay-retest-toggle__box" aria-hidden="true"><svg class="classroom-essay-retest-toggle__check" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
+                    <span class="classroom-essay-retest-toggle__box" aria-hidden="true"><svg class="classroom-essay-retest-toggle__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
                     <span>${escapeHtml(t('classroomEssayResubmissionReceived'))}</span>
                 </label>`
                 : '';
+        const debateVideoHtml = `<label class="classroom-essay-retest-toggle classroom-essay-debate-video-toggle">
+                    <input type="checkbox" class="classroom-essay-debate-video" data-student-id="${escapeAttr(studentId)}" ${rec && rec.debateVideoMissing ? 'checked' : ''}${editable ? '' : ' disabled'} />
+                    <span class="classroom-essay-retest-toggle__box" aria-hidden="true"><svg class="classroom-essay-retest-toggle__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
+                    <span>${escapeHtml(t('classroomEssayDebateVideoMissing'))}</span>
+                </label>`;
         return `<div class="classroom-essay-status-selector">
             <div class="classroom-essay-status-selector__row" role="group" aria-label="${escapeAttr(t('classroomEssayColStatus'))}">
                 <div class="classroom-essay-status-selector__group">
@@ -3242,7 +3290,30 @@
                 </div>
             </div>
             ${retestHtml}
+            ${debateVideoHtml}
         </div>`;
+    }
+
+    function nvDuePillHtml(rec) {
+        if (!rec || !rec.debateVideoMissing) {
+            return '';
+        }
+        return `<span class="classroom-essay-due-pill classroom-essay-due-pill--danger classroom-essay-due-pill--nv" title="${escapeAttr(t('classroomEssayDebateVideoMissing'))}">${escapeHtml(t('classroomEssayDebateVideoNv'))}</span>`;
+    }
+
+    function withNvDuePill(html, rec) {
+        const nv = nvDuePillHtml(rec);
+        if (!nv) {
+            return html;
+        }
+        const body = html || '';
+        if (body.indexOf('classroom-essay-due-cell') !== -1) {
+            return body.replace(/<\/div>\s*$/, `${nv}</div>`);
+        }
+        if (!body) {
+            return `<div class="classroom-essay-due-cell">${nv}</div>`;
+        }
+        return `<div class="classroom-essay-due-cell">${body}${nv}</div>`;
     }
 
     function buildDueCell(studentId) {
@@ -3264,85 +3335,83 @@
         const restoreOverdueBtn = editable
             ? `<button type="button" class="classroom-essay-due-action btn btn-small btn-outline" data-essay-due-action="restore-overdue" data-student-id="${escapeAttr(studentId)}" title="${escapeAttr(t('classroomEssayRestoreOverdue'))}">${escapeHtml(t('classroomEssayRestoreOverdue'))}</button>`
             : '';
+        let main = '';
         if (status === 'incomplete') {
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--incomplete">${escapeHtml(t('classroomEssayStatusIncomplete'))}</span>`;
-        }
-        if (status === 'exempt') {
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--exempt">${escapeHtml(t('classroomEssayStatusExempt'))}</span>`;
-        }
-        const recordForOverdue = rec || {
-            status: 'not_submitted',
-            submissionLate: false,
-            overdueDismissed: false
-        };
-        if (d.isEssayReceivedLate(recordForOverdue)) {
-            return `<div class="classroom-essay-due-cell">
+            main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--incomplete">${escapeHtml(t('classroomEssayStatusIncomplete'))}</span>`;
+        } else if (status === 'exempt') {
+            main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--exempt">${escapeHtml(t('classroomEssayStatusExempt'))}</span>`;
+        } else {
+            const recordForOverdue = rec || {
+                status: 'not_submitted',
+                submissionLate: false,
+                overdueDismissed: false
+            };
+            if (d.isEssayReceivedLate(recordForOverdue)) {
+                main = `<div class="classroom-essay-due-cell">
                 <span class="classroom-essay-due-pill classroom-essay-due-pill--danger classroom-essay-due-pill--received-late">${escapeHtml(t('classroomEssayDueReceivedLate'))}</span>
                 ${clearBtn}
             </div>`;
-        }
-        if (status === 'not_submitted') {
-            if (rec && rec.overdueDismissed && d.isEssaySsOverdueISO(ssDue)) {
-                return `<div class="classroom-essay-due-cell">
+            } else if (status === 'not_submitted') {
+                if (rec && rec.overdueDismissed && d.isEssaySsOverdueISO(ssDue)) {
+                    main = `<div class="classroom-essay-due-cell">
                     <span class="classroom-essay-due-pill classroom-essay-due-pill--muted">${escapeHtml(t('classroomEssayDueCleared'))}</span>
                     ${restoreOverdueBtn}
                 </div>`;
-            }
-            if (d.isEssaySubmissionOverdue(recordForOverdue, ssDue)) {
-                const days = d.daysUntilISO(ssDue);
-                const n = days == null ? 0 : Math.abs(days);
-                return `<div class="classroom-essay-due-cell">
+                } else if (d.isEssaySubmissionOverdue(recordForOverdue, ssDue)) {
+                    const days = d.daysUntilISO(ssDue);
+                    const n = days == null ? 0 : Math.abs(days);
+                    main = `<div class="classroom-essay-due-cell">
                     <span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueOverdueDays', { days: n }))}</span>
                     ${clearBtn}
                 </div>`;
-            }
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--awaiting-sub">${escapeHtml(t('classroomEssayDueAwaitingSubmission'))}</span>`;
-        }
-        if (isReceivedStatus(status) && !recordForOverdue.submissionLate) {
-            const canMarkLate = editable && (d.isEssaySsOverdueISO(ssDue) || recordForOverdue.overdueDismissed);
-            const markLate = canMarkLate ? markLateBtn : '';
-            if (status === 'submitted') {
-                if (d.isEssaySsOverdueISO(teDue)) {
-                    const days = d.daysUntilISO(teDue);
-                    const n = days == null ? 0 : Math.abs(days);
-                    return `<div class="classroom-essay-due-cell">
+                } else if (d.isEssayAwaitingSubmission && d.isEssayAwaitingSubmission(recordForOverdue, ssDue)) {
+                    main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--awaiting-sub">${escapeHtml(t('classroomEssayDueAwaitingSubmission'))}</span>`;
+                } else {
+                    main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--muted">${escapeHtml(t('classroomEssayDueNotInYet'))}</span>`;
+                }
+            } else if (isReceivedStatus(status) && !recordForOverdue.submissionLate) {
+                const canMarkLate = editable && (d.isEssaySsOverdueISO(ssDue) || recordForOverdue.overdueDismissed);
+                const markLate = canMarkLate ? markLateBtn : '';
+                if (status === 'submitted') {
+                    if (d.isEssaySsOverdueISO(teDue)) {
+                        const days = d.daysUntilISO(teDue);
+                        const n = days == null ? 0 : Math.abs(days);
+                        main = `<div class="classroom-essay-due-cell">
                         <span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueEvalLateDays', { days: n }))}</span>
                         ${markLate}
                     </div>`;
-                }
-                return `<div class="classroom-essay-due-cell">
+                    } else {
+                        main = `<div class="classroom-essay-due-cell">
                     <span class="classroom-essay-due-pill classroom-essay-due-pill--submitted">${escapeHtml(t('classroomEssayDueAwaitingEval'))}</span>
                     ${markLate}
                 </div>`;
-            }
-            if (status === 'complete') {
-                return `<div class="classroom-essay-due-cell">
+                    }
+                } else if (status === 'complete') {
+                    main = `<div class="classroom-essay-due-cell">
                     <span class="classroom-essay-due-pill classroom-essay-due-pill--complete">${escapeHtml(t('classroomEssayStatusComplete'))}</span>
                     ${markLate}
                 </div>`;
-            }
-            if (status === 'resubmit_required') {
-                return `<div class="classroom-essay-due-cell">
+                } else if (status === 'resubmit_required') {
+                    main = `<div class="classroom-essay-due-cell">
                     <span class="classroom-essay-due-pill classroom-essay-due-pill--resubmit">${escapeHtml(t('classroomEssayStatusResubmit'))}</span>
                     ${markLate}
                 </div>`;
+                }
+            } else if (status === 'submitted') {
+                if (d.isEssaySsOverdueISO(teDue)) {
+                    const days = d.daysUntilISO(teDue);
+                    const n = days == null ? 0 : Math.abs(days);
+                    main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueEvalLateDays', { days: n }))}</span>`;
+                } else {
+                    main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--submitted">${escapeHtml(t('classroomEssayDueAwaitingEval'))}</span>`;
+                }
+            } else if (status === 'complete') {
+                main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--complete">${escapeHtml(t('classroomEssayStatusComplete'))}</span>`;
+            } else if (status === 'resubmit_required') {
+                main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--resubmit">${escapeHtml(t('classroomEssayStatusResubmit'))}</span>`;
             }
         }
-        if (status === 'submitted') {
-            if (d.isEssaySsOverdueISO(teDue)) {
-                const days = d.daysUntilISO(teDue);
-                const n = days == null ? 0 : Math.abs(days);
-                return `<span class="classroom-essay-due-pill classroom-essay-due-pill--danger">${escapeHtml(tf('classroomEssayDueEvalLateDays', { days: n }))}</span>`;
-            }
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--submitted">${escapeHtml(t('classroomEssayDueAwaitingEval'))}</span>`;
-        }
-        if (status === 'complete') {
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--complete">${escapeHtml(t('classroomEssayStatusComplete'))}</span>`;
-        }
-        if (status === 'resubmit_required') {
-            return `<span class="classroom-essay-due-pill classroom-essay-due-pill--resubmit">${escapeHtml(t('classroomEssayStatusResubmit'))}</span>`;
-        }
-        return '';
+        return withNvDuePill(main, rec);
     }
 
     function afterEssayStatusChange(panel, studentId) {
@@ -3404,6 +3473,10 @@
         row.querySelector('.classroom-essay-retest')?.addEventListener('change', (event) => {
             setRecord(sid, { submittedRetest: event.currentTarget.checked });
             scheduleStatusSave();
+        });
+        row.querySelector('.classroom-essay-debate-video')?.addEventListener('change', (event) => {
+            setRecord(sid, { debateVideoMissing: event.currentTarget.checked });
+            afterEssayStatusChange(panel, sid);
         });
         const noteInput = row.querySelector('.classroom-essay-note');
         if (noteInput) {
@@ -3671,16 +3744,1185 @@
             return;
         }
         await flushBeforeLeave();
+        const preferredDate = lessonDate;
         syncClassIdFromContext();
-        applyResolvedAssignment(getClassData());
+        applyResolvedAssignment(getClassData(), preferredDate);
         selectedStudentIds.clear();
         loadSubmission();
         render(panel);
     }
 
+    function setEssayTmsError(msg) {
+        const el = document.getElementById('essayTmsSyncError');
+        if (!el) {
+            return;
+        }
+        if (msg) {
+            el.textContent = msg;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function setEssayTmsStatus(msg) {
+        const el = document.getElementById('essayTmsSyncStatus');
+        if (el) {
+            el.textContent = msg || '';
+        }
+    }
+
+    function hydrateEssayTmsCredForm() {
+        const userEl = document.getElementById('essayTmsUsername');
+        const rememberEl = document.getElementById('essayTmsRememberUser');
+        let saved = '';
+        try {
+            saved = String(localStorage.getItem(ESSAY_TMS_USERNAME_KEY) || '');
+        } catch (_) {
+            saved = '';
+        }
+        if (userEl && !userEl.value && saved) {
+            userEl.value = saved;
+        }
+        if (rememberEl) {
+            rememberEl.checked = Boolean(saved);
+        }
+    }
+
+    function readEssayTmsCreds() {
+        const userEl = document.getElementById('essayTmsUsername');
+        const passEl = document.getElementById('essayTmsPassword');
+        const rememberEl = document.getElementById('essayTmsRememberUser');
+        return {
+            username: userEl ? String(userEl.value || '').trim() : '',
+            password: passEl ? String(passEl.value || '') : '',
+            rememberUser: Boolean(rememberEl && rememberEl.checked)
+        };
+    }
+
+    function persistEssayTmsUsername(username, remember) {
+        try {
+            if (remember && username) {
+                localStorage.setItem(ESSAY_TMS_USERNAME_KEY, username);
+            } else if (!remember) {
+                localStorage.removeItem(ESSAY_TMS_USERNAME_KEY);
+            }
+        } catch (_) {
+            /* ignore */
+        }
+    }
+
+    function isLocalClassManagerHost() {
+        try {
+            if (typeof location === 'undefined') {
+                return false;
+            }
+            const host = String(location.hostname || '').toLowerCase();
+            return host === 'localhost' || host === '127.0.0.1';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function tmsBridgeFetchInit(extra) {
+        return Object.assign(
+            {
+                credentials: 'omit',
+                targetAddressSpace: 'loopback'
+            },
+            extra || {}
+        );
+    }
+
+    async function probeEssayTmsLocalBridge() {
+        if (isLocalClassManagerHost()) {
+            return null;
+        }
+        const bases = ['http://127.0.0.1:8080', 'http://localhost:8080'];
+        for (const base of bases) {
+            const controller =
+                typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), 3000) : null;
+            try {
+                const res = await fetch(
+                    `${base}/api/tms/bridge/ping`,
+                    tmsBridgeFetchInit({
+                        method: 'GET',
+                        signal: controller ? controller.signal : undefined
+                    })
+                );
+                if (timer) {
+                    clearTimeout(timer);
+                }
+                if (!res.ok) {
+                    continue;
+                }
+                const body = await res.json().catch(() => null);
+                if (body && body.ok === true && body.bridge === true) {
+                    return {
+                        base,
+                        previewUrl: `${base}/api/tms/bridge/essays/preview`
+                    };
+                }
+            } catch (_) {
+                if (timer) {
+                    clearTimeout(timer);
+                }
+            }
+        }
+        return null;
+    }
+
+    function essayTmsUnmatchedReason(row) {
+        const reason = row && row.reason;
+        if (reason === 'class_unlinked' || reason === 'class_missing') {
+            return t('classroomEssayTmsSyncReasonClassUnlinked');
+        }
+        if (reason === 'no_class_for_cohort') {
+            return t('classroomEssayTmsSyncReasonNoClass');
+        }
+        if (reason === 'assignment_unmatched' || reason === 'assignment_missing' || reason === 'assignment_month_mismatch') {
+            return t('classroomEssayTmsSyncReasonAssignment');
+        }
+        if (reason === 'student_unmatched') {
+            return t('classroomEssayTmsSyncReasonStudent');
+        }
+        if (reason === 'student_unclear') {
+            return t('classroomEssayTmsSyncReasonStudentUnclear');
+        }
+        if (reason === 'student_skipped') {
+            return t('classroomEssayTmsSyncReasonStudentSkipped');
+        }
+        if (reason === 'unresolved') {
+            return t('classroomEssayTmsSyncReasonUnresolved');
+        }
+        if (reason === 'skipped_by_user') {
+            return t('classroomEssayTmsSyncReasonSkipped');
+        }
+        if (reason === 'already_set') {
+            return t('classroomEssayTmsSyncReasonAlready').replace(
+                '{status}',
+                t(essayStatusLabelKey(row.prevStatus || 'not_submitted'))
+            );
+        }
+        return reason || '';
+    }
+
+    function ensureEssayPlanStudentResolutions(row) {
+        if (!row.studentResolutions || typeof row.studentResolutions !== 'object') {
+            row.studentResolutions = {};
+        }
+        return row.studentResolutions;
+    }
+
+    function collectEssayTmsStudentQueue() {
+        const d = domain();
+        if (!d || !d.listEssayTmsStudentReviewQueue) {
+            refreshEssayTmsPreviewFromPlan();
+            return (essayTmsPreview && essayTmsPreview.unmatched
+                ? essayTmsPreview.unmatched
+                : []
+            ).filter((u) => u && u.needsReview);
+        }
+        return d.listEssayTmsStudentReviewQueue(getAppData(), essayTmsPlan);
+    }
+
+    function essayTmsStudentsResolved() {
+        return collectEssayTmsStudentQueue().length === 0;
+    }
+
+    function getCurrentEssayStudentResolution() {
+        const entry = essayTmsStudentQueue[essayTmsStudentIndex];
+        if (!entry || entry.rowIdx == null) {
+            return null;
+        }
+        const row = essayTmsPlan[entry.rowIdx];
+        const key = entry.tmsKey;
+        if (!row || !key) {
+            return null;
+        }
+        ensureEssayPlanStudentResolutions(row);
+        return row.studentResolutions[key] || null;
+    }
+
+    function setCurrentEssayStudentResolution(action, studentId) {
+        const entry = essayTmsStudentQueue[essayTmsStudentIndex];
+        if (!entry || entry.rowIdx == null || !entry.tmsKey) {
+            return;
+        }
+        const row = essayTmsPlan[entry.rowIdx];
+        if (!row) {
+            return;
+        }
+        ensureEssayPlanStudentResolutions(row);
+        if (action === 'map') {
+            row.studentResolutions[entry.tmsKey] = {
+                action: 'map',
+                studentId: String(studentId || '')
+            };
+        } else if (action === 'add') {
+            row.studentResolutions[entry.tmsKey] = { action: 'add' };
+        } else {
+            row.studentResolutions[entry.tmsKey] = { action: 'skip' };
+        }
+    }
+
+    function syncEssayTmsWizardPanels() {
+        const review = document.getElementById('essayTmsStudentReview');
+        const mapping = document.getElementById('essayTmsSyncPreviewTable');
+        const batchBar = document.getElementById('essayTmsSyncBatchBar');
+        const credForm = document.getElementById('essayTmsCredForm');
+        const confirmBtn = document.getElementById('essayTmsSyncConfirmBtn');
+        const onReview = essayTmsWizardStep === 2 && essayTmsStudentQueue.length > 0;
+        if (review) {
+            review.hidden = !onReview;
+        }
+        if (mapping) {
+            mapping.hidden = onReview;
+        }
+        if (batchBar) {
+            batchBar.hidden =
+                onReview || Boolean(essayTmsLoading) || !essayTmsHasFetched || essayTmsPlan.length === 0;
+        }
+        if (credForm) {
+            credForm.hidden = onReview;
+        }
+        if (confirmBtn) {
+            confirmBtn.hidden = onReview;
+        }
+        if (onReview) {
+            renderEssayTmsStudentReview();
+        }
+    }
+
+    function renderEssayTmsStudentReview() {
+        const entry = essayTmsStudentQueue[essayTmsStudentIndex];
+        if (!entry) {
+            return;
+        }
+        const progress = document.getElementById('essayTmsStudentReviewProgress');
+        const reasonEl = document.getElementById('essayTmsStudentReviewReason');
+        const nameEl = document.getElementById('essayTmsStudentReviewName');
+        const labelEl = document.getElementById('essayTmsStudentReviewNameLabel');
+        const optionsEl = document.getElementById('essayTmsStudentReviewOptions');
+        const backBtn = document.getElementById('essayTmsStudentReviewBackBtn');
+        const nextBtn = document.getElementById('essayTmsStudentReviewNextBtn');
+        if (progress) {
+            progress.textContent = t('classroomEssayTmsStudentProgress')
+                .replace('{current}', String(essayTmsStudentIndex + 1))
+                .replace('{total}', String(essayTmsStudentQueue.length))
+                .replace('{class}', entry.className || '');
+        }
+        if (reasonEl) {
+            reasonEl.textContent = essayTmsUnmatchedReason(entry);
+        }
+        if (labelEl) {
+            labelEl.textContent = t('classroomEssayTmsStudentNameLabel');
+        }
+        if (nameEl) {
+            const en = entry.studentNameEn ? ` (${entry.studentNameEn})` : '';
+            nameEl.textContent = `${entry.studentName || ''}${en}`;
+        }
+        const res = getCurrentEssayStudentResolution();
+        const selected = (res && res.action) || '';
+        const selectedId = (res && res.studentId) || '';
+        const candidates = Array.isArray(entry.candidates) ? entry.candidates : [];
+        if (optionsEl) {
+            const mapOptions = candidates
+                .map((c) => {
+                    const en = c.nameEn ? ` (${c.nameEn})` : '';
+                    const sel =
+                        selected === 'map' && selectedId === c.id ? ' selected' : '';
+                    return `<option value="${escapeAttr(c.id)}"${sel}>${escapeHtml(
+                        `${c.name || ''}${en}`
+                    )}</option>`;
+                })
+                .join('');
+            optionsEl.innerHTML = [
+                `<label class="checkbox-label selection-chip"><input type="radio" name="essayTmsStudentChoice" value="map"${
+                    selected === 'map' ? ' checked' : ''
+                }><span>${escapeHtml(t('classroomEssayTmsStudentMap'))}</span></label>`,
+                `<select id="essayTmsStudentMapSelect" class="field-select"${
+                    selected === 'map' ? '' : ' disabled'
+                }><option value="">${escapeHtml(
+                    t('classroomEssayTmsStudentMapChoose')
+                )}</option>${mapOptions}</select>`,
+                `<label class="checkbox-label selection-chip"><input type="radio" name="essayTmsStudentChoice" value="add"${
+                    selected === 'add' ? ' checked' : ''
+                }><span>${escapeHtml(t('classroomEssayTmsStudentAdd'))}</span></label>`,
+                `<label class="checkbox-label selection-chip"><input type="radio" name="essayTmsStudentChoice" value="skip"${
+                    selected === 'skip' ? ' checked' : ''
+                }><span>${escapeHtml(t('classroomEssayTmsStudentSkip'))}</span></label>`
+            ].join('');
+            optionsEl.querySelectorAll('input[name="essayTmsStudentChoice"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    const mapSel = document.getElementById('essayTmsStudentMapSelect');
+                    if (input.value === 'map') {
+                        if (mapSel) {
+                            mapSel.disabled = false;
+                        }
+                        setCurrentEssayStudentResolution('map', mapSel ? mapSel.value : '');
+                    } else {
+                        if (mapSel) {
+                            mapSel.disabled = true;
+                        }
+                        setCurrentEssayStudentResolution(input.value);
+                    }
+                    updateEssayTmsStudentNavButtons();
+                });
+            });
+            optionsEl
+                .querySelector('#essayTmsStudentMapSelect')
+                ?.addEventListener('change', (e) => {
+                    setCurrentEssayStudentResolution('map', e.target.value);
+                    const mapRadio = optionsEl.querySelector(
+                        'input[name="essayTmsStudentChoice"][value="map"]'
+                    );
+                    if (mapRadio) {
+                        mapRadio.checked = true;
+                    }
+                    updateEssayTmsStudentNavButtons();
+                });
+        }
+        if (backBtn) {
+            backBtn.disabled = false;
+            backBtn.textContent =
+                essayTmsStudentIndex === 0
+                    ? t('rosterTmsMissingBackToPrior')
+                    : t('rosterTmsReviewBack');
+        }
+        if (nextBtn) {
+            nextBtn.textContent =
+                essayTmsStudentIndex >= essayTmsStudentQueue.length - 1
+                    ? t('rosterTmsReviewFinish')
+                    : t('rosterTmsReviewNext');
+        }
+        updateEssayTmsStudentNavButtons();
+    }
+
+    function updateEssayTmsStudentNavButtons() {
+        const nextBtn = document.getElementById('essayTmsStudentReviewNextBtn');
+        const res = getCurrentEssayStudentResolution();
+        const ok =
+            res &&
+            (res.action === 'add' ||
+                res.action === 'skip' ||
+                (res.action === 'map' && res.studentId));
+        if (nextBtn) {
+            nextBtn.disabled = !ok;
+        }
+    }
+
+    function enterEssayTmsStudentReview() {
+        essayTmsStudentQueue = collectEssayTmsStudentQueue();
+        if (!essayTmsStudentQueue.length) {
+            essayTmsWizardStep = 1;
+            syncEssayTmsWizardPanels();
+            void finishEssayTmsSyncApply();
+            return;
+        }
+        essayTmsWizardStep = 2;
+        essayTmsStudentIndex = 0;
+        syncEssayTmsWizardPanels();
+    }
+
+    function essayTmsStudentReviewBack() {
+        if (essayTmsStudentIndex > 0) {
+            essayTmsStudentIndex -= 1;
+            renderEssayTmsStudentReview();
+            return;
+        }
+        essayTmsWizardStep = 1;
+        essayTmsStudentQueue = [];
+        syncEssayTmsWizardPanels();
+        renderEssayTmsPreview();
+    }
+
+    function essayTmsStudentReviewNext() {
+        const res = getCurrentEssayStudentResolution();
+        const ok =
+            res &&
+            (res.action === 'add' ||
+                res.action === 'skip' ||
+                (res.action === 'map' && res.studentId));
+        if (!ok) {
+            setEssayTmsError(t('classroomEssayTmsStudentChoiceRequired'));
+            return;
+        }
+        setEssayTmsError('');
+        if (essayTmsStudentIndex < essayTmsStudentQueue.length - 1) {
+            essayTmsStudentIndex += 1;
+            renderEssayTmsStudentReview();
+            return;
+        }
+        essayTmsWizardStep = 1;
+        essayTmsStudentQueue = [];
+        syncEssayTmsWizardPanels();
+        void finishEssayTmsSyncApply();
+    }
+
+    function refreshEssayTmsPreviewFromPlan() {
+        const d = domain();
+        if (!d || !d.previewTmsEssaySyncPlan) {
+            essayTmsPreview = null;
+            return;
+        }
+        essayTmsPreview = d.previewTmsEssaySyncPlan(getAppData(), essayTmsPlan);
+    }
+
+    function getTermRange() {
+        if (hooks && hooks.getTermDateRange) {
+            return hooks.getTermDateRange();
+        }
+        return { start: '', end: '' };
+    }
+
+    function essayAssignmentOptionsHtml(classId, selectedRowId, suggestedRowId, assignedDate) {
+        const d = domain();
+        const data = getAppData();
+        const classData = (data.classes || []).find((c) => c && c.id === classId);
+        const term = getTermRange();
+        const rows = classData && d
+            ? d.getEssayRowsForAssignedMonth(
+                classData.syllabusRows,
+                assignedDate,
+                term.start,
+                term.end
+            )
+            : [];
+        const opts = [
+            `<option value=""${ !selectedRowId ? ' selected' : ''}>${escapeHtml(t('classroomEssayTmsSyncChooseAssignment'))}</option>`
+        ];
+        const byMonth = new Map();
+        rows.forEach((row) => {
+            const month = (row.date || '').slice(0, 7) || '—';
+            if (!byMonth.has(month)) {
+                byMonth.set(month, []);
+            }
+            byMonth.get(month).push(row);
+        });
+        const months = Array.from(byMonth.keys()).sort().reverse();
+        months.forEach((month) => {
+            const groupRows = byMonth.get(month);
+            if (months.length > 1) {
+                opts.push(`<optgroup label="${escapeAttr(month)}">`);
+            }
+            groupRows.forEach((row) => {
+                const rid = d.getSyllabusRowKey ? d.getSyllabusRowKey(row) : row.id;
+                const label = `${row.date || ''} — ${row.planTitle || ''}`;
+                const sug =
+                    suggestedRowId && rid === suggestedRowId && !selectedRowId
+                        ? ` (${t('classroomEssayTmsSyncSuggested')})`
+                        : '';
+                opts.push(
+                    `<option value="${escapeAttr(rid)}"${selectedRowId === rid ? ' selected' : ''}>${escapeHtml(label + sug)}</option>`
+                );
+            });
+            if (months.length > 1) {
+                opts.push('</optgroup>');
+            }
+        });
+        return opts.join('');
+    }
+
+    function essayClassOptionsHtml(selectedClassId, suggestedClassId) {
+        const d = domain();
+        const classes = d && d.listEssayClasses ? d.listEssayClasses(getAppData()) : [];
+        const opts = [
+            `<option value="__skip__"${selectedClassId === '__skip__' ? ' selected' : ''}>${escapeHtml(t('classroomEssayTmsSyncSkip'))}</option>`,
+            `<option value=""${ !selectedClassId || selectedClassId === '' ? ' selected' : ''}>${escapeHtml(t('classroomEssayTmsSyncChooseClass'))}</option>`
+        ];
+        classes.forEach((c) => {
+            const sug =
+                suggestedClassId && c.id === suggestedClassId && !selectedClassId
+                    ? ` (${t('classroomEssayTmsSyncSuggested')})`
+                    : '';
+            opts.push(
+                `<option value="${escapeAttr(c.id)}"${selectedClassId === c.id ? ' selected' : ''}>${escapeHtml((c.name || c.id) + sug)}</option>`
+            );
+        });
+        return opts.join('');
+    }
+
+    function syncEssayTmsBatchBar() {
+        const bar = document.getElementById('essayTmsSyncBatchBar');
+        if (bar) {
+            bar.hidden = Boolean(essayTmsLoading) || !essayTmsHasFetched || essayTmsPlan.length === 0;
+        }
+    }
+
+    function planRowResolved(row) {
+        if (!row) {
+            return false;
+        }
+        if (row.userAction === 'skip') {
+            return true;
+        }
+        return (
+            row.userAction === 'map' &&
+            Boolean(row.userClassId) &&
+            Boolean(row.userSyllabusRowId)
+        );
+    }
+
+    function renderEssayTmsPreview() {
+        const mount = document.getElementById('essayTmsSyncPreviewTable');
+        const confirmBtn = document.getElementById('essayTmsSyncConfirmBtn');
+        if (!mount) {
+            return;
+        }
+        syncEssayTmsBatchBar();
+
+        if (!essayTmsHasFetched) {
+            mount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomEssayTmsSyncIdle'))}</p>`;
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+            }
+            return;
+        }
+
+        refreshEssayTmsPreviewFromPlan();
+        const preview = essayTmsPreview || { updates: [], skipped: [], unmatched: [] };
+        const updates = preview.updates || [];
+        const skipped = preview.skipped || [];
+        const unmatched = preview.unmatched || [];
+
+        const summary = t('classroomEssayTmsSyncPreviewSummary')
+            .replace('{updates}', String(updates.length))
+            .replace('{skipped}', String(skipped.length))
+            .replace('{unmatched}', String(unmatched.length));
+
+        const mapRows = essayTmsPlan
+            .map((row, idx) => {
+                const selectedClass =
+                    row.userAction === 'skip' ? '__skip__' : row.userClassId || '';
+                const assignDisabled = row.userAction === 'skip' || !row.userClassId ? ' disabled' : '';
+                const rememberHint = row.remembered
+                    ? `<div class="section-hint">${escapeHtml(t('classroomEssayTmsSyncRemembered'))}</div>`
+                    : '';
+                const sugHint =
+                    !row.remembered && row.suggestedClassId
+                        ? `<div class="section-hint">${escapeHtml(t('classroomEssayTmsSyncSuggestionHint'))}</div>`
+                        : '';
+                const tmsDate = row.assignedDate || row.lessonDate || '';
+                const tmsLabel = `${row.className || ''}${tmsDate ? ` · ${tmsDate}` : ''}`;
+                return `<tr data-essay-tms-row="${idx}">
+                    <td>${escapeHtml(tmsLabel)}${rememberHint}${sugHint}</td>
+                    <td>${escapeHtml(row.title || '')}</td>
+                    <td>${row.studentCount || 0}</td>
+                    <td><select class="field-select essay-tms-class" data-essay-tms-row="${idx}">${essayClassOptionsHtml(selectedClass, row.suggestedClassId)}</select></td>
+                    <td><select class="field-select essay-tms-assignment" data-essay-tms-row="${idx}"${assignDisabled}>${essayAssignmentOptionsHtml(row.userClassId, row.userSyllabusRowId, row.suggestedSyllabusRowId, row.assignedDate || row.lessonDate)}</select></td>
+                </tr>`;
+            })
+            .join('');
+
+        let html = `<p class="section-hint">${escapeHtml(summary)}</p>`;
+        if (essayTmsFilteredOutOfTermCount > 0) {
+            html += `<p class="section-hint">${escapeHtml(
+                t('classroomEssayTmsSyncFilteredOutOfTerm').replace(
+                    '{count}',
+                    String(essayTmsFilteredOutOfTermCount)
+                )
+            )}</p>`;
+        }
+        if (essayTmsPlan.length) {
+            html += `<table class="roster-import-table"><thead><tr>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColTms'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColSubject'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColStudents'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColCcmuClass'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColCcmuAssignment'))}</th>
+            </tr></thead><tbody>${mapRows}</tbody></table>`;
+        } else if (!essayTmsLoading) {
+            html += `<p class="section-hint">${escapeHtml(
+                essayTmsFilteredOutOfTermCount > 0
+                    ? t('classroomEssayTmsSyncAllOutOfTerm')
+                    : t('classroomEssayTmsSyncEmpty')
+            )}</p>`;
+        }
+
+        if (updates.length) {
+            const updateRows = updates
+                .slice(0, 120)
+                .map((u) => {
+                    const late = u.submissionLate
+                        ? ` <span class="section-hint">(${escapeHtml(t('classroomEssayTmsSyncLate'))})</span>`
+                        : '';
+                    return `<tr>
+                        <td>${escapeHtml(u.className || '')}</td>
+                        <td>${escapeHtml(u.assignmentLabel || u.tmsTitle || '')}</td>
+                        <td>${escapeHtml(u.studentName || u.tmsName || '')}</td>
+                        <td>${escapeHtml(t('classroomEssayTmsSyncChangeLine'))}${late}</td>
+                    </tr>`;
+                })
+                .join('');
+            html += `<p class="section-hint">${escapeHtml(t('classroomEssayTmsSyncUpdatesTitle'))}</p>`;
+            html += `<table class="roster-import-table"><thead><tr>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColClass'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColAssignment'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColStudent'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColChange'))}</th>
+            </tr></thead><tbody>${updateRows}</tbody></table>`;
+        }
+
+        const issueRows = skipped
+            .concat(unmatched)
+            .filter((r) => r && r.reason !== 'skipped_by_user')
+            .slice(0, 60);
+        if (issueRows.length) {
+            html += `<p class="section-hint">${escapeHtml(t('classroomEssayTmsSyncUnmatchedTitle'))}</p>`;
+            html += `<table class="roster-import-table"><thead><tr>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColClass'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColAssignment'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColStudent'))}</th>
+                <th>${escapeHtml(t('classroomEssayTmsSyncColChange'))}</th>
+            </tr></thead><tbody>${issueRows
+                .map((row) => {
+                    const label = row.assignmentLabel || row.title || row.tmsTitle || '';
+                    const who = row.studentName || row.tmsName || '';
+                    return `<tr>
+                        <td>${escapeHtml(row.className || '')}</td>
+                        <td>${escapeHtml(label)}</td>
+                        <td>${escapeHtml(who)}</td>
+                        <td>${escapeHtml(essayTmsUnmatchedReason(row))}</td>
+                    </tr>`;
+                })
+                .join('')}</tbody></table>`;
+        }
+
+        mount.innerHTML = html;
+
+        mount.querySelectorAll('select.essay-tms-class').forEach((sel) => {
+            sel.addEventListener('change', () => {
+                const idx = Number(sel.getAttribute('data-essay-tms-row'));
+                const row = essayTmsPlan[idx];
+                if (!row) {
+                    return;
+                }
+                const val = sel.value;
+                if (val === '__skip__') {
+                    row.userAction = 'skip';
+                    row.userClassId = '';
+                    row.userSyllabusRowId = '';
+                } else if (!val) {
+                    row.userAction = 'choose';
+                    row.userClassId = '';
+                    row.userSyllabusRowId = '';
+                } else {
+                    row.userAction = 'map';
+                    row.userClassId = val;
+                    // Prefer remembered/suggested assignment for this class when switching
+                    if (
+                        row.suggestedClassId === val &&
+                        row.suggestedSyllabusRowId &&
+                        !row.userSyllabusRowId
+                    ) {
+                        row.userSyllabusRowId = row.suggestedSyllabusRowId;
+                    } else if (row.userSyllabusRowId) {
+                        // keep if still valid for new class
+                        const d = domain();
+                        const classData = (getAppData().classes || []).find((c) => c && c.id === val);
+                        const ok =
+                            classData &&
+                            d
+                                .getEssayRowsFromSyllabus(classData.syllabusRows)
+                                .some((r) => d.getSyllabusRowKey(r) === row.userSyllabusRowId);
+                        if (!ok) {
+                            row.userSyllabusRowId =
+                                row.suggestedClassId === val ? row.suggestedSyllabusRowId || '' : '';
+                        }
+                    } else if (row.suggestedClassId === val) {
+                        row.userSyllabusRowId = row.suggestedSyllabusRowId || '';
+                    } else {
+                        row.userSyllabusRowId = '';
+                    }
+                }
+                row.remembered = false;
+                renderEssayTmsPreview();
+            });
+        });
+
+        mount.querySelectorAll('select.essay-tms-assignment').forEach((sel) => {
+            sel.addEventListener('change', () => {
+                const idx = Number(sel.getAttribute('data-essay-tms-row'));
+                const row = essayTmsPlan[idx];
+                if (!row) {
+                    return;
+                }
+                row.userSyllabusRowId = sel.value || '';
+                if (row.userClassId && row.userSyllabusRowId) {
+                    row.userAction = 'map';
+                } else if (row.userAction !== 'skip') {
+                    row.userAction = 'choose';
+                }
+                row.remembered = false;
+                renderEssayTmsPreview();
+            });
+        });
+
+        const allResolved =
+            essayTmsPlan.length > 0 && essayTmsPlan.every((r) => planRowResolved(r));
+        const needsStudentReview = allResolved && !essayTmsStudentsResolved();
+        if (confirmBtn) {
+            // Allow Apply when assignment rows are resolved — even with 0 updates —
+            // so skip-only / already-received paths can succeed with warnings.
+            confirmBtn.disabled = essayTmsLoading || !allResolved;
+            confirmBtn.textContent = needsStudentReview
+                ? t('classroomEssayTmsSyncReviewStudents')
+                : t('classroomEssayTmsSyncConfirm');
+        }
+        syncEssayTmsWizardPanels();
+    }
+
+    function openEssayTmsSyncModal(filterClassId) {
+        if (!hooks || !hooks.openModal) {
+            return;
+        }
+        if (hooks.isViewOnly && hooks.isViewOnly()) {
+            hooks.showToast(t('rosterImportReadOnly') || 'Read only', true);
+            return;
+        }
+        essayTmsPreview = null;
+        essayTmsPlan = [];
+        essayTmsHasFetched = false;
+        essayTmsLoading = false;
+        essayTmsApplying = false;
+        essayTmsFilterClassId = filterClassId || '';
+        essayTmsFilteredOutOfTermCount = 0;
+        essayTmsStudentQueue = [];
+        essayTmsStudentIndex = 0;
+        essayTmsWizardStep = 1;
+        setEssayTmsError('');
+        setEssayTmsStatus('');
+        hydrateEssayTmsCredForm();
+        renderEssayTmsPreview();
+        hooks.openModal(document.getElementById('essayTmsSyncModal'));
+        const userEl = document.getElementById('essayTmsUsername');
+        const passEl = document.getElementById('essayTmsPassword');
+        if (userEl && !userEl.value) {
+            userEl.focus();
+        } else if (passEl) {
+            passEl.focus();
+        }
+    }
+
+    function isEssayTmsStaleBridgeError(err, res, body) {
+        const msg = String((err && err.message) || '').toLowerCase();
+        if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed')) {
+            return true;
+        }
+        if (err && err.name === 'TypeError' && !res) {
+            return true;
+        }
+        if (res && (res.status === 404 || res.status === 405)) {
+            return true;
+        }
+        if (res && res.ok === false && !body) {
+            return true;
+        }
+        return false;
+    }
+
+    async function loadEssayTmsPreview() {
+        if (!hooks) {
+            return;
+        }
+        if (hooks.isViewOnly && hooks.isViewOnly()) {
+            setEssayTmsError(t('rosterImportReadOnly') || 'Read only');
+            return;
+        }
+        const creds = readEssayTmsCreds();
+        persistEssayTmsUsername(creds.username, creds.rememberUser);
+        essayTmsPreview = null;
+        essayTmsPlan = [];
+        essayTmsHasFetched = false;
+        essayTmsFilteredOutOfTermCount = 0;
+        essayTmsLoading = true;
+        setEssayTmsError('');
+        setEssayTmsStatus(t('classroomEssayTmsSyncLoading'));
+        renderEssayTmsPreview();
+        const loadBtn = document.getElementById('essayTmsLoadBtn');
+        if (loadBtn) {
+            loadBtn.disabled = true;
+        }
+
+        let stillTimer = null;
+        let abortTimer = null;
+        const controller =
+            typeof AbortController !== 'undefined' ? new AbortController() : null;
+
+        const finishLoadUi = () => {
+            if (stillTimer) {
+                clearTimeout(stillTimer);
+                stillTimer = null;
+            }
+            if (abortTimer) {
+                clearTimeout(abortTimer);
+                abortTimer = null;
+            }
+            essayTmsLoading = false;
+            if (loadBtn) {
+                loadBtn.disabled = false;
+            }
+            renderEssayTmsPreview();
+        };
+
+        try {
+            const payload = {};
+            if (creds.username || creds.password) {
+                payload.username = creds.username;
+                payload.password = creds.password;
+            }
+            const onLocalHost = isLocalClassManagerHost();
+            const bridge = await probeEssayTmsLocalBridge();
+            let res;
+            let usedBridge = false;
+            const previewUrl = bridge
+                ? bridge.previewUrl
+                : onLocalHost
+                  ? '/api/tms/essays/preview'
+                  : '';
+
+            if (bridge || onLocalHost) {
+                if (bridge) {
+                    usedBridge = true;
+                    setEssayTmsStatus(t('classroomEssayTmsBridgeLoading'));
+                }
+                stillTimer = setTimeout(() => {
+                    if (essayTmsLoading) {
+                        setEssayTmsStatus(t('classroomEssayTmsBridgeStillLoading'));
+                    }
+                }, ESSAY_TMS_BRIDGE_STILL_LOADING_MS);
+                if (controller) {
+                    abortTimer = setTimeout(() => controller.abort(), ESSAY_TMS_BRIDGE_TIMEOUT_MS);
+                }
+                const fetchInit = bridge
+                    ? tmsBridgeFetchInit({
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                          signal: controller ? controller.signal : undefined
+                      })
+                    : {
+                          method: 'POST',
+                          credentials: 'same-origin',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                          signal: controller ? controller.signal : undefined
+                      };
+                res = await fetch(previewUrl, fetchInit);
+                if (typeof console !== 'undefined' && console.info) {
+                    console.info('[TMS essay bridge]', previewUrl, 'HTTP', res.status, {
+                        usedBridge
+                    });
+                }
+            } else {
+                setEssayTmsError(
+                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
+                );
+                setEssayTmsStatus('');
+                finishLoadUi();
+                return;
+            }
+
+            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+            const body = contentType.includes('application/json')
+                ? await res.json().catch(() => null)
+                : null;
+            if (!res.ok) {
+                const code = body && body.code;
+                if (code === 'TMS_CREDS_MISSING') {
+                    setEssayTmsError(t('rosterTmsSyncCredsMissing'));
+                } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
+                    setEssayTmsError(t('rosterTmsSyncLoginFailed'));
+                } else if (isEssayTmsStaleBridgeError(null, res, body) && usedBridge) {
+                    setEssayTmsError(t('classroomEssayTmsBridgeStaleHint'));
+                } else if (res.status === 404 || !body) {
+                    setEssayTmsError(
+                        usedBridge
+                            ? t('classroomEssayTmsBridgeStaleHint')
+                            : t('rosterTmsSyncUnavailable')
+                    );
+                } else {
+                    setEssayTmsError((body && body.error) || t('rosterTmsSyncError'));
+                }
+                setEssayTmsStatus('');
+                finishLoadUi();
+                return;
+            }
+            if (!body || !Array.isArray(body.assignments)) {
+                setEssayTmsError(
+                    usedBridge
+                        ? t('classroomEssayTmsBridgeStaleHint')
+                        : t('rosterTmsSyncUnavailable')
+                );
+                setEssayTmsStatus('');
+                finishLoadUi();
+                return;
+            }
+
+            const d = domain();
+            const term = getTermRange();
+            const built = d.buildTmsEssaySyncPlan(getAppData(), body, {
+                filterClassId: essayTmsFilterClassId,
+                termStart: term.start,
+                termEnd: term.end
+            });
+            essayTmsPlan = built.rows || [];
+            essayTmsFilteredOutOfTermCount = Number(built.filteredOutOfTermCount || 0);
+            essayTmsHasFetched = true;
+            const meta = body.meta || {};
+            const loadedMsg = t('classroomEssayTmsSyncLoaded')
+                .replace('{assignments}', String(essayTmsPlan.length))
+                .replace('{rows}', String(meta.studentRowCount != null ? meta.studentRowCount : 0));
+            setEssayTmsStatus(
+                essayTmsFilteredOutOfTermCount > 0
+                    ? `${loadedMsg} ${t('classroomEssayTmsSyncFilteredOutOfTerm').replace('{count}', String(essayTmsFilteredOutOfTermCount))}`
+                    : loadedMsg
+            );
+            finishLoadUi();
+
+            if (essayTmsPlan.length > 0 && essayTmsPlan.every((r) => planRowResolved(r))) {
+                void confirmEssayTmsSync();
+                return;
+            }
+        } catch (err) {
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('[TMS essay bridge] load failed', err);
+            }
+            const aborted = err && err.name === 'AbortError';
+            if (aborted) {
+                setEssayTmsError(t('classroomEssayTmsBridgeTimeout'));
+            } else if (isEssayTmsStaleBridgeError(err, null, null)) {
+                setEssayTmsError(t('classroomEssayTmsBridgeStaleHint'));
+            } else {
+                setEssayTmsError((err && err.message) || t('rosterTmsSyncError'));
+            }
+            setEssayTmsStatus('');
+            finishLoadUi();
+        }
+    }
+
+    async function confirmEssayTmsSync() {
+        if (!hooks || !essayTmsPlan.length || essayTmsApplying) {
+            return;
+        }
+        if (hooks.isViewOnly && hooks.isViewOnly()) {
+            setEssayTmsError(t('rosterImportReadOnly') || 'Read only');
+            return;
+        }
+        if (!essayTmsPlan.every((r) => planRowResolved(r))) {
+            setEssayTmsError(t('classroomEssayTmsSyncUnresolved'));
+            return;
+        }
+        refreshEssayTmsPreviewFromPlan();
+        if (!essayTmsStudentsResolved()) {
+            enterEssayTmsStudentReview();
+            return;
+        }
+        await finishEssayTmsSyncApply();
+    }
+
+    async function finishEssayTmsSyncApply() {
+        if (!hooks || !essayTmsPlan.length || essayTmsApplying) {
+            return;
+        }
+        const d = domain();
+        const data = getAppData();
+        refreshEssayTmsPreviewFromPlan();
+        const unmatchedPending = (essayTmsPreview.unmatched || []).filter((u) => u && u.needsReview);
+        if (unmatchedPending.length) {
+            enterEssayTmsStudentReview();
+            return;
+        }
+        const updates = (essayTmsPreview && essayTmsPreview.updates) || [];
+        const skipped = (essayTmsPreview && essayTmsPreview.skipped) || [];
+        const unmatchedLeft = (essayTmsPreview && essayTmsPreview.unmatched) || [];
+        const skippedStudents = skipped.filter((s) => s && s.reason === 'student_skipped').length;
+
+        if (!updates.length) {
+            setEssayTmsError('');
+            const warnMsg =
+                skippedStudents > 0 || unmatchedLeft.length > 0
+                    ? t('classroomEssayTmsSyncDoneWithWarns')
+                          .replace('{updates}', '0')
+                          .replace('{skipped}', String(skippedStudents || skipped.length))
+                    : t('classroomEssayTmsSyncAlreadyReceived');
+            setEssayTmsStatus(warnMsg);
+            if (hooks.showToast) {
+                hooks.showToast(warnMsg, skippedStudents > 0 || unmatchedLeft.length > 0);
+            }
+            if (hooks.closeModal) {
+                hooks.closeModal(document.getElementById('essayTmsSyncModal'));
+            }
+            return;
+        }
+
+        const result = d.applyTmsEssaySync(data.essaySubmissions, essayTmsPreview, {
+            appData: data,
+            newStudentId: () => d.newId('stu'),
+            planRows: essayTmsPlan
+        });
+        if (!result.summary.appliedCount) {
+            setEssayTmsError('');
+            setEssayTmsStatus(t('classroomEssayTmsSyncAlreadyReceived'));
+            if (hooks.showToast) {
+                hooks.showToast(t('classroomEssayTmsSyncAlreadyReceived'));
+            }
+            if (hooks.closeModal) {
+                hooks.closeModal(document.getElementById('essayTmsSyncModal'));
+            }
+            return;
+        }
+        const nextLinks = d.upsertTmsEssayLinks(data.tmsEssayLinks, essayTmsPlan, data.classes);
+        essayTmsApplying = true;
+        setEssayTmsStatus(t('classroomEssayTmsSyncSaving'));
+        const confirmBtn = document.getElementById('essayTmsSyncConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+        }
+        let stillTimer = null;
+        try {
+            stillTimer = setTimeout(() => {
+                if (essayTmsApplying) {
+                    setEssayTmsStatus(t('classroomEssayTmsSyncSavingStill'));
+                }
+            }, ESSAY_TMS_BRIDGE_STILL_LOADING_MS);
+            const savePayload = {
+                essaySubmissions: result.essaySubmissions,
+                tmsEssayLinks: nextLinks
+            };
+            if (result.cohorts) {
+                savePayload.cohorts = result.cohorts;
+            }
+            const saveResult = await hooks.saveClassroom(savePayload);
+            if (hooks.hasTeamSync && hooks.hasTeamSync() && saveResult == null) {
+                setEssayTmsError(t('classroomEssayTmsSyncSaveFailed'));
+                return;
+            }
+            let toast = t('classroomEssayTmsSyncApplied').replace(
+                '{count}',
+                String(result.summary.appliedCount)
+            );
+            if (skippedStudents > 0) {
+                toast = t('classroomEssayTmsSyncAppliedWithWarns')
+                    .replace('{count}', String(result.summary.appliedCount))
+                    .replace('{skipped}', String(skippedStudents));
+            }
+            if (hooks.showToast) {
+                hooks.showToast(toast, skippedStudents > 0);
+            }
+            if (hooks.closeModal) {
+                hooks.closeModal(document.getElementById('essayTmsSyncModal'));
+            }
+            loadSubmission();
+            const panel = document.getElementById('panel-essays');
+            render(panel);
+        } catch (err) {
+            setEssayTmsError((err && err.message) || t('classroomEssaySaveError'));
+        } finally {
+            if (stillTimer) {
+                clearTimeout(stillTimer);
+                stillTimer = null;
+            }
+            essayTmsApplying = false;
+            setEssayTmsStatus('');
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+            }
+            renderEssayTmsPreview();
+        }
+    }
+
+    function essayTmsSkipAll() {
+        essayTmsPlan.forEach((row) => {
+            row.userAction = 'skip';
+            row.userClassId = '';
+            row.userSyllabusRowId = '';
+            row.remembered = false;
+        });
+        renderEssayTmsPreview();
+    }
+
+    function essayTmsSkipUnmapped() {
+        essayTmsPlan.forEach((row) => {
+            if (!planRowResolved(row) || row.userAction === 'choose') {
+                row.userAction = 'skip';
+                row.userClassId = '';
+                row.userSyllabusRowId = '';
+                row.remembered = false;
+            }
+        });
+        renderEssayTmsPreview();
+    }
+
+    function essayTmsAcceptSuggested() {
+        essayTmsPlan.forEach((row) => {
+            if (row.userAction === 'skip') {
+                return;
+            }
+            if (row.suggestedClassId && row.suggestedSyllabusRowId) {
+                row.userAction = 'map';
+                row.userClassId = row.suggestedClassId;
+                row.userSyllabusRowId = row.suggestedSyllabusRowId;
+                row.remembered = false;
+            }
+        });
+        renderEssayTmsPreview();
+    }
+
+    function bindEssayTmsSyncUi() {
+        if (essayTmsBound) {
+            return;
+        }
+        essayTmsBound = true;
+        document.getElementById('classroomEssaysTmsSyncBtn')?.addEventListener('click', () => {
+            openEssayTmsSyncModal(classId);
+        });
+        document.getElementById('classroomEssaysTmsSyncAllBtn')?.addEventListener('click', () => {
+            openEssayTmsSyncModal('');
+        });
+        document.getElementById('essayTmsLoadBtn')?.addEventListener('click', () => {
+            void loadEssayTmsPreview();
+        });
+        document.getElementById('essayTmsSyncConfirmBtn')?.addEventListener('click', () => {
+            void confirmEssayTmsSync();
+        });
+        document.getElementById('essayTmsStudentReviewBackBtn')?.addEventListener('click', () => {
+            essayTmsStudentReviewBack();
+        });
+        document.getElementById('essayTmsStudentReviewNextBtn')?.addEventListener('click', () => {
+            essayTmsStudentReviewNext();
+        });
+        document.getElementById('essayTmsSyncSkipAllBtn')?.addEventListener('click', () => {
+            essayTmsSkipAll();
+        });
+        document.getElementById('essayTmsSyncSkipUnmappedBtn')?.addEventListener('click', () => {
+            essayTmsSkipUnmapped();
+        });
+        document.getElementById('essayTmsSyncAcceptSuggestedBtn')?.addEventListener('click', () => {
+            essayTmsAcceptSuggested();
+        });
+        document.getElementById('cancelEssayTmsSyncBtn')?.addEventListener('click', () => {
+            if (hooks && hooks.closeModal) {
+                hooks.closeModal(document.getElementById('essayTmsSyncModal'));
+            }
+        });
+        document.getElementById('closeEssayTmsSyncModal')?.addEventListener('click', () => {
+            if (hooks && hooks.closeModal) {
+                hooks.closeModal(document.getElementById('essayTmsSyncModal'));
+            }
+        });
+        document.getElementById('essayTmsBridgeTestBtn')?.addEventListener('click', () => {
+            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
+        });
+    }
+
     async function initTab(h, options) {
         hooks = h;
         await flushBeforeLeave();
+        bindEssayTmsSyncUi();
         const data = getAppData();
         const d = domain();
         const visible = getEssayPickerClasses();
