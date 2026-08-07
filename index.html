@@ -12,7 +12,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260806-patch-mutations';
+        window.CCP_I18N_VERSION = '20260807-filtered-to';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -2259,13 +2259,13 @@
     <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
-    <script defer src="js/active-context.js?v=20260703-zone-context"></script>
+    <script defer src="js/active-context.js?v=20260807-no-auto-cohort"></script>
     <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
-    <script defer src="js/classroom-zone-context.js?v=20260806-essays-scoped"></script>
+    <script defer src="js/classroom-zone-context.js?v=20260807-essay-pills"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260806-patch-mutations"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260807-shared-class-picker"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -2353,7 +2353,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260721-event-syllabi-banner"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260806-patch-mutations"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260807-filtered-to"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>

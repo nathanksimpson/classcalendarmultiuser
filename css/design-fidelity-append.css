@@ -54,6 +54,62 @@
 
 
 
+.classroom-zone-class-input-wrap {
+
+    position: relative;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-2);
+
+}
+
+
+
+.classroom-zone-class-input-wrap .classroom-zone-class-input {
+
+    flex: 1;
+
+    min-width: 0;
+
+}
+
+
+
+.classroom-zone-class-input-badges {
+
+    flex-shrink: 0;
+
+    pointer-events: none;
+
+}
+
+
+
+.classroom-zone-combobox-item {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: var(--space-2);
+
+}
+
+
+
+.classroom-zone-combobox-item__label {
+
+    min-width: 0;
+
+}
+
+
+
 .classroom-zone-class-list {
 
     position: absolute;

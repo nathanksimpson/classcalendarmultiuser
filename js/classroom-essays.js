@@ -23,9 +23,6 @@
     };
     let resubmitDayNoteDirty = false;
     let resubmitDayNoteSyncInFlight = false;
-    let essayClassSearchQuery = '';
-    let essayClassAttentionFilter = 'all';
-    let classPickerOpen = false;
     let reportsMenuOpen = false;
     const resubmitSummarySelectedClassIds = new Set();
     let resubmitSummaryFilters = {
@@ -200,16 +197,10 @@
 
     function getAccessibleClasses() {
         const data = getAppData();
-        let classes = (data.classes || []).filter(
+        // Classroom essays must list every editable class (no active-cohort trap).
+        return (data.classes || []).filter(
             (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
         );
-        if (global.CCPCohortSidebarFilter) {
-            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
-                classes,
-                global.CCPCohortSidebarFilter.getActiveCohortId()
-            );
-        }
-        return classes;
     }
 
     function getEssayVisibleClasses(options) {
@@ -1816,53 +1807,6 @@
         return d.upsertEssaySubmission(list, draftSubmission);
     }
 
-    function filterClassesForAttention(classes) {
-        const d = domain();
-        const data = getAppData();
-        const submissions = getEssaySubmissionsForAlerts();
-        const currentUserId = hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
-
-        return (classes || []).filter((c) => {
-            if (!c) {
-                return false;
-            }
-            const counts =
-                d && c
-                    ? d.essayAlertCountsForClass(submissions, c, data.cohorts || [])
-                    : { rs: 0, od: 0 };
-            if (essayClassAttentionFilter === 'resubmits' && !(counts.rs > 0)) {
-                return false;
-            }
-            if (essayClassAttentionFilter === 'overdue' && !(counts.od > 0)) {
-                return false;
-            }
-            if (essayClassAttentionFilter === 'has_essays') {
-                const api = global.CCPEssayClassFilter;
-                const has =
-                    api && api.classHasEssayAssignments
-                        ? api.classHasEssayAssignments(c, d)
-                        : d && d.getEssayRowsFromSyllabus
-                          ? d.getEssayRowsFromSyllabus(c.syllabusRows).length > 0
-                          : false;
-                if (!has) {
-                    return false;
-                }
-            }
-            if (essayClassAttentionFilter === 'mine') {
-                if (hooks && typeof hooks.classIsMine === 'function' && currentUserId) {
-                    if (!hooks.classIsMine(c, currentUserId)) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        });
-    }
-
-    function closeClassPicker() {
-        classPickerOpen = false;
-    }
-
     function closeReportsMenu() {
         reportsMenuOpen = false;
     }
@@ -2354,13 +2298,12 @@
         return assignments.find((row) => row.syllabusRowId === syllabusRowId) || null;
     }
 
+    /** Local class picker removed — shared #classroomZoneContextBar drives class selection + Essays warn pills. */
     async function selectClass(panel, nextClassId) {
         if (!nextClassId || nextClassId === classId) {
-            closeClassPicker();
             return;
         }
         await flushBeforeLeave();
-        closeClassPicker();
         if (typeof global.CCPActiveContext !== 'undefined') {
             global.CCPActiveContext.setFromClass(getAppData(), nextClassId, undefined, 'essays-zone-context');
         } else if (hooks && hooks.setUiPref) {
@@ -2373,34 +2316,8 @@
         }
     }
 
-    function filterEssayClassesForSearch(classes, query, selectedClassId) {
-        const zone = global.CCPClassroomZoneContext;
-        if (zone && zone.filterClassesForSearch) {
-            return zone.filterClassesForSearch(classes, query, selectedClassId);
-        }
-        const q = (query || '').trim().toLowerCase();
-        if (!q) {
-            return classes;
-        }
-        return classes.filter((c) => {
-            const haystack = [
-                c && c.name,
-                c && c.id,
-                c && c.grade,
-                c && c.levelPreset,
-                c && c.levelCustom,
-                c && c.subject
-            ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
-            return haystack.includes(q);
-        });
-    }
-
-    /** Local class picker removed — shared #classroomZoneContextBar drives class selection. */
     function renderClassPickerPopover() {
-        classPickerOpen = false;
+        /* no-op: zone bar owns the class picker */
     }
 
     function bindContextBarOutsideClick(panel) {
@@ -3294,28 +3211,6 @@
         </div>`;
     }
 
-    function nvDuePillHtml(rec) {
-        if (!rec || !rec.debateVideoMissing) {
-            return '';
-        }
-        return `<span class="classroom-essay-due-pill classroom-essay-due-pill--danger classroom-essay-due-pill--nv" title="${escapeAttr(t('classroomEssayDebateVideoMissing'))}">${escapeHtml(t('classroomEssayDebateVideoNv'))}</span>`;
-    }
-
-    function withNvDuePill(html, rec) {
-        const nv = nvDuePillHtml(rec);
-        if (!nv) {
-            return html;
-        }
-        const body = html || '';
-        if (body.indexOf('classroom-essay-due-cell') !== -1) {
-            return body.replace(/<\/div>\s*$/, `${nv}</div>`);
-        }
-        if (!body) {
-            return `<div class="classroom-essay-due-cell">${nv}</div>`;
-        }
-        return `<div class="classroom-essay-due-cell">${body}${nv}</div>`;
-    }
-
     function buildDueCell(studentId) {
         const d = domain();
         const rec = getRecord(studentId);
@@ -3411,7 +3306,7 @@
                 main = `<span class="classroom-essay-due-pill classroom-essay-due-pill--resubmit">${escapeHtml(t('classroomEssayStatusResubmit'))}</span>`;
             }
         }
-        return withNvDuePill(main, rec);
+        return main;
     }
 
     function afterEssayStatusChange(panel, studentId) {

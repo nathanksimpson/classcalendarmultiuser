@@ -4,6 +4,8 @@
 (function (global) {
     const EVENT_NAME = 'ccp:activeContextChanged';
     const MIGRATE_FLAG_PREFIX = 'ccpActiveContextMigrated:';
+    /** Clears cohort filters that were auto-set from class picks (pre-opt-in era). */
+    const CLEAR_AUTO_COHORT_FLAG_PREFIX = 'ccpClearedAutoCohortFilter:';
     const subscribers = new Set();
     let storageListenerBound = false;
 
@@ -144,11 +146,35 @@
         localStorage.setItem(flag, '1');
     }
 
+    /**
+     * One-time: drop mystery cohort filters left by older setFromClass behavior.
+     * Intentional Cohorts-board filters set after this flag still persist.
+     */
+    function clearStaleAutoCohortFilter() {
+        const userId = getUserId();
+        if (!userId || typeof localStorage === 'undefined') {
+            return;
+        }
+        const flag = CLEAR_AUTO_COHORT_FLAG_PREFIX + userId;
+        if (localStorage.getItem(flag) === '1') {
+            return;
+        }
+        const ctx = readStorage(userId);
+        if (ctx.cohortId) {
+            writeStorage(userId, Object.assign({}, ctx, { cohortId: '' }));
+            if (typeof global.appData !== 'undefined' && global.appData.ui) {
+                global.appData.ui.cohortsTabSelectedId = '';
+            }
+        }
+        localStorage.setItem(flag, '1');
+    }
+
     function hydrateUiFromStorage(ui) {
         if (!ui || typeof ui !== 'object') {
             return get();
         }
         migrateLegacy(ui);
+        clearStaleAutoCohortFilter();
         const ctx = get();
         if (ctx.classId) {
             ui.homeworkTabClassId = ctx.classId;
@@ -156,6 +182,8 @@
         }
         if (ctx.cohortId) {
             ui.cohortsTabSelectedId = ctx.cohortId;
+        } else {
+            ui.cohortsTabSelectedId = '';
         }
         if (ctx.sessionDate) {
             ui.classroomTabDate = ctx.sessionDate;
@@ -177,9 +205,12 @@
 
     function resolveDefaults(appData) {
         const ctx = get();
+        const today = formatTodayIso();
         const patch = {};
-        if (!ctx.sessionDate) {
-            patch.sessionDate = formatTodayIso();
+        // Always land on today at boot so Homework / Classroom / Command Center
+        // open on the current working day after login or full reload.
+        if (ctx.sessionDate !== today) {
+            patch.sessionDate = today;
         }
         if (!ctx.classId && appData && Array.isArray(appData.classes) && appData.classes.length === 1) {
             patch.classId = appData.classes[0].id;
@@ -229,11 +260,15 @@
         return cls.cohortId || '';
     }
 
+    /**
+     * Select a class (and optional session date) without enabling a cohort list filter.
+     * Cohort filter is opt-in via Cohorts board / explicit set({ cohortId }).
+     */
     function setFromClass(appData, classId, sessionDate, source) {
-        const cohortId = deriveCohortIdFromClass(appData, classId);
-        const patch = { classId, sessionDate };
-        if (cohortId) {
-            patch.cohortId = cohortId;
+        void appData;
+        const patch = { classId };
+        if (sessionDate !== undefined) {
+            patch.sessionDate = sessionDate;
         }
         return set(patch, { source: source || 'class' });
     }
@@ -267,6 +302,7 @@
         set,
         subscribe,
         migrateLegacy,
+        clearStaleAutoCohortFilter,
         hydrateUiFromStorage,
         resolveDefaults,
         resolveActiveClassId,

@@ -831,15 +831,10 @@
         if (d && classData && d.classUsesDebateTeamAssignments && d.classUsesDebateTeamAssignments(classData)) {
             const resolved = resolveDebateAssignmentDate(classData, nextDate);
             if (resolved) {
+                // Keep Day 4 resolution local to Debate Teams UI — do not push
+                // defaults into global sessionDate (that jumped Attendance/Homework dates).
                 nextDate = resolved;
                 persistDebateAssignmentDate(classId, resolved);
-                if (
-                    !options.date &&
-                    (typeof global.CCPActiveContext === 'undefined' ||
-                        global.CCPActiveContext.get().sessionDate !== resolved)
-                ) {
-                    pushSessionDateToContext(resolved, 'debate-assignment-default');
-                }
             }
         }
         sessionDate = nextDate;
@@ -852,6 +847,10 @@
         contextSubscribed = true;
         global.CCPActiveContext.subscribe((detail) => {
             if (applyingAssignment) {
+                return;
+            }
+            const panel = panelRef || document.getElementById('panel-debate-teams');
+            if (!panel || panel.hidden) {
                 return;
             }
             const prevClass = classId;

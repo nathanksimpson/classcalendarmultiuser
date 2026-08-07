@@ -58,7 +58,7 @@
             'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
             'js/classroom-essay-class-summary-print.js?v=20260729-essay-print-headers',
             'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260806-zone-context'
+            'js/classroom-essays.js?v=20260807-shared-class-picker'
         ],
         ledger: [
             'js/classroom-access.js?v=20260803-homeroom-access',
@@ -87,7 +87,7 @@
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260806-notice',
             'js/classroom-access.js?v=20260803-homeroom-access',
-            'js/classroom-debate-teams.js?v=20260803-purple-swap'
+            'js/classroom-debate-teams.js?v=20260807-no-date-jump'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
