@@ -316,6 +316,7 @@
         classroomDebateBooksMonthLabel: '교재 월',
         classroomDebateBooksTermLabel: '학기 교재',
         classroomDebateBooksColStatus: '상태',
+        classroomDebateBooksColIssuedDate: '배부일',
         classroomDebateBooksStatsLabel: '교재 배부 요약',
         classroomDebateBooksPickClass: '위에서 반을 선택해 교재 배부를 기록하세요.',
         classroomDebateBooksNoMonths: '이 반 학기에 월이 없습니다. 반의 시작·종료일을 설정하세요.',
@@ -336,7 +337,9 @@
         classroomDebateBooksClassSummaryTitleNotIssued: '교재 미배부',
         classroomDebateBooksClassSummaryTitleMissing: '교재 분실',
         classroomDebateBooksClassSummaryFilterHint:
-            '담임 교사와 교재 월로 필터한 뒤, 인쇄·복사에 포함할 반을 선택하세요.',
+            '담임 교사, 교재 월, 또는 범위로 필터한 뒤, 인쇄·복사에 포함할 반을 선택하세요.',
+        classroomDebateBooksClassSummaryFilterMyClasses: '내 수업만',
+        classroomDebateBooksClassSummaryFilterDebateOnly: '토론 수업만',
         classroomDebateBooksClassSummaryFilterHomeroom: '담임 교사',
         classroomDebateBooksClassSummaryFilterMonth: '교재 월',
         classroomDebateBooksClassSummaryFilterWarn: '표시할 학생',

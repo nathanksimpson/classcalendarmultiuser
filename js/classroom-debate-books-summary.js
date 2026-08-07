@@ -115,10 +115,27 @@
         return Array.from(months).sort((a, b) => String(b).localeCompare(String(a)));
     }
 
-    function filterEntriesByHrAndMonth(entries, appData, filters) {
+    function entryClassIsMine(classData, userId, deps) {
+        if (!classData || !userId) {
+            return false;
+        }
+        const filterApi = global.CCPEssayClassFilter;
+        if (filterApi && typeof filterApi.classIsMine === 'function') {
+            return filterApi.classIsMine(classData, userId, deps);
+        }
+        if (deps && typeof deps.classIsMine === 'function') {
+            return deps.classIsMine(classData, userId);
+        }
+        return (classData.classTeachers || []).some((row) => row && row.userId === userId);
+    }
+
+    function filterEntriesByHrAndMonth(entries, appData, filters, ctx) {
         const f = filters || {};
         const homeroomKey = String(f.homeroomKey || '').trim();
         const month = String(f.month || '').trim();
+        const debateOnly = f.debateOnly === true;
+        const myClassesOnly = f.myClassesOnly === true;
+        const d = domain();
         return (Array.isArray(entries) ? entries : []).filter((entry) => {
             if (!entry) {
                 return false;
@@ -126,10 +143,21 @@
             if (month && String(entry.monthKey || '') !== month) {
                 return false;
             }
+            const classData = (appData.classes || []).find((c) => c && c.id === entry.classId);
             if (homeroomKey) {
-                const classData = (appData.classes || []).find((c) => c && c.id === entry.classId);
                 const hr = resolveHomeroomMeta(classData, appData);
                 if (hr.key !== homeroomKey) {
+                    return false;
+                }
+            }
+            if (debateOnly) {
+                if (!classData || !d || !d.classUsesMonthlyDebateBooks(classData)) {
+                    return false;
+                }
+            }
+            if (myClassesOnly) {
+                const userId = (ctx && ctx.currentUserId) || '';
+                if (!entryClassIsMine(classData, userId, ctx && ctx.deps)) {
                     return false;
                 }
             }
@@ -289,6 +317,9 @@
         const name = formatStudentDisplayName(row);
         const status = statusLabel(row.status, labels);
         let line = `${idx}. ${name}\t${status}`;
+        if (row.status === 'issued' && row.issuedAt) {
+            line += `\t${row.issuedAt}`;
+        }
         const note = String(row.note || '').trim();
         if (note) {
             line += ` - ${note}`;

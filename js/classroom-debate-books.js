@@ -16,7 +16,13 @@
     const selectedStudentIds = new Set();
     let reportsMenuOpen = false;
     let classSummarySelectedKeys = new Set();
-    let classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+    let classSummaryFilters = {
+        homeroomKey: '',
+        month: '',
+        warnMode: 'all',
+        myClassesOnly: false,
+        debateOnly: false
+    };
     let classSummaryModalBound = false;
     const STATUS_AUTOSAVE_MS = 400;
 
@@ -221,15 +227,28 @@
     function getRecord(studentId) {
         const d = domain();
         if (!d || !draftDistribution) {
-            return { studentId, status: 'not_issued', note: '' };
+            return { studentId, status: 'not_issued', note: '', issuedAt: '' };
         }
         return (
             d.getDebateBookRecordForStudent(draftDistribution, studentId) || {
                 studentId,
                 status: 'not_issued',
-                note: ''
+                note: '',
+                issuedAt: ''
             }
         );
+    }
+
+    function getSessionDate() {
+        if (global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getSessionDate) {
+            return global.CCPClassroomZoneContext.getSessionDate() || '';
+        }
+        if (typeof global.CCPActiveContext !== 'undefined') {
+            const ctx = global.CCPActiveContext.get();
+            return (ctx && ctx.sessionDate) || '';
+        }
+        const ui = getAppData().ui || {};
+        return ui.classroomTabDate || '';
     }
 
     function setRecord(studentId, patch) {
@@ -242,11 +261,10 @@
             : [];
         const idx = records.findIndex((r) => r && r.studentId === studentId);
         const prev =
-            idx >= 0 ? records[idx] : { studentId, status: 'not_issued', note: '' };
-        const next = Object.assign({}, prev, patch, { studentId });
-        const status = String(next.status || '').trim();
-        next.status = d.DEBATE_BOOK_STATUSES.includes(status) ? status : 'not_issued';
-        next.note = String(next.note || '').trim();
+            idx >= 0 ? records[idx] : { studentId, status: 'not_issued', note: '', issuedAt: '' };
+        const next = d.applyDebateBookRecordPatch
+            ? d.applyDebateBookRecordPatch(prev, Object.assign({}, patch, { studentId }), getSessionDate())
+            : Object.assign({}, prev, patch, { studentId });
         if (idx >= 0) {
             records[idx] = next;
         } else {
@@ -357,7 +375,13 @@
             });
         }
         const filtersRaw = data.ui && data.ui.debateBookClassSummaryFilters;
-        classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+        classSummaryFilters = {
+            homeroomKey: '',
+            month: '',
+            warnMode: 'all',
+            myClassesOnly: false,
+            debateOnly: false
+        };
         const summaryApi = booksSummaryApi();
         const normalizeWarn =
             summaryApi && summaryApi.normalizeWarnMode
@@ -371,18 +395,28 @@
                         homeroomKey:
                             typeof parsed.homeroomKey === 'string' ? parsed.homeroomKey : '',
                         month: typeof parsed.month === 'string' ? parsed.month : '',
-                        warnMode: normalizeWarn(parsed.warnMode)
+                        warnMode: normalizeWarn(parsed.warnMode),
+                        myClassesOnly: parsed.myClassesOnly === true,
+                        debateOnly: parsed.debateOnly === true
                     };
                 }
             } catch (_err) {
-                classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+                classSummaryFilters = {
+                    homeroomKey: '',
+                    month: '',
+                    warnMode: 'all',
+                    myClassesOnly: false,
+                    debateOnly: false
+                };
             }
         } else if (filtersRaw && typeof filtersRaw === 'object') {
             classSummaryFilters = {
                 homeroomKey:
                     typeof filtersRaw.homeroomKey === 'string' ? filtersRaw.homeroomKey : '',
                 month: typeof filtersRaw.month === 'string' ? filtersRaw.month : '',
-                warnMode: normalizeWarn(filtersRaw.warnMode)
+                warnMode: normalizeWarn(filtersRaw.warnMode),
+                myClassesOnly: filtersRaw.myClassesOnly === true,
+                debateOnly: filtersRaw.debateOnly === true
             };
         }
     }
@@ -403,9 +437,34 @@
                 JSON.stringify({
                     homeroomKey: classSummaryFilters.homeroomKey || '',
                     month: classSummaryFilters.month || '',
-                    warnMode: classSummaryFilters.warnMode || 'all'
+                    warnMode: classSummaryFilters.warnMode || 'all',
+                    myClassesOnly: classSummaryFilters.myClassesOnly === true,
+                    debateOnly: classSummaryFilters.debateOnly === true
                 })
             );
+        }
+    }
+
+    function getClassSummaryFilterContext() {
+        return {
+            currentUserId: hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
+            deps: {
+                classIsMine:
+                    hooks && hooks.classIsMine
+                        ? (classData, userId) => hooks.classIsMine(classData, userId)
+                        : undefined
+            }
+        };
+    }
+
+    function syncClassSummaryFilterCheckboxesFromState() {
+        const myCb = document.getElementById('debateBookClassSummaryMyClassesOnly');
+        const debateCb = document.getElementById('debateBookClassSummaryDebateOnly');
+        if (myCb) {
+            myCb.checked = classSummaryFilters.myClassesOnly === true;
+        }
+        if (debateCb) {
+            debateCb.checked = classSummaryFilters.debateOnly === true;
         }
     }
 
@@ -413,6 +472,8 @@
         const hrEl = document.getElementById('debateBookClassSummaryHomeroomFilter');
         const monthEl = document.getElementById('debateBookClassSummaryMonthFilter');
         const warnEl = document.getElementById('debateBookClassSummaryWarnModeFilter');
+        const myCb = document.getElementById('debateBookClassSummaryMyClassesOnly');
+        const debateCb = document.getElementById('debateBookClassSummaryDebateOnly');
         const summaryApi = booksSummaryApi();
         const normalizeWarn =
             summaryApi && summaryApi.normalizeWarnMode
@@ -421,18 +482,44 @@
         classSummaryFilters = {
             homeroomKey: hrEl ? String(hrEl.value || '') : classSummaryFilters.homeroomKey || '',
             month: monthEl ? String(monthEl.value || '') : classSummaryFilters.month || '',
-            warnMode: normalizeWarn(warnEl ? warnEl.value : classSummaryFilters.warnMode)
+            warnMode: normalizeWarn(warnEl ? warnEl.value : classSummaryFilters.warnMode),
+            myClassesOnly: myCb ? myCb.checked : classSummaryFilters.myClassesOnly === true,
+            debateOnly: debateCb ? debateCb.checked : classSummaryFilters.debateOnly === true
         };
         saveClassSummaryFilters();
     }
 
-    function listFilteredClassSummaryEntries() {
+    function listScopeClassSummaryEntries() {
         const all = listAllSummaryEntries();
         const summaryApi = booksSummaryApi();
         if (!summaryApi || !summaryApi.filterEntriesByHrAndMonth) {
             return all;
         }
-        return summaryApi.filterEntriesByHrAndMonth(all, getAppData(), classSummaryFilters);
+        return summaryApi.filterEntriesByHrAndMonth(
+            all,
+            getAppData(),
+            {
+                homeroomKey: '',
+                month: '',
+                myClassesOnly: classSummaryFilters.myClassesOnly === true,
+                debateOnly: classSummaryFilters.debateOnly === true
+            },
+            getClassSummaryFilterContext()
+        );
+    }
+
+    function listFilteredClassSummaryEntries() {
+        const scoped = listScopeClassSummaryEntries();
+        const summaryApi = booksSummaryApi();
+        if (!summaryApi || !summaryApi.filterEntriesByHrAndMonth) {
+            return scoped;
+        }
+        return summaryApi.filterEntriesByHrAndMonth(
+            scoped,
+            getAppData(),
+            classSummaryFilters,
+            getClassSummaryFilterContext()
+        );
     }
 
     function getClassSummaryLabels() {
@@ -454,6 +541,7 @@
             hrHeading: t('classroomDebateBooksClassSummaryHrHeading'),
             colStudent: t('classroomColStudent'),
             colStatus: t('classroomDebateBooksColStatus'),
+            colIssuedDate: t('classroomDebateBooksColIssuedDate'),
             colNotes: t('classroomColNotes'),
             statusLabels: {
                 not_issued: t('classroomDebateBookStatus_not_issued'),
@@ -671,8 +759,8 @@
         if (!listEl || !previewEl) {
             return;
         }
-        const allEntries = listAllSummaryEntries();
-        populateClassSummaryFilterSelects(allEntries);
+        syncClassSummaryFilterCheckboxesFromState();
+        populateClassSummaryFilterSelects(listScopeClassSummaryEntries());
         const entries = listFilteredClassSummaryEntries();
         const savedSelection = getAppData().ui && getAppData().ui.debateBookClassSummarySelection;
         const neverSavedSelection = savedSelection == null || savedSelection === '';
@@ -752,6 +840,18 @@
         });
         document
             .getElementById('debateBookClassSummaryWarnModeFilter')
+            ?.addEventListener('change', () => {
+                syncClassSummaryFiltersFromDom();
+                renderClassSummaryModal();
+            });
+        document
+            .getElementById('debateBookClassSummaryMyClassesOnly')
+            ?.addEventListener('change', () => {
+                syncClassSummaryFiltersFromDom();
+                renderClassSummaryModal();
+            });
+        document
+            .getElementById('debateBookClassSummaryDebateOnly')
             ?.addEventListener('change', () => {
                 syncClassSummaryFiltersFromDom();
                 renderClassSummaryModal();
@@ -1001,17 +1101,17 @@
         const classData = getClassData();
 
         if (!classData) {
-            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksPickClass'))}</p></td></tr>`;
+            rowsMount.innerHTML = `<tr><td colspan="5" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksPickClass'))}</p></td></tr>`;
             return;
         }
 
         if (!periodKey) {
-            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksNoMonths'))}</p></td></tr>`;
+            rowsMount.innerHTML = `<tr><td colspan="5" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksNoMonths'))}</p></td></tr>`;
             return;
         }
 
         if (!students.length) {
-            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
+            rowsMount.innerHTML = `<tr><td colspan="5" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
             bindSelectionControls(panel, rowsMount, students);
             return;
         }
@@ -1022,16 +1122,22 @@
                 const rec = getRecord(sid);
                 const status = rec.status || 'not_issued';
                 const note = rec.note || '';
+                const issuedAt = rec.issuedAt || '';
                 const identity = rowApi
                     ? rowApi.formatStudentIdentityColumn(entry, t)
                     : escapeHtml(entry.student.name);
                 const railCls = ` classroom-sheet-row--status-rail classroom-sheet-row--status-debate-book-${escapeAttr(status)}`;
                 const disabled = editable ? '' : ' disabled';
                 const checked = selectedStudentIds.has(sid) ? ' checked' : '';
+                const issuedCell =
+                    status === 'issued'
+                        ? `<input type="date" class="field-input field-control field-control--compact classroom-debate-book-issued-at" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(issuedAt)}" aria-label="${escapeAttr(t('classroomDebateBooksColIssuedDate'))}"${disabled} />`
+                        : `<span class="section-hint classroom-debate-book-issued-at-empty">—</span>`;
                 return `<tr class="classroom-sheet-row${railCls}" data-student-id="${escapeAttr(sid)}">
                 <td class="classroom-sheet-col-select"><input type="checkbox" class="classroom-debate-book-select" data-student-id="${escapeAttr(sid)}" aria-label="${escapeAttr(t('classroomDebateBooksSelectStudent'))}"${checked}${disabled} /></td>
                 <td class="classroom-sheet-col-student">${identity}</td>
                 <td class="classroom-sheet-col-status"><div class="classroom-student-row-status classroom-debate-book-status" role="radiogroup" aria-label="${escapeAttr(t('classroomDebateBooksColStatus'))}">${buildStatusChips(sid, editable)}</div></td>
+                <td class="classroom-sheet-col-issued-date">${issuedCell}</td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-input field-control classroom-debate-book-note" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(note)}"${disabled} /></td>
             </tr>`;
             })
@@ -1117,21 +1223,34 @@
                 }
                 setRecord(sid, { status: target.value });
                 renderStatsBar(panel);
-                const row = target.closest('tr');
-                if (row) {
-                    row.className = row.className.replace(
-                        /classroom-sheet-row--status-debate-book-[\w-]+/g,
-                        ''
-                    );
-                    row.classList.add('classroom-sheet-row--status-rail');
-                    row.classList.add(`classroom-sheet-row--status-debate-book-${target.value}`);
+                renderRows(panel);
+                scheduleStatusSave();
+                return;
+            }
+            if (target.classList.contains('classroom-debate-book-issued-at')) {
+                const sid = target.getAttribute('data-student-id');
+                if (!sid) {
+                    return;
                 }
+                setRecord(sid, { issuedAt: target.value, status: 'issued' });
                 scheduleStatusSave();
             }
         });
         panel.addEventListener('input', (event) => {
             const target = event.target;
-            if (!target || !target.classList.contains('classroom-debate-book-note')) {
+            if (!target) {
+                return;
+            }
+            if (target.classList.contains('classroom-debate-book-issued-at')) {
+                const sid = target.getAttribute('data-student-id');
+                if (!sid) {
+                    return;
+                }
+                setRecord(sid, { issuedAt: target.value, status: 'issued' });
+                scheduleStatusSave();
+                return;
+            }
+            if (!target.classList.contains('classroom-debate-book-note')) {
                 return;
             }
             const sid = target.getAttribute('data-student-id');

@@ -121,6 +121,16 @@ const counts = d.countDebateBookByStatus(
 );
 assert(counts.issued === 1 && counts.missing === 1 && counts.not_issued === 1, 'counts');
 
+const patched = d.applyDebateBookRecordPatch(
+    { studentId: 's1', status: 'not_issued', note: '', issuedAt: '' },
+    { status: 'issued' },
+    '2026-03-15'
+);
+assert(patched.status === 'issued' && patched.issuedAt === '2026-03-15', 'issuedAt on mark issued');
+
+const cleared = d.applyDebateBookRecordPatch(patched, { status: 'missing' }, '2026-03-16');
+assert(cleared.status === 'missing' && cleared.issuedAt === '', 'issuedAt cleared when not issued');
+
 const cohorts = [
     {
         id: 'coh1',

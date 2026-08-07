@@ -4600,10 +4600,58 @@
             return null;
         }
         const status = normalizeStr(raw.status);
+        const normalizedStatus = DEBATE_BOOK_STATUSES.includes(status) ? status : 'not_issued';
+        const issuedAtRaw = normalizeStr(raw.issuedAt);
+        const issuedAt =
+            normalizedStatus === 'issued' && /^\d{4}-\d{2}-\d{2}$/.test(issuedAtRaw) ? issuedAtRaw : '';
         return {
             studentId: normalizeStr(raw.studentId),
-            status: DEBATE_BOOK_STATUSES.includes(status) ? status : 'not_issued',
-            note: normalizeStr(raw.note)
+            status: normalizedStatus,
+            note: normalizeStr(raw.note),
+            issuedAt
+        };
+    }
+
+    function resolveDebateBookIssuedDate(refDate) {
+        const ref = normalizeStr(refDate);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ref)) {
+            return ref;
+        }
+        return todayISO();
+    }
+
+    function applyDebateBookRecordPatch(prev, patch, refDate) {
+        const base = normalizeDebateBookRecord(prev) || {
+            studentId: normalizeStr(patch && patch.studentId),
+            status: 'not_issued',
+            note: '',
+            issuedAt: ''
+        };
+        const p = patch && typeof patch === 'object' ? patch : {};
+        const prevStatus = base.status || 'not_issued';
+        let nextStatus = p.status !== undefined ? normalizeStr(p.status) : prevStatus;
+        nextStatus = DEBATE_BOOK_STATUSES.includes(nextStatus) ? nextStatus : 'not_issued';
+        let issuedAt = base.issuedAt || '';
+        if (p.issuedAt !== undefined) {
+            const candidate = normalizeStr(p.issuedAt);
+            issuedAt =
+                nextStatus === 'issued' && /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : '';
+        }
+        if (p.status !== undefined) {
+            if (nextStatus === 'issued' && prevStatus !== 'issued') {
+                issuedAt = resolveDebateBookIssuedDate(refDate);
+            } else if (nextStatus !== 'issued') {
+                issuedAt = '';
+            }
+        }
+        if (nextStatus === 'issued' && !issuedAt) {
+            issuedAt = resolveDebateBookIssuedDate(refDate);
+        }
+        return {
+            studentId: normalizeStr(p.studentId) || base.studentId,
+            status: nextStatus,
+            note: p.note !== undefined ? normalizeStr(p.note) : base.note,
+            issuedAt
         };
     }
 
@@ -4681,7 +4729,8 @@
             records.push({
                 studentId: sid,
                 status: 'not_issued',
-                note: ''
+                note: '',
+                issuedAt: ''
             });
             seen.add(sid);
         });
@@ -4921,7 +4970,8 @@
                     studentNameEn: normalizeStr(student.nameEn),
                     studentTags: Array.isArray(student.tags) ? student.tags.slice() : [],
                     status: rec.status,
-                    note: rec.note || ''
+                    note: rec.note || '',
+                    issuedAt: rec.issuedAt || ''
                 });
             });
         });
@@ -6703,6 +6753,8 @@
         ensureDebateBookRecordsForStudents,
         emptyDebateBookStatusCounts,
         countDebateBookByStatus,
+        applyDebateBookRecordPatch,
+        resolveDebateBookIssuedDate,
         resolveDebateBookPeriodKeyForClass,
         debateBookAlertCountsForClass,
         normalizeDebateBookSummaryKey,

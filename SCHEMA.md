@@ -160,7 +160,7 @@ Physical book handout checklist (Tools → Debate Books). Keyed by `classId` + `
 | `periodKey` | string | `YYYY-MM` for debate monthly classes (`scheduleModel === 'debateMonthly'`); `'term'` for one-book-per-term classes |
 | `bookTitle` | string | Snapshot of book title for the period |
 | `bookLevel` | string | Snapshot of class level (`levelCustom` / `levelPreset`) |
-| `records[]` | array | `{ studentId, status, note }` — status: `not_issued`, `issued`, `missing` |
+| `records[]` | array | `{ studentId, status, note, issuedAt? }` — status: `not_issued`, `issued`, `missing`; `issuedAt` is `YYYY-MM-DD` when status is `issued` |
 | `authorUserId` | string | Last editor |
 | `updatedAt` | string | ISO-8601 |
 

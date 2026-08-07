@@ -47,7 +47,19 @@ const appData = {
             startDate: '2026-03-01',
             endDate: '2026-03-31',
             book: 'Purple Book',
-            homeroomTeacherName: 'Kim HR'
+            homeroomTeacherName: 'Kim HR',
+            classTeachers: [{ userId: 'u1', name: 'Teacher One' }]
+        },
+        {
+            id: 'cls2',
+            name: 'Beta',
+            cohortIds: ['coh2'],
+            scheduleModel: 'sequential',
+            startDate: '2026-03-01',
+            endDate: '2026-06-30',
+            book: 'Reader 3',
+            homeroomTeacherName: 'Lee HR',
+            classTeachers: [{ userId: 'u2', name: 'Teacher Two' }]
         }
     ],
     cohorts: [
@@ -59,6 +71,12 @@ const appData = {
                 { id: 's1', name: 'Student One', active: true },
                 { id: 's2', name: 'Student Two', active: true }
             ]
+        },
+        {
+            id: 'coh2',
+            name: 'B',
+            homeroomTeacherName: 'Lee HR',
+            students: [{ id: 's3', name: 'Student Three', active: true }]
         }
     ],
     debateBookDistributions: [
@@ -71,17 +89,40 @@ const appData = {
                 { studentId: 's1', status: 'issued', note: '' },
                 { studentId: 's2', status: 'missing', note: 'lost' }
             ]
+        },
+        {
+            id: 'dbd2',
+            classId: 'cls2',
+            periodKey: 'term',
+            bookTitle: 'Reader 3',
+            records: [{ studentId: 's3', status: 'not_issued', note: '' }]
         }
     ]
 };
 
 const entries = d.listDebateBookSummaryEntries(appData, { skipEmptyRoster: true });
-assert(entries.length === 1, 'one summary entry');
+assert(entries.length === 2, 'two summary entries');
 assert(summary.filterEntriesByHrAndMonth(entries, appData, { month: '2026-03' }).length === 1, 'month filter');
+assert(
+    summary.filterEntriesByHrAndMonth(entries, appData, { debateOnly: true }).length === 1,
+    'debate-only filter'
+);
+const filterCtx = {
+    currentUserId: 'u1',
+    deps: {
+        classIsMine: (classData, userId) =>
+            (classData.classTeachers || []).some((row) => row && row.userId === userId)
+    }
+};
+assert(
+    summary.filterEntriesByHrAndMonth(entries, appData, { myClassesOnly: true }, filterCtx).length ===
+        1,
+    'my-classes-only filter'
+);
 assert(summary.normalizeWarnMode('bogus') === 'all', 'warn normalize');
 
-const rows = summary.listRowsForEntries(appData, entries);
-assert(rows.length === 2, 'two student rows');
+const rows = summary.listRowsForEntries(appData, entries.filter((entry) => entry.classId === 'cls1'));
+assert(rows.length === 2, 'two student rows for debate class');
 const attentionRows = summary.filterRowsByWarnMode(rows, 'attention');
 assert(attentionRows.length === 1 && attentionRows[0].status === 'missing', 'attention filter');
 
