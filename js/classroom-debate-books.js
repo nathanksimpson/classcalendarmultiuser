@@ -26,6 +26,12 @@
     let classSummaryModalBound = false;
     const STATUS_AUTOSAVE_MS = 400;
 
+    const DEBATE_BOOK_STATUS_META = {
+        not_issued: { cls: 'debate-book-status--not_issued' },
+        issued: { cls: 'debate-book-status--issued' },
+        missing: { cls: 'debate-book-status--missing' }
+    };
+
     function domain() {
         return global.CCPClassroomDomain;
     }
@@ -921,16 +927,24 @@
         });
     }
 
-    function buildStatusChips(studentId, editable) {
+    function buildStatusButton(studentId, statusKey, curStatus, editable) {
+        const meta = DEBATE_BOOK_STATUS_META[statusKey] || DEBATE_BOOK_STATUS_META.not_issued;
+        const disabled = editable ? '' : ' disabled';
+        const stateMod = statusKey === curStatus ? '--active' : '--available';
+        const pressed = statusKey === curStatus ? 'true' : 'false';
+        const labelKey = `classroomDebateBookStatus_${statusKey}`;
+        return `<button type="button" class="btn btn-outline btn-small selection-chip classroom-status-chip classroom-debate-book-stage ${meta.cls} classroom-debate-book-stage${stateMod}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(statusKey)}" aria-pressed="${pressed}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
+    }
+
+    function buildStatusCell(studentId, editable) {
         const d = domain();
         const rec = getRecord(studentId);
         const current = rec.status || 'not_issued';
-        return d.DEBATE_BOOK_STATUSES.map((status) => {
-            const labelKey = `classroomDebateBookStatus_${status}`;
-            const checked = current === status ? ' checked' : '';
-            const disabled = editable ? '' : ' disabled';
-            return `<label class="checkbox-label selection-chip classroom-status-chip classroom-debate-book-status-chip classroom-debate-book-status-chip--${escapeAttr(status)}"><input type="radio" name="dbook_${escapeAttr(studentId)}" value="${escapeAttr(status)}"${checked}${disabled} data-student-id="${escapeAttr(studentId)}" /> ${escapeHtml(t(labelKey))}</label>`;
-        }).join('');
+        const statuses = d && Array.isArray(d.DEBATE_BOOK_STATUSES) ? d.DEBATE_BOOK_STATUSES : [];
+        const buttons = statuses
+            .map((status) => buildStatusButton(studentId, status, current, editable))
+            .join('');
+        return `<div class="classroom-debate-book-status-selector" role="group" aria-label="${escapeAttr(t('classroomDebateBooksColStatus'))}">${buttons}</div>`;
     }
 
     function applyBatchStatus(panel, status) {
@@ -962,8 +976,10 @@
         mount.hidden = false;
         const editable = access() && access().canEditClass(getClassData());
         const disabled = editable ? '' : ' disabled';
-        const batchBtn = (status) =>
-            `<button type="button" class="btn btn-small classroom-debate-book-batch-btn classroom-debate-book-status-chip--${escapeAttr(status)}" data-batch-status="${escapeAttr(status)}"${disabled}>${escapeHtml(t(`classroomDebateBookStatus_${status}`))}</button>`;
+        const batchBtn = (status) => {
+            const meta = DEBATE_BOOK_STATUS_META[status] || DEBATE_BOOK_STATUS_META.not_issued;
+            return `<button type="button" class="btn btn-small classroom-debate-book-batch-status-btn ${meta.cls}" data-batch-status="${escapeAttr(status)}"${disabled}>${escapeHtml(t(`classroomDebateBookStatus_${status}`))}</button>`;
+        };
         mount.innerHTML = `
             <div class="classroom-essay-batch-row classroom-batch-row classroom-debate-books-batch-row">
                 <span class="classroom-essay-batch-label">${escapeHtml(tf('classroomDebateBooksBatchSelected', { count: selectedStudentIds.size }))}</span>
@@ -1136,7 +1152,7 @@
                 return `<tr class="classroom-sheet-row${railCls}" data-student-id="${escapeAttr(sid)}">
                 <td class="classroom-sheet-col-select"><input type="checkbox" class="classroom-debate-book-select" data-student-id="${escapeAttr(sid)}" aria-label="${escapeAttr(t('classroomDebateBooksSelectStudent'))}"${checked}${disabled} /></td>
                 <td class="classroom-sheet-col-student">${identity}</td>
-                <td class="classroom-sheet-col-status"><div class="classroom-student-row-status classroom-debate-book-status" role="radiogroup" aria-label="${escapeAttr(t('classroomDebateBooksColStatus'))}">${buildStatusChips(sid, editable)}</div></td>
+                <td class="classroom-sheet-col-status">${buildStatusCell(sid, editable)}</td>
                 <td class="classroom-sheet-col-issued-date">${issuedCell}</td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-input field-control classroom-debate-book-note" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(note)}"${disabled} /></td>
             </tr>`;
@@ -1216,17 +1232,6 @@
                 void selectPeriod(panel, target.value);
                 return;
             }
-            if (target.matches('input[type="radio"][name^="dbook_"]')) {
-                const sid = target.getAttribute('data-student-id');
-                if (!sid) {
-                    return;
-                }
-                setRecord(sid, { status: target.value });
-                renderStatsBar(panel);
-                renderRows(panel);
-                scheduleStatusSave();
-                return;
-            }
             if (target.classList.contains('classroom-debate-book-issued-at')) {
                 const sid = target.getAttribute('data-student-id');
                 if (!sid) {
@@ -1261,6 +1266,22 @@
             scheduleNoteSave();
         });
         panel.addEventListener('click', (event) => {
+            const statusBtn = event.target && event.target.closest('.classroom-debate-book-stage');
+            if (statusBtn && panel.contains(statusBtn)) {
+                if (statusBtn.disabled) {
+                    return;
+                }
+                const sid = statusBtn.getAttribute('data-student-id');
+                const status = statusBtn.getAttribute('data-status');
+                if (!sid || !status) {
+                    return;
+                }
+                setRecord(sid, { status });
+                renderStatsBar(panel);
+                renderRows(panel);
+                scheduleStatusSave();
+                return;
+            }
             const batchBtn = event.target && event.target.closest('[data-batch-status]');
             if (batchBtn && panel.contains(batchBtn)) {
                 applyBatchStatus(panel, batchBtn.getAttribute('data-batch-status'));

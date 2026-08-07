@@ -21139,11 +21139,12 @@ th[data-cohort-col] {
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-student {
-    width: 28%;
+    width: 24%;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-status {
-    width: 34%;
+    width: 300px;
+    min-width: 260px;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-issued-date {
@@ -21161,32 +21162,84 @@ th[data-cohort-col] {
     line-height: var(--touch-min-compact, 36px);
 }
 
-#panel-debate-books .classroom-debate-book-status {
-    display: flex;
+#panel-debate-books .classroom-debate-book-status-selector {
+    display: inline-flex;
     flex-wrap: wrap;
-    gap: var(--space-2, 8px);
+    gap: var(--space-1);
+    align-items: center;
+}
+
+#panel-debate-books .classroom-debate-book-stage {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    min-height: var(--touch-min-compact, 36px);
+    cursor: pointer;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    white-space: nowrap;
+    line-height: 1;
+}
+
+#panel-debate-books .classroom-debate-book-stage--available {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+#panel-debate-books .classroom-debate-book-stage--active.debate-book-status--not_issued {
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--bg-card);
+}
+
+#panel-debate-books .classroom-debate-book-stage--active.debate-book-status--issued {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-books .classroom-debate-book-stage--active.debate-book-status--missing {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--not_issued {
+    border-color: var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+#panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--issued {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+    color: var(--primary-dark);
+}
+
+#panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--missing {
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
 }
 
 #panel-debate-books .classroom-sheet-row--status-debate-book-issued {
-    box-shadow: inset 3px 0 0 var(--primary, #14b98f);
+    box-shadow: inset 3px 0 0 var(--primary);
 }
 
 #panel-debate-books .classroom-sheet-row--status-debate-book-missing {
-    box-shadow: inset 3px 0 0 var(--danger, #dc2626);
+    box-shadow: inset 3px 0 0 var(--danger);
 }
 
 #panel-debate-books .classroom-sheet-row--status-debate-book-not_issued {
-    box-shadow: inset 3px 0 0 var(--border-color, #cbd5e1);
+    box-shadow: inset 3px 0 0 var(--border-color);
 }
 
-#panel-debate-books .classroom-debate-book-status-chip--issued:has(input:checked) {
-    border-color: var(--primary, #14b98f);
-    background: var(--accent-muted, #eaf6f1);
-}
-
-#panel-debate-books .classroom-debate-book-status-chip--missing:has(input:checked) {
-    border-color: var(--danger, #dc2626);
-    background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-books .classroom-debate-book-stage {
+    min-height: var(--touch-min, 44px);
+    padding: var(--space-2) var(--space-3);
 }
 
 #panel-debate-books .classroom-debate-books-batch-actions {
