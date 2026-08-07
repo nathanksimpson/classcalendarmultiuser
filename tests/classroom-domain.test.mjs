@@ -88,6 +88,7 @@ assert(Array.isArray(migrated.cohorts[0].students), 'cohort students init');
 assert(Array.isArray(migrated.debateTeamSessions), 'debateTeamSessions init');
 assert(Array.isArray(migrated.debateCustomFormats), 'debateCustomFormats init');
 assert(Array.isArray(migrated.speakingTestRecords), 'speakingTestRecords init');
+assert(Array.isArray(migrated.debateBookDistributions), 'debateBookDistributions init');
 
 let debateSessions = [];
 const debateEntry = {

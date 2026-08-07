@@ -437,6 +437,10 @@
         merged.debateScores = mergeArrayById(local.debateScores, server.debateScores);
         merged.debateCustomFormats = mergeArrayById(local.debateCustomFormats, server.debateCustomFormats);
         merged.speakingTestRecords = mergeArrayById(local.speakingTestRecords, server.speakingTestRecords);
+        merged.debateBookDistributions = mergeArrayById(
+            local.debateBookDistributions,
+            server.debateBookDistributions
+        );
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -961,6 +965,9 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'speakingTestRecords')) {
                 body.speakingTestRecords = fields.speakingTestRecords;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateBookDistributions')) {
+                body.debateBookDistributions = fields.debateBookDistributions;
+            }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsRosterLinks')) {
                 body.tmsRosterLinks = fields.tmsRosterLinks;
             }
@@ -1013,6 +1020,15 @@
                         retryBody.speakingTestRecords = mergeArrayById(
                             body.speakingTestRecords,
                             serverData.speakingTestRecords
+                        );
+                    }
+                    if (
+                        Array.isArray(body.debateBookDistributions) &&
+                        Array.isArray(serverData.debateBookDistributions)
+                    ) {
+                        retryBody.debateBookDistributions = mergeArrayById(
+                            body.debateBookDistributions,
+                            serverData.debateBookDistributions
                         );
                     }
                     if (Array.isArray(body.attendanceSessions) && Array.isArray(serverData.attendanceSessions)) {

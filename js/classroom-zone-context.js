@@ -11,6 +11,7 @@
         'essays',
         'debate-teams',
         'debate-scores',
+        'debate-books',
         'speaking-test'
     ]);
 

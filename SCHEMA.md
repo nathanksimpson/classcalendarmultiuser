@@ -33,6 +33,7 @@
 | `studentTests` | array | Phase 2 stub — test scores |
 | `debateTeamSessions` | array | Debate Teams session state per class+date |
 | `speakingTestRecords` | array | Speaking Test scores per class (Tools → Speaking Test) |
+| `debateBookDistributions` | array | Debate Books handout checklist per class+period (Tools → Debate Books) |
 | `portfolioRecordings` | array | Phase 2 stub — lesson recordings |
 | `portfolioEntries` | array | Phase 2 stub — portfolio essays / news |
 | `smsLog` | array | Phase 2 stub — SMS send log |
@@ -144,7 +145,22 @@ One record per class per syllabus lesson row (essay assignment). Keyed by `class
 | `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
 | `ssDueDate` | string | Student submission due (`YYYY-MM-DD`, optional override) |
 | `teacherEvalDueDate` | string | Teacher evaluation due (`YYYY-MM-DD`, optional override) |
-| `records[]` | array | `{ studentId, status, submittedRetest, note, submissionLate, overdueDismissed }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` (+ `incomplete`, `exempt` in code). `submissionLate`: teacher marked the submission late (not inferred from when Received was clicked). `overdueDismissed`: teacher cleared overdue after verifying e.g. TMS shows on time. |
+| `records[]` | array | `{ studentId, status, submittedRetest, debateVideoMissing, note, submissionLate, overdueDismissed }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` (+ `incomplete`, `exempt` in code). `submissionLate`: teacher marked the submission late (not inferred from when Received was clicked). `overdueDismissed`: teacher cleared overdue after verifying e.g. TMS shows on time. `debateVideoMissing`: teacher marked debate video missing (NV warning). |
+| `authorUserId` | string | Last editor |
+| `updatedAt` | string | ISO-8601 |
+
+### `debateBookDistributions[]` (optional, schema v3)
+
+Physical book handout checklist (Tools → Debate Books). Keyed by `classId` + `periodKey`.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id |
+| `classId` | string | Links to `classes[].id` |
+| `periodKey` | string | `YYYY-MM` for debate monthly classes (`scheduleModel === 'debateMonthly'`); `'term'` for one-book-per-term classes |
+| `bookTitle` | string | Snapshot of book title for the period |
+| `bookLevel` | string | Snapshot of class level (`levelCustom` / `levelPreset`) |
+| `records[]` | array | `{ studentId, status, note }` — status: `not_issued`, `issued`, `missing` |
 | `authorUserId` | string | Last editor |
 | `updatedAt` | string | ISO-8601 |
 
