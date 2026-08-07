@@ -316,6 +316,7 @@
         classroomDebateBooksMonthLabel: 'Book month',
         classroomDebateBooksTermLabel: 'Term book',
         classroomDebateBooksColStatus: 'Status',
+        classroomDebateBooksColIssuedDate: 'Issued date',
         classroomDebateBooksStatsLabel: 'Book distribution summary',
         classroomDebateBooksPickClass: 'Select a class above to track book handouts.',
         classroomDebateBooksNoMonths: 'No months in this class term. Set start and end dates on the class.',
@@ -336,7 +337,9 @@
         classroomDebateBooksClassSummaryTitleNotIssued: 'Books not issued',
         classroomDebateBooksClassSummaryTitleMissing: 'Books missing',
         classroomDebateBooksClassSummaryFilterHint:
-            'Filter by homeroom teacher and book month, then choose which classes to include in print and copy.',
+            'Filter by homeroom teacher, book month, or scope, then choose which classes to include in print and copy.',
+        classroomDebateBooksClassSummaryFilterMyClasses: 'My classes only',
+        classroomDebateBooksClassSummaryFilterDebateOnly: 'Debate classes only',
         classroomDebateBooksClassSummaryFilterHomeroom: 'Homeroom teacher',
         classroomDebateBooksClassSummaryFilterMonth: 'Book month',
         classroomDebateBooksClassSummaryFilterWarn: 'Show students',

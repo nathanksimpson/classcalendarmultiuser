@@ -41,12 +41,14 @@
         const chipCls = statusCssClass(r.status);
         const label = statusLabel(r.status, labels);
         const note = String(r.note || '').trim();
+        const issuedAt = r.status === 'issued' && r.issuedAt ? String(r.issuedAt) : '—';
         return `<tr class="debate-book-class-summary-row">
             <td class="debate-book-class-summary-col-index">${escapeHtml(String(r.rosterIndex || ''))}</td>
             <td class="debate-book-class-summary-col-student">${escapeHtml(formatStudentName(r))}</td>
             <td class="debate-book-class-summary-col-status">
                 <span class="debate-book-class-summary-status-chip ${escapeHtml(chipCls)}">${escapeHtml(label)}</span>
             </td>
+            <td class="debate-book-class-summary-col-issued">${escapeHtml(issuedAt)}</td>
             <td class="debate-book-class-summary-col-notes">${escapeHtml(note || '—')}</td>
         </tr>`;
     }
@@ -54,7 +56,7 @@
     function renderPeriodTable(period, labels) {
         const p = period || {};
         const students = (p.students || []).map((row) => renderStudentRow(row, labels)).join('');
-        const empty = `<tr><td colspan="4" class="debate-book-class-summary-empty">${escapeHtml(labels.noStudentsInSection || '')}</td></tr>`;
+        const empty = `<tr><td colspan="5" class="debate-book-class-summary-empty">${escapeHtml(labels.noStudentsInSection || '')}</td></tr>`;
         return `<div class="debate-book-class-summary-period-block">
             <h3 class="debate-book-class-summary-period-title">${escapeHtml(p.periodLabel || p.periodKey || '')}</h3>
             <table class="debate-book-class-summary-table">
@@ -63,6 +65,7 @@
                         <th scope="col">#</th>
                         <th scope="col">${escapeHtml(labels.colStudent || 'Student')}</th>
                         <th scope="col">${escapeHtml(labels.colStatus || 'Status')}</th>
+                        <th scope="col">${escapeHtml(labels.colIssuedDate || 'Issued date')}</th>
                         <th scope="col">${escapeHtml(labels.colNotes || 'Notes')}</th>
                     </tr>
                 </thead>

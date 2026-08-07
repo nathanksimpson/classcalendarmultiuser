@@ -21143,11 +21143,22 @@ th[data-cohort-col] {
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-status {
-    width: 44%;
+    width: 34%;
+}
+
+#panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-issued-date {
+    width: 12%;
+    min-width: 8.5rem;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-notes {
-    width: 28%;
+    width: 22%;
+}
+
+#panel-debate-books .classroom-debate-book-issued-at-empty {
+    display: inline-block;
+    min-height: var(--touch-min-compact, 36px);
+    line-height: var(--touch-min-compact, 36px);
 }
 
 #panel-debate-books .classroom-debate-book-status {

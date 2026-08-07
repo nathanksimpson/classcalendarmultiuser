@@ -104,9 +104,9 @@
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/ui/classroom-autosave.js?v=20260710-essay-autosave',
             'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
-            'js/classroom-debate-books-summary.js?v=20260807-books-summary',
-            'js/classroom-debate-books-summary-print.js?v=20260807-books-summary',
-            'js/classroom-debate-books.js?v=20260807-books-summary'
+            'js/classroom-debate-books-summary.js?v=20260807-books-filters',
+            'js/classroom-debate-books-summary-print.js?v=20260807-books-filters',
+            'js/classroom-debate-books.js?v=20260807-books-filters'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',

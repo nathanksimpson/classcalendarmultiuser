@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260807-books-summary">
+    <link rel="stylesheet" href="styles.css?v=20260807-books-filters">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -12,7 +12,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260807-books-summary';
+        window.CCP_I18N_VERSION = '20260807-books-filters';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -627,6 +627,7 @@
                                     </th>
                                     <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
                                     <th scope="col" class="classroom-sheet-col-status" data-i18n="classroomDebateBooksColStatus">Status</th>
+                                    <th scope="col" class="classroom-sheet-col-issued-date" data-i18n="classroomDebateBooksColIssuedDate">Issued date</th>
                                     <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
                                 </tr>
                             </thead>
@@ -1589,7 +1590,7 @@
                 <button type="button" class="modal-close" id="debateBookClassSummaryClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body classroom-essay-progress-modal-body classroom-debate-books-class-summary-modal-body">
-                <p class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterHint">Filter by homeroom teacher and book month, then choose which classes to include in print and copy.</p>
+                <p class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterHint">Filter by homeroom teacher, book month, or scope, then choose which classes to include in print and copy.</p>
                 <div class="classroom-essay-progress-filters">
                     <label class="classroom-essay-resubmit-filter-field">
                         <span class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterHomeroom">Homeroom teacher</span>
@@ -1602,6 +1603,14 @@
                     <label class="classroom-essay-resubmit-filter-field">
                         <span class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterWarn">Show students</span>
                         <select id="debateBookClassSummaryWarnModeFilter" class="field-select field-control--compact"></select>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="debateBookClassSummaryMyClassesOnly" />
+                        <span data-i18n="classroomDebateBooksClassSummaryFilterMyClasses">My classes only</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="debateBookClassSummaryDebateOnly" />
+                        <span data-i18n="classroomDebateBooksClassSummaryFilterDebateOnly">Debate classes only</span>
                     </label>
                     <button type="button" id="debateBookClassSummarySelectAll" class="btn btn-outline btn-compact" data-i18n="classroomDebateBooksClassSummarySelectAll">Select all</button>
                     <button type="button" id="debateBookClassSummaryClearAll" class="btn btn-outline btn-compact" data-i18n="classroomDebateBooksClassSummaryClearAll">Clear all</button>
@@ -2330,7 +2339,7 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260807-shared-class-picker"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260807-books-filters"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -2359,7 +2368,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260806-per-period-remap"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260807-debate-books"></script>
+    <script defer src="js/classroom-domain.js?v=20260807-books-filters"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
@@ -2418,7 +2427,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260721-event-syllabi-banner"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260807-books-summary"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260807-books-filters"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
