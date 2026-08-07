@@ -21183,28 +21183,48 @@ th[data-cohort-col] {
     line-height: 1;
 }
 
-#panel-debate-books .classroom-debate-book-stage--available {
-    background: var(--bg-card);
-    border-color: var(--border-color);
-    color: var(--text-muted);
+#panel-debate-books .classroom-debate-book-stage.debate-book-status--not_issued.classroom-debate-book-stage--available {
+    border-color: color-mix(in srgb, var(--text-muted) 55%, var(--border-color));
+    background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-card));
+    color: var(--text-secondary);
 }
 
-#panel-debate-books .classroom-debate-book-stage--active.debate-book-status--not_issued {
+#panel-debate-books .classroom-debate-book-stage.debate-book-status--issued.classroom-debate-book-stage--available {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border-color));
+    background: var(--accent-muted);
+    color: var(--primary-dark);
+}
+
+#panel-debate-books .classroom-debate-book-stage.debate-book-status--missing.classroom-debate-book-stage--available {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+    background: color-mix(in srgb, var(--danger) 10%, var(--bg-card));
+    color: var(--danger);
+}
+
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active.debate-book-status--not_issued,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"].debate-book-status--not_issued {
     background: var(--text-muted);
     border-color: var(--text-muted);
     color: var(--bg-card);
 }
 
-#panel-debate-books .classroom-debate-book-stage--active.debate-book-status--issued {
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active.debate-book-status--issued,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"].debate-book-status--issued {
     background: var(--primary);
     border-color: var(--primary);
     color: var(--text-on-primary);
 }
 
-#panel-debate-books .classroom-debate-book-stage--active.debate-book-status--missing {
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active.debate-book-status--missing,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"].debate-book-status--missing {
     background: var(--danger);
     border-color: var(--danger);
     color: var(--text-on-primary);
+}
+
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active:hover,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"]:hover {
+    filter: brightness(0.96);
 }
 
 #panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--not_issued {
