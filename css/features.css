@@ -13496,6 +13496,34 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     border: 1px solid var(--essay-overdue-border);
 }
 
+.classroom-debate-book-alert-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.classroom-debate-book-alert-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-body-sm);
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.classroom-debate-book-alert-ni {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--essay-status-not) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--essay-status-not) 55%, transparent);
+}
+
+.classroom-debate-book-alert-ms {
+    color: var(--status-error-color);
+    background: var(--status-error-bg);
+    border: 1px solid color-mix(in srgb, var(--status-error-color) 35%, transparent);
+}
+
 .classroom-essays-main {
     min-width: 0;
 }
@@ -18804,4 +18832,28 @@ th[data-cohort-col] {
 
 #panel-debate-books .classroom-debate-books-missing-book {
     margin: var(--space-2, 8px) 0 0;
+}
+
+.classroom-debate-books-summary-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.classroom-debate-books-summary-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.classroom-debate-books-summary-entry-label {
+    font-weight: 600;
+}
+
+.classroom-debate-books-class-summary-preview {
+    max-height: 320px;
+    overflow: auto;
 }

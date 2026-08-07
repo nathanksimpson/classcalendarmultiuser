@@ -121,4 +121,61 @@ const counts = d.countDebateBookByStatus(
 );
 assert(counts.issued === 1 && counts.missing === 1 && counts.not_issued === 1, 'counts');
 
+const cohorts = [
+    {
+        id: 'coh1',
+        name: 'Debate',
+        students: [
+            { id: 's1', name: 'A', sortOrder: 0, active: true },
+            { id: 's2', name: 'B', sortOrder: 1, active: true },
+            { id: 's3', name: 'C', sortOrder: 2, active: true }
+        ]
+    }
+];
+const debateClassWithCohort = Object.assign({}, debateClass, { cohortIds: ['coh1'] });
+
+const alertCounts = d.debateBookAlertCountsForClass(
+    list,
+    debateClassWithCohort,
+    cohorts,
+    { 'cls-debate': '2026-03' }
+);
+assert(alertCounts.ni === 2 && alertCounts.ms === 1, 'picker alert counts for saved period');
+
+const defaultPeriodAlerts = d.debateBookAlertCountsForClass(
+    list,
+    debateClassWithCohort,
+    cohorts,
+    {}
+);
+assert(typeof defaultPeriodAlerts.ni === 'number' && typeof defaultPeriodAlerts.ms === 'number', 'default period alerts');
+
+const writingClassWithCohort = Object.assign({}, writingClass, { cohortIds: ['coh1'] });
+
+const summaryEntries = d.listDebateBookSummaryEntries(
+    {
+        classes: [debateClassWithCohort, writingClassWithCohort],
+        cohorts,
+        debateBookDistributions: list
+    },
+    { skipEmptyRoster: true }
+);
+assert(summaryEntries.length === 4, `summary entries monthly+term, got ${summaryEntries.length}`);
+assert(
+    summaryEntries.some((entry) => entry.key === 'cls-debate|2026-03'),
+    'summary includes debate month'
+);
+assert(summaryEntries.some((entry) => entry.key === 'cls-wr|term'), 'summary includes term class');
+
+const summaryRows = d.listDebateBookSummaryRows(
+    {
+        classes: [debateClassWithCohort],
+        cohorts,
+        debateBookDistributions: list
+    },
+    { selectedKeys: ['cls-debate|2026-03'] }
+);
+assert(summaryRows.length === 3, 'summary rows for roster');
+assert(summaryRows.filter((row) => row.status === 'missing').length === 1, 'summary missing row');
+
 console.log('classroom-debate-books.test.mjs: ok');

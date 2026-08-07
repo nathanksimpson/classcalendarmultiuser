@@ -14,6 +14,10 @@
     let contextSubscribed = false;
     let mountEventsBound = false;
     const selectedStudentIds = new Set();
+    let reportsMenuOpen = false;
+    let classSummarySelectedKeys = new Set();
+    let classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+    let classSummaryModalBound = false;
     const STATUS_AUTOSAVE_MS = 400;
 
     function domain() {
@@ -311,6 +315,512 @@
         }
     }
 
+    function refreshZoneContextBar() {
+        const zone = global.CCPClassroomZoneContext;
+        const mount = document.getElementById('classroomZoneContextBar');
+        if (!zone || !zone.render || !mount || mount.hidden) {
+            return;
+        }
+        zone.render(mount);
+    }
+
+    function booksSummaryApi() {
+        return global.CCPClassroomDebateBooksSummary;
+    }
+
+    function booksSummaryPrintApi() {
+        return global.CCPClassroomDebateBooksSummaryPrint;
+    }
+
+    function closeReportsMenu() {
+        reportsMenuOpen = false;
+    }
+
+    function listAllSummaryEntries() {
+        const d = domain();
+        if (!d || !d.listDebateBookSummaryEntries) {
+            return [];
+        }
+        return d.listDebateBookSummaryEntries(getAppData(), { skipEmptyRoster: true });
+    }
+
+    function loadClassSummarySelection() {
+        const data = getAppData();
+        classSummarySelectedKeys.clear();
+        const raw = data.ui && data.ui.debateBookClassSummarySelection;
+        if (typeof raw === 'string' && raw.trim()) {
+            raw.split(',').forEach((key) => {
+                const trimmed = key.trim();
+                if (trimmed) {
+                    classSummarySelectedKeys.add(trimmed);
+                }
+            });
+        }
+        const filtersRaw = data.ui && data.ui.debateBookClassSummaryFilters;
+        classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+        const summaryApi = booksSummaryApi();
+        const normalizeWarn =
+            summaryApi && summaryApi.normalizeWarnMode
+                ? summaryApi.normalizeWarnMode.bind(summaryApi)
+                : (mode) => mode;
+        if (typeof filtersRaw === 'string' && filtersRaw.trim()) {
+            try {
+                const parsed = JSON.parse(filtersRaw);
+                if (parsed && typeof parsed === 'object') {
+                    classSummaryFilters = {
+                        homeroomKey:
+                            typeof parsed.homeroomKey === 'string' ? parsed.homeroomKey : '',
+                        month: typeof parsed.month === 'string' ? parsed.month : '',
+                        warnMode: normalizeWarn(parsed.warnMode)
+                    };
+                }
+            } catch (_err) {
+                classSummaryFilters = { homeroomKey: '', month: '', warnMode: 'all' };
+            }
+        } else if (filtersRaw && typeof filtersRaw === 'object') {
+            classSummaryFilters = {
+                homeroomKey:
+                    typeof filtersRaw.homeroomKey === 'string' ? filtersRaw.homeroomKey : '',
+                month: typeof filtersRaw.month === 'string' ? filtersRaw.month : '',
+                warnMode: normalizeWarn(filtersRaw.warnMode)
+            };
+        }
+    }
+
+    function saveClassSummarySelection() {
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref(
+                'debateBookClassSummarySelection',
+                Array.from(classSummarySelectedKeys).join(',')
+            );
+        }
+    }
+
+    function saveClassSummaryFilters() {
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref(
+                'debateBookClassSummaryFilters',
+                JSON.stringify({
+                    homeroomKey: classSummaryFilters.homeroomKey || '',
+                    month: classSummaryFilters.month || '',
+                    warnMode: classSummaryFilters.warnMode || 'all'
+                })
+            );
+        }
+    }
+
+    function syncClassSummaryFiltersFromDom() {
+        const hrEl = document.getElementById('debateBookClassSummaryHomeroomFilter');
+        const monthEl = document.getElementById('debateBookClassSummaryMonthFilter');
+        const warnEl = document.getElementById('debateBookClassSummaryWarnModeFilter');
+        const summaryApi = booksSummaryApi();
+        const normalizeWarn =
+            summaryApi && summaryApi.normalizeWarnMode
+                ? summaryApi.normalizeWarnMode.bind(summaryApi)
+                : (mode) => mode;
+        classSummaryFilters = {
+            homeroomKey: hrEl ? String(hrEl.value || '') : classSummaryFilters.homeroomKey || '',
+            month: monthEl ? String(monthEl.value || '') : classSummaryFilters.month || '',
+            warnMode: normalizeWarn(warnEl ? warnEl.value : classSummaryFilters.warnMode)
+        };
+        saveClassSummaryFilters();
+    }
+
+    function listFilteredClassSummaryEntries() {
+        const all = listAllSummaryEntries();
+        const summaryApi = booksSummaryApi();
+        if (!summaryApi || !summaryApi.filterEntriesByHrAndMonth) {
+            return all;
+        }
+        return summaryApi.filterEntriesByHrAndMonth(all, getAppData(), classSummaryFilters);
+    }
+
+    function getClassSummaryLabels() {
+        const mode = classSummaryFilters.warnMode || 'all';
+        let title = t('classroomDebateBooksClassSummaryTitle');
+        if (mode === 'attention') {
+            title = t('classroomDebateBooksClassSummaryTitleAttention');
+        } else if (mode === 'not_issued') {
+            title = t('classroomDebateBooksClassSummaryTitleNotIssued');
+        } else if (mode === 'missing') {
+            title = t('classroomDebateBooksClassSummaryTitleMissing');
+        }
+        return {
+            title,
+            noStudents: t('classroomDebateBooksClassSummaryNoStudents'),
+            noStudentsInSection: t('classroomDebateBooksClassSummaryNoStudentsInSection'),
+            generatedAt: t('classroomDebateBooksClassSummaryGeneratedAt'),
+            noHomeroom: t('classroomDebateBooksClassSummaryNoHomeroom'),
+            hrHeading: t('classroomDebateBooksClassSummaryHrHeading'),
+            colStudent: t('classroomColStudent'),
+            colStatus: t('classroomDebateBooksColStatus'),
+            colNotes: t('classroomColNotes'),
+            statusLabels: {
+                not_issued: t('classroomDebateBookStatus_not_issued'),
+                issued: t('classroomDebateBookStatus_issued'),
+                missing: t('classroomDebateBookStatus_missing')
+            }
+        };
+    }
+
+    function getSelectedClassSummaryEntries() {
+        const filtered = listFilteredClassSummaryEntries();
+        if (!classSummarySelectedKeys.size) {
+            return [];
+        }
+        return filtered.filter((entry) => entry && classSummarySelectedKeys.has(entry.key));
+    }
+
+    function getClassSummaryHrGroups(entries) {
+        const summaryApi = booksSummaryApi();
+        if (!summaryApi || !summaryApi.listRowsForEntries || !summaryApi.groupRowsByHomeroom) {
+            return [];
+        }
+        const rows = summaryApi.listRowsForEntries(getAppData(), entries);
+        const filteredRows = summaryApi.filterRowsByWarnMode
+            ? summaryApi.filterRowsByWarnMode(rows, classSummaryFilters.warnMode)
+            : rows;
+        return summaryApi.groupRowsByHomeroom(filteredRows, getAppData(), {
+            warnMode: classSummaryFilters.warnMode
+        });
+    }
+
+    function renderClassSummaryPreviewHtml(entries) {
+        const printApi = booksSummaryPrintApi();
+        const labels = getClassSummaryLabels();
+        if (!printApi || !entries.length) {
+            return '';
+        }
+        const groups = getClassSummaryHrGroups(entries);
+        const d = domain();
+        return printApi.renderDocumentHtml(
+            {
+                calendarName: getAppData().calendarName || '',
+                generatedAt: d && d.todayISO ? d.todayISO() : '',
+                groups
+            },
+            labels
+        );
+    }
+
+    function openInlinePrintDocument(title, bodyHtml, inlineCss) {
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+            <style>${inlineCss || ''}</style>
+        </head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('printSyllabusBlocked'), true);
+            }
+            return null;
+        }
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        printWin.document.title = title;
+        printWin.focus();
+        const triggerPrint = () => {
+            try {
+                printWin.focus();
+                printWin.print();
+            } catch (_err) {
+                /* ignore */
+            }
+        };
+        if (printWin.document.readyState === 'complete') {
+            setTimeout(triggerPrint, 50);
+        } else {
+            printWin.addEventListener('load', () => setTimeout(triggerPrint, 50));
+        }
+        return printWin;
+    }
+
+    function openBooksClassSummaryPrint(entries) {
+        const printApi = booksSummaryPrintApi();
+        if (!printApi || !entries.length) {
+            return;
+        }
+        const groups = getClassSummaryHrGroups(entries);
+        if (!groups.length) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomDebateBooksClassSummaryNoStudents'), true);
+            }
+            return;
+        }
+        const labels = getClassSummaryLabels();
+        const bodyHtml = printApi.renderDocumentHtml(
+            {
+                calendarName: getAppData().calendarName || '',
+                generatedAt: domain() && domain().todayISO ? domain().todayISO() : '',
+                groups
+            },
+            labels
+        );
+        openInlinePrintDocument(labels.title, bodyHtml, printApi.PRINT_STYLES || '');
+    }
+
+    async function copyBooksClassSummary(entries) {
+        const summaryApi = booksSummaryApi();
+        if (!summaryApi || !entries.length) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomDebateBooksClassSummaryNoEntries'), true);
+            }
+            return;
+        }
+        const groups = getClassSummaryHrGroups(entries);
+        const labels = getClassSummaryLabels();
+        const text = summaryApi.formatCopyText(groups, labels);
+        if (!text || text === labels.noStudents) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomDebateBooksClassSummaryNoStudents'), true);
+            }
+            return;
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                throw new Error('clipboard unavailable');
+            }
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomDebateBooksClassSummaryCopyDone'));
+            }
+        } catch (_err) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomDebateBooksClassSummaryCopyFailed'), true);
+            }
+        }
+    }
+
+    function populateClassSummaryFilterSelects(allEntries) {
+        const summaryApi = booksSummaryApi();
+        const hrEl = document.getElementById('debateBookClassSummaryHomeroomFilter');
+        const monthEl = document.getElementById('debateBookClassSummaryMonthFilter');
+        const warnEl = document.getElementById('debateBookClassSummaryWarnModeFilter');
+        const appData = getAppData();
+        if (hrEl && summaryApi && summaryApi.listHomeroomFilterOptions) {
+            const options = summaryApi.listHomeroomFilterOptions(allEntries, appData);
+            const prev = classSummaryFilters.homeroomKey || '';
+            const parts = [
+                `<option value="">${escapeHtml(t('classroomDebateBooksClassSummaryFilterAllHomerooms'))}</option>`
+            ];
+            options.forEach((opt) => {
+                if (!opt || !opt.key) {
+                    return;
+                }
+                const label =
+                    opt.key === summaryApi.NO_HOMEROOM_KEY
+                        ? t('classroomDebateBooksClassSummaryNoHomeroom')
+                        : opt.label || opt.key;
+                parts.push(
+                    `<option value="${escapeAttr(opt.key)}">${escapeHtml(label)}</option>`
+                );
+            });
+            hrEl.innerHTML = parts.join('');
+            const valid = !prev || options.some((o) => o && o.key === prev);
+            hrEl.value = valid ? prev : '';
+            classSummaryFilters.homeroomKey = hrEl.value || '';
+        }
+        if (monthEl && summaryApi && summaryApi.listMonthFilterOptions) {
+            const months = summaryApi.listMonthFilterOptions(allEntries);
+            const prev = classSummaryFilters.month || '';
+            const parts = [
+                `<option value="">${escapeHtml(t('classroomDebateBooksClassSummaryFilterAllMonths'))}</option>`
+            ];
+            months.forEach((month) => {
+                parts.push(`<option value="${escapeAttr(month)}">${escapeHtml(month)}</option>`);
+            });
+            monthEl.innerHTML = parts.join('');
+            const valid = !prev || months.includes(prev);
+            monthEl.value = valid ? prev : '';
+            classSummaryFilters.month = monthEl.value || '';
+        }
+        if (warnEl && summaryApi && summaryApi.normalizeWarnMode) {
+            const mode = summaryApi.normalizeWarnMode(classSummaryFilters.warnMode);
+            warnEl.innerHTML = [
+                ['all', 'classroomDebateBooksClassSummaryWarnAll'],
+                ['attention', 'classroomDebateBooksClassSummaryWarnAttention'],
+                ['not_issued', 'classroomDebateBooksClassSummaryWarnNotIssued'],
+                ['missing', 'classroomDebateBooksClassSummaryWarnMissing']
+            ]
+                .map(
+                    ([value, key]) =>
+                        `<option value="${escapeAttr(value)}">${escapeHtml(t(key))}</option>`
+                )
+                .join('');
+            warnEl.value = mode;
+            classSummaryFilters.warnMode = mode;
+        }
+    }
+
+    function formatClassSummaryEntryHint(entry) {
+        const summaryApi = booksSummaryApi();
+        const hint =
+            summaryApi && summaryApi.formatEntryHint
+                ? summaryApi.formatEntryHint(entry)
+                : { issued: 0, total: entry.totalStudents || 0 };
+        return tf('classroomDebateBooksClassSummaryEntryHint', {
+            issued: hint.issued,
+            total: hint.total
+        });
+    }
+
+    function renderClassSummaryModal() {
+        const listEl = document.getElementById('debateBookClassSummaryEntryList');
+        const previewEl = document.getElementById('debateBookClassSummaryPreview');
+        if (!listEl || !previewEl) {
+            return;
+        }
+        const allEntries = listAllSummaryEntries();
+        populateClassSummaryFilterSelects(allEntries);
+        const entries = listFilteredClassSummaryEntries();
+        const savedSelection = getAppData().ui && getAppData().ui.debateBookClassSummarySelection;
+        const neverSavedSelection = savedSelection == null || savedSelection === '';
+        if (neverSavedSelection && !classSummarySelectedKeys.size && entries.length) {
+            entries.forEach((row) => classSummarySelectedKeys.add(row.key));
+        }
+        listEl.innerHTML =
+            entries
+                .map((row) => {
+                    const checked = classSummarySelectedKeys.has(row.key) ? ' checked' : '';
+                    const hint = formatClassSummaryEntryHint(row);
+                    return `<label class="selection-chip classroom-debate-books-summary-entry">
+                    <input type="checkbox" class="debate-book-class-summary-entry-check" data-entry-key="${escapeAttr(row.key)}"${checked} />
+                    <span class="classroom-debate-books-summary-entry-label">${escapeHtml(row.className)} — ${escapeHtml(row.periodLabel)}</span>
+                    <span class="section-hint">${escapeHtml(hint)}</span>
+                </label>`;
+                })
+                .join('') ||
+            `<p class="section-hint">${escapeHtml(t('classroomDebateBooksClassSummaryNoEntries'))}</p>`;
+        listEl.querySelectorAll('.debate-book-class-summary-entry-check').forEach((input) => {
+            input.addEventListener('change', () => {
+                const key = input.getAttribute('data-entry-key');
+                if (!key) {
+                    return;
+                }
+                if (input.checked) {
+                    classSummarySelectedKeys.add(key);
+                } else {
+                    classSummarySelectedKeys.delete(key);
+                }
+                saveClassSummarySelection();
+                previewEl.innerHTML = renderClassSummaryPreviewHtml(
+                    getSelectedClassSummaryEntries()
+                );
+            });
+        });
+        previewEl.innerHTML = renderClassSummaryPreviewHtml(getSelectedClassSummaryEntries());
+    }
+
+    function openClassSummaryModal() {
+        const modal = document.getElementById('debateBookClassSummaryModal');
+        if (!modal) {
+            return;
+        }
+        loadClassSummarySelection();
+        renderClassSummaryModal();
+        modal.hidden = false;
+        modal.classList.add('active');
+    }
+
+    function bindClassSummaryModal() {
+        if (classSummaryModalBound) {
+            return;
+        }
+        classSummaryModalBound = true;
+        const modal = document.getElementById('debateBookClassSummaryModal');
+        if (!modal) {
+            return;
+        }
+        document.getElementById('debateBookClassSummaryClose')?.addEventListener('click', () => {
+            if (hooks && hooks.closeModal) {
+                hooks.closeModal(modal);
+            } else {
+                modal.hidden = true;
+                modal.classList.remove('active');
+            }
+        });
+        document
+            .getElementById('debateBookClassSummaryHomeroomFilter')
+            ?.addEventListener('change', () => {
+                syncClassSummaryFiltersFromDom();
+                renderClassSummaryModal();
+            });
+        document.getElementById('debateBookClassSummaryMonthFilter')?.addEventListener('change', () => {
+            syncClassSummaryFiltersFromDom();
+            renderClassSummaryModal();
+        });
+        document
+            .getElementById('debateBookClassSummaryWarnModeFilter')
+            ?.addEventListener('change', () => {
+                syncClassSummaryFiltersFromDom();
+                renderClassSummaryModal();
+            });
+        document.getElementById('debateBookClassSummarySelectAll')?.addEventListener('click', () => {
+            listFilteredClassSummaryEntries().forEach((row) =>
+                classSummarySelectedKeys.add(row.key)
+            );
+            saveClassSummarySelection();
+            renderClassSummaryModal();
+        });
+        document.getElementById('debateBookClassSummaryClearAll')?.addEventListener('click', () => {
+            listFilteredClassSummaryEntries().forEach((row) => {
+                classSummarySelectedKeys.delete(row.key);
+            });
+            saveClassSummarySelection();
+            renderClassSummaryModal();
+        });
+        document.getElementById('debateBookClassSummaryCopyBtn')?.addEventListener('click', () => {
+            const selected = getSelectedClassSummaryEntries();
+            if (!selected.length) {
+                if (hooks && hooks.showToast) {
+                    hooks.showToast(t('classroomDebateBooksClassSummaryNoEntries'), true);
+                }
+                return;
+            }
+            void copyBooksClassSummary(selected);
+        });
+        document.getElementById('debateBookClassSummaryPrintBtn')?.addEventListener('click', () => {
+            const selected = getSelectedClassSummaryEntries();
+            if (!selected.length) {
+                if (hooks && hooks.showToast) {
+                    hooks.showToast(t('classroomDebateBooksClassSummaryNoEntries'), true);
+                }
+                return;
+            }
+            openBooksClassSummaryPrint(selected);
+        });
+    }
+
+    function renderReportsMenu(panel) {
+        const mount = panel.querySelector('#classroomDebateBooksReportsWrap');
+        if (!mount) {
+            return;
+        }
+        const openCls = reportsMenuOpen ? ' is-open' : '';
+        const menuHidden = reportsMenuOpen ? '' : ' hidden';
+        const reportsIcon = `<svg class="classroom-essay-reports-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`;
+        mount.innerHTML = `
+            <div class="classroom-essay-reports-menu${openCls}">
+                <button type="button" id="classroomDebateBooksReportsBtn" class="btn btn-outline btn-compact classroom-essay-reports-btn" aria-expanded="${reportsMenuOpen ? 'true' : 'false'}" aria-haspopup="menu">
+                    ${reportsIcon}${escapeHtml(t('classroomDebateBooksReportsBtn'))} ▾
+                </button>
+                <div id="classroomDebateBooksReportsDropdown" class="classroom-essay-reports-dropdown"${menuHidden} role="menu">
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="class-summary" role="menuitem">${escapeHtml(t('classroomDebateBooksClassSummaryBtn'))}</button>
+                </div>
+            </div>`;
+        mount.querySelector('#classroomDebateBooksReportsBtn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            reportsMenuOpen = !reportsMenuOpen;
+            renderReportsMenu(panel);
+        });
+        mount.querySelector('[data-report-action="class-summary"]')?.addEventListener('click', () => {
+            closeReportsMenu();
+            renderReportsMenu(panel);
+            openClassSummaryModal();
+        });
+    }
+
     function buildStatusChips(studentId, editable) {
         const d = domain();
         const rec = getRecord(studentId);
@@ -535,6 +1045,7 @@
         }
         panelRef = panel;
         ensureAutosave(panel);
+        renderReportsMenu(panel);
         renderContextBar(panel);
         renderStatsBar(panel);
         renderBatchActions(panel);
@@ -543,6 +1054,7 @@
         if (saveBtn) {
             saveBtn.disabled = !(access() && access().canEditClass(getClassData()));
         }
+        refreshZoneContextBar();
     }
 
     async function selectPeriod(panel, nextPeriodKey) {
@@ -582,6 +1094,13 @@
             return;
         }
         mountEventsBound = true;
+        panel.addEventListener('mousedown', (e) => {
+            const reports = panel.querySelector('#classroomDebateBooksReportsWrap');
+            if (reportsMenuOpen && reports && !reports.contains(e.target)) {
+                closeReportsMenu();
+                renderReportsMenu(panel);
+            }
+        });
         panel.addEventListener('change', (event) => {
             const target = event.target;
             if (!target) {
@@ -677,6 +1196,7 @@
         }
         panelRef = panel;
         bindMountEvents(panel);
+        bindClassSummaryModal();
         subscribeContext();
         classId = resolveClassId(options);
         selectedStudentIds.clear();

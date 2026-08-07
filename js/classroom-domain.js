@@ -4728,6 +4728,206 @@
         return counts;
     }
 
+    function resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId) {
+        if (!classData) {
+            return '';
+        }
+        if (!classUsesMonthlyDebateBooks(classData)) {
+            return DEBATE_BOOK_TERM_PERIOD_KEY;
+        }
+        const map =
+            uiPeriodByClassId && typeof uiPeriodByClassId === 'object' ? uiPeriodByClassId : {};
+        const preferred = normalizeDebateBookPeriodKey(map[classData.id]);
+        const options = listDebateBookMonthOptions(classData);
+        if (preferred && options.some((opt) => opt.periodKey === preferred)) {
+            return preferred;
+        }
+        return pickDefaultDebateBookPeriodKey(classData);
+    }
+
+    function debateBookAlertCountsForClass(distributions, classData, cohorts, uiPeriodByClassId) {
+        if (!classData || !classData.id) {
+            return { ni: 0, ms: 0 };
+        }
+        const periodKey = resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId);
+        if (!periodKey) {
+            return { ni: 0, ms: 0 };
+        }
+        const students = resolveStudentsForClass(classData, cohorts);
+        const activeStudentIds = students
+            .map((entry) => entry && entry.student && entry.student.id)
+            .filter(Boolean);
+        if (!activeStudentIds.length) {
+            return { ni: 0, ms: 0 };
+        }
+        const dist = findDebateBookDistribution(distributions, classData.id, periodKey);
+        const ensured = ensureDebateBookRecordsForStudents(
+            dist || { classId: classData.id, periodKey, records: [] },
+            students
+        );
+        const counts = countDebateBookByStatus(ensured, activeStudentIds);
+        return { ni: counts.not_issued, ms: counts.missing };
+    }
+
+    function normalizeDebateBookSummaryKey(classId, periodKey) {
+        const cid = normalizeStr(classId);
+        const key = normalizeDebateBookPeriodKey(periodKey);
+        if (!cid || !key) {
+            return '';
+        }
+        return `${cid}|${key}`;
+    }
+
+    function listDebateBookSummaryEntries(appData, options) {
+        const opts = options || {};
+        const data = appData && typeof appData === 'object' ? appData : {};
+        const classes = Array.isArray(opts.classes) ? opts.classes : data.classes || [];
+        const cohorts = data.cohorts || [];
+        const distributions = data.debateBookDistributions || [];
+        const uiPeriodMap =
+            opts.uiPeriodByClassId ||
+            (data.ui && data.ui.debateBookPeriodByClassId) ||
+            {};
+        const entries = [];
+        classes.forEach((classData) => {
+            if (!classData || !classData.id) {
+                return;
+            }
+            const students = resolveStudentsForClass(classData, cohorts);
+            const studentIds = students
+                .map((entry) => entry && entry.student && entry.student.id)
+                .filter(Boolean);
+            if (opts.skipEmptyRoster && !studentIds.length) {
+                return;
+            }
+            const className = normalizeStr(classData.name) || classData.id;
+            const classTypeLabel = resolveClassTypeLabel(classData, data);
+            const levelLabel = resolveClassLevelLabel(classData);
+            const pushEntry = (periodOpt) => {
+                if (!periodOpt || !periodOpt.periodKey) {
+                    return;
+                }
+                const dist = findDebateBookDistribution(
+                    distributions,
+                    classData.id,
+                    periodOpt.periodKey
+                );
+                const ensured = ensureDebateBookRecordsForStudents(
+                    dist || {
+                        classId: classData.id,
+                        periodKey: periodOpt.periodKey,
+                        records: []
+                    },
+                    students
+                );
+                const counts = countDebateBookByStatus(ensured, studentIds);
+                entries.push({
+                    key: normalizeDebateBookSummaryKey(classData.id, periodOpt.periodKey),
+                    classId: classData.id,
+                    className,
+                    classTypeLabel,
+                    levelLabel,
+                    periodKey: periodOpt.periodKey,
+                    periodLabel: periodOpt.label || periodOpt.periodKey,
+                    bookTitle: periodOpt.bookTitle || '',
+                    bookLevel: periodOpt.bookLevel || '',
+                    monthKey:
+                        periodOpt.periodKey === DEBATE_BOOK_TERM_PERIOD_KEY
+                            ? ''
+                            : periodOpt.periodKey,
+                    counts,
+                    totalStudents: studentIds.length
+                });
+            };
+            if (classUsesMonthlyDebateBooks(classData)) {
+                listDebateBookMonthOptions(classData).forEach(pushEntry);
+            } else {
+                pushEntry(getDebateBookTermOption(classData));
+            }
+        });
+        return entries.sort((a, b) => {
+            const byClass = String(a.className || '').localeCompare(
+                String(b.className || ''),
+                undefined,
+                { sensitivity: 'base' }
+            );
+            if (byClass !== 0) {
+                return byClass;
+            }
+            return String(a.periodKey || '').localeCompare(String(b.periodKey || ''));
+        });
+    }
+
+    function listDebateBookSummaryRows(appData, options) {
+        const opts = options || {};
+        const keySet = opts.entryKeys instanceof Set ? opts.entryKeys : null;
+        const selectedKeys = Array.isArray(opts.selectedKeys)
+            ? new Set(opts.selectedKeys.map(normalizeStr).filter(Boolean))
+            : keySet;
+        const entries = listDebateBookSummaryEntries(appData, opts).filter((entry) => {
+            if (!entry || !entry.key) {
+                return false;
+            }
+            if (selectedKeys && selectedKeys.size && !selectedKeys.has(entry.key)) {
+                return false;
+            }
+            return true;
+        });
+        const cohorts = (appData && appData.cohorts) || [];
+        const distributions = (appData && appData.debateBookDistributions) || [];
+        const rows = [];
+        entries.forEach((entry) => {
+            const classData = (appData.classes || []).find((c) => c && c.id === entry.classId);
+            if (!classData) {
+                return;
+            }
+            const students = resolveStudentsForClass(classData, cohorts);
+            const dist = findDebateBookDistribution(
+                distributions,
+                entry.classId,
+                entry.periodKey
+            );
+            const ensured = ensureDebateBookRecordsForStudents(
+                dist || {
+                    classId: entry.classId,
+                    periodKey: entry.periodKey,
+                    records: []
+                },
+                students
+            );
+            students.forEach((studentEntry) => {
+                const student = studentEntry && studentEntry.student;
+                if (!student || !student.id) {
+                    return;
+                }
+                const rec =
+                    getDebateBookRecordForStudent(ensured, student.id) || {
+                        studentId: student.id,
+                        status: 'not_issued',
+                        note: ''
+                    };
+                rows.push({
+                    key: entry.key,
+                    classId: entry.classId,
+                    className: entry.className,
+                    classTypeLabel: entry.classTypeLabel,
+                    levelLabel: entry.levelLabel,
+                    periodKey: entry.periodKey,
+                    periodLabel: entry.periodLabel,
+                    bookTitle: entry.bookTitle,
+                    bookLevel: entry.bookLevel,
+                    studentId: student.id,
+                    studentName: normalizeStr(student.name),
+                    studentNameEn: normalizeStr(student.nameEn),
+                    studentTags: Array.isArray(student.tags) ? student.tags.slice() : [],
+                    status: rec.status,
+                    note: rec.note || ''
+                });
+            });
+        });
+        return rows;
+    }
+
     function migrateClassroomData(data) {
         if (!data || typeof data !== 'object') {
             return false;
@@ -6503,6 +6703,11 @@
         ensureDebateBookRecordsForStudents,
         emptyDebateBookStatusCounts,
         countDebateBookByStatus,
+        resolveDebateBookPeriodKeyForClass,
+        debateBookAlertCountsForClass,
+        normalizeDebateBookSummaryKey,
+        listDebateBookSummaryEntries,
+        listDebateBookSummaryRows,
         DEBATE_SCORE_CRITERIA,
         DEBATE_SCORE_MAX,
         normalizeDebateSheetTemplate,
