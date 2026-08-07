@@ -8,6 +8,7 @@
         'homework-tracking',
         'points',
         'tests',
+        'essays',
         'debate-teams',
         'debate-scores',
         'speaking-test'
@@ -92,16 +93,11 @@
 
     function getBaseAccessibleClasses() {
         const data = getAppData();
-        let classes = (data.classes || []).filter(
+        // Do not apply active-cohort filter here — Classroom must list every editable class.
+        // Cohort filter is for Class Setup sidebars after an intentional Cohorts-board pick.
+        return (data.classes || []).filter(
             (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
         );
-        if (global.CCPCohortSidebarFilter) {
-            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
-                classes,
-                global.CCPCohortSidebarFilter.getActiveCohortId()
-            );
-        }
-        return classes;
     }
 
     function getVisibleClasses() {
@@ -180,32 +176,86 @@
         }
     }
 
+    function tf(key, vars) {
+        let s = t(key);
+        if (vars && typeof vars === 'object') {
+            Object.keys(vars).forEach((name) => {
+                s = s.replace(new RegExp(`\\{${name}\\}`, 'g'), String(vars[name] == null ? '' : vars[name]));
+            });
+        }
+        return s;
+    }
+
+    function getEssayAlertCounts(classData) {
+        if (!classData || !domain() || !domain().essayAlertCountsForClass) {
+            return { rs: 0, as: 0, od: 0, ae: 0, nv: 0 };
+        }
+        const data = getAppData();
+        return domain().essayAlertCountsForClass(
+            getEssayAlertSubmissions(),
+            classData,
+            data.cohorts || []
+        );
+    }
+
+    /** Essays-tab warn pills (RS/NS/OD/AE/NV) — same chrome as essays sheet badges. */
+    function buildEssayAlertBadgesHtml(counts) {
+        const c = counts || {};
+        const parts = [];
+        if (c.rs > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-rs">${escapeHtml(tf('classroomEssayAlertRs', { count: c.rs }))}</span>`
+            );
+        }
+        if ((c.as || 0) > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-as">${escapeHtml(tf('classroomEssayAlertAs', { count: c.as }))}</span>`
+            );
+        }
+        if (c.od > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-od">${escapeHtml(tf('classroomEssayAlertOd', { count: c.od }))}</span>`
+            );
+        }
+        if (c.ae > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-ae">${escapeHtml(tf('classroomEssayAlertAe', { count: c.ae }))}</span>`
+            );
+        }
+        if (c.nv > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('classroomEssayDebateVideoMissing'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: c.nv }))}</span>`
+            );
+        }
+        return parts.length
+            ? `<span class="classroom-essay-alert-badges">${parts.join('')}</span>`
+            : '';
+    }
+
     function getEssayClassDisplayLabel(classData) {
         if (!classData) {
             return '';
         }
-        let label = classData.name || classData.id || '';
-        if (domain()) {
-            const data = getAppData();
-            const counts = domain().essayAlertCountsForClass(
-                getEssayAlertSubmissions(),
-                classData,
-                data.cohorts || []
-            );
-            label += domain().formatEssayClassAlertSuffix(counts);
-        }
-        return label;
+        return classData.name || classData.id || '';
     }
 
     function getClassDisplayLabel(classData) {
         if (!classData) {
             return '';
         }
-        let label = classData.name || classData.id || '';
-        if (activeTabId === 'essays') {
-            return getEssayClassDisplayLabel(classData);
+        return classData.name || classData.id || '';
+    }
+
+    function getClassPickerItemHtml(classData) {
+        const label = escapeHtml(getClassDisplayLabel(classData));
+        if (activeTabId !== 'essays') {
+            return label;
         }
-        return label;
+        const badges = buildEssayAlertBadgesHtml(getEssayAlertCounts(classData));
+        if (!badges) {
+            return `<span class="classroom-zone-combobox-item__label">${label}</span>`;
+        }
+        return `<span class="classroom-zone-combobox-item__label">${label}</span>${badges}`;
     }
 
     function classSearchHaystack(classData) {
@@ -309,8 +359,7 @@
             .map((c, index) => {
                 const selected = c.id === s.classId ? ' is-selected' : '';
                 const highlighted = index === comboboxHighlight ? ' is-highlighted' : '';
-                const label = getClassDisplayLabel(c);
-                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}</button>`;
             })
             .join('');
     }
@@ -351,6 +400,7 @@
         const wrap = mountEl && mountEl.querySelector('.classroom-zone-class-combobox');
         const list = mountEl && mountEl.querySelector('#classroomZoneClassList');
         const input = mountEl && mountEl.querySelector('#classroomZoneClassInput');
+        const inputWrap = mountEl && mountEl.querySelector('.classroom-zone-class-input-wrap');
         if (wrap) {
             wrap.classList.toggle('is-open', comboboxOpen);
         }
@@ -360,6 +410,26 @@
         if (input) {
             input.setAttribute('aria-expanded', comboboxOpen ? 'true' : 'false');
             input.value = comboboxOpen ? classSearchQuery : getSelectedClassName(state);
+        }
+        if (inputWrap) {
+            let badgesHost = inputWrap.querySelector('.classroom-zone-class-input-badges');
+            if (activeTabId === 'essays' && !comboboxOpen && state && state.classId) {
+                const classData = findClassData(state.classId, state.classes);
+                const html = classData ? buildEssayAlertBadgesHtml(getEssayAlertCounts(classData)) : '';
+                if (html) {
+                    if (!badgesHost) {
+                        badgesHost = document.createElement('span');
+                        badgesHost.className = 'classroom-zone-class-input-badges';
+                        badgesHost.setAttribute('aria-hidden', 'true');
+                        inputWrap.appendChild(badgesHost);
+                    }
+                    badgesHost.innerHTML = html;
+                } else if (badgesHost) {
+                    badgesHost.remove();
+                }
+            } else if (badgesHost) {
+                badgesHost.remove();
+            }
         }
         if (comboboxOpen) {
             updateComboboxListDom(mountEl, state, options);
@@ -395,6 +465,7 @@
                 return;
             }
             comboboxOpen = true;
+            classSearchQuery = '';
             if (comboboxHighlight < 0) {
                 comboboxHighlight = -1;
             }
@@ -416,48 +487,38 @@
             if (e.target.id !== 'classroomZoneClassInput') {
                 return;
             }
-            const list = mountEl.querySelector('#classroomZoneClassList');
-            const items = list ? Array.from(list.querySelectorAll('[data-class-id]')) : [];
-            const state = getComboboxState();
 
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (!items.length) {
-                    return;
-                }
-                if (!comboboxOpen) {
-                    comboboxOpen = true;
-                }
-                comboboxHighlight = Math.min(comboboxHighlight + 1, items.length - 1);
-                syncComboboxOpenUi(
-                    mountEl,
-                    Object.assign({}, state, { classSearchQuery: e.target.value }),
-                    {}
-                );
-                return;
+            function listItems() {
+                const list = mountEl.querySelector('#classroomZoneClassList');
+                return list ? Array.from(list.querySelectorAll('[data-class-id]')) : [];
             }
-            if (e.key === 'ArrowUp') {
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (!items.length) {
-                    return;
-                }
                 if (!comboboxOpen) {
                     comboboxOpen = true;
+                    classSearchQuery = '';
                 }
-                comboboxHighlight = Math.max(comboboxHighlight - 1, 0);
-                syncComboboxOpenUi(
-                    mountEl,
-                    Object.assign({}, state, { classSearchQuery: e.target.value }),
-                    {}
-                );
+                syncComboboxOpenUi(mountEl, getComboboxState(), {});
+                const itemsAfter = listItems();
+                if (!itemsAfter.length) {
+                    return;
+                }
+                if (e.key === 'ArrowDown') {
+                    comboboxHighlight = Math.min(comboboxHighlight + 1, itemsAfter.length - 1);
+                } else {
+                    comboboxHighlight = Math.max(comboboxHighlight - 1, 0);
+                }
+                syncComboboxOpenUi(mountEl, getComboboxState(), {});
                 return;
             }
             if (e.key === 'Enter') {
                 e.preventDefault();
+                const items = listItems();
                 if (!items.length) {
                     comboboxOpen = false;
                     classSearchQuery = '';
-                    syncComboboxOpenUi(mountEl, state, {});
+                    syncComboboxOpenUi(mountEl, getComboboxState(), {});
                     e.target.blur();
                     return;
                 }
@@ -474,7 +535,7 @@
                 comboboxOpen = false;
                 classSearchQuery = '';
                 comboboxHighlight = -1;
-                syncComboboxOpenUi(mountEl, state, {});
+                syncComboboxOpenUi(mountEl, getComboboxState(), {});
                 e.target.blur();
             }
         });
@@ -566,6 +627,10 @@
         const showEssaysToggle = activeTabId === 'essays';
         const comboboxValue = comboboxOpen ? classSearchQuery : getSelectedClassName({ classId, classes });
         const sessionDate = getSessionDate() || todayISO();
+        const closedEssayBadges =
+            showEssaysToggle && !comboboxOpen && classData
+                ? buildEssayAlertBadgesHtml(getEssayAlertCounts(classData))
+                : '';
 
         const inputEl = mountEl.querySelector('#classroomZoneClassInput');
         const restoreFocus = inputEl && document.activeElement === inputEl;
@@ -578,7 +643,10 @@
                 <div class="classroom-zone-class-combobox${comboboxOpen ? ' is-open' : ''}" data-class-combobox>
                     <label class="classroom-zone-field classroom-zone-class-field">
                         <span>${escapeHtml(t('classroomClassLabel'))}</span>
-                        <input type="search" id="classroomZoneClassInput" class="module-list-search classroom-zone-class-input" role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="classroomZoneClassList" aria-expanded="${comboboxOpen ? 'true' : 'false'}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" value="${escapeAttr(comboboxValue)}" />
+                        <div class="classroom-zone-class-input-wrap">
+                            <input type="search" id="classroomZoneClassInput" class="module-list-search classroom-zone-class-input" role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="classroomZoneClassList" aria-expanded="${comboboxOpen ? 'true' : 'false'}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" value="${escapeAttr(comboboxValue)}" />
+                            ${closedEssayBadges ? `<span class="classroom-zone-class-input-badges" aria-hidden="true">${closedEssayBadges}</span>` : ''}
+                        </div>
                     </label>
                     <div id="classroomZoneClassList" class="classroom-zone-class-list module-list" role="listbox"${comboboxOpen ? '' : ' hidden'}>${buildComboboxListHtml({ classId, classes, classSearchQuery })}</div>
                 </div>
@@ -686,6 +754,8 @@
         getSessionDate,
         setSessionDate,
         getEssayClassDisplayLabel,
+        buildEssayAlertBadgesHtml,
+        getEssayAlertCounts,
         withEssayAlertSubmissions,
         filterClassesForSearch
     };

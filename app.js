@@ -16618,12 +16618,8 @@ function navigateHomeworkQueue(delta) {
     if (!next) {
         return;
     }
-    const refDate = getHomeworkReferenceDateFromUi();
     if (typeof CCPActiveContext !== 'undefined') {
-        CCPActiveContext.set({
-            classId: next.id,
-            sessionDate: refDate
-        }, { source: 'homework-queue' });
+        CCPActiveContext.setFromClass(appData, next.id, undefined, 'homework-queue');
     } else {
         appData.ui.homeworkTabClassId = next.id;
         saveData();
@@ -17128,12 +17124,8 @@ function renderHomeworkClassList() {
         list.appendChild(createHomeworkClassListButton(c, {
             isSelected: c.id === selectedId,
             onClick: () => {
-                const refDate = getHomeworkReferenceDateFromUi();
                 if (typeof CCPActiveContext !== 'undefined') {
-                    CCPActiveContext.set({
-                        classId: c.id,
-                        sessionDate: refDate
-                    }, { source: 'homework-sidebar' });
+                    CCPActiveContext.setFromClass(appData, c.id, undefined, 'homework-sidebar');
                 } else {
                     appData.ui.homeworkTabClassId = c.id;
                     saveData();
