@@ -103,7 +103,10 @@
             'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/ui/classroom-autosave.js?v=20260710-essay-autosave',
-            'js/classroom-debate-books.js?v=20260807-books-roster'
+            'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
+            'js/classroom-debate-books-summary.js?v=20260807-books-summary',
+            'js/classroom-debate-books-summary-print.js?v=20260807-books-summary',
+            'js/classroom-debate-books.js?v=20260807-books-summary'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',

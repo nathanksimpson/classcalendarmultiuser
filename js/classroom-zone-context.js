@@ -233,6 +233,62 @@
             : '';
     }
 
+    function getDebateBookPeriodPreferenceMap() {
+        const ui = getAppData().ui || {};
+        return ui.debateBookPeriodByClassId && typeof ui.debateBookPeriodByClassId === 'object'
+            ? ui.debateBookPeriodByClassId
+            : {};
+    }
+
+    function getDebateBookAlertCounts(classData) {
+        if (!classData || !domain() || !domain().debateBookAlertCountsForClass) {
+            return { ni: 0, ms: 0 };
+        }
+        const data = getAppData();
+        return domain().debateBookAlertCountsForClass(
+            data.debateBookDistributions,
+            classData,
+            data.cohorts || [],
+            getDebateBookPeriodPreferenceMap()
+        );
+    }
+
+    /** Books-tab warn pills (NI/MS) for the class default or saved period. */
+    function buildDebateBookAlertBadgesHtml(counts) {
+        const c = counts || {};
+        const parts = [];
+        if ((c.ni || 0) > 0) {
+            parts.push(
+                `<span class="classroom-debate-book-alert-badge classroom-debate-book-alert-ni">${escapeHtml(tf('classroomDebateBookAlertNi', { count: c.ni }))}</span>`
+            );
+        }
+        if ((c.ms || 0) > 0) {
+            parts.push(
+                `<span class="classroom-debate-book-alert-badge classroom-debate-book-alert-ms">${escapeHtml(tf('classroomDebateBookAlertMs', { count: c.ms }))}</span>`
+            );
+        }
+        return parts.length
+            ? `<span class="classroom-debate-book-alert-badges">${parts.join('')}</span>`
+            : '';
+    }
+
+    function buildTabAlertBadgesHtml(classData) {
+        if (!classData) {
+            return '';
+        }
+        if (activeTabId === 'essays') {
+            return buildEssayAlertBadgesHtml(getEssayAlertCounts(classData));
+        }
+        if (activeTabId === 'debate-books') {
+            return buildDebateBookAlertBadgesHtml(getDebateBookAlertCounts(classData));
+        }
+        return '';
+    }
+
+    function usesTabAlertBadges() {
+        return activeTabId === 'essays' || activeTabId === 'debate-books';
+    }
+
     function getEssayClassDisplayLabel(classData) {
         if (!classData) {
             return '';
@@ -249,10 +305,10 @@
 
     function getClassPickerItemHtml(classData) {
         const label = escapeHtml(getClassDisplayLabel(classData));
-        if (activeTabId !== 'essays') {
+        if (!usesTabAlertBadges()) {
             return label;
         }
-        const badges = buildEssayAlertBadgesHtml(getEssayAlertCounts(classData));
+        const badges = buildTabAlertBadgesHtml(classData);
         if (!badges) {
             return `<span class="classroom-zone-combobox-item__label">${label}</span>`;
         }
@@ -414,9 +470,9 @@
         }
         if (inputWrap) {
             let badgesHost = inputWrap.querySelector('.classroom-zone-class-input-badges');
-            if (activeTabId === 'essays' && !comboboxOpen && state && state.classId) {
+            if (usesTabAlertBadges() && !comboboxOpen && state && state.classId) {
                 const classData = findClassData(state.classId, state.classes);
-                const html = classData ? buildEssayAlertBadgesHtml(getEssayAlertCounts(classData)) : '';
+                const html = classData ? buildTabAlertBadgesHtml(classData) : '';
                 if (html) {
                     if (!badgesHost) {
                         badgesHost = document.createElement('span');
@@ -628,9 +684,9 @@
         const showEssaysToggle = activeTabId === 'essays';
         const comboboxValue = comboboxOpen ? classSearchQuery : getSelectedClassName({ classId, classes });
         const sessionDate = getSessionDate() || todayISO();
-        const closedEssayBadges =
-            showEssaysToggle && !comboboxOpen && classData
-                ? buildEssayAlertBadgesHtml(getEssayAlertCounts(classData))
+        const closedTabBadges =
+            usesTabAlertBadges() && !comboboxOpen && classData
+                ? buildTabAlertBadgesHtml(classData)
                 : '';
 
         const inputEl = mountEl.querySelector('#classroomZoneClassInput');
@@ -646,7 +702,7 @@
                         <span>${escapeHtml(t('classroomClassLabel'))}</span>
                         <div class="classroom-zone-class-input-wrap">
                             <input type="search" id="classroomZoneClassInput" class="module-list-search classroom-zone-class-input" role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="classroomZoneClassList" aria-expanded="${comboboxOpen ? 'true' : 'false'}" placeholder="${escapeAttr(t('classListSearchPlaceholder'))}" value="${escapeAttr(comboboxValue)}" />
-                            ${closedEssayBadges ? `<span class="classroom-zone-class-input-badges" aria-hidden="true">${closedEssayBadges}</span>` : ''}
+                            ${closedTabBadges ? `<span class="classroom-zone-class-input-badges" aria-hidden="true">${closedTabBadges}</span>` : ''}
                         </div>
                     </label>
                     <div id="classroomZoneClassList" class="classroom-zone-class-list module-list" role="listbox"${comboboxOpen ? '' : ' hidden'}>${buildComboboxListHtml({ classId, classes, classSearchQuery })}</div>
@@ -756,6 +812,8 @@
         setSessionDate,
         getEssayClassDisplayLabel,
         buildEssayAlertBadgesHtml,
+        buildDebateBookAlertBadgesHtml,
+        getDebateBookAlertCounts,
         getEssayAlertCounts,
         withEssayAlertSubmissions,
         filterClassesForSearch
