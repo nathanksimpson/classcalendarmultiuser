@@ -1608,6 +1608,7 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         debateScores,
         debateCustomFormats,
         speakingTestRecords,
+        debateBookDistributions,
         tmsRosterLinks
     } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
@@ -1642,6 +1643,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'speakingTestRecords')) {
             payload.speakingTestRecords = speakingTestRecords;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateBookDistributions')) {
+            payload.debateBookDistributions = debateBookDistributions;
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'tmsRosterLinks')) {
             payload.tmsRosterLinks = tmsRosterLinks;

@@ -349,6 +349,42 @@ function stampSpeakingTestRecords(records, userId) {
     return stampHomework(records, userId);
 }
 
+function validateDebateBookDistributionsChange(user, calendarData, prevList, nextList) {
+    const prev = Array.isArray(prevList) ? prevList : [];
+    const next = Array.isArray(nextList) ? nextList : [];
+    const prevByKey = new Map(
+        prev.filter(Boolean).map((r) => [`${normalizeStr(r.classId)}|${normalizeStr(r.periodKey)}`, r])
+    );
+    const nextByKey = new Map(
+        next.filter(Boolean).map((r) => [`${normalizeStr(r.classId)}|${normalizeStr(r.periodKey)}`, r])
+    );
+    const touchedClassIds = new Set();
+    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
+        if (!key) {
+            continue;
+        }
+        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
+            const classId =
+                (nextByKey.get(key) && nextByKey.get(key).classId) ||
+                (prevByKey.get(key) && prevByKey.get(key).classId);
+            if (classId) {
+                touchedClassIds.add(classId);
+            }
+        }
+    }
+    for (const classId of touchedClassIds) {
+        const err = assertCanEditClass(user, calendarData, classId);
+        if (err) {
+            return err;
+        }
+    }
+    return null;
+}
+
+function stampDebateBookDistributions(distributions, userId) {
+    return stampHomework(distributions, userId);
+}
+
 function prepareClassroomForSave(user, calendarData, payload) {
     const data = calendarData || {};
     const body = payload || {};
@@ -363,7 +399,12 @@ function prepareClassroomForSave(user, calendarData, payload) {
     const hasDebateScores = Object.prototype.hasOwnProperty.call(body, 'debateScores');
     const hasDebateFormats = Object.prototype.hasOwnProperty.call(body, 'debateCustomFormats');
     const hasSpeakingTestRecords = Object.prototype.hasOwnProperty.call(body, 'speakingTestRecords');
+    const hasDebateBookDistributions = Object.prototype.hasOwnProperty.call(
+        body,
+        'debateBookDistributions'
+    );
     const hasTmsRosterLinks = Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks');
+    const hasTmsEssayLinks = Object.prototype.hasOwnProperty.call(body, 'tmsEssayLinks');
 
     if (
         !hasCohorts &&
@@ -376,7 +417,9 @@ function prepareClassroomForSave(user, calendarData, payload) {
         !hasDebateScores &&
         !hasDebateFormats &&
         !hasSpeakingTestRecords &&
-        !hasTmsRosterLinks
+        !hasDebateBookDistributions &&
+        !hasTmsRosterLinks &&
+        !hasTmsEssayLinks
     ) {
         return { error: 'No classroom fields to save', merged: {} };
     }
@@ -470,9 +513,29 @@ function prepareClassroomForSave(user, calendarData, payload) {
         merged.speakingTestRecords = nextRecords;
     }
 
+    if (hasDebateBookDistributions) {
+        const nextDistributions = stampDebateBookDistributions(body.debateBookDistributions, user.id);
+        const err = validateDebateBookDistributionsChange(
+            user,
+            data,
+            data.debateBookDistributions,
+            nextDistributions
+        );
+        if (err) {
+            return { error: err, merged: {} };
+        }
+        merged.debateBookDistributions = nextDistributions;
+    }
+
     if (hasTmsRosterLinks) {
         const raw = body.tmsRosterLinks;
         merged.tmsRosterLinks =
+            raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    }
+
+    if (hasTmsEssayLinks) {
+        const raw = body.tmsEssayLinks;
+        merged.tmsEssayLinks =
             raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
     }
 

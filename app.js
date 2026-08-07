@@ -721,6 +721,7 @@ function getDefaultAppData() {
         debateScores: [],
         debateCustomFormats: [],
         speakingTestRecords: [],
+        debateBookDistributions: [],
         portfolioRecordings: [],
         portfolioEntries: [],
         smsLog: [],
@@ -13602,6 +13603,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'tests',
     'debate-teams',
     'debate-scores',
+    'debate-books',
     'speaking-test'
 ];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
@@ -13644,6 +13646,7 @@ const ZONE_SEGMENT_TO_TAB = {
         essays: 'essays',
         'debate-teams': 'debate-teams',
         'debate-scores': 'debate-scores',
+        'debate-books': 'debate-books',
         'speaking-test': 'speaking-test'
     },
     more: { data: 'data' }
@@ -14179,6 +14182,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
     'debate-teams': { zone: APP_ZONE_TOOLS, segment: 'debate-teams' },
     'debate-scores': { zone: APP_ZONE_TOOLS, segment: 'debate-scores' },
+    'debate-books': { zone: APP_ZONE_TOOLS, segment: 'debate-books' },
     'speaking-test': { zone: APP_ZONE_TOOLS, segment: 'speaking-test' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
@@ -15675,6 +15679,8 @@ async function navigateToTabBody(tabId, options = {}) {
             typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null,
         'debate-scores':
             typeof CCPClassroomDebateScores !== 'undefined' ? CCPClassroomDebateScores : null,
+        'debate-books':
+            typeof CCPClassroomDebateBooks !== 'undefined' ? CCPClassroomDebateBooks : null,
         'speaking-test':
             typeof CCPClassroomSpeakingTest !== 'undefined' ? CCPClassroomSpeakingTest : null,
         ledger: typeof CCPClassroomLedger !== 'undefined' ? CCPClassroomLedger : null
@@ -15801,6 +15807,7 @@ async function navigateToTabBody(tabId, options = {}) {
         || tabId === 'tests'
         || tabId === 'debate-teams'
         || tabId === 'debate-scores'
+        || tabId === 'debate-books'
         || tabId === 'speaking-test'
     ) {
         void initClassroomTabControls(tabId, options);
@@ -20165,6 +20172,9 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.speakingTestRecords)) {
         appData.speakingTestRecords = serverData.speakingTestRecords;
     }
+    if (Array.isArray(serverData.debateBookDistributions)) {
+        appData.debateBookDistributions = serverData.debateBookDistributions;
+    }
     if (serverData.tmsRosterLinks && typeof serverData.tmsRosterLinks === 'object') {
         appData.tmsRosterLinks =
             typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
@@ -20215,6 +20225,9 @@ async function saveClassroomPartial(fields, options) {
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'speakingTestRecords')) {
             appData.speakingTestRecords = fieldBag.speakingTestRecords;
         }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'debateBookDistributions')) {
+            appData.debateBookDistributions = fieldBag.debateBookDistributions;
+        }
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'tmsRosterLinks')) {
             appData.tmsRosterLinks =
                 typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
@@ -20241,6 +20254,7 @@ async function saveClassroomPartial(fields, options) {
             'debateScores',
             'debateCustomFormats',
             'speakingTestRecords',
+            'debateBookDistributions',
             'tmsRosterLinks',
             'tmsEssayLinks'
         ].forEach((key) => {
@@ -20436,6 +20450,8 @@ async function initClassroomTabControls(tabId, options = {}) {
             await CCPClassroomDebateTeams.initTab(hooks, options);
         } else if (tabId === 'debate-scores' && typeof CCPClassroomDebateScores !== 'undefined') {
             await CCPClassroomDebateScores.initTab(hooks, options);
+        } else if (tabId === 'debate-books' && typeof CCPClassroomDebateBooks !== 'undefined') {
+            await CCPClassroomDebateBooks.initTab(hooks, options);
         } else if (tabId === 'speaking-test' && typeof CCPClassroomSpeakingTest !== 'undefined') {
             await CCPClassroomSpeakingTest.initTab(hooks, options);
         } else {
@@ -35196,6 +35212,7 @@ function refreshActiveTabAfterHydration() {
         || tab === 'tests'
         || tab === 'debate-teams'
         || tab === 'debate-scores'
+        || tab === 'debate-books'
         || tab === 'speaking-test'
     ) {
         void initClassroomTabControls(tab);
@@ -35205,6 +35222,13 @@ function refreshActiveTabAfterHydration() {
             && CCPClassroomDebateTeams.refreshIfActive
         ) {
             void CCPClassroomDebateTeams.refreshIfActive();
+        }
+        if (
+            tab === 'debate-books'
+            && typeof CCPClassroomDebateBooks !== 'undefined'
+            && CCPClassroomDebateBooks.refreshIfActive
+        ) {
+            void CCPClassroomDebateBooks.refreshIfActive();
         }
         if (
             tab === 'speaking-test'
@@ -36670,7 +36694,7 @@ function migrateData(data) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'speakingTestRecords', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'speakingTestRecords', 'debateBookDistributions', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;

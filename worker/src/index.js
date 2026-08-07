@@ -1898,6 +1898,9 @@ export default {
                     if (Object.prototype.hasOwnProperty.call(body, 'speakingTestRecords')) {
                         payload.speakingTestRecords = body.speakingTestRecords;
                     }
+                    if (Object.prototype.hasOwnProperty.call(body, 'debateBookDistributions')) {
+                        payload.debateBookDistributions = body.debateBookDistributions;
+                    }
                     if (Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks')) {
                         payload.tmsRosterLinks = body.tmsRosterLinks;
                     }

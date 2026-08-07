@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260806-homework-sticky">
+    <link rel="stylesheet" href="styles.css?v=20260807-debate-books">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -164,6 +164,7 @@
                             <button type="button" class="app-zone-segment-btn is-active" data-segment="essays" data-tab="essays" data-i18n="classroomTabEssays">Essays</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-tab="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="debate-scores" data-tab="debate-scores" data-i18n="classroomTabDebateScores">Debate Scores</button>
+                            <button type="button" class="app-zone-segment-btn" data-segment="debate-books" data-tab="debate-books" data-i18n="classroomTabDebateBooks">Books</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="speaking-test" data-tab="speaking-test" data-i18n="classroomTabSpeakingTest">Speaking Test</button>
                         </div>
                     </nav>
@@ -603,6 +604,31 @@
                     </div>
                 </div>
                 <div id="classroomDebateTeamsMount" class="classroom-debate-mount"></div>
+            </section>
+
+            <section id="panel-debate-books" class="app-tab-panel classroom-debate-books-layout" data-tab="debate-books" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
+                <div class="classroom-sheet-panel">
+                    <div id="classroomDebateBooksContextBar" class="classroom-essays-context-bar classroom-debate-books-context-bar"></div>
+                    <div id="classroomDebateBooksStatsBar" class="classroom-debate-books-stats-bar" role="group" aria-label="Book distribution summary" data-i18n-aria-label="classroomDebateBooksStatsLabel"></div>
+                    <div class="module-toolbar classroom-tab-toolbar">
+                        <div class="toolbar-actions">
+                            <span id="classroomDebateBooksSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
+                            <button type="button" id="classroomDebateBooksSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
+                        </div>
+                    </div>
+                    <div class="classroom-sheet-scroll" tabindex="0">
+                        <table class="classroom-sheet classroom-sheet--debate-books">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
+                                    <th scope="col" class="classroom-sheet-col-status" data-i18n="classroomDebateBooksColStatus">Status</th>
+                                    <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classroomDebateBooksRows"></tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <section id="panel-speaking-test" class="app-tab-panel speaking-test-panel" data-tab="speaking-test" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
@@ -2261,7 +2287,7 @@
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
     <script defer src="js/active-context.js?v=20260807-no-auto-cohort"></script>
     <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
-    <script defer src="js/classroom-zone-context.js?v=20260807-essay-pills"></script>
+    <script defer src="js/classroom-zone-context.js?v=20260807-debate-books"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
@@ -2272,7 +2298,7 @@
     <script defer src="js/team-auth.js?v=20260608-i18n-audit"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-mutations.js?v=20260806-patch-mutations"></script>
-    <script defer src="js/calendar-sync.js?v=20260806-patch-mutations"></script>
+    <script defer src="js/calendar-sync.js?v=20260807-debate-books"></script>
     <script defer src="js/conflict-merge.js?v=20260806-patch-mutations"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
@@ -2294,7 +2320,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260806-per-period-remap"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260806-name-marks"></script>
+    <script defer src="js/classroom-domain.js?v=20260807-debate-books"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
@@ -2361,7 +2387,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260806-default-accent"></script>
-    <script defer src="app.js?v=20260806-patch-mutations"></script>
+    <script defer src="app.js?v=20260807-debate-books"></script>
 </body>
 </html>
 

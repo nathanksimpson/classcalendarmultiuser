@@ -13,6 +13,22 @@
         'incomplete',
         'exempt'
     ];
+    const DEBATE_BOOK_STATUSES = ['not_issued', 'issued', 'missing'];
+    const DEBATE_BOOK_TERM_PERIOD_KEY = 'term';
+    const DEBATE_BOOK_MONTH_NAMES_EN = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+    ];
     const STUDENT_TAGS = ['interested', 'new', 'ending_soon', 'starting_soon', 'off_roster', 'shuttle', 'transfer_in'];
     const OFF_ROSTER_TAG = 'off_roster';
     const SYNC_MANAGED_STUDENT_TAGS = ['new', 'shuttle', 'transfer_in'];
@@ -1899,6 +1915,16 @@
                 });
             });
         }
+        if (Array.isArray(next.debateBookDistributions)) {
+            next.debateBookDistributions = next.debateBookDistributions.map((dist) => {
+                if (!dist || !Array.isArray(dist.records)) {
+                    return dist;
+                }
+                return Object.assign({}, dist, {
+                    records: dist.records.filter((r) => normalizeStr(r.studentId) !== sid)
+                });
+            });
+        }
         if (Array.isArray(next.studentPoints)) {
             next.studentPoints = next.studentPoints.filter(
                 (p) => !p || normalizeStr(p.studentId) !== sid
@@ -1968,6 +1994,36 @@
         }
         if (!base.overdueDismissed && other.overdueDismissed) {
             base.overdueDismissed = true;
+        }
+        return base;
+    }
+
+    const DEBATE_BOOK_STATUS_MERGE_RANK = {
+        not_issued: 0,
+        missing: 1,
+        issued: 2
+    };
+
+    function debateBookStatusMergeRank(status) {
+        const s = normalizeStr(status);
+        return Object.prototype.hasOwnProperty.call(DEBATE_BOOK_STATUS_MERGE_RANK, s)
+            ? DEBATE_BOOK_STATUS_MERGE_RANK[s]
+            : 0;
+    }
+
+    function pickRicherDebateBookRecord(keepRec, dropRec) {
+        if (!keepRec) {
+            return dropRec ? Object.assign({}, dropRec) : null;
+        }
+        if (!dropRec) {
+            return Object.assign({}, keepRec);
+        }
+        const keepRank = debateBookStatusMergeRank(keepRec.status);
+        const dropRank = debateBookStatusMergeRank(dropRec.status);
+        const base = dropRank > keepRank ? Object.assign({}, dropRec) : Object.assign({}, keepRec);
+        const other = dropRank > keepRank ? keepRec : dropRec;
+        if (!normalizeStr(base.note) && normalizeStr(other.note)) {
+            base.note = other.note;
         }
         return base;
     }
@@ -2178,6 +2234,16 @@
                 }
                 return Object.assign({}, essay, {
                     records: rekeyRecordList(essay.records, keepId, dropId, pickRicherEssayRecord)
+                });
+            });
+        }
+        if (Array.isArray(next.debateBookDistributions)) {
+            next.debateBookDistributions = next.debateBookDistributions.map((dist) => {
+                if (!dist || !Array.isArray(dist.records)) {
+                    return dist;
+                }
+                return Object.assign({}, dist, {
+                    records: rekeyRecordList(dist.records, keepId, dropId, pickRicherDebateBookRecord)
                 });
             });
         }
@@ -4393,6 +4459,275 @@
         return list;
     }
 
+    function classUsesMonthlyDebateBooks(classData) {
+        if (!classData) {
+            return false;
+        }
+        return normalizeStr(classData.scheduleModel) === 'debateMonthly';
+    }
+
+    function normalizeDebateBookPeriodKey(raw) {
+        const key = normalizeStr(raw);
+        if (key === DEBATE_BOOK_TERM_PERIOD_KEY) {
+            return DEBATE_BOOK_TERM_PERIOD_KEY;
+        }
+        if (/^\d{4}-\d{2}$/.test(key)) {
+            return key;
+        }
+        return '';
+    }
+
+    function formatDebateBookOptionLabel(periodKey, bookTitle, bookLevel) {
+        const key = normalizeDebateBookPeriodKey(periodKey);
+        const title = normalizeStr(bookTitle);
+        const level = normalizeStr(bookLevel);
+        const bookBit = [title, level].filter(Boolean).join(' · ');
+        if (key === DEBATE_BOOK_TERM_PERIOD_KEY) {
+            return bookBit || key;
+        }
+        let monthLabel = key;
+        if (/^\d{4}-\d{2}$/.test(key)) {
+            const year = key.slice(0, 4);
+            const monthNum = Number(key.slice(5, 7));
+            const monthName = DEBATE_BOOK_MONTH_NAMES_EN[monthNum - 1] || key.slice(5);
+            monthLabel = `${monthName} ${year}`;
+        }
+        return bookBit ? `${monthLabel} — ${bookBit}` : monthLabel;
+    }
+
+    function enumerateDebateBookMonthKeys(classData) {
+        const start = normalizeStr(classData && classData.startDate);
+        const end = normalizeStr(classData && classData.endDate);
+        if (global.CCPDebatePeriods && typeof global.CCPDebatePeriods.enumerateMonthKeysBetween === 'function') {
+            return global.CCPDebatePeriods.enumerateMonthKeysBetween(start, end);
+        }
+        const keys = [];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+            return keys;
+        }
+        let y = Number(start.slice(0, 4));
+        let mo = Number(start.slice(5, 7)) - 1;
+        const endY = Number(end.slice(0, 4));
+        const endMo = Number(end.slice(5, 7)) - 1;
+        while (y < endY || (y === endY && mo <= endMo)) {
+            keys.push(`${y}-${String(mo + 1).padStart(2, '0')}`);
+            mo += 1;
+            if (mo > 11) {
+                mo = 0;
+                y += 1;
+            }
+        }
+        return keys;
+    }
+
+    function resolveDebateBookTitleForMonth(classData, monthKey) {
+        const key = normalizeDebateBookPeriodKey(monthKey);
+        if (!key || key === DEBATE_BOOK_TERM_PERIOD_KEY) {
+            return normalizeStr(classData && classData.book);
+        }
+        const midDate = `${key}-15`;
+        if (global.CCPDebatePeriods && typeof global.CCPDebatePeriods.getBookForDate === 'function') {
+            return (
+                normalizeStr(global.CCPDebatePeriods.getBookForDate(classData, midDate)) ||
+                normalizeStr(classData && classData.book)
+            );
+        }
+        const periods = Array.isArray(classData && classData.debateBookPeriods)
+            ? classData.debateBookPeriods.slice()
+            : [];
+        periods.sort((a, b) => compareDateStr(a && a.startDate, b && b.startDate));
+        let book = normalizeStr(classData && classData.book);
+        periods.forEach((period) => {
+            const start = normalizeStr(period && period.startDate);
+            if (start && start <= midDate && normalizeStr(period.book)) {
+                book = normalizeStr(period.book);
+            }
+        });
+        return book;
+    }
+
+    function listDebateBookMonthOptions(classData) {
+        if (!classData) {
+            return [];
+        }
+        const bookLevel = resolveClassLevelLabel(classData);
+        return enumerateDebateBookMonthKeys(classData).map((monthKey) => {
+            const bookTitle = resolveDebateBookTitleForMonth(classData, monthKey);
+            return {
+                periodKey: monthKey,
+                bookTitle,
+                bookLevel,
+                label: formatDebateBookOptionLabel(monthKey, bookTitle, bookLevel)
+            };
+        });
+    }
+
+    function getDebateBookTermOption(classData) {
+        const bookTitle = normalizeStr(classData && classData.book);
+        const bookLevel = resolveClassLevelLabel(classData);
+        return {
+            periodKey: DEBATE_BOOK_TERM_PERIOD_KEY,
+            bookTitle,
+            bookLevel,
+            label: formatDebateBookOptionLabel(DEBATE_BOOK_TERM_PERIOD_KEY, bookTitle, bookLevel)
+        };
+    }
+
+    function pickDefaultDebateBookPeriodKey(classData, refDate) {
+        if (!classUsesMonthlyDebateBooks(classData)) {
+            return DEBATE_BOOK_TERM_PERIOD_KEY;
+        }
+        const options = listDebateBookMonthOptions(classData);
+        if (!options.length) {
+            return '';
+        }
+        const refMonth = yearMonthKey(refDate) || yearMonthKey(todayISO());
+        const exact = options.find((opt) => opt.periodKey === refMonth);
+        if (exact) {
+            return exact.periodKey;
+        }
+        let bestPast = null;
+        options.forEach((opt) => {
+            if (opt.periodKey <= refMonth) {
+                bestPast = opt.periodKey;
+            }
+        });
+        return bestPast || options[0].periodKey;
+    }
+
+    function normalizeDebateBookRecord(raw) {
+        if (!raw || !raw.studentId) {
+            return null;
+        }
+        const status = normalizeStr(raw.status);
+        return {
+            studentId: normalizeStr(raw.studentId),
+            status: DEBATE_BOOK_STATUSES.includes(status) ? status : 'not_issued',
+            note: normalizeStr(raw.note)
+        };
+    }
+
+    function normalizeDebateBookDistribution(raw) {
+        if (!raw || !raw.id || !raw.classId) {
+            return null;
+        }
+        const periodKey = normalizeDebateBookPeriodKey(raw.periodKey);
+        if (!periodKey) {
+            return null;
+        }
+        const records = Array.isArray(raw.records)
+            ? raw.records.map(normalizeDebateBookRecord).filter(Boolean)
+            : [];
+        return {
+            id: normalizeStr(raw.id),
+            classId: normalizeStr(raw.classId),
+            periodKey,
+            bookTitle: normalizeStr(raw.bookTitle),
+            bookLevel: normalizeStr(raw.bookLevel),
+            records,
+            authorUserId: normalizeStr(raw.authorUserId),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function findDebateBookDistribution(distributions, classId, periodKey) {
+        const list = Array.isArray(distributions) ? distributions : [];
+        const cid = normalizeStr(classId);
+        const key = normalizeDebateBookPeriodKey(periodKey);
+        if (!cid || !key) {
+            return null;
+        }
+        return list.find((e) => e && e.classId === cid && e.periodKey === key) || null;
+    }
+
+    function upsertDebateBookDistribution(distributions, entry) {
+        const normalized = normalizeDebateBookDistribution(entry);
+        if (!normalized) {
+            return Array.isArray(distributions) ? distributions.slice() : [];
+        }
+        const list = Array.isArray(distributions) ? distributions.filter(Boolean).slice() : [];
+        const idx = list.findIndex(
+            (e) => e && e.classId === normalized.classId && e.periodKey === normalized.periodKey
+        );
+        if (idx >= 0) {
+            list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
+        } else {
+            list.push(normalized);
+        }
+        return list;
+    }
+
+    function getDebateBookRecordForStudent(distribution, studentId) {
+        if (!distribution || !Array.isArray(distribution.records)) {
+            return null;
+        }
+        const sid = normalizeStr(studentId);
+        return distribution.records.find((r) => r && r.studentId === sid) || null;
+    }
+
+    function ensureDebateBookRecordsForStudents(distribution, studentEntries) {
+        const base = distribution
+            ? Object.assign({}, distribution, {
+                records: Array.isArray(distribution.records) ? distribution.records.slice() : []
+            })
+            : { records: [] };
+        const records = base.records.slice();
+        const seen = new Set(records.map((r) => normalizeStr(r.studentId)));
+        (Array.isArray(studentEntries) ? studentEntries : []).forEach((entry) => {
+            const sid = entry && entry.student && normalizeStr(entry.student.id);
+            if (!sid || seen.has(sid)) {
+                return;
+            }
+            records.push({
+                studentId: sid,
+                status: 'not_issued',
+                note: ''
+            });
+            seen.add(sid);
+        });
+        base.records = records;
+        return base;
+    }
+
+    function emptyDebateBookStatusCounts() {
+        return {
+            not_issued: 0,
+            issued: 0,
+            missing: 0
+        };
+    }
+
+    function countDebateBookByStatus(distribution, activeStudentIds) {
+        const counts = emptyDebateBookStatusCounts();
+        const rosterIds = Array.isArray(activeStudentIds)
+            ? activeStudentIds.map(normalizeStr).filter(Boolean)
+            : null;
+        const allowed = rosterIds ? new Set(rosterIds) : null;
+        const records = Array.isArray(distribution && distribution.records) ? distribution.records : [];
+        const byStudent = new Map();
+        records.forEach((rec) => {
+            if (!rec) {
+                return;
+            }
+            const sid = normalizeStr(rec.studentId);
+            if (!sid || (allowed && !allowed.has(sid))) {
+                return;
+            }
+            byStudent.set(sid, DEBATE_BOOK_STATUSES.includes(rec.status) ? rec.status : 'not_issued');
+        });
+        if (allowed) {
+            allowed.forEach((sid) => {
+                const status = byStudent.get(sid) || 'not_issued';
+                counts[status] += 1;
+            });
+        } else {
+            byStudent.forEach((status) => {
+                counts[status] += 1;
+            });
+        }
+        return counts;
+    }
+
     function migrateClassroomData(data) {
         if (!data || typeof data !== 'object') {
             return false;
@@ -4432,6 +4767,10 @@
         }
         if (!Array.isArray(data.speakingTestRecords)) {
             data.speakingTestRecords = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.debateBookDistributions)) {
+            data.debateBookDistributions = [];
             migrated = true;
         }
         if (!Array.isArray(data.portfolioRecordings)) {
@@ -5973,6 +6312,8 @@
         HOMEWORK_GRADES,
         HOMEWORK_SELF_CHECKS,
         ESSAY_STATUSES,
+        DEBATE_BOOK_STATUSES,
+        DEBATE_BOOK_TERM_PERIOD_KEY,
         STUDENT_TAGS,
         OFF_ROSTER_TAG,
         ARCHIVE_REASONS,
@@ -6148,6 +6489,20 @@
         findSpeakingTestRecord,
         upsertSpeakingTestRecord,
         normalizeSpeakingTestSortMode,
+        classUsesMonthlyDebateBooks,
+        normalizeDebateBookPeriodKey,
+        formatDebateBookOptionLabel,
+        listDebateBookMonthOptions,
+        getDebateBookTermOption,
+        pickDefaultDebateBookPeriodKey,
+        normalizeDebateBookRecord,
+        normalizeDebateBookDistribution,
+        findDebateBookDistribution,
+        upsertDebateBookDistribution,
+        getDebateBookRecordForStudent,
+        ensureDebateBookRecordsForStudents,
+        emptyDebateBookStatusCounts,
+        countDebateBookByStatus,
         DEBATE_SCORE_CRITERIA,
         DEBATE_SCORE_MAX,
         normalizeDebateSheetTemplate,
