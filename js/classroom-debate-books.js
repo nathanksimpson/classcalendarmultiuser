@@ -1,5 +1,6 @@
 /**
- * Tools → Debate Books — monthly (debate) or term (other) distribution checklist.
+ * Tools → Books — monthly (debate) or term (other) distribution checklist.
+ * Roster from cohorts via resolveStudentsForClass; batch select + status.
  */
 (function (global) {
     'use strict';
@@ -12,6 +13,7 @@
     let autosave = null;
     let contextSubscribed = false;
     let mountEventsBound = false;
+    const selectedStudentIds = new Set();
     const STATUS_AUTOSAVE_MS = 400;
 
     function domain() {
@@ -24,6 +26,19 @@
 
     function t(key) {
         return hooks && hooks.t ? hooks.t(key) : key;
+    }
+
+    function tf(key, vars) {
+        let s = t(key);
+        if (vars && typeof vars === 'object') {
+            Object.keys(vars).forEach((name) => {
+                s = s.replace(
+                    new RegExp(`\\{${name}\\}`, 'g'),
+                    String(vars[name] == null ? '' : vars[name])
+                );
+            });
+        }
+        return s;
     }
 
     function escapeHtml(s) {
@@ -54,6 +69,7 @@
         return !!(d && d.classUsesMonthlyDebateBooks(getClassData()));
     }
 
+    /** Active on-roster students for the selected class (same source as Attendance / Essays). */
     function getStudents() {
         const d = domain();
         const data = getAppData();
@@ -61,6 +77,32 @@
             return [];
         }
         return d.resolveStudentsForClass(getClassData(), data.cohorts) || [];
+    }
+
+    function resolveClassId(options) {
+        const data = getAppData();
+        const visible =
+            global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getVisibleClasses
+                ? global.CCPClassroomZoneContext.getVisibleClasses()
+                : data.classes || [];
+        if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
+            return global.CCPActiveContext.resolveActiveClassId(data, {
+                classId: options && options.classId,
+                visibleClasses: visible
+            });
+        }
+        if (global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getActiveClassId) {
+            const fromZone = global.CCPClassroomZoneContext.getActiveClassId();
+            if (fromZone) {
+                return fromZone;
+            }
+        }
+        return (
+            (options && options.classId) ||
+            (data.ui && data.ui.classroomTabClassId) ||
+            (visible[0] && visible[0].id) ||
+            ''
+        );
     }
 
     function getPeriodPreferenceMap() {
@@ -78,12 +120,9 @@
         if (!nextClassId || !nextPeriodKey) {
             return;
         }
-        const map = getPeriodPreferenceMap();
-        map[nextClassId] = nextPeriodKey;
+        getPeriodPreferenceMap()[nextClassId] = nextPeriodKey;
         if (typeof global.saveUiStateToLocalStorage === 'function') {
             global.saveUiStateToLocalStorage();
-        } else if (hooks && typeof hooks.saveUiState === 'function') {
-            hooks.saveUiState();
         }
     }
 
@@ -103,7 +142,11 @@
                 periodKey,
                 bookTitle: '',
                 bookLevel: d.resolveClassLevelLabel(classData),
-                label: d.formatDebateBookOptionLabel(periodKey, '', d.resolveClassLevelLabel(classData))
+                label: d.formatDebateBookOptionLabel(
+                    periodKey,
+                    '',
+                    d.resolveClassLevelLabel(classData)
+                )
             };
         }
         return d.getDebateBookTermOption(classData);
@@ -195,9 +238,7 @@
             : [];
         const idx = records.findIndex((r) => r && r.studentId === studentId);
         const prev =
-            idx >= 0
-                ? records[idx]
-                : { studentId, status: 'not_issued', note: '' };
+            idx >= 0 ? records[idx] : { studentId, status: 'not_issued', note: '' };
         const next = Object.assign({}, prev, patch, { studentId });
         const status = String(next.status || '').trim();
         next.status = d.DEBATE_BOOK_STATUSES.includes(status) ? status : 'not_issued';
@@ -208,6 +249,17 @@
             records.push(next);
         }
         draftDistribution.records = records;
+    }
+
+    function pruneSelectedStudentIds(students) {
+        const allowed = new Set(
+            (students || []).map((e) => e && e.student && e.student.id).filter(Boolean)
+        );
+        Array.from(selectedStudentIds).forEach((id) => {
+            if (!allowed.has(id)) {
+                selectedStudentIds.delete(id);
+            }
+        });
     }
 
     async function persistDistribution(panel, options) {
@@ -235,7 +287,11 @@
         const list = d.upsertDebateBookDistribution(data.debateBookDistributions, entry);
         try {
             await hooks.saveClassroom({ debateBookDistributions: list });
-            draftDistribution = d.findDebateBookDistribution(getAppData().debateBookDistributions, classId, periodKey);
+            draftDistribution = d.findDebateBookDistribution(
+                getAppData().debateBookDistributions,
+                classId,
+                periodKey
+            );
             draftDistribution = d.ensureDebateBookRecordsForStudents(
                 draftDistribution || entry,
                 getStudents()
@@ -267,6 +323,47 @@
         }).join('');
     }
 
+    function applyBatchStatus(panel, status) {
+        const d = domain();
+        if (!d || !d.DEBATE_BOOK_STATUSES.includes(status) || !selectedStudentIds.size) {
+            return;
+        }
+        if (!access() || !access().canEditClass(getClassData())) {
+            return;
+        }
+        selectedStudentIds.forEach((sid) => {
+            setRecord(sid, { status });
+        });
+        selectedStudentIds.clear();
+        render(panel);
+        scheduleStatusSave();
+    }
+
+    function renderBatchActions(panel) {
+        const mount = panel.querySelector('#classroomDebateBooksBatchActions');
+        if (!mount) {
+            return;
+        }
+        if (!draftDistribution || !selectedStudentIds.size) {
+            mount.innerHTML = '';
+            mount.hidden = true;
+            return;
+        }
+        mount.hidden = false;
+        const editable = access() && access().canEditClass(getClassData());
+        const disabled = editable ? '' : ' disabled';
+        const batchBtn = (status) =>
+            `<button type="button" class="btn btn-small classroom-debate-book-batch-btn classroom-debate-book-status-chip--${escapeAttr(status)}" data-batch-status="${escapeAttr(status)}"${disabled}>${escapeHtml(t(`classroomDebateBookStatus_${status}`))}</button>`;
+        mount.innerHTML = `
+            <div class="classroom-essay-batch-row classroom-batch-row classroom-debate-books-batch-row">
+                <span class="classroom-essay-batch-label">${escapeHtml(tf('classroomDebateBooksBatchSelected', { count: selectedStudentIds.size }))}</span>
+                ${batchBtn('not_issued')}
+                ${batchBtn('issued')}
+                ${batchBtn('missing')}
+                <button type="button" id="classroomDebateBooksBatchClearBtn" class="btn btn-outline btn-compact btn-small"${disabled}>${escapeHtml(t('classroomDebateBooksBatchClear'))}</button>
+            </div>`;
+    }
+
     function renderContextBar(panel) {
         const mount = panel.querySelector('#classroomDebateBooksContextBar');
         if (!mount) {
@@ -281,6 +378,12 @@
             mount.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomDebateBooksPickClass'))}</p>`;
             return;
         }
+
+        const meta = resolveBookMeta();
+        const missingBook = !meta.bookTitle && !String(classData.book || '').trim();
+        const missingHint = missingBook
+            ? `<p class="section-hint classroom-debate-books-missing-book">${escapeHtml(t('classroomDebateBooksNoBook'))}</p>`
+            : '';
 
         if (monthly) {
             const options = d.listDebateBookMonthOptions(classData);
@@ -298,7 +401,7 @@
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomDebateBooksMonthLabel'))}</span>
                         <select id="classroomDebateBooksPeriodSelect" class="field-select field-control classroom-essay-datefield" aria-label="${escapeAttr(t('classroomDebateBooksMonthLabel'))}"${editable && options.length ? '' : ' disabled'}>${optsHtml}</select>
                     </div>
-                </div>`;
+                </div>${missingHint}`;
             return;
         }
 
@@ -310,7 +413,7 @@
                     <span class="classroom-essay-context-label">${escapeHtml(t('classroomDebateBooksTermLabel'))}</span>
                     <p id="classroomDebateBooksTermBanner" class="classroom-debate-books-term-banner">${escapeHtml(display)}</p>
                 </div>
-            </div>`;
+            </div>${missingHint}`;
     }
 
     function renderStatsBar(panel) {
@@ -319,7 +422,7 @@
             return;
         }
         const d = domain();
-        if (!d || !draftDistribution) {
+        if (!d || !draftDistribution || !classId) {
             mount.innerHTML = '';
             return;
         }
@@ -336,6 +439,46 @@
             </div>`;
     }
 
+    function bindSelectionControls(panel, rowsMount, students) {
+        const selectAll = panel.querySelector('#classroomDebateBooksSelectAll');
+        const allIds = students.map((e) => e.student.id);
+        const allSelected = allIds.length > 0 && allIds.every((id) => selectedStudentIds.has(id));
+
+        if (selectAll) {
+            selectAll.checked = allSelected;
+            selectAll.indeterminate = !allSelected && allIds.some((id) => selectedStudentIds.has(id));
+            selectAll.disabled = !allIds.length;
+            selectAll.onchange = () => {
+                if (selectAll.checked) {
+                    allIds.forEach((id) => selectedStudentIds.add(id));
+                } else {
+                    allIds.forEach((id) => selectedStudentIds.delete(id));
+                }
+                renderRows(panel);
+                renderBatchActions(panel);
+            };
+        }
+
+        rowsMount.querySelectorAll('.classroom-debate-book-select').forEach((input) => {
+            const sid = input.getAttribute('data-student-id');
+            input.checked = selectedStudentIds.has(sid);
+            input.addEventListener('change', () => {
+                if (input.checked) {
+                    selectedStudentIds.add(sid);
+                } else {
+                    selectedStudentIds.delete(sid);
+                }
+                const headerCb = panel.querySelector('#classroomDebateBooksSelectAll');
+                if (headerCb) {
+                    const every = allIds.every((id) => selectedStudentIds.has(id));
+                    headerCb.checked = every;
+                    headerCb.indeterminate = !every && selectedStudentIds.size > 0;
+                }
+                renderBatchActions(panel);
+            });
+        });
+    }
+
     function renderRows(panel) {
         const rowsMount = panel.querySelector('#classroomDebateBooksRows');
         if (!rowsMount) {
@@ -343,27 +486,23 @@
         }
         const editable = access() && access().canEditClass(getClassData());
         const students = getStudents();
+        pruneSelectedStudentIds(students);
         const rowApi = global.CCPClassroomStudentRow;
         const classData = getClassData();
 
         if (!classData) {
-            rowsMount.innerHTML = `<tr><td colspan="3" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksPickClass'))}</p></td></tr>`;
+            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksPickClass'))}</p></td></tr>`;
             return;
         }
 
         if (!periodKey) {
-            rowsMount.innerHTML = `<tr><td colspan="3" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksNoMonths'))}</p></td></tr>`;
-            return;
-        }
-
-        const meta = resolveBookMeta();
-        if (!meta.bookTitle && !String(classData.book || '').trim()) {
-            rowsMount.innerHTML = `<tr><td colspan="3" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksNoBook'))}</p></td></tr>`;
+            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksNoMonths'))}</p></td></tr>`;
             return;
         }
 
         if (!students.length) {
-            rowsMount.innerHTML = `<tr><td colspan="3" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
+            rowsMount.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
+            bindSelectionControls(panel, rowsMount, students);
             return;
         }
 
@@ -378,13 +517,16 @@
                     : escapeHtml(entry.student.name);
                 const railCls = ` classroom-sheet-row--status-rail classroom-sheet-row--status-debate-book-${escapeAttr(status)}`;
                 const disabled = editable ? '' : ' disabled';
+                const checked = selectedStudentIds.has(sid) ? ' checked' : '';
                 return `<tr class="classroom-sheet-row${railCls}" data-student-id="${escapeAttr(sid)}">
+                <td class="classroom-sheet-col-select"><input type="checkbox" class="classroom-debate-book-select" data-student-id="${escapeAttr(sid)}" aria-label="${escapeAttr(t('classroomDebateBooksSelectStudent'))}"${checked}${disabled} /></td>
                 <td class="classroom-sheet-col-student">${identity}</td>
                 <td class="classroom-sheet-col-status"><div class="classroom-student-row-status classroom-debate-book-status" role="radiogroup" aria-label="${escapeAttr(t('classroomDebateBooksColStatus'))}">${buildStatusChips(sid, editable)}</div></td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-input field-control classroom-debate-book-note" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(note)}"${disabled} /></td>
             </tr>`;
             })
             .join('');
+        bindSelectionControls(panel, rowsMount, students);
     }
 
     function render(panel) {
@@ -395,6 +537,7 @@
         ensureAutosave(panel);
         renderContextBar(panel);
         renderStatsBar(panel);
+        renderBatchActions(panel);
         renderRows(panel);
         const saveBtn = panel.querySelector('#classroomDebateBooksSaveBtn');
         if (saveBtn) {
@@ -408,18 +551,9 @@
         if (classId && periodKey) {
             persistPeriodPreference(classId, periodKey);
         }
+        selectedStudentIds.clear();
         loadDistribution();
         render(panel);
-    }
-
-    function syncClassFromContext() {
-        if (!global.CCPClassroomZoneContext || !global.CCPClassroomZoneContext.getState) {
-            return;
-        }
-        const state = global.CCPClassroomZoneContext.getState();
-        if (state && state.classId && state.classId !== classId) {
-            classId = state.classId;
-        }
     }
 
     function ensurePeriodForClass() {
@@ -467,9 +601,10 @@
                 const row = target.closest('tr');
                 if (row) {
                     row.className = row.className.replace(
-                        /classroom-sheet-row--status-debate-book-\w+/g,
+                        /classroom-sheet-row--status-debate-book-[\w-]+/g,
                         ''
                     );
+                    row.classList.add('classroom-sheet-row--status-rail');
                     row.classList.add(`classroom-sheet-row--status-debate-book-${target.value}`);
                 }
                 scheduleStatusSave();
@@ -488,30 +623,45 @@
             scheduleNoteSave();
         });
         panel.addEventListener('click', (event) => {
-            const btn = event.target && event.target.closest('#classroomDebateBooksSaveBtn');
-            if (!btn) {
+            const batchBtn = event.target && event.target.closest('[data-batch-status]');
+            if (batchBtn && panel.contains(batchBtn)) {
+                applyBatchStatus(panel, batchBtn.getAttribute('data-batch-status'));
                 return;
             }
-            void persistDistribution(panel, { silent: false });
+            const clearBtn = event.target && event.target.closest('#classroomDebateBooksBatchClearBtn');
+            if (clearBtn) {
+                selectedStudentIds.clear();
+                renderRows(panel);
+                renderBatchActions(panel);
+                return;
+            }
+            const saveBtn = event.target && event.target.closest('#classroomDebateBooksSaveBtn');
+            if (saveBtn) {
+                void persistDistribution(panel, { silent: false });
+            }
         });
     }
 
     function subscribeContext() {
-        if (contextSubscribed || !global.CCPClassroomZoneContext || !global.CCPClassroomZoneContext.subscribe) {
+        if (contextSubscribed || typeof global.CCPActiveContext === 'undefined') {
             return;
         }
         contextSubscribed = true;
-        global.CCPClassroomZoneContext.subscribe(async (state) => {
+        global.CCPActiveContext.subscribe(async (detail) => {
             const panel = panelRef || document.getElementById('panel-debate-books');
             if (!panel || panel.hidden) {
                 return;
             }
-            const nextClassId = state && state.classId ? state.classId : '';
+            if (!detail || detail.classId === undefined) {
+                return;
+            }
+            const nextClassId = resolveClassId({ classId: detail.classId });
             if (nextClassId === classId) {
                 return;
             }
             await flushBeforeLeave();
             classId = nextClassId;
+            selectedStudentIds.clear();
             ensurePeriodForClass();
             loadDistribution();
             render(panel);
@@ -520,6 +670,7 @@
 
     async function initTab(nextHooks, options) {
         hooks = nextHooks || hooks;
+        await flushBeforeLeave();
         const panel = document.getElementById('panel-debate-books');
         if (!panel) {
             return;
@@ -527,16 +678,8 @@
         panelRef = panel;
         bindMountEvents(panel);
         subscribeContext();
-        syncClassFromContext();
-        if (options && options.classId) {
-            classId = options.classId;
-        }
-        if (!classId && global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getState) {
-            const state = global.CCPClassroomZoneContext.getState();
-            if (state && state.classId) {
-                classId = state.classId;
-            }
-        }
+        classId = resolveClassId(options);
+        selectedStudentIds.clear();
         ensurePeriodForClass();
         loadDistribution();
         render(panel);
@@ -548,7 +691,7 @@
         if (!panel || panel.hidden) {
             return;
         }
-        syncClassFromContext();
+        classId = resolveClassId({ classId });
         ensurePeriodForClass();
         loadDistribution();
         render(panel);

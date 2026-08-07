@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260807-debate-books">
+    <link rel="stylesheet" href="styles.css?v=20260807-books-batch">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -12,7 +12,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260807-filtered-to';
+        window.CCP_I18N_VERSION = '20260807-books-batch';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -611,6 +611,7 @@
                     <div id="classroomDebateBooksContextBar" class="classroom-essays-context-bar classroom-debate-books-context-bar"></div>
                     <div id="classroomDebateBooksStatsBar" class="classroom-debate-books-stats-bar" role="group" aria-label="Book distribution summary" data-i18n-aria-label="classroomDebateBooksStatsLabel"></div>
                     <div class="module-toolbar classroom-tab-toolbar">
+                        <div id="classroomDebateBooksBatchActions" class="classroom-debate-books-batch-actions classroom-batch-row" hidden></div>
                         <div class="toolbar-actions">
                             <span id="classroomDebateBooksSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                             <button type="button" id="classroomDebateBooksSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
@@ -620,6 +621,9 @@
                         <table class="classroom-sheet classroom-sheet--debate-books">
                             <thead>
                                 <tr>
+                                    <th scope="col" class="classroom-sheet-col-select">
+                                        <input type="checkbox" id="classroomDebateBooksSelectAll" class="classroom-debate-books-select-all" aria-label="Select all" data-i18n-aria-label="classroomDebateBooksSelectAll" />
+                                    </th>
                                     <th scope="col" class="classroom-sheet-col-student" data-i18n="classroomColStudent">Student</th>
                                     <th scope="col" class="classroom-sheet-col-status" data-i18n="classroomDebateBooksColStatus">Status</th>
                                     <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
@@ -2379,7 +2383,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260721-event-syllabi-banner"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260807-filtered-to"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260807-books-batch"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
