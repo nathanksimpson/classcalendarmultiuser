@@ -103,7 +103,7 @@
             'js/classroom-access.js?v=20260803-homeroom-access',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/ui/classroom-autosave.js?v=20260710-essay-autosave',
-            'js/classroom-debate-books.js?v=20260807-debate-books'
+            'js/classroom-debate-books.js?v=20260807-books-roster'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',

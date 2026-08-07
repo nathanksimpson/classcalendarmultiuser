@@ -21149,3 +21149,24 @@ th[data-cohort-col] {
     border-color: var(--danger, #dc2626);
     background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
 }
+
+#panel-debate-books .classroom-debate-books-batch-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#panel-debate-books .classroom-debate-books-batch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 8px);
+}
+
+#panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-select {
+    width: 44px;
+    text-align: center;
+}
+
+#panel-debate-books .classroom-debate-books-missing-book {
+    margin: var(--space-2, 8px) 0 0;
+}
