@@ -19,7 +19,13 @@ const calendarData = {
     classes: [
         {
             id: 'class1',
-            classTeachers: [{ userId: 'teacher1', category: 'RC' }]
+            classTeachers: [{ userId: 'teacher1', category: 'RC' }],
+            cohortIds: ['cohort1']
+        },
+        {
+            id: 'debate1',
+            classTeachers: [{ userId: 'debate-teacher', category: 'Debate' }],
+            cohortIds: ['cohort1']
         }
     ],
     cohorts: [
@@ -32,6 +38,7 @@ const calendarData = {
     ],
     attendanceSessions: [],
     homeworkCompletions: [],
+    essaySubmissions: [],
     debateTeamSessions: [],
     debateCustomFormats: []
 };
@@ -132,5 +139,76 @@ const debateFormatOk = ClassroomAccess.prepareClassroomForSave(teacher, calendar
 });
 assert(!debateFormatOk.error, 'debate custom formats save allowed');
 assert(debateFormatOk.merged.debateCustomFormats[0].authorUserId === 'teacher1', 'debate format stamped author');
+
+// Homeroom of linked cohort can edit class sheets they do not teach
+assert(
+    !ClassroomAccess.assertCanEditClass(homeroom, calendarData, 'debate1'),
+    'homeroom can edit debate class'
+);
+const homeroomAttendance = ClassroomAccess.prepareClassroomForSave(homeroom, calendarData, {
+    attendanceSessions: [
+        {
+            id: 'a2',
+            classId: 'debate1',
+            date: '2026-06-10',
+            records: [{ studentId: 's1', status: 'present', sessionNote: '' }]
+        }
+    ]
+});
+assert(!homeroomAttendance.error, 'homeroom can save attendance on linked class');
+const forHomeroom = ClassroomAccess.classesForUser(calendarData, homeroom);
+assert(
+    forHomeroom.some((c) => c.id === 'debate1'),
+    'classesForUser includes homeroom-linked debate class'
+);
+const denyMsg = ClassroomAccess.assertCanEditClass(other, calendarData, 'debate1');
+assert(denyMsg && /homeroom/i.test(denyMsg), 'error mentions homeroom');
+
+// Class-level homeroomTeacherUserId (no cohort 담임 match required)
+const classLevelHrData = {
+    classes: [
+        {
+            id: 'solo-hr-class',
+            classTeachers: [{ userId: 'other-teacher', category: 'RC' }],
+            cohortIds: [],
+            homeroomTeacherUserId: 'class-hr-1'
+        },
+        {
+            id: 'linked-but-class-hr',
+            classTeachers: [{ userId: 'other-teacher', category: 'Debate' }],
+            cohortIds: ['cohort-other'],
+            homeroomTeacherUserId: 'class-hr-1'
+        }
+    ],
+    cohorts: [
+        {
+            id: 'cohort-other',
+            name: 'Other',
+            homeroomTeacherUserId: 'someone-else',
+            students: []
+        }
+    ],
+    attendanceSessions: [],
+    homeworkCompletions: [],
+    essaySubmissions: []
+};
+const classHr = { id: 'class-hr-1', role: 'teacher' };
+assert(
+    !ClassroomAccess.assertCanEditClass(classHr, classLevelHrData, 'solo-hr-class'),
+    'class-level HR can edit class with no cohort ids'
+);
+assert(
+    !ClassroomAccess.assertCanEditClass(classHr, classLevelHrData, 'linked-but-class-hr'),
+    'class-level HR wins even when cohort 담임 differs'
+);
+assert(
+    ClassroomAccess.assertCanEditClass(other, classLevelHrData, 'solo-hr-class'),
+    'unrelated teacher blocked from class-level HR class'
+);
+const forClassHr = ClassroomAccess.classesForUser(classLevelHrData, classHr);
+assert(
+    forClassHr.length === 2 && forClassHr.every((c) => c.homeroomTeacherUserId === 'class-hr-1'),
+    'classesForUser includes class-level HR classes'
+);
 
 console.log('classroom-access.test.mjs: all passed');

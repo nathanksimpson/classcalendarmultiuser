@@ -31,53 +31,53 @@
         students: [
             'js/essay-tracker-import.js?v=20260630-essay-import',
             'js/roster-import.js?v=20260806-name-marks',
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-roster.js?v=20260806-name-marks'
         ],
         attendance: [
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-header.js?v=20260703-zone-context',
+            'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-attendance.js?v=20260806-patch-mutations'
         ],
         'homework-tracking': [
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-header.js?v=20260703-zone-context',
+            'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-homework.js?v=20260806-status-chip',
         ],
         essays: [
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
-            'js/classroom-essay-progress.js?v=20260721-essay-inc-exempt',
+            'js/classroom-essay-progress.js?v=20260807-hr-tools',
             'js/classroom-essay-progress-print.js?v=20260805-essay-nv',
             'js/classroom-essay-resubmit-print.js?v=20260805-essay-nv',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
             'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
             'js/classroom-essay-class-summary-print.js?v=20260729-essay-print-headers',
-            'js/classroom-header.js?v=20260707-essay-context',
-            'js/classroom-essays.js?v=20260807-shared-class-picker'
+            'js/classroom-header.js?v=20260807-hr-tools',
+            'js/classroom-essays.js?v=20260807-hr-tools'
         ],
         ledger: [
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-ledger-bridge.js?v=20260619-ui-overhaul',
-            'js/classroom-ledger.js?v=20260806-status-chips'
+            'js/classroom-ledger.js?v=20260807-hr-tools'
         ],
         'command-center': [
             'js/command-center.js?v=20260806-toolbar'
         ],
         points: [
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-point-reasons.js?v=20260618-point-reasons',
-            'js/classroom-points.js?v=20260806-toolbar'
+            'js/classroom-points.js?v=20260807-hr-tools'
         ],
         tests: [
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-header.js?v=20260703-zone-context',
+            'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-tests.js?v=20260703-zone-context'
         ],
         'debate-teams': [
@@ -86,7 +86,7 @@
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260806-notice',
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-debate-teams.js?v=20260807-no-date-jump'
         ],
         'debate-scores': [
@@ -95,12 +95,12 @@
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260806-notice',
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-debate-scores.js?v=20260721-numpad-place'
         ],
         'debate-books': [
             'js/debate-periods.js?v=20260806-per-period-remap',
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/ui/classroom-autosave.js?v=20260710-essay-autosave',
             'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
@@ -110,7 +110,7 @@
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',
-            'js/classroom-access.js?v=20260803-homeroom-access',
+            'js/classroom-access.js?v=20260807-hr-tools',
             'js/speaking-test/speaking-test-core.js?v=20260720-speaking-modal',
             'js/classroom-speaking-test.js?v=20260720-speaking-modal'
         ]

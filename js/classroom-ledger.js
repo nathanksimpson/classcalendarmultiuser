@@ -83,7 +83,7 @@
                 ? global.CCPCohortSidebarFilter.getActiveCohortId()
                 : '';
         let classes = (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
+            (c) => c && (!access() || access().canEditClass(c, data.cohorts || []) || access().canBypass())
         );
         if (cohortId && global.CCPCohortSidebarFilter) {
             classes = global.CCPCohortSidebarFilter.filterClassesByCohort(classes, cohortId);

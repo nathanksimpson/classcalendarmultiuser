@@ -84,7 +84,9 @@
             classData.levelPreset,
             classData.levelCustom,
             classData.subject,
-            teachers
+            teachers,
+            classData.homeroomTeacherName,
+            classData.homeroomTeacherUserId
         ]
             .filter(Boolean)
             .join(' ')

@@ -33,6 +33,59 @@ function isHomeroomForCohort(user, cohort) {
     return normalizeStr(cohort.homeroomTeacherUserId) === uid;
 }
 
+function getCohortIdsForClass(classData) {
+    if (!classData) {
+        return [];
+    }
+    const ids = [];
+    if (Array.isArray(classData.cohortIds)) {
+        classData.cohortIds.forEach((id) => {
+            const s = normalizeStr(id);
+            if (s && !ids.includes(s)) {
+                ids.push(s);
+            }
+        });
+    }
+    const legacy = normalizeStr(classData.cohortId);
+    if (legacy && !ids.includes(legacy)) {
+        ids.push(legacy);
+    }
+    return ids;
+}
+
+/** True when user is class-level HR or 담임 of any cohort linked to this class. */
+function userIsHomeroomForClass(user, calendarData, classData) {
+    if (!user || !classData) {
+        return false;
+    }
+    const uid = String(user.id);
+    if (normalizeStr(classData.homeroomTeacherUserId) === uid) {
+        return true;
+    }
+    const cohortIds = getCohortIdsForClass(classData);
+    if (!cohortIds.length) {
+        return false;
+    }
+    const cohorts = (calendarData && calendarData.cohorts) || [];
+    return cohortIds.some((cid) => {
+        const cohort = cohorts.find((c) => c && normalizeStr(c.id) === cid);
+        return isHomeroomForCohort(user, cohort);
+    });
+}
+
+function userCanEditClass(user, calendarData, classData) {
+    if (!classData) {
+        return false;
+    }
+    if (userCanBypass(user)) {
+        return true;
+    }
+    if (isUserAssignedToClassInData(classData, user && user.id)) {
+        return true;
+    }
+    return userIsHomeroomForClass(user, calendarData, classData);
+}
+
 function userCanEditCohortRoster(user, cohort) {
     if (!cohort) {
         return false;
@@ -48,7 +101,7 @@ function classesForUser(calendarData, user) {
     if (userCanBypass(user)) {
         return classes;
     }
-    return classes.filter((cls) => isUserAssignedToClassInData(cls, user.id));
+    return classes.filter((cls) => userCanEditClass(user, calendarData, cls));
 }
 
 function assertCanEditClass(user, calendarData, classId) {
@@ -56,8 +109,8 @@ function assertCanEditClass(user, calendarData, classId) {
         return null;
     }
     const cls = ((calendarData && calendarData.classes) || []).find((c) => c && c.id === classId);
-    if (!cls || !isUserAssignedToClassInData(cls, user.id)) {
-        return 'You can only edit classroom data for classes you teach';
+    if (!cls || !userCanEditClass(user, calendarData, cls)) {
+        return 'You can only edit classroom data for classes you teach or where you are the homeroom teacher';
     }
     return null;
 }
@@ -548,6 +601,9 @@ module.exports = {
     userCanEditCohortRoster,
     isHomeroomForCohort,
     isUserAssignedToClassInData,
+    getCohortIdsForClass,
+    userIsHomeroomForClass,
+    userCanEditClass,
     classesForUser,
     assertCanEditClass,
     collectClassIdsFromSessions

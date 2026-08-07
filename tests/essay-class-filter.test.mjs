@@ -95,4 +95,37 @@ const ctx = {
     );
 }
 
+// My classes with 담임-linked class (deps.classIsMine includes HR, not only classTeachers)
+{
+    const hrLinked = {
+        id: 'c-hr',
+        name: 'HR Debate',
+        classTeachers: [{ userId: 'debate-only', name: 'Debate Teacher' }],
+        syllabusRows: [{ kind: 'lesson', date: '2026-03-01', planTitle: 'Essay' }],
+        cohortIds: ['co1'],
+        homeroomTeacherUserId: 't1'
+    };
+    const hrCtx = {
+        domain: CCPClassroomDomain,
+        currentUserId: 't1',
+        deps: {
+            classIsMine: (c, userId) => {
+                if ((c.classTeachers || []).some((row) => row.userId === userId)) {
+                    return true;
+                }
+                return String(c.homeroomTeacherUserId || '') === String(userId);
+            }
+        }
+    };
+    const out = CCPEssayClassFilter.filterClassesForZoneContext(
+        [classA, classB, hrLinked],
+        { myClassesOnly: true },
+        hrCtx
+    );
+    assert(
+        out.length === 2 && out.some((c) => c.id === 'c-hr') && out.some((c) => c.id === 'c1'),
+        'myClassesOnly includes class-level HR linked class'
+    );
+}
+
 console.log('essay-class-filter.test.mjs: all passed');

@@ -20411,7 +20411,31 @@ function getClassroomHooks() {
             if (!uid || !classData) {
                 return false;
             }
-            return classMatchesLessonFilterTeachers(classData, [uid]);
+            if (classMatchesLessonFilterTeachers(classData, [uid])) {
+                return true;
+            }
+            if (typeof CCPClassroomAccess !== 'undefined' && CCPClassroomAccess.isHomeroomForClass) {
+                const me =
+                    typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
+                if (me && String(me.id) === uid) {
+                    return CCPClassroomAccess.isHomeroomForClass(classData, appData.cohorts || []);
+                }
+                // Homeroom check for a specific userId (summary filters) without swapping TeamAuth.
+                const cohortIds =
+                    typeof CCPClassroomAccess.getCohortIdsForClass === 'function'
+                        ? CCPClassroomAccess.getCohortIdsForClass(classData)
+                        : [];
+                if (String(classData.homeroomTeacherUserId || '').trim() === uid) {
+                    return true;
+                }
+                return (appData.cohorts || []).some(
+                    (c) =>
+                        c &&
+                        cohortIds.some((id) => String(id) === String(c.id)) &&
+                        String(c.homeroomTeacherUserId || '').trim() === uid
+                );
+            }
+            return false;
         },
         classMatchesTeachers: classMatchesLessonFilterTeachers
     };
@@ -20424,6 +20448,11 @@ async function initClassroomTabControls(tabId, options = {}) {
     }
     await ensureTeamTeacherAccountsLoaded();
     const hooks = getClassroomHooks();
+    if (typeof CCPClassroomAccess !== 'undefined' && CCPClassroomAccess.setCohortsProvider) {
+        CCPClassroomAccess.setCohortsProvider(() =>
+            hooks.getCohorts ? hooks.getCohorts() : appData.cohorts || []
+        );
+    }
     if (typeof CCPClassroomZoneContext !== 'undefined') {
         CCPClassroomZoneContext.init(hooks);
         CCPClassroomZoneContext.syncVisibility(tabId);
@@ -34881,10 +34910,12 @@ function loadDataFromLocalCache() {
         } catch (e) {
             console.error('Error loading saved data:', e);
             appData = getDefaultAppData();
+            rebindAppStoreStateRef();
             loadUiStateFromLocalStorageIntoData(appData);
         }
     } else {
         appData = getDefaultAppData();
+        rebindAppStoreStateRef();
         loadUiStateFromLocalStorageIntoData(appData);
     }
 }
@@ -35612,6 +35643,7 @@ async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
         teamSyncCalendarHydrated = true;
         if (list.length === 0) {
             appData = getDefaultAppData();
+            rebindAppStoreStateRef();
             loadUiStateFromLocalStorageIntoData(appData);
             initializeTermStart();
             renderCalendar();
@@ -35664,6 +35696,7 @@ async function switchToTeamCalendar(id, calendarsOptional, switchOptions) {
                 populateCalendarSelect([], null);
                 CalendarSync.setActiveCalendarId(null);
                 appData = getDefaultAppData();
+                rebindAppStoreStateRef();
                 loadUiStateFromLocalStorageIntoData(appData);
                 initializeTermStart();
                 renderCalendar();
@@ -35960,6 +35993,7 @@ async function refreshTeamCalendarsAfterDelete(deletedId) {
     if (list.length === 0) {
         CalendarSync.setActiveCalendarId(null);
         appData = getDefaultAppData();
+        rebindAppStoreStateRef();
         loadUiStateFromLocalStorageIntoData(appData);
         initializeTermStart();
         renderCalendar();
@@ -37749,6 +37783,7 @@ function finishImportUiAfterApply(migrated) {
 function applyImportToLocalData(imported) {
     invalidateScheduleCache();
     appData = normalizeImportedAppData(imported);
+    rebindAppStoreStateRef();
     const migrated = migrateData(appData);
     finishImportUiAfterApply(migrated);
     saveData();
@@ -37776,6 +37811,7 @@ async function applyImportToCurrentTeamCalendar(imported) {
     invalidateScheduleCache();
     appData = normalizeImportedAppData(imported);
     appData.calendarName = calName;
+    rebindAppStoreStateRef();
     const migrated = migrateData(appData);
     finishImportUiAfterApply(migrated);
     const payload = JSON.parse(JSON.stringify(appData));
@@ -37977,6 +38013,7 @@ function clearAllData() {
     }
 
     appData = getDefaultAppData();
+    rebindAppStoreStateRef();
     loadUiStateFromLocalStorageIntoData(appData);
     initializeTermStart();
     saveData();

@@ -197,9 +197,10 @@
 
     function getAccessibleClasses() {
         const data = getAppData();
+        const cohorts = data.cohorts || [];
         // Classroom essays must list every editable class (no active-cohort trap).
         return (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
+            (c) => c && (!access() || access().canEditClass(c, cohorts) || access().canBypass())
         );
     }
 
