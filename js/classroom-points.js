@@ -43,8 +43,9 @@
 
     function getEditableClasses() {
         const data = getAppData();
+        const cohorts = data.cohorts || [];
         let classes = (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c) || access().canBypass())
+            (c) => c && (!access() || access().canEditClass(c, cohorts) || access().canBypass())
         );
         if (global.CCPCohortSidebarFilter) {
             classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
@@ -332,6 +333,7 @@
                 <p class="classroom-points-toolbar-meta section-hint">${escapeHtml(studentLine)}</p>
             </div>
             <div class="toolbar-actions">
+                <span data-classroom-save-slot="1"></span>
                 <span id="classroomPointsSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
             </div>`;
 
