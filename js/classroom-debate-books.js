@@ -933,7 +933,7 @@
         const stateMod = statusKey === curStatus ? '--active' : '--available';
         const pressed = statusKey === curStatus ? 'true' : 'false';
         const labelKey = `classroomDebateBookStatus_${statusKey}`;
-        return `<button type="button" class="btn btn-outline btn-small selection-chip classroom-status-chip classroom-debate-book-stage ${meta.cls} classroom-debate-book-stage${stateMod}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(statusKey)}" aria-pressed="${pressed}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
+        return `<button type="button" class="btn btn-small selection-chip classroom-status-chip classroom-debate-book-stage ${meta.cls} classroom-debate-book-stage${stateMod}" data-student-id="${escapeAttr(studentId)}" data-status="${escapeAttr(statusKey)}" aria-pressed="${pressed}"${disabled}>${escapeHtml(t(labelKey))}</button>`;
     }
 
     function buildStatusCell(studentId, editable) {
