@@ -17064,64 +17064,6 @@ body[data-active-tab='debate-teams'] .classroom-zone-context-bar .classroom-zone
     gap: var(--space-2);
 }
 
-/* Tools → Debate Books — mid-term transfer confirm */
-.classroom-debate-books-transfer-banner {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    margin-bottom: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--accent-muted, var(--surface-muted));
-}
-
-.classroom-debate-books-transfer-banner[hidden] {
-    display: none;
-}
-
-.classroom-debate-books-transfer-banner-title {
-    margin: 0;
-    font-weight: 600;
-}
-
-.classroom-debate-books-transfer-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
-
-.classroom-debate-books-transfer-item {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-}
-
-.classroom-debate-books-transfer-item-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    min-width: 0;
-}
-
-.classroom-debate-books-transfer-item-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-}
-
-#panel-debate-books .classroom-sheet-row.is-transfer-check {
-    outline: 2px solid var(--primary);
-    outline-offset: -2px;
-    background: var(--accent-muted, var(--surface-muted));
-}
-
 .speaking-test-mount {
     min-height: 0;
     flex: 1;
@@ -18741,12 +18683,12 @@ th[data-cohort-col] {
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-issued-date {
-    width: 12%;
-    min-width: 8.5rem;
+    width: 11rem;
+    min-width: 11rem;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-notes {
-    width: 22%;
+    width: 18%;
 }
 
 #panel-debate-books .classroom-debate-book-issued-at-empty {
