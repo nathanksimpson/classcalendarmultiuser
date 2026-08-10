@@ -216,6 +216,7 @@ function applyLanguage() {
 
     updateThemeToggleButtons();
     updateContentExpandChrome();
+    updateNavTabsCollapseChrome();
     updateTermSettingsToggleSummary();
     updateSetupChecklistBanner();
     refreshCurriculumUpdatedBanner();
@@ -14321,6 +14322,7 @@ function syncZoneNavFromTab(tabId) {
     updateContentPipelineStepper(tabId);
     updateContentExpandChrome();
     syncContentExpandToggleVisibility(tabId);
+    updateNavTabsCollapsedChip();
 }
 
 function syncZoneNavPermissions() {
@@ -15916,6 +15918,120 @@ function updateContentExpandChrome() {
     btn.textContent = expanded ? t('contentCollapse') : t('contentExpand');
 }
 
+const NAV_TABS_COLLAPSED_STORAGE_KEY = 'ccpNavTabsCollapsed';
+
+function isZoneNavReorderActive() {
+    return Boolean(
+        document.querySelector('.is-reorder-active, .is-nav-dragging, .is-nav-reorder-pending')
+    );
+}
+
+function getNavTabsCollapsed() {
+    return document.documentElement.getAttribute('data-nav-tabs-collapsed') === '1';
+}
+
+function getActiveNavLocationLabels() {
+    const zoneBtn = document.querySelector('.app-zone-btn.is-active, .app-zone-btn[aria-selected="true"]');
+    const zoneLabel = zoneBtn ? (zoneBtn.textContent || '').trim() : '';
+    const activePanel = document.querySelector('.app-zone-segment-panel.is-active:not([hidden])');
+    const segmentBtn = activePanel
+        ? activePanel.querySelector('.app-zone-segment-btn.is-active, .app-zone-segment-btn[aria-selected="true"]')
+        : null;
+    const segmentLabel = segmentBtn && !segmentBtn.hidden
+        ? (segmentBtn.textContent || '').trim()
+        : '';
+    if (zoneLabel && segmentLabel) {
+        return `${zoneLabel} · ${segmentLabel}`;
+    }
+    return zoneLabel || segmentLabel || '';
+}
+
+function updateNavTabsCollapsedChip() {
+    const chip = document.getElementById('navTabsCollapsedChip');
+    const labelEl = document.getElementById('navTabsCollapsedChipLabel');
+    if (!chip || !labelEl) {
+        return;
+    }
+    const collapsed = getNavTabsCollapsed();
+    const label = getActiveNavLocationLabels();
+    labelEl.textContent = label;
+    chip.hidden = !collapsed || !label;
+    chip.setAttribute('aria-hidden', String(chip.hidden));
+    chip.title = t('navTabsCollapsedChipTitle');
+    chip.setAttribute('aria-label', label
+        ? `${label}. ${t('navTabsShowTitle')}`
+        : t('navTabsShowTitle'));
+}
+
+function updateNavTabsCollapseChrome() {
+    const toggle = document.getElementById('navTabsCollapseToggle');
+    const collapsed = getNavTabsCollapsed();
+    if (toggle) {
+        const labelKey = collapsed ? 'navTabsShow' : 'navTabsHide';
+        const titleKey = collapsed ? 'navTabsShowTitle' : 'navTabsHideTitle';
+        toggle.textContent = t(labelKey);
+        toggle.setAttribute('data-i18n', labelKey);
+        toggle.setAttribute('data-i18n-title', titleKey);
+        toggle.title = t(titleKey);
+        toggle.setAttribute('aria-label', t(titleKey));
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+    }
+    updateNavTabsCollapsedChip();
+}
+
+function setNavTabsCollapsed(collapsed, options = {}) {
+    const next = Boolean(collapsed);
+    if (next && isZoneNavReorderActive() && !options.force) {
+        return false;
+    }
+    if (next) {
+        document.documentElement.setAttribute('data-nav-tabs-collapsed', '1');
+    } else {
+        document.documentElement.removeAttribute('data-nav-tabs-collapsed');
+    }
+    try {
+        localStorage.setItem(NAV_TABS_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+    } catch (_) {
+        /* ignore quota / private mode */
+    }
+    updateNavTabsCollapseChrome();
+    requestAnimationFrame(() => {
+        syncAppChromeStickyTop();
+        if (!next && typeof syncAllZoneNavScrollAffordances === 'function') {
+            syncAllZoneNavScrollAffordances();
+        }
+    });
+    return true;
+}
+
+function toggleNavTabsCollapsed() {
+    if (getNavTabsCollapsed()) {
+        setNavTabsCollapsed(false);
+        return;
+    }
+    setNavTabsCollapsed(true);
+}
+
+function setupNavTabsCollapseToggle() {
+    const toggle = document.getElementById('navTabsCollapseToggle');
+    const chip = document.getElementById('navTabsCollapsedChip');
+    if (toggle && toggle.dataset.bound !== '1') {
+        toggle.dataset.bound = '1';
+        toggle.addEventListener('click', () => toggleNavTabsCollapsed());
+    }
+    if (chip && chip.dataset.bound !== '1') {
+        chip.dataset.bound = '1';
+        chip.addEventListener('click', () => setNavTabsCollapsed(false));
+    }
+    let stored = false;
+    try {
+        stored = localStorage.getItem(NAV_TABS_COLLAPSED_STORAGE_KEY) === '1';
+    } catch (_) {
+        stored = false;
+    }
+    setNavTabsCollapsed(stored, { force: true });
+}
+
 function syncContentExpandToggleVisibility(tabId) {
     const btn = document.getElementById('contentExpandToggleBtn');
     if (!btn) {
@@ -16079,6 +16195,7 @@ function initAppTabs() {
 
     setupContentExpandToggle();
     syncContentExpandToggleVisibility();
+    setupNavTabsCollapseToggle();
     setupLockDrawerToggle();
     syncZoneNavPermissions();
     if (typeof CCPZoneNavReorder !== 'undefined') {
