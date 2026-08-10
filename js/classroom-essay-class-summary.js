@@ -206,6 +206,50 @@
         });
     }
 
+    const WARN_MODES = ['all', 'attention', 'overdue', 'resubmit'];
+
+    function normalizeWarnMode(mode) {
+        const m = String(mode || '').trim();
+        return WARN_MODES.includes(m) ? m : 'all';
+    }
+
+    /**
+     * Keep only students that match the class-summary warn filter.
+     * - all: full roster
+     * - attention: overdue OR needs resubmit
+     * - overdue: submission overdue (not submitted past due / received late)
+     * - resubmit: status resubmit_required
+     */
+    function rowMatchesWarnMode(row, mode) {
+        const m = normalizeWarnMode(mode);
+        if (m === 'all') {
+            return true;
+        }
+        if (!row) {
+            return false;
+        }
+        const overdue = Boolean(row.ssOverdue);
+        const resubmit = row.status === 'resubmit_required';
+        if (m === 'overdue') {
+            return overdue;
+        }
+        if (m === 'resubmit') {
+            return resubmit;
+        }
+        if (m === 'attention') {
+            return overdue || resubmit;
+        }
+        return true;
+    }
+
+    function filterRowsByWarnMode(rows, mode) {
+        const m = normalizeWarnMode(mode);
+        if (m === 'all') {
+            return Array.isArray(rows) ? rows.slice() : [];
+        }
+        return (Array.isArray(rows) ? rows : []).filter((row) => rowMatchesWarnMode(row, m));
+    }
+
     /**
      * @param {object} appData
      * @param {object[]} assignments — from listEssayAssignments (need classId + syllabusRowId / key)
@@ -467,6 +511,9 @@
         listHomeroomFilterOptions,
         listMonthFilterOptions,
         filterAssignmentsByHrAndMonth,
+        normalizeWarnMode,
+        rowMatchesWarnMode,
+        filterRowsByWarnMode,
         listRowsForAssignments,
         groupRowsByHomeroom,
         formatCopyText,

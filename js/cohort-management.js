@@ -27,6 +27,132 @@
         return String(v == null ? '' : v).trim();
     }
 
+    function getCalmPalette() {
+        if (global.CCPClassColorPalette && Array.isArray(global.CCPClassColorPalette.CALM_PALETTE)) {
+            return global.CCPClassColorPalette.CALM_PALETTE;
+        }
+        return ['#356a9e', '#2f6fb0', '#2e9d5e', '#1f9d4d', '#36a06a', '#6f54a8',
+            '#df641d', '#dd8a57', '#c96b8e', '#cfa23a', '#2e8b8b', '#5a6a80'];
+    }
+
+    function getDefaultAccent() {
+        if (global.CCPClassColorTile && global.CCPClassColorTile.DEFAULT_ACCENT) {
+            return global.CCPClassColorTile.DEFAULT_ACCENT;
+        }
+        return getCalmPalette()[0];
+    }
+
+    /** Next palette color for a new cohort (rotates by existing cohort count). */
+    function getNextCohortColor(appData) {
+        if (hooks && typeof hooks.getNextColor === 'function') {
+            return hooks.getNextColor();
+        }
+        const palette = getCalmPalette();
+        const n = (appData && Array.isArray(appData.cohorts) ? appData.cohorts.length : 0);
+        return palette[n % palette.length] || getDefaultAccent();
+    }
+
+    function deriveTextColorForClass(hex) {
+        if (hooks && typeof hooks.deriveClassTextColorForSave === 'function') {
+            return hooks.deriveClassTextColorForSave(hex);
+        }
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return isDark ? '#dde6f1' : '#243244';
+    }
+
+    /**
+     * Assign missing cohort.color values from the calm palette (deterministic by list order).
+     * @returns {boolean} true if any cohort was updated
+     */
+    function normalizeCohortColors(appData) {
+        if (!appData || !Array.isArray(appData.cohorts)) {
+            return false;
+        }
+        const palette = getCalmPalette();
+        let dirty = false;
+        let assignIndex = 0;
+        appData.cohorts.forEach((cohort) => {
+            if (!cohort || cohort.isArchiveCohort) {
+                return;
+            }
+            if (normalizeStr(cohort.color)) {
+                return;
+            }
+            cohort.color = palette[assignIndex % palette.length] || getDefaultAccent();
+            assignIndex += 1;
+            dirty = true;
+        });
+        return dirty;
+    }
+
+    function ensureCohortHasColor(cohort, appData) {
+        if (!cohort) {
+            return getDefaultAccent();
+        }
+        if (!normalizeStr(cohort.color)) {
+            cohort.color = getNextCohortColor(appData || (hooks && hooks.getAppData ? hooks.getAppData() : null));
+        }
+        return cohort.color;
+    }
+
+    function classHasAnyCohortLink(classData) {
+        if (!classData) {
+            return false;
+        }
+        const api = getTimetableApi();
+        if (api && api.getClassCohortIds) {
+            return api.getClassCohortIds(classData).length > 0;
+        }
+        return !!(normalizeStr(classData.cohortId)
+            || (Array.isArray(classData.cohortIds) && classData.cohortIds.some((id) => normalizeStr(id))));
+    }
+
+    /**
+     * Inherit cohort parent color onto a class at first cohort assignment only.
+     * Manual class colors and already-cohorted classes are left alone.
+     */
+    function inheritCohortColorOntoClass(classData, cohort, options) {
+        const opts = options || {};
+        if (!classData || !cohort) {
+            return false;
+        }
+        if (!opts.force && classHasAnyCohortLink(classData) && !opts.wasUncohorted) {
+            return false;
+        }
+        if (!opts.force && normalizeStr(classData.color)) {
+            return false;
+        }
+        const accent = ensureCohortHasColor(cohort);
+        classData.color = accent;
+        classData.textColor = deriveTextColorForClass(accent);
+        return true;
+    }
+
+    function refreshCohortColorPaletteUi(mount, selectedHex, previewLabel) {
+        if (!mount || typeof global.CCPClassColorPalette === 'undefined') {
+            return;
+        }
+        const grid = mount.querySelector('.cohort-color-palette-grid');
+        const preview = mount.querySelector('.cohort-color-preview-host');
+        const hidden = mount.querySelector('.cohort-field-color');
+        if (!grid) {
+            return;
+        }
+        const hex = selectedHex || (hidden && hidden.value) || getDefaultAccent();
+        if (hidden) {
+            hidden.value = hex;
+        }
+        global.CCPClassColorPalette.renderGrid(grid, hex, (picked) => {
+            if (hidden) {
+                hidden.value = picked;
+            }
+            refreshCohortColorPaletteUi(mount, picked, previewLabel);
+        });
+        if (preview) {
+            global.CCPClassColorPalette.renderPreviewRow(preview, hex, previewLabel || 'Preview');
+        }
+    }
+
     function getTeamLockBlockedMessage() {
         if (hooks && typeof hooks.getTeamLockSaveBlockedMessage === 'function') {
             return hooks.getTeamLockSaveBlockedMessage();
@@ -398,6 +524,7 @@
             const period = slot.period != null ? slot.period : (periodVals.length ? Math.min(...periodVals) : undefined);
 
             if (!cls) {
+                const accent = ensureCohortHasColor(cohort, appData);
                 cls = {
                     id: hooks.generateId(),
                     name: baseName,
@@ -412,7 +539,9 @@
                     cohortIds: [cohort.id],
                     scheduleBlock,
                     classTeachers: [],
-                    generatedFromCohort: true
+                    generatedFromCohort: true,
+                    color: accent,
+                    textColor: deriveTextColorForClass(accent)
                 };
                 if (!Array.isArray(appData.classes)) {
                     appData.classes = [];
@@ -762,10 +891,15 @@
             const want = draftClassIds.has(classData.id);
             const has = api ? api.classHasCohortId(classData, cohort.id) : normalizeStr(classData.cohortId) === cohort.id;
             if (want && !has) {
+                const wasUncohorted = !classHasAnyCohortLink(classData);
                 if (api) {
                     api.addClassCohortId(classData, cohort.id);
                 } else {
                     classData.cohortId = cohort.id;
+                    classData.cohortIds = [cohort.id];
+                }
+                if (wasUncohorted) {
+                    inheritCohortColorOntoClass(classData, cohort, { wasUncohorted: true, force: true });
                 }
                 linked += 1;
             } else if (!want && has) {
@@ -1058,6 +1192,7 @@
         const levelEl = mount.querySelector('.cohort-field-level');
         const gradeEl = mount.querySelector('.cohort-field-grade');
         const blockEl = mount.querySelector('.cohort-field-block');
+        const colorEl = mount.querySelector('.cohort-field-color');
         if (nameEl) {
             const trimmed = nameEl.value.trim();
             cohort.name = trimmed || cohort.name;
@@ -1071,6 +1206,9 @@
         }
         if (blockEl) {
             cohort.scheduleBlock = blockEl.value;
+        }
+        if (colorEl && normalizeStr(colorEl.value)) {
+            cohort.color = colorEl.value.trim();
         }
         return cohort;
     }
@@ -1108,6 +1246,9 @@
         }
         flushCohortEditorFields();
         flushHomeroomEditorFields();
+        if (cohort.isDraft) {
+            delete cohort.isDraft;
+        }
         cohort.meetingDays = getCohortMeetingDays(cohort);
         hooks.syncClassCohortLinks(cohort);
         hooks.saveData();
@@ -1224,6 +1365,7 @@
             copy.id = hooks.generateId();
             copy.name = (cohort.name || 'Cohort') + ' (copy)';
             copy.classIds = [];
+            copy.color = getNextCohortColor(appData);
             (copy.subjectSlots || []).forEach((s) => {
                 s.id = hooks.generateId();
                 s.classId = '';
@@ -1365,6 +1507,7 @@
         flushHomeroomEditorFields();
         const modal = getCohortEditorModal();
         if (!modal) {
+            notifyCohortEditorClosed();
             return;
         }
         if (hooks && hooks.closeModal) {
@@ -1373,6 +1516,7 @@
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
         }
+        notifyCohortEditorClosed();
     }
 
     function buildCohortSummaryStrip(cohort, appData) {
@@ -1461,6 +1605,9 @@
         }
         const appData = hooks.getAppData();
         inferBlankCohortSchedulesIfNeeded(appData);
+        if (normalizeCohortColors(appData) && hooks.saveData) {
+            hooks.saveData();
+        }
         const q = normalizeStr(document.getElementById('cohortsListSearch')?.value).toLowerCase();
         const allCohorts = appData.cohorts || [];
         list.innerHTML = '';
@@ -1495,6 +1642,9 @@
                     global.CCPSetupBoard.scrollToCohort(cohort.id);
                 }
             });
+            if (global.CCPClassColorTile && normalizeStr(cohort.color)) {
+                global.CCPClassColorTile.apply(btn, cohort, { selected });
+            }
             list.appendChild(btn);
         });
     }
@@ -1549,6 +1699,9 @@
             item.querySelector('[data-action="teacher"]').addEventListener('click', () => {
                 hooks.navigateToTab('teachers', { segment: 'classes' });
             });
+            if (global.CCPClassColorTile) {
+                global.CCPClassColorTile.apply(item, cls, {});
+            }
             mount.appendChild(item);
         });
     }
@@ -1693,6 +1846,28 @@
         identity.appendChild(levelLabel);
         identity.appendChild(gradeLabel);
 
+        const appearance = document.createElement('section');
+        appearance.className = 'cohort-appearance-section';
+        appearance.innerHTML = `<h3 class="form-section-title">${escapeHtml(t('cohortsSectionAppearance'))}</h3>`;
+        const colorLabel = document.createElement('label');
+        colorLabel.className = 'form-group';
+        colorLabel.textContent = t('cohortsColorLabel');
+        const colorHidden = document.createElement('input');
+        colorHidden.type = 'hidden';
+        colorHidden.className = 'cohort-field-color';
+        colorHidden.value = ensureCohortHasColor(cohort, appData);
+        const colorGrid = document.createElement('div');
+        colorGrid.className = 'cohort-color-palette-grid class-color-palette-host';
+        colorGrid.setAttribute('role', 'group');
+        colorGrid.setAttribute('aria-label', t('cohortsColorLabel'));
+        const colorPreview = document.createElement('div');
+        colorPreview.className = 'cohort-color-preview-host class-color-preview-host';
+        colorPreview.setAttribute('aria-live', 'polite');
+        colorLabel.appendChild(colorHidden);
+        appearance.appendChild(colorLabel);
+        appearance.appendChild(colorGrid);
+        appearance.appendChild(colorPreview);
+
         const schedule = document.createElement('section');
         schedule.innerHTML = `<h3 class="form-section-title">${escapeHtml(t('cohortsSectionSchedule'))}</h3>`;
         const patternPicker = document.createElement('div');
@@ -1744,6 +1919,7 @@
         subjects.appendChild(gridMount);
 
         mount.appendChild(identity);
+        mount.appendChild(appearance);
         mount.appendChild(schedule);
         mount.appendChild(subjects);
         mount.appendChild(buildClassAssignmentSection(cohort));
@@ -1757,6 +1933,7 @@
         renderClassCatalog(cohort);
         updateClassApplyButtonState();
         renderLinkedPanel(cohort);
+        refreshCohortColorPaletteUi(mount, cohort.color, cohort.name || t('timetableAddCohort'));
 
         if (global.__ccpFocusCohortName) {
             global.__ccpFocusCohortName = false;
@@ -1826,6 +2003,7 @@
             level: '',
             levelPreset: '',
             grade: '',
+            color: getNextCohortColor(appData),
             schedulePattern: defaultPattern,
             meetingDays: defaultDays.slice(),
             periodCount: 0,
@@ -1845,6 +2023,138 @@
         }
         global.__ccpFocusCohortName = true;
         renderAll();
+    }
+
+    /**
+     * Draft cohort for TMS Sync "Create" — prefilled name + M/T schedule.
+     * @returns {object|null} new cohort
+     */
+    function createCohortDraftFromTms(options) {
+        if (!hooks || (hooks.isViewOnly && hooks.isViewOnly())) {
+            return null;
+        }
+        const opts = options || {};
+        const appData = hooks.getAppData();
+        if (!Array.isArray(appData.cohorts)) {
+            appData.cohorts = [];
+        }
+        const schedulePattern = opts.schedulePattern === 'tth' ? 'tth' : 'mwf';
+        const meetingDays =
+            Array.isArray(opts.meetingDays) && opts.meetingDays.length
+                ? opts.meetingDays.map((d) => Number(d)).filter((d) => d >= 0 && d <= 6)
+                : schedulePattern === 'tth'
+                  ? [2, 4]
+                  : [1, 3, 5];
+        const cohort = {
+            id: hooks.generateId(),
+            // Prefill name for the editor UX, but mark draft so cancel can remove it.
+            name: normalizeStr(opts.name),
+            isDraft: true,
+            level: normalizeStr(opts.level),
+            levelPreset: normalizeStr(opts.levelPreset) || normalizeStr(opts.level),
+            grade: normalizeStr(opts.grade),
+            color: getNextCohortColor(appData),
+            schedulePattern,
+            meetingDays: meetingDays.length ? meetingDays : schedulePattern === 'tth' ? [2, 4] : [1, 3, 5],
+            periodCount: 0,
+            scheduleBlock: normalizeStr(opts.scheduleBlock) || 'primary',
+            subjectSlots: [],
+            classIds: [],
+            students: [],
+            homeroomTeacherUserId: '',
+            homeroomTeacherName: '',
+            homeroomDaySuffix: '',
+            tmsBlockStart: normalizeStr(opts.tmsBlockStart),
+            tmsBlockEnd: normalizeStr(opts.tmsBlockEnd),
+            tmsSuggestedPeriod:
+                opts.tmsSuggestedPeriod != null && opts.tmsSuggestedPeriod !== ''
+                    ? Number(opts.tmsSuggestedPeriod)
+                    : null,
+            tmsSuggestedTimeSlotId: normalizeStr(opts.tmsSuggestedTimeSlotId)
+        };
+        if (cohort.tmsSuggestedPeriod != null && Number.isNaN(cohort.tmsSuggestedPeriod)) {
+            cohort.tmsSuggestedPeriod = null;
+        }
+        appData.cohorts.push(cohort);
+        selectedCohortId = cohort.id;
+        persistSelectedCohortId();
+        hooks.saveData();
+        if (global.CCPSetupBoard && global.CCPSetupBoard.setActiveBoardView) {
+            global.CCPSetupBoard.setActiveBoardView(schedulePattern === 'tth' ? 'tth' : 'mwf');
+        }
+        global.__ccpFocusCohortName = true;
+        renderAll();
+        return cohort;
+    }
+
+    function openCohortEditorForId(cohortId) {
+        const id = normalizeStr(cohortId);
+        if (!id || !hooks) {
+            return false;
+        }
+        const appData = hooks.getAppData();
+        const cohort = (appData.cohorts || []).find((c) => c && c.id === id);
+        if (!cohort) {
+            return false;
+        }
+        selectedCohortId = id;
+        persistSelectedCohortId();
+        openCohortEditor();
+        return true;
+    }
+
+    /**
+     * Remove a Sync-created draft on cancel.
+     * Removes when still flagged isDraft, or when nameless (legacy drafts).
+     */
+    function removeNamelessCohortDraft(cohortId) {
+        const id = normalizeStr(cohortId);
+        if (!id || !hooks) {
+            return false;
+        }
+        const appData = hooks.getAppData();
+        const idx = (appData.cohorts || []).findIndex((c) => c && c.id === id);
+        if (idx < 0) {
+            return false;
+        }
+        const cohort = appData.cohorts[idx];
+        const isDraft = !!(cohort && cohort.isDraft);
+        if (!isDraft && normalizeStr(cohort && cohort.name)) {
+            return false;
+        }
+        appData.cohorts.splice(idx, 1);
+        if (selectedCohortId === id) {
+            selectedCohortId = '';
+            persistSelectedCohortId();
+        }
+        hooks.saveData();
+        renderAll();
+        return true;
+    }
+
+    const cohortEditorCloseListeners = [];
+
+    function onCohortEditorClosed(listener) {
+        if (typeof listener !== 'function') {
+            return () => {};
+        }
+        cohortEditorCloseListeners.push(listener);
+        return () => {
+            const i = cohortEditorCloseListeners.indexOf(listener);
+            if (i >= 0) {
+                cohortEditorCloseListeners.splice(i, 1);
+            }
+        };
+    }
+
+    function notifyCohortEditorClosed() {
+        cohortEditorCloseListeners.slice().forEach((fn) => {
+            try {
+                fn();
+            } catch (err) {
+                console.error(err);
+            }
+        });
     }
 
     function importFromClasses() {
@@ -2273,6 +2583,10 @@
         initTab,
         selectCohort,
         openCohortEditor,
+        openCohortEditorForId,
+        createCohortDraftFromTms,
+        removeNamelessCohortDraft,
+        onCohortEditorClosed,
         onBoardChanged,
         computeCohortStatus,
         statusLabel,

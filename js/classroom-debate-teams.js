@@ -438,11 +438,13 @@
         eng.applyMetadataDefaults(title, getHomeroomLabel(), options || {});
         if (eng.applyClassFormatDefaults) {
             const stored = findStoredSession();
-            const pristine = !(stored && stored.sessionState);
-            eng.applyClassFormatDefaults(classData, {
-                debateBook: getDebateBookChip(),
-                onlyIfPristine: pristine
-            });
+            // Auto-enable purple only for brand-new sessions; stored purpleMode wins.
+            if (!(stored && stored.sessionState)) {
+                eng.applyClassFormatDefaults(classData, {
+                    debateBook: getDebateBookChip(),
+                    onlyIfPristine: true
+                });
+            }
         }
     }
 

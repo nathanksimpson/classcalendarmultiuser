@@ -93,14 +93,14 @@
             <form class="admin-form" id="addUserForm">
                 <h3 data-i18n="addTeacherHeading">Add teacher</h3>
                 <p class="admin-callout" data-i18n="addTeacherCallout">Most teachers appear automatically after their first Kakao sign-in. Use the form below only to pre-add someone before they log in.</p>
-                <label><span data-i18n="displayName">Display name</span><input type="text" id="newDisplayName" required></label>
-                <label><span data-i18n="email">Email</span><input type="email" id="newEmail" autocomplete="email"></label>
-                <label><span data-i18n="kakaoUserIdOptional">Kakao user ID (optional)</span>
-                    <input type="text" id="newKakaoUserId" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1234567890" autocomplete="off">
+                <label class="form-group"><span data-i18n="displayName">Display name</span><input type="text" id="newDisplayName" class="field-input" required></label>
+                <label class="form-group"><span data-i18n="email">Email</span><input type="email" id="newEmail" class="field-input" autocomplete="email"></label>
+                <label class="form-group"><span data-i18n="kakaoUserIdOptional">Kakao user ID (optional)</span>
+                    <input type="text" id="newKakaoUserId" class="field-input" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1234567890" autocomplete="off">
                 </label>
                 <p class="admin-hint admin-hint--tight" data-i18n="addTeacherEmailOrKakaoHint">Optional: pre-add before first Kakao sign-in. Otherwise teachers appear automatically after they log in (use Kakao ID in the Users table). Email is not required for privacy.</p>
-                <label><span data-i18n="role">Role</span>
-                    <select id="newRole">
+                <label class="form-group"><span data-i18n="role">Role</span>
+                    <select id="newRole" class="field-select">
                         <option value="teacher" data-i18n="roleTeacher">Teacher</option>
                         <option value="viewer" data-i18n="roleViewer">Viewer</option>
                         <option value="head_teacher" data-i18n="roleHeadTeacher">Head teacher</option>
@@ -116,11 +116,11 @@
                 </div>
                 <div id="addUserElevationBox" class="admin-elevation-box" hidden>
                     <p class="admin-elevation-warning" data-i18n="elevationWarning">This grants full super-admin-level access. Enter your own password to confirm.</p>
-                    <label><span data-i18n="confirmYourPassword">Your password</span>
-                        <input type="password" id="addUserConfirmPassword" autocomplete="current-password">
+                    <label class="form-group"><span data-i18n="confirmYourPassword">Your password</span>
+                        <input type="password" id="addUserConfirmPassword" class="field-input" autocomplete="current-password">
                     </label>
                 </div>
-                <label><span data-i18n="optionalTempPassword">Optional temp password</span><input type="password" id="newPassword" autocomplete="new-password"></label>
+                <label class="form-group"><span data-i18n="optionalTempPassword">Optional temp password</span><input type="password" id="newPassword" class="field-input" autocomplete="new-password"></label>
                 <button type="submit" class="btn btn-primary" data-i18n="addUser">Add user</button>
             </form>
         </section>
@@ -248,11 +248,11 @@
                 <form id="editUserForm">
                     <div class="form-group">
                         <label for="editUserDisplayName" data-i18n="displayName">Display name</label>
-                        <input type="text" id="editUserDisplayName" required maxlength="120" autocomplete="name">
+                        <input type="text" id="editUserDisplayName" class="field-input" required maxlength="120" autocomplete="name">
                     </div>
                     <div class="form-group">
                         <label for="editUserRole" data-i18n="role">Role</label>
-                        <select id="editUserRole" name="role">
+                        <select id="editUserRole" class="field-select" name="role">
                             <option value="teacher" data-i18n="roleTeacher">Teacher</option>
                             <option value="viewer" data-i18n="roleViewer">Viewer</option>
                             <option value="head_teacher" data-i18n="roleHeadTeacher">Head teacher</option>
@@ -270,16 +270,16 @@
                         <p class="admin-elevation-warning" data-i18n="elevationWarning">This grants full super-admin-level access. Enter your own password to confirm.</p>
                         <div class="form-group">
                             <label for="editUserConfirmPassword" data-i18n="confirmYourPassword">Your password</label>
-                            <input type="password" id="editUserConfirmPassword" autocomplete="current-password">
+                            <input type="password" id="editUserConfirmPassword" class="field-input" autocomplete="current-password">
                         </div>
                     </div>
                     <div class="form-group">
                         <label for="editUserEmail" data-i18n="email">Email</label>
-                        <input type="email" id="editUserEmail" autocomplete="email">
+                        <input type="email" id="editUserEmail" class="field-input" autocomplete="email">
                     </div>
                     <div class="form-group">
                         <label for="editUserKakaoId" data-i18n="kakaoUserIdOptional">Kakao user ID</label>
-                        <input type="text" id="editUserKakaoId" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+                        <input type="text" id="editUserKakaoId" class="field-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
                     </div>
                     <div class="form-actions">
                         <button type="button" id="cancelEditUserBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
@@ -299,11 +299,11 @@
                 <form id="resetPasswordForm">
                     <div class="form-group">
                         <label for="resetPasswordNew" data-i18n="resetPasswordNew">New password (min 8 characters)</label>
-                        <input type="password" id="resetPasswordNew" autocomplete="new-password" required minlength="8">
+                        <input type="password" id="resetPasswordNew" class="field-input" autocomplete="new-password" required minlength="8">
                     </div>
                     <div class="form-group">
                         <label for="resetPasswordConfirm" data-i18n="resetPasswordConfirm">Confirm new password</label>
-                        <input type="password" id="resetPasswordConfirm" autocomplete="new-password" required minlength="8">
+                        <input type="password" id="resetPasswordConfirm" class="field-input" autocomplete="new-password" required minlength="8">
                     </div>
                     <div class="form-actions">
                         <button type="button" id="cancelResetPasswordBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>

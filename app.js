@@ -697,6 +697,7 @@ function getDefaultAppData() {
         holidays: [],
         cohorts: [],
         tmsRosterLinks: {},
+        tmsEssayLinks: {},
         timetableTimeSlots: getDefaultTimetableTimeSlots(),
         periodSlotMap: getDefaultPeriodSlotMap(),
         customClassTypes: [],
@@ -722,6 +723,7 @@ function getDefaultAppData() {
         debateCustomFormats: [],
         speakingTestRecords: [],
         debateBookDistributions: [],
+        pendingDebateBookChecks: [],
         portfolioRecordings: [],
         portfolioEntries: [],
         smsLog: [],
@@ -6626,6 +6628,42 @@ function applyLessonFilterClassColorTiles() {
     });
 }
 
+/** Apply calm class-color tiles to any filter-chip section keyed by classIds. */
+function applyClassIdFilterChipColorTiles(rootSelector, inputAttr) {
+    if (typeof CCPClassColorTile === 'undefined') {
+        return;
+    }
+    const root = typeof rootSelector === 'string' ? document.querySelector(rootSelector) : rootSelector;
+    if (!root) {
+        return;
+    }
+    const attr = inputAttr || 'data-event-filter';
+    const classById = new Map((appData.classes || []).map((c) => [c.id, c]));
+    root.querySelectorAll('.lesson-filter-chip, .class-notes-class-chip').forEach((label) => {
+        const input = label.querySelector(`input[${attr}="classIds"]`);
+        if (!input) {
+            return;
+        }
+        const classData = classById.get(input.value);
+        if (!classData) {
+            return;
+        }
+        label.dataset.classId = classData.id;
+        CCPClassColorTile.apply(label, classData, { checked: input.checked });
+    });
+}
+
+function applyEventApplicabilityClassColorTiles() {
+    applyClassIdFilterChipColorTiles(
+        '#eventApplicabilityPopoverBody [data-filter-key="classIds"]',
+        'data-event-filter'
+    );
+}
+
+function applyClassNotesFilterClassColorTiles() {
+    applyClassIdFilterChipColorTiles('#classNotesFilterClasses', 'data-class-notes-filter');
+}
+
 function normalizeLessonFilterSearchQuery(query) {
     return String(query || '').trim().toLocaleLowerCase();
 }
@@ -7234,6 +7272,7 @@ function applyEventApplicabilityToPopoverDom() {
         const arr = d[key];
         cb.checked = Array.isArray(arr) && arr.includes(val);
     });
+    applyEventApplicabilityClassColorTiles();
 }
 
 function applyEventApplicabilitySearch() {
@@ -7292,6 +7331,7 @@ function renderEventApplicabilityPopoverBody() {
         buildEventApplicabilitySectionHtml('lessonFilterSectionClasses', 'classIds', groups.classes)
     ].join('');
     applyEventApplicabilityToPopoverDom();
+    applyEventApplicabilityClassColorTiles();
     if (searchEl) {
         searchEl.value = prevQuery;
     }
@@ -11372,6 +11412,7 @@ function renderClassNotesFilterClasses() {
             <input type="checkbox" ${CLASS_NOTES_FILTER_ATTR}="classIds" value="${escapeAttr(opt.value)}" checked>
             <span>${escapeHtml(opt.label)}</span>
         </label>`).join('');
+    applyClassNotesFilterClassColorTiles();
 }
 
 function renderClassNotesFilterSubjectsAndGrades() {
@@ -15781,7 +15822,7 @@ async function navigateToTabBody(tabId, options = {}) {
             .then(() => {
                 if (options.classId) {
                     if (typeof CCPActiveContext !== 'undefined') {
-                        CCPActiveContext.set({ classId: options.classId }, { source: 'homework-nav' });
+                        CCPActiveContext.setFromClass(appData, options.classId, undefined, 'homework-nav');
                     } else {
                         appData.ui.homeworkTabClassId = options.classId;
                         saveUiStateToLocalStorage();
@@ -16625,6 +16666,7 @@ function navigateHomeworkQueue(delta) {
     if (!next) {
         return;
     }
+    const refDate = getHomeworkReferenceDateFromUi();
     if (typeof CCPActiveContext !== 'undefined') {
         CCPActiveContext.setFromClass(appData, next.id, undefined, 'homework-queue');
     } else {
@@ -17131,6 +17173,7 @@ function renderHomeworkClassList() {
         list.appendChild(createHomeworkClassListButton(c, {
             isSelected: c.id === selectedId,
             onClick: () => {
+                const refDate = getHomeworkReferenceDateFromUi();
                 if (typeof CCPActiveContext !== 'undefined') {
                     CCPActiveContext.setFromClass(appData, c.id, undefined, 'homework-sidebar');
                 } else {
@@ -20175,11 +20218,20 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.debateBookDistributions)) {
         appData.debateBookDistributions = serverData.debateBookDistributions;
     }
+    if (Array.isArray(serverData.pendingDebateBookChecks)) {
+        appData.pendingDebateBookChecks = serverData.pendingDebateBookChecks;
+    }
     if (serverData.tmsRosterLinks && typeof serverData.tmsRosterLinks === 'object') {
         appData.tmsRosterLinks =
             typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
                 ? CCPClassroomDomain.normalizeTmsRosterLinks(serverData.tmsRosterLinks)
                 : serverData.tmsRosterLinks;
+    }
+    if (serverData.tmsEssayLinks && typeof serverData.tmsEssayLinks === 'object') {
+        appData.tmsEssayLinks =
+            typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsEssayLinks
+                ? CCPClassroomDomain.normalizeTmsEssayLinks(serverData.tmsEssayLinks)
+                : serverData.tmsEssayLinks;
     }
 }
 
@@ -20228,12 +20280,23 @@ async function saveClassroomPartial(fields, options) {
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'debateBookDistributions')) {
             appData.debateBookDistributions = fieldBag.debateBookDistributions;
         }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'pendingDebateBookChecks')) {
+            appData.pendingDebateBookChecks = fieldBag.pendingDebateBookChecks;
+        }
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'tmsRosterLinks')) {
             appData.tmsRosterLinks =
                 typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks
                     ? CCPClassroomDomain.normalizeTmsRosterLinks(fieldBag.tmsRosterLinks)
                     : fieldBag.tmsRosterLinks && typeof fieldBag.tmsRosterLinks === 'object'
                       ? fieldBag.tmsRosterLinks
+                      : {};
+        }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'tmsEssayLinks')) {
+            appData.tmsEssayLinks =
+                typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsEssayLinks
+                    ? CCPClassroomDomain.normalizeTmsEssayLinks(fieldBag.tmsEssayLinks)
+                    : fieldBag.tmsEssayLinks && typeof fieldBag.tmsEssayLinks === 'object'
+                      ? fieldBag.tmsEssayLinks
                       : {};
         }
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'ui')) {
@@ -20255,6 +20318,7 @@ async function saveClassroomPartial(fields, options) {
             'debateCustomFormats',
             'speakingTestRecords',
             'debateBookDistributions',
+            'pendingDebateBookChecks',
             'tmsRosterLinks',
             'tmsEssayLinks'
         ].forEach((key) => {
@@ -20343,7 +20407,7 @@ function getClassroomHooks() {
             appData.ui[key] = value == null ? '' : String(value);
             if (typeof CCPActiveContext !== 'undefined') {
                 if (key === 'classroomTabClassId' || key === 'homeworkTabClassId') {
-                    CCPActiveContext.set({ classId: appData.ui[key] }, { source: 'classroom-ui-pref' });
+                    CCPActiveContext.setFromClass(appData, appData.ui[key], undefined, 'classroom-ui-pref');
                 } else if (key === 'classroomTabDate' || key === 'homeworkReferenceDate') {
                     CCPActiveContext.set({ sessionDate: appData.ui[key] }, { source: 'classroom-ui-pref' });
                 } else if (key === 'classroomZoneMyClassesOnly' || key === 'classroomZoneEssaysOnly') {
@@ -20360,6 +20424,9 @@ function getClassroomHooks() {
         },
         async saveClassroom(fields, options) {
             return saveClassroomPartial(fields, options);
+        },
+        refreshTabWarnings() {
+            scheduleTabWarningsRefresh();
         },
         getLessonDates(classData, options) {
             return calculateLessonDates(classData, options);
@@ -20535,7 +20602,7 @@ async function initCommandCenterTabControls(options = {}) {
         await CCPTabScripts.ensureTabScripts('command-center');
     }
     if (options && options.classId && typeof CCPActiveContext !== 'undefined') {
-        CCPActiveContext.set({ classId: options.classId }, { source: 'command-center-nav' });
+        CCPActiveContext.setFromClass(appData, options.classId, undefined, 'command-center-nav');
     }
     if (typeof CCPCommandCenter !== 'undefined') {
         CCPCommandCenter.initTab(getCommandCenterHooks());
@@ -20552,6 +20619,8 @@ function getCohortManagementHooks() {
         escapeHtml,
         escapeAttr,
         generateId,
+        getNextColor,
+        deriveClassTextColorForSave,
         saveData,
         navigateToTab,
         showMessage: (msg, isError) => setAppStatusMessage(msg, isError),
@@ -20839,6 +20908,9 @@ function createTimetableClassListButton(classData, teacherRow, onClick) {
     btn.setAttribute('role', 'option');
     btn.innerHTML = `<span>${escapeHtml(classData.name || '')}</span><span class="module-list-item-meta">${escapeHtml(metaParts.join(' · '))}</span>`;
     btn.addEventListener('click', onClick);
+    if (typeof CCPClassColorTile !== 'undefined') {
+        CCPClassColorTile.apply(btn, classData, {});
+    }
     return btn;
 }
 
@@ -20894,8 +20966,15 @@ function renderTimetableClassList(selector) {
     });
 }
 
+function getClassColorDefaultAccent() {
+    if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.DEFAULT_ACCENT) {
+        return CCPClassColorTile.DEFAULT_ACCENT;
+    }
+    return '#356a9e';
+}
+
 function getTimetableEntryDisplayColors(entry) {
-    const bg = (entry && entry.color) ? entry.color : '#6366f1';
+    const bg = (entry && entry.color) ? entry.color : getClassColorDefaultAccent();
     const preferred = (entry && entry.textColor) || DEFAULT_CLASS_TEXT_COLOR;
     return {
         bg,
@@ -21409,8 +21488,8 @@ const APP_PRINT_TIMETABLE_INLINE_CSS = `
 html.print-color-mode-light.app-print-timetable-root,
 html.print-color-mode-light.app-print-timetable-root[data-theme="dark"] {
     color-scheme: light;
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
+    --primary: #14b98f;
+    --primary-dark: #0e9b76;
     --secondary: #64748b;
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
@@ -21433,7 +21512,7 @@ body.app-print-timetable-doc {
     background: #fff;
     color: #1e293b;
 }
-body.app-print-timetable-doc { font-family: "DM Sans", "Noto Sans KR", sans-serif; font-size: 10pt; }
+body.app-print-timetable-doc { font-family: var(--font-main, system-ui, sans-serif); font-size: 10pt; }
 .app-print-document--timetable {
     max-width: 100%;
     padding: 0;
@@ -29022,7 +29101,7 @@ function renderCalendarAgenda(dayIndex) {
             item.className = 'calendar-agenda-item calendar-agenda-item--lesson';
             const swatch = document.createElement('span');
             swatch.className = 'calendar-agenda-item-swatch';
-            swatch.style.backgroundColor = classData.color || '#2563eb';
+            swatch.style.backgroundColor = classData.color || getClassColorDefaultAccent();
             const main = document.createElement('span');
             main.className = 'calendar-agenda-item-main';
             const itemTitle = document.createElement('div');
@@ -34302,6 +34381,77 @@ function getUiInboxWarningsForBell() {
         }
     }
 
+    if (
+        typeof CCPClassroomDomain !== 'undefined' &&
+        CCPClassroomDomain.listPendingDebateBookChecks
+    ) {
+        const pendingChecks = CCPClassroomDomain.listPendingDebateBookChecks(appData, {
+            unresolvedOnly: true
+        });
+        const viewerCtx = getTabWarningsViewerContext();
+        const classById = new Map(
+            (appData.classes || []).filter((c) => c && c.id).map((c) => [c.id, c])
+        );
+        pendingChecks.forEach((ev) => {
+            if (!ev || !ev.id) {
+                return;
+            }
+            const relatedIds = []
+                .concat(ev.toClassIds || [])
+                .concat(ev.fromClassIds || []);
+            const visibleIds = relatedIds.filter((cid) => {
+                if (viewerCtx.isAdmin) {
+                    return true;
+                }
+                if (!viewerCtx.viewerClassIds || !viewerCtx.viewerClassIds.length) {
+                    return false;
+                }
+                return viewerCtx.viewerClassIds.includes(cid);
+            });
+            if (!visibleIds.length) {
+                return;
+            }
+            const destId =
+                (ev.toClassIds || []).find((cid) => visibleIds.includes(cid)) ||
+                visibleIds[0];
+            const destClass = classById.get(destId);
+            const destName = (destClass && destClass.name) || destId;
+            let priorStatus = '';
+            let priorBook = '';
+            Object.keys(ev.priorStatusByClassId || {}).some((cid) => {
+                const snap = ev.priorStatusByClassId[cid];
+                if (!snap) {
+                    return false;
+                }
+                priorStatus = snap.status || '';
+                priorBook = snap.bookTitle || '';
+                return true;
+            });
+            const messageKey =
+                priorStatus === 'issued'
+                    ? 'debateBookCheckInboxIssued'
+                    : 'debateBookCheckInbox';
+            warnings.push({
+                id: `debate_book_check:${ev.id}`,
+                tabId: 'debate-books',
+                severity: 'warn',
+                messageKey,
+                params: {
+                    name: ev.studentName || ev.studentId,
+                    class: destName,
+                    book: priorBook
+                },
+                actionLabelKey: 'debateBookCheckInboxAction',
+                navigate: {
+                    type: 'debate_book_check',
+                    classId: destId,
+                    eventId: ev.id,
+                    studentId: ev.studentId
+                }
+            });
+        });
+    }
+
     return warnings;
 }
 
@@ -34332,6 +34482,27 @@ function onTabWarningDismissed(warningId) {
     }
     if (id === UI_NOTIFICATION_IDS.eventSyllabiUpdate) {
         hideEventSyllabiUpdateBanner();
+        return;
+    }
+    if (id.indexOf('debate_book_check:') === 0) {
+        const eventId = id.slice('debate_book_check:'.length);
+        if (
+            eventId &&
+            typeof CCPClassroomDomain !== 'undefined' &&
+            CCPClassroomDomain.resolveDebateBookCheck
+        ) {
+            const next = CCPClassroomDomain.resolveDebateBookCheck(appData, eventId, {
+                userId:
+                    typeof TeamAuth !== 'undefined' && TeamAuth.getUser
+                        ? (TeamAuth.getUser() || {}).id
+                        : ''
+            });
+            appData.pendingDebateBookChecks = next.pendingDebateBookChecks || [];
+            void saveClassroomPartial({ pendingDebateBookChecks: appData.pendingDebateBookChecks });
+            if (typeof CCPClassroomDebateBooks !== 'undefined' && CCPClassroomDebateBooks.refreshIfActive) {
+                void CCPClassroomDebateBooks.refreshIfActive();
+            }
+        }
     }
 }
 
@@ -35832,6 +36003,11 @@ function getImportCalendarAccessSelections() {
 
 function normalizeImportedAppData(imported) {
     const data = Object.assign({}, imported);
+    if (typeof CCPCalendarExport !== 'undefined' && CCPCalendarExport.stripExportMeta) {
+        CCPCalendarExport.stripExportMeta(data);
+    } else if (Object.prototype.hasOwnProperty.call(data, 'exportMeta')) {
+        delete data.exportMeta;
+    }
     if (!data.events && data.holidays) {
         data.events = data.holidays.map((h) => Object.assign({}, h, { type: EVENT_TYPES.HOLIDAY }));
     }
@@ -35939,15 +36115,20 @@ async function createTeamCalendarFromName(name, accessOptions, successToastKey) 
     return createTeamCalendarFromImport(trimmed, freshData, accessOptions, successToastKey);
 }
 
-async function createTeamCalendarFromImport(name, importedData, accessOptions, successToastKey) {
+async function createTeamCalendarFromImport(name, importedData, accessOptions, successToastKey, importOptions) {
     CalendarSync.cancelPendingSave();
     const trimmed = (name || '').trim();
     if (!trimmed) {
         throw new Error(t('newCalendarFailed'));
     }
+    const importOpts = importOptions || {};
     const payload = normalizeImportedAppData(importedData);
     payload.calendarName = trimmed;
     migrateData(payload);
+    const importedUi =
+        importOpts.preferImportUi && payload.ui && typeof payload.ui === 'object'
+            ? JSON.parse(JSON.stringify(payload.ui))
+            : null;
     await assertTeamCalendarNameAvailable(trimmed);
     const opts = accessOptions || getNewCalendarAccessSelections();
     const domainPayload = JSON.parse(JSON.stringify(payload));
@@ -35961,6 +36142,11 @@ async function createTeamCalendarFromImport(name, importedData, accessOptions, s
     const list = await CalendarSync.listCalendars();
     const id = created.id;
     await switchToTeamCalendar(id, list);
+    if (importedUi) {
+        ensureUiState();
+        appData.ui = Object.assign({}, appData.ui || {}, importedUi);
+        saveUiStateToLocalStorage();
+    }
     showSyncToast(t(successToastKey || 'newCalendarCreated').replace('{name}', trimmed), false);
     highlightCalendarSelect();
     return created;
@@ -36016,6 +36202,10 @@ async function refreshTeamCalendarsAfterDelete(deletedId) {
     return list;
 }
 
+function isDeleteCalendarOpenAccessDev() {
+    return typeof TeamAuth !== 'undefined' && TeamAuth.isOpenAccessDev && TeamAuth.isOpenAccessDev();
+}
+
 async function openDeleteCalendarModal() {
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
         showSyncToast(t('teamSyncOffline'), true);
@@ -36047,13 +36237,44 @@ async function openDeleteCalendarModal() {
     if (msg) {
         msg.textContent = t('deleteCalendarPrompt').replace('{name}', label);
     }
+    const errEl = document.getElementById('deleteCalendarError');
+    if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = '';
+    }
+    const pwd = document.getElementById('deleteCalendarPassword');
+    if (pwd) {
+        pwd.value = '';
+    }
+    const pwdGroup = document.getElementById('deleteCalendarPasswordGroup');
+    const openAccessDev = isDeleteCalendarOpenAccessDev();
+    if (pwdGroup) {
+        pwdGroup.hidden = openAccessDev;
+    }
     openModal(document.getElementById('deleteCalendarModal'));
+    if (!openAccessDev && pwd) {
+        setTimeout(() => pwd.focus(), 0);
+    }
 }
 
 async function confirmDeleteTeamCalendar() {
     const id = pendingDeleteCalendarId;
     if (!id) {
         return;
+    }
+    const openAccessDev = isDeleteCalendarOpenAccessDev();
+    const password = document.getElementById('deleteCalendarPassword')?.value || '';
+    const errEl = document.getElementById('deleteCalendarError');
+    if (!openAccessDev && !password) {
+        if (errEl) {
+            errEl.textContent = t('deleteCalendarPasswordRequired');
+            errEl.hidden = false;
+        }
+        return;
+    }
+    if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = '';
     }
     const confirmBtn = document.getElementById('confirmDeleteCalendarBtn');
     const label =
@@ -36065,12 +36286,28 @@ async function confirmDeleteTeamCalendar() {
             confirmBtn.textContent = t('deleteCalendarRemoving');
         }
         CalendarSync.cancelPendingSave();
-        await CalendarSync.deleteCalendar(id);
+        await CalendarSync.deleteCalendar(id, password);
         pendingDeleteCalendarId = null;
+        const pwd = document.getElementById('deleteCalendarPassword');
+        if (pwd) {
+            pwd.value = '';
+        }
         closeModal(document.getElementById('deleteCalendarModal'));
         await refreshTeamCalendarsAfterDelete(id);
         showSyncToast(t('deleteCalendarDone').replace('{name}', label), false);
     } catch (err) {
+        const invalidPassword =
+            err &&
+            err.status === 403 &&
+            ((err.body && err.body.error === 'Invalid password') ||
+                (err.message && /invalid password/i.test(err.message)));
+        if (invalidPassword) {
+            if (errEl) {
+                errEl.textContent = t('deleteCalendarPasswordInvalid');
+                errEl.hidden = false;
+            }
+            return;
+        }
         showSyncErrorToast(err);
         try {
             await refreshTeamCalendarsAfterDelete(null);
@@ -36723,12 +36960,18 @@ function migrateData(data) {
     } else if (typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsRosterLinks) {
         data.tmsRosterLinks = CCPClassroomDomain.normalizeTmsRosterLinks(data.tmsRosterLinks);
     }
+    if (!data.tmsEssayLinks || typeof data.tmsEssayLinks !== 'object' || Array.isArray(data.tmsEssayLinks)) {
+        data.tmsEssayLinks = {};
+        migrated = true;
+    } else if (typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.normalizeTmsEssayLinks) {
+        data.tmsEssayLinks = CCPClassroomDomain.normalizeTmsEssayLinks(data.tmsEssayLinks);
+    }
     if (typeof CCPClassroomDomain !== 'undefined' && CCPClassroomDomain.migrateClassroomData) {
         if (CCPClassroomDomain.migrateClassroomData(data)) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'speakingTestRecords', 'debateBookDistributions', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'speakingTestRecords', 'debateBookDistributions', 'pendingDebateBookChecks', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;
@@ -37664,14 +37907,126 @@ function setupDataTabTermClone() {
     }
 }
 
+/**
+ * Build one subject class for a cohort (term migrate "build new" path).
+ * Returns a class object; does not mutate appData.classes (draft calendar owns the list).
+ */
+function generateSingleClassForCohortMigrate(cohort, subjectTrack, options) {
+    const opts = options || {};
+    const track = String(subjectTrack || '').trim() || 'class';
+    const matrix = typeof CCPScheduleMatrix !== 'undefined' ? CCPScheduleMatrix : null;
+    const classTypeId =
+        matrix && matrix.getBuiltinClassTypeIdForSubjectTrack
+            ? matrix.getBuiltinClassTypeIdForSubjectTrack(track)
+            : '';
+    const meetingDays = Array.isArray(cohort.meetingDays) ? cohort.meetingDays.slice() : [];
+    const levelPreset = String(cohort.levelPreset || cohort.level || '').trim();
+    const uid = String(opts.userId || '').trim();
+    const teacherName = String(opts.teacherName || '').trim();
+    const period = opts.period != null && opts.period !== '' ? Number(opts.period) : undefined;
+    const cls = {
+        id: generateId(),
+        name: `${String(cohort.name || 'Cohort').trim()} · ${track}`,
+        levelPreset,
+        level: levelPreset,
+        grade: String(cohort.grade || '').trim(),
+        meetingDays,
+        period,
+        periodByWeekday: period != null ? {} : {},
+        classTypeId: classTypeId || '',
+        cohortId: cohort.id,
+        cohortIds: [cohort.id],
+        scheduleBlock: String(cohort.scheduleBlock || 'primary').trim() || 'primary',
+        startDate: opts.startDate || '',
+        endDate: opts.endDate || '',
+        classTeachers: uid
+            ? [
+                  {
+                      id: generateId(),
+                      userId: uid,
+                      name: teacherName,
+                      category: '',
+                      period
+                  }
+              ]
+            : [],
+        assignedTeacherUserId: uid,
+        assignedTeacherName: teacherName,
+        generatedFromCohort: true,
+        syllabusRows: []
+    };
+    if (period != null && meetingDays.length) {
+        meetingDays.forEach((d) => {
+            cls.periodByWeekday[String(d)] = period;
+        });
+    }
+    return cls;
+}
+
+function setupDataTabTermMigrate() {
+    if (typeof CCPTermMigrateWizard === 'undefined') {
+        return;
+    }
+    CCPTermMigrateWizard.init({
+        getAppData: () => appData,
+        t: (key) => t(key),
+        showMessage: (msg, isError) => showSyncToast(msg, isError),
+        teamSyncEnabled: () =>
+            Boolean(
+                teamSyncEnabled &&
+                    typeof CalendarSync !== 'undefined' &&
+                    CalendarSync.createCalendar
+            ),
+        applyLoadedAppData: (data) => {
+            applyLoadedAppData(data);
+            initializeTermStart();
+            renderCalendar();
+            refreshCalendarScopedUi();
+        },
+        getCurrentUserId: () => {
+            if (typeof TeamAuth === 'undefined' || !TeamAuth.getUser) {
+                return '';
+            }
+            const user = TeamAuth.getUser();
+            return user && user.id != null ? String(user.id) : '';
+        },
+        getCurrentUserDisplayName: () => {
+            if (typeof TeamAuth === 'undefined' || !TeamAuth.getUser) {
+                return '';
+            }
+            const user = TeamAuth.getUser();
+            return (user && (user.displayName || user.name)) || '';
+        },
+        listTeachers: listTimetableTeachers,
+        buildTeacherSelect: (userId, name) => {
+            const sel = document.createElement('select');
+            fillTeacherSelectElement(sel, userId, name);
+            return sel;
+        },
+        parseTeacherPickerValue,
+        generateSingleClassForCohort: generateSingleClassForCohortMigrate
+    });
+}
+
 function setupDataTabCalendarBackup() {
     setupDataTabClassroomReports();
     setupDataTabTermClone();
+    setupDataTabTermMigrate();
     const exportBtn = document.getElementById('dataExportCalendarBtn');
     const importBtn = document.getElementById('dataImportCalendarBtn');
     if (exportBtn && !exportBtn.dataset.bound) {
         exportBtn.dataset.bound = '1';
-        exportBtn.addEventListener('click', exportData);
+        exportBtn.addEventListener('click', () => {
+            exportData().catch((err) => {
+                console.warn('Export calendar failed:', err);
+                if (typeof showSyncToast === 'function') {
+                    showSyncToast(
+                        translateSyncError(err && err.message ? err.message : '') || t('errorReadingFile'),
+                        true
+                    );
+                }
+            });
+        });
     }
     if (importBtn && !importBtn.dataset.bound) {
         importBtn.dataset.bound = '1';
@@ -37710,10 +38065,67 @@ function setupPrintSyllabusControls() {
     }
 }
 
+async function flushPendingSavesBeforeExport() {
+    const classroomFlushTabs = {
+        essays: typeof CCPClassroomEssays !== 'undefined' ? CCPClassroomEssays : null,
+        attendance: typeof CCPClassroomAttendance !== 'undefined' ? CCPClassroomAttendance : null,
+        'homework-tracking':
+            typeof CCPClassroomHomework !== 'undefined' ? CCPClassroomHomework : null,
+        tests: typeof CCPClassroomTests !== 'undefined' ? CCPClassroomTests : null,
+        'debate-teams':
+            typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null,
+        'debate-scores':
+            typeof CCPClassroomDebateScores !== 'undefined' ? CCPClassroomDebateScores : null,
+        'debate-books':
+            typeof CCPClassroomDebateBooks !== 'undefined' ? CCPClassroomDebateBooks : null,
+        'speaking-test':
+            typeof CCPClassroomSpeakingTest !== 'undefined' ? CCPClassroomSpeakingTest : null,
+        ledger: typeof CCPClassroomLedger !== 'undefined' ? CCPClassroomLedger : null
+    };
+    ensureUiState();
+    const activeTab = appData.ui && appData.ui.activeTab;
+    const activeModule = activeTab ? classroomFlushTabs[activeTab] : null;
+    if (activeModule && typeof activeModule.flushPendingSave === 'function') {
+        try {
+            await activeModule.flushPendingSave();
+        } catch (err) {
+            console.warn('Classroom flush before export failed:', err);
+        }
+    } else if (activeModule && typeof activeModule.flushBeforeLeave === 'function') {
+        try {
+            await activeModule.flushBeforeLeave();
+        } catch (err) {
+            console.warn('Classroom flush before export failed:', err);
+        }
+    }
+    if (
+        teamSyncEnabled &&
+        typeof CalendarSync !== 'undefined' &&
+        typeof CalendarSync.flushPendingSave === 'function'
+    ) {
+        try {
+            await CalendarSync.flushPendingSave();
+        } catch (err) {
+            console.warn('Team flush before export failed:', err);
+        }
+    }
+}
+
 function getCalendarExportPayload() {
+    saveUiStateToLocalStorage();
+    syncHolidaysFromEvents();
+    if (typeof CCPCalendarExport !== 'undefined' && CCPCalendarExport.buildCalendarExportPayload) {
+        return CCPCalendarExport.buildCalendarExportPayload(appData, {
+            schemaVersion: SCHEMA_VERSION,
+            normalizeTermStartDate,
+            getResolvedTermEndISO,
+            getTermMonthCount
+        });
+    }
+    // Fallback if calendar-export.js failed to load
     const payload = JSON.parse(JSON.stringify(appData));
-    if (payload && payload.ui) {
-        delete payload.ui;
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'holidays')) {
+        delete payload.holidays;
     }
     payload.schemaVersion = SCHEMA_VERSION;
     payload.termStart = normalizeTermStartDate(appData.termStart);
@@ -37723,27 +38135,45 @@ function getCalendarExportPayload() {
     return payload;
 }
 
-function exportData() {
-    const dataStr = JSON.stringify(getCalendarExportPayload(), null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    // Generate filename with calendar name and date/time
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
-    const baseName = appData.calendarName && appData.calendarName.trim() 
-        ? appData.calendarName.trim().replace(/[^a-zA-Z0-9가-힣\s-]/g, '').replace(/\s+/g, '-')
-        : 'class-calendar';
-    const filename = `${baseName}_${dateStr}_${timeStr}.json`;
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+async function exportData() {
+    const exportBtn = document.getElementById('dataExportCalendarBtn');
+    const prevDisabled = exportBtn ? exportBtn.disabled : false;
+    try {
+        if (exportBtn) {
+            exportBtn.disabled = true;
+        }
+        if (typeof showSyncToast === 'function') {
+            showSyncToast(t('dataExportPreparing') || 'Preparing export…', false);
+        }
+        await flushPendingSavesBeforeExport();
+        const dataStr = JSON.stringify(getCalendarExportPayload(), null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+        const baseName =
+            appData.calendarName && appData.calendarName.trim()
+                ? appData.calendarName
+                      .trim()
+                      .replace(/[^a-zA-Z0-9가-힣\s-]/g, '')
+                      .replace(/\s+/g, '-')
+                : 'class-calendar';
+        const filename = `${baseName}_${dateStr}_${timeStr}.json`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } finally {
+        if (exportBtn) {
+            exportBtn.disabled = prevDisabled;
+        }
+    }
 }
 
 let pendingImportPayload = null;
@@ -37785,6 +38215,8 @@ function applyImportToLocalData(imported) {
     appData = normalizeImportedAppData(imported);
     rebindAppStoreStateRef();
     const migrated = migrateData(appData);
+    ensureUiState();
+    saveUiStateToLocalStorage();
     finishImportUiAfterApply(migrated);
     saveData();
     return migrated;
@@ -37813,6 +38245,8 @@ async function applyImportToCurrentTeamCalendar(imported) {
     appData.calendarName = calName;
     rebindAppStoreStateRef();
     const migrated = migrateData(appData);
+    ensureUiState();
+    saveUiStateToLocalStorage();
     finishImportUiAfterApply(migrated);
     const payload = JSON.parse(JSON.stringify(appData));
     if (payload && payload.ui) {
@@ -37930,7 +38364,8 @@ async function confirmImportDestination() {
                 name,
                 imported,
                 getImportCalendarAccessSelections(),
-                'importNewCreated'
+                'importNewCreated',
+                { preferImportUi: true }
             );
         } else {
             if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {

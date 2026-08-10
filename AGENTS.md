@@ -68,6 +68,8 @@ Without `npm start`, the app cannot load or save calendar data.
 
 **TMS Sync on classmanager.live (work IP allowlist):** keep `npm start` / START TEAM CALENDAR.bat running on the work PC (port 8080). The live Sync modal probes `http://127.0.0.1:8080/api/tms/bridge/ping` and scrapes via the local bridge so TMS sees the work IP; Apply still saves to the cloud calendar.
 
+**Essay Sync (Classroom → Essays → Sync from TMS):** uses `POST /api/tms/bridge/essays/preview` (not the roster bridge path). After pulling/deploying essay Sync code, **restart** the local bridge process — an old `npm start` still answers ping (`bridge: true`) but essay load fails with “Failed to fetch” until restarted from this project folder.
+
 ## Deploy (required for production)
 
 1. Test locally via `npm start` when possible (see above).

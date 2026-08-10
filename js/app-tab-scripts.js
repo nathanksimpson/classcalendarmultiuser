@@ -4,19 +4,19 @@
 (function (global) {
     const TAB_SCRIPTS = {
         cohorts: [
-            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
+            'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260806-cohort-color',
-            'js/setup-board.js?v=20260806-cohort-color',
+            'js/cohort-management.js?v=20260807-deconflict-min',
+            'js/setup-board.js?v=20260807-deconflict-min',
             'js/cohorts-class-detail.js?v=20260703-design-fidelity'
         ],
         timetable: [
             'js/timetable-periods.js?v=20260619-term-flex',
-            'js/teacher-timetable.js?v=20260619-term-flex',
+            'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
-            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
+            'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/teacher-management.js?v=20260610-setup-board',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
@@ -24,7 +24,7 @@
         classes: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         syllabus: ['js/class-curriculum-slices.js?v=20260603-curriculum-pipeline'],
         calendar: [
-            'js/teacher-timetable.js?v=20260612-timetable-conflicts',
+            'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
         homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
@@ -33,7 +33,7 @@
             'js/roster-import.js?v=20260806-name-marks',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260806-name-marks'
+            'js/classroom-roster.js?v=20260810-book-check'
         ],
         attendance: [
             'js/classroom-access.js?v=20260807-hr-tools',
@@ -52,11 +52,11 @@
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
             'js/classroom-essay-progress.js?v=20260807-hr-tools',
-            'js/classroom-essay-progress-print.js?v=20260805-essay-nv',
-            'js/classroom-essay-resubmit-print.js?v=20260805-essay-nv',
+            'js/classroom-essay-progress-print.js?v=20260807-deconflict-min',
+            'js/classroom-essay-resubmit-print.js?v=20260807-deconflict-min',
             'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
-            'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
-            'js/classroom-essay-class-summary-print.js?v=20260729-essay-print-headers',
+            'js/classroom-essay-class-summary.js?v=20260807-deconflict-min',
+            'js/classroom-essay-class-summary-print.js?v=20260807-deconflict-min',
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-essays.js?v=20260807-hr-tools'
         ],
@@ -66,7 +66,7 @@
             'js/classroom-ledger.js?v=20260807-hr-tools'
         ],
         'command-center': [
-            'js/command-center.js?v=20260806-toolbar'
+            'js/command-center.js?v=20260807-deconflict-min'
         ],
         points: [
             'js/classroom-access.js?v=20260807-hr-tools',
@@ -85,7 +85,7 @@
             'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
-            'js/debate/debate-teams-v2.js?v=20260806-notice',
+            'js/debate/debate-teams-v2.js?v=20260807-deconflict-min',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-debate-teams.js?v=20260807-no-date-jump'
         ],
@@ -94,7 +94,7 @@
             'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
             'js/debate/feedback-templates.js?v=20260710-debate-v2',
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
-            'js/debate/debate-teams-v2.js?v=20260806-notice',
+            'js/debate/debate-teams-v2.js?v=20260807-deconflict-min',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-debate-scores.js?v=20260721-numpad-place'
         ],
@@ -102,11 +102,11 @@
             'js/debate-periods.js?v=20260806-per-period-remap',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/ui/classroom-autosave.js?v=20260710-essay-autosave',
-            'js/classroom-essay-class-summary.js?v=20260730-class-summary-warn-filter',
+            'js/ui/classroom-autosave.js?v=20260807-deconflict-min',
+            'js/classroom-essay-class-summary.js?v=20260807-deconflict-min',
             'js/classroom-debate-books-summary.js?v=20260807-books-filters',
             'js/classroom-debate-books-summary-print.js?v=20260807-books-filters',
-            'js/classroom-debate-books.js?v=20260807-books-status-active'
+            'js/classroom-debate-books.js?v=20260810-book-check'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',
@@ -124,7 +124,7 @@
     const DEBATE_CORE_SCRIPTS = [
         'js/debate/feedback-templates.js?v=20260710-debate-v2',
         'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
-        'js/debate/debate-teams-v2.js?v=20260806-notice'
+        'js/debate/debate-teams-v2.js?v=20260807-deconflict-min'
     ];
 
     const loaded = new Set();

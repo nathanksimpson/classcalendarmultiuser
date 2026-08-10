@@ -23,6 +23,8 @@ const CLASSROOM_ENTITIES = new Set([
     'debateScores',
     'debateCustomFormats',
     'speakingTestRecords',
+    'debateBookDistributions',
+    'pendingDebateBookChecks',
     'tmsRosterLinks',
     'tmsEssayLinks'
 ]);
@@ -46,7 +48,9 @@ const CLASSROOM_ENTITY_PAYLOAD_KEY = {
     debateTeamSessions: 'session',
     debateScores: 'score',
     debateCustomFormats: 'format',
-    speakingTestRecords: 'record'
+    speakingTestRecords: 'record',
+    debateBookDistributions: 'distribution',
+    pendingDebateBookChecks: 'check'
 };
 
 const CLASSROOM_ENTITY_ID_KEY = {
@@ -59,7 +63,9 @@ const CLASSROOM_ENTITY_ID_KEY = {
     debateTeamSessions: 'sessionId',
     debateScores: 'scoreId',
     debateCustomFormats: 'formatId',
-    speakingTestRecords: 'recordId'
+    speakingTestRecords: 'recordId',
+    debateBookDistributions: 'distributionId',
+    pendingDebateBookChecks: 'checkId'
 };
 
 function deepClone(data) {

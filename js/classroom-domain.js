@@ -1925,6 +1925,11 @@
                 });
             });
         }
+        if (Array.isArray(next.pendingDebateBookChecks)) {
+            next.pendingDebateBookChecks = next.pendingDebateBookChecks.filter(
+                (ev) => !ev || normalizeStr(ev.studentId) !== sid
+            );
+        }
         if (Array.isArray(next.studentPoints)) {
             next.studentPoints = next.studentPoints.filter(
                 (p) => !p || normalizeStr(p.studentId) !== sid
@@ -2245,6 +2250,14 @@
                 return Object.assign({}, dist, {
                     records: rekeyRecordList(dist.records, keepId, dropId, pickRicherDebateBookRecord)
                 });
+            });
+        }
+        if (Array.isArray(next.pendingDebateBookChecks)) {
+            next.pendingDebateBookChecks = next.pendingDebateBookChecks.map((ev) => {
+                if (!ev || normalizeStr(ev.studentId) !== dropId) {
+                    return ev;
+                }
+                return Object.assign({}, ev, { studentId: keepId });
             });
         }
         if (Array.isArray(next.studentPoints)) {
@@ -3041,7 +3054,8 @@
         const rosterIds = Array.isArray(activeStudentIds)
             ? activeStudentIds.map(normalizeStr).filter(Boolean)
             : null;
-        if (!rosterIds) {
+        // Empty roster (unresolved class/cohort) must not zero out counts — same as "no filter".
+        if (!rosterIds || !rosterIds.length) {
             return Array.isArray(submission && submission.records) ? submission.records : [];
         }
         const allowed = new Set(rosterIds);
@@ -3493,7 +3507,8 @@
                         return;
                     }
                     const studentId = normalizeStr(rec.studentId);
-                    if (!studentId || !activeStudentSet.has(studentId)) {
+                    // Empty roster: still list submission records (same as alert counts).
+                    if (!studentId || (activeStudentSet.size > 0 && !activeStudentSet.has(studentId))) {
                         return;
                     }
                     rows.push({
@@ -4966,16 +4981,364 @@
                     bookTitle: entry.bookTitle,
                     bookLevel: entry.bookLevel,
                     studentId: student.id,
-                    studentName: normalizeStr(student.name),
+                    studentName: student.name || '',
                     studentNameEn: normalizeStr(student.nameEn),
                     studentTags: Array.isArray(student.tags) ? student.tags.slice() : [],
-                    status: rec.status,
+                    status: rec.status || 'not_issued',
                     note: rec.note || '',
                     issuedAt: rec.issuedAt || ''
                 });
             });
         });
         return rows;
+    }
+
+    /**
+     * Classes that use Tools → Debate Books handout tracking for a cohort.
+     * Monthly debate classes always qualify; other classes qualify when a book is set.
+     */
+    function classTracksDebateBookDelivery(classData) {
+        if (!classData || !classData.id) {
+            return false;
+        }
+        if (classUsesMonthlyDebateBooks(classData)) {
+            return true;
+        }
+        return Boolean(normalizeStr(classData.book));
+    }
+
+    function listDebateBookClassesForCohort(classes, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!cid) {
+            return [];
+        }
+        return (Array.isArray(classes) ? classes : []).filter((c) => {
+            if (!c || !classTracksDebateBookDelivery(c)) {
+                return false;
+            }
+            return getCohortIdsForClass(c).includes(cid);
+        });
+    }
+
+    function snapshotPriorDebateBookStatus(appData, studentId, classData) {
+        const sid = normalizeStr(studentId);
+        const uiPeriodMap =
+            (appData && appData.ui && appData.ui.debateBookPeriodByClassId) || {};
+        const periodKey = resolveDebateBookPeriodKeyForClass(classData, uiPeriodMap);
+        if (!periodKey || !sid || !classData || !classData.id) {
+            return {
+                periodKey: periodKey || '',
+                status: 'not_issued',
+                bookTitle: normalizeStr(classData && classData.book),
+                issuedAt: ''
+            };
+        }
+        const dist = findDebateBookDistribution(
+            (appData && appData.debateBookDistributions) || [],
+            classData.id,
+            periodKey
+        );
+        const rec = getDebateBookRecordForStudent(dist, sid);
+        let bookTitle = normalizeStr(dist && dist.bookTitle);
+        if (!bookTitle) {
+            bookTitle = classUsesMonthlyDebateBooks(classData)
+                ? resolveDebateBookTitleForMonth(classData, periodKey)
+                : normalizeStr(classData.book);
+        }
+        const status =
+            rec && DEBATE_BOOK_STATUSES.includes(rec.status) ? rec.status : 'not_issued';
+        return {
+            periodKey,
+            status,
+            bookTitle,
+            issuedAt: rec && rec.issuedAt ? normalizeStr(rec.issuedAt) : ''
+        };
+    }
+
+    function normalizePendingDebateBookCheck(raw) {
+        if (!raw || !raw.id || !raw.studentId) {
+            return null;
+        }
+        const priorRaw =
+            raw.priorStatusByClassId && typeof raw.priorStatusByClassId === 'object'
+                ? raw.priorStatusByClassId
+                : {};
+        const priorStatusByClassId = {};
+        Object.keys(priorRaw).forEach((cid) => {
+            const p = priorRaw[cid];
+            if (!p || typeof p !== 'object') {
+                return;
+            }
+            const status = normalizeStr(p.status);
+            priorStatusByClassId[normalizeStr(cid)] = {
+                periodKey:
+                    normalizeDebateBookPeriodKey(p.periodKey) || normalizeStr(p.periodKey),
+                status: DEBATE_BOOK_STATUSES.includes(status) ? status : 'not_issued',
+                bookTitle: normalizeStr(p.bookTitle),
+                issuedAt: normalizeStr(p.issuedAt)
+            };
+        });
+        const resolvedAt = normalizeStr(raw.resolvedAt);
+        return {
+            id: normalizeStr(raw.id),
+            studentId: normalizeStr(raw.studentId),
+            studentName: normalizeStr(raw.studentName),
+            fromCohortId: normalizeStr(raw.fromCohortId),
+            toCohortId: normalizeStr(raw.toCohortId),
+            fromClassIds: (Array.isArray(raw.fromClassIds) ? raw.fromClassIds : [])
+                .map(normalizeStr)
+                .filter(Boolean),
+            toClassIds: (Array.isArray(raw.toClassIds) ? raw.toClassIds : [])
+                .map(normalizeStr)
+                .filter(Boolean),
+            priorStatusByClassId,
+            createdAt: normalizeStr(raw.createdAt) || new Date().toISOString(),
+            resolvedAt: resolvedAt || null,
+            resolvedByUserId: normalizeStr(raw.resolvedByUserId) || null
+        };
+    }
+
+    /**
+     * Build pending book-check events for students moving between cohorts.
+     * Call with calendar data that still has prior distributions (move does not rekey them).
+     */
+    function buildDebateBookCheckEventsForMove(appData, options) {
+        const opts = options || {};
+        const data = appData && typeof appData === 'object' ? appData : {};
+        const fromCohortId = normalizeStr(opts.fromCohortId);
+        const toCohortId = normalizeStr(opts.toCohortId);
+        const studentIds = (Array.isArray(opts.studentIds) ? opts.studentIds : [])
+            .map(normalizeStr)
+            .filter(Boolean);
+        if (!fromCohortId || !toCohortId || fromCohortId === toCohortId || !studentIds.length) {
+            return [];
+        }
+        const fromCohort = (data.cohorts || []).find((c) => c && normalizeStr(c.id) === fromCohortId);
+        const toCohort = (data.cohorts || []).find((c) => c && normalizeStr(c.id) === toCohortId);
+        if (!fromCohort || !toCohort) {
+            return [];
+        }
+        if (isArchiveCohort(fromCohort) || isArchiveCohort(toCohort)) {
+            return [];
+        }
+        const fromClasses = listDebateBookClassesForCohort(data.classes, fromCohortId);
+        const toClasses = listDebateBookClassesForCohort(data.classes, toCohortId);
+        if (!fromClasses.length && !toClasses.length) {
+            return [];
+        }
+        const fromClassIds = fromClasses.map((c) => c.id);
+        const toClassIds = toClasses.map((c) => c.id);
+        const studentsById = new Map();
+        normalizeCohortStudents(fromCohort).forEach((s) => {
+            if (s && s.id) {
+                studentsById.set(s.id, s);
+            }
+        });
+        normalizeCohortStudents(toCohort).forEach((s) => {
+            if (s && s.id && !studentsById.has(s.id)) {
+                studentsById.set(s.id, s);
+            }
+        });
+        (Array.isArray(opts.students) ? opts.students : []).forEach((s) => {
+            if (s && s.id) {
+                studentsById.set(normalizeStr(s.id), s);
+            }
+        });
+        const createdAt = normalizeStr(opts.createdAt) || new Date().toISOString();
+        const makeId =
+            typeof opts.newId === 'function' ? opts.newId : () => newId('dbc');
+        return studentIds.map((sid) => {
+            const student = studentsById.get(sid);
+            const priorStatusByClassId = {};
+            fromClasses.forEach((cls) => {
+                priorStatusByClassId[cls.id] = snapshotPriorDebateBookStatus(data, sid, cls);
+            });
+            return {
+                id: makeId(),
+                studentId: sid,
+                studentName: normalizeStr(student && student.name) || sid,
+                fromCohortId,
+                toCohortId,
+                fromClassIds: fromClassIds.slice(),
+                toClassIds: toClassIds.slice(),
+                priorStatusByClassId,
+                createdAt,
+                resolvedAt: null,
+                resolvedByUserId: null
+            };
+        });
+    }
+
+    function appendPendingDebateBookChecks(existing, events) {
+        const list = (Array.isArray(existing) ? existing : [])
+            .map(normalizePendingDebateBookCheck)
+            .filter(Boolean);
+        const byId = new Map(list.map((ev) => [ev.id, ev]));
+        (Array.isArray(events) ? events : []).forEach((raw) => {
+            const ev = normalizePendingDebateBookCheck(raw);
+            if (!ev) {
+                return;
+            }
+            byId.set(ev.id, ev);
+        });
+        return Array.from(byId.values());
+    }
+
+    function listPendingDebateBookChecks(appData, options) {
+        const opts = options || {};
+        const list = (
+            Array.isArray(appData && appData.pendingDebateBookChecks)
+                ? appData.pendingDebateBookChecks
+                : []
+        )
+            .map(normalizePendingDebateBookCheck)
+            .filter(Boolean);
+        const unresolvedOnly = opts.unresolvedOnly !== false;
+        const classId = normalizeStr(opts.classId);
+        const studentId = normalizeStr(opts.studentId);
+        const role = normalizeStr(opts.role);
+        return list.filter((ev) => {
+            if (unresolvedOnly && ev.resolvedAt) {
+                return false;
+            }
+            if (studentId && ev.studentId !== studentId) {
+                return false;
+            }
+            if (classId) {
+                const inTo = ev.toClassIds.includes(classId);
+                const inFrom = ev.fromClassIds.includes(classId);
+                if (role === 'to' && !inTo) {
+                    return false;
+                }
+                if (role === 'from' && !inFrom) {
+                    return false;
+                }
+                if (!role && !inTo && !inFrom) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    function resolveDebateBookCheck(appData, eventId, options) {
+        const opts = options || {};
+        const id = normalizeStr(eventId);
+        const next = Object.assign({}, appData || {});
+        const list = Array.isArray(next.pendingDebateBookChecks)
+            ? next.pendingDebateBookChecks.slice()
+            : [];
+        if (!id) {
+            next.pendingDebateBookChecks = list;
+            return next;
+        }
+        const resolvedAt = normalizeStr(opts.resolvedAt) || new Date().toISOString();
+        const userId = normalizeStr(opts.userId);
+        next.pendingDebateBookChecks = list.map((raw) => {
+            const ev = normalizePendingDebateBookCheck(raw);
+            if (!ev || ev.id !== id) {
+                return raw;
+            }
+            if (ev.resolvedAt) {
+                return ev;
+            }
+            return Object.assign({}, ev, {
+                resolvedAt,
+                resolvedByUserId: userId || null
+            });
+        });
+        return next;
+    }
+
+    /**
+     * Resolve unresolved book-check events for a student on a destination (or source) class.
+     */
+    function resolveDebateBookChecksForStudentOnClass(appData, studentId, classId, options) {
+        const opts = options || {};
+        const sid = normalizeStr(studentId);
+        const cid = normalizeStr(classId);
+        const next = Object.assign({}, appData || {});
+        const list = Array.isArray(next.pendingDebateBookChecks)
+            ? next.pendingDebateBookChecks.slice()
+            : [];
+        if (!sid || !cid) {
+            next.pendingDebateBookChecks = list;
+            return { appData: next, resolvedIds: [] };
+        }
+        const role = normalizeStr(opts.role) || 'to';
+        const resolvedAt = normalizeStr(opts.resolvedAt) || new Date().toISOString();
+        const userId = normalizeStr(opts.userId);
+        const resolvedIds = [];
+        next.pendingDebateBookChecks = list.map((raw) => {
+            const ev = normalizePendingDebateBookCheck(raw);
+            if (!ev || ev.resolvedAt || ev.studentId !== sid) {
+                return raw;
+            }
+            const match =
+                role === 'from'
+                    ? ev.fromClassIds.includes(cid)
+                    : role === 'any'
+                      ? ev.toClassIds.includes(cid) || ev.fromClassIds.includes(cid)
+                      : ev.toClassIds.includes(cid);
+            if (!match) {
+                return raw;
+            }
+            resolvedIds.push(ev.id);
+            return Object.assign({}, ev, {
+                resolvedAt,
+                resolvedByUserId: userId || null
+            });
+        });
+        return { appData: next, resolvedIds };
+    }
+
+    /**
+     * transfers: [{ studentId, fromCohortId, toCohortId }]
+     * Appends pendingDebateBookChecks onto a copy of appData.
+     */
+    function recordDebateBookChecksForMoves(appData, transfers, options) {
+        const opts = options || {};
+        const data = appData && typeof appData === 'object' ? appData : {};
+        const byPair = new Map();
+        (Array.isArray(transfers) ? transfers : []).forEach((tr) => {
+            if (!tr || !tr.studentId) {
+                return;
+            }
+            const fromCohortId = normalizeStr(tr.fromCohortId);
+            const toCohortId = normalizeStr(tr.toCohortId);
+            const studentId = normalizeStr(tr.studentId);
+            if (!fromCohortId || !toCohortId || !studentId) {
+                return;
+            }
+            const key = `${fromCohortId}|${toCohortId}`;
+            if (!byPair.has(key)) {
+                byPair.set(key, {
+                    fromCohortId,
+                    toCohortId,
+                    studentIds: []
+                });
+            }
+            byPair.get(key).studentIds.push(studentId);
+        });
+        let events = [];
+        byPair.forEach((group) => {
+            events = events.concat(
+                buildDebateBookCheckEventsForMove(data, {
+                    fromCohortId: group.fromCohortId,
+                    toCohortId: group.toCohortId,
+                    studentIds: group.studentIds,
+                    students: opts.students,
+                    newId: opts.newId,
+                    createdAt: opts.createdAt
+                })
+            );
+        });
+        const next = Object.assign({}, data);
+        next.pendingDebateBookChecks = appendPendingDebateBookChecks(
+            data.pendingDebateBookChecks,
+            events
+        );
+        return { appData: next, events };
     }
 
     function migrateClassroomData(data) {
@@ -5021,6 +5384,10 @@
         }
         if (!Array.isArray(data.debateBookDistributions)) {
             data.debateBookDistributions = [];
+            migrated = true;
+        }
+        if (!Array.isArray(data.pendingDebateBookChecks)) {
+            data.pendingDebateBookChecks = [];
             migrated = true;
         }
         if (!Array.isArray(data.portfolioRecordings)) {
@@ -6423,6 +6790,263 @@
     }
 
     /**
+     * Match a TMS class to a previous-term cohort via saved tmsRosterLinks or name.
+     * @returns {{ cohort: object|null, matchedBy: string }}
+     */
+    function matchPreviousCohortForTmsClass(previousCohorts, tmsLinks, tmsClassId, tmsName) {
+        const list = Array.isArray(previousCohorts) ? previousCohorts : [];
+        const resolved = resolveTmsRosterLink(tmsLinks, tmsName, list, { tmsClassId });
+        if (resolved && resolved.userAction === 'map' && resolved.userTargetId) {
+            const cohort = list.find((c) => c && normalizeStr(c.id) === normalizeStr(resolved.userTargetId));
+            if (cohort) {
+                return { cohort, matchedBy: 'link' };
+            }
+        }
+        if (resolved && resolved.suggestedTargetId) {
+            const cohort = list.find(
+                (c) => c && normalizeStr(c.id) === normalizeStr(resolved.suggestedTargetId)
+            );
+            if (cohort) {
+                return { cohort, matchedBy: 'name' };
+            }
+        }
+        const cleaned = normalizeStr(tmsName)
+            .replace(/^\[[^\]]*\]\s*/u, '')
+            .split('^')[0]
+            .trim();
+        if (cleaned) {
+            const hits = list.filter((c) => {
+                if (!c || isArchiveCohort(c)) {
+                    return false;
+                }
+                const cn = normalizeStr(c.name);
+                return cn === cleaned || normalizeTmsClassKey(c.name) === normalizeTmsClassKey(cleaned);
+            });
+            if (hits.length === 1) {
+                return { cohort: hits[0], matchedBy: 'name' };
+            }
+        }
+        return { cohort: null, matchedBy: '' };
+    }
+
+    function classBelongsToCohort(classData, cohortId) {
+        const cid = normalizeStr(cohortId);
+        if (!classData || !cid) {
+            return false;
+        }
+        if (normalizeStr(classData.cohortId) === cid) {
+            return true;
+        }
+        return (Array.isArray(classData.cohortIds) ? classData.cohortIds : []).some(
+            (id) => normalizeStr(id) === cid
+        );
+    }
+
+    function classHasTeacherUser(classData, userId) {
+        const uid = normalizeStr(userId);
+        if (!classData || !uid) {
+            return false;
+        }
+        const rows = Array.isArray(classData.classTeachers) ? classData.classTeachers : [];
+        if (rows.some((r) => r && normalizeStr(r.userId) === uid)) {
+            return true;
+        }
+        return normalizeStr(classData.assignedTeacherUserId) === uid;
+    }
+
+    /**
+     * Previous classes the user taught in a cohort (for carry-forward picker).
+     */
+    function findPreviousClassesForUser(appData, previousCohortId, userId) {
+        const classes = (appData && Array.isArray(appData.classes) ? appData.classes : []).filter(
+            (cls) =>
+                cls &&
+                classBelongsToCohort(cls, previousCohortId) &&
+                classHasTeacherUser(cls, userId)
+        );
+        return classes.map((cls) => ({
+            id: cls.id,
+            name: normalizeStr(cls.name) || cls.id,
+            period: cls.period != null ? cls.period : null,
+            classTypeId: normalizeStr(cls.classTypeId),
+            levelPreset: normalizeStr(cls.levelPreset) || normalizeStr(cls.level)
+        }));
+    }
+
+    /**
+     * Shift class dates / syllabus / debate periods for term migrate carry-forward.
+     * Does not remap id — caller assigns new id and cohort links.
+     */
+    function shiftClassDatesForTerm(classData, monthShift, shiftIsoFn) {
+        const cls = classData ? JSON.parse(JSON.stringify(classData)) : null;
+        if (!cls) {
+            return null;
+        }
+        const shift =
+            typeof shiftIsoFn === 'function'
+                ? shiftIsoFn
+                : (d, delta) => {
+                      const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                      if (!m) {
+                          return d;
+                      }
+                      let month = Number(m[2]) + Number(delta || 0);
+                      let year = Number(m[1]);
+                      while (month > 12) {
+                          month -= 12;
+                          year += 1;
+                      }
+                      while (month < 1) {
+                          month += 12;
+                          year -= 1;
+                      }
+                      return `${year}-${String(month).padStart(2, '0')}-${m[3]}`;
+                  };
+        const delta = Number(monthShift) || 0;
+        if (cls.startDate) {
+            cls.startDate = shift(cls.startDate, delta);
+        }
+        if (cls.endDate) {
+            cls.endDate = shift(cls.endDate, delta);
+        }
+        (cls.syllabusRows || []).forEach((row) => {
+            if (row && row.date) {
+                row.date = shift(row.date, delta);
+            }
+        });
+        (cls.debateBookPeriods || []).forEach((p) => {
+            if (p && p.startDate) {
+                p.startDate = shift(p.startDate, delta);
+            }
+            if (p && p.date) {
+                p.date = shift(p.date, delta);
+            }
+        });
+        return cls;
+    }
+
+    /**
+     * Carry forward one previous class for the current user into a new cohort.
+     */
+    function carryForwardClassForTerm(prevClass, newCohort, monthShift, userId, options) {
+        const opts = options || {};
+        const shiftIso = opts.shiftIsoDate;
+        const newIdFn = typeof opts.newClassId === 'function' ? opts.newClassId : () => newId('cls');
+        if (!prevClass || !newCohort) {
+            return null;
+        }
+        const uid = normalizeStr(userId);
+        let cls = shiftClassDatesForTerm(prevClass, monthShift, shiftIso);
+        if (!cls) {
+            return null;
+        }
+        cls.id = newIdFn();
+        cls.cohortId = newCohort.id;
+        cls.cohortIds = [newCohort.id];
+        if (opts.startDate) {
+            cls.startDate = opts.startDate;
+        }
+        if (opts.endDate) {
+            cls.endDate = opts.endDate;
+        }
+        if (opts.period != null && opts.period !== '') {
+            cls.period = Number(opts.period);
+        }
+        const rows = Array.isArray(cls.classTeachers) ? cls.classTeachers : [];
+        cls.classTeachers = rows
+            .filter((r) => r && normalizeStr(r.userId) === uid)
+            .map((r) => Object.assign({}, r, { id: newId('ct') }));
+        if (uid && !cls.classTeachers.length) {
+            cls.classTeachers = [
+                {
+                    id: newId('ct'),
+                    userId: uid,
+                    name: normalizeStr(opts.teacherName) || normalizeStr(prevClass.assignedTeacherName),
+                    category: normalizeStr(prevClass.teacherCategory) || ''
+                }
+            ];
+        }
+        if (uid) {
+            cls.assignedTeacherUserId = uid;
+            cls.assignedTeacherName =
+                (cls.classTeachers[0] && cls.classTeachers[0].name) ||
+                normalizeStr(opts.teacherName) ||
+                '';
+        }
+        cls.generatedFromCohort = false;
+        return cls;
+    }
+
+    /**
+     * Prefill iTeachHere / classMode / previousClassId defaults for migrate step 5.
+     */
+    function buildPerCohortTeachingDefaults(previousAppData, createdCohortMap, userId, options) {
+        const opts = options || {};
+        const monthShift = Number(opts.monthShift) || 0;
+        const shiftIso = opts.shiftIsoDate;
+        const termStart = normalizeStr(opts.termStart);
+        const termEnd = normalizeStr(opts.termEnd);
+        const uid = normalizeStr(userId);
+        return (Array.isArray(createdCohortMap) ? createdCohortMap : []).map((row) => {
+            const next = Object.assign({}, row);
+            const prevId = normalizeStr(row.matchedPreviousCohortId);
+            const prevClasses = prevId
+                ? findPreviousClassesForUser(previousAppData, prevId, uid)
+                : [];
+            next.iTeachHere = prevClasses.length > 0;
+            next.classMode = prevClasses.length ? 'carry' : next.iTeachHere ? 'new' : null;
+            next.previousClassId = prevClasses.length ? prevClasses[0].id : '';
+            next.subjectTrack = next.subjectTrack || '';
+            next.period =
+                next.tmsSuggestedPeriod != null
+                    ? next.tmsSuggestedPeriod
+                    : prevClasses.length && prevClasses[0].period != null
+                      ? prevClasses[0].period
+                      : null;
+            next.startDate = termStart;
+            next.endDate = termEnd;
+            if (!next.startDate && previousAppData && previousAppData.termStart && shiftIso) {
+                next.startDate = shiftIso(previousAppData.termStart, monthShift);
+            }
+            if (!next.endDate && previousAppData && previousAppData.termEnd && shiftIso) {
+                next.endDate = shiftIso(previousAppData.termEnd, monthShift);
+            }
+            next.previousClassOptions = prevClasses;
+            return next;
+        });
+    }
+
+    /**
+     * Shift calendar events[] by month delta (new ids).
+     */
+    function shiftCalendarEvents(events, monthShift, options) {
+        const opts = options || {};
+        const shift =
+            typeof opts.shiftIsoDate === 'function'
+                ? opts.shiftIsoDate
+                : (d, delta) => d;
+        const newEventId =
+            typeof opts.newEventId === 'function' ? opts.newEventId : () => newId('evt');
+        const delta = Number(monthShift) || 0;
+        return (Array.isArray(events) ? events : [])
+            .filter(Boolean)
+            .map((ev) => {
+                const copy = JSON.parse(JSON.stringify(ev));
+                copy.id = newEventId();
+                if (copy.date) {
+                    copy.date = shift(copy.date, delta);
+                }
+                if (copy.startDate) {
+                    copy.startDate = shift(copy.startDate, delta);
+                }
+                if (copy.endDate) {
+                    copy.endDate = shift(copy.endDate, delta);
+                }
+                return copy;
+            });
+    }
+
+    /**
      * Apply confirmed term-migrate moves into target cohorts (preserves stu_* ids).
      * moves: buildTermMigrateTransferPlan().moves (or subset with optional studentId override for unclear).
      * adds: new TMS-only students.
@@ -6605,6 +7229,14 @@
         mapTmsBlockToPeriod,
         buildTermMigrateTransferPlan,
         applyTermMigrateTransferPlan,
+        matchPreviousCohortForTmsClass,
+        findPreviousClassesForUser,
+        carryForwardClassForTerm,
+        shiftClassDatesForTerm,
+        buildPerCohortTeachingDefaults,
+        shiftCalendarEvents,
+        classBelongsToCohort,
+        classHasTeacherUser,
         buildTmsEssaySyncPlan,
         previewTmsEssaySyncPlan,
         listEssayTmsStudentReviewQueue,
@@ -6760,6 +7392,16 @@
         normalizeDebateBookSummaryKey,
         listDebateBookSummaryEntries,
         listDebateBookSummaryRows,
+        classTracksDebateBookDelivery,
+        listDebateBookClassesForCohort,
+        snapshotPriorDebateBookStatus,
+        normalizePendingDebateBookCheck,
+        buildDebateBookCheckEventsForMove,
+        appendPendingDebateBookChecks,
+        listPendingDebateBookChecks,
+        resolveDebateBookCheck,
+        resolveDebateBookChecksForStudentOnClass,
+        recordDebateBookChecksForMoves,
         DEBATE_SCORE_CRITERIA,
         DEBATE_SCORE_MAX,
         normalizeDebateSheetTemplate,

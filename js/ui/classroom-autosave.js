@@ -137,7 +137,45 @@
         };
     }
 
+    /**
+     * Canonical classroom "Saved" pill markup (shared grammar for every sheet toolbar).
+     * @param {{ id: string, i18nKey?: string, label?: string }} options
+     * @returns {string}
+     */
+    function createStatusMarkup(options) {
+        const opts = options || {};
+        const id = opts.id || 'classroomSaveStatus';
+        const i18nKey = opts.i18nKey || 'classroomSaveSaved';
+        const label = opts.label != null ? opts.label : 'Saved';
+        return `<span id="${id}" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="${i18nKey}">${label}</span>`;
+    }
+
+    /**
+     * Ensure a toolbar slot has the shared save-status element (idempotent).
+     * @param {HTMLElement|null} slot
+     * @param {{ id: string, i18nKey?: string, label?: string }} options
+     * @returns {HTMLElement|null}
+     */
+    function ensureStatusInSlot(slot, options) {
+        if (!slot) {
+            return null;
+        }
+        const opts = options || {};
+        const id = opts.id || 'classroomSaveStatus';
+        let el = slot.querySelector('#' + CSS.escape(id));
+        if (el) {
+            el.className = 'classroom-save-status section-hint classroom-save-status--saved';
+            el.setAttribute('role', 'status');
+            el.setAttribute('aria-live', 'polite');
+            return el;
+        }
+        slot.insertAdjacentHTML('beforeend', createStatusMarkup(opts));
+        return slot.querySelector('#' + CSS.escape(id));
+    }
+
     global.CCPClassroomAutosave = {
-        create
+        create,
+        createStatusMarkup,
+        ensureStatusInSlot
     };
 })(typeof window !== 'undefined' ? window : globalThis);

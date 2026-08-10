@@ -75,16 +75,14 @@
             ? hooks.formatDateDisplay(ctx.sessionDate)
             : ctx.sessionDate || '';
         toolbar.innerHTML = `
-            <div class="command-center-toolbar-row">
-                <p class="command-center-context-chip selection-chip" role="status">
-                    <strong>${escapeHtml(classLabel)}</strong>
-                    ${dateLabel ? `<span class="command-center-context-date">· ${escapeHtml(dateLabel)}</span>` : ''}
-                </p>
-                <div class="command-center-toolbar-actions">
-                    <button type="button" class="btn btn-outline btn-compact" id="commandCenterOpenTimetable">${escapeHtml(t('commandCenterPickFromTimetable'))}</button>
-                    <button type="button" class="btn btn-outline btn-compact" id="commandCenterPrintSyllabus" ${classData ? '' : 'disabled'}>${escapeHtml(t('commandCenterPrintSyllabus'))}</button>
-                    <button type="button" class="btn btn-outline btn-compact" id="commandCenterOpenSyllabus" ${classData ? '' : 'disabled'}>${escapeHtml(t('commandCenterOpenSyllabus'))}</button>
-                </div>
+            <p class="command-center-context-chip selection-chip" role="status">
+                <strong>${escapeHtml(classLabel)}</strong>
+                ${dateLabel ? `<span class="command-center-context-date">· ${escapeHtml(dateLabel)}</span>` : ''}
+            </p>
+            <div class="toolbar-actions">
+                <button type="button" class="btn btn-outline btn-compact" id="commandCenterOpenTimetable">${escapeHtml(t('commandCenterPickFromTimetable'))}</button>
+                <button type="button" class="btn btn-outline btn-compact" id="commandCenterPrintSyllabus" ${classData ? '' : 'disabled'}>${escapeHtml(t('commandCenterPrintSyllabus'))}</button>
+                <button type="button" class="btn btn-outline btn-compact" id="commandCenterOpenSyllabus" ${classData ? '' : 'disabled'}>${escapeHtml(t('commandCenterOpenSyllabus'))}</button>
             </div>`;
         toolbar.querySelector('#commandCenterOpenTimetable')?.addEventListener('click', () => {
             if (typeof hooks.navigateToZone === 'function') {

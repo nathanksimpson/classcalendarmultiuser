@@ -253,6 +253,11 @@
             return Boolean(currentUser);
         },
 
+        /** Local ALLOW_OPEN_ACCESS synthetic user (no password_hash in DB). */
+        isOpenAccessDev() {
+            return Boolean(currentUser && currentUser.id === 'dev-open');
+        },
+
         isViewAsMode() {
             return Boolean(
                 currentUser &&

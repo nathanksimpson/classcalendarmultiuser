@@ -256,6 +256,16 @@ const appData = {
     assert(html.includes('Fix intro'), 'print includes note');
     assert(html.includes('Retest received'), 'print includes retest');
     assert(!!printApi.PRINT_STYLES, 'print styles exported');
+    assert(
+        printApi.PRINT_STYLES.includes('essay-class-summary-class-title') &&
+            printApi.PRINT_STYLES.includes('break-after: avoid-page'),
+        'print styles keep class titles with following content'
+    );
+    assert(
+        printApi.PRINT_STYLES.includes('.essay-class-summary-hr-block + .essay-class-summary-hr-block') &&
+            printApi.PRINT_STYLES.includes('break-before: page'),
+        'print styles start a new page when HR teacher changes'
+    );
 }
 
 {
@@ -303,6 +313,66 @@ const appData = {
         month: '2026-03'
     });
     assert(combined.length === 1 && combined[0].key === 'c1|r1', 'HR + month AND together');
+}
+
+{
+    const assignments = [
+        { key: 'c1|r1', classId: 'c1', syllabusRowId: 'r1' },
+        { key: 'c3|r4', classId: 'c3', syllabusRowId: 'r4' }
+    ];
+    const rows = summary.listRowsForAssignments(appData, assignments);
+    assert(summary.normalizeWarnMode('bogus') === 'all', 'normalizeWarnMode falls back to all');
+    const attention = summary.filterRowsByWarnMode(rows, 'attention');
+    assert(
+        attention.every(
+            (r) => r.ssOverdue || r.status === 'resubmit_required'
+        ),
+        'attention keeps only overdue or resubmit'
+    );
+    assert(
+        attention.some((r) => r.status === 'resubmit_required' && r.studentId === 's2'),
+        'attention includes Ben resubmit'
+    );
+    assert(
+        attention.some((r) => r.ssOverdue && r.studentId === 's4'),
+        'attention includes Deb overdue not_submitted'
+    );
+    assert(
+        !attention.some((r) => r.status === 'complete'),
+        'attention excludes complete'
+    );
+    const overdueOnly = summary.filterRowsByWarnMode(rows, 'overdue');
+    assert(
+        overdueOnly.length >= 1 && overdueOnly.every((r) => r.ssOverdue),
+        'overdue mode is overdue only'
+    );
+    assert(
+        !overdueOnly.some((r) => r.status === 'resubmit_required' && !r.ssOverdue),
+        'overdue mode excludes non-overdue resubmits'
+    );
+    const resubmitOnly = summary.filterRowsByWarnMode(rows, 'resubmit');
+    assert(
+        resubmitOnly.length === 1 && resubmitOnly[0].studentId === 's2',
+        'resubmit mode is Ben only'
+    );
+    const allMode = summary.filterRowsByWarnMode(rows, 'all');
+    assert(allMode.length === rows.length, 'all mode keeps full roster for selected assignments');
+
+    const groups = summary.groupRowsByHomeroom(attention, appData);
+    const labels = {
+        noHomeroom: 'No homeroom',
+        hrHeading: '== HR Teacher: {name} ==',
+        overdue: 'overdue',
+        retestReceived: 'Retest received',
+        statusLabels: {
+            not_submitted: 'Not submitted',
+            resubmit_required: 'Needs resubmit'
+        }
+    };
+    const text = summary.formatCopyText(groups, labels);
+    assert(text.includes('Ben'), 'attention copy includes resubmit student');
+    assert(text.includes('Deb'), 'attention copy includes overdue student');
+    assert(!text.includes('Amy'), 'attention copy excludes complete student');
 }
 
 console.log('classroom-essay-class-summary.test.mjs: ok');

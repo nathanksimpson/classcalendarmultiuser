@@ -1901,8 +1901,14 @@ export default {
                     if (Object.prototype.hasOwnProperty.call(body, 'debateBookDistributions')) {
                         payload.debateBookDistributions = body.debateBookDistributions;
                     }
+                    if (Object.prototype.hasOwnProperty.call(body, 'pendingDebateBookChecks')) {
+                        payload.pendingDebateBookChecks = body.pendingDebateBookChecks;
+                    }
                     if (Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks')) {
                         payload.tmsRosterLinks = body.tmsRosterLinks;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'tmsEssayLinks')) {
+                        payload.tmsEssayLinks = body.tmsEssayLinks;
                     }
                     const prepared = prepareClassroomForSave(user, existingData, payload);
                     if (prepared.error) {
@@ -2298,11 +2304,22 @@ export default {
                 if (!(await CalAccess.canDeleteCalendarAsync(env, user, calId))) {
                     return json({ error: 'Forbidden' }, 403);
                 }
+                const body = await readJson(request);
+                const password = String((body && body.password) || '');
+                if (!password || !(await verifyUserPassword(env, user.id, password))) {
+                    return json({ error: 'Invalid password' }, 403);
+                }
                 const meta = await dbOne(env, 'SELECT name FROM calendars WHERE id = ?', calId);
-                await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
+                if (!meta) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
                 await dbRun(env, 'DELETE FROM calendar_locks WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendar_suggestions WHERE calendar_id = ?', calId);
                 await CalAccess.deleteCalendarAccess(env, calId);
+                await dbRun(env, 'DELETE FROM user_notification_meta WHERE calendar_id = ?', calId);
+                await dbRun(env, 'DELETE FROM user_ui_prefs WHERE calendar_id = ?', calId);
+                await dbRun(env, 'DELETE FROM calendar_history WHERE calendar_id = ?', calId);
+                await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
                 await ActivityLog.recordActivityForUser(env, user, {
                     action: 'calendar_delete',
                     calendarId: calId,

@@ -32,13 +32,23 @@
 | `studentPoints` | array | Phase 2 stub — point ledger entries (empty on migrate) |
 | `studentTests` | array | Phase 2 stub — test scores |
 | `debateTeamSessions` | array | Debate Teams session state per class+date |
+| `debateScores` | array | Debate Scores rubric entries (Tools → Debate Scores) |
+| `debateCustomFormats` | array | Custom debate formats for scoring |
 | `speakingTestRecords` | array | Speaking Test scores per class (Tools → Speaking Test) |
 | `debateBookDistributions` | array | Debate Books handout checklist per class+period (Tools → Debate Books) |
+| `pendingDebateBookChecks` | array | Mid-term cohort-move reminders to confirm book delivery (Tools → Debate Books + Notifications bell) — see below |
+| `tmsRosterLinks` | object | TMS class → cohort mapping from roster Sync / Migrate (`{ [tmsKey]: { action, cohortId, … } }`) |
+| `tmsEssayLinks` | object | TMS essay assignment → syllabus row mapping from Essays Sync |
 | `portfolioRecordings` | array | Phase 2 stub — lesson recordings |
 | `portfolioEntries` | array | Phase 2 stub — portfolio essays / news |
 | `smsLog` | array | Phase 2 stub — SMS send log |
+| `rooms` | array | Schedule planner rooms catalog |
+| `teacherProfiles` | array | Schedule planner teacher profiles |
+| `plannerDrafts` | array | Schedule planner versioned drafts |
+| `plannerState` | object\|null | Active planner draft pointer / UI state |
+| `exportMeta` | object | **Backup-only** (Export calendar). `{ exportFormatVersion, exportedAt, schemaVersion }`. Ignored on import / team save. |
 
-`holidays` may appear in old exports; on load they are merged into `events`. New saves omit `holidays` (derived in memory from `events`).
+`holidays` may appear in old exports; on load they are merged into `events`. New saves omit `holidays` (derived in memory from `events`). Full **Export calendar** backups also keep `ui` (including `studentArchiveRetentionDays`); team sync PUT still strips `ui` (viewer prefs live in localStorage / account prefs).
 
 ### `dayNotes[]` (optional)
 
@@ -73,6 +83,7 @@ User-defined day note categories for this calendar. Built-in categories (`class-
 |-------|------|--------|
 | `id` | string | Stable id |
 | `name` | string | Display name (e.g. Purple T) |
+| `color` | string | Hex parent accent (calm palette). Classes inherit this color at **first** cohort assignment (Generate subjects or catalog link when the class had no prior cohort). Manual class color edits are never overwritten; changing the cohort color later does not recolor already-linked classes. |
 | `level` | string | Legacy Simson level label |
 | `levelPreset` | string | Simson level preset id (preferred) |
 | `grade` | string | Optional grade |
@@ -87,6 +98,9 @@ User-defined day note categories for this calendar. Built-in categories (`class-
 | `homeroomDaySuffix` | string | Shown in timetable header (e.g. `M`, `T`) |
 | `isArchiveCohort` | boolean | Optional. `true` on the system **student archive** cohort (`id`: `cohort-student-archive`). Not linked to classes; holds inactive/archived students. Auto-created on migrate. |
 | `students[]` | array | Optional. Individual students in this cohort (schema v3) — see below |
+| `tmsBlockStart` / `tmsBlockEnd` | string | Optional. `HH:MM` from TMS 반정보 block schedule (Migrate / Sync create) |
+| `tmsSuggestedPeriod` | number | Optional. Period inferred via `timetableTimeSlots` + `periodSlotMap` |
+| `tmsSuggestedTimeSlotId` | string | Optional. Matching `timetableTimeSlots[].id` |
 
 **Student archive cohort:** One per calendar (`cohort-student-archive`). Students on break, not yet started, or who left are moved here via Classroom → Students. They do not appear on attendance or homework until restored to an active cohort. Permanent delete requires admin password and purges that student's attendance/homework records.
 
@@ -105,6 +119,7 @@ User-defined day note categories for this calendar. Built-in categories (`class-
 | `archivedAt` | string | ISO-8601 when moved to archive cohort (empty when active) |
 | `archiveReason` | string | `break`, `new`, `left`, `starting_soon` |
 | `expectedStartDate` | string | `YYYY-MM-DD` when `archiveReason` is `starting_soon` |
+| `tmsMpidx` | string | Optional stable TMS student id from `studentinf(mpidx)` (roster Sync / Migrate) |
 
 ### `attendanceSessions[]` (optional, schema v3)
 
@@ -163,6 +178,22 @@ Physical book handout checklist (Tools → Debate Books). Keyed by `classId` + `
 | `records[]` | array | `{ studentId, status, note, issuedAt? }` — status: `not_issued`, `issued`, `missing`; `issuedAt` is `YYYY-MM-DD` when status is `issued` |
 | `authorUserId` | string | Last editor |
 | `updatedAt` | string | ISO-8601 |
+
+### `pendingDebateBookChecks[]` (optional, schema v3)
+
+Created when students move cohorts mid-term (Students → Move, or TMS Sync transfer). Reminds teachers to confirm book handoff on the destination class. Saved via `classroomOnly` partial PUT (same as other classroom fields).
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id (`dbc_…`) |
+| `studentId` | string | Stable student id |
+| `studentName` | string | Snapshot at move time |
+| `fromCohortId` / `toCohortId` | string | Source / destination cohorts |
+| `fromClassIds` / `toClassIds` | string[] | Debate-book-tracking classes linked to those cohorts |
+| `priorStatusByClassId` | object | Per old class: `{ periodKey, status, bookTitle, issuedAt }` snapshot |
+| `createdAt` | string | ISO-8601 |
+| `resolvedAt` | string \| null | Set when confirmed/dismissed |
+| `resolvedByUserId` | string \| null | User who resolved |
 
 ### Phase 2 stubs (schema v3, not used in MVP UI)
 

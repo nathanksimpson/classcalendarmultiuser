@@ -444,9 +444,12 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
 
 function deleteCalendar(id) {
     const db = getDb();
-    const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
     db.prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(id);
     db.prepare('DELETE FROM calendar_suggestions WHERE calendar_id = ?').run(id);
+    db.prepare('DELETE FROM user_notification_meta WHERE calendar_id = ?').run(id);
+    db.prepare('DELETE FROM user_ui_prefs WHERE calendar_id = ?').run(id);
+    db.prepare('DELETE FROM calendar_history WHERE calendar_id = ?').run(id);
+    const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
     return result.changes > 0;
 }
 

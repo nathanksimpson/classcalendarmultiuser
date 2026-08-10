@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260807-books-status-active">
-    <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260720-sidebar-equal-height">
+    <link rel="stylesheet" href="styles.css?v=20260807-deconflict-min">
+    <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260807-deconflict-min">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260807-books-filters';
+        window.CCP_I18N_VERSION = '20260810-book-check';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -48,7 +48,7 @@
                 <div class="app-header-unified" id="appHeaderUnified">
                 <div class="app-top-bar-row app-top-bar-row--primary" id="appTopBarPrimaryRow">
                     <div class="app-brand">
-                        <span class="app-brand-icon">◳</span>
+                        <span class="app-brand-icon">??/span>
                         <span class="app-brand-name" data-i18n="appTitle">ClassManager</span>
                     </div>
                     <h1 class="visually-hidden" data-i18n="appTitle">ClassManager</h1>
@@ -72,7 +72,7 @@
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
                     <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme" aria-label="Theme">◐</button>
+                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme" aria-label="Theme">??/button>
                     <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
                         <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
                             <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
@@ -176,7 +176,7 @@
                             <span class="term-summary-strip__sep" aria-hidden="true">&middot;</span>
                             <span id="termSummaryMonths" class="term-summary-strip__months"></span>
                         </span>
-                        <button type="button" id="termSummaryToggle" class="term-summary-strip__link" data-i18n="termSummarySettings">Term settings ▸</button>
+                        <button type="button" id="termSummaryToggle" class="term-summary-strip__link" data-i18n="termSummarySettings">Term settings ??/button>
                     </div>
                 </div>
                 <div id="teamCalendarPickerGroup" class="team-calendar-picker-group" hidden aria-hidden="true"></div>
@@ -359,9 +359,9 @@
                     </div>
                     <button type="button" id="lessonFilterBtn" class="calendar-view-toolbar__filter btn btn-outline btn-small lesson-filter-btn calendar-filter-btn" aria-expanded="false" aria-controls="lessonFilterPopover" data-i18n="calendarFilterBtn">Calendar Filter</button>
                     <div class="calendar-view-toolbar__spacer" aria-hidden="true"></div>
-                    <div id="calendarZoomControl" class="calendar-zoom-control" data-i18n-title="calendarZoomHint" title="Adjusts on-screen density only — does not affect print">
+                    <div id="calendarZoomControl" class="calendar-zoom-control" data-i18n-title="calendarZoomHint" title="Adjusts on-screen density only ??does not affect print">
                         <span class="calendar-zoom-control__label" data-i18n="calendarZoomLabel">Zoom</span>
-                        <button type="button" id="calendarZoomOutBtn" class="calendar-zoom-control__step" aria-label="Zoom out">−</button>
+                        <button type="button" id="calendarZoomOutBtn" class="calendar-zoom-control__step" aria-label="Zoom out">??/button>
                         <input type="range" id="calendarZoomRange" class="calendar-zoom-control__range" min="0.8" max="1.4" step="0.1" value="1" aria-valuemin="0.8" aria-valuemax="1.4" aria-valuenow="1">
                         <button type="button" id="calendarZoomInBtn" class="calendar-zoom-control__step" aria-label="Zoom in">+</button>
                         <span id="calendarZoomPctLabel" class="calendar-zoom-control__pct" aria-live="polite">100%</span>
@@ -607,6 +607,7 @@
             </section>
 
             <section id="panel-debate-books" class="app-tab-panel classroom-debate-books-layout" data-tab="debate-books" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
+                <div id="classroomDebateBooksTransferBanner" class="classroom-debate-books-transfer-banner" hidden></div>
                 <div class="classroom-sheet-panel">
                     <div id="classroomDebateBooksContextBar" class="classroom-essays-context-bar classroom-debate-books-context-bar"></div>
                     <div id="classroomDebateBooksStatsBar" class="classroom-debate-books-stats-bar" role="group" aria-label="Book distribution summary" data-i18n-aria-label="classroomDebateBooksStatsLabel"></div>
@@ -667,8 +668,8 @@
                         <label class="classroom-debate-assignment-field" for="classroomDebateScoresTemplate">
                             <span class="classroom-debate-assignment-label" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</span>
                             <select id="classroomDebateScoresTemplate" class="field-select field-control">
-                                <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae</option>
-                                <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul</option>
+                                <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam?밠irinae</option>
+                                <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple?밳eoul</option>
                             </select>
                         </label>
                         <span id="classroomDebateScoresBookChip" class="section-hint classroom-debate-scores-book-chip" hidden></span>
@@ -833,7 +834,7 @@
                                             <p class="class-notes-export-categories-hint section-hint" data-i18n="classNotesExportCategoriesHint">Uncheck categories to exclude them from export.</p>
                                         </div>
                                         <label class="class-notes-sort-label" for="classNotesTranslateOnCopy">
-                                            <span data-i18n="classNotesTranslateOnCopy">Translate EN→KO when copying</span>
+                                            <span data-i18n="classNotesTranslateOnCopy">Translate EN?묷O when copying</span>
                                             <input type="checkbox" id="classNotesTranslateOnCopy">
                                         </label>
                                         <div class="class-notes-export-actions">
@@ -1031,7 +1032,7 @@
                             <div id="homeworkSessionChips" class="homework-session-chips" hidden></div>
                             <p id="homeworkTargetLessonMeta" class="homework-target-meta" hidden></p>
                             <section id="homeworkIntroCard" class="homework-intro-card homework-panel-card">
-                                <p class="homework-intro-short" data-i18n="homeworkTabIntroShort">This tab only prepares text to copy into your two external sites — the Simson grading site and the homework assignment site. Editing a block here saves straight to this class&rsquo;s syllabus.</p>
+                                <p class="homework-intro-short" data-i18n="homeworkTabIntroShort">This tab only prepares text to copy into your two external sites ??the Simson grading site and the homework assignment site. Editing a block here saves straight to this class&rsquo;s syllabus.</p>
                                 <details id="homeworkIntroDetails" class="homework-intro-details">
                                     <summary data-i18n="homeworkTabShowHow">Show how this works</summary>
                                     <p class="section-hint" data-i18n="homeworkTabShowHowBody">Text comes from each class syllabus (Pages / detail). After calendar changes, use Reload copy text from syllabi in the sidebar. Copy buttons add the class name and session header for pasting on external sites.</p>
@@ -1055,7 +1056,7 @@
                             <div id="homeworkBlockGrade" class="homework-copy-block homework-copy-block--grade">
                                 <div class="homework-copy-block-header">
                                     <div class="homework-copy-block-titles">
-                                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">①</span> <span data-i18n="homeworkTabGradingTitle">Grade now</span></h4>
+                                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">??/span> <span data-i18n="homeworkTabGradingTitle">Grade now</span></h4>
                                         <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabGradingSubtitle">Homework due at this class</p>
                                         <p class="homework-copy-block-dest section-hint" data-i18n="homeworkTabGradingDest">Paste into the Simson grading site</p>
                                     </div>
@@ -1067,7 +1068,7 @@
                             <div id="homeworkBlockAssign" class="homework-copy-block homework-copy-block--assign">
                                 <div class="homework-copy-block-header">
                                     <div class="homework-copy-block-titles">
-                                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">②</span> <span data-i18n="homeworkTabAssignTitle">Assign now</span></h4>
+                                        <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">??/span> <span data-i18n="homeworkTabAssignTitle">Assign now</span></h4>
                                         <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabAssignSubtitle">Homework to assign for next class</p>
                                     </div>
                                 </div>
@@ -1237,7 +1238,7 @@
                 <div class="print-data-layout">
                     <div class="print-data-section print-data-section--calendar-backup">
                         <h2 class="module-section-title" data-i18n="dataCalendarBackupHeading">Calendar backup</h2>
-                        <p class="section-hint" data-i18n="dataCalendarBackupHint">Export a full backup of this calendar (classes, events, holidays, cohorts, timetable settings). Export before importing if unsure.</p>
+                        <p class="section-hint" data-i18n="dataCalendarBackupHint">Export a full backup of this calendar (classes, events, cohorts, classroom data, TMS links, planner, timetable, and UI settings). Export before importing if unsure.</p>
                         <p class="data-calendar-name-line section-hint">
                             <span data-i18n="dataCalendarNameLabel">Current calendar</span>:
                             <strong id="dataCalendarName" class="data-calendar-name"></strong>
@@ -1294,6 +1295,13 @@
                         <p class="section-hint" data-i18n="dataTermCloneHint">Clone classes, shift dates forward, and optionally clear classroom logs.</p>
                         <div class="print-data-actions">
                             <button type="button" id="dataTermCloneBtn" class="btn btn-outline btn-small" data-i18n="dataTermCloneOpen">Clone for new term&hellip;</button>
+                        </div>
+                    </div>
+                    <div class="print-data-section print-data-section--term-migrate">
+                        <h2 class="module-section-title" data-i18n="dataTermMigrateHeading">Migrate to next term</h2>
+                        <p class="section-hint" data-i18n="dataTermMigrateHint">Pull TMS rosters, keep student IDs, set homeroom, and carry forward or rebuild your classes.</p>
+                        <div class="print-data-actions">
+                            <button type="button" id="dataTermMigrateBtn" class="btn btn-outline btn-small" data-i18n="dataTermMigrateOpen">Migrate to next term&hellip;</button>
                         </div>
                     </div>
                     <div class="print-data-section print-data-section--data print-data-actions-section">
@@ -1457,6 +1465,24 @@
         </div>
     </div>
 
+    <div id="termMigrateModal" class="modal" role="dialog" aria-labelledby="termMigrateModalTitle" aria-modal="true">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="termMigrateModalTitle" data-i18n="dataTermMigrateHeading">Migrate to next term</h2>
+                <button type="button" class="modal-close" id="termMigrateModalClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="termMigrateStatus" class="section-hint" aria-live="polite"></p>
+                <div id="termMigrateBody"></div>
+                <div class="form-actions">
+                    <button type="button" id="termMigrateCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="termMigrateBackBtn" class="btn btn-outline" hidden>Back</button>
+                    <button type="button" id="termMigrateNextBtn" class="btn btn-primary" data-i18n="dataTermMigrateContinue">Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="essayResubmitSummaryModal" class="modal" role="dialog" aria-labelledby="essayResubmitSummaryTitle" aria-modal="true" hidden>
         <div class="modal-content modal-medium">
             <div class="modal-header">
@@ -1465,7 +1491,7 @@
             </div>
             <div class="modal-body classroom-essay-resubmit-summary-modal-body">
                 <div class="classroom-essay-resubmit-summary-filters">
-                    <input type="search" id="essayResubmitClassSearch" class="field-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="classroomEssayResubmitFilterSearch" placeholder="Search classes…" />
+                    <input type="search" id="essayResubmitClassSearch" class="field-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="classroomEssayResubmitFilterSearch" placeholder="Search classes?? />
                     <label class="classroom-essay-resubmit-filter-field">
                         <span class="section-hint" data-i18n="classroomEssayResubmitFilterClassType">Class type</span>
                         <select id="essayResubmitClassTypeFilter" class="field-select field-control--compact"></select>
@@ -1538,7 +1564,7 @@
                 <p id="essayAddAssignmentClassLabel" class="section-hint"></p>
                 <div class="form-group">
                     <label for="essayAddAssignmentTitleInput" data-i18n="classroomEssayAddAssignmentTitleLabel">Title</label>
-                    <input type="text" id="essayAddAssignmentTitleInput" class="field-input" maxlength="200" autocomplete="off" spellcheck="true" data-i18n-placeholder="classroomEssayAddAssignmentTitlePlaceholder" placeholder="e.g. News essay — March" />
+                    <input type="text" id="essayAddAssignmentTitleInput" class="field-input" maxlength="200" autocomplete="off" spellcheck="true" data-i18n-placeholder="classroomEssayAddAssignmentTitlePlaceholder" placeholder="e.g. News essay ??March" />
                 </div>
                 <div class="form-group">
                     <label for="essayAddAssignmentDateInput" data-i18n="classroomEssayAddAssignmentDateLabel">Date (lesson / default due)</label>
@@ -1659,6 +1685,11 @@
                 <button type="button" class="modal-close" id="closeDeleteCalendarModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <p id="deleteCalendarMessage" class="delete-calendar-message"></p>
+            <div class="form-group" id="deleteCalendarPasswordGroup">
+                <label for="deleteCalendarPassword" data-i18n="deleteCalendarPasswordLabel">Your password</label>
+                <input type="password" id="deleteCalendarPassword" class="field-input" autocomplete="current-password">
+            </div>
+            <p id="deleteCalendarError" class="section-hint roster-import-error" hidden role="alert"></p>
             <div class="form-actions">
                 <button type="button" id="cancelDeleteCalendarBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                 <button type="button" id="confirmDeleteCalendarBtn" class="btn btn-danger" data-i18n="deleteCalendarConfirm">Remove permanently</button>
@@ -1832,7 +1863,7 @@
             </div>
             <div class="modal-body-scroll roster-import-modal-body">
                 <p class="section-hint" data-i18n="rosterTmsSyncHint">
-                    Pull class lists from tms.esimson.com, match students by Korean name, add new names, and flag missing students as Off roster (no deletes). Your TMS class → cohort choices are remembered for next time.
+                    Pull class lists from tms.esimson.com, match students by Korean name, add new names, and flag missing students as Off roster (no deletes). Your TMS class ??cohort choices are remembered for next time.
                 </p>
                 <div id="rosterTmsCredForm" class="roster-tms-cred-form">
                     <div class="form-row">
@@ -1900,7 +1931,7 @@
                 <label for="studentArchiveReason" data-i18n="studentArchiveReasonLabel">Reason</label>
                 <select id="studentArchiveReason" class="field-select">
                     <option value="starting_soon" data-i18n="studentArchiveReasonStartingSoon">Starting soon</option>
-                    <option value="new" data-i18n="studentArchiveReasonNew">New — not started yet</option>
+                    <option value="new" data-i18n="studentArchiveReasonNew">New ??not started yet</option>
                     <option value="break" data-i18n="studentArchiveReasonBreak">On break</option>
                     <option value="left" data-i18n="studentArchiveReasonLeft">Left the program</option>
                 </select>
@@ -2073,7 +2104,7 @@
                         <div class="form-group">
                             <label for="teacherSyllabusPrintWeekFormat" data-i18n="syllabusPrintWeekFormat">Week column</label>
                             <select id="teacherSyllabusPrintWeekFormat" class="form-control">
-                                <option value="abbrev" data-i18n="syllabusPrintWeekFormatAbbrev">Date range (Jul 6–10)</option>
+                                <option value="abbrev" data-i18n="syllabusPrintWeekFormatAbbrev">Date range (Jul 6??0)</option>
                                 <option value="index" data-i18n="syllabusPrintWeekFormatIndex">Week number only (W1, W2)</option>
                             </select>
                         </div>
@@ -2125,7 +2156,7 @@
                     </section>
                     <section id="dailySummaryPrintStudentOptions" class="print-form-section" aria-labelledby="dailySummaryPrintSectionStudentTitle">
                         <h3 id="dailySummaryPrintSectionStudentTitle" class="print-form-section-title" data-i18n="dailySummaryPrintSectionStudent">Student handout options</h3>
-                        <p class="section-hint" data-i18n="dailySummaryPrintStudentHint">Student handouts open in a separate tab — one sheet per class with a cut-friendly homework grid.</p>
+                        <p class="section-hint" data-i18n="dailySummaryPrintStudentHint">Student handouts open in a separate tab ??one sheet per class with a cut-friendly homework grid.</p>
                         <div class="form-group">
                             <label for="dailySummaryPrintCopiesPerPage" data-i18n="dailySummaryPrintCopiesPerPage">Copies per page</label>
                             <select id="dailySummaryPrintCopiesPerPage" class="form-control">
@@ -2339,14 +2370,15 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260807-books-filters"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260807-deconflict-min"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
-    <script defer src="js/team-auth.js?v=20260608-i18n-audit"></script>
+    <script defer src="js/team-auth.js?v=20260807-delete-calendar-pw"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
-    <script defer src="js/calendar-mutations.js?v=20260806-patch-mutations"></script>
-    <script defer src="js/calendar-sync.js?v=20260807-debate-books"></script>
+    <script defer src="js/calendar-mutations.js?v=20260810-book-check"></script>
+    <script defer src="js/calendar-export.js?v=20260810-full-export"></script>
+    <script defer src="js/calendar-sync.js?v=20260810-book-check"></script>
     <script defer src="js/conflict-merge.js?v=20260806-patch-mutations"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
@@ -2354,21 +2386,22 @@
     <script defer src="js/term-dates.js?v=20260619-term-flex"></script>
     <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
     <script defer src="js/term-clone-wizard.js?v=20260622-teaching-workflow"></script>
+    <script defer src="js/term-migrate-wizard.js?v=20260807-term-migrate"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
-    <script defer src="js/ui/classroom-autosave.js?v=20260806-shared-status"></script>
+    <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
     <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
     <script defer src="js/views/event-list-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/calendar-view.js?v=20260615-ui-refactor"></script>
-    <script defer src="js/core/app-state.js?v=20260615-ui-refactor"></script>
+    <script defer src="js/core/app-state.js?v=20260810-book-check"></script>
     <script defer src="js/core/app-store.js?v=20260619-delta-sync"></script>
     <script defer src="js/core/render-orchestrator.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-enums.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260806-per-period-remap"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260807-books-filters"></script>
+    <script defer src="js/classroom-domain.js?v=20260810-book-check"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
@@ -2426,16 +2459,16 @@
     </div>
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
-    <script defer src="js/tab-warnings.js?v=20260721-event-syllabi-banner"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260807-books-filters"></script>
+    <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260810-book-check"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
     <script defer src="js/ui-prefs-sync.js?v=20260720-ui-prefs-v1"></script>
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
-    <script defer src="js/class-color-tile.js?v=20260806-default-accent"></script>
-    <script defer src="app.js?v=20260807-hr-tools"></script>
+    <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
+    <script defer src="app.js?v=20260810-book-check"></script>
 </body>
 </html>
 

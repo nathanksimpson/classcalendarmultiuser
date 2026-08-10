@@ -190,7 +190,7 @@
         "heading": "15. Data tab — backups and packs",
         "where": "More → Data — Calendar backup and My lesson plans/books",
         "steps": [
-          "Calendar backup — Export calendar downloads a .json file with classes, events, holidays, cohorts, timetable settings, syllabus tables, day notes, and related data for this calendar.",
+          "Calendar backup — Export calendar downloads a .json file with classes, events, cohorts, timetable settings, syllabus tables, day notes, classroom sheets (attendance, homework, essays, points, tests), debate/speaking tools, TMS links, schedule planner data, and UI settings (including archive retention) for this calendar.",
           "Import calendar restores from a previously exported .json file. You choose whether to replace the current team calendar or create a new one (see section 19 for lock rules).",
           "Export before importing or clearing data if you are unsure.",
           "My lesson plans/books — Export lesson plans/books pack backs up custom syllabi (My syllabi), edited curriculum books, and class-type default overrides. Import pack merges that pack — it does not replace the whole calendar.",

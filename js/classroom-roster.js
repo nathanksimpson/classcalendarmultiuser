@@ -65,7 +65,8 @@
         const draftId = row.tmsCreatedCohortId || row.userTargetId;
         const cm = cohortManagement();
         const cohort = getCohorts().find((c) => c && c.id === draftId);
-        if (!cohort || !String(cohort.name || '').trim()) {
+        const stillDraft = !!(cohort && cohort.isDraft);
+        if (!cohort || stillDraft || !String(cohort.name || '').trim()) {
             if (cm && cm.removeNamelessCohortDraft && draftId) {
                 cm.removeNamelessCohortDraft(draftId);
             }
@@ -111,7 +112,7 @@
         cleanupTmsCreateEditorListener();
         if (row.tmsCreatedCohortId) {
             const prev = getCohorts().find((c) => c && c.id === row.tmsCreatedCohortId);
-            if (prev && !String(prev.name || '').trim() && cm.removeNamelessCohortDraft) {
+            if (prev && (prev.isDraft || !String(prev.name || '').trim()) && cm.removeNamelessCohortDraft) {
                 cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
             }
         }
@@ -1085,7 +1086,35 @@
             return;
         }
         try {
-            await saveCohorts(result.cohorts);
+            const studentIds = Array.from(selectedStudentIds);
+            const studentsSnap = (fromCohort.students || []).filter(
+                (s) => s && studentIds.includes(s.id)
+            );
+            let pendingChecks = hooks.getAppData
+                ? hooks.getAppData().pendingDebateBookChecks
+                : [];
+            if (d.recordDebateBookChecksForMoves && hooks.getAppData) {
+                const recorded = d.recordDebateBookChecksForMoves(
+                    Object.assign({}, hooks.getAppData(), { cohorts: result.cohorts }),
+                    studentIds.map((sid) => ({
+                        studentId: sid,
+                        fromCohortId: fromCohort.id,
+                        toCohortId: toId
+                    })),
+                    {
+                        students: studentsSnap,
+                        newId: () => d.newId('dbc')
+                    }
+                );
+                pendingChecks = recorded.appData.pendingDebateBookChecks;
+            }
+            await hooks.saveClassroom({
+                cohorts: result.cohorts,
+                pendingDebateBookChecks: pendingChecks
+            });
+            if (typeof hooks.refreshTabWarnings === 'function') {
+                hooks.refreshTabWarnings();
+            }
             const targetName = target?.name || toId;
             hooks.showToast(
                 t('studentMoveSuccess')
@@ -1187,7 +1216,7 @@
         tmsSyncPlan.forEach((row) => {
             if (row && row.tmsCreatedCohortId) {
                 const c = getCohorts().find((x) => x && x.id === row.tmsCreatedCohortId);
-                if (c && !String(c.name || '').trim()) {
+                if (c && (c.isDraft || !String(c.name || '').trim())) {
                     const cm = cohortManagement();
                     if (cm && cm.removeNamelessCohortDraft) {
                         cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
@@ -3089,6 +3118,19 @@
             }
             cohorts = moved.cohorts;
         }
+        let pendingBookChecks = hooks.getAppData
+            ? hooks.getAppData().pendingDebateBookChecks
+            : [];
+        let didRecordBookChecks = false;
+        if (moveTransfers.length && domain().recordDebateBookChecksForMoves && hooks.getAppData) {
+            const recorded = domain().recordDebateBookChecksForMoves(
+                Object.assign({}, hooks.getAppData(), { cohorts }),
+                moveTransfers,
+                { newId: () => domain().newId('dbc') }
+            );
+            pendingBookChecks = recorded.appData.pendingDebateBookChecks;
+            didRecordBookChecks = true;
+        }
         const applied = domain().applyTmsRosterPlan(cohorts, tmsSyncPlan, {
             newStudentId: () => domain().newId('stu'),
             newCohortId: () => domain().newId('cohort'),
@@ -3222,6 +3264,9 @@
             : getTmsRosterLinks();
         try {
             const savePayload = { cohorts, tmsRosterLinks: nextLinks };
+            if (didRecordBookChecks) {
+                savePayload.pendingDebateBookChecks = pendingBookChecks;
+            }
             if (mergedWorking) {
                 savePayload.attendanceSessions = mergedWorking.attendanceSessions;
                 savePayload.homeworkCompletions = mergedWorking.homeworkCompletions;
@@ -3232,8 +3277,14 @@
                 savePayload.debateTeamSessions = mergedWorking.debateTeamSessions;
                 savePayload.speakingTestRecords = mergedWorking.speakingTestRecords;
                 savePayload.dayNotes = mergedWorking.dayNotes;
+                if (Array.isArray(mergedWorking.pendingDebateBookChecks) && !didRecordBookChecks) {
+                    savePayload.pendingDebateBookChecks = mergedWorking.pendingDebateBookChecks;
+                }
             }
             await hooks.saveClassroom(savePayload);
+            if (typeof hooks.refreshTabWarnings === 'function') {
+                hooks.refreshTabWarnings();
+            }
             dirty = false;
             hooks.showToast(t('rosterTmsSyncSuccess'));
             closeTmsSyncModal();
