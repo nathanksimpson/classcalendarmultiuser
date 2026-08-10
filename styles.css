@@ -21148,12 +21148,12 @@ th[data-cohort-col] {
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-issued-date {
-    width: 12%;
-    min-width: 8.5rem;
+    width: 11rem;
+    min-width: 11rem;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-notes {
-    width: 22%;
+    width: 18%;
 }
 
 #panel-debate-books .classroom-debate-book-issued-at-empty {
