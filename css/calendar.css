@@ -1445,15 +1445,23 @@ body:has(#panel-calendar:not([hidden])) {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    min-height: 0;
     scroll-snap-align: none;
     scroll-snap-stop: normal;
     scroll-margin-top: calc(var(--app-chrome-sticky-top, 0px) + 3.5rem);
 }
 
-/* Fit one month per viewport: flexible week rows; zoom scales min cell height */
-#calendarContainer .calendar-day {
-    min-height: var(--calendar-day-min-h, 0);
+#calendarContainer > .month-calendar:not(.week-calendar-card),
+#panel-calendar .month-calendar:not(.week-calendar-card) {
+    /* Natural height: month may extend past the viewport (~3 weeks visible) */
+    height: auto;
+    min-height: 0;
+}
+
+/* Month day cells size to content; +N more must not be clipped */
+#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day {
+    min-height: 12rem;
+    height: auto;
+    overflow: visible;
     display: flex;
     flex-direction: column;
 }
@@ -1474,20 +1482,15 @@ body:has(#panel-calendar:not([hidden])) {
     background: inherit;
 }
 
-#calendarContainer .calendar-day .day-events {
-    flex: 1 1 auto;
+#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day .day-events {
+    flex: 0 0 auto;
     min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow: visible;
 }
 
-#calendarContainer .calendar-day .calendar-event-chips {
+#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day .calendar-event-chips {
     flex-shrink: 0;
-    max-height: 35%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow: visible;
 }
 
 #calendarContainer .month-header {
@@ -1524,12 +1527,20 @@ body:has(#panel-calendar:not([hidden])) {
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
 }
 
+.month-calendar:not(.week-calendar-card) .calendar-grid {
+    flex: 0 0 auto;
+    min-height: 0;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    overflow: visible;
+    /* Content-sized week rows — month scrolls; roughly 3 weeks fit a typical viewport */
+    grid-template-rows: repeat(var(--calendar-week-rows, 6), minmax(12rem, auto));
+}
+
 .month-calendar .calendar-grid {
     flex: 1 1 auto;
     min-height: 0;
     border-radius: 0 0 var(--border-radius) var(--border-radius);
     overflow: hidden;
-    grid-template-rows: auto repeat(var(--calendar-week-rows, 6), minmax(3.25rem, 1fr));
 }
 
 .month-header h2 {
