@@ -5159,6 +5159,10 @@ function ensureUiState() {
     if (typeof appData.ui.classNotesTranslateOnCopy !== 'boolean') {
         appData.ui.classNotesTranslateOnCopy = false;
     }
+    // Week view: weekends off by default (academy calendars rarely use Sat/Sun).
+    if (typeof appData.ui.showWeekends !== 'boolean') {
+        appData.ui.showWeekends = false;
+    }
     if (!appData.ui.printSummaryVisibility || typeof appData.ui.printSummaryVisibility !== 'object') {
         appData.ui.printSummaryVisibility = null;
     }
@@ -5282,12 +5286,19 @@ function isViewportNarrowHeader() {
 }
 
 function enforceDesktopCalendarViewMode() {
-    if (isViewportPhone()) {
-        return false;
-    }
     ensureUiState();
     const mode = appData.ui.calendarViewMode;
-    if (mode === 'agenda' || mode === 'week') {
+    // Phone: Month | Agenda only (Week stays hidden to avoid three-way crowding).
+    if (isViewportPhone()) {
+        if (mode === 'week') {
+            appData.ui.calendarViewMode = 'month';
+            saveUiStateToLocalStorage();
+            return true;
+        }
+        return false;
+    }
+    // Desktop/tablet: Month | Week; Agenda is phone-only.
+    if (mode === 'agenda') {
         appData.ui.calendarViewMode = 'month';
         saveUiStateToLocalStorage();
         return true;
@@ -5427,6 +5438,21 @@ function setCalendarViewMode(mode) {
     renderCalendarNow({ forceFull: true });
 }
 
+function getShowWeekends() {
+    ensureUiState();
+    return appData.ui.showWeekends === true;
+}
+
+function setShowWeekends(show) {
+    ensureUiState();
+    dispatchUiSet('showWeekends', show === true);
+    saveUiStateToLocalStorage();
+    syncCalendarViewModeDom();
+    if (getCalendarViewMode() === 'week') {
+        renderCalendarNow({ forceFull: true });
+    }
+}
+
 function syncCalendarViewModeDom() {
     const mode = getCalendarViewMode();
     document.documentElement.dataset.calendarView = mode;
@@ -5434,14 +5460,16 @@ function syncCalendarViewModeDom() {
     const monthBtn = document.getElementById('calendarViewMonthBtn');
     const weekBtn = document.getElementById('calendarViewWeekBtn');
     const viewSwitch = document.querySelector('.calendar-view-switch');
-    const zoomControl = document.getElementById('calendarZoomControl');
+    const weekendsWrap = document.getElementById('calendarWeekendsToggleWrap');
+    const weekendsToggle = document.getElementById('calendarShowWeekendsToggle');
     const phone = isViewportPhone();
     if (viewSwitch) {
-        viewSwitch.hidden = !phone;
+        viewSwitch.hidden = false;
     }
     if (agendaBtn) {
         agendaBtn.classList.toggle('is-active', mode === 'agenda');
         agendaBtn.setAttribute('aria-selected', String(mode === 'agenda'));
+        agendaBtn.hidden = !phone;
     }
     if (monthBtn) {
         monthBtn.classList.toggle('is-active', mode === 'month');
@@ -5452,87 +5480,11 @@ function syncCalendarViewModeDom() {
         weekBtn.setAttribute('aria-selected', String(mode === 'week'));
         weekBtn.hidden = phone;
     }
-    if (zoomControl) {
-        zoomControl.hidden = mode === 'agenda';
+    if (weekendsWrap) {
+        weekendsWrap.hidden = mode !== 'week' || phone;
     }
-}
-
-const CALENDAR_ZOOM_MIN = 0.8;
-const CALENDAR_ZOOM_MAX = 1.4;
-const CALENDAR_ZOOM_STEP = 0.1;
-const CALENDAR_ZOOM_DEFAULT = 1;
-
-function clampCalendarZoom(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) {
-        return CALENDAR_ZOOM_DEFAULT;
-    }
-    const stepped = Math.round(n / CALENDAR_ZOOM_STEP) * CALENDAR_ZOOM_STEP;
-    return Math.min(CALENDAR_ZOOM_MAX, Math.max(CALENDAR_ZOOM_MIN, stepped));
-}
-
-function getCalendarZoom() {
-    ensureUiState();
-    return clampCalendarZoom(appData.ui.calendarZoom != null ? appData.ui.calendarZoom : CALENDAR_ZOOM_DEFAULT);
-}
-
-function setCalendarZoom(value) {
-    ensureUiState();
-    const next = clampCalendarZoom(value);
-    if (getCalendarZoom() === next) {
-        syncCalendarZoomDom();
-        return;
-    }
-    appData.ui.calendarZoom = next;
-    saveUiStateToLocalStorage();
-    syncCalendarZoomDom();
-    scheduleCalendarTileTypographyFit();
-}
-
-function syncCalendarZoomDom() {
-    const zoom = getCalendarZoom();
-    const root = document.documentElement;
-    root.style.setProperty('--calendar-zoom', String(zoom));
-    const range = document.getElementById('calendarZoomRange');
-    const pct = document.getElementById('calendarZoomPctLabel');
-    if (range) {
-        range.value = String(zoom);
-        range.setAttribute('aria-valuenow', String(zoom));
-    }
-    if (pct) {
-        pct.textContent = `${Math.round(zoom * 100)}%`;
-    }
-}
-
-function initCalendarZoom() {
-    if (typeof appData !== 'undefined') {
-        ensureUiState();
-        if (appData.ui.calendarZoom == null || !Number.isFinite(Number(appData.ui.calendarZoom))) {
-            appData.ui.calendarZoom = CALENDAR_ZOOM_DEFAULT;
-        }
-    }
-    syncCalendarZoomDom();
-    if (initCalendarZoom._bound) {
-        return;
-    }
-    initCalendarZoom._bound = true;
-    const range = document.getElementById('calendarZoomRange');
-    const outBtn = document.getElementById('calendarZoomOutBtn');
-    const inBtn = document.getElementById('calendarZoomInBtn');
-    if (range) {
-        range.addEventListener('input', () => {
-            setCalendarZoom(parseFloat(range.value));
-        });
-    }
-    if (outBtn) {
-        outBtn.addEventListener('click', () => {
-            setCalendarZoom(getCalendarZoom() - CALENDAR_ZOOM_STEP);
-        });
-    }
-    if (inBtn) {
-        inBtn.addEventListener('click', () => {
-            setCalendarZoom(getCalendarZoom() + CALENDAR_ZOOM_STEP);
-        });
+    if (weekendsToggle) {
+        weekendsToggle.checked = getShowWeekends();
     }
 }
 
@@ -5542,6 +5494,7 @@ function initCalendarViewToggle() {
     const weekBtn = document.getElementById('calendarViewWeekBtn');
     if (!agendaBtn || !monthBtn || initCalendarViewToggle._bound) {
         syncCalendarViewModeDom();
+        initCalendarWeekendsToggle();
         return;
     }
     initCalendarViewToggle._bound = true;
@@ -5550,7 +5503,20 @@ function initCalendarViewToggle() {
     if (weekBtn) {
         weekBtn.addEventListener('click', () => setCalendarViewMode('week'));
     }
+    initCalendarWeekendsToggle();
     syncCalendarViewModeDom();
+}
+
+function initCalendarWeekendsToggle() {
+    const toggle = document.getElementById('calendarShowWeekendsToggle');
+    if (!toggle || initCalendarWeekendsToggle._bound) {
+        return;
+    }
+    initCalendarWeekendsToggle._bound = true;
+    toggle.checked = getShowWeekends();
+    toggle.addEventListener('change', () => {
+        setShowWeekends(toggle.checked);
+    });
 }
 
 /**
@@ -23506,7 +23472,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         initTermSummaryToggle();
         initViewportTier();
         initCalendarViewToggle();
-        initCalendarZoom();
         initCalendarSwipe();
         initAppChromeStickyTop();
         applyLanguage();
@@ -29185,7 +29150,6 @@ function renderCalendarNow(options) {
     updateLessonFilterButtonLabel();
     updatePrintLessonFilterHint();
     renderCalendarClassFilterRail();
-    syncCalendarZoomDom();
     scheduleCalendarTileTypographyFit();
     if (isLessonFilterPopoverOpen()) {
         renderLessonFilterPopoverBody();
@@ -29305,19 +29269,26 @@ function navigateCalendarWeek(delta) {
     renderCalendarNow({ forceFull: true });
 }
 
-function formatWeekRangeLabel(weekStartIso) {
+function formatWeekRangeLabel(weekStartIso, showWeekends = true) {
     const start = parseISODateLocal(weekStartIso);
     if (!start) {
         return weekStartIso;
     }
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
+    const rangeStart = new Date(start);
+    const rangeEnd = new Date(start);
+    if (showWeekends) {
+        rangeEnd.setDate(rangeEnd.getDate() + 6);
+    } else {
+        // Sunday-based week start → Mon–Fri visible range
+        rangeStart.setDate(rangeStart.getDate() + 1);
+        rangeEnd.setDate(rangeEnd.getDate() + 5);
+    }
     const monthNames = t('monthNames');
-    const s = `${monthNames[start.getMonth()]} ${start.getDate()}`;
-    const e = start.getMonth() === end.getMonth()
-        ? String(end.getDate())
-        : `${monthNames[end.getMonth()]} ${end.getDate()}`;
-    return `${s} – ${e}, ${end.getFullYear()}`;
+    const s = `${monthNames[rangeStart.getMonth()]} ${rangeStart.getDate()}`;
+    const e = rangeStart.getMonth() === rangeEnd.getMonth()
+        ? String(rangeEnd.getDate())
+        : `${monthNames[rangeEnd.getMonth()]} ${rangeEnd.getDate()}`;
+    return `${s} – ${e}, ${rangeEnd.getFullYear()}`;
 }
 
 function getTermBadgeHtml(dayIndex) {
@@ -29346,6 +29317,8 @@ function renderCalendarWeek(dayIndex) {
 function buildWeekNode(weekStartIso, dayIndex) {
     const start = parseISODateLocal(weekStartIso);
     const dayNames = t('dayNamesShort');
+    const showWeekends = getShowWeekends();
+    const dayOffsets = showWeekends ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5];
     const scheduledLessons = dayIndex.scheduledLessons;
     const eventsByDate = dayIndex.eventsByDate;
     const termStartIso = dayIndex.termStartDate || '';
@@ -29353,12 +29326,13 @@ function buildWeekNode(weekStartIso, dayIndex) {
 
     const weekDiv = document.createElement('div');
     weekDiv.className = 'month-calendar month-calendar-card week-calendar-card';
+    weekDiv.dataset.showWeekends = showWeekends ? '1' : '0';
 
     const headerDiv = document.createElement('div');
     headerDiv.className = 'month-header month-card-header';
     headerDiv.innerHTML = `
         <div class="month-card-header__title-wrap">
-            <h2>${escapeHtml(formatWeekRangeLabel(weekStartIso))}</h2>
+            <h2>${escapeHtml(formatWeekRangeLabel(weekStartIso, showWeekends))}</h2>
             <div class="month-card-nav" role="group" aria-label="${escapeHtml(t('calendarViewWeek'))}">
                 <button type="button" class="month-card-nav-btn" data-calendar-week-nav="prev" aria-label="${escapeHtml(t('calendarWeekPrev'))}">‹</button>
                 <button type="button" class="month-card-nav-btn" data-calendar-week-nav="next" aria-label="${escapeHtml(t('calendarWeekNext'))}">›</button>
@@ -29372,22 +29346,19 @@ function buildWeekNode(weekStartIso, dayIndex) {
 
     const weekdayRow = document.createElement('div');
     weekdayRow.className = 'calendar-weekday-row';
-    dayNames.forEach((day) => {
+    dayOffsets.forEach((offset) => {
         const dayHeader = document.createElement('div');
         dayHeader.className = 'calendar-day-header';
-        dayHeader.textContent = day;
+        dayHeader.textContent = dayNames[offset] || '';
         weekdayRow.appendChild(dayHeader);
     });
     weekDiv.appendChild(weekdayRow);
 
     const gridDiv = document.createElement('div');
     gridDiv.className = 'calendar-grid';
-    const row = document.createElement('div');
-    row.className = 'calendar-week-row';
-    row.style.display = 'contents';
 
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    dayOffsets.forEach((offset) => {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset);
         const dateStr = formatDateISO(d);
         const dayEvents = eventsByDate[dateStr] || [];
         const lessons = scheduledLessons[dateStr] || [];
@@ -29399,10 +29370,11 @@ function buildWeekNode(weekStartIso, dayIndex) {
             lessons,
             dateStr,
             termStartIso,
-            termEndIso
+            termEndIso,
+            { detailLevel: 'week' }
         );
         gridDiv.appendChild(dayDiv);
-    }
+    });
 
     weekDiv.style.setProperty('--calendar-week-rows', '1');
     weekDiv.appendChild(gridDiv);
@@ -29697,9 +29669,14 @@ function buildCalendarEventBarInnerHtml(options) {
                 <span class="event-book">${escapeHtml(bookLabel)}</span>`;
 }
 
-function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], dateStr = '', termStartIso = '', termEndIso = '') {
+function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], dateStr = '', termStartIso = '', termEndIso = '', options = {}) {
+    const detailLevel = options && options.detailLevel === 'week' ? 'week' : 'month';
     const dayDiv = document.createElement('div');
     dayDiv.className = 'calendar-day';
+    if (detailLevel === 'week') {
+        dayDiv.classList.add('calendar-day--week-detail');
+        dayDiv.dataset.detailLevel = 'week';
+    }
     
     if (isOtherMonth) {
         dayDiv.classList.add('other-month');
@@ -29814,8 +29791,9 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         const eventsDiv = document.createElement('div');
         eventsDiv.className = 'day-events';
         let hasDebateLesson = false;
-        const lessonCap = 4;
-        const expanded = dayDiv.dataset.lessonsExpanded === '1';
+        const weekDetail = detailLevel === 'week';
+        const lessonCap = weekDetail ? Number.POSITIVE_INFINITY : 4;
+        const expanded = weekDetail || dayDiv.dataset.lessonsExpanded === '1';
         const toRender = expanded ? visibleLessons : visibleLessons.slice(0, lessonCap);
         const overflow = expanded ? 0 : Math.max(0, visibleLessons.length - lessonCap);
 
@@ -29933,7 +29911,8 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
                     lessons,
                     dateStr,
                     termStartIso,
-                    termEndIso
+                    termEndIso,
+                    options
                 );
                 replacement.dataset.lessonsExpanded = '1';
                 dayDiv.replaceWith(replacement);
@@ -31208,6 +31187,9 @@ function fitCalendarTileTypography(doc, root, options = {}) {
     const mode = options.mode || 'screen';
     const cfg = getCalendarTileTypographyConfig(mode);
     scope.querySelectorAll('.calendar-day').forEach((day) => {
+        if (day.classList.contains('calendar-day--week-detail')) {
+            return;
+        }
         fitCalendarDayTileTypography(day, cfg, mode);
     });
 }
