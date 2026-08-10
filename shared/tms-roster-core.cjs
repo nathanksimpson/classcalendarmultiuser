@@ -1130,7 +1130,9 @@ function mergeCohortLists(lists) {
                 cohortName: name,
                 tmsClassId,
                 students: [],
-                source: c.source || ''
+                source: c.source || '',
+                schedule: c.schedule || null,
+                tmsHomeroomName: c.tmsHomeroomName || ''
             });
         }
         const bucket = byKey.get(key);
@@ -1139,6 +1141,12 @@ function mergeCohortLists(lists) {
         }
         if (!bucket.tmsClassId && tmsClassId) {
             bucket.tmsClassId = tmsClassId;
+        }
+        if (!bucket.schedule && c.schedule) {
+            bucket.schedule = c.schedule;
+        }
+        if (!bucket.tmsHomeroomName && c.tmsHomeroomName) {
+            bucket.tmsHomeroomName = c.tmsHomeroomName;
         }
         const seenNames = new Set(bucket.students.map((s) => s.name));
         const seenMpidx = new Set(
@@ -1245,6 +1253,61 @@ function cleanTmsCohortDisplayName(name) {
         .trim()
         .replace(/^\[[^\]]*\]\s*/, '')
         .trim();
+}
+
+/**
+ * Parse schedule block from class_Main_New_PopUp class-info title,
+ * e.g. OrangeM^2606_…_파닉스(15:20~17:00).
+ * @returns {{ start: string, end: string } | null}
+ */
+function parseClassPopupSchedule(html) {
+    const raw = String(html || '');
+    // Prefer the Class information / 반정보 row title attribute.
+    const infoTitle =
+        raw.match(
+            /title=["']Class\s+infomation["'][^>]*>[\s\S]*?<td[^>]*>\s*<a[^>]*title=["']([^"']+)["']/i
+        ) ||
+        raw.match(
+            /title=["']반정보["'][^>]*>[\s\S]*?<td[^>]*>\s*<a[^>]*title=["']([^"']+)["']/i
+        );
+    const haystack = infoTitle
+        ? infoTitle[1]
+        : raw.match(/\((\d{1,2}:\d{2})\s*[~～\-–—]\s*(\d{1,2}:\d{2})\)/)
+          ? raw
+          : '';
+    const m = String(haystack || '').match(
+        /\((\d{1,2}):(\d{2})\s*[~～\-–—]\s*(\d{1,2}):(\d{2})\)/
+    );
+    if (!m) {
+        return null;
+    }
+    const pad = (n) => String(Number(n)).padStart(2, '0');
+    return {
+        start: `${pad(m[1])}:${m[2]}`,
+        end: `${pad(m[3])}:${m[4]}`
+    };
+}
+
+/**
+ * Parse 담임 teacher display name from 담당선생님 / Main teacher row.
+ * e.g. 최미영[담임](파닉스),차지민[비담임](애니메이션)
+ * @returns {string}
+ */
+function parseClassPopupHomeroomName(html) {
+    const raw = String(html || '');
+    const titleMatch =
+        raw.match(
+            /title=["']Main\s+teacher["'][^>]*>[\s\S]*?<td[^>]*>\s*<a[^>]*title=["']([^"']+)["']/i
+        ) ||
+        raw.match(
+            /title=["']담당선생님["'][^>]*>[\s\S]*?<td[^>]*>\s*<a[^>]*title=["']([^"']+)["']/i
+        );
+    const blob = titleMatch ? titleMatch[1] : '';
+    if (!blob) {
+        return '';
+    }
+    const hr = blob.match(/([^,，\[]+?)\s*\[\s*담임\s*\]/);
+    return hr ? String(hr[1] || '').trim() : '';
 }
 
 /**
@@ -1896,6 +1959,12 @@ async function scrapeRosters(options) {
                     previousStudents = students;
                 }
 
+                const scheduleHtml = accepted ? currentHtml : '';
+                const schedule = scheduleHtml ? parseClassPopupSchedule(scheduleHtml) : null;
+                const tmsHomeroomName = scheduleHtml
+                    ? parseClassPopupHomeroomName(scheduleHtml)
+                    : '';
+
                 pages.push({
                     url: pageUrl,
                     status: pageStatus,
@@ -1909,7 +1978,9 @@ async function scrapeRosters(options) {
                     cohortName: cls.cohortName,
                     tmsClassId: cls.tmsClassId,
                     students,
-                    source
+                    source,
+                    schedule: schedule || null,
+                    tmsHomeroomName: tmsHomeroomName || ''
                 });
             }
         }
@@ -1996,6 +2067,8 @@ module.exports = {
     parseStudentsFromNumberedBlocks,
     trimRosterPasteTail,
     parseClassSelectList,
+    parseClassPopupSchedule,
+    parseClassPopupHomeroomName,
     extractClassSelectBlock,
     findClassSelectById,
     classIsSelectedOnPage,

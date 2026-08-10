@@ -217,6 +217,7 @@
     let printHooksBound = false;
     const showArguments = true;
     const showNotes = true;
+    let dragMemberSource = null;
 
     const state = {
         version: 2,
@@ -241,12 +242,14 @@
     }
 
     function applyPurpleModeSettings(on) {
-        if (!on) {
+        if (on) {
+            state.maxTeamSize = 1;
+            state.includeReply = false;
+            state.sheetTemplate = 'yeoul';
             return;
         }
-        state.maxTeamSize = 1;
-        state.includeReply = false;
-        state.sheetTemplate = 'yeoul';
+        state.maxTeamSize = state.includeReply ? 4 : 3;
+        state.sheetTemplate = 'garam';
     }
 
     function normalizePurpleSession(session) {
@@ -346,6 +349,17 @@
     }
 
     function showToast(msg) {
+        if (!msg) {
+            return;
+        }
+        if (global.CCPNotice && typeof global.CCPNotice.show === 'function') {
+            global.CCPNotice.show(msg, {
+                type: 'info',
+                duration: 2200,
+                dismissible: true
+            });
+            return;
+        }
         const toastEl = el('debateV2Toast');
         if (!toastEl) {
             return;
@@ -665,6 +679,51 @@
         }
         debates[di].benches[bi].members[mi][key] = val;
         notifySave();
+    }
+
+    function getMemberSlot(ref) {
+        if (!ref) {
+            return null;
+        }
+        const di = Number(ref.di);
+        const bi = Number(ref.bi);
+        const mi = Number(ref.mi);
+        const debates = state.debates;
+        if (!debates[di] || !debates[di].benches[bi] || !debates[di].benches[bi].members[mi]) {
+            return null;
+        }
+        return { di, bi, mi, member: debates[di].benches[bi].members[mi] };
+    }
+
+    /**
+     * Swap student payload between two role slots. Roles stay on their slots.
+     * @returns {boolean} true if a swap occurred
+     */
+    function swapMembers(a, b) {
+        if (!guardEdit()) {
+            return false;
+        }
+        const slotA = getMemberSlot(a);
+        const slotB = getMemberSlot(b);
+        if (!slotA || !slotB) {
+            return false;
+        }
+        if (slotA.di === slotB.di && slotA.bi === slotB.bi && slotA.mi === slotB.mi) {
+            return false;
+        }
+        const ma = slotA.member;
+        const mb = slotB.member;
+        const tmpName = ma.name;
+        const tmpPresent = ma.present;
+        const tmpRebut = ma.rebut;
+        ma.name = mb.name;
+        ma.present = mb.present;
+        ma.rebut = mb.rebut;
+        mb.name = tmpName;
+        mb.present = tmpPresent;
+        mb.rebut = tmpRebut;
+        notifySave();
+        return true;
     }
 
     function updNotes(di, val) {
@@ -1047,7 +1106,8 @@
                             : isGovSide
                               ? 'debate-v2-role-chip--gov'
                               : 'debate-v2-role-chip--opp';
-                    html += `<div class="debate-v2-member" data-di="${di}" data-bi="${bi}" data-mi="${mi}">
+                    const draggableAttr = isEditable() ? ' draggable="true"' : '';
+                    html += `<div class="debate-v2-member" data-di="${di}" data-bi="${bi}" data-mi="${mi}"${draggableAttr}>
                         <div class="debate-v2-member-head">
                             <span class="debate-v2-member-name">${escapeHtml(m.name)}</span>`;
                     if (m.role) {
@@ -1598,9 +1658,7 @@
                         return;
                     }
                     state.purpleMode = e.target.checked;
-                    if (state.purpleMode) {
-                        applyPurpleModeSettings(true);
-                    }
+                    applyPurpleModeSettings(state.purpleMode);
                     notifySave();
                     render();
                     return;
@@ -1651,6 +1709,141 @@
                         importJsonFile(file);
                     }
                 }
+            },
+            { signal }
+        );
+
+        function memberRefFromEl(memberEl) {
+            if (!memberEl) {
+                return null;
+            }
+            return {
+                di: Number(memberEl.dataset.di),
+                bi: Number(memberEl.dataset.bi),
+                mi: Number(memberEl.dataset.mi)
+            };
+        }
+
+        function clearMemberDragUi() {
+            if (!root) {
+                return;
+            }
+            root.querySelectorAll('.debate-v2-member--dragging, .debate-v2-member--drop-target').forEach((node) => {
+                node.classList.remove('debate-v2-member--dragging', 'debate-v2-member--drop-target');
+            });
+        }
+
+        root.addEventListener(
+            'dragstart',
+            (e) => {
+                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
+                if (!member || !root.contains(member)) {
+                    return;
+                }
+                if (e.target.closest('textarea, input, select, button, a, label')) {
+                    e.preventDefault();
+                    return;
+                }
+                if (!isEditable()) {
+                    e.preventDefault();
+                    return;
+                }
+                dragMemberSource = memberRefFromEl(member);
+                member.classList.add('debate-v2-member--dragging');
+                try {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', JSON.stringify(dragMemberSource));
+                } catch (err) {
+                    /* ignore */
+                }
+            },
+            { signal }
+        );
+
+        root.addEventListener(
+            'dragover',
+            (e) => {
+                if (!dragMemberSource) {
+                    return;
+                }
+                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
+                if (!member || !root.contains(member)) {
+                    return;
+                }
+                e.preventDefault();
+                try {
+                    e.dataTransfer.dropEffect = 'move';
+                } catch (err) {
+                    /* ignore */
+                }
+            },
+            { signal }
+        );
+
+        root.addEventListener(
+            'dragenter',
+            (e) => {
+                if (!dragMemberSource) {
+                    return;
+                }
+                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
+                if (!member || !root.contains(member)) {
+                    return;
+                }
+                e.preventDefault();
+                root.querySelectorAll('.debate-v2-member--drop-target').forEach((node) => {
+                    if (node !== member) {
+                        node.classList.remove('debate-v2-member--drop-target');
+                    }
+                });
+                member.classList.add('debate-v2-member--drop-target');
+            },
+            { signal }
+        );
+
+        root.addEventListener(
+            'dragleave',
+            (e) => {
+                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
+                if (!member) {
+                    return;
+                }
+                const related = e.relatedTarget;
+                if (related && member.contains(related)) {
+                    return;
+                }
+                member.classList.remove('debate-v2-member--drop-target');
+            },
+            { signal }
+        );
+
+        root.addEventListener(
+            'drop',
+            (e) => {
+                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
+                if (!member || !root.contains(member)) {
+                    return;
+                }
+                e.preventDefault();
+                const target = memberRefFromEl(member);
+                const source = dragMemberSource;
+                dragMemberSource = null;
+                clearMemberDragUi();
+                if (!source || !target) {
+                    return;
+                }
+                if (swapMembers(source, target)) {
+                    render();
+                }
+            },
+            { signal }
+        );
+
+        root.addEventListener(
+            'dragend',
+            () => {
+                dragMemberSource = null;
+                clearMemberDragUi();
             },
             { signal }
         );
@@ -1758,17 +1951,18 @@
         if (!isPurpleDebateClass(classData, options.debateBook)) {
             return;
         }
-        if (options.onlyIfPristine) {
-            const pristine =
-                state.debates.length === 0 &&
-                !state.purpleMode &&
-                state.formatId === 'ap' &&
-                !state.includeReply &&
-                state.sheetTemplate === 'garam';
-            if (!pristine) {
-                return;
-            }
-        } else if (state.debates.length > 0) {
+        // Never re-force on stored sessions (onlyIfPristine: false). Brand-new /
+        // pristine sessions only — so a saved purpleMode:false always wins.
+        if (options.onlyIfPristine === false) {
+            return;
+        }
+        const pristine =
+            state.debates.length === 0 &&
+            !state.purpleMode &&
+            state.formatId === 'ap' &&
+            !state.includeReply &&
+            state.sheetTemplate === 'garam';
+        if (!pristine) {
             return;
         }
         state.purpleMode = true;
@@ -1827,6 +2021,8 @@
         generateDebates,
         applyMetadataDefaults,
         applyClassFormatDefaults,
+        applyPurpleModeSettings,
+        swapMembers,
         isPurpleDebateClass,
         setEditEnabled,
         migrateOldSession

@@ -1,5 +1,5 @@
 /**
- * Probe TMS after login — dumps class popup sidebar + optional legacy links.
+ * Probe TMS after login — dumps class popup sidebar + roster scrape.
  *
  * Primary roster source is /class/class_Main_New_PopUp.aspx (sidebar Hsubclass).
  * TMS_ROSTER_URLS is only a fallback if that popup yields no classes.
@@ -43,8 +43,14 @@ async function main() {
     console.log(`Found ${scraped.cohorts.length} cohort(s)`);
     scraped.cohorts.forEach((c) => {
         const idPart = c.tmsClassId ? ` id=${c.tmsClassId}` : '';
-        console.log(`  ${c.cohortName}${idPart}: ${c.students.length} students`);
-        c.students.slice(0, 5).forEach((s) => console.log(`    - ${s.name}`));
+        const sched =
+            c.schedule && c.schedule.start
+                ? ` ${c.schedule.start}~${c.schedule.end || '?'}`
+                : '';
+        console.log(`  ${c.cohortName}${idPart}${sched}: ${c.students.length} students`);
+        c.students.slice(0, 5).forEach((s) =>
+            console.log(`    - ${s.name}${s.mpidx ? ` mpidx=${s.mpidx}` : ''}`)
+        );
         if (c.students.length > 5) {
             console.log(`    … +${c.students.length - 5} more`);
         }

@@ -910,6 +910,11 @@
             ev.preventDefault();
             selectNotesClass(classData.id);
         });
+        if (global.CCPClassColorTile) {
+            global.CCPClassColorTile.apply(row, classData, {
+                selected: normalizeNotesClassId(notesSelectedClassId) === normalizeNotesClassId(classData.id)
+            });
+        }
         listEl.appendChild(row);
     }
 

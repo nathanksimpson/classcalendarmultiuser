@@ -25,6 +25,7 @@
     };
     let classSummaryModalBound = false;
     const STATUS_AUTOSAVE_MS = 400;
+    let focusStudentId = '';
 
     const DEBATE_BOOK_STATUS_META = {
         not_issued: { cls: 'debate-book-status--not_issued' },
@@ -93,6 +94,146 @@
             return [];
         }
         return d.resolveStudentsForClass(getClassData(), data.cohorts) || [];
+    }
+
+    function getPendingTransferChecks(role) {
+        const d = domain();
+        if (!d || !d.listPendingDebateBookChecks || !classId) {
+            return [];
+        }
+        return d.listPendingDebateBookChecks(getAppData(), {
+            classId,
+            role: role || undefined,
+            unresolvedOnly: true
+        });
+    }
+
+    function getPendingTransferStudentIds() {
+        const ids = new Set();
+        getPendingTransferChecks('to').forEach((ev) => {
+            if (ev && ev.studentId) {
+                ids.add(ev.studentId);
+            }
+        });
+        return ids;
+    }
+
+    function formatPriorStatusLabel(ev) {
+        const prior = ev && ev.priorStatusByClassId ? ev.priorStatusByClassId : {};
+        const firstKey = Object.keys(prior)[0];
+        const snap = firstKey ? prior[firstKey] : null;
+        if (!snap) {
+            return t('classroomDebateBookStatus_not_issued');
+        }
+        const statusKey = `classroomDebateBookStatus_${snap.status || 'not_issued'}`;
+        const statusLabel = t(statusKey);
+        if (snap.status === 'issued' && snap.bookTitle) {
+            return tf('debateBookCheckPriorIssuedBook', {
+                status: statusLabel,
+                book: snap.bookTitle
+            });
+        }
+        return statusLabel;
+    }
+
+    async function persistPendingChecks(list) {
+        if (!hooks || !hooks.saveClassroom) {
+            return;
+        }
+        await hooks.saveClassroom({ pendingDebateBookChecks: list });
+        if (typeof hooks.refreshTabWarnings === 'function') {
+            hooks.refreshTabWarnings();
+        }
+    }
+
+    async function resolveTransferCheck(eventId) {
+        const d = domain();
+        if (!d || !d.resolveDebateBookCheck || !eventId) {
+            return;
+        }
+        const userId = hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+        const next = d.resolveDebateBookCheck(getAppData(), eventId, { userId });
+        await persistPendingChecks(next.pendingDebateBookChecks || []);
+    }
+
+    async function resolveTransfersForStudent(studentId) {
+        const d = domain();
+        if (!d || !d.resolveDebateBookChecksForStudentOnClass || !studentId || !classId) {
+            return;
+        }
+        const userId = hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+        const result = d.resolveDebateBookChecksForStudentOnClass(getAppData(), studentId, classId, {
+            role: 'any',
+            userId
+        });
+        if (result.resolvedIds && result.resolvedIds.length) {
+            await persistPendingChecks(result.appData.pendingDebateBookChecks || []);
+        }
+    }
+
+    function renderTransferBanner(panel) {
+        const mount =
+            (panel && panel.querySelector('#classroomDebateBooksTransferBanner')) ||
+            document.getElementById('classroomDebateBooksTransferBanner');
+        if (!mount) {
+            return;
+        }
+        const toChecks = getPendingTransferChecks('to');
+        const fromChecks = getPendingTransferChecks('from').filter(
+            (ev) => !(ev.toClassIds || []).includes(classId)
+        );
+        if (!toChecks.length && !fromChecks.length) {
+            mount.innerHTML = '';
+            mount.hidden = true;
+            return;
+        }
+        mount.hidden = false;
+        const editable = access() && access().canEditClass(getClassData());
+        const disabled = editable ? '' : ' disabled';
+        let html = '';
+        if (toChecks.length) {
+            const items = toChecks
+                .map((ev) => {
+                    return `<li class="classroom-debate-books-transfer-item" data-check-id="${escapeAttr(ev.id)}">
+                        <div class="classroom-debate-books-transfer-item-meta">
+                            <strong>${escapeHtml(ev.studentName || ev.studentId)}</strong>
+                            <span class="section-hint">${escapeHtml(formatPriorStatusLabel(ev))}</span>
+                        </div>
+                        <div class="classroom-debate-books-transfer-item-actions">
+                            <button type="button" class="btn btn-primary btn-compact btn-small classroom-debate-books-transfer-mark-issued" data-check-id="${escapeAttr(ev.id)}" data-student-id="${escapeAttr(ev.studentId)}"${disabled}>${escapeHtml(t('classroomDebateBookStatus_issued'))}</button>
+                            <button type="button" class="btn btn-outline btn-compact btn-small classroom-debate-books-transfer-mark-missing" data-check-id="${escapeAttr(ev.id)}" data-student-id="${escapeAttr(ev.studentId)}"${disabled}>${escapeHtml(t('classroomDebateBookStatus_missing'))}</button>
+                            <button type="button" class="btn btn-outline btn-compact btn-small classroom-debate-books-transfer-dismiss" data-check-id="${escapeAttr(ev.id)}"${disabled}>${escapeHtml(t('debateBookCheckDismiss'))}</button>
+                        </div>
+                    </li>`;
+                })
+                .join('');
+            html += `<p class="classroom-debate-books-transfer-banner-title">${escapeHtml(
+                tf('debateBookCheckBannerTo', { count: toChecks.length })
+            )}</p><ul class="classroom-debate-books-transfer-list">${items}</ul>`;
+        }
+        if (fromChecks.length) {
+            const leftItems = fromChecks
+                .map((ev) => {
+                    return `<li class="classroom-debate-books-transfer-item">
+                        <div class="classroom-debate-books-transfer-item-meta">
+                            <strong>${escapeHtml(ev.studentName || ev.studentId)}</strong>
+                            <span class="section-hint">${escapeHtml(
+                                tf('debateBookCheckBannerFromPrior', {
+                                    status: formatPriorStatusLabel(ev)
+                                })
+                            )}</span>
+                        </div>
+                        <div class="classroom-debate-books-transfer-item-actions">
+                            <button type="button" class="btn btn-outline btn-compact btn-small classroom-debate-books-transfer-dismiss" data-check-id="${escapeAttr(ev.id)}"${disabled}>${escapeHtml(t('debateBookCheckDismiss'))}</button>
+                        </div>
+                    </li>`;
+                })
+                .join('');
+            html += `<p class="classroom-debate-books-transfer-banner-title">${escapeHtml(
+                tf('debateBookCheckBannerFrom', { count: fromChecks.length })
+            )}</p><ul class="classroom-debate-books-transfer-list">${leftItems}</ul>`;
+        }
+        mount.innerHTML = html;
     }
 
     function resolveClassId(options) {
@@ -955,12 +1096,21 @@
         if (!access() || !access().canEditClass(getClassData())) {
             return;
         }
-        selectedStudentIds.forEach((sid) => {
+        const sids = Array.from(selectedStudentIds);
+        sids.forEach((sid) => {
             setRecord(sid, { status });
         });
         selectedStudentIds.clear();
         render(panel);
         scheduleStatusSave();
+        if (status === 'issued' || status === 'missing') {
+            void (async () => {
+                for (const sid of sids) {
+                    await resolveTransfersForStudent(sid);
+                }
+                render(panel);
+            })();
+        }
     }
 
     function renderBatchActions(panel) {
@@ -1149,7 +1299,10 @@
                     status === 'issued'
                         ? `<input type="date" class="field-input field-control field-control--compact classroom-debate-book-issued-at" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(issuedAt)}" aria-label="${escapeAttr(t('classroomDebateBooksColIssuedDate'))}"${disabled} />`
                         : `<span class="section-hint classroom-debate-book-issued-at-empty">—</span>`;
-                return `<tr class="classroom-sheet-row${railCls}" data-student-id="${escapeAttr(sid)}">
+                const transferIds = getPendingTransferStudentIds();
+                const transferCls = transferIds.has(sid) ? ' is-transfer-check' : '';
+                const focusCls = focusStudentId && focusStudentId === sid ? ' is-transfer-focus' : '';
+                return `<tr class="classroom-sheet-row${railCls}${transferCls}${focusCls}" data-student-id="${escapeAttr(sid)}">
                 <td class="classroom-sheet-col-select"><input type="checkbox" class="classroom-debate-book-select" data-student-id="${escapeAttr(sid)}" aria-label="${escapeAttr(t('classroomDebateBooksSelectStudent'))}"${checked}${disabled} /></td>
                 <td class="classroom-sheet-col-student">${identity}</td>
                 <td class="classroom-sheet-col-status">${buildStatusCell(sid, editable)}</td>
@@ -1159,6 +1312,14 @@
             })
             .join('');
         bindSelectionControls(panel, rowsMount, students);
+        if (focusStudentId) {
+            const focusRow = rowsMount.querySelector(
+                `tr[data-student-id="${CSS.escape ? CSS.escape(focusStudentId) : focusStudentId}"]`
+            );
+            if (focusRow && focusRow.scrollIntoView) {
+                focusRow.scrollIntoView({ block: 'nearest' });
+            }
+        }
     }
 
     function render(panel) {
@@ -1167,6 +1328,7 @@
         }
         panelRef = panel;
         ensureAutosave(panel);
+        renderTransferBanner(panel);
         renderReportsMenu(panel);
         renderContextBar(panel);
         renderStatsBar(panel);
@@ -1280,6 +1442,65 @@
                 renderStatsBar(panel);
                 renderRows(panel);
                 scheduleStatusSave();
+                if (status === 'issued' || status === 'missing') {
+                    void resolveTransfersForStudent(sid).then(() => {
+                        renderTransferBanner(panel);
+                        renderRows(panel);
+                    });
+                }
+                return;
+            }
+            const transferIssued = event.target && event.target.closest('.classroom-debate-books-transfer-mark-issued');
+            if (transferIssued && (panel.contains(transferIssued) || document.body.contains(transferIssued))) {
+                if (transferIssued.disabled) {
+                    return;
+                }
+                const sid = transferIssued.getAttribute('data-student-id');
+                const checkId = transferIssued.getAttribute('data-check-id');
+                if (sid) {
+                    setRecord(sid, { status: 'issued' });
+                    scheduleStatusSave();
+                }
+                void (async () => {
+                    if (checkId) {
+                        await resolveTransferCheck(checkId);
+                    } else if (sid) {
+                        await resolveTransfersForStudent(sid);
+                    }
+                    render(panel);
+                })();
+                return;
+            }
+            const transferMissing = event.target && event.target.closest('.classroom-debate-books-transfer-mark-missing');
+            if (transferMissing && (panel.contains(transferMissing) || document.body.contains(transferMissing))) {
+                if (transferMissing.disabled) {
+                    return;
+                }
+                const sid = transferMissing.getAttribute('data-student-id');
+                const checkId = transferMissing.getAttribute('data-check-id');
+                if (sid) {
+                    setRecord(sid, { status: 'missing' });
+                    scheduleStatusSave();
+                }
+                void (async () => {
+                    if (checkId) {
+                        await resolveTransferCheck(checkId);
+                    } else if (sid) {
+                        await resolveTransfersForStudent(sid);
+                    }
+                    render(panel);
+                })();
+                return;
+            }
+            const transferDismiss = event.target && event.target.closest('.classroom-debate-books-transfer-dismiss');
+            if (transferDismiss && (panel.contains(transferDismiss) || document.body.contains(transferDismiss))) {
+                if (transferDismiss.disabled) {
+                    return;
+                }
+                const checkId = transferDismiss.getAttribute('data-check-id');
+                if (checkId) {
+                    void resolveTransferCheck(checkId).then(() => render(panel));
+                }
                 return;
             }
             const batchBtn = event.target && event.target.closest('[data-batch-status]');
@@ -1338,7 +1559,13 @@
         bindMountEvents(panel);
         bindClassSummaryModal();
         subscribeContext();
+        if (options && options.classId && typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.setFromClass) {
+            global.CCPActiveContext.setFromClass(getAppData(), options.classId, undefined, 'debate-books-nav');
+        } else if (options && options.classId && global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.setActiveClassId) {
+            global.CCPClassroomZoneContext.setActiveClassId(options.classId);
+        }
         classId = resolveClassId(options);
+        focusStudentId = (options && options.focusStudentId) || '';
         selectedStudentIds.clear();
         ensurePeriodForClass();
         loadDistribution();

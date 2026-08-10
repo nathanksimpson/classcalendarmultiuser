@@ -775,6 +775,16 @@
             if (typeof hooks.runEventSyllabiBatchUpdate === 'function') {
                 hooks.runEventSyllabiBatchUpdate(nav.eventId);
             }
+            return;
+        }
+        if (nav.type === 'debate_book_check') {
+            if (typeof hooks.clearActiveCohortFilter === 'function') {
+                hooks.clearActiveCohortFilter('notification-debate-book-check');
+            }
+            hooks.navigateToTab('debate-books', {
+                classId: nav.classId || '',
+                focusStudentId: nav.studentId || ''
+            });
         }
     }
 

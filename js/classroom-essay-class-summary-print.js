@@ -159,8 +159,9 @@
 .essay-class-summary-header { margin-bottom: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.5rem; }
 .essay-class-summary-doc-title { margin: 0 0 0.25rem; font-size: 16pt; }
 .essay-class-summary-meta { margin: 0.15rem 0; color: #444; font-size: 10pt; }
-/* Do NOT page-break-inside:avoid on HR blocks — tall teacher sections force a blank first page in Chromium. */
+/* Do NOT page-break-inside:avoid on whole HR/class blocks — tall sections force blank pages in Chromium. */
 .essay-class-summary-hr-block { margin: 0 0 1.5rem; }
+/* New page when the homeroom teacher changes; HR name stays at the top of that page. */
 .essay-class-summary-hr-block + .essay-class-summary-hr-block {
     page-break-before: always;
     break-before: page;
@@ -186,7 +187,31 @@
 .essay-class-summary-empty { color: #666; font-style: italic; }
 @media print {
     .essay-class-summary-header { page-break-after: avoid; break-after: avoid; }
-    .essay-class-summary-hr-title { page-break-after: avoid; break-after: avoid; }
+    /* Keep HR / class / assignment headings with the content that follows. */
+    .essay-class-summary-hr-title {
+        page-break-after: avoid;
+        break-after: avoid-page;
+    }
+    .essay-class-summary-hr-title + .essay-class-summary-class-block {
+        page-break-before: avoid;
+        break-before: avoid-page;
+    }
+    .essay-class-summary-class-title {
+        page-break-after: avoid;
+        break-after: avoid-page;
+    }
+    .essay-class-summary-class-title + .essay-class-summary-assignment-block {
+        page-break-before: avoid;
+        break-before: avoid-page;
+    }
+    .essay-class-summary-assignment-title {
+        page-break-after: avoid;
+        break-after: avoid-page;
+    }
+    .essay-class-summary-assignment-title + .essay-class-summary-table {
+        page-break-before: avoid;
+        break-before: avoid-page;
+    }
 }
 `;
 

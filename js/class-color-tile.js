@@ -167,12 +167,14 @@
     }
 
     global.CCPClassColorTile = {
+        DEFAULT_ACCENT,
         apply,
         clear,
         applyCalmBar,
         applyPanelAccent,
         refreshAll,
         resolveTextColor,
-        hexToRgba
+        hexToRgba,
+        getAccent
     };
 })(typeof window !== 'undefined' ? window : globalThis);

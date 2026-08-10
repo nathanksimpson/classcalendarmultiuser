@@ -187,9 +187,9 @@
         }
         return statuses
             .map((st) => {
-                const active = status === st ? ' classroom-ledger-toggle--active' : '';
+                const checked = status === st ? ' checked' : '';
                 const dis = editable ? '' : ' disabled';
-                return `<button type="button" class="classroom-ledger-toggle classroom-ledger-toggle--att${active}" data-student-id="${escapeHtml(studentId)}" data-status="${st}"${dis} aria-label="${escapeHtml(t('classroomStatus_' + st))}">${labels[st]}</button>`;
+                return `<label class="checkbox-label selection-chip classroom-status-chip classroom-ledger-status-chip"><input type="radio" name="ledger_att_${escapeHtml(studentId)}" value="${st}"${checked}${dis} data-student-id="${escapeHtml(studentId)}" data-status="${st}" /> ${labels[st]}</label>`;
             })
             .join('');
     }
@@ -204,9 +204,9 @@
         }
         return grades
             .map((g) => {
-                const active = current === g ? ' classroom-ledger-toggle--active' : '';
+                const checked = current === g ? ' checked' : '';
                 const dis = editable ? '' : ' disabled';
-                return `<button type="button" class="classroom-ledger-toggle classroom-ledger-toggle--hw${active}" data-student-id="${escapeHtml(studentId)}" data-grade="${g}"${dis}>${g}</button>`;
+                return `<label class="checkbox-label selection-chip classroom-status-chip classroom-ledger-status-chip"><input type="radio" name="ledger_hw_${escapeHtml(studentId)}" value="${g}"${checked}${dis} data-student-id="${escapeHtml(studentId)}" data-grade="${g}" /> ${g}</label>`;
             })
             .join('');
     }
@@ -216,8 +216,8 @@
         const dis = editable ? '' : ' disabled';
         return `<div class="classroom-ledger-points" data-student-id="${escapeHtml(studentId)}">
             <span class="classroom-ledger-points-sum">${sum}</span>
-            <button type="button" class="classroom-ledger-toggle classroom-ledger-toggle--pt" data-delta="-1"${dis}>−</button>
-            <button type="button" class="classroom-ledger-toggle classroom-ledger-toggle--pt" data-delta="1"${dis}>+</button>
+            <button type="button" class="btn btn-outline btn-small classroom-ledger-pt-btn" data-delta="-1"${dis}>−</button>
+            <button type="button" class="btn btn-outline btn-small classroom-ledger-pt-btn" data-delta="1"${dis}>+</button>
         </div>`;
     }
 
@@ -245,8 +245,8 @@
                 const name = escapeHtml(entry.student.name || sid);
                 return `<tr class="classroom-sheet-row classroom-ledger-row" data-student-id="${escapeHtml(sid)}" style="height:${ROW_HEIGHT}px">
                 <td class="classroom-ledger-col-student">${name}</td>
-                <td class="classroom-ledger-col-att"><div class="classroom-ledger-toggles">${buildAttendanceToggles(sid, editable)}</div></td>
-                <td class="classroom-ledger-col-hw"><div class="classroom-ledger-toggles">${buildHomeworkToggles(sid, editable)}</div></td>
+                <td class="classroom-ledger-col-att"><div class="classroom-ledger-toggles classroom-status-chip-group">${buildAttendanceToggles(sid, editable)}</div></td>
+                <td class="classroom-ledger-col-hw"><div class="classroom-ledger-toggles classroom-status-chip-group">${buildHomeworkToggles(sid, editable)}</div></td>
                 <td class="classroom-ledger-col-pt">${buildPointsControls(sid, editable)}</td>
             </tr>`;
             })
@@ -260,19 +260,25 @@
         if (!body || !editable) {
             return;
         }
-        body.querySelectorAll('.classroom-ledger-toggle--att').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const sid = btn.getAttribute('data-student-id');
-                const status = btn.getAttribute('data-status');
+        body.querySelectorAll('.classroom-ledger-col-att input[type="radio"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                if (!input.checked) {
+                    return;
+                }
+                const sid = input.getAttribute('data-student-id');
+                const status = input.value;
                 draftAttendance = bridge.setAttendanceStatus(classId, dateStr, sid, status, draftAttendance);
                 scheduleSave();
                 renderVirtualRows(panel, getStudents(), editable);
             });
         });
-        body.querySelectorAll('.classroom-ledger-toggle--hw').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const sid = btn.getAttribute('data-student-id');
-                const grade = btn.getAttribute('data-grade');
+        body.querySelectorAll('.classroom-ledger-col-hw input[type="radio"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                if (!input.checked) {
+                    return;
+                }
+                const sid = input.getAttribute('data-student-id');
+                const grade = input.value;
                 draftHomework = bridge.setHomeworkGrade(
                     classId,
                     syllabusRowId,
@@ -287,7 +293,7 @@
         });
         body.querySelectorAll('.classroom-ledger-points').forEach((wrap) => {
             const sid = wrap.getAttribute('data-student-id');
-            wrap.querySelectorAll('.classroom-ledger-toggle--pt').forEach((btn) => {
+            wrap.querySelectorAll('.classroom-ledger-pt-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     void applyPointDelta(panel, sid, Number(btn.getAttribute('data-delta') || 0));
                 });

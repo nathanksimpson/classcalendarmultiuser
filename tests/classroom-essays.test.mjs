@@ -370,6 +370,102 @@ const { CCPClassroomEssays } = sandbox.window;
 
 {
 
+    // Last viewed outside today's month still restores when no preferredDate.
+
+    const julyRow = { id: 'july-essay', kind: 'lesson', date: '2026-07-15', planTitle: 'July Essay', trackEssay: true };
+
+    const classData = { id: 'garam-t', syllabusRows: [julyRow] };
+
+    sandbox.window.appData = {
+
+        ui: { essayAssignmentByClassId: { 'garam-t': 'july-essay' } }
+
+    };
+
+    const resolved = CCPClassroomEssays.resolveEssayAssignmentForClass(classData);
+
+    assert(resolved && resolved.id === 'july-essay', 'restores last viewed even when not current month');
+
+}
+
+
+
+{
+
+    // Class switch: preferred July month wins over saved June assignment.
+
+    const juneRow = { id: 'june-essay', kind: 'lesson', date: '2026-06-10', planTitle: 'June Essay', trackEssay: true };
+
+    const julyRow = { id: 'july-essay-m', kind: 'lesson', date: '2026-07-20', planTitle: 'July Essay', trackEssay: true };
+
+    const classData = { id: 'garam-m', syllabusRows: [juneRow, julyRow] };
+
+    sandbox.window.appData = {
+
+        ui: { essayAssignmentByClassId: { 'garam-m': 'june-essay' } }
+
+    };
+
+    const resolved = CCPClassroomEssays.resolveEssayAssignmentForClass(classData, '2026-07-15');
+
+    assert(resolved && resolved.id === 'july-essay-m', 'preferred month overrides saved assignment in different month');
+
+}
+
+
+
+{
+
+    // Class switch: saved assignment in preferred month is kept.
+
+    const juneRow = { id: 'june-kept', kind: 'lesson', date: '2026-06-05', planTitle: 'June A', trackEssay: true };
+
+    const julySaved = { id: 'july-saved', kind: 'lesson', date: '2026-07-08', planTitle: 'July A', trackEssay: true };
+
+    const julyOther = { id: 'july-other', kind: 'lesson', date: '2026-07-22', planTitle: 'July B', trackEssay: true };
+
+    const classData = { id: 'c-july', syllabusRows: [juneRow, julySaved, julyOther] };
+
+    sandbox.window.appData = {
+
+        ui: { essayAssignmentByClassId: { 'c-july': 'july-saved' } }
+
+    };
+
+    const resolved = CCPClassroomEssays.resolveEssayAssignmentForClass(classData, '2026-07-15');
+
+    assert(resolved && resolved.id === 'july-saved', 'keeps saved assignment when it matches preferred month');
+
+}
+
+
+
+{
+
+    // Preferred July with no July rows falls through to pickDefault (first on/after ref).
+
+    const juneRow = { id: 'june-only', kind: 'lesson', date: '2026-06-10', planTitle: 'June', trackEssay: true };
+
+    const augRow = { id: 'aug-only', kind: 'lesson', date: '2026-08-12', planTitle: 'August', trackEssay: true };
+
+    const classData = { id: 'c-no-july', syllabusRows: [juneRow, augRow] };
+
+    sandbox.window.appData = {
+
+        ui: { essayAssignmentByClassId: { 'c-no-july': 'june-only' } }
+
+    };
+
+    const resolved = CCPClassroomEssays.resolveEssayAssignmentForClass(classData, '2026-07-15');
+
+    assert(resolved && resolved.id === 'aug-only', 'no same-month essay falls through to first on/after preferred date');
+
+}
+
+
+
+{
+
     const rec = { studentId: 's1', status: 'submitted', submittedRetest: false, note: '' };
 
     const next = CCPClassroomEssays.applyStagedBatchToRecord(rec, 'status', 'complete', null);
@@ -404,6 +500,21 @@ const { CCPClassroomEssays } = sandbox.window;
 
     assert(!CCPClassroomEssays.isReceivedStatus('incomplete'), 'incomplete is not received');
     assert(!CCPClassroomEssays.isReceivedStatus('exempt'), 'exempt is not received');
+
+    const withNv = CCPClassroomEssays.applyStagedBatchToRecord(
+        {
+            studentId: 's3',
+            status: 'not_submitted',
+            submittedRetest: false,
+            debateVideoMissing: true,
+            note: ''
+        },
+        'status',
+        'complete',
+        null
+    );
+    assert(withNv.status === 'complete', 'status batch can complete with NV flag');
+    assert(withNv.debateVideoMissing === true, 'status batch preserves debateVideoMissing');
 
 }
 

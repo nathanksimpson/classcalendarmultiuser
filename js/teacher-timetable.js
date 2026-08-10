@@ -1509,7 +1509,9 @@
             const category = rowNorm.category || getTeacherCategoryForClass(classData, selector);
             const homeroomLabel = resolveHomeroomLabel(classData, cohortsById, appData);
             const placements = getTeacherTimetablePlacements(classData, rowNorm, appData);
-            const color = normalizeStr(classData.color) || '#6366f1';
+            const color = normalizeStr(classData.color)
+                || (global.CCPClassColorTile && global.CCPClassColorTile.DEFAULT_ACCENT)
+                || '#356a9e';
             const textColor = normalizeStr(classData.textColor) || '';
             placements.forEach((pl) => {
                 const slotId = pl.timeSlotId;
@@ -1691,7 +1693,9 @@
             const category = rowNorm.category || deriveTeacherCategory(classData);
             const homeroomLabel = resolveHomeroomLabel(classData, cohortsById, appData);
             const placements = getTeacherTimetablePlacements(classData, rowNorm, appData);
-            const color = normalizeStr(classData.color) || '#6366f1';
+            const color = normalizeStr(classData.color)
+                || (global.CCPClassColorTile && global.CCPClassColorTile.DEFAULT_ACCENT)
+                || '#356a9e';
             const textColor = normalizeStr(classData.textColor) || '';
             placements.forEach((pl) => {
                 const slotId = pl.timeSlotId;

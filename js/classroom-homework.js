@@ -338,7 +338,7 @@
 
             const disabled = editable ? '' : ' disabled';
 
-            return `<label class="checkbox-label selection-chip"><input type="radio" name="hw_${escapeHtml(studentId)}" value="${grade}"${checked}${disabled} data-student-id="${escapeHtml(studentId)}" /> ${grade}</label>`;
+            return `<label class="checkbox-label selection-chip classroom-status-chip"><input type="radio" name="hw_${escapeHtml(studentId)}" value="${grade}"${checked}${disabled} data-student-id="${escapeHtml(studentId)}" /> ${grade}</label>`;
 
         }).join('');
 

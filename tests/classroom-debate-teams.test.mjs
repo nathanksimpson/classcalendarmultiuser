@@ -354,6 +354,200 @@ function loadDebateEngine(options = {}) {
     const { api } = loadDebateEngine();
     api.loadState({
         version: 2,
+        students: [],
+        formatId: 'ap',
+        purpleMode: true,
+        includeReply: false,
+        maxTeamSize: 1,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    api.applyPurpleModeSettings(false);
+    let st = api.collectState();
+    assert(st.maxTeamSize === 3, 'unchecking purple restores max team size to 3');
+    assert(st.sheetTemplate === 'garam', 'unchecking purple restores garam score sheet');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        purpleMode: true,
+        includeReply: true,
+        maxTeamSize: 1,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    api.applyPurpleModeSettings(false);
+    st = api.collectState();
+    assert(st.maxTeamSize === 4, 'unchecking purple with reply restores max team size to 4');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Purple' }, { debateBook: 'Debate Purple', onlyIfPristine: true });
+    assert(!api.collectState().purpleMode, 'non-pristine (yeoul sheet) does not re-force purple');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Purple' }, { debateBook: 'Debate Purple', onlyIfPristine: false });
+    assert(!api.collectState().purpleMode, 'onlyIfPristine false never re-forces purple on stored sessions');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['Ann', 'Ben', 'Cal', 'Dan'],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                fourTeam: false,
+                notes: '',
+                order: ['PM', 'LO', 'MG', 'MO'],
+                benches: [
+                    {
+                        id: 'gov',
+                        label: 'Proposition',
+                        members: [
+                            {
+                                name: 'Ann',
+                                role: { abbr: 'PM', name: 'Prime Minister' },
+                                present: 'Ann present',
+                                rebut: 'Ann rebut'
+                            },
+                            {
+                                name: 'Cal',
+                                role: { abbr: 'MG', name: 'Member of Government' },
+                                present: '',
+                                rebut: ''
+                            }
+                        ]
+                    },
+                    {
+                        id: 'opp',
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Ben',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' },
+                                present: 'Ben present',
+                                rebut: 'Ben rebut'
+                            },
+                            {
+                                name: 'Dan',
+                                role: { abbr: 'MO', name: 'Member of Opposition' },
+                                present: '',
+                                rebut: ''
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                number: 2,
+                formatId: 'ap',
+                fourTeam: false,
+                notes: '',
+                order: ['PM', 'LO'],
+                benches: [
+                    {
+                        id: 'gov',
+                        label: 'Proposition',
+                        members: [
+                            {
+                                name: 'Eve',
+                                role: { abbr: 'PM', name: 'Prime Minister' },
+                                present: 'Eve present',
+                                rebut: ''
+                            }
+                        ]
+                    },
+                    {
+                        id: 'opp',
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Fay',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' },
+                                present: '',
+                                rebut: 'Fay rebut'
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    });
+
+    assert(api.swapMembers, 'swapMembers is exported');
+    assert(
+        !api.swapMembers({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: 0 }),
+        'same-slot swap is a no-op'
+    );
+
+    const swappedSame = api.swapMembers({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 1, mi: 0 });
+    assert(swappedSame, 'same-debate swap succeeds');
+    let st = api.collectState();
+    const d0 = st.debates[0];
+    assert(d0.benches[0].members[0].name === 'Ben', 'PM slot gets Ben after swap');
+    assert(d0.benches[0].members[0].role.abbr === 'PM', 'PM role stays on gov slot');
+    assert(d0.benches[0].members[0].present === 'Ben present', 'present notes move with student');
+    assert(d0.benches[1].members[0].name === 'Ann', 'LO slot gets Ann after swap');
+    assert(d0.benches[1].members[0].role.abbr === 'LO', 'LO role stays on opp slot');
+    assert(d0.benches[1].members[0].rebut === 'Ann rebut', 'rebut notes move with student');
+
+    const swappedCross = api.swapMembers({ di: 0, bi: 0, mi: 0 }, { di: 1, bi: 0, mi: 0 });
+    assert(swappedCross, 'cross-debate swap succeeds');
+    st = api.collectState();
+    assert(st.debates[0].benches[0].members[0].name === 'Eve', 'debate 1 PM becomes Eve');
+    assert(st.debates[0].benches[0].members[0].role.abbr === 'PM', 'debate 1 PM role unchanged');
+    assert(st.debates[1].benches[0].members[0].name === 'Ben', 'debate 2 PM becomes Ben');
+    assert(st.debates[1].benches[0].members[0].role.abbr === 'PM', 'debate 2 PM role unchanged');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
         students: ['Solo'],
         formatId: 'ap',
         purpleMode: true,

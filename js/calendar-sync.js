@@ -441,6 +441,10 @@
             local.debateBookDistributions,
             server.debateBookDistributions
         );
+        merged.pendingDebateBookChecks = mergeArrayById(
+            local.pendingDebateBookChecks,
+            server.pendingDebateBookChecks
+        );
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }
@@ -968,8 +972,14 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'debateBookDistributions')) {
                 body.debateBookDistributions = fields.debateBookDistributions;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'pendingDebateBookChecks')) {
+                body.pendingDebateBookChecks = fields.pendingDebateBookChecks;
+            }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsRosterLinks')) {
                 body.tmsRosterLinks = fields.tmsRosterLinks;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsEssayLinks')) {
+                body.tmsEssayLinks = fields.tmsEssayLinks;
             }
             setStatus('saving');
             state.saving = true;
@@ -1029,6 +1039,15 @@
                         retryBody.debateBookDistributions = mergeArrayById(
                             body.debateBookDistributions,
                             serverData.debateBookDistributions
+                        );
+                    }
+                    if (
+                        Array.isArray(body.pendingDebateBookChecks) &&
+                        Array.isArray(serverData.pendingDebateBookChecks)
+                    ) {
+                        retryBody.pendingDebateBookChecks = mergeArrayById(
+                            body.pendingDebateBookChecks,
+                            serverData.pendingDebateBookChecks
                         );
                     }
                     if (Array.isArray(body.attendanceSessions) && Array.isArray(serverData.attendanceSessions)) {
@@ -1553,8 +1572,11 @@
             state.pendingGetData = null;
         },
 
-        async deleteCalendar(id) {
-            await apiFetch('/calendars/' + encodeURIComponent(id), { method: 'DELETE' });
+        async deleteCalendar(id, password) {
+            await apiFetch('/calendars/' + encodeURIComponent(id), {
+                method: 'DELETE',
+                body: { password: String(password || '') }
+            });
             if (state.activeCalendarId === id) {
                 state.activeCalendarId = null;
             }

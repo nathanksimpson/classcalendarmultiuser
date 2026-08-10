@@ -47,6 +47,10 @@ const DEV_USER = {
     active: true
 };
 
+function isOpenAccessDevUser(user) {
+    return ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && user && user.id === 'dev-open';
+}
+
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
@@ -1609,7 +1613,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         debateCustomFormats,
         speakingTestRecords,
         debateBookDistributions,
-        tmsRosterLinks
+        pendingDebateBookChecks,
+        tmsRosterLinks,
+        tmsEssayLinks
     } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
     if (classroomOnly) {
@@ -1647,8 +1653,14 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'debateBookDistributions')) {
             payload.debateBookDistributions = debateBookDistributions;
         }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'pendingDebateBookChecks')) {
+            payload.pendingDebateBookChecks = pendingDebateBookChecks;
+        }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'tmsRosterLinks')) {
             payload.tmsRosterLinks = tmsRosterLinks;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'tmsEssayLinks')) {
+            payload.tmsEssayLinks = tmsEssayLinks;
         }
         const result = calendars.updateCalendarClassroom(
             req.params.id,
@@ -1764,20 +1776,32 @@ app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => 
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
-    const meta = calendars.getCalendarMeta(req.params.id);
-    const removed = calendars.deleteCalendar(req.params.id);
-    if (!removed) {
-        res.status(404).json({ error: 'Calendar not found' });
-        return;
+    if (!isOpenAccessDevUser(req.user)) {
+        const password = req.body && req.body.password;
+        if (!password || !users.verifyUserPassword(req.user.id, String(password))) {
+            res.status(403).json({ error: 'Invalid password' });
+            return;
+        }
     }
-    CalAccess.deleteCalendarAccess(req.params.id);
-    ActivityLog.recordActivityForUser(req.user, {
-        action: 'calendar_delete',
-        calendarId: req.params.id,
-        calendarName: meta && meta.name,
-        summary: `Deleted calendar "${(meta && meta.name) || req.params.id}"`
-    });
-    res.json({ ok: true });
+    try {
+        const meta = calendars.getCalendarMeta(req.params.id);
+        CalAccess.deleteCalendarAccess(req.params.id);
+        const removed = calendars.deleteCalendar(req.params.id);
+        if (!removed) {
+            res.status(404).json({ error: 'Calendar not found' });
+            return;
+        }
+        ActivityLog.recordActivityForUser(req.user, {
+            action: 'calendar_delete',
+            calendarId: req.params.id,
+            calendarName: meta && meta.name,
+            summary: `Deleted calendar "${(meta && meta.name) || req.params.id}"`
+        });
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Calendar delete failed:', err);
+        res.status(500).json({ error: err.message || 'Calendar delete failed' });
+    }
 });
 
 const staticRoot = path.join(__dirname, '..');

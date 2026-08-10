@@ -21,14 +21,14 @@
       <div class="debate-v2-field-group form-group">
         <div class="debate-v2-row-between">
           <span class="debate-v2-label"><span data-i18n="classroomDebateV2Students">Students</span> · <span id="debateV2StudentCount">0</span></span>
-          <button type="button" id="debateV2ClearStudents" class="debate-v2-text-btn" hidden data-i18n="classroomDebateClearAll">Clear all</button>
+          <button type="button" id="debateV2ClearStudents" class="btn btn-outline btn-small" hidden data-i18n="classroomDebateClearAll">Clear all</button>
         </div>
         <div id="debateV2StudentChips" class="debate-v2-chips"></div>
         <div class="debate-v2-row">
           <input type="text" id="debateV2NewName" class="field-input debate-v2-grow" data-i18n-placeholder="classroomDebateV2AddNamePlaceholder" placeholder="Add name…">
           <button type="button" id="debateV2AddName" class="btn btn-primary btn-compact" data-i18n="classroomDebateAdd">Add</button>
         </div>
-        <button type="button" id="debateV2TogglePaste" class="debate-v2-text-btn debate-v2-align-left" data-i18n="classroomDebateV2PasteToggle">Paste a list…</button>
+        <button type="button" id="debateV2TogglePaste" class="btn btn-outline btn-small debate-v2-align-left" data-i18n="classroomDebateV2PasteToggle">Paste a list…</button>
         <div id="debateV2PasteBox" class="debate-v2-paste-box" hidden>
           <textarea id="debateV2PasteText" class="field-input" rows="5" data-i18n-placeholder="classroomDebateV2PastePlaceholder" placeholder="One name per line — or paste a whole roster export; names are picked out automatically"></textarea>
           <button type="button" id="debateV2AddPaste" class="btn btn-primary btn-compact debate-v2-full-width" data-i18n="classroomDebateAddAllStudents">Add all</button>
@@ -68,8 +68,8 @@
 
       <div class="debate-v2-backup">
         <div class="debate-v2-backup-actions">
-          <button type="button" id="debateV2ExportJson" class="debate-v2-text-btn" data-i18n="classroomDebateExportBackup">Export backup</button>
-          <label class="debate-v2-text-btn debate-v2-import-label">
+          <button type="button" id="debateV2ExportJson" class="btn btn-outline btn-small" data-i18n="classroomDebateExportBackup">Export backup</button>
+          <label class="btn btn-outline btn-small debate-v2-import-label">
             <span data-i18n="classroomDebateImportBackup">Load backup</span>
             <input type="file" id="debateV2ImportFile" accept=".json,application/json" hidden>
           </label>
@@ -94,18 +94,20 @@
           <span id="debateV2MotionText" class="debate-v2-motion-text"></span>
         </div>
 
-        <div class="debate-v2-score-bar module-toolbar" data-noprint>
+        <div class="debate-v2-score-bar module-toolbar classroom-tab-toolbar" data-noprint>
           <span class="debate-v2-score-label" data-i18n="classroomDebateV2ScoreSheets">Score sheets</span>
           <select id="debateV2SheetTemplate" class="field-select debate-v2-select-compact" title="Score sheet template">
             <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae (/30)</option>
             <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul (/20)</option>
           </select>
+          <div class="toolbar-actions">
           <button type="button" id="debateV2Word" class="btn btn-primary btn-compact" data-i18n="classroomDebateDownloadWord">Download Word</button>
           <button type="button" id="debateV2Pdf" class="btn btn-outline btn-compact" data-i18n="classroomDebateDownloadPdf">Download PDF</button>
           <button type="button" id="debateV2PrintSheets" class="btn btn-outline btn-compact" data-i18n="classroomDebatePrintScoreSheets">Print sheets</button>
           <span class="debate-v2-score-divider" aria-hidden="true"></span>
           <button type="button" id="debateV2PrintCards" class="btn btn-outline btn-compact" data-i18n="classroomDebateV2PrintCards">Print cards</button>
           <button type="button" id="debateV2Copy" class="btn btn-outline btn-compact" data-i18n="classroomDebateCopy">Copy</button>
+          </div>
           <div class="debate-v2-score-hint section-hint" data-i18n="classroomDebateV2ScoreHint">English names in speaking order, with the class name and HR teacher from the left.</div>
         </div>
 

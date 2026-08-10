@@ -22,7 +22,7 @@
 }
 
 .event-bar.event-bar--calendar-focus {
-    outline: 3px solid var(--primary);
+    outline: 3px solid var(--primary, #2563eb);
     outline-offset: 2px;
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25);
     z-index: var(--z-above-base);
@@ -31,7 +31,7 @@
 
 .calendar-event-chip.calendar-event--calendar-focus,
 .calendar-day.calendar-event--calendar-focus {
-    outline: 3px solid var(--primary);
+    outline: 3px solid var(--primary, #2563eb);
     outline-offset: 2px;
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25);
     z-index: var(--z-above-base);
@@ -749,8 +749,8 @@ form.modal-body,
 html.print-color-mode-light,
 html.print-color-mode-light[data-theme="dark"] {
     color-scheme: light;
-    --primary: #14b98f;
-    --primary-dark: #0e9b76;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
     --secondary: #64748b;
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
@@ -782,8 +782,8 @@ html.print-color-mode-light[data-theme="dark"] {
     :root,
     [data-theme="dark"] {
         color-scheme: light !important;
-        --primary: #14b98f;
-        --primary-dark: #0e9b76;
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
         --secondary: #64748b;
         --bg-main: #f8fafc;
         --bg-card: #ffffff;
@@ -1887,10 +1887,10 @@ body.hide-summary-print .print-summary {
     z-index: var(--z-sticky-cell);
     padding: 10px 12px;
     margin: 0 0 12px;
-    border-radius: var(--radius-sm);
-    background: var(--banner-warn-bg);
-    border: 1px solid var(--banner-warn-border);
-    color: var(--banner-warn-color);
+    border-radius: 6px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
     font-size: 0.9rem;
 }
 
@@ -2163,7 +2163,7 @@ body.hide-summary-print .print-summary {
 
 .meeting-day-chip:has(input:checked) {
     border-color: var(--primary);
-    background: var(--accent-muted);
+    background: #eff6ff;
     color: var(--primary-dark);
 }
 
@@ -3130,10 +3130,10 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 }
 
 .cohort-status-chip--draft { background: var(--bg-hover); color: var(--text-secondary); }
-.cohort-status-chip--schedule { background: var(--lock-status-waiting-bg); color: var(--text-primary); }
-.cohort-status-chip--pending { background: var(--banner-warn-bg); color: var(--banner-warn-color); }
-.cohort-status-chip--ready { background: var(--status-success-bg); color: var(--status-success-color); }
-.cohort-status-chip--incomplete { background: var(--status-error-bg); color: var(--status-error-color); }
+.cohort-status-chip--schedule { background: #dbeafe; color: #1e40af; }
+.cohort-status-chip--pending { background: #fef3c7; color: #92400e; }
+.cohort-status-chip--ready { background: #dcfce7; color: #166534; }
+.cohort-status-chip--incomplete { background: #fee2e2; color: #991b1b; }
 
 .cohort-management-editor section {
     margin-bottom: 1rem;
@@ -5105,9 +5105,9 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     margin-bottom: 12px;
     padding: 10px 14px;
     border-radius: 8px;
-    border: 1px solid var(--accent-color, var(--primary));
+    border: 1px solid var(--accent-color, #2563eb);
     background: rgba(37, 99, 235, 0.12);
-    background: color-mix(in srgb, var(--accent-color, var(--primary)) 12%, transparent);
+    background: color-mix(in srgb, var(--accent-color, #2563eb) 12%, transparent);
 }
 
 .curriculum-updated-banner-text {
@@ -5654,9 +5654,8 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     padding: 0 var(--pad-overlay) var(--pad-overlay);
 }
 
-/* Cohort editor — near full-screen (Setup → Cohorts); above Sync when stacked */
+/* Cohort editor — near full-screen (Setup → Cohorts) */
 .cohort-editor-modal.active {
-    z-index: var(--z-modal-popover);
     align-items: center;
     justify-content: center;
     padding: max(0.5rem, var(--safe-top)) max(0.5rem, var(--safe-right))
@@ -6382,11 +6381,11 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 }
 
 .homework-mini-cal-day.is-today:not(.is-selected) {
-    box-shadow: inset 0 0 0 2px var(--primary);
+    box-shadow: inset 0 0 0 2px var(--primary, #2563eb);
 }
 
 .homework-mini-cal-day.is-selected {
-    background: var(--primary);
+    background: var(--primary, #2563eb);
     color: var(--text-on-primary);
     font-weight: 700;
 }
@@ -6620,9 +6619,9 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 }
 
 .homework-copy-textarea:focus {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--primary, #2563eb);
     outline-offset: 1px;
-    border-color: var(--primary);
+    border-color: var(--primary, #2563eb);
 }
 
 .homework-copy-textarea:disabled {
@@ -6927,7 +6926,7 @@ html.role-super-admin[data-theme="dark"] {
 
 [data-theme="dark"] .homework-due-banner {
     background: #1e3a5f;
-    border-color: var(--primary);
+    border-color: #2563eb;
     color: #bfdbfe;
 }
 
@@ -7169,55 +7168,55 @@ html.role-super-admin[data-theme="dark"] {
 }
 
 .team-lock-status--free .team-lock-status-btn {
-    color: var(--text-secondary);
+    color: #64748b;
     border-color: var(--lock-btn-border);
     background: var(--lock-btn-bg);
 }
 
 .team-lock-status--held .team-lock-status-btn {
-    color: var(--status-success-color);
-    border-color: var(--lock-status-held-border);
+    color: #047857;
+    border-color: #6ee7b7;
     background: var(--lock-btn-bg);
     box-shadow:
-        0 1px 3px color-mix(in srgb, var(--status-success-color) 12%, transparent),
+        0 1px 3px rgba(4, 120, 87, 0.12),
         inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .team-lock-status--held .team-lock-status-btn:hover {
     background: var(--lock-status-held-bg);
-    border-color: var(--lock-status-held-border);
+    border-color: #34d399;
 }
 
 .team-lock-status--blocked .team-lock-status-btn {
-    color: var(--status-error-color);
-    border-color: var(--lock-status-blocked-border);
+    color: #b91c1c;
+    border-color: #fca5a5;
     background: var(--lock-btn-bg);
     box-shadow:
-        0 1px 3px color-mix(in srgb, var(--status-error-color) 10%, transparent),
+        0 1px 3px rgba(185, 28, 28, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .team-lock-status--blocked .team-lock-status-btn:hover {
     background: var(--lock-status-blocked-bg);
-    border-color: var(--lock-status-blocked-border);
+    border-color: #f87171;
 }
 
 .team-lock-status--pending .team-lock-status-btn {
-    color: var(--banner-warn-color);
-    border-color: var(--lock-status-pending-border);
+    color: #b45309;
+    border-color: #fcd34d;
     background: var(--lock-btn-bg);
     box-shadow:
-        0 1px 3px color-mix(in srgb, var(--banner-warn-color) 10%, transparent),
+        0 1px 3px rgba(180, 83, 9, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .team-lock-status--pending .team-lock-status-btn:hover {
     background: var(--lock-status-pending-bg);
-    border-color: var(--lock-status-pending-border);
+    border-color: #fbbf24;
 }
 
 .team-lock-status-btn:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent, #2563eb);
     outline-offset: 2px;
 }
 
@@ -7339,14 +7338,14 @@ html.role-super-admin[data-theme="dark"] {
 }
 
 .team-lock-status--waiting .team-lock-status-btn {
-    color: var(--primary);
-    border-color: var(--lock-status-waiting-border);
+    color: #1e40af;
+    border-color: #93c5fd;
     background: var(--lock-btn-bg);
 }
 
 .team-lock-status--waiting .team-lock-status-btn:hover {
     background: var(--lock-status-waiting-bg);
-    border-color: var(--lock-status-waiting-border);
+    border-color: #60a5fa;
 }
 
 [data-theme="dark"] .team-lock-status-btn {
@@ -7485,7 +7484,7 @@ html.role-super-admin[data-theme="dark"] {
 /* View-only: allow browse/print/modals; editing blocked in JS (not pointer-events). */
 
 .team-calendar-select.team-sync-select--highlight {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent, #2563eb);
     outline-offset: 2px;
 }
 
@@ -8521,19 +8520,19 @@ body.workspace-page #appStatus {
 }
 
 .timetable-cell--clickable:focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--primary, #6366f1);
     outline-offset: 2px;
     z-index: var(--z-above-base);
 }
 
 .timetable-cell--now,
 .timetable-cell-entry.timetable-cell--now {
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92), 0 0 0 2px var(--primary);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92), 0 0 0 2px var(--primary, #6366f1);
 }
 
 html:not([data-theme="dark"]) .timetable-cell--now,
 html:not([data-theme="dark"]) .timetable-cell-entry.timetable-cell--now {
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 2px var(--primary);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 2px var(--primary, #6366f1);
 }
 
 .timetable-cell-name {
@@ -9462,8 +9461,8 @@ body.dino-game-open {
 }
 
 .setup-board-cohort.is-selected {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
+    border-color: var(--accent, #2563eb);
+    box-shadow: 0 0 0 1px var(--accent, #2563eb);
 }
 
 .setup-board-cohort.is-highlighted {
@@ -9472,7 +9471,7 @@ body.dino-game-open {
 
 @keyframes setup-board-highlight {
     0%, 100% { box-shadow: 0 0 0 0 transparent; }
-    30% { box-shadow: 0 0 0 3px var(--accent); }
+    30% { box-shadow: 0 0 0 3px var(--accent, #2563eb); }
 }
 
 .setup-board-cohort-header {
@@ -9496,8 +9495,8 @@ body.dino-game-open {
     letter-spacing: 0.04em;
     border-radius: 4px;
     background: var(--accent-muted, #e0e7ff);
-    color: var(--accent);
-    border: 1px solid var(--accent);
+    color: var(--accent, #2563eb);
+    border: 1px solid var(--accent, #2563eb);
     flex-shrink: 0;
 }
 
@@ -9522,8 +9521,8 @@ body.dino-game-open {
 
 .setup-board-cohort-title:hover:not(:disabled),
 .setup-board-cohort-title:focus-visible:not(:disabled) {
-    text-decoration-color: var(--accent);
-    color: var(--accent);
+    text-decoration-color: var(--accent, #2563eb);
+    color: var(--accent, #2563eb);
 }
 
 .setup-board-cohort-title:disabled {
@@ -9600,7 +9599,7 @@ body.dino-game-open {
     padding: 0;
     border: none;
     background: none;
-    color: var(--accent);
+    color: var(--accent, #2563eb);
     cursor: pointer;
     text-decoration: underline;
 }
@@ -10084,13 +10083,13 @@ body.notes-page .notes-date-bar {
 }
 
 .notes-class-item.is-selected {
-    border-color: var(--accent);
+    border-color: var(--accent, #2563eb);
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #2563eb) 25%, transparent);
 }
 
 .notes-class-item--has-note {
-    border-left: 4px solid var(--accent);
+    border-left: 4px solid var(--accent, #2563eb);
 }
 
 .notes-class-item-title {
@@ -13472,12 +13471,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     border: 1px solid color-mix(in srgb, var(--essay-status-resubmit) 35%, transparent);
 }
 
-.classroom-essay-alert-as {
-    color: var(--text-muted);
-    background: color-mix(in srgb, var(--essay-status-not) 22%, transparent);
-    border: 1px solid color-mix(in srgb, var(--essay-status-not) 55%, transparent);
-}
-
 .classroom-essay-alert-od {
     color: var(--essay-overdue-text);
     background: var(--essay-overdue-bg);
@@ -13488,12 +13481,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     color: var(--essay-submitted-tint-text);
     background: var(--essay-submitted-tint-bg);
     border: 1px solid var(--essay-submitted-tint-border);
-}
-
-.classroom-essay-alert-nv {
-    color: var(--essay-overdue-text);
-    background: var(--essay-overdue-bg);
-    border: 1px solid var(--essay-overdue-border);
 }
 
 .classroom-debate-book-alert-badges {
@@ -13891,15 +13878,13 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     font-weight: 600;
 }
 
-#panel-essays .classroom-essay-alert-badges,
-.classroom-zone-context-bar .classroom-essay-alert-badges {
+#panel-essays .classroom-essay-alert-badges {
     display: inline-flex;
     flex-wrap: wrap;
     gap: var(--space-1);
 }
 
-#panel-essays .classroom-essay-alert-badge,
-.classroom-zone-context-bar .classroom-essay-alert-badge {
+#panel-essays .classroom-essay-alert-badge {
     display: inline-flex;
     align-items: center;
     padding: 2px var(--space-2);
@@ -13909,39 +13894,22 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     line-height: 1.2;
 }
 
-#panel-essays .classroom-essay-alert-rs,
-.classroom-zone-context-bar .classroom-essay-alert-rs {
+#panel-essays .classroom-essay-alert-rs {
     color: var(--essay-resubmit-tint-text);
     background: var(--essay-resubmit-tint-bg);
     border: 1px solid var(--essay-resubmit-tint-border);
 }
 
-#panel-essays .classroom-essay-alert-as,
-.classroom-zone-context-bar .classroom-essay-alert-as {
-    color: var(--text-muted);
-    background: color-mix(in srgb, var(--essay-status-not) 22%, transparent);
-    border: 1px solid color-mix(in srgb, var(--essay-status-not) 55%, transparent);
-}
-
-#panel-essays .classroom-essay-alert-od,
-.classroom-zone-context-bar .classroom-essay-alert-od {
+#panel-essays .classroom-essay-alert-od {
     color: var(--essay-overdue-text);
     background: var(--essay-overdue-bg);
     border: 1px solid var(--essay-overdue-border);
 }
 
-#panel-essays .classroom-essay-alert-ae,
-.classroom-zone-context-bar .classroom-essay-alert-ae {
+#panel-essays .classroom-essay-alert-ae {
     color: var(--essay-submitted-tint-text);
     background: var(--essay-submitted-tint-bg);
     border: 1px solid var(--essay-submitted-tint-border);
-}
-
-#panel-essays .classroom-essay-alert-nv,
-.classroom-zone-context-bar .classroom-essay-alert-nv {
-    color: var(--essay-overdue-text);
-    background: var(--essay-overdue-bg);
-    border: 1px solid var(--essay-overdue-border);
 }
 
 .classroom-essay-class-filter-chips {
@@ -14033,8 +14001,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-essay-attention-tile--overdue.is-active,
-.classroom-essay-attention-tile--eval.is-active,
-.classroom-essay-attention-tile--nv.is-active {
+.classroom-essay-attention-tile--eval.is-active {
     background: var(--essay-overdue-bg);
     border-color: var(--essay-overdue-border);
     color: var(--essay-overdue-text);
@@ -14535,7 +14502,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-essay-retest-toggle {
-    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -14546,8 +14512,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
     cursor: pointer;
 }
 
-.classroom-essay-retest-toggle input.classroom-essay-retest,
-.classroom-essay-retest-toggle input.classroom-essay-debate-video {
+.classroom-essay-retest-toggle input.classroom-essay-retest {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -14573,19 +14538,6 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 .classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box {
     background: var(--essay-status-resubmit);
     border-color: var(--essay-status-resubmit);
-}
-
-.classroom-essay-debate-video-toggle {
-    color: var(--essay-overdue-text);
-}
-
-.classroom-essay-debate-video-toggle .classroom-essay-retest-toggle__box {
-    border-color: var(--essay-overdue-border);
-}
-
-.classroom-essay-debate-video-toggle input:checked + .classroom-essay-retest-toggle__box {
-    background: var(--essay-overdue-text);
-    border-color: var(--essay-overdue-text);
 }
 
 .classroom-essay-retest-toggle__check {
@@ -16883,61 +16835,6 @@ body:has(#panel-calendar:not([hidden])) {
     color: var(--text-secondary);
 }
 
-.team-sessions-section {
-    padding: 8px 12px 4px;
-    border-top: 1px solid var(--border);
-    margin-top: 4px;
-}
-
-.team-sessions-heading {
-    margin: 0 0 8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.team-sessions-list {
-    list-style: none;
-    margin: 0 0 8px;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 180px;
-    overflow-y: auto;
-}
-
-.team-sessions-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
-}
-
-.team-sessions-item-meta {
-    font-size: 12px;
-    line-height: 1.35;
-    color: var(--text-primary);
-    word-break: break-word;
-}
-
-.team-sessions-item-sub {
-    font-size: 11px;
-    color: var(--text-secondary);
-}
-
-.team-sessions-item-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.team-sessions-item .btn {
-    min-height: 36px;
-}
-
 .team-account-avatar {
     width: 30px;
     height: 30px;
@@ -17165,6 +17062,64 @@ body[data-active-tab='debate-teams'] .classroom-zone-context-bar .classroom-zone
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+}
+
+/* Tools → Debate Books — mid-term transfer confirm */
+.classroom-debate-books-transfer-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--accent-muted, var(--surface-muted));
+}
+
+.classroom-debate-books-transfer-banner[hidden] {
+    display: none;
+}
+
+.classroom-debate-books-transfer-banner-title {
+    margin: 0;
+    font-weight: 600;
+}
+
+.classroom-debate-books-transfer-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.classroom-debate-books-transfer-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.classroom-debate-books-transfer-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.classroom-debate-books-transfer-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+#panel-debate-books .classroom-sheet-row.is-transfer-check {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+    background: var(--accent-muted, var(--surface-muted));
 }
 
 .speaking-test-mount {
@@ -18726,7 +18681,10 @@ th[data-cohort-col] {
 }
 
 
+
+
 /* Debate Books checklist (Tools) */
+
 #panel-debate-books .classroom-debate-books-context-bar {
     margin-bottom: var(--space-2, 8px);
 }
@@ -18774,43 +18732,127 @@ th[data-cohort-col] {
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-student {
-    width: 28%;
+    width: 24%;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-status {
-    width: 44%;
+    width: 300px;
+    min-width: 260px;
+}
+
+#panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-issued-date {
+    width: 12%;
+    min-width: 8.5rem;
 }
 
 #panel-debate-books .classroom-sheet--debate-books .classroom-sheet-col-notes {
-    width: 28%;
+    width: 22%;
 }
 
-#panel-debate-books .classroom-debate-book-status {
-    display: flex;
+#panel-debate-books .classroom-debate-book-issued-at-empty {
+    display: inline-block;
+    min-height: var(--touch-min-compact, 36px);
+    line-height: var(--touch-min-compact, 36px);
+}
+
+#panel-debate-books .classroom-debate-book-status-selector {
+    display: inline-flex;
     flex-wrap: wrap;
-    gap: var(--space-2, 8px);
+    gap: var(--space-1);
+    align-items: center;
+}
+
+#panel-debate-books .classroom-debate-book-stage {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    min-height: var(--touch-min-compact, 36px);
+    cursor: pointer;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    white-space: nowrap;
+    line-height: 1;
+}
+
+#panel-debate-books .classroom-debate-book-stage.debate-book-status--not_issued.classroom-debate-book-stage--available {
+    border-color: color-mix(in srgb, var(--text-muted) 55%, var(--border-color));
+    background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-card));
+    color: var(--text-secondary);
+}
+
+#panel-debate-books .classroom-debate-book-stage.debate-book-status--issued.classroom-debate-book-stage--available {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border-color));
+    background: var(--accent-muted);
+    color: var(--primary-dark);
+}
+
+#panel-debate-books .classroom-debate-book-stage.debate-book-status--missing.classroom-debate-book-stage--available {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+    background: color-mix(in srgb, var(--danger) 10%, var(--bg-card));
+    color: var(--danger);
+}
+
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active.debate-book-status--not_issued,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"].debate-book-status--not_issued {
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--bg-card);
+}
+
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active.debate-book-status--issued,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"].debate-book-status--issued {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active.debate-book-status--missing,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"].debate-book-status--missing {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-books button.classroom-debate-book-stage.classroom-debate-book-stage--active:hover,
+#panel-debate-books button.classroom-debate-book-stage[aria-pressed="true"]:hover {
+    filter: brightness(0.96);
+}
+
+#panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--not_issued {
+    border-color: var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+#panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--issued {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+    color: var(--primary-dark);
+}
+
+#panel-debate-books .classroom-debate-book-batch-status-btn.debate-book-status--missing {
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
 }
 
 #panel-debate-books .classroom-sheet-row--status-debate-book-issued {
-    box-shadow: inset 3px 0 0 var(--primary, #14b98f);
+    box-shadow: inset 3px 0 0 var(--primary);
 }
 
 #panel-debate-books .classroom-sheet-row--status-debate-book-missing {
-    box-shadow: inset 3px 0 0 var(--danger, #dc2626);
+    box-shadow: inset 3px 0 0 var(--danger);
 }
 
 #panel-debate-books .classroom-sheet-row--status-debate-book-not_issued {
-    box-shadow: inset 3px 0 0 var(--border-color, #cbd5e1);
+    box-shadow: inset 3px 0 0 var(--border-color);
 }
 
-#panel-debate-books .classroom-debate-book-status-chip--issued:has(input:checked) {
-    border-color: var(--primary, #14b98f);
-    background: var(--accent-muted, #eaf6f1);
-}
-
-#panel-debate-books .classroom-debate-book-status-chip--missing:has(input:checked) {
-    border-color: var(--danger, #dc2626);
-    background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-books .classroom-debate-book-stage {
+    min-height: var(--touch-min, 44px);
+    padding: var(--space-2) var(--space-3);
 }
 
 #panel-debate-books .classroom-debate-books-batch-actions {

@@ -432,6 +432,24 @@
     border-radius: var(--radius-md);
 }
 
+#panel-debate-teams .classroom-debate-v2:not(.debate-v2--readonly) .debate-v2-member[draggable='true'] {
+    cursor: grab;
+}
+
+#panel-debate-teams .classroom-debate-v2:not(.debate-v2--readonly) .debate-v2-member[draggable='true']:active {
+    cursor: grabbing;
+}
+
+#panel-debate-teams .classroom-debate-v2 .debate-v2-member--dragging {
+    opacity: 0.55;
+}
+
+#panel-debate-teams .classroom-debate-v2 .debate-v2-member--drop-target {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+    box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
 #panel-debate-teams .classroom-debate-v2 .debate-v2-member-head {
     display: flex;
     align-items: center;

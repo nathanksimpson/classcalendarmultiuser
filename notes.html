@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
-    <title>Class day notes — ClassManager</title>
+    <title>Class day notes ??ClassManager</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Korean i18n bundle: loaded here only for Korean users (ready before
         // first paint); English always loads in the body and is the fallback.
-        window.CCP_I18N_VERSION = '20260622-i18n-lazy';
+        window.CCP_I18N_VERSION = '20260806-cohort-color';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -25,7 +25,7 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
+    <link rel="stylesheet" href="styles.css?v=20260807-deconflict-min">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -44,13 +44,13 @@
 
     <header class="notes-header">
         <div class="notes-header-main">
-            <a href="/" class="notes-back-link" data-i18n="notesBackCalendar">← Calendar</a>
+            <a href="/" class="notes-back-link" data-i18n="notesBackCalendar">??Calendar</a>
             <h1 class="notes-title" data-i18n="notesPageTitle">Class day notes</h1>
             <p id="notesCalendarLabel" class="notes-calendar-label section-hint"></p>
         </div>
         <div class="notes-header-actions">
-            <button type="button" id="notesLangToggle" class="btn btn-outline btn-small btn-lang">🌐 한국어</button>
-            <button type="button" id="notesThemeToggle" class="btn btn-outline btn-small btn-header-theme">🌙 Dark</button>
+            <button type="button" id="notesLangToggle" class="btn btn-outline btn-small btn-lang">?뙋 ?쒓뎅??/button>
+            <button type="button" id="notesThemeToggle" class="btn btn-outline btn-small btn-header-theme">?뙔 Dark</button>
         </div>
     </header>
 
@@ -69,14 +69,14 @@
     <p id="notesReadOnlyBanner" class="notes-readonly-banner" hidden role="status"></p>
 
     <div class="notes-date-bar">
-        <button type="button" id="notesPrevDayBtn" class="btn btn-outline btn-small notes-day-nav-btn" aria-label="Previous day">‹</button>
+        <button type="button" id="notesPrevDayBtn" class="btn btn-outline btn-small notes-day-nav-btn" aria-label="Previous day">??/button>
         <label class="notes-date-label" for="notesDateInput">
             <span class="visually-hidden" data-i18n="dayNotesSummaryDate">Date</span>
-            <input type="date" id="notesDateInput" class="notes-date-input">
+            <input type="date" id="notesDateInput" class="field-input notes-date-input">
         </label>
-        <button type="button" id="notesNextDayBtn" class="btn btn-outline btn-small notes-day-nav-btn" aria-label="Next day">›</button>
+        <button type="button" id="notesNextDayBtn" class="btn btn-outline btn-small notes-day-nav-btn" aria-label="Next day">??/button>
         <button type="button" id="notesTodayBtn" class="btn btn-outline btn-small" data-i18n="homeworkTabToday">Today</button>
-        <button type="button" id="notesMyClassesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesMyClassesToday">My classes · Today</button>
+        <button type="button" id="notesMyClassesTodayBtn" class="btn btn-outline btn-small" data-i18n="classNotesMyClassesToday">My classes 쨌 Today</button>
     </div>
 
     <main class="notes-main">
@@ -88,7 +88,7 @@
         <section class="notes-class-section" aria-labelledby="notesClassListHeading">
             <h2 id="notesClassListHeading" class="visually-hidden">Classes</h2>
             <div class="notes-class-search-wrap">
-                <label class="visually-hidden" for="notesClassSearch" data-i18n="classListSearchPlaceholder">Search classes…</label>
+                <label class="visually-hidden" for="notesClassSearch" data-i18n="classListSearchPlaceholder">Search classes??/label>
                 <input
                     type="search"
                     id="notesClassSearch"
@@ -96,7 +96,7 @@
                     autocomplete="off"
                     spellcheck="false"
                     data-i18n-placeholder="classListSearchPlaceholder"
-                    placeholder="Search classes…"
+                    placeholder="Search classes??
                 >
             </div>
             <p id="notesClassListEmpty" class="module-empty-hint" hidden data-i18n="notesNoClasses">No classes in this calendar.</p>
@@ -127,7 +127,7 @@
                     id="notesEditorCloseBtn"
                     class="btn btn-outline btn-small notes-editor-close-btn"
                     data-i18n-aria-label="notesEditorClose"
-                >×</button>
+                >횞</button>
             </header>
             <div id="notesEditorSection" class="notes-editor-sheet-body">
                 <div id="notesExistingList" class="notes-existing-list" role="list"></div>
@@ -155,18 +155,18 @@
     <script defer src="js/team-auth.js?v=20260601-role-palette"></script>
     <script defer src="js/calendar-mutations.js?v=20260806-patch-mutations"></script>
     <script defer src="js/conflict-merge.js?v=20260806-patch-mutations"></script>
-    <script defer src="js/calendar-sync.js?v=20260806-patch-mutations"></script>
+    <script defer src="js/calendar-sync.js?v=20260807-deconflict-min"></script>
     <script defer src="js/debate-periods.js?v=20260602-footprint"></script>
-    <script defer src="js/classroom-domain.js?v=20260612-classroom-mvp"></script>
+    <script defer src="js/classroom-domain.js?v=20260807-deconflict-min"></script>
     <script defer src="js/day-note-categories.js?v=20260612-note-categories"></script>
     <script defer src="js/day-notes.js?v=20260603-daynote-author"></script>
     <script defer src="js/day-note-mentions.js?v=20260623-mention-autocomplete"></script>
     <script defer src="js/class-notes-panel.js?v=20260612-mention-focus"></script>
-    <script defer src="js/teacher-timetable.js?v=20260612-homeroom-label"></script>
+    <script defer src="js/teacher-timetable.js?v=20260807-deconflict-min"></script>
     <script defer src="js/i18n/calendar-en.js?v=20260806-patch-mutations"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
-    <script defer src="app.js?v=20260806-patch-mutations"></script>
-    <script defer src="js/notes.js?v=20260610-notes-edit-mentions"></script>
+    <script defer src="app.js?v=20260807-deconflict-min"></script>
+    <script defer src="js/notes.js?v=20260807-deconflict-min"></script>
 </body>
 </html>

@@ -20,7 +20,11 @@
         const overdue = overdueLabel
             ? ` <span class="essay-progress-overdue">(${escapeHtml(overdueLabel)})</span>`
             : '';
-        return `<li class="essay-progress-student-line">${escapeHtml(r.studentName || '')}${overdue}</li>`;
+        const nv =
+            r.debateVideoMissing && labels.debateVideoNv
+                ? ` <span class="essay-progress-retest">[${escapeHtml(labels.debateVideoNv)}]</span>`
+                : '';
+        return `<li class="essay-progress-student-line">${escapeHtml(r.studentName || '')}${overdue}${nv}</li>`;
     }
 
     function renderResubmitLine(row, labels) {
@@ -29,7 +33,11 @@
         const retest = r.submittedRetest
             ? ` <span class="essay-progress-retest">[${escapeHtml(labels.retestReceived)}]</span>`
             : '';
-        return `<li class="essay-progress-student-line"><strong>${escapeHtml(r.studentName || '')}</strong> — ${escapeHtml(note)}${retest}</li>`;
+        const nv =
+            r.debateVideoMissing && labels.debateVideoNv
+                ? ` <span class="essay-progress-retest">[${escapeHtml(labels.debateVideoNv)}]</span>`
+                : '';
+        return `<li class="essay-progress-student-line"><strong>${escapeHtml(r.studentName || '')}</strong> — ${escapeHtml(note)}${retest}${nv}</li>`;
     }
 
     function renderStudentSection(title, lines, emptyLabel) {

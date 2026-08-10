@@ -755,7 +755,9 @@ function createActionsMenu(items) {
             btn.title = item.title;
         }
         if (item.danger) {
-            btn.className = 'btn-danger-text';
+            btn.className = 'btn btn-outline btn-small btn-danger-text';
+        } else {
+            btn.className = 'btn btn-outline btn-small';
         }
         if (item.disabled) {
             btn.disabled = true;

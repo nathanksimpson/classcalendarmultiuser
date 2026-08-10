@@ -266,6 +266,7 @@
     }
 
     function linkClassToCohortQuiet(classData, cohort) {
+        const wasUncohorted = getClassCohortIdsForBoard(classData).length === 0;
         const api = getApi();
         if (api) {
             api.addClassCohortId(classData, cohort.id);
@@ -276,6 +277,12 @@
                 classData.cohortIds = [cohort.id];
             } else if (!classData.cohortIds.includes(cohort.id)) {
                 classData.cohortIds.push(cohort.id);
+            }
+        }
+        if (wasUncohorted && cohort && cohort.color) {
+            classData.color = cohort.color;
+            if (typeof hooks.deriveClassTextColorForSave === 'function') {
+                classData.textColor = hooks.deriveClassTextColorForSave(cohort.color);
             }
         }
     }
@@ -687,6 +694,11 @@
 
         const header = document.createElement('header');
         header.className = 'setup-board-cohort-header';
+        if (global.CCPClassColorTile && cohort.color) {
+            global.CCPClassColorTile.apply(box, cohort, {
+                selected: !!(appData.ui && appData.ui.cohortsTabSelectedId === cohort.id)
+            });
+        }
 
         const titleRow = document.createElement('div');
         titleRow.className = 'setup-board-cohort-title-row';

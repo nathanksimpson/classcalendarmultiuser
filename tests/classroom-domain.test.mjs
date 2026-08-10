@@ -150,6 +150,10 @@ assert(customFmt && customFmt.name === 'Custom', 'normalizeDebateCustomFormat');
 const today = d.todayISO();
 const yesterday = d.addDaysISO(today, -1);
 const tomorrow = d.addDaysISO(today, 1);
+/** Due date in the current month that is not overdue (tomorrow if same month, else today). */
+const thisMonthDue = d.sameCalendarMonth(tomorrow, today) ? tomorrow : today;
+/** Due date outside the current calendar month. */
+const otherMonthDue = d.addDaysISO(today, 40);
 
 const essayClass = {
     id: 'cls-essay',
@@ -197,9 +201,16 @@ assert(
 assert(
     d.isEssayAwaitingSubmission(
         { studentId: 's1', status: 'not_submitted', submissionLate: false, overdueDismissed: false },
-        tomorrow
+        thisMonthDue
     ) === true,
-    'awaiting submission when not_submitted and due is future'
+    'awaiting submission when not_submitted and due is this month'
+);
+assert(
+    d.isEssayAwaitingSubmission(
+        { studentId: 's1', status: 'not_submitted', submissionLate: false, overdueDismissed: false },
+        otherMonthDue
+    ) === false,
+    'awaiting submission excludes dues outside this month'
 );
 assert(
     d.isEssayAwaitingSubmission(
@@ -211,13 +222,17 @@ assert(
 assert(
     d.isEssayAwaitingSubmission(
         { studentId: 's2', status: 'submitted', submissionLate: false, overdueDismissed: false },
-        tomorrow
+        thisMonthDue
     ) === false,
     'awaiting submission excludes received students'
 );
 assert(
-    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, tomorrow, 2) === 1,
-    'awaiting count is not_submitted when due is future'
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, thisMonthDue, 2) === 1,
+    'awaiting count is not_submitted when due is this month'
+);
+assert(
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, otherMonthDue, 2) === 0,
+    'awaiting count excludes other-month dues'
 );
 assert(
     d.essayAwaitingSubmissionCount(essaySubmissionPastDue, yesterday, 2) === 0,
@@ -228,8 +243,8 @@ assert(
     'awaiting roster count excludes overdue'
 );
 assert(
-    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, tomorrow, 2, ['s1', 's2']) === 1,
-    'awaiting roster count includes not_submitted before due'
+    d.essayAwaitingSubmissionCount(essaySubmissionPastDue, thisMonthDue, 2, ['s1', 's2']) === 1,
+    'awaiting roster count includes not_submitted due this month'
 );
 
 {
@@ -441,6 +456,7 @@ assert(
 const classAlerts = d.essayAlertCountsForClass([essaySubmissionPastDue], essayClass, cohorts);
 assert(classAlerts.od === 1, 'class OD aggregates assignment');
 assert(classAlerts.rs === 0, 'class RS zero without resubmits');
+assert(classAlerts.as === 0, 'class AS zero when only overdue not_submitted');
 assert(classAlerts.ae === 1, 'class AE counts submitted awaiting eval');
 
 {
@@ -483,6 +499,18 @@ assert(classAlerts.ae === 1, 'class AE counts submitted awaiting eval');
     );
 }
 
+assert(
+    d.essayAlertCountsForAssignment(essaySubmissionPastDue, thisMonthDue, 2).as === 1,
+    'assignment AS counts not_submitted due this month'
+);
+assert(
+    d.essayAlertCountsForAssignment(essaySubmissionPastDue, otherMonthDue, 2).as === 0,
+    'assignment AS excludes other-month dues'
+);
+assert(
+    d.essayAlertCountsForAssignment(essaySubmissionPastDue, yesterday, 2).as === 0,
+    'assignment AS excludes overdue not_submitted'
+);
 const assignmentAlerts = d.essayAlertCountsForAssignment(essaySubmissionPastDue, yesterday, 2);
 assert(assignmentAlerts.ae === 1, 'assignment AE counts submitted status');
 assert(assignmentAlerts.od === 1, 'assignment OD still counts overdue not_submitted');
@@ -559,16 +587,153 @@ assert(resubmitRows.length === 1, 'listEssayResubmitRows returns resubmit studen
 assert(resubmitRows[0].studentName === 'Kim', 'resubmit row resolves student name');
 assert(resubmitRows[0].note === 'Fix intro', 'resubmit row includes note');
 assert(resubmitRows[0].submittedRetest === true, 'resubmit row includes retest flag');
+assert(resubmitRows[0].debateVideoMissing === false, 'resubmit row defaults debateVideoMissing');
+
+{
+    const nvSubmission = {
+        id: 'es-nv',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        records: [
+            {
+                studentId: 's1',
+                status: 'submitted',
+                debateVideoMissing: true,
+                note: ''
+            },
+            {
+                studentId: 's2',
+                status: 'not_submitted',
+                debateVideoMissing: false,
+                note: ''
+            }
+        ]
+    };
+    assert(
+        d.essayDebateVideoMissingCount(nvSubmission) === 1,
+        'essayDebateVideoMissingCount counts flagged students'
+    );
+    const normalized = d.normalizeEssaySubmission(nvSubmission);
+    assert(normalized.records[0].debateVideoMissing === true, 'normalize keeps debateVideoMissing true');
+    assert(normalized.records[1].debateVideoMissing === false, 'normalize keeps debateVideoMissing false');
+    const ensured = d.ensureEssayRecordsForStudents(nvSubmission, [
+        { student: { id: 's1', name: 'Kim' } },
+        { student: { id: 's2', name: 'Lee' } },
+        { student: { id: 's3', name: 'Park' } }
+    ]);
+    const s3 = ensured.records.find((r) => r.studentId === 's3');
+    assert(s3 && s3.debateVideoMissing === false, 'ensureEssayRecords defaults debateVideoMissing false');
+}
+
+{
+    const overdueRows = d.listEssayOverdueRows(
+        {
+            classes: [essayClass],
+            cohorts,
+            essaySubmissions: [essaySubmissionPastDue]
+        },
+        { classes: [essayClass] }
+    );
+    assert(overdueRows.length === 1, 'listEssayOverdueRows returns overdue not_submitted');
+    assert(overdueRows[0].studentName === 'Kim', 'overdue row resolves student name');
+    assert(overdueRows[0].ssOverdue === true, 'overdue row marks ssOverdue');
+    assert(
+        overdueRows[0].ssOverdueKind === 'not_submitted',
+        'overdue not_submitted uses not_submitted kind'
+    );
+    const lateReceivedSubmission = {
+        id: 'es-late',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        lessonDate: yesterday,
+        ssDueDate: yesterday,
+        records: [
+            {
+                studentId: 's1',
+                status: 'submitted',
+                submissionLate: true,
+                overdueDismissed: false,
+                note: ''
+            },
+            {
+                studentId: 's2',
+                status: 'complete',
+                submissionLate: false,
+                overdueDismissed: false,
+                note: ''
+            }
+        ]
+    };
+    const lateRows = d.listEssayOverdueRows(
+        {
+            classes: [essayClass],
+            cohorts,
+            essaySubmissions: [lateReceivedSubmission]
+        },
+        { classId: 'cls-essay' }
+    );
+    assert(lateRows.length === 1, 'listEssayOverdueRows includes received late');
+    assert(lateRows[0].ssOverdueKind === 'received_late', 'received late kind');
+    assert(lateRows[0].studentId === 's1', 'received late row is the late student');
+    const dismissedRows = d.listEssayOverdueRows(
+        {
+            classes: [essayClass],
+            cohorts,
+            essaySubmissions: [
+                {
+                    ...essaySubmissionPastDue,
+                    records: [
+                        {
+                            studentId: 's1',
+                            status: 'not_submitted',
+                            overdueDismissed: true
+                        },
+                        {
+                            studentId: 's2',
+                            status: 'complete',
+                            overdueDismissed: false
+                        }
+                    ]
+                }
+            ]
+        },
+        { classId: 'cls-essay' }
+    );
+    assert(dismissedRows.length === 0, 'cleared overdue is excluded from overdue rows');
+}
 
 assert(
-    d.formatEssayClassAlertSuffix({ rs: 1, od: 3, ae: 2 }) === ' RS:1 OD:3 AE:2',
-    'formatEssayClassAlertSuffix builds RS/OD/AE suffix'
+    d.formatEssayClassAlertSuffix({ rs: 1, as: 2, od: 3, ae: 2 }) === ' RS:1 NS:2 OD:3 AE:2',
+    'formatEssayClassAlertSuffix builds RS/NS/OD/AE suffix'
 );
-assert(d.formatEssayClassAlertSuffix({ rs: 0, od: 0, ae: 0 }) === '', 'formatEssayClassAlertSuffix omits zeros');
+assert(d.formatEssayClassAlertSuffix({ rs: 0, as: 0, od: 0, ae: 0 }) === '', 'formatEssayClassAlertSuffix omits zeros');
 assert(
-    d.formatEssayClassAlertSuffix({ rs: 0, od: 0, ae: 4 }) === ' AE:4',
+    d.formatEssayClassAlertSuffix({ rs: 0, as: 0, od: 0, ae: 4 }) === ' AE:4',
     'formatEssayClassAlertSuffix can show AE alone'
 );
+assert(
+    d.formatEssayClassAlertSuffix({ rs: 0, as: 5, od: 0, ae: 0 }) === ' NS:5',
+    'formatEssayClassAlertSuffix can show NS alone'
+);
+assert(
+    d.formatEssayClassAlertSuffix({ rs: 0, as: 0, od: 0, ae: 0, nv: 3 }) === ' NV:3',
+    'formatEssayClassAlertSuffix can show NV alone'
+);
+
+{
+    const nvClassSubmission = {
+        id: 'es-nv-class',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        records: [
+            { studentId: 's1', status: 'complete', debateVideoMissing: true, note: '' },
+            { studentId: 's2', status: 'complete', debateVideoMissing: false, note: '' }
+        ]
+    };
+    const nvAlerts = d.essayAlertCountsForClass([nvClassSubmission], essayClass, cohorts);
+    assert(nvAlerts.nv === 1, 'class NV aggregates debate video missing');
+    assert(nvAlerts.rs === 0, 'NV does not affect RS count');
+}
 
 const assignments = d.listEssayAssignmentsForClass(
     essayClass,

@@ -456,6 +456,10 @@ function prepareClassroomForSave(user, calendarData, payload) {
         body,
         'debateBookDistributions'
     );
+    const hasPendingDebateBookChecks = Object.prototype.hasOwnProperty.call(
+        body,
+        'pendingDebateBookChecks'
+    );
     const hasTmsRosterLinks = Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks');
     const hasTmsEssayLinks = Object.prototype.hasOwnProperty.call(body, 'tmsEssayLinks');
 
@@ -471,6 +475,7 @@ function prepareClassroomForSave(user, calendarData, payload) {
         !hasDebateFormats &&
         !hasSpeakingTestRecords &&
         !hasDebateBookDistributions &&
+        !hasPendingDebateBookChecks &&
         !hasTmsRosterLinks &&
         !hasTmsEssayLinks
     ) {
@@ -578,6 +583,12 @@ function prepareClassroomForSave(user, calendarData, payload) {
             return { error: err, merged: {} };
         }
         merged.debateBookDistributions = nextDistributions;
+    }
+
+    if (hasPendingDebateBookChecks) {
+        merged.pendingDebateBookChecks = Array.isArray(body.pendingDebateBookChecks)
+            ? body.pendingDebateBookChecks
+            : [];
     }
 
     if (hasTmsRosterLinks) {
