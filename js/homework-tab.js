@@ -93,19 +93,15 @@
 
     /**
      * First class meeting strictly after afterDateStr through class end, skipping holidays.
+     * Uses the same occurs-on-date check as the Homework copy Today list.
      * @param {object} classData
      * @param {string} afterDateStr ISO date (assignment lesson day)
-     * @param {object} hooks { getMeetingDays, isHolidayForClass }
+     * @param {object} hooks { getMeetingDays, isHolidayForClass, classOccursOnIsoDate? }
      */
     function getNextClassMeetingAfter(classData, afterDateStr, hooks) {
         if (!classData || !afterDateStr || !hooks) {
             return '';
         }
-        const meetingDays = hooks.getMeetingDays(classData);
-        if (!meetingDays || meetingDays.length === 0) {
-            return '';
-        }
-        const daySet = new Set(meetingDays);
         const start = parseLocal(afterDateStr);
         const end = parseLocal(classData.endDate);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -114,9 +110,10 @@
         const cur = new Date(start);
         cur.setDate(cur.getDate() + 1);
         cur.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
         while (cur <= end) {
             const ds = formatISO(cur);
-            if (daySet.has(cur.getDay()) && !hooks.isHolidayForClass(ds, classData)) {
+            if (classOccursOnIsoDateWithHooks(classData, ds, hooks)) {
                 return ds;
             }
             cur.setDate(cur.getDate() + 1);
@@ -180,20 +177,70 @@
         return '';
     }
 
+    function findFirstLessonIndexOnDate(lessons, dateStr) {
+        for (let i = 0; i < lessons.length; i += 1) {
+            if (compareDateStr(lessons[i].date, dateStr) === 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function findLastLessonIndexBefore(lessons, dateStr) {
+        let found = -1;
+        for (let i = 0; i < lessons.length; i += 1) {
+            if (compareDateStr(lessons[i].date, dateStr) < 0) {
+                found = i;
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Date that counts as “this class” for Grade/Assign/due.
+     * Meeting days use the working-from date even when no lesson row exists.
+     * Off days keep upcoming / last-lesson targeting.
+     */
+    function resolveHomeworkThisClass(classData, lessons, ref, hooks) {
+        const onDateIdx = findFirstLessonIndexOnDate(lessons, ref);
+        if (onDateIdx >= 0) {
+            return { thisClassDate: ref, assignIdx: onDateIdx };
+        }
+        if (classOccursOnIsoDateWithHooks(classData, ref, hooks)) {
+            return { thisClassDate: ref, assignIdx: -1 };
+        }
+        const idx = findTargetLessonIndex(lessons, ref);
+        if (idx < 0) {
+            return { thisClassDate: '', assignIdx: -1 };
+        }
+        return { thisClassDate: lessons[idx].date, assignIdx: idx };
+    }
+
+    function dueDateFromNextLessonAfter(lessons, thisClassDate) {
+        for (let i = 0; i < lessons.length; i += 1) {
+            if (compareDateStr(lessons[i].date, thisClassDate) > 0) {
+                return {
+                    dueDate: lessons[i].date,
+                    dueSessionNumber: lessons[i].sessionNumber || 0
+                };
+            }
+        }
+        return { dueDate: '', dueSessionNumber: 0 };
+    }
+
     /**
      * @param {object} opts
      * @param {object} opts.classData
      * @param {Array} opts.syllabusRows merged syllabus rows
      * @param {string} opts.referenceDate ISO date (usually today)
-     * @param {object} opts.hooks { getMeetingDays, isHolidayForClass }
+     * @param {object} opts.hooks { getMeetingDays, isHolidayForClass, classOccursOnIsoDate? }
      */
     function computeHomeworkForClass(opts) {
         const { classData, syllabusRows, referenceDate, hooks } = opts || {};
         const ref = referenceDate || formatISO(new Date());
         const lessons = getLessonRowsFromSyllabus(syllabusRows);
-        const idx = findTargetLessonIndex(lessons, ref);
 
-        if (idx < 0) {
+        if (!lessons.length) {
             return {
                 referenceDate: ref,
                 targetLessonIndex: -1,
@@ -217,17 +264,31 @@
             };
         }
 
-        const assignRow = lessons[idx];
-        const gradingRow = idx > 0 ? lessons[idx - 1] : null;
-        const nextLessonRow = idx + 1 < lessons.length ? lessons[idx + 1] : null;
+        const resolved = resolveHomeworkThisClass(classData, lessons, ref, hooks);
+        const thisClassDate = resolved.thisClassDate;
+        const assignIdx = resolved.assignIdx;
+        const assignRow = assignIdx >= 0 ? lessons[assignIdx] : null;
+        const gradingIdx = thisClassDate ? findLastLessonIndexBefore(lessons, thisClassDate) : -1;
+        const gradingRow = gradingIdx >= 0 ? lessons[gradingIdx] : null;
 
         let dueDate = '';
         let dueSessionNumber = 0;
-        if (nextLessonRow) {
-            dueDate = nextLessonRow.date;
-            dueSessionNumber = nextLessonRow.sessionNumber || 0;
-        } else if (hooks) {
-            dueDate = getNextClassMeetingAfter(classData, assignRow.date, hooks);
+        if (thisClassDate && hooks) {
+            dueDate = getNextClassMeetingAfter(classData, thisClassDate, hooks);
+        } else if (thisClassDate) {
+            const fromRows = dueDateFromNextLessonAfter(lessons, thisClassDate);
+            dueDate = fromRows.dueDate;
+            dueSessionNumber = fromRows.dueSessionNumber;
+        }
+        if (dueDate && thisClassDate && compareDateStr(dueDate, thisClassDate) <= 0) {
+            dueDate = '';
+            dueSessionNumber = 0;
+        }
+        if (dueDate) {
+            const dueLessonIdx = findFirstLessonIndexOnDate(lessons, dueDate);
+            if (dueLessonIdx >= 0) {
+                dueSessionNumber = lessons[dueLessonIdx].sessionNumber || 0;
+            }
         }
 
         const detailFrom = (row) => (row && row.planDetail ? String(row.planDetail).trim() : '');
@@ -236,8 +297,8 @@
         const gradingSourceRowId = gradingRow ? (gradingRow.id || '') : '';
         const gradingText = detailFrom(gradingRow);
 
-        // Assign homework from the current session row.
-        const assignSourceRowId = assignRow.id || '';
+        // Assign homework from this class’s lesson row (empty on extra/unscheduled meetings).
+        const assignSourceRowId = assignRow ? (assignRow.id || '') : '';
         const assignText = detailFrom(assignRow);
 
         let messageKey = '';
@@ -252,16 +313,16 @@
             messageKey = messageKey || 'homeworkTabNoDueDate';
         }
 
-        const skippedClassDates = dueDate && assignRow.date && hooks
-            ? collectSkippedRegularClassMeetings(classData, assignRow.date, dueDate, hooks)
+        const skippedClassDates = dueDate && thisClassDate && hooks
+            ? collectSkippedRegularClassMeetings(classData, thisClassDate, dueDate, hooks)
             : [];
 
         return {
             referenceDate: ref,
-            targetLessonIndex: idx,
-            targetSessionNumber: assignRow.sessionNumber || 0,
-            targetLessonDate: assignRow.date,
-            targetLessonTitle: assignRow.planTitle || '',
+            targetLessonIndex: assignIdx >= 0 ? assignIdx : gradingIdx,
+            targetSessionNumber: assignRow ? (assignRow.sessionNumber || 0) : 0,
+            targetLessonDate: assignRow ? assignRow.date : thisClassDate,
+            targetLessonTitle: assignRow ? (assignRow.planTitle || '') : '',
             gradingHomework: gradingText,
             gradingSourceRowId,
             gradingSessionNumber: gradingRow ? (gradingRow.sessionNumber || 0) : 0,
@@ -269,8 +330,8 @@
             gradingLessonDate: gradingRow ? (gradingRow.date || '') : '',
             assignHomework: assignText,
             assignSourceRowId,
-            assignSourceSessionNumber: assignRow.sessionNumber || 0,
-            assignSourceTitle: assignRow.planTitle || '',
+            assignSourceSessionNumber: assignRow ? (assignRow.sessionNumber || 0) : 0,
+            assignSourceTitle: assignRow ? (assignRow.planTitle || '') : '',
             dueDate,
             dueSessionNumber,
             skippedClassDates,
@@ -297,9 +358,6 @@
         const o = options || {};
         if (o.includeHeader && o.className) {
             lines.push(o.className);
-        }
-        if (o.includeHeader && o.dueDateLabel) {
-            lines.push(o.dueLabel ? `${o.dueLabel}: ${o.dueDateLabel}` : o.dueDateLabel);
         }
         if (o.includeHeader && o.sessionLabel && o.sessionNumber > 0) {
             lines.push(`${o.sessionLabel} ${o.sessionNumber}`);

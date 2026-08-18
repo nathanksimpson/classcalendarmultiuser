@@ -27,7 +27,7 @@
             'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/class-curriculum-slices.js?v=20260603-cal-suffix2'
         ],
-        homework: ['js/homework-tab.js?v=20260619-ui-overhaul'],
+        homework: ['js/homework-tab.js?v=20260818-due-next-class'],
         students: [
             'js/essay-tracker-import.js?v=20260630-essay-import',
             'js/roster-import.js?v=20260806-name-marks',

@@ -16810,13 +16810,11 @@ function updateHomeworkBatchCopyButton(visible) {
 function buildHomeworkBothBlocksClipboard(classData, packet, gradingBody, assignBody) {
     const g = formatHomeworkPasteBlock(gradingBody, classData, packet, 'grading').trim();
     const a = formatHomeworkPasteBlock(assignBody, classData, packet, 'assign').trim();
-    const due = packet?.dueDate || '';
     return [
         '=== ' + t('homeworkTabGradingTitle') + ' ===',
         g,
         '',
         '=== ' + t('homeworkTabAssignTitle') + ' ===',
-        t('homeworkTabDueLabel') + ': ' + due,
         a.trim()
     ].join('\n');
 }
@@ -17424,10 +17422,6 @@ function formatHomeworkPasteBlock(text, classData, packet, kind) {
         sessionLabel: t('homeworkTabSessionLabel'),
         sessionNumber: packet.targetSessionNumber
     };
-    if (kind === 'assign') {
-        opts.dueLabel = t('homeworkTabDueLabel');
-        opts.dueDateLabel = packet.dueDate || '';
-    }
     return mod.formatHomeworkBlock(text, opts);
 }
 
@@ -17567,7 +17561,6 @@ function renderHomeworkEditor() {
     const gradingEl = document.getElementById('homeworkGradingText');
     const assignEl = document.getElementById('homeworkAssignText');
     const dueEl = document.getElementById('homeworkDueDateDisplay');
-    const dueCopyBtn = document.getElementById('homeworkCopyDueDateBtn');
     const msgEl = document.getElementById('homeworkTabMessage');
     const titleEl = document.getElementById('homeworkClassTitle');
     const classMetaEl = document.getElementById('homeworkClassMeta');
@@ -17624,9 +17617,6 @@ function renderHomeworkEditor() {
     updateHomeworkSourceHints(packet);
     if (dueEl) {
         dueEl.textContent = packet.dueDate ? formatHomeworkDueDateDisplay(packet.dueDate) : '—';
-    }
-    if (dueCopyBtn) {
-        dueCopyBtn.disabled = !packet.dueDate;
     }
     renderHomeworkDueDateSkips(packet);
     renderHomeworkLastClassNotes(classData, packet);
@@ -22770,17 +22760,6 @@ function initHomeworkTabListeners() {
                 ? formatHomeworkPasteBlock(body, classData, state.packet, 'assign')
                 : body;
             showHomeworkCopyStatus(await copyTextToClipboard(formatted));
-        });
-    }
-    const copyDueDate = document.getElementById('homeworkCopyDueDateBtn');
-    if (copyDueDate && !copyDueDate.dataset.homeworkInit) {
-        copyDueDate.dataset.homeworkInit = '1';
-        copyDueDate.addEventListener('click', async () => {
-            const dueDate = homeworkEditorState?.packet?.dueDate || '';
-            if (!dueDate) {
-                return;
-            }
-            showHomeworkCopyStatus(await copyTextToClipboard(dueDate));
         });
     }
     const copyBoth = document.getElementById('homeworkCopyBothBtn');

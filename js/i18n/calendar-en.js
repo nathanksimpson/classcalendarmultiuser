@@ -2399,7 +2399,6 @@
         homeworkTabGradingHint: 'Copy this block, open your Simson grading webpage in another tab, and paste there. This is homework due at the current class (from the previous session’s Pages / detail).',
         homeworkTabAssignHint: 'Copy this block, open your homework assignment webpage in another tab, and paste there. Due on the next in-person class (skips holidays and no-class days).',
         homeworkTabCopy: 'Copy',
-        homeworkTabCopyDate: 'Copy date',
         homeworkTabCopyHomework: 'Copy homework',
         homeworkTabCopyHomeworkTitle: 'Homework text — paste into the description field on your homework assignment site.',
         homeworkTabCopyBoth: 'Copy both blocks',
