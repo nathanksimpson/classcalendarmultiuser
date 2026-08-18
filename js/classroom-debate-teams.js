@@ -882,9 +882,6 @@
         if (!panel) {
             return;
         }
-        if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveDefaults) {
-            global.CCPActiveContext.resolveDefaults(getAppData());
-        }
         subscribeContext();
         syncActiveContext(options);
         await render(panel);
