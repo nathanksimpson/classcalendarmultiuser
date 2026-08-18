@@ -2408,7 +2408,6 @@
         homeworkTabGradingHint: '이 블록을 복사한 뒤, 다른 탭에서 Simson 채점 웹페이지를 열고 붙여넣으세요. 이번 수업에 제출할 숙제입니다(이전 회차의 페이지/세부).',
         homeworkTabAssignHint: '이 블록을 복사한 뒤, 다른 탭에서 숙제 배정 웹페이지를 열고 붙여넣으세요. 다음 대면 수업일까지 (휴일·수업 없는 날 제외).',
         homeworkTabCopy: '복사',
-        homeworkTabCopyDate: '날짜 복사',
         homeworkTabCopyHomework: '숙제 복사',
         homeworkTabCopyHomeworkTitle: '숙제 내용 — 숙제 배정 사이트의 설명란에 붙여넣으세요.',
         homeworkTabCopyBoth: '두 블록 모두 복사',

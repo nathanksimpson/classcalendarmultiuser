@@ -291,4 +291,176 @@ const rows = [
     assert(pkt.assignHomework === 'HW-DAY-2\n\nHW-DAY-3', 'already merged saved row stays deduped');
 }
 
+function meetingHooks(holidayMap) {
+    const holidays = holidayMap || {};
+    return {
+        getMeetingDays: (c) => c.meetingDays || [],
+        isHolidayForClass: (dateStr) => Boolean(holidays[dateStr]),
+        getHolidayForClass: (dateStr) => holidays[dateStr] || null
+    };
+}
+
+{
+    const tueThu = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [2, 4] };
+    const tueThuRows = [
+        { id: 'tt-1', kind: 'lesson', date: '2026-08-13', sessionNumber: 1, planTitle: 'Last Thu', planDetail: 'HW Thu' },
+        { id: 'tt-2', kind: 'lesson', date: '2026-08-18', sessionNumber: 2, planTitle: 'Tue', planDetail: 'HW Tue' },
+        { id: 'tt-3', kind: 'lesson', date: '2026-08-20', sessionNumber: 3, planTitle: 'Thu', planDetail: 'HW next Thu' }
+    ];
+    const tueThuHooks = meetingHooks();
+    const pkt = HT.computeHomeworkForClass({
+        classData: tueThu,
+        syllabusRows: tueThuRows,
+        referenceDate: '2026-08-18',
+        hooks: tueThuHooks
+    });
+    assert(pkt.targetLessonDate === '2026-08-18', 'Tue/Thu working from Tuesday targets Tuesday');
+    assert(pkt.assignHomework === 'HW Tue', 'assigns this Tuesday’s homework');
+    assert(pkt.gradingHomework === 'HW Thu', 'grades last Thursday’s homework');
+    assert(pkt.dueDate === '2026-08-20', 'Tue/Thu due is Thursday, not today');
+}
+
+{
+    const tueThu = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [2, 4] };
+    const dupRows = [
+        { id: 'd-1', kind: 'lesson', date: '2026-08-13', sessionNumber: 1, planDetail: 'HW Thu' },
+        { id: 'd-2a', kind: 'lesson', date: '2026-08-18', sessionNumber: 2, planDetail: 'HW Tue A' },
+        { id: 'd-2b', kind: 'lesson', date: '2026-08-18', sessionNumber: 3, planDetail: 'HW Tue B' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: tueThu,
+        syllabusRows: dupRows,
+        referenceDate: '2026-08-18',
+        hooks: meetingHooks()
+    });
+    assert(pkt.dueDate === '2026-08-20', 'duplicate same-day rows still due Thursday, not Tuesday');
+    assert(pkt.assignHomework === 'HW Tue A', 'assign uses first lesson on this class date');
+    assert(pkt.gradingHomework === 'HW Thu', 'grading skips the other same-day row');
+}
+
+{
+    const tueThu = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [2, 4] };
+    const pastOnly = [
+        { id: 'p-1', kind: 'lesson', date: '2026-08-13', sessionNumber: 1, planDetail: 'HW last class' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: tueThu,
+        syllabusRows: pastOnly,
+        referenceDate: '2026-08-18',
+        hooks: meetingHooks()
+    });
+    assert(pkt.targetLessonDate === '2026-08-18', 'extra Tuesday still counts as this class');
+    assert(pkt.assignHomework === '', 'no lesson row on extra Tuesday');
+    assert(pkt.gradingHomework === 'HW last class', 'grades last numbered lesson at this extra meeting');
+    assert(pkt.dueDate === '2026-08-20', 'extra meeting due is next meeting after today, not today');
+}
+
+{
+    const mwf = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [1, 3, 5] };
+    const mwfRows = [
+        { id: 'm-1', kind: 'lesson', date: '2026-08-17', sessionNumber: 1, planDetail: 'HW Mon' },
+        { id: 'm-2', kind: 'lesson', date: '2026-08-19', sessionNumber: 2, planDetail: 'HW Wed' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: mwf,
+        syllabusRows: mwfRows,
+        referenceDate: '2026-08-17',
+        hooks: meetingHooks()
+    });
+    assert(pkt.dueDate === '2026-08-19', 'MWF Monday due is Wednesday, not Monday');
+}
+
+{
+    const weekly = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [3] };
+    const weeklyRows = [
+        { id: 'w-1', kind: 'lesson', date: '2026-08-19', sessionNumber: 1, planDetail: 'HW this Wed' },
+        { id: 'w-2', kind: 'lesson', date: '2026-08-26', sessionNumber: 2, planDetail: 'HW next Wed' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: weekly,
+        syllabusRows: weeklyRows,
+        referenceDate: '2026-08-19',
+        hooks: meetingHooks()
+    });
+    assert(pkt.dueDate === '2026-08-26', 'weekly Wednesday due is next Wednesday, not today');
+}
+
+{
+    const tueThu = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [2, 4] };
+    const tueThuRows = [
+        { id: 'h-1', kind: 'lesson', date: '2026-08-18', sessionNumber: 1, planDetail: 'HW Tue' },
+        { id: 'h-2', kind: 'lesson', date: '2026-08-25', sessionNumber: 2, planDetail: 'HW next Tue' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: tueThu,
+        syllabusRows: tueThuRows,
+        referenceDate: '2026-08-18',
+        hooks: meetingHooks({ '2026-08-20': { name: 'Holiday Thursday' } })
+    });
+    assert(pkt.dueDate === '2026-08-25', 'holiday Thursday is skipped; due is following Tuesday');
+    assert(pkt.skippedClassDates.length === 1, 'skip list includes the holiday');
+    assert(pkt.skippedClassDates[0].date === '2026-08-20', 'skipped date is Thursday holiday');
+}
+
+{
+    const lastClass = { startDate: '2026-08-01', endDate: '2026-08-18', meetingDays: [2, 4] };
+    const lastRows = [
+        { id: 'l-1', kind: 'lesson', date: '2026-08-18', sessionNumber: 1, planDetail: 'HW last' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: lastClass,
+        syllabusRows: lastRows,
+        referenceDate: '2026-08-18',
+        hooks: meetingHooks()
+    });
+    assert(pkt.dueDate === '', 'last lesson of term has no due date');
+    assert(pkt.messageKey === 'homeworkTabNoDueDate' || pkt.messageKey === 'homeworkTabNoGradingText',
+        'last lesson reports missing due date or first-lesson grading empty');
+}
+
+{
+    const tueThu = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [2, 4] };
+    const tueThuRows = [
+        { id: 'o-1', kind: 'lesson', date: '2026-08-18', sessionNumber: 1, planDetail: 'HW Tue' },
+        { id: 'o-2', kind: 'lesson', date: '2026-08-20', sessionNumber: 2, planDetail: 'HW Thu' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: tueThu,
+        syllabusRows: tueThuRows,
+        referenceDate: '2026-08-19',
+        hooks: meetingHooks()
+    });
+    assert(pkt.targetLessonDate === '2026-08-20', 'off-day Wednesday still targets upcoming Thursday');
+    assert(pkt.dueDate === '2026-08-25', 'off-day due is next meeting after upcoming Thursday');
+}
+
+{
+    const tueThu = { startDate: '2026-08-01', endDate: '2026-09-30', meetingDays: [2, 4] };
+    const tueThuRows = [
+        { id: 'past-1', kind: 'lesson', date: '2026-08-13', sessionNumber: 1, planDetail: 'HW last Thu' },
+        { id: 'past-2', kind: 'lesson', date: '2026-08-18', sessionNumber: 2, planDetail: 'HW Tue' }
+    ];
+    const pkt = HT.computeHomeworkForClass({
+        classData: tueThu,
+        syllabusRows: tueThuRows,
+        referenceDate: '2026-08-13',
+        hooks: meetingHooks()
+    });
+    assert(pkt.dueDate === '2026-08-18', 'working from last Thursday: due today (next class) is correct');
+}
+
+{
+    const block = HT.formatHomeworkBlock('Read p. 12', {
+        includeHeader: true,
+        className: 'Blue T',
+        dueLabel: 'Due',
+        dueDateLabel: '2026-08-20',
+        sessionLabel: 'Session',
+        sessionNumber: 2
+    });
+    assert(!block.includes('2026-08-20'), 'clipboard text does not include due date');
+    assert(block.includes('Blue T'), 'clipboard still includes class name');
+    assert(block.includes('Read p. 12'), 'clipboard includes homework body');
+}
+
 console.log('homework-tab.test.mjs: all passed');
