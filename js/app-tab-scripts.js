@@ -87,7 +87,7 @@
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260807-deconflict-min',
             'js/classroom-access.js?v=20260807-hr-tools',
-            'js/classroom-debate-teams.js?v=20260807-no-date-jump'
+            'js/classroom-debate-teams.js?v=20260818-init-keep-date'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
@@ -112,7 +112,7 @@
             'js/roster-import.js?v=20260630-essay-import',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/speaking-test/speaking-test-core.js?v=20260720-speaking-modal',
-            'js/classroom-speaking-test.js?v=20260720-speaking-modal'
+            'js/classroom-speaking-test.js?v=20260818-init-keep-date'
         ]
     };
 
