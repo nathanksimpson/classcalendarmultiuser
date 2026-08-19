@@ -13602,6 +13602,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'timetable',
     'command-center',
     'events',
+    'briefing',
     'students',
     'attendance',
     'ledger',
@@ -13642,6 +13643,7 @@ const ZONE_SEGMENT_TO_TAB = {
         syllabus: 'syllabus'
     },
     classroom: {
+        briefing: 'briefing',
         students: 'students',
         attendance: 'attendance',
         ledger: 'ledger',
@@ -14181,6 +14183,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
     'command-center': { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
     notes: { zone: APP_ZONE_CLASSROOM, segment: 'notes' },
+    briefing: { zone: APP_ZONE_CLASSROOM, segment: 'briefing' },
     students: { zone: APP_ZONE_CLASSROOM, segment: 'students' },
     attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
     ledger: { zone: APP_ZONE_CLASSROOM, segment: 'ledger' },

@@ -21,6 +21,7 @@ const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
 const ViewAs = require('./view-as');
 const tmsRoster = require('./tms-roster');
+const tmsCounsel = require('../shared/tms-counsel-core.cjs');
 const {
     isLoopbackRequest,
     tmsBridgeAllowedOrigin
@@ -1251,6 +1252,59 @@ app.post('/api/tms/bridge/preview', async (req, res) => {
         return sendTmsPreviewError(res, err);
     }
 });
+
+/** TMS counsel + attendance profile preview (requires ClassManager session). */
+app.post('/api/tms/counsel/preview', requireUser, rejectViewAsWrites, async (req, res) => {
+    try {
+        return res.json(await runTmsCounselPreview(req.body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
+    }
+});
+
+app.options('/api/tms/bridge/counsel', (req, res) => {
+    applyTmsBridgeCors(req, res);
+    res.status(204).end();
+});
+
+/** Live-site → localhost bridge for counsel scrape (no ClassManager session). */
+app.post('/api/tms/bridge/counsel', async (req, res) => {
+    if (!requireTmsBridgeLoopback(req, res)) {
+        return;
+    }
+    try {
+        return res.json(await runTmsCounselPreview(req.body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
+    }
+});
+
+async function runTmsCounselPreview(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    const bodyUser = String(payload.username || '').trim();
+    const bodyPass = String(payload.password || '');
+    let scrapeOpts = {};
+    if (bodyUser || bodyPass) {
+        if (!bodyUser || !bodyPass) {
+            const err = new Error('TMS username and password are required');
+            err.code = 'TMS_CREDS_MISSING';
+            err.status = 503;
+            throw err;
+        }
+        scrapeOpts = { username: bodyUser, password: bodyPass };
+    }
+    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
+    if (!tmsRoster.credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        err.status = 503;
+        throw err;
+    }
+    const students = Array.isArray(payload.students) ? payload.students : [];
+    const tmsClassId = String(payload.tmsClassId || '').trim();
+    const result = await tmsCounsel.scrapeCounselProfiles(cfg, students, { tmsClassId });
+    return result;
+}
 
 app.get('/api/calendars', requireUser, (req, res) => {
     res.json(CalAccess.listCalendarsForUser(req.user));
