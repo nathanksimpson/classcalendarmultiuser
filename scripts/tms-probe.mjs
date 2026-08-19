@@ -15,6 +15,11 @@ import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
 require('../server/load-env');
 const tms = require('../server/tms-roster');
+// counsel scraper — may not exist yet during initial development
+let tmsCounsel = null;
+try {
+    tmsCounsel = require('../shared/tms-counsel-core.cjs');
+} catch (_) { /* not yet built */ }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.join(__dirname, '_tms-dump');
@@ -73,6 +78,54 @@ async function main() {
     console.log(
         'Tip: real class names come from class_Main_New_PopUp.aspx. TMS_ROSTER_URLS is only a fallback.'
     );
+
+    // --counsel flag: fetch a raw profiles_new.aspx and write fixture HTML
+    if (process.argv.includes('--counsel') && tmsCounsel) {
+        console.log('\n--- Counsel probe ---');
+        // Use first synced student from first cohort as the test subject
+        const firstCohort = scraped.cohorts && scraped.cohorts[0];
+        const firstStudent = firstCohort && firstCohort.students && firstCohort.students[0];
+        if (!firstStudent || !firstStudent.mpidx) {
+            console.log('No student with mpidx found — run roster sync first or set TMS_ROSTER_URLS.');
+        } else {
+            const tmsClassId = (firstCohort && firstCohort.tmsClassId) || '';
+            console.log(`Fetching counsel profile for mpidx=${firstStudent.mpidx} classId=${tmsClassId}…`);
+            try {
+                const cfg = Object.assign({}, tms.getConfig());
+                const result = await tmsCounsel.scrapeCounselProfile(cfg, {
+                    mpidx: firstStudent.mpidx,
+                    tmsClassId,
+                    studentId: firstStudent.mpidx,
+                    name: firstStudent.name || ''
+                });
+                const fixturePath = path.join(
+                    __dirname,
+                    '../tests/fixtures/tms/profiles-new-real.html'
+                );
+                if (result && result._rawHtml) {
+                    fs.writeFileSync(fixturePath, result._rawHtml, 'utf8');
+                    console.log('Wrote raw HTML to', fixturePath);
+                    console.log('Review and sanitize (remove real names/phones) before committing.');
+                }
+                const jsonPath = path.join(outDir, 'counsel-probe-result.json');
+                fs.writeFileSync(
+                    jsonPath,
+                    JSON.stringify({ probedAt: new Date().toISOString(), result }, null, 2),
+                    'utf8'
+                );
+                console.log('Wrote parsed result to', jsonPath);
+                if (result && result.notes) {
+                    console.log(`  status: ${result.enrollStatus || '?'}`);
+                    console.log(`  퇴원일: ${result.quitDate || 'none'}`);
+                    console.log(`  휴원기간: ${result.breakPeriod || 'none'}`);
+                    console.log(`  counsel notes: ${result.notes.length}`);
+                    console.log(`  attendance notes: ${(result.attendanceRecords || []).length}`);
+                }
+            } catch (err) {
+                console.error('Counsel probe failed:', err.message || err);
+            }
+        }
+    }
 }
 
 main().catch((err) => {

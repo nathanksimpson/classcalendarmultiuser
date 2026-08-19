@@ -1,0 +1,156 @@
+<!-- Sanitized fixture for profiles_new.aspx
+     Real page: http://tms.esimson.com/popup/profiles_new.aspx?MPIdx=134412&Createby=124953&ClassIdx=30965
+     Names/phones replaced with placeholders. Structure reflects typical TMS ASP.NET popup.
+     Run scripts/tms-probe.mjs --counsel at work to capture a real version.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="euc-kr">
+  <title>학생 프로필</title>
+</head>
+<body>
+
+<!-- Student info header block -->
+<table class="table_profile" cellspacing="0">
+  <tr>
+    <td class="td_label">이름</td>
+    <td class="td_value">홍길동 (Gil-dong)</td>
+    <td class="td_label">반명</td>
+    <td class="td_value">MWF-Advanced</td>
+  </tr>
+  <tr>
+    <td class="td_label">구분</td>
+    <td class="td_value">재원</td>
+    <td class="td_label">퇴원일</td>
+    <td class="td_value"></td>
+  </tr>
+  <tr>
+    <td class="td_label">휴원기간</td>
+    <td class="td_value"></td>
+    <td class="td_label">수강기간</td>
+    <td class="td_value">2025-09-01 ~ 2026-08-31</td>
+  </tr>
+  <tr>
+    <td class="td_label">학교</td>
+    <td class="td_value">XX중학교</td>
+    <td class="td_label">학년</td>
+    <td class="td_value">중2</td>
+  </tr>
+</table>
+
+<!-- Variant: student on break -->
+<!-- <tr><td class="td_label">구분</td><td class="td_value">휴원</td></tr> -->
+<!-- <tr><td class="td_label">휴원기간</td><td class="td_value">2026-07-15 ~ 2026-08-20</td></tr> -->
+
+<!-- Variant: student who left -->
+<!-- <tr><td class="td_label">구분</td><td class="td_value">퇴원</td></tr> -->
+<!-- <tr><td class="td_label">퇴원일</td><td class="td_value">2026-07-01</td></tr> -->
+
+<!-- ===== 출석 section ===== -->
+<div class="section_title">출석</div>
+<table class="table_attendance" cellspacing="0">
+  <tr class="header_row">
+    <th>날짜</th>
+    <th>출결</th>
+    <th>메모</th>
+  </tr>
+  <tr>
+    <td>2026-08-19</td>
+    <td>출석</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>2026-08-14</td>
+    <td>결석</td>
+    <td>몸이 아파서 결석</td>
+  </tr>
+  <tr>
+    <td>2026-08-12</td>
+    <td>지각</td>
+    <td>교통 체증</td>
+  </tr>
+  <tr>
+    <td>2026-08-07</td>
+    <td>출석</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>2026-08-05</td>
+    <td>결석</td>
+    <td>가족 여행</td>
+  </tr>
+</table>
+
+<!-- ===== Counseling notes section ===== -->
+<!-- Section heading contains the key phrase the parser looks for -->
+<div id="sangdam_section">
+  <div class="section_title">[상담저장시 학부모님께 문자전송]-인수인계/메모제외</div>
+  <table class="table_counsel" cellspacing="0">
+    <tr class="header_row">
+      <th>날짜</th>
+      <th>구분</th>
+      <th>상담교사</th>
+      <th>내용</th>
+    </tr>
+
+    <!-- Normal parent contact — no flag -->
+    <tr>
+      <td class="td_date">2026-08-15</td>
+      <td class="td_kind">전화(발신)</td>
+      <td class="td_teacher">김선생</td>
+      <td class="td_text">숙제 및 수업 내용 전달. 다음 수업 준비물 안내.</td>
+    </tr>
+
+    <!-- Note with attendance flag -->
+    <tr>
+      <td class="td_date">2026-08-10</td>
+      <td class="td_kind">전화(수신)</td>
+      <td class="td_teacher">김선생</td>
+      <td class="td_text">학부모님이 아이가 지난주에 결석한 것에 대해 연락 주심. 다음 주부터 정상 출석 예정.</td>
+    </tr>
+
+    <!-- Note with break flag -->
+    <tr>
+      <td class="td_date">2026-07-20</td>
+      <td class="td_kind">전화(발신)</td>
+      <td class="td_teacher">박선생</td>
+      <td class="td_text">방학 중 휴원 신청 관련 안내. 8월 20일까지 휴원 처리.</td>
+    </tr>
+
+    <!-- Note with quit flag -->
+    <tr>
+      <td class="td_date">2026-06-01</td>
+      <td class="td_kind">면담</td>
+      <td class="td_teacher">이선생</td>
+      <td class="td_text">학부모님 방문. 다음 학기 퇴원 가능성 있다고 하심. 추후 결정 예정.</td>
+    </tr>
+
+    <!-- 인수인계 row — should be DROPPED by parser -->
+    <tr>
+      <td class="td_date">2026-05-15</td>
+      <td class="td_kind">인수인계</td>
+      <td class="td_teacher">최선생</td>
+      <td class="td_text">담임 변경으로 인한 인수인계. 학생 특이사항 없음.</td>
+    </tr>
+
+    <!-- 메모 row — should be DROPPED by parser -->
+    <tr>
+      <td class="td_date">2026-05-01</td>
+      <td class="td_kind">메모</td>
+      <td class="td_teacher">김선생</td>
+      <td class="td_text">픽업 주소: XX아파트 101동.</td>
+    </tr>
+
+    <!-- Older normal note -->
+    <tr>
+      <td class="td_date">2026-04-10</td>
+      <td class="td_kind">전화(발신)</td>
+      <td class="td_teacher">김선생</td>
+      <td class="td_text">4월 시험 결과 안내. 전반적으로 양호.</td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

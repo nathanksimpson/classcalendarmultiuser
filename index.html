@@ -155,6 +155,7 @@
                             <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabi</button>
                         </div>
                         <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden>
+                            <button type="button" class="app-zone-segment-btn" data-segment="briefing" data-tab="briefing" data-i18n="classroomTabBriefing">Briefing</button>
                             <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-tab="students" data-i18n="classroomTabStudents">Students</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-tab="attendance" data-i18n="classroomTabAttendance">Attendance</button>
                             <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-tab="ledger" data-i18n="classroomTabLedger">Ledger</button>
@@ -371,6 +372,17 @@
                 <div id="calendarContainer" class="calendar-container">
                     <!-- Calendars will be rendered here by JavaScript -->
                 </div>
+            </section>
+
+            <section id="panel-briefing" class="app-tab-panel" data-tab="briefing" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+                <div class="module-toolbar classroom-tab-toolbar briefing-toolbar">
+                    <div class="toolbar-actions">
+                        <select id="briefingClassSelect" class="field-select field-control--compact" aria-label="Select class"></select>
+                        <button type="button" id="briefingSyncBtn" class="btn btn-primary btn-compact" data-i18n="briefingSyncBtn">Sync TMS</button>
+                        <span id="briefingStatus" class="briefing-status-text" hidden></span>
+                    </div>
+                </div>
+                <div id="briefingMount" class="briefing-mount"></div>
             </section>
 
             <section id="panel-students" class="app-tab-panel" data-tab="students" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
@@ -2469,6 +2481,7 @@
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
     <script defer src="app.js?v=20260818-hw-due-next"></script>
+    <script defer src="js/classroom-briefing.js?v=20260819-briefing-v1"></script>
 </body>
 </html>
 
