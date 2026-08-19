@@ -21384,3 +21384,248 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     max-height: 320px;
     overflow: auto;
 }
+
+/* ============================================
+   Classroom - Briefing tab
+   ============================================ */
+
+.briefing-toolbar {
+    gap: var(--space-2, 8px);
+}
+
+.briefing-status-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+}
+
+.briefing-status-text--error {
+    color: var(--status-error-fg, var(--danger, #dc2626));
+}
+
+.briefing-mount {
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Watch list strip */
+.briefing-watchlist {
+    background: var(--warning-bg, #fffbeb);
+    border: 1px solid var(--warning-border, #fde68a);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    margin-bottom: var(--space-4, 16px);
+}
+
+.briefing-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary, #6b7280);
+    margin: 0 0 var(--space-2, 8px);
+    cursor: pointer;
+    user-select: none;
+}
+
+.briefing-flag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+.briefing-flag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.briefing-flag--danger {
+    background: var(--status-error-bg, #fee2e2);
+    color: var(--status-error-fg, var(--danger, #dc2626));
+    border: 1px solid var(--status-error-border, #fca5a5);
+}
+
+.briefing-flag--warning {
+    background: var(--warning-bg, #fffbeb);
+    color: var(--warning-fg, #92400e);
+    border: 1px solid var(--warning-border, #fde68a);
+}
+
+.briefing-flag--info {
+    background: var(--accent-muted, #f0fdf4);
+    color: var(--primary, #059669);
+    border: 1px solid var(--primary-muted, #6ee7b7);
+}
+
+.briefing-flag-date {
+    font-weight: 400;
+    margin-left: 4px;
+    opacity: 0.75;
+}
+
+/* Student cards */
+.briefing-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4, 16px);
+}
+
+.briefing-card {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+}
+
+.briefing-card--flagged {
+    border-left: 3px solid var(--warning-fg, #d97706);
+}
+
+.briefing-card-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    background: var(--surface-raised, #f9fafb);
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.briefing-card-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.briefing-card-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1, 4px);
+}
+
+.briefing-card-body {
+    padding: var(--space-3, 12px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+}
+
+/* Enrollment status badge */
+.briefing-enroll-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.briefing-enroll-badge--quit {
+    background: var(--status-error-bg, #fee2e2);
+    color: var(--status-error-fg, #dc2626);
+}
+
+.briefing-enroll-badge--break {
+    background: var(--warning-bg, #fffbeb);
+    color: var(--warning-fg, #92400e);
+}
+
+.briefing-enroll-badge--active {
+    background: var(--accent-muted, #f0fdf4);
+    color: var(--primary, #059669);
+}
+
+.briefing-enroll-badge--none {
+    background: var(--surface-raised, #f3f4f6);
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* Section details (collapsible) */
+.briefing-section-detail {
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-sm, 4px);
+    overflow: hidden;
+}
+
+.briefing-section-detail > summary {
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    background: var(--surface-raised, #f9fafb);
+    list-style: none;
+}
+
+.briefing-section-detail > summary::-webkit-details-marker { display: none; }
+
+.briefing-section-detail[open] > summary {
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+/* Shared table style */
+.briefing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.briefing-table th {
+    padding: 4px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary, #6b7280);
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.briefing-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border-subtle, #f3f4f6);
+    vertical-align: top;
+}
+
+/* Attendance table */
+.briefing-att-date { white-space: nowrap; color: var(--text-secondary, #6b7280); }
+.briefing-att-status { font-weight: 600; white-space: nowrap; }
+.briefing-att--absent { color: var(--status-error-fg, var(--danger, #dc2626)); }
+.briefing-att--late   { color: var(--warning-fg, #d97706); }
+.briefing-att--early  { color: var(--warning-fg, #d97706); }
+.briefing-att--present { color: var(--primary, #059669); }
+
+/* Counsel table */
+.briefing-note-row--flagged {
+    border-left: 3px solid var(--warning-fg, #d97706);
+}
+
+.briefing-note-row--flagged td:first-child {
+    padding-left: 5px;
+}
+
+.briefing-note-date { white-space: nowrap; color: var(--text-secondary, #6b7280); font-size: 0.78rem; }
+.briefing-note-kind { white-space: nowrap; color: var(--text-secondary, #6b7280); font-size: 0.78rem; }
+
+.briefing-note-ko {
+    color: var(--text-secondary, #6b7280);
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+.briefing-note-en {
+    color: var(--text-primary, #111827);
+    font-size: 0.83rem;
+    margin-top: 2px;
+}
+
+.briefing-flag-chip--inline {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    margin-left: 4px;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .briefing-watchlist { background: var(--warning-bg, #3b2f10); border-color: var(--warning-border, #78540a); }
+    .briefing-card { background: var(--surface, #1f2937); border-color: var(--border, #374151); }
+    .briefing-card-header { background: var(--surface-raised, #111827); }
+    .briefing-section-detail { border-color: var(--border, #374151); }
+    .briefing-section-detail > summary { background: var(--surface-raised, #111827); }
+}
