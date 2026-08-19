@@ -54,7 +54,14 @@
     }
 
     function getAppState() {
-        return (window.CCPAppStore && window.CCPAppStore.getState) ? window.CCPAppStore.getState() : null;
+        // app.js exposes the live calendar data object on window.appData
+        if (window.appData) return { calendar: window.appData };
+        // fallback for any store wrapper
+        if (window.CCPAppStore && typeof window.CCPAppStore.getState === 'function') {
+            const s = window.CCPAppStore.getState();
+            if (s) return { calendar: s };
+        }
+        return null;
     }
 
     // ── class picker ──────────────────────────────────────────────────────────
@@ -90,27 +97,38 @@
         const classData = classes.find((c) => c && c.id === classId);
         if (!classData) return [];
 
-        const cohortIds =
-            window.CCPClassroomDomain &&
-            typeof window.CCPClassroomDomain.getCohortIdsForClass === 'function'
-                ? window.CCPClassroomDomain.getCohortIdsForClass(classData)
-                : (classData.cohortIds || classData.cohortId || []);
+        // Use the canonical domain helper when available — handles cohortIds + legacy cohortId,
+        // excludes off-roster tags, and deduplicates across multiple linked cohorts.
+        const d = window.CCPClassroomDomain;
+        if (d && typeof d.resolveStudentsForClass === 'function') {
+            return d.resolveStudentsForClass(classData, cohorts).map((entry) => {
+                const stu = entry.student || entry;
+                return {
+                    id: stu.id,
+                    name: stu.name,
+                    tmsMpidx: String(stu.tmsMpidx || stu.mpidx || '').trim()
+                };
+            });
+        }
 
-        const idsSet = new Set((Array.isArray(cohortIds) ? cohortIds : [cohortIds]).filter(Boolean));
+        // Manual fallback: union cohorts linked to this class
+        const cohortIds = d && typeof d.getCohortIdsForClass === 'function'
+            ? d.getCohortIdsForClass(classData)
+            : [].concat(classData.cohortIds || [], classData.cohortId ? [classData.cohortId] : []);
+
+        const idsSet = new Set(cohortIds.filter(Boolean));
         const out = [];
-
-        // In this app model, students live under cohorts, not under calendar.students.
         cohorts.forEach((cohort) => {
             if (!cohort || !idsSet.has(cohort.id)) return;
             (cohort.students || []).forEach((stu) => {
-                if (!stu) return;
-                if (stu.active === false) return; // archived roster entries
-                const mpidx = String(stu.tmsMpidx || stu.mpidx || '').trim();
-                if (!mpidx) return; // Briefing is specifically the TMS profiles_new.aspx scrape
-                out.push({ id: stu.id, name: stu.name, tmsMpidx: mpidx });
+                if (!stu || stu.active === false) return;
+                out.push({
+                    id: stu.id,
+                    name: stu.name,
+                    tmsMpidx: String(stu.tmsMpidx || stu.mpidx || '').trim()
+                });
             });
         });
-
         return out;
     }
 
@@ -433,7 +451,7 @@
         const tmsClassId = getTmsClassId(classId);
 
         if (!students.length) {
-            mount.innerHTML = `<p class="section-hint">${t('briefingNoStudents', 'No students with TMS profile links in this class.')}</p>`;
+            mount.innerHTML = `<p class="section-hint">No active students found in this class. Make sure the class is linked to a cohort with students.</p>`;
             showStatus('');
             syncBtn.disabled = false;
             return;
