@@ -84,8 +84,34 @@
     function getStudentsForClass(classId) {
         const state = getAppState();
         const cal = state && state.calendar;
-        const allStudents = (cal && cal.students) || [];
-        return allStudents.filter(s => s.classId === classId && !s.archived);
+        const classes = (cal && cal.classes) || [];
+        const cohorts = (cal && cal.cohorts) || [];
+
+        const classData = classes.find((c) => c && c.id === classId);
+        if (!classData) return [];
+
+        const cohortIds =
+            window.CCPClassroomDomain &&
+            typeof window.CCPClassroomDomain.getCohortIdsForClass === 'function'
+                ? window.CCPClassroomDomain.getCohortIdsForClass(classData)
+                : (classData.cohortIds || classData.cohortId || []);
+
+        const idsSet = new Set((Array.isArray(cohortIds) ? cohortIds : [cohortIds]).filter(Boolean));
+        const out = [];
+
+        // In this app model, students live under cohorts, not under calendar.students.
+        cohorts.forEach((cohort) => {
+            if (!cohort || !idsSet.has(cohort.id)) return;
+            (cohort.students || []).forEach((stu) => {
+                if (!stu) return;
+                if (stu.active === false) return; // archived roster entries
+                const mpidx = String(stu.tmsMpidx || stu.mpidx || '').trim();
+                if (!mpidx) return; // Briefing is specifically the TMS profiles_new.aspx scrape
+                out.push({ id: stu.id, name: stu.name, tmsMpidx: mpidx });
+            });
+        });
+
+        return out;
     }
 
     function getTmsClassId(classId) {
