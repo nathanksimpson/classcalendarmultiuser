@@ -18909,9 +18909,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     overflow: auto;
 }
 
-/* ============================================
-   Classroom ? Briefing tab
-   ============================================ */
+
+
+/* Classroom - Briefing tab */
+
 
 .briefing-toolbar {
     gap: var(--space-2, 8px);
