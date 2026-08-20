@@ -16,6 +16,9 @@ scripts/.seed-admin-temp.sql
 scripts/.seed-admin-query.sql
 scripts/_tms-dump/
 
+# TMS probe captures with real student data (use *-snippet.html in tests instead)
+tests/fixtures/tms/*-real.html
+
 # Env / secrets
 .env
 .env.*

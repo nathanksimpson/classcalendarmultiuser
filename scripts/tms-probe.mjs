@@ -107,6 +107,18 @@ async function main() {
                     console.log('Wrote raw HTML to', fixturePath);
                     console.log('Review and sanitize (remove real names/phones) before committing.');
                 }
+                const iframeDir = path.join(__dirname, '../tests/fixtures/tms');
+                if (result && result._iframeHtml) {
+                    const names = { counsel: 'iframe-consult-real.html', absence: 'iframe-absence-real.html', profile: 'iframe-profile-real.html' };
+                    Object.keys(names).forEach((key) => {
+                        const html = result._iframeHtml[key];
+                        if (html) {
+                            const p = path.join(iframeDir, names[key]);
+                            fs.writeFileSync(p, html, 'utf8');
+                            console.log('Wrote iframe HTML to', p, `(${html.length} bytes)`);
+                        }
+                    });
+                }
                 const jsonPath = path.join(outDir, 'counsel-probe-result.json');
                 fs.writeFileSync(
                     jsonPath,

@@ -1,13 +1,10 @@
 /**
  * TMS counsel + attendance profile scrape — shared by local Node server.
  *
- * Fetches /popup/profiles_new.aspx per student (login reused from tms-roster-core).
- * Parses:
- *   1. Enrollment status block: 구분 (재원/휴원/퇴원), 퇴원일, 휴원기간
- *   2. 출석 table: date, status (출석/결석/지각/조퇴), memo
- *   3. [상담저장시 학부모님께 문자전송] counsel table (skips 인수인계 & 메모 rows)
- *
- * Keeps raw HTML on result._rawHtml so tms-probe.mjs can write the fixture.
+ * Live TMS profiles_new.aspx is a shell with iframes. We fetch:
+ *   - /iframe/student_consulting_list_new.aspx (counsel notes)
+ *   - /iFrame/student_absense_list.aspx (attendance)
+ *   - /popup/student_profile.aspx (enrollment status)
  *
  * Usage:
  *   const counsel = require('./tms-counsel-core.cjs');
@@ -20,6 +17,10 @@
 const tmsRoster = require('./tms-roster-core.cjs');
 
 const PROFILES_PATH = '/popup/profiles_new.aspx';
+const CONSULT_IFRAME_PATH = '/iframe/student_consulting_list_new.aspx';
+const ABSENCE_IFRAME_PATH = '/iFrame/student_absense_list.aspx';
+const PROFILE_POPUP_PATH = '/popup/student_profile.aspx';
+const CLASS_POPUP_PATH = tmsRoster.CLASS_POPUP_PATH;
 const MAX_NOTES_PER_STUDENT = 20;
 
 // ─── keyword sets ────────────────────────────────────────────────────────────
@@ -33,7 +34,6 @@ const BREAK_KEYWORDS_EN = ['break', 'time off', 'hiatus', 'vacation leave'];
 const ATTENDANCE_KEYWORDS_EN = ['absent', 'late', 'early leave', 'missed'];
 const STARTEND_KEYWORDS_EN = ['starting', 'last class', 'final class'];
 
-// Rows with these kind labels are always dropped (they're internal handover/memo notes)
 const DROP_KINDS = new Set(['인수인계', '메모']);
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -50,14 +50,44 @@ function stripTags(html) {
         .trim();
 }
 
-function extractCells(rowHtml) {
+function extractCellHtmls(rowHtml) {
     const cells = [];
     const re = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
     let m;
     while ((m = re.exec(rowHtml)) !== null) {
-        cells.push(stripTags(m[1]));
+        cells.push(m[1]);
     }
     return cells;
+}
+
+function extractCells(rowHtml) {
+    return extractCellHtmls(rowHtml).map((html) => stripTags(html));
+}
+
+function decodeHtmlEntities(s) {
+    return String(s || '')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&amp;/gi, '&')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'");
+}
+
+function cellTextFromHtml(cellHtml) {
+    const titleM = /title=["']([^"']*)["']/i.exec(String(cellHtml || ''));
+    if (titleM && titleM[1].length > 12) {
+        return stripTags(decodeHtmlEntities(titleM[1]));
+    }
+    return stripTags(cellHtml);
+}
+
+function splitCounselorCell(text) {
+    const s = String(text || '').trim();
+    const m = s.match(/^(.+?)\((.+)\)\s*$/);
+    if (m) {
+        return { teacher: m[1].trim(), kind: m[2].trim() };
+    }
+    return { teacher: s, kind: '' };
 }
 
 function extractRows(tableHtml) {
@@ -70,64 +100,8 @@ function extractRows(tableHtml) {
     return rows;
 }
 
-function extractTableByIndex(html, index) {
-    const re = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
-    let i = 0;
-    let m;
-    while ((m = re.exec(String(html || ''))) !== null) {
-        if (i === index) return m[1];
-        i++;
-    }
-    return '';
-}
-
-/**
- * Find the table whose preceding heading text contains 상담저장시
- * Falls back to scanning all tables for one whose first header row contains 날짜 + 내용.
- */
-function findCounselTable(html) {
-    const s = stripComments(html);
-    // Look for the section heading then grab the next table
-    const headingRe = /상담저장시[^<]*인수인계[^<]*/i;
-    const headingMatch = headingRe.exec(s);
-    if (headingMatch) {
-        const after = s.slice(headingMatch.index + headingMatch[0].length);
-        const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/i;
-        const tableMatch = tableRe.exec(after);
-        if (tableMatch) return tableMatch[1];
-    }
-    // Fallback: find table with 날짜 내용 headers
-    const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
-    let m;
-    while ((m = tableRe.exec(s)) !== null) {
-        const text = stripTags(m[1]);
-        if (text.includes('날짜') && text.includes('내용')) return m[1];
-    }
-    return '';
-}
-
-/**
- * Find the 출석 attendance table.
- */
-function findAttendanceTable(html) {
-    const s = stripComments(html);
-    // Look for 출석 section heading
-    const sectionRe = /출석\s*<\/div>/i;
-    const sectionMatch = sectionRe.exec(s);
-    if (sectionMatch) {
-        const after = s.slice(sectionMatch.index);
-        const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/i;
-        const tableMatch = tableRe.exec(after);
-        if (tableMatch) return tableMatch[1];
-    }
-    // Fallback: table with 출결 header
-    const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
-    let m;
-    while ((m = tableRe.exec(s)) !== null) {
-        const text = stripTags(m[1]);
-        if (text.includes('출결') && text.includes('날짜')) return m[1];
-    }
-    return '';
+function stripComments(html) {
+    return String(html || '').replace(/<!--[\s\S]*?-->/g, '');
 }
 
 function isDateLike(s) {
@@ -143,9 +117,6 @@ function normalizeDate(s) {
     return `${yy}-${mm}-${dd}`;
 }
 
-/**
- * Scan text for flag keywords. Returns array of flag strings.
- */
 function detectFlags(text) {
     const t = String(text || '').toLowerCase();
     const tKo = String(text || '');
@@ -178,28 +149,125 @@ function detectFlags(text) {
     return Array.from(flags);
 }
 
-// ─── parsers ─────────────────────────────────────────────────────────────────
+function resolveAbsoluteUrl(cfg, href) {
+    const raw = String(href || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith('//')) return `${cfg.baseUrl.replace(/^http:/i, 'https:').split('://')[0]}://${raw.slice(2)}`;
+    if (raw.startsWith('/')) return `${cfg.baseUrl}${raw}`;
+    return `${cfg.baseUrl}/popup/${raw.replace(/^\.\//, '')}`;
+}
 
-/** Strip HTML comments so they don't pollute parsers */
-function stripComments(html) {
-    return String(html || '').replace(/<!--[\s\S]*?-->/g, '');
+function buildProfileShellUrl(cfg, mpidx, staffId, classId) {
+    return `${cfg.baseUrl}${PROFILES_PATH}?MPIdx=${encodeURIComponent(mpidx)}&Createby=${encodeURIComponent(staffId)}&ClassIdx=${encodeURIComponent(classId)}`;
+}
+
+function buildIframeUrls(cfg, mpidx, staffId, classId) {
+    const qs = (path, params) => {
+        const u = new URL(`${cfg.baseUrl}${path}`);
+        Object.keys(params).forEach((k) => {
+            const v = params[k];
+            if (v != null && String(v).trim() !== '') {
+                u.searchParams.set(k, String(v));
+            }
+        });
+        return u.href;
+    };
+    return {
+        shell: buildProfileShellUrl(cfg, mpidx, staffId, classId),
+        counsel: qs(CONSULT_IFRAME_PATH, { idx: mpidx, createby: staffId, ClassIdx: classId }),
+        absence: qs(ABSENCE_IFRAME_PATH, { idx: mpidx }),
+        profile: qs(PROFILE_POPUP_PATH, { mpidx, createby: staffId }),
+        classPopup: classId
+            ? `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(classId)}`
+            : `${cfg.baseUrl}${CLASS_POPUP_PATH}`
+    };
+}
+
+function extractIframeSrcFromShell(shellHtml, pattern) {
+    const re = new RegExp(`<iframe[^>]+src=["']([^"']*${pattern}[^"']*)["']`, 'i');
+    const m = re.exec(String(shellHtml || ''));
+    return m ? m[1] : '';
+}
+
+async function fetchHtmlPage(jar, url, referer) {
+    const headers = {};
+    if (referer) {
+        headers.Referer = referer;
+    }
+    const page = await tmsRoster.fetchPage(jar, url, { headers });
+    if (tmsRoster.stillOnLoginPage && tmsRoster.stillOnLoginPage(page.text, page.finalUrl)) {
+        const err = new Error('TMS session expired');
+        err.code = 'TMS_LOGIN_FAILED';
+        throw err;
+    }
+    return page && page.text ? page.text : '';
+}
+
+async function warmClassPopup(jar, cfg, tmsClassId, referer) {
+    if (!tmsClassId) {
+        return;
+    }
+    const url = `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(tmsClassId)}`;
+    await fetchHtmlPage(jar, url, referer || `${cfg.baseUrl}${CLASS_POPUP_PATH}`);
 }
 
 /**
- * Parse enrollment status block from table_profile.
- * Returns { enrollStatus, quitDate, breakPeriod, breakStart, breakEnd }
+ * Find the counsel table — heading 상담저장시 or table with 날짜 + 내용 headers.
  */
+function findCounselTable(html) {
+    const s = stripComments(html);
+    const headingRe = /상담저장시[\s\S]{0,120}?인수인계/i;
+    const headingMatch = headingRe.exec(s);
+    if (headingMatch) {
+        const after = s.slice(headingMatch.index + headingMatch[0].length);
+        const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/i;
+        const tableMatch = tableRe.exec(after);
+        if (tableMatch) return tableMatch[1];
+    }
+    const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
+    let m;
+    while ((m = tableRe.exec(s)) !== null) {
+        const text = stripTags(m[1]);
+        if (text.includes('날짜') && (text.includes('내용') || text.includes('상담'))) return m[1];
+        if (text.includes('날짜') && text.includes('상담자')) return m[1];
+    }
+    return '';
+}
+
+/**
+ * Find the attendance table — 출석 section or 출결 + 날짜 headers.
+ */
+function findAttendanceTable(html) {
+    const s = stripComments(html);
+    const sectionRe = /출석[\s\S]{0,80}?<\/div>/i;
+    const sectionMatch = sectionRe.exec(s);
+    if (sectionMatch) {
+        const after = s.slice(sectionMatch.index);
+        const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/i;
+        const tableMatch = tableRe.exec(after);
+        if (tableMatch) return tableMatch[1];
+    }
+    const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
+    let m;
+    while ((m = tableRe.exec(s)) !== null) {
+        const text = stripTags(m[1]);
+        if ((text.includes('출결') || text.includes('출석')) && text.includes('날짜')) return m[1];
+        if (text.includes('날짜') && text.includes('상태')) return m[1];
+    }
+    return '';
+}
+
 function parseEnrollmentStatus(html) {
     const s = stripComments(html);
     const result = {
-        enrollStatus: '',   // '재원' | '휴원' | '퇴원' | ''
-        quitDate: '',       // YYYY-MM-DD
-        breakPeriod: '',    // raw string e.g. "2026-07-15 ~ 2026-08-20"
+        enrollStatus: '',
+        quitDate: '',
+        breakPeriod: '',
         breakStart: '',
         breakEnd: ''
     };
 
-    // Look for label/value pairs in the profile table
     const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
     let m;
     while ((m = rowRe.exec(s)) !== null) {
@@ -214,7 +282,6 @@ function parseEnrollmentStatus(html) {
                 result.quitDate = normalizeDate(value) || value;
             } else if (label === '휴원기간' || label === '휴원') {
                 result.breakPeriod = value;
-                // Parse "YYYY-MM-DD ~ YYYY-MM-DD"
                 const range = value.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})\s*[~–-]\s*(\d{4}[-./]\d{1,2}[-./]\d{1,2})/);
                 if (range) {
                     result.breakStart = normalizeDate(range[1]);
@@ -228,22 +295,42 @@ function parseEnrollmentStatus(html) {
     return result;
 }
 
-/**
- * Parse 출석 attendance table.
- * Returns array of { date, status, memo, flags[] }
- * status: '출석' | '결석' | '지각' | '조퇴' | ''
- */
 function parseAttendanceTable(tableHtml) {
     const rows = extractRows(tableHtml);
     const records = [];
+    let colDate = 0;
+    let colStatus = 1;
+    let colMemo = 2;
+    let headerFound = false;
+
     for (const row of rows) {
-        const cells = extractCells(row);
+        const cellHtmls = extractCellHtmls(row);
+        const cells = cellHtmls.map((html) => stripTags(html));
+        if (!headerFound) {
+            const lower = cells.map((c) => c.toLowerCase());
+            const dateIdx = lower.findIndex((c) => c.includes('날짜') || c.includes('일자'));
+            const statusIdx = lower.findIndex((c) => c.includes('상태') || c.includes('출결'));
+            if (dateIdx >= 0 || statusIdx >= 0) {
+                if (dateIdx >= 0) colDate = dateIdx;
+                if (statusIdx >= 0) {
+                    colStatus = statusIdx;
+                    const memoIdx = lower.findIndex((c) => c.includes('메모'));
+                    if (memoIdx >= 0) colMemo = memoIdx;
+                }
+                headerFound = true;
+                continue;
+            }
+            if (!isDateLike(cells[0])) {
+                continue;
+            }
+            headerFound = true;
+        }
         if (cells.length < 2) continue;
-        const maybeDate = cells[0];
-        if (!isDateLike(maybeDate)) continue; // skip header rows
+        const maybeDate = cells[colDate] || cells[0] || '';
+        if (!isDateLike(maybeDate)) continue;
         const date = normalizeDate(maybeDate);
-        const status = String(cells[1] || '').trim();
-        const memo = String(cells[2] || '').trim();
+        const status = String(cells[colStatus] || cells[1] || '').trim();
+        const memo = cellTextFromHtml(cellHtmls[colMemo] || cellHtmls[2] || '');
         const flags = [];
         if (['결석', '지각', '조퇴', '미참석'].includes(status)) flags.push('attendance');
         records.push({ date, status, memo, flags });
@@ -251,35 +338,43 @@ function parseAttendanceTable(tableHtml) {
     return records;
 }
 
-/**
- * Parse the counsel table (상담저장시… section).
- * Returns array of { date, direction, kind, teacher, text, flags[], isDropped }
- * direction: 'outgoing' | 'incoming' | ''
- */
 function parseCounselTable(tableHtml) {
     const rows = extractRows(tableHtml);
     const notes = [];
-    // Detect column order from first header row
-    let colDate = 0, colKind = 1, colTeacher = 2, colText = 3;
+    let colDate = 0;
+    let colKind = 1;
+    let colTeacher = 2;
+    let colText = 3;
+    let format = 'legacy';
     let headerFound = false;
+
     for (const row of rows) {
-        const cells = extractCells(row);
+        const cellHtmls = extractCellHtmls(row);
+        const cells = cellHtmls.map((html) => stripTags(html));
         if (!headerFound) {
-            // Detect header by looking for 날짜 cell
-            const lower = cells.map(c => c.toLowerCase());
-            const dateIdx = lower.findIndex(c => c.includes('날짜') || c.includes('일자'));
-            if (dateIdx >= 0) {
-                colDate = dateIdx;
-                const kindIdx = lower.findIndex(c => c.includes('구분') || c.includes('종류'));
-                if (kindIdx >= 0) colKind = kindIdx;
-                const teacherIdx = lower.findIndex(c => c.includes('교사') || c.includes('담당') || c.includes('작성자'));
-                if (teacherIdx >= 0) colTeacher = teacherIdx;
-                const textIdx = lower.findIndex(c => c.includes('내용') || c.includes('상담'));
-                if (textIdx >= 0) colText = textIdx;
+            const lower = cells.map((c) => c.toLowerCase());
+            const dateIdx = lower.findIndex((c) => c.includes('날짜') || c.includes('일자'));
+            const counselorIdx = lower.findIndex((c) => c.includes('상담자'));
+            if (dateIdx >= 0 || counselorIdx >= 0) {
+                colDate = dateIdx >= 0 ? dateIdx : 0;
+                if (counselorIdx >= 0) {
+                    format = 'counselor';
+                    colTeacher = counselorIdx;
+                    const textIdx = lower.findIndex((c) => c.includes('내용'));
+                    colText = textIdx >= 0 ? textIdx : counselorIdx + 1;
+                } else {
+                    const kindIdx = lower.findIndex((c) => c.includes('구분') || c.includes('종류'));
+                    if (kindIdx >= 0) colKind = kindIdx;
+                    const teacherIdx = lower.findIndex(
+                        (c) => c.includes('상담자') || c.includes('교사') || c.includes('담당') || c.includes('작성자')
+                    );
+                    if (teacherIdx >= 0) colTeacher = teacherIdx;
+                    const textIdx = lower.findIndex((c) => c.includes('내용'));
+                    if (textIdx >= 0) colText = textIdx;
+                }
                 headerFound = true;
                 continue;
             }
-            // If first cell looks like a date, treat this as a data row (no header row present)
             if (isDateLike(cells[0])) {
                 headerFound = true;
             } else {
@@ -287,17 +382,30 @@ function parseCounselTable(tableHtml) {
             }
         }
         if (cells.length < 2) continue;
-        const maybeDate = cells[colDate] || '';
+        const maybeDate = cells[colDate] || cells[0] || '';
         if (!isDateLike(maybeDate)) continue;
         const date = normalizeDate(maybeDate);
-        const kind = String(cells[colKind] || '').trim();
-        const teacher = String(cells[colTeacher] || '').trim();
-        const text = String(cells[colText] || '').trim();
+
+        let kind = '';
+        let teacher = '';
+        let text = '';
+        if (format === 'counselor') {
+            const counselor = splitCounselorCell(cells[colTeacher] || cells[1] || '');
+            kind = counselor.kind;
+            teacher = counselor.teacher;
+            text = cellTextFromHtml(cellHtmls[colText] || cellHtmls[2] || '');
+        } else {
+            kind = String(cells[colKind] || '').trim();
+            teacher = String(cells[colTeacher] || '').trim();
+            text = cellTextFromHtml(cellHtmls[colText] || cellHtmls[3] || '');
+        }
 
         const isDropped = DROP_KINDS.has(kind);
-        const direction = kind.includes('발신') ? 'outgoing'
-            : kind.includes('수신') ? 'incoming'
-            : '';
+        const direction = kind.includes('발신') || kind.includes('out')
+            ? 'outgoing'
+            : kind.includes('수신') || kind.includes('in')
+              ? 'incoming'
+              : '';
         const flags = isDropped ? [] : detectFlags(text);
 
         notes.push({ date, direction, kind, teacher, text, flags, isDropped });
@@ -305,124 +413,25 @@ function parseCounselTable(tableHtml) {
     return notes;
 }
 
-// ─── main public API ──────────────────────────────────────────────────────────
-
-/**
- * Fetch and parse counsel + attendance profile for one student.
- *
- * @param {object} cfg   - tmsRoster config (has baseUrl, username, password)
- * @param {object} jar   - existing cookie jar from tmsRoster.login()
- * @param {string} staffId - Createby (logged-in TMS staff id)
- * @param {object} student - { id, name, tmsMpidx, tmsClassId? }
- * @param {string} [tmsClassId] - fallback class id
- * @returns {Promise<object>}
- */
-async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId) {
-    const mpidx = String(student.tmsMpidx || student.mpidx || '').trim();
-    const classId = String(student.tmsClassId || tmsClassId || '').trim();
-    if (!mpidx) {
-        return {
-            studentId: student.id || mpidx,
-            name: student.name || '',
-            mpidx,
-            error: 'no_mpidx',
-            enrollStatus: '',
-            quitDate: '',
-            breakPeriod: '',
-            breakStart: '',
-            breakEnd: '',
-            notes: [],
-            attendanceRecords: [],
-            watchFlags: []
-        };
-    }
-
-    const url = `${cfg.baseUrl}${PROFILES_PATH}?MPIdx=${encodeURIComponent(mpidx)}&Createby=${encodeURIComponent(staffId)}&ClassIdx=${encodeURIComponent(classId)}`;
-    let html = '';
-    try {
-        const page = await tmsRoster.fetchPage(jar, url);
-        html = page && page.text ? page.text : '';
-        if (tmsRoster.stillOnLoginPage && tmsRoster.stillOnLoginPage(html, page && page.finalUrl)) {
-            const err = new Error('TMS session expired');
-            err.code = 'TMS_LOGIN_FAILED';
-            throw err;
-        }
-    } catch (err) {
-        if (err && err.code === 'TMS_LOGIN_FAILED') {
-            throw err;
-        }
-        return {
-            studentId: student.id || mpidx,
-            name: student.name || '',
-            mpidx,
-            error: err && err.name === 'AbortError' ? 'timeout' : (err && err.message) || 'fetch_failed',
-            enrollStatus: '',
-            quitDate: '',
-            breakPeriod: '',
-            breakStart: '',
-            breakEnd: '',
-            notes: [],
-            attendanceRecords: [],
-            watchFlags: []
-        };
-    }
-
-    if (!html || html.length < 200) {
-        return {
-            studentId: student.id || mpidx,
-            name: student.name || '',
-            mpidx,
-            error: 'empty_response',
-            enrollStatus: '',
-            quitDate: '',
-            breakPeriod: '',
-            breakStart: '',
-            breakEnd: '',
-            notes: [],
-            attendanceRecords: [],
-            watchFlags: []
-        };
-    }
-
-    const parsed = parseProfileHtml(html, { studentId: student.id || mpidx, name: student.name || '', mpidx });
-    if (
-        !parsed.enrollStatus &&
-        !(parsed.notes && parsed.notes.length) &&
-        !(parsed.attendanceRecords && parsed.attendanceRecords.length) &&
-        !/table_profile|profiles_new|학생\s*프로필/i.test(html)
-    ) {
-        parsed.error = parsed.error || 'parse_empty';
-    }
-    return parsed;
-}
-
-/**
- * Parse a profiles_new.aspx HTML string.
- * Exported so tests can call it directly with fixture HTML.
- */
-function parseProfileHtml(html, meta) {
-    const s = String(html || '');
+function parseProfileParts(parts, meta) {
     const m = Object.assign({ studentId: '', name: '', mpidx: '' }, meta || {});
+    const counselHtml = parts.counselHtml || parts.shellHtml || '';
+    const attendanceHtml = parts.attendanceHtml || parts.shellHtml || '';
+    const profileHtml = parts.profileHtml || parts.shellHtml || '';
 
-    // 1. Enrollment status
-    const enrollment = parseEnrollmentStatus(s);
-
-    // 2. Attendance table (출석 section)
-    const attendanceTableHtml = findAttendanceTable(s);
+    const enrollment = parseEnrollmentStatus(profileHtml);
+    const attendanceTableHtml = findAttendanceTable(attendanceHtml);
     const attendanceRecords = parseAttendanceTable(attendanceTableHtml);
-
-    // 3. Counsel table
-    const counselTableHtml = findCounselTable(s);
+    const counselTableHtml = findCounselTable(counselHtml);
     const allNotes = parseCounselTable(counselTableHtml);
 
-    // Keep: not dropped + cap at MAX_NOTES_PER_STUDENT (always keep flagged)
-    const flagged = allNotes.filter(n => !n.isDropped && n.flags.length > 0);
-    const unflagged = allNotes.filter(n => !n.isDropped && n.flags.length === 0);
+    const flagged = allNotes.filter((n) => !n.isDropped && n.flags.length > 0);
+    const unflagged = allNotes.filter((n) => !n.isDropped && n.flags.length === 0);
     const keepCount = Math.max(0, MAX_NOTES_PER_STUDENT - flagged.length);
-    const notes = [...flagged, ...unflagged.slice(0, keepCount)]
-        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const notes = [...flagged, ...unflagged.slice(0, keepCount)].sort((a, b) =>
+        (b.date || '').localeCompare(a.date || '')
+    );
 
-    // 4. Derive top-level watch flags
     const watchFlags = deriveWatchFlags(enrollment, attendanceRecords, notes);
 
     return {
@@ -433,22 +442,22 @@ function parseProfileHtml(html, meta) {
         ...enrollment,
         notes,
         attendanceRecords,
-        watchFlags,
-        _rawHtml: html  // callers may strip this before persisting
+        watchFlags
     };
 }
 
 /**
- * Build the final watchFlags array for a student.
- * Each flag: { type, severity, label, date, source }
- *   type: 'quit' | 'break' | 'attendance' | 'ending_soon' | 'starting_soon'
- *   severity: 'danger' | 'warning' | 'info'
- *   source: 'tms_profile' | 'tms_note' | 'cm_roster' | 'cm_attendance'
+ * Parse a single HTML blob (legacy inline page or merged fixture).
  */
+function parseProfileHtml(html, meta) {
+    const parsed = parseProfileParts({ shellHtml: html }, meta);
+    parsed._rawHtml = html;
+    return parsed;
+}
+
 function deriveWatchFlags(enrollment, attendanceRecords, notes) {
     const flags = [];
 
-    // From TMS profile header
     if (enrollment.enrollStatus === '퇴원') {
         flags.push({
             type: 'quit',
@@ -468,19 +477,17 @@ function deriveWatchFlags(enrollment, attendanceRecords, notes) {
         });
     }
 
-    // From TMS counsel notes keywords
     for (const note of notes) {
-        if (note.flags.includes('quit') && !flags.some(f => f.type === 'quit')) {
+        if (note.flags.includes('quit') && !flags.some((f) => f.type === 'quit')) {
             flags.push({ type: 'quit', severity: 'danger', label: '퇴원 언급', date: note.date, source: 'tms_note' });
         }
-        if (note.flags.includes('break') && !flags.some(f => f.type === 'break')) {
+        if (note.flags.includes('break') && !flags.some((f) => f.type === 'break')) {
             flags.push({ type: 'break', severity: 'warning', label: '휴원 언급', date: note.date, source: 'tms_note' });
         }
     }
 
-    // Recent attendance problems (last 5 records, flag consecutive absences or recent absences)
     const recent = (attendanceRecords || []).slice(0, 5);
-    const recentAbsent = recent.filter(r => r.status === '결석' || r.status === '조퇴');
+    const recentAbsent = recent.filter((r) => r.status === '결석' || r.status === '조퇴');
     if (recentAbsent.length >= 2) {
         flags.push({
             type: 'attendance',
@@ -502,14 +509,8 @@ function deriveWatchFlags(enrollment, attendanceRecords, notes) {
     return flags;
 }
 
-/**
- * Resolve Createby (logged-in TMS staff id) from the post-login home page HTML.
- * Falls back to '' if not found — TMS still loads profiles without it.
- */
 function resolveStaffId(homeHtml) {
     const s = String(homeHtml || '');
-    // Common patterns in TMS ASP.NET pages:
-    //   HHmpidx, Createby=XXXX, staffidx=XXXX
     const patterns = [
         /[?&]Createby=(\d+)/i,
         /[?&]staffidx=(\d+)/i,
@@ -520,7 +521,6 @@ function resolveStaffId(homeHtml) {
         const m = re.exec(s);
         if (m) return m[1];
     }
-    // Look in all hrefs
     const hrefRe = /href=["'][^"']*[?&](?:Createby|staffidx)=(\d+)/gi;
     let m;
     while ((m = hrefRe.exec(s)) !== null) {
@@ -529,30 +529,105 @@ function resolveStaffId(homeHtml) {
     return '';
 }
 
-/**
- * Scrape counsel profiles for multiple students in one class.
- *
- * @param {object} cfg      - { baseUrl, username, password }
- * @param {object[]} students - [{ id, name, tmsMpidx, tmsClassId? }]
- * @param {object} [options] - { tmsClassId }
- */
+function emptyProfile(student, error) {
+    return {
+        studentId: student.id || student.tmsMpidx || '',
+        name: student.name || '',
+        mpidx: String(student.tmsMpidx || student.mpidx || '').trim(),
+        error: error || 'fetch_failed',
+        enrollStatus: '',
+        quitDate: '',
+        breakPeriod: '',
+        breakStart: '',
+        breakEnd: '',
+        notes: [],
+        attendanceRecords: [],
+        watchFlags: []
+    };
+}
+
+async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, options) {
+    const opts = options || {};
+    const mpidx = String(student.tmsMpidx || student.mpidx || '').trim();
+    const classId = String(student.tmsClassId || tmsClassId || '').trim();
+    if (!mpidx) {
+        return emptyProfile(student, 'no_mpidx');
+    }
+
+    const urls = buildIframeUrls(cfg, mpidx, staffId, classId);
+    const warmedClasses = opts.warmedClasses;
+
+    try {
+        if (classId && warmedClasses && !warmedClasses.has(classId)) {
+            await warmClassPopup(jar, cfg, classId, `${cfg.baseUrl}${CLASS_POPUP_PATH}`);
+            warmedClasses.add(classId);
+        } else if (classId && !warmedClasses) {
+            await warmClassPopup(jar, cfg, classId, `${cfg.baseUrl}${CLASS_POPUP_PATH}`);
+        }
+
+        const shellHtml = await fetchHtmlPage(jar, urls.shell, `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(classId)}`);
+
+        let counselUrl = urls.counsel;
+        let absenceUrl = urls.absence;
+        const shellCounselSrc = extractIframeSrcFromShell(shellHtml, 'student_consulting');
+        const shellAbsenceSrc = extractIframeSrcFromShell(shellHtml, 'student_absense');
+        if (shellCounselSrc) {
+            counselUrl = resolveAbsoluteUrl(cfg, shellCounselSrc);
+        }
+        if (shellAbsenceSrc) {
+            absenceUrl = resolveAbsoluteUrl(cfg, shellAbsenceSrc);
+        }
+
+        const counselHtml = await fetchHtmlPage(jar, counselUrl, urls.shell);
+        const absenceHtml = await fetchHtmlPage(jar, absenceUrl, urls.shell);
+        const profileHtml = await fetchHtmlPage(jar, urls.profile, urls.shell);
+
+        const combinedLen = (counselHtml || '').length + (absenceHtml || '').length + (profileHtml || '').length;
+        if (combinedLen < 200) {
+            return Object.assign(emptyProfile(student, 'empty_response'), { missingClassIdx: !classId });
+        }
+
+        const parsed = parseProfileParts(
+            { counselHtml, attendanceHtml: absenceHtml, profileHtml, shellHtml },
+            { studentId: student.id || mpidx, name: student.name || '', mpidx }
+        );
+
+        parsed.missingClassIdx = !classId;
+        parsed._rawHtml = shellHtml;
+        parsed._iframeHtml = { counsel: counselHtml, absence: absenceHtml, profile: profileHtml };
+
+        const hasData =
+            parsed.enrollStatus ||
+            (parsed.notes && parsed.notes.length) ||
+            (parsed.attendanceRecords && parsed.attendanceRecords.length);
+
+        if (!hasData) {
+            parsed.error = 'parse_empty';
+        }
+
+        return parsed;
+    } catch (err) {
+        if (err && err.code === 'TMS_LOGIN_FAILED') {
+            throw err;
+        }
+        return Object.assign(emptyProfile(student, err && err.name === 'AbortError' ? 'timeout' : (err && err.message) || 'fetch_failed'), {
+            missingClassIdx: !classId
+        });
+    }
+}
+
 async function scrapeCounselProfiles(cfg, students, options) {
     const opts = options || {};
     const tmsClassId = String(opts.tmsClassId || '').trim();
     const batch = [{ classId: '', tmsClassId, students: students || [] }];
     const bulk = await scrapeCounselProfilesBatch(cfg, batch);
     return {
-        students: bulk.classes[''] ? bulk.classes[''].students : [],
-        staffId: bulk.staffId
+        students: bulk.classes[''] ? bulk.classes[''].students : bulk.classes.__default__ ? bulk.classes.__default__.students : [],
+        staffId: bulk.staffId,
+        stats: bulk.stats
     };
 }
 
-/**
- * Scrape counsel profiles for many ClassManager classes in one TMS login.
- *
- * @param {object} cfg
- * @param {object[]} classBatches - [{ classId, tmsClassId, students }]
- */
 async function scrapeCounselProfilesBatch(cfg, classBatches) {
     if (!tmsRoster.credentialsConfigured(cfg)) {
         const err = new Error('TMS credentials not configured');
@@ -565,10 +640,15 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
     const staffId = resolveStaffId(homeHtml);
 
     const classes = {};
+    const warmedClasses = new Set();
     let requestCount = 0;
     let scraped = 0;
     let noMpidx = 0;
     let errors = 0;
+    let parse_empty = 0;
+    let empty_response = 0;
+    let totalNotes = 0;
+    let missingClassIdx = 0;
 
     for (const batch of classBatches || []) {
         const classId = String(batch.classId || '').trim();
@@ -576,20 +656,31 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
         const bucketKey = classId || '__default__';
         const profiles = [];
 
+        if (!tmsClassId && (batch.students || []).length) {
+            missingClassIdx += (batch.students || []).length;
+        }
+
         for (const student of batch.students || []) {
             if (requestCount > 0) {
                 await new Promise((r) => setTimeout(r, 300));
             }
             requestCount += 1;
-            const profile = await fetchStudentProfile(cfg, jar, staffId, student, tmsClassId);
-            const { _rawHtml: _, ...cleaned } = profile;
+            const profile = await fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, { warmedClasses });
+            const { _rawHtml: _r, _iframeHtml: _i, ...cleaned } = profile;
             if (cleaned.error === 'no_mpidx') {
                 noMpidx += 1;
+            } else if (cleaned.error === 'parse_empty') {
+                parse_empty += 1;
+                errors += 1;
+            } else if (cleaned.error === 'empty_response') {
+                empty_response += 1;
+                errors += 1;
             } else if (cleaned.error) {
                 errors += 1;
             } else {
                 scraped += 1;
             }
+            totalNotes += (cleaned.notes && cleaned.notes.length) || 0;
             profiles.push(cleaned);
         }
 
@@ -604,14 +695,15 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
             students: requestCount,
             scraped,
             noMpidx,
-            errors
+            errors,
+            parse_empty,
+            empty_response,
+            totalNotes,
+            missingClassIdx
         }
     };
 }
 
-/**
- * Scrape one student profile. Exported for probe script (keeps _rawHtml).
- */
 async function scrapeCounselProfile(cfg, student, options) {
     const opts = options || {};
     const tmsClassId = String(opts.tmsClassId || student.tmsClassId || '').trim();
@@ -633,13 +725,16 @@ module.exports = {
     scrapeCounselProfilesBatch,
     scrapeCounselProfile,
     parseProfileHtml,
+    parseProfileParts,
     parseEnrollmentStatus,
     parseAttendanceTable,
     parseCounselTable,
+    findCounselTable,
+    findAttendanceTable,
+    buildIframeUrls,
     detectFlags,
     resolveStaffId,
     deriveWatchFlags,
-    // Keyword lists exported for tests
     QUIT_KEYWORDS_KO,
     BREAK_KEYWORDS_KO,
     ATTENDANCE_KEYWORDS_KO,

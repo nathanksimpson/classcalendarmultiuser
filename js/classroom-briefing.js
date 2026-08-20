@@ -15,8 +15,10 @@
     const BRIDGE_COUNSEL_PATH = '/api/tms/bridge/counsel';
     const SERVER_COUNSEL_PATH = '/api/tms/counsel/preview';
     const TRANSLATE_PATH = '/api/translate';
-    const TRANSLATE_BATCH_SIZE = 5;
-    const TRANSLATE_BATCH_GAP_MS = 3500;
+    const TRANSLATE_GAP_MS = 2000;
+    const TRANSLATE_RATE_LIMIT_WAIT_MS = 60000;
+    const COUNSEL_SYNC_TIMEOUT_MS = 15 * 60 * 1000;
+    const SYNC_SECONDS_PER_STUDENT = 4;
 
     const _cache = new Map();
 
@@ -24,6 +26,9 @@
     let classId = '';
     let eventsBound = false;
     let pendingSyncPlan = null;
+    let syncProgressTimer = null;
+    let syncProgressStartedAt = 0;
+    let modalSyncActive = false;
 
     function t(key, fallback) {
         if (hooks && hooks.t) {
@@ -79,6 +84,10 @@
     }
 
     function showStatus(msg, isError) {
+        if (modalSyncActive) {
+            setModalProgressPhase(msg, isError);
+            return;
+        }
         const el = statusEl();
         if (!el) {
             return;
@@ -86,6 +95,135 @@
         el.textContent = msg || '';
         el.hidden = !msg;
         el.className = 'briefing-status-text' + (isError ? ' briefing-status-text--error' : '');
+    }
+
+    function formatElapsed(seconds) {
+        const s = Math.max(0, Math.floor(seconds));
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        if (mins > 0) {
+            return `${mins}:${String(secs).padStart(2, '0')}`;
+        }
+        return `${secs}s`;
+    }
+
+    function estimateSyncMinutes(studentCount) {
+        const count = Math.max(1, studentCount || 1);
+        return Math.max(2, Math.ceil((count * SYNC_SECONDS_PER_STUDENT) / 60));
+    }
+
+    function credFormEl() {
+        return document.getElementById('briefingTmsCredForm');
+    }
+
+    function syncProgressEl() {
+        return document.getElementById('briefingTmsSyncProgress');
+    }
+
+    function modalToolbarEl() {
+        const modal = document.getElementById('briefingTmsSyncModal');
+        return modal ? modal.querySelector('.toolbar-actions') : null;
+    }
+
+    function stopSyncProgressTimer() {
+        if (syncProgressTimer) {
+            clearInterval(syncProgressTimer);
+            syncProgressTimer = null;
+        }
+    }
+
+    function updateSyncProgressElapsed() {
+        const elapsedEl = document.getElementById('briefingTmsSyncElapsed');
+        if (!elapsedEl || !syncProgressStartedAt) {
+            return;
+        }
+        const seconds = (Date.now() - syncProgressStartedAt) / 1000;
+        elapsedEl.textContent = t('briefingSyncElapsed', 'Elapsed: {elapsed}').replace(
+            '{elapsed}',
+            formatElapsed(seconds)
+        );
+    }
+
+    function setModalProgressPhase(msg, isError) {
+        const phaseEl = document.getElementById('briefingTmsSyncPhase');
+        if (phaseEl) {
+            phaseEl.textContent = msg || '';
+            phaseEl.className = 'briefing-sync-phase' + (isError ? ' briefing-status-text--error' : '');
+        }
+    }
+
+    function showModalSyncProgress(plan) {
+        modalSyncActive = true;
+        const studentTotal = countPlanStudents(plan);
+        const progress = syncProgressEl();
+        const credForm = credFormEl();
+        const toolbar = modalToolbarEl();
+        const resultEl = document.getElementById('briefingTmsSyncResult');
+        const estimateEl = document.getElementById('briefingTmsSyncEstimate');
+        if (credForm) {
+            credForm.hidden = true;
+        }
+        if (toolbar) {
+            toolbar.hidden = true;
+        }
+        if (resultEl) {
+            resultEl.hidden = true;
+            resultEl.textContent = '';
+            resultEl.className = 'section-hint briefing-sync-result';
+        }
+        if (progress) {
+            progress.hidden = false;
+        }
+        if (estimateEl) {
+            estimateEl.textContent = t(
+                'briefingSyncEstimate',
+                'Estimated total: about {minutes} min for {count} students'
+            )
+                .replace('{minutes}', String(estimateSyncMinutes(studentTotal)))
+                .replace('{count}', String(studentTotal));
+        }
+        syncProgressStartedAt = Date.now();
+        stopSyncProgressTimer();
+        updateSyncProgressElapsed();
+        syncProgressTimer = setInterval(updateSyncProgressElapsed, 1000);
+        setModalProgressPhase(
+            t('briefingSyncPhaseLoading', 'Loading TMS profiles for {count} students across {classes} classes…')
+                .replace('{count}', String(studentTotal))
+                .replace('{classes}', String(plan.length))
+        );
+    }
+
+    function showModalSyncResult(msg, isError) {
+        const resultEl = document.getElementById('briefingTmsSyncResult');
+        const phaseEl = document.getElementById('briefingTmsSyncPhase');
+        if (phaseEl) {
+            phaseEl.textContent = t('briefingSyncPhaseDone', 'Sync complete.');
+        }
+        if (resultEl) {
+            resultEl.hidden = !msg;
+            resultEl.textContent = msg || '';
+            resultEl.className =
+                'section-hint briefing-sync-result' + (isError ? ' briefing-sync-result--error' : '');
+        }
+    }
+
+    function hideModalSyncProgress() {
+        modalSyncActive = false;
+        stopSyncProgressTimer();
+        syncProgressStartedAt = 0;
+        const progress = syncProgressEl();
+        const credForm = credFormEl();
+        const toolbar = modalToolbarEl();
+        if (progress) {
+            progress.hidden = true;
+        }
+        if (credForm) {
+            credForm.hidden = false;
+        }
+        if (toolbar) {
+            toolbar.hidden = false;
+        }
+        setModalProgressPhase('');
     }
 
     function getClassData() {
@@ -222,12 +360,37 @@
         }
         return t(
             'briefingSyncSummary',
-            'Loaded {scraped} profiles across {classes} classes ({noMpidx} without TMS link, {errors} errors).'
+            'Loaded {scraped} profiles across {classes} classes ({totalNotes} counsel notes, {noMpidx} without TMS link, {errors} errors).'
         )
             .replace('{scraped}', String(stats.scraped || 0))
             .replace('{classes}', String(stats.classes || 0))
+            .replace('{totalNotes}', String(stats.totalNotes || 0))
             .replace('{noMpidx}', String(stats.noMpidx || 0))
             .replace('{errors}', String(stats.errors || 0));
+    }
+
+    function buildSyncWarnings(stats) {
+        const warnings = [];
+        if (!stats) {
+            return warnings;
+        }
+        if ((stats.scraped || 0) > 0 && (stats.totalNotes || 0) === 0) {
+            warnings.push(
+                t(
+                    'briefingSyncZeroNotes',
+                    'Profiles loaded but no counseling notes were found. Check TMS class links or try again from the work PC bridge.'
+                )
+            );
+        }
+        if ((stats.missingClassIdx || 0) > 0) {
+            warnings.push(
+                t(
+                    'briefingMissingClassIdx',
+                    '{count} students missing TMS class link — counsel may be incomplete.'
+                ).replace('{count}', String(stats.missingClassIdx))
+            );
+        }
+        return warnings;
     }
 
     function resolveClassId(options) {
@@ -408,6 +571,7 @@
     }
 
     function closeTmsLoginModal() {
+        hideModalSyncProgress();
         const modal = document.getElementById('briefingTmsSyncModal');
         const closeModalFn = resolveCloseModal();
         if (closeModalFn && modal) {
@@ -416,7 +580,8 @@
         pendingSyncPlan = null;
     }
 
-    async function fetchCounselProfiles(plan, credentials, bridge) {
+    async function fetchCounselProfiles(plan, credentials, bridge, options) {
+        const opts = options || {};
         const payload = {
             classes: plan,
             username: credentials.username,
@@ -424,16 +589,17 @@
         };
         const useBridge = Boolean(bridge && bridge.available);
         const url = useBridge ? bridge.base + BRIDGE_COUNSEL_PATH : SERVER_COUNSEL_PATH;
-        const res = await fetch(
-            url,
-            tmsBridgeFetchInit({
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                mode: useBridge ? 'cors' : 'same-origin',
-                credentials: useBridge ? 'omit' : 'include',
-                body: JSON.stringify(payload)
-            })
-        );
+        const fetchOpts = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            mode: useBridge ? 'cors' : 'same-origin',
+            credentials: useBridge ? 'omit' : 'include',
+            body: JSON.stringify(payload)
+        };
+        if (opts.signal) {
+            fetchOpts.signal = opts.signal;
+        }
+        const res = await fetch(url, tmsBridgeFetchInit(fetchOpts));
         if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
             const err = new Error(errBody.error || `HTTP ${res.status}`);
@@ -443,61 +609,157 @@
         return res.json();
     }
 
-    async function translateBatch(texts) {
-        if (!texts || !texts.length) {
-            return [];
-        }
+    async function translateOne(text) {
         const res = await fetch(TRANSLATE_PATH, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ texts: texts, from: 'ko', to: 'en' })
+            body: JSON.stringify({
+                text: String(text || ''),
+                sourceLang: 'ko',
+                targetLang: 'en'
+            })
         });
+        if (res.status === 429) {
+            const err = new Error('rate_limited');
+            err.code = 'RATE_LIMITED';
+            throw err;
+        }
+        if (res.status === 503) {
+            const err = new Error('not_configured');
+            err.code = 'TRANSLATE_NOT_CONFIGURED';
+            throw err;
+        }
         if (!res.ok) {
-            return texts.map(() => '');
+            const err = new Error('translate_failed');
+            err.code = 'TRANSLATE_FAILED';
+            err.status = res.status;
+            throw err;
         }
         const data = await res.json().catch(() => null);
-        return (data && data.translations) || texts.map(() => '');
+        return String(data && data.translatedText ? data.translatedText : '').trim();
     }
 
-    async function translateAllNotes(studentProfiles) {
+    function collectTranslateItems(studentProfiles) {
         const items = [];
-        studentProfiles.forEach((profile, pi) => {
+        (studentProfiles || []).forEach((profile, pi) => {
             (profile.notes || []).forEach((note, ni) => {
-                if (note.text && !note.textEn) {
+                if (note && note.text && !note.textEn) {
                     items.push({ profileIdx: pi, noteIdx: ni, text: note.text });
                 }
             });
             (profile.attendanceRecords || []).forEach((rec, ri) => {
-                if (rec.memo && !rec.memoEn) {
+                if (rec && rec.memo && !rec.memoEn) {
                     items.push({ profileIdx: pi, noteIdx: -1, recIdx: ri, text: rec.memo });
                 }
             });
         });
-        if (!items.length) {
-            return;
+        return items;
+    }
+
+    function applyTranslationItem(studentProfiles, item, translated) {
+        if (!translated) {
+            return false;
         }
-        for (let i = 0; i < items.length; i += TRANSLATE_BATCH_SIZE) {
-            const batch = items.slice(i, i + TRANSLATE_BATCH_SIZE);
-            const texts = batch.map((item) => item.text);
-            const translations = await translateBatch(texts).catch(() => texts.map(() => ''));
-            batch.forEach((item, j) => {
-                const translated = translations[j] || '';
-                if (item.noteIdx === -1) {
-                    const rec = studentProfiles[item.profileIdx].attendanceRecords[item.recIdx];
-                    if (rec) {
-                        rec.memoEn = translated;
+        if (item.noteIdx === -1) {
+            const rec =
+                studentProfiles[item.profileIdx] &&
+                studentProfiles[item.profileIdx].attendanceRecords &&
+                studentProfiles[item.profileIdx].attendanceRecords[item.recIdx];
+            if (rec) {
+                rec.memoEn = translated;
+                return true;
+            }
+            return false;
+        }
+        const note =
+            studentProfiles[item.profileIdx] &&
+            studentProfiles[item.profileIdx].notes &&
+            studentProfiles[item.profileIdx].notes[item.noteIdx];
+        if (note) {
+            note.textEn = translated;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Translate counseling notes (+ attendance memos) via /api/translate.
+     * API is one text per request; production rate-limits ~30 / 5 min.
+     * Prefer current-class items first so the open Briefing view fills soonest.
+     */
+    async function translateAllNotes(studentProfiles, options) {
+        const opts = options || {};
+        const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+        const items = collectTranslateItems(studentProfiles);
+        const stats = { total: items.length, translated: 0, failed: 0, stopped: false, code: '' };
+        if (!items.length) {
+            return stats;
+        }
+
+        for (let i = 0; i < items.length; i += 1) {
+            const item = items[i];
+            let translated = '';
+            try {
+                translated = await translateOne(item.text);
+            } catch (err) {
+                if (err && err.code === 'RATE_LIMITED') {
+                    await new Promise((r) => setTimeout(r, TRANSLATE_RATE_LIMIT_WAIT_MS));
+                    try {
+                        translated = await translateOne(item.text);
+                    } catch (retryErr) {
+                        stats.stopped = true;
+                        stats.code = (retryErr && retryErr.code) || 'RATE_LIMITED';
+                        break;
                     }
                 } else {
-                    const note = studentProfiles[item.profileIdx].notes[item.noteIdx];
-                    if (note) {
-                        note.textEn = translated;
+                    stats.failed += 1;
+                    stats.code = (err && err.code) || 'TRANSLATE_FAILED';
+                    if (err && (err.code === 'TRANSLATE_NOT_CONFIGURED' || err.status === 401)) {
+                        stats.stopped = true;
+                        break;
                     }
+                    continue;
                 }
-            });
-            if (i + TRANSLATE_BATCH_SIZE < items.length) {
-                await new Promise((r) => setTimeout(r, TRANSLATE_BATCH_GAP_MS));
             }
+            if (applyTranslationItem(studentProfiles, item, translated)) {
+                stats.translated += 1;
+            } else {
+                stats.failed += 1;
+            }
+            if (onProgress) {
+                onProgress(stats, i + 1);
+            }
+            if (i + 1 < items.length) {
+                await new Promise((r) => setTimeout(r, TRANSLATE_GAP_MS));
+            }
+        }
+        return stats;
+    }
+
+    function orderProfilesForTranslation(allProfiles) {
+        const currentKey = classId ? `briefing-${classId}` : '';
+        const current = currentKey ? _cache.get(currentKey) || [] : [];
+        const currentIds = new Set(current.map((p) => String(p && p.studentId)));
+        const first = [];
+        const rest = [];
+        (allProfiles || []).forEach((profile) => {
+            if (profile && currentIds.has(String(profile.studentId))) {
+                first.push(profile);
+            } else {
+                rest.push(profile);
+            }
+        });
+        return first.concat(rest);
+    }
+
+    function refreshCurrentClassFromCache() {
+        if (!classId) {
+            return;
+        }
+        const cached = _cache.get(`briefing-${classId}`);
+        if (cached) {
+            renderAll(cached);
         }
     }
 
@@ -577,7 +839,10 @@
         </table>`;
     }
 
-    function renderCounselTable(notes) {
+    function renderCounselTable(notes, profile) {
+        if (profile && profile.error === 'parse_empty') {
+            return `<p class="section-hint briefing-status-text--error">${esc(t('briefingParseEmpty', 'TMS returned a profile shell but no counsel rows were parsed.'))}</p>`;
+        }
         if (!notes || !notes.length) {
             return `<p class="section-hint">${esc(t('briefingCounselEmpty', 'No counseling notes.'))}</p>`;
         }
@@ -627,6 +892,9 @@
         if (profile.error === 'no_mpidx') {
             return `<span class="briefing-enroll-badge briefing-enroll-badge--none">${esc(t('briefingNoTmsLink', 'No TMS link'))}</span>`;
         }
+        if (profile.error === 'parse_empty') {
+            return `<span class="briefing-enroll-badge briefing-enroll-badge--none">${esc(t('briefingParseEmpty', 'TMS returned a profile shell but no counsel rows were parsed.'))}</span>`;
+        }
         if (profile.error) {
             return `<span class="briefing-enroll-badge briefing-enroll-badge--none">${esc(t('briefingScrapeFailed', 'TMS profile unavailable'))}</span>`;
         }
@@ -652,13 +920,13 @@
                 <span class="briefing-card-chips">${watchChips}</span>
             </div>
             <div class="briefing-card-body">
-                <details class="briefing-section-detail" open>
+                <details class="briefing-section-detail">
                     <summary class="briefing-section-title">${esc(t('briefingAttendanceTitle', 'Recent attendance'))}</summary>
                     ${renderAttendanceTable(profile.attendanceRecords)}
                 </details>
                 <details class="briefing-section-detail">
                     <summary class="briefing-section-title">${esc(t('briefingCounselTitle', 'Counseling notes'))}</summary>
-                    ${renderCounselTable(profile.notes)}
+                    ${renderCounselTable(profile.notes, profile)}
                 </details>
             </div>
         </div>`;
@@ -795,47 +1063,132 @@
             confirmBtn.disabled = true;
         }
         showModalError('');
-        const studentTotal = countPlanStudents(plan);
-        showStatus(
-            t('briefingLoadingAllMsg', 'Loading TMS profiles for {count} students across {classes} classes…')
-                .replace('{count}', String(studentTotal))
-                .replace('{classes}', String(plan.length))
-        );
+        showModalSyncProgress(plan);
 
         const bridge = await pingBridge();
         if (!bridge.available && !isLocalClassManagerHost()) {
+            hideModalSyncProgress();
             showModalError(
                 t('briefingErrorBridgeRequired', 'TMS bridge required. Run npm start on the work PC.')
             );
-            showStatus('', false);
             if (confirmBtn) {
                 syncModalConfirmEnabled();
             }
             return;
         }
 
+        let summary = '';
+        let warnings = [];
+        const abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        let timeoutId = null;
+        if (abortController) {
+            timeoutId = setTimeout(() => abortController.abort(), COUNSEL_SYNC_TIMEOUT_MS);
+        }
+
         try {
-            const result = await fetchCounselProfiles(plan, creds, bridge);
+            const result = await fetchCounselProfiles(plan, creds, bridge, {
+                signal: abortController ? abortController.signal : undefined
+            });
             applyBatchSyncResult(result);
+            summary = summarizeSyncStats(result && result.stats);
+            warnings = buildSyncWarnings(result && result.stats);
+            showModalSyncResult(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
+            await new Promise((r) => setTimeout(r, 1200));
             closeTmsLoginModal();
             renderIdle();
-            const summary = summarizeSyncStats(result && result.stats);
-            showStatus(summary);
-            const profiles = collectProfilesForTranslation(result);
-            if (profiles.length) {
-                showStatus(t('briefingTranslating', 'Translating…'));
+            showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
+            const profiles = orderProfilesForTranslation(collectProfilesForTranslation(result));
+            const translateItems = collectTranslateItems(profiles);
+            if (translateItems.length) {
+                showStatus(
+                    t('briefingSyncPhaseTranslating', 'Translating counseling notes…') +
+                        ` (0/${translateItems.length})`
+                );
+                let lastPaint = 0;
                 try {
-                    await translateAllNotes(profiles);
-                    patchTranslatedNotes(profiles);
+                    const tStats = await translateAllNotes(profiles, {
+                        onProgress: (stats) => {
+                            showStatus(
+                                t('briefingSyncPhaseTranslating', 'Translating counseling notes…') +
+                                    ` (${stats.translated}/${stats.total})`
+                            );
+                            const now = Date.now();
+                            if (now - lastPaint > 4000) {
+                                lastPaint = now;
+                                refreshCurrentClassFromCache();
+                            }
+                        }
+                    });
+                    refreshCurrentClassFromCache();
+                    if (tStats.stopped && tStats.code === 'TRANSLATE_NOT_CONFIGURED') {
+                        showStatus(
+                            summary +
+                                ' ' +
+                                t(
+                                    'briefingTranslateNotConfigured',
+                                    'Translation is not available on this server.'
+                                ),
+                            true
+                        );
+                    } else if (tStats.stopped && tStats.code === 'RATE_LIMITED') {
+                        showStatus(
+                            summary +
+                                ' ' +
+                                t(
+                                    'briefingTranslateRateLimited',
+                                    'Translated {translated} of {total} notes. Rate limit reached — open Briefing again later to continue.'
+                                )
+                                    .replace('{translated}', String(tStats.translated))
+                                    .replace('{total}', String(tStats.total)),
+                            true
+                        );
+                    } else if (tStats.translated > 0) {
+                        showStatus(
+                            summary +
+                                ' ' +
+                                t(
+                                    'briefingTranslateDone',
+                                    'Translated {translated} counseling notes to English.'
+                                ).replace('{translated}', String(tStats.translated))
+                        );
+                    } else if (tStats.failed > 0) {
+                        showStatus(
+                            summary +
+                                ' ' +
+                                t(
+                                    'briefingTranslateFailed',
+                                    'Could not translate counseling notes. Try again later.'
+                                ),
+                            true
+                        );
+                    } else {
+                        showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
+                    }
                 } catch (_) {
-                    /* best-effort */
+                    refreshCurrentClassFromCache();
+                    showStatus(
+                        summary +
+                            ' ' +
+                            t(
+                                'briefingTranslateFailed',
+                                'Could not translate counseling notes. Try again later.'
+                            ),
+                        true
+                    );
                 }
+            } else {
+                showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
             }
-            showStatus(summary);
         } catch (err) {
+            hideModalSyncProgress();
             const code = err && err.code;
             let msg = err && err.message ? err.message : 'Sync failed';
-            if (code === 'TMS_LOGIN_FAILED') {
+            if (err && err.name === 'AbortError') {
+                msg = t(
+                    'briefingSyncTimeout',
+                    'Sync timed out after 15 minutes. Try again or sync fewer classes.'
+                );
+            } else if (code === 'TMS_LOGIN_FAILED') {
                 msg = t('briefingErrorLoginFailed', 'TMS login failed. Check your username and password.');
             } else if (code === 'TMS_BRIDGE_REQUIRED' || code === 'TMS_CREDS_MISSING') {
                 msg = t(
@@ -846,6 +1199,10 @@
             showModalError(msg);
             showStatus('', false);
         } finally {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+            stopSyncProgressTimer();
             if (confirmBtn) {
                 syncModalConfirmEnabled();
             }

@@ -1115,8 +1115,8 @@ async function login(cfg, jar) {
     return { homeHtml: posted.text, homeUrl: posted.finalUrl || loginUrl };
 }
 
-async function fetchPage(jar, url) {
-    return requestFollow(url, { method: 'GET', jar });
+async function fetchPage(jar, url, options) {
+    return requestFollow(url, Object.assign({ method: 'GET', jar }, options || {}));
 }
 
 function mergeCohortLists(lists) {

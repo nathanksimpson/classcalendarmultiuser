@@ -1875,20 +1875,31 @@
             <div class="modal-body">
                 <p class="section-hint" data-i18n="briefingTmsSyncHint">TMS username and password are required to load counseling notes and attendance. Password is used only for this sync and is not saved.</p>
                 <p class="section-hint" data-briefing-sync-scope data-i18n="briefingTmsSyncScopeHint">One sign-in loads counseling notes and attendance for all classes with rosters.</p>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="briefingTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
-                        <input type="text" id="briefingTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
+                <div id="briefingTmsSyncProgress" class="briefing-sync-progress" hidden aria-live="polite">
+                    <div class="briefing-sync-progress-row">
+                        <span class="briefing-sync-spinner" aria-hidden="true"></span>
+                        <span id="briefingTmsSyncPhase" class="briefing-sync-phase"></span>
                     </div>
-                    <div class="form-group">
-                        <label for="briefingTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
-                        <input type="password" id="briefingTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
-                    </div>
+                    <p id="briefingTmsSyncElapsed" class="section-hint briefing-sync-elapsed"></p>
+                    <p id="briefingTmsSyncEstimate" class="section-hint briefing-sync-estimate"></p>
+                    <p id="briefingTmsSyncResult" class="section-hint briefing-sync-result" hidden></p>
                 </div>
-                <label class="checkbox-label selection-chip">
-                    <input type="checkbox" id="briefingTmsRememberUser">
-                    <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
-                </label>
+                <div id="briefingTmsCredForm" class="briefing-tms-cred-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="briefingTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
+                            <input type="text" id="briefingTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label for="briefingTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
+                            <input type="password" id="briefingTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
+                        </div>
+                    </div>
+                    <label class="checkbox-label selection-chip">
+                        <input type="checkbox" id="briefingTmsRememberUser">
+                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
+                    </label>
+                </div>
                 <p id="briefingTmsModalError" class="section-hint briefing-status-text--error" hidden role="alert"></p>
                 <div class="toolbar-actions">
                     <button type="button" id="briefingTmsCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
