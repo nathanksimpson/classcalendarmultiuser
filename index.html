@@ -12,7 +12,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260818-hw-due-next';
+        window.CCP_I18N_VERSION = '20260820-briefing-picker';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -374,17 +374,6 @@
                 </div>
             </section>
 
-            <section id="panel-briefing" class="app-tab-panel" data-tab="briefing" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
-                <div class="module-toolbar classroom-tab-toolbar briefing-toolbar">
-                    <div class="toolbar-actions">
-                        <select id="briefingClassSelect" class="field-select field-control--compact" aria-label="Select class"></select>
-                        <button type="button" id="briefingSyncBtn" class="btn btn-primary btn-compact" data-i18n="briefingSyncBtn">Sync TMS</button>
-                        <span id="briefingStatus" class="briefing-status-text" hidden></span>
-                    </div>
-                </div>
-                <div id="briefingMount" class="briefing-mount"></div>
-            </section>
-
             <section id="panel-students" class="app-tab-panel" data-tab="students" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div class="module-toolbar classroom-tab-toolbar classroom-roster-toolbar">
                     <div class="toolbar-actions">
@@ -433,6 +422,16 @@
             </section>
 
             <div id="classroomZoneContextBar" class="classroom-zone-context-bar" hidden></div>
+
+            <section id="panel-briefing" class="app-tab-panel" data-tab="briefing" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+                <div class="module-toolbar classroom-tab-toolbar briefing-toolbar">
+                    <div class="toolbar-actions">
+                        <button type="button" id="briefingSyncBtn" class="btn btn-primary btn-compact" data-i18n="briefingSyncBtn">Sync TMS</button>
+                        <span id="briefingStatus" class="briefing-status-text" hidden></span>
+                    </div>
+                </div>
+                <div id="briefingMount" class="briefing-mount"></div>
+            </section>
 
             <section id="panel-attendance" class="app-tab-panel" data-tab="attendance" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div id="classroomAttendanceHeader"></div>
@@ -1867,6 +1866,37 @@
         </div>
     </div>
 
+    <div id="briefingTmsSyncModal" class="modal" role="dialog" aria-labelledby="briefingTmsSyncModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="briefingTmsSyncModalTitle" data-i18n="briefingTmsSyncTitle">Sign in to TMS</h2>
+                <button type="button" class="modal-close" id="closeBriefingTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="section-hint" data-i18n="briefingTmsSyncHint">TMS username and password are required to load counseling notes and attendance. Password is used only for this sync and is not saved.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="briefingTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
+                        <input type="text" id="briefingTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label for="briefingTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
+                        <input type="password" id="briefingTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
+                    </div>
+                </div>
+                <label class="checkbox-label selection-chip">
+                    <input type="checkbox" id="briefingTmsRememberUser">
+                    <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
+                </label>
+                <p id="briefingTmsModalError" class="section-hint briefing-status-text--error" hidden role="alert"></p>
+                <div class="toolbar-actions">
+                    <button type="button" id="briefingTmsCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="briefingTmsConfirmBtn" class="btn btn-primary" data-i18n="briefingTmsConfirmBtn" disabled>Sign in &amp; load</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="rosterTmsSyncModal" class="modal" role="dialog" aria-labelledby="rosterTmsSyncModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-wide modal-content--scrollable roster-import-modal-content">
             <div class="modal-header">
@@ -2378,11 +2408,11 @@
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
     <script defer src="js/active-context.js?v=20260807-no-auto-cohort"></script>
     <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
-    <script defer src="js/classroom-zone-context.js?v=20260807-hr-tools"></script>
+    <script defer src="js/classroom-zone-context.js?v=20260820-briefing-picker"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260818-init-keep-date"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260820-briefing-picker"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -2472,7 +2502,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260818-hw-due-next"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260820-briefing-picker"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2480,8 +2510,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20260818-hw-due-next"></script>
-    <script defer src="js/classroom-briefing.js?v=20260819-briefing-v1"></script>
+    <script defer src="app.js?v=20260820-briefing-picker"></script>
 </body>
 </html>
 

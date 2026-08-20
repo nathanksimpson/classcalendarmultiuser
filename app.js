@@ -20604,7 +20604,9 @@ async function initClassroomTabControls(tabId, options = {}) {
         CCPClassroomHeader.initTab(hooks);
     }
     try {
-        if (tabId === 'students' && typeof CCPClassroomRoster !== 'undefined') {
+        if (tabId === 'briefing' && typeof CCPClassroomBriefing !== 'undefined') {
+            CCPClassroomBriefing.initTab(hooks, options);
+        } else if (tabId === 'students' && typeof CCPClassroomRoster !== 'undefined') {
             CCPClassroomRoster.initTab(hooks, options);
         } else if (tabId === 'attendance' && typeof CCPClassroomAttendance !== 'undefined') {
             CCPClassroomAttendance.initTab(hooks, options);
