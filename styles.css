@@ -21651,6 +21651,26 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     color: var(--text-primary, #111827);
 }
 
+.briefing-sync-bar {
+    margin-top: var(--space-3, 12px);
+    height: var(--space-3, 12px);
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface-muted, #f3f4f6);
+    border: 1px solid var(--border, #e5e7eb);
+    overflow: hidden;
+}
+
+.briefing-sync-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--primary, #059669);
+    transition: width 0.35s ease;
+}
+
+.briefing-sync-bar-label {
+    margin-top: var(--space-1, 4px);
+}
+
 .briefing-sync-elapsed,
 .briefing-sync-estimate {
     margin-top: var(--space-1, 4px);
