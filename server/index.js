@@ -37,6 +37,63 @@ const BOOTSTRAP_SECRET = process.env.BOOTSTRAP_ADMIN_SECRET || '';
 const COOKIE_SECURE = process.env.COOKIE_SECURE === '1' || PUBLIC_URL.startsWith('https://');
 const ALLOW_OPEN_ACCESS = process.env.ALLOW_OPEN_ACCESS === '1';
 const TRANSLATE_PROXY_URL = (process.env.TRANSLATE_PROXY_URL || '').trim();
+const GOOGLE_TRANSLATE_API_KEY = (process.env.GOOGLE_TRANSLATE_API_KEY || '').trim();
+
+function normalizeGoogleTranslateLang(code) {
+    const c = String(code || '').trim().toLowerCase();
+    if (!c) {
+        return '';
+    }
+    if (c === 'korean' || c === 'kor') {
+        return 'ko';
+    }
+    if (c === 'english' || c === 'eng') {
+        return 'en';
+    }
+    return c.slice(0, 8);
+}
+
+async function translateWithGoogleLocal(text, sourceLang, targetLang) {
+    if (!GOOGLE_TRANSLATE_API_KEY) {
+        return null;
+    }
+    const source = normalizeGoogleTranslateLang(sourceLang) || 'en';
+    const target = normalizeGoogleTranslateLang(targetLang);
+    if (!target) {
+        const err = new Error('Missing targetLang');
+        err.status = 400;
+        throw err;
+    }
+    const url = new URL('https://translation.googleapis.com/language/translate/v2');
+    url.searchParams.set('key', GOOGLE_TRANSLATE_API_KEY);
+    const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            q: text,
+            source,
+            target,
+            format: 'text'
+        })
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) {
+        const err = new Error(
+            (payload && payload.error && payload.error.message) || 'Google Translate failed'
+        );
+        err.status = res.status >= 400 && res.status < 600 ? res.status : 502;
+        throw err;
+    }
+    return String(
+        payload &&
+            payload.data &&
+            payload.data.translations &&
+            payload.data.translations[0] &&
+            payload.data.translations[0].translatedText
+            ? payload.data.translations[0].translatedText
+            : ''
+    ).trim();
+}
 
 getDb();
 
@@ -430,9 +487,10 @@ app.post('/api/translate', requireCookieUser, async (req, res) => {
         res.status(400).json({ error: 'Missing targetLang' });
         return;
     }
-    if (!TRANSLATE_PROXY_URL) {
+    if (!GOOGLE_TRANSLATE_API_KEY && !TRANSLATE_PROXY_URL) {
         res.status(503).json({
-            error: 'Translation is not configured locally. Set TRANSLATE_PROXY_URL to a server that supports /api/translate.'
+            error:
+                'Translation is not configured locally. Set GOOGLE_TRANSLATE_API_KEY, or TRANSLATE_PROXY_URL to a server that supports /api/translate.'
         });
         return;
     }
@@ -442,6 +500,17 @@ app.post('/api/translate', requireCookieUser, async (req, res) => {
         return;
     }
     try {
+        if (GOOGLE_TRANSLATE_API_KEY) {
+            const translatedText = await translateWithGoogleLocal(text, sourceLang, targetLang);
+            if (translatedText) {
+                res.json({ ok: true, translatedText, provider: 'google' });
+                return;
+            }
+        }
+        if (!TRANSLATE_PROXY_URL) {
+            res.status(503).json({ error: 'Translation is not configured on this server' });
+            return;
+        }
         const upstream = await fetch(TRANSLATE_PROXY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -462,6 +531,10 @@ app.post('/api/translate', requireCookieUser, async (req, res) => {
         }
         res.json(payload || { ok: true, translatedText: '' });
     } catch (err) {
+        if (err && err.status === 400) {
+            res.status(400).json({ error: err.message || 'Missing targetLang' });
+            return;
+        }
         res.status(502).json({ error: 'Translation failed' });
     }
 });

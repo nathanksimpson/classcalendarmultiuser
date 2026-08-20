@@ -73,6 +73,77 @@ function isDegenerateTranslationOutput(text, sourceText) {
     return false;
 }
 
+/** Normalize short codes for Google Cloud Translation API v2. */
+function normalizeGoogleTranslateLang(code) {
+    const c = String(code || '').trim().toLowerCase();
+    if (!c) {
+        return '';
+    }
+    if (c === 'korean' || c === 'kor') {
+        return 'ko';
+    }
+    if (c === 'english' || c === 'eng') {
+        return 'en';
+    }
+    return c.slice(0, 8);
+}
+
+async function translateWithGoogle(apiKey, text, sourceLang, targetLang) {
+    const key = String(apiKey || '').trim();
+    if (!key) {
+        return null;
+    }
+    const source = normalizeGoogleTranslateLang(sourceLang) || 'en';
+    const target = normalizeGoogleTranslateLang(targetLang);
+    if (!target) {
+        const err = new Error('Missing targetLang');
+        err.status = 400;
+        throw err;
+    }
+    const url = new URL('https://translation.googleapis.com/language/translate/v2');
+    url.searchParams.set('key', key);
+    const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            q: text,
+            source,
+            target,
+            format: 'text'
+        })
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) {
+        const err = new Error(
+            (payload && payload.error && payload.error.message) || 'Google Translate failed'
+        );
+        err.status = res.status >= 400 && res.status < 600 ? res.status : 502;
+        throw err;
+    }
+    const translatedText = String(
+        payload &&
+            payload.data &&
+            payload.data.translations &&
+            payload.data.translations[0] &&
+            payload.data.translations[0].translatedText
+            ? payload.data.translations[0].translatedText
+            : ''
+    ).trim();
+    return translatedText;
+}
+
+async function translateWithWorkersAi(env, text, sourceLang, targetLang) {
+    if (!env.AI || typeof env.AI.run !== 'function') {
+        return null;
+    }
+    const result = await env.AI.run('@cf/meta/m2m100-1.2b', {
+        text,
+        source_lang: sourceLang,
+        target_lang: targetLang
+    });
+    return String(result && result.translated_text ? result.translated_text : '').trim();
+}
+
 function json(data, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(data), {
         status,
@@ -1053,7 +1124,9 @@ export default {
             if (limited) {
                 return limited;
             }
-            if (!env.AI || typeof env.AI.run !== 'function') {
+            const googleKey = String(env.GOOGLE_TRANSLATE_API_KEY || '').trim();
+            const hasWorkersAi = Boolean(env.AI && typeof env.AI.run === 'function');
+            if (!googleKey && !hasWorkersAi) {
                 return json({ error: 'Translation is not configured on this server' }, 503);
             }
             const body = await readJson(request, MAX_TRANSLATE_BODY_BYTES);
@@ -1067,18 +1140,25 @@ export default {
                 return json({ error: 'Missing targetLang' }, 400);
             }
             try {
-                const result = await env.AI.run('@cf/meta/m2m100-1.2b', {
-                    text,
-                    source_lang: sourceLang,
-                    target_lang: targetLang
-                });
-                const translatedText = String(result && result.translated_text ? result.translated_text : '').trim();
+                let translatedText = '';
+                let provider = '';
+                if (googleKey) {
+                    translatedText = await translateWithGoogle(googleKey, text, sourceLang, targetLang);
+                    provider = 'google';
+                }
+                if ((!translatedText || isDegenerateTranslationOutput(translatedText, text)) && hasWorkersAi) {
+                    translatedText = await translateWithWorkersAi(env, text, sourceLang, targetLang);
+                    provider = 'workers-ai';
+                }
                 if (!translatedText || isDegenerateTranslationOutput(translatedText, text)) {
                     return json({ error: 'Translation quality check failed' }, 502);
                 }
-                return json({ ok: true, translatedText });
+                return json({ ok: true, translatedText, provider });
             } catch (err) {
                 console.error('Translate error:', err && err.message ? err.message : err);
+                if (err && err.status === 400) {
+                    return json({ error: err.message || 'Missing targetLang' }, 400);
+                }
                 return json({ error: 'Translation failed' }, 502);
             }
         }

@@ -25,11 +25,11 @@ const MAX_NOTES_PER_STUDENT = 20;
 
 // ─── keyword sets ────────────────────────────────────────────────────────────
 
-const QUIT_KEYWORDS_KO = ['퇴원', '그만', '중단', '그만둘', '등록 취소', '등록취소', '퇴'];
+const QUIT_KEYWORDS_KO = ['퇴원', '그만', '중단', '그만둘', '등록 취소', '등록취소'];
 const BREAK_KEYWORDS_KO = ['휴원', '쉬다', '잠시', '휴식', '방학 중 휴'];
 const ATTENDANCE_KEYWORDS_KO = ['결석', '지각', '조퇴', '미참석'];
 const STARTEND_KEYWORDS_KO = ['개강', '종료예정', '마지막'];
-const QUIT_KEYWORDS_EN = ['quit', 'leave', 'withdraw', 'left', 'cancel'];
+const QUIT_KEYWORDS_EN = ['quit', 'withdraw', 'withdrawal', 'cancel enrollment', 'cancelled enrollment'];
 const BREAK_KEYWORDS_EN = ['break', 'time off', 'hiatus', 'vacation leave'];
 const ATTENDANCE_KEYWORDS_EN = ['absent', 'late', 'early leave', 'missed'];
 const STARTEND_KEYWORDS_EN = ['starting', 'last class', 'final class'];
@@ -641,6 +641,7 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
 
     const classes = {};
     const warmedClasses = new Set();
+    const profileByMpidx = new Map();
     let requestCount = 0;
     let scraped = 0;
     let noMpidx = 0;
@@ -649,6 +650,7 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
     let empty_response = 0;
     let totalNotes = 0;
     let missingClassIdx = 0;
+    let reused = 0;
 
     for (const batch of classBatches || []) {
         const classId = String(batch.classId || '').trim();
@@ -661,6 +663,21 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
         }
 
         for (const student of batch.students || []) {
+            const mpidx = String(student.tmsMpidx || student.mpidx || '').trim();
+            if (mpidx && profileByMpidx.has(mpidx)) {
+                const cached = profileByMpidx.get(mpidx);
+                // Clone so each class card can carry its own studentId/name from this roster seat.
+                const reusedProfile = Object.assign({}, cached, {
+                    studentId: student.id || cached.studentId,
+                    name: student.name || cached.name,
+                    mpidx
+                });
+                reused += 1;
+                totalNotes += (reusedProfile.notes && reusedProfile.notes.length) || 0;
+                profiles.push(reusedProfile);
+                continue;
+            }
+
             if (requestCount > 0) {
                 await new Promise((r) => setTimeout(r, 300));
             }
@@ -681,6 +698,12 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
                 scraped += 1;
             }
             totalNotes += (cleaned.notes && cleaned.notes.length) || 0;
+            if (mpidx && !cleaned.error) {
+                profileByMpidx.set(mpidx, cleaned);
+            } else if (mpidx && cleaned.error === 'parse_empty') {
+                // Still cache parse_empty so we do not hammer TMS for the same shell.
+                profileByMpidx.set(mpidx, cleaned);
+            }
             profiles.push(cleaned);
         }
 
@@ -693,6 +716,8 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
         stats: {
             classes: Object.keys(classes).length,
             students: requestCount,
+            uniqueMpidx: profileByMpidx.size,
+            reused,
             scraped,
             noMpidx,
             errors,
