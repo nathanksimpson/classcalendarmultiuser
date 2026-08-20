@@ -267,13 +267,35 @@
         errEl.hidden = !msg;
     }
 
+    function resolveOpenModal() {
+        if (hooks && hooks.openModal) {
+            return hooks.openModal;
+        }
+        if (typeof global.openModal === 'function') {
+            return global.openModal;
+        }
+        return null;
+    }
+
+    function resolveCloseModal() {
+        if (hooks && hooks.closeModal) {
+            return hooks.closeModal;
+        }
+        if (typeof global.closeModal === 'function') {
+            return global.closeModal;
+        }
+        return null;
+    }
+
     function openTmsLoginModal() {
         const modal = document.getElementById('briefingTmsSyncModal');
-        if (!modal || !hooks || !hooks.openModal) {
+        const openModalFn = resolveOpenModal();
+        if (!modal || !openModalFn) {
+            showStatus(t('briefingErrorBridgeRequired', 'TMS bridge required. Run npm start on the work PC.'), true);
             return;
         }
         hydrateTmsCredForm();
-        hooks.openModal(modal);
+        openModalFn(modal);
         const userEl = document.getElementById('briefingTmsUsername');
         const passEl = document.getElementById('briefingTmsPassword');
         if (userEl && !userEl.value) {
@@ -285,8 +307,9 @@
 
     function closeTmsLoginModal() {
         const modal = document.getElementById('briefingTmsSyncModal');
-        if (hooks && hooks.closeModal && modal) {
-            hooks.closeModal(modal);
+        const closeModalFn = resolveCloseModal();
+        if (closeModalFn && modal) {
+            closeModalFn(modal);
         }
     }
 
@@ -626,7 +649,13 @@
         mount.innerHTML = `<p class="section-hint">${esc(t('briefingIdleHint', 'Sign in to TMS to load counseling notes and attendance for this class.'))}</p>`;
     }
 
-    function onSyncClick() {
+    function onSyncClick(e) {
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+        }
+        if (e && typeof e.stopPropagation === 'function') {
+            e.stopPropagation();
+        }
         const students = getStudents();
         if (!classId || !getClassData()) {
             renderEmptyRoster();

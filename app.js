@@ -15810,7 +15810,8 @@ async function navigateToTabBody(tabId, options = {}) {
     } else if (tabId === 'cohorts') {
         void initCohortsTabControls(options);
     } else if (
-        tabId === 'students'
+        tabId === 'briefing'
+        || tabId === 'students'
         || tabId === 'attendance'
         || tabId === 'ledger'
         || tabId === 'homework-tracking'
@@ -35489,8 +35490,10 @@ function refreshActiveTabAfterHydration() {
     if (tab === 'cohorts') {
         void initCohortsTabControls();
     } else if (
-        tab === 'students'
+        tab === 'briefing'
+        || tab === 'students'
         || tab === 'attendance'
+        || tab === 'ledger'
         || tab === 'homework-tracking'
         || tab === 'essays'
         || tab === 'points'
