@@ -3,6 +3,7 @@
  */
 (function (global) {
     const CLASS_SCOPED_TABS = new Set([
+        'briefing',
         'attendance',
         'ledger',
         'homework-tracking',

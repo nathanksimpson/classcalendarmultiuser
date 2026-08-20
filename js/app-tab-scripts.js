@@ -41,6 +41,11 @@
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-attendance.js?v=20260806-patch-mutations'
         ],
+        briefing: [
+            'js/classroom-access.js?v=20260807-hr-tools',
+            'js/classroom-header.js?v=20260807-hr-tools',
+            'js/classroom-briefing.js?v=20260820-class-picker'
+        ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
