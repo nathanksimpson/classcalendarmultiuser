@@ -338,42 +338,19 @@ async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId) {
     }
 
     const url = `${cfg.baseUrl}${PROFILES_PATH}?MPIdx=${encodeURIComponent(mpidx)}&Createby=${encodeURIComponent(staffId)}&ClassIdx=${encodeURIComponent(classId)}`;
-    const page = await tmsRoster.fetchClassPopupPostback
-        ? // use existing low-level request helper via roster module if available
-          null
-        : null;
-
-    // Use the exported request helper from roster core via the module's internal request path
-    // Since tmsRoster doesn't export request() directly, we make a plain fetch-based GET
-    // using the cookie jar pattern from roster core.
-    const cookieHeader = jar && jar.map
-        ? Array.from(jar.map.entries()).map(([k, v]) => `${k}=${v}`).join('; ')
-        : '';
-
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = controller ? setTimeout(() => controller.abort(), 20000) : null;
     let html = '';
     try {
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'User-Agent': 'ClassManager-TMS-Sync/1.0',
-                Accept: 'text/html,application/xhtml+xml,*/*;q=0.9',
-                Cookie: cookieHeader,
-                Referer: `${cfg.baseUrl}/`
-            },
-            redirect: 'follow',
-            signal: controller ? controller.signal : undefined
-        });
-        if (timer) clearTimeout(timer);
-        const buf = new Uint8Array(await res.arrayBuffer());
-        let decoded = new TextDecoder('utf-8').decode(buf);
-        if (/charset\s*=\s*euc-kr/i.test(decoded) || /charset\s*=\s*ks_c_5601/i.test(decoded)) {
-            try { decoded = new TextDecoder('euc-kr').decode(buf); } catch (_) { /* keep utf8 */ }
+        const page = await tmsRoster.fetchPage(jar, url);
+        html = page && page.text ? page.text : '';
+        if (tmsRoster.stillOnLoginPage && tmsRoster.stillOnLoginPage(html, page && page.finalUrl)) {
+            const err = new Error('TMS session expired');
+            err.code = 'TMS_LOGIN_FAILED';
+            throw err;
         }
-        html = decoded;
     } catch (err) {
-        if (timer) clearTimeout(timer);
+        if (err && err.code === 'TMS_LOGIN_FAILED') {
+            throw err;
+        }
         return {
             studentId: student.id || mpidx,
             name: student.name || '',
@@ -390,7 +367,33 @@ async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId) {
         };
     }
 
-    return parseProfileHtml(html, { studentId: student.id || mpidx, name: student.name || '', mpidx });
+    if (!html || html.length < 200) {
+        return {
+            studentId: student.id || mpidx,
+            name: student.name || '',
+            mpidx,
+            error: 'empty_response',
+            enrollStatus: '',
+            quitDate: '',
+            breakPeriod: '',
+            breakStart: '',
+            breakEnd: '',
+            notes: [],
+            attendanceRecords: [],
+            watchFlags: []
+        };
+    }
+
+    const parsed = parseProfileHtml(html, { studentId: student.id || mpidx, name: student.name || '', mpidx });
+    if (
+        !parsed.enrollStatus &&
+        !(parsed.notes && parsed.notes.length) &&
+        !(parsed.attendanceRecords && parsed.attendanceRecords.length) &&
+        !/table_profile|profiles_new|학생\s*프로필/i.test(html)
+    ) {
+        parsed.error = parsed.error || 'parse_empty';
+    }
+    return parsed;
 }
 
 /**
@@ -536,7 +539,21 @@ function resolveStaffId(homeHtml) {
 async function scrapeCounselProfiles(cfg, students, options) {
     const opts = options || {};
     const tmsClassId = String(opts.tmsClassId || '').trim();
+    const batch = [{ classId: '', tmsClassId, students: students || [] }];
+    const bulk = await scrapeCounselProfilesBatch(cfg, batch);
+    return {
+        students: bulk.classes[''] ? bulk.classes[''].students : [],
+        staffId: bulk.staffId
+    };
+}
 
+/**
+ * Scrape counsel profiles for many ClassManager classes in one TMS login.
+ *
+ * @param {object} cfg
+ * @param {object[]} classBatches - [{ classId, tmsClassId, students }]
+ */
+async function scrapeCounselProfilesBatch(cfg, classBatches) {
     if (!tmsRoster.credentialsConfigured(cfg)) {
         const err = new Error('TMS credentials not configured');
         err.code = 'TMS_CREDS_MISSING';
@@ -547,19 +564,49 @@ async function scrapeCounselProfiles(cfg, students, options) {
     const { homeHtml } = await tmsRoster.login(cfg, jar);
     const staffId = resolveStaffId(homeHtml);
 
-    const results = [];
-    for (const student of (students || [])) {
-        // Small delay between requests to be polite to TMS
-        if (results.length > 0) {
-            await new Promise(r => setTimeout(r, 300));
+    const classes = {};
+    let requestCount = 0;
+    let scraped = 0;
+    let noMpidx = 0;
+    let errors = 0;
+
+    for (const batch of classBatches || []) {
+        const classId = String(batch.classId || '').trim();
+        const tmsClassId = String(batch.tmsClassId || '').trim();
+        const bucketKey = classId || '__default__';
+        const profiles = [];
+
+        for (const student of batch.students || []) {
+            if (requestCount > 0) {
+                await new Promise((r) => setTimeout(r, 300));
+            }
+            requestCount += 1;
+            const profile = await fetchStudentProfile(cfg, jar, staffId, student, tmsClassId);
+            const { _rawHtml: _, ...cleaned } = profile;
+            if (cleaned.error === 'no_mpidx') {
+                noMpidx += 1;
+            } else if (cleaned.error) {
+                errors += 1;
+            } else {
+                scraped += 1;
+            }
+            profiles.push(cleaned);
         }
-        const profile = await fetchStudentProfile(cfg, jar, staffId, student, tmsClassId);
-        // Strip raw HTML from bulk results (callers can use probe mode for the raw HTML)
-        const { _rawHtml: _, ...cleaned } = profile;
-        results.push(cleaned);
+
+        classes[bucketKey] = { classId, tmsClassId, students: profiles };
     }
 
-    return { students: results, staffId };
+    return {
+        classes,
+        staffId,
+        stats: {
+            classes: Object.keys(classes).length,
+            students: requestCount,
+            scraped,
+            noMpidx,
+            errors
+        }
+    };
 }
 
 /**
@@ -583,6 +630,7 @@ async function scrapeCounselProfile(cfg, student, options) {
 
 module.exports = {
     scrapeCounselProfiles,
+    scrapeCounselProfilesBatch,
     scrapeCounselProfile,
     parseProfileHtml,
     parseEnrollmentStatus,

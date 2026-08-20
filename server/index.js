@@ -1300,6 +1300,30 @@ async function runTmsCounselPreview(body) {
         err.status = 503;
         throw err;
     }
+
+    if (Array.isArray(payload.classes) && payload.classes.length) {
+        const batches = payload.classes
+            .map((entry) => {
+                const classId = String(entry && entry.classId ? entry.classId : '').trim();
+                const tmsClassId = String(entry && entry.tmsClassId ? entry.tmsClassId : '').trim();
+                const students = Array.isArray(entry && entry.students) ? entry.students : [];
+                return {
+                    classId,
+                    tmsClassId,
+                    students: students.map((s) => ({
+                        id: s && s.id != null ? String(s.id) : '',
+                        name: s && s.name ? String(s.name) : '',
+                        tmsMpidx: String((s && (s.tmsMpidx || s.mpidx)) || '').trim()
+                    }))
+                };
+            })
+            .filter((batch) => batch.students.length > 0);
+        if (!batches.length) {
+            return { classes: {}, stats: { classes: 0, students: 0, scraped: 0, noMpidx: 0, errors: 0 } };
+        }
+        return tmsCounsel.scrapeCounselProfilesBatch(cfg, batches);
+    }
+
     const students = Array.isArray(payload.students) ? payload.students : [];
     const tmsClassId = String(payload.tmsClassId || '').trim();
     const result = await tmsCounsel.scrapeCounselProfiles(cfg, students, { tmsClassId });

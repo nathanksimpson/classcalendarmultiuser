@@ -23,6 +23,7 @@
     let hooks = null;
     let classId = '';
     let eventsBound = false;
+    let pendingSyncPlan = null;
 
     function t(key, fallback) {
         if (hooks && hooks.t) {
@@ -108,10 +109,9 @@
         });
     }
 
-    function getTmsClassId() {
+    function getTmsClassIdForClass(classData) {
         const d = domain();
         const data = getAppData();
-        const classData = getClassData();
         if (!d || !classData) {
             return '';
         }
@@ -137,6 +137,97 @@
             }
         });
         return found;
+    }
+
+    function getTmsClassId() {
+        return getTmsClassIdForClass(getClassData());
+    }
+
+    function getAccessibleClasses() {
+        if (global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.getBaseAccessibleClasses) {
+            return global.CCPClassroomZoneContext.getBaseAccessibleClasses();
+        }
+        return (getAppData().classes || []).filter(Boolean);
+    }
+
+    function buildStudentsPayload(classData) {
+        const d = domain();
+        const data = getAppData();
+        if (!d || typeof d.resolveStudentsForClass !== 'function' || !classData) {
+            return [];
+        }
+        return d.resolveStudentsForClass(classData, data.cohorts || []).map((entry) => {
+            const stu = entry.student || entry;
+            return {
+                id: stu.id,
+                name: stu.name,
+                tmsMpidx: String(stu.tmsMpidx || stu.mpidx || '').trim()
+            };
+        });
+    }
+
+    function buildAllClassesSyncPlan() {
+        const classes = getAccessibleClasses();
+        const batches = [];
+        classes.forEach((classData) => {
+            if (!classData || !classData.id) {
+                return;
+            }
+            const students = buildStudentsPayload(classData);
+            if (!students.length) {
+                return;
+            }
+            batches.push({
+                classId: classData.id,
+                tmsClassId: getTmsClassIdForClass(classData),
+                students
+            });
+        });
+        return batches;
+    }
+
+    function countPlanStudents(batches) {
+        return (batches || []).reduce((sum, batch) => sum + (batch.students ? batch.students.length : 0), 0);
+    }
+
+    function applyBatchSyncResult(result) {
+        const classes = (result && result.classes) || {};
+        Object.keys(classes).forEach((key) => {
+            const bucket = classes[key];
+            const cid = bucket && bucket.classId ? bucket.classId : key === '__default__' ? '' : key;
+            if (!cid) {
+                return;
+            }
+            _cache.set(`briefing-${cid}`, (bucket && bucket.students) || []);
+        });
+    }
+
+    function collectProfilesForTranslation(result) {
+        const out = [];
+        const classes = (result && result.classes) || {};
+        Object.keys(classes).forEach((key) => {
+            const bucket = classes[key];
+            (bucket && bucket.students ? bucket.students : []).forEach((profile) => {
+                if (profile) {
+                    out.push(profile);
+                }
+            });
+        });
+        return out;
+    }
+
+    function summarizeSyncStats(stats) {
+        if (!stats) {
+            return '';
+        }
+        return t(
+            'briefingSyncSummary',
+            'Loaded {scraped} profiles across {classes} classes ({noMpidx} without TMS link, {errors} errors).'
+        )
+            .replace('{scraped}', String(stats.scraped || 0))
+            .replace('{classes}', String(stats.classes || 0))
+            .replace('{noMpidx}', String(stats.noMpidx || 0))
+            .replace('{errors}', String(stats.errors || 0));
     }
 
     function resolveClassId(options) {
@@ -287,12 +378,23 @@
         return null;
     }
 
-    function openTmsLoginModal() {
+    function openTmsLoginModal(plan) {
         const modal = document.getElementById('briefingTmsSyncModal');
         const openModalFn = resolveOpenModal();
         if (!modal || !openModalFn) {
             showStatus(t('briefingErrorBridgeRequired', 'TMS bridge required. Run npm start on the work PC.'), true);
             return;
+        }
+        pendingSyncPlan = Array.isArray(plan) ? plan : buildAllClassesSyncPlan();
+        const hintEl = modal.querySelector('[data-briefing-sync-scope]');
+        if (hintEl) {
+            const studentTotal = countPlanStudents(pendingSyncPlan);
+            hintEl.textContent = t(
+                'briefingTmsSyncScopeHint',
+                'One sign-in loads counseling notes and attendance for {count} students across {classes} classes.'
+            )
+                .replace('{count}', String(studentTotal))
+                .replace('{classes}', String(pendingSyncPlan.length));
         }
         hydrateTmsCredForm();
         openModalFn(modal);
@@ -311,17 +413,12 @@
         if (closeModalFn && modal) {
             closeModalFn(modal);
         }
+        pendingSyncPlan = null;
     }
 
-    async function fetchCounselProfiles(students, tmsClassId, credentials, bridge) {
+    async function fetchCounselProfiles(plan, credentials, bridge) {
         const payload = {
-            students: students.map((s) => ({
-                id: s.id,
-                name: s.name,
-                tmsMpidx: s.tmsMpidx || '',
-                tmsClassId: tmsClassId || ''
-            })),
-            tmsClassId: tmsClassId || '',
+            classes: plan,
             username: credentials.username,
             password: credentials.password
         };
@@ -527,9 +624,13 @@
         if (s) {
             return `<span class="briefing-enroll-badge briefing-enroll-badge--active">${esc(t('briefingStatusActive', 'Active'))}</span>`;
         }
-        return profile.error === 'no_mpidx'
-            ? `<span class="briefing-enroll-badge briefing-enroll-badge--none">${esc(t('briefingNoTmsLink', 'No TMS link'))}</span>`
-            : '';
+        if (profile.error === 'no_mpidx') {
+            return `<span class="briefing-enroll-badge briefing-enroll-badge--none">${esc(t('briefingNoTmsLink', 'No TMS link'))}</span>`;
+        }
+        if (profile.error) {
+            return `<span class="briefing-enroll-badge briefing-enroll-badge--none">${esc(t('briefingScrapeFailed', 'TMS profile unavailable'))}</span>`;
+        }
+        return '';
     }
 
     function renderStudentCard(profile) {
@@ -646,7 +747,7 @@
             renderEmptyRoster();
             return;
         }
-        mount.innerHTML = `<p class="section-hint">${esc(t('briefingIdleHint', 'Sign in to TMS to load counseling notes and attendance for this class.'))}</p>`;
+        mount.innerHTML = `<p class="section-hint">${esc(t('briefingIdleHint', 'Sync TMS once to load counseling notes and attendance for all classes.'))}</p>`;
     }
 
     function onSyncClick(e) {
@@ -656,19 +757,20 @@
         if (e && typeof e.stopPropagation === 'function') {
             e.stopPropagation();
         }
-        const students = getStudents();
-        if (!classId || !getClassData()) {
-            renderEmptyRoster();
+        const plan = buildAllClassesSyncPlan();
+        if (!plan.length) {
+            if (!classId || !getClassData()) {
+                renderEmptyRoster();
+            } else {
+                renderEmptyRoster();
+            }
+            showStatus(t('briefingNoClassesToSync', 'No classes with linked rosters to sync.'), true);
             return;
         }
-        if (!students.length) {
-            renderEmptyRoster();
-            return;
-        }
-        openTmsLoginModal();
+        openTmsLoginModal(plan);
     }
 
-    async function confirmTmsLogin() {
+    async function confirmTmsLogin(planOverride) {
         const creds = readTmsCredFields();
         if (!creds.username || !creds.password) {
             showModalError(t('briefingErrorCredsRequired', 'Enter your TMS username and password.'));
@@ -677,11 +779,15 @@
         persistTmsUsernamePreference(creds.username, creds.rememberUser);
 
         const confirmBtn = document.getElementById('briefingTmsConfirmBtn');
-        const students = getStudents();
-        const tmsClassId = getTmsClassId();
-        if (!students.length) {
+        const plan = Array.isArray(planOverride) && planOverride.length
+            ? planOverride
+            : pendingSyncPlan && pendingSyncPlan.length
+              ? pendingSyncPlan
+              : buildAllClassesSyncPlan();
+        if (!plan.length) {
             closeTmsLoginModal();
             renderEmptyRoster();
+            showStatus(t('briefingNoClassesToSync', 'No classes with linked rosters to sync.'), true);
             return;
         }
 
@@ -689,7 +795,12 @@
             confirmBtn.disabled = true;
         }
         showModalError('');
-        showStatus(t('briefingLoadingMsg', 'Loading TMS profiles…'));
+        const studentTotal = countPlanStudents(plan);
+        showStatus(
+            t('briefingLoadingAllMsg', 'Loading TMS profiles for {count} students across {classes} classes…')
+                .replace('{count}', String(studentTotal))
+                .replace('{classes}', String(plan.length))
+        );
 
         const bridge = await pingBridge();
         if (!bridge.available && !isLocalClassManagerHost()) {
@@ -704,19 +815,23 @@
         }
 
         try {
-            const result = await fetchCounselProfiles(students, tmsClassId, creds, bridge);
-            const profiles = (result && result.students) || [];
-            _cache.set(`briefing-${classId}`, profiles);
+            const result = await fetchCounselProfiles(plan, creds, bridge);
+            applyBatchSyncResult(result);
             closeTmsLoginModal();
-            renderAll(profiles);
-            showStatus(t('briefingTranslating', 'Translating…'));
-            try {
-                await translateAllNotes(profiles);
-                patchTranslatedNotes(profiles);
-            } catch (_) {
-                /* best-effort */
+            renderIdle();
+            const summary = summarizeSyncStats(result && result.stats);
+            showStatus(summary);
+            const profiles = collectProfilesForTranslation(result);
+            if (profiles.length) {
+                showStatus(t('briefingTranslating', 'Translating…'));
+                try {
+                    await translateAllNotes(profiles);
+                    patchTranslatedNotes(profiles);
+                } catch (_) {
+                    /* best-effort */
+                }
             }
-            showStatus('');
+            showStatus(summary);
         } catch (err) {
             const code = err && err.code;
             let msg = err && err.message ? err.message : 'Sync failed';
