@@ -1049,7 +1049,7 @@ export default {
             if (!user) {
                 return json({ error: 'Not signed in' }, 401);
             }
-            const limited = await rateLimitOr429(env, request, 'translate', 30, RATE_TRANSLATE_WINDOW_MS);
+            const limited = await rateLimitOr429(env, request, 'translate', 120, RATE_TRANSLATE_WINDOW_MS);
             if (limited) {
                 return limited;
             }

@@ -1,11 +1,11 @@
 /**
  * Classroom Briefing tab — pre-class student summary.
  *
- * Scrapes TMS profiles_new.aspx (counsel + attendance) through the local bridge,
+ * Scrapes TMS counsel/attendance iframes through the local bridge,
  * translates Korean notes to English via /api/translate, builds per-student cards
  * with a watch-list strip at the top.
  *
- * Data is session-only (never written to the shared calendar JSON).
+ * Profiles are cached in memory and IndexedDB (this browser only — not the shared calendar).
  */
 (function (global) {
     'use strict';
@@ -14,11 +14,16 @@
     const BRIDGE_PING_PATH = '/api/tms/bridge/ping';
     const BRIDGE_COUNSEL_PATH = '/api/tms/bridge/counsel';
     const SERVER_COUNSEL_PATH = '/api/tms/counsel/preview';
-    const TRANSLATE_PATH = '/api/translate';
-    const TRANSLATE_GAP_MS = 2000;
-    const TRANSLATE_RATE_LIMIT_WAIT_MS = 60000;
+    const TRANSLATE_PATH = '/translate';
+    const TRANSLATE_GAP_MS = 150;
+    const TRANSLATE_CONCURRENCY = 2;
+    const TRANSLATE_RATE_LIMIT_WAIT_MS = 45000;
+    const MAX_AUTO_TRANSLATE_NOTES_PER_STUDENT = 4;
     const COUNSEL_SYNC_TIMEOUT_MS = 15 * 60 * 1000;
     const SYNC_SECONDS_PER_STUDENT = 4;
+    const IDB_NAME = 'ccp-briefing-cache';
+    const IDB_STORE = 'profiles';
+    const IDB_VERSION = 1;
 
     const _cache = new Map();
 
@@ -29,6 +34,8 @@
     let syncProgressTimer = null;
     let syncProgressStartedAt = 0;
     let modalSyncActive = false;
+    let persistTimer = null;
+    let translateToken = 0;
 
     function t(key, fallback) {
         if (hooks && hooks.t) {
@@ -338,6 +345,112 @@
             }
             _cache.set(`briefing-${cid}`, (bucket && bucket.students) || []);
         });
+        schedulePersistBriefingCache();
+    }
+
+    function getActiveCalendarId() {
+        try {
+            if (global.CalendarSync && typeof global.CalendarSync.getActiveCalendarId === 'function') {
+                return String(global.CalendarSync.getActiveCalendarId() || '').trim();
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        return '';
+    }
+
+    function openBriefingIdb() {
+        return new Promise((resolve, reject) => {
+            if (typeof indexedDB === 'undefined') {
+                reject(new Error('no_idb'));
+                return;
+            }
+            const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(IDB_STORE)) {
+                    db.createObjectStore(IDB_STORE);
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error || new Error('idb_open_failed'));
+        });
+    }
+
+    function cacheSnapshot() {
+        const classes = {};
+        _cache.forEach((students, key) => {
+            const cid = String(key || '').replace(/^briefing-/, '');
+            if (cid) {
+                classes[cid] = students;
+            }
+        });
+        return { savedAt: Date.now(), classes };
+    }
+
+    function applyCacheSnapshot(snapshot) {
+        if (!snapshot || !snapshot.classes) {
+            return 0;
+        }
+        let n = 0;
+        Object.keys(snapshot.classes).forEach((cid) => {
+            const students = snapshot.classes[cid];
+            if (!cid || !Array.isArray(students)) {
+                return;
+            }
+            _cache.set(`briefing-${cid}`, students);
+            n += 1;
+        });
+        return n;
+    }
+
+    async function persistBriefingCacheNow() {
+        const calId = getActiveCalendarId();
+        if (!calId) {
+            return;
+        }
+        try {
+            const db = await openBriefingIdb();
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(IDB_STORE, 'readwrite');
+                tx.objectStore(IDB_STORE).put(cacheSnapshot(), calId);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error('idb_put_failed'));
+            });
+            db.close();
+        } catch (_) {
+            /* best-effort */
+        }
+    }
+
+    function schedulePersistBriefingCache() {
+        if (persistTimer) {
+            clearTimeout(persistTimer);
+        }
+        persistTimer = setTimeout(() => {
+            persistTimer = null;
+            void persistBriefingCacheNow();
+        }, 400);
+    }
+
+    async function loadBriefingCache() {
+        const calId = getActiveCalendarId();
+        if (!calId) {
+            return false;
+        }
+        try {
+            const db = await openBriefingIdb();
+            const snapshot = await new Promise((resolve, reject) => {
+                const tx = db.transaction(IDB_STORE, 'readonly');
+                const req = tx.objectStore(IDB_STORE).get(calId);
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => reject(req.error || new Error('idb_get_failed'));
+            });
+            db.close();
+            return applyCacheSnapshot(snapshot) > 0;
+        } catch (_) {
+            return false;
+        }
     }
 
     function collectProfilesForTranslation(result) {
@@ -610,15 +723,41 @@
     }
 
     async function translateOne(text) {
-        const res = await fetch(TRANSLATE_PATH, {
+        const payload = {
+            text: String(text || ''),
+            sourceLang: 'ko',
+            targetLang: 'en'
+        };
+        if (global.CCPApi && typeof global.CCPApi.apiFetch === 'function') {
+            try {
+                const res = await global.CCPApi.apiFetch(TRANSLATE_PATH, {
+                    method: 'POST',
+                    timeoutMs: 30000,
+                    body: payload
+                });
+                return String(res && res.translatedText ? res.translatedText : '').trim();
+            } catch (err) {
+                if (err && err.status === 429) {
+                    const e = new Error('rate_limited');
+                    e.code = 'RATE_LIMITED';
+                    throw e;
+                }
+                if (err && err.status === 503) {
+                    const e = new Error('not_configured');
+                    e.code = 'TRANSLATE_NOT_CONFIGURED';
+                    throw e;
+                }
+                const e = new Error('translate_failed');
+                e.code = 'TRANSLATE_FAILED';
+                e.status = err && err.status;
+                throw e;
+            }
+        }
+        const res = await fetch('/api' + TRANSLATE_PATH, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-                text: String(text || ''),
-                sourceLang: 'ko',
-                targetLang: 'en'
-            })
+            body: JSON.stringify(payload)
         });
         if (res.status === 429) {
             const err = new Error('rate_limited');
@@ -640,20 +779,43 @@
         return String(data && data.translatedText ? data.translatedText : '').trim();
     }
 
-    function collectTranslateItems(studentProfiles) {
+    function collectTranslateItems(studentProfiles, options) {
+        const opts = options || {};
+        const counselOnly = opts.counselOnly !== false;
+        const maxPerStudent = opts.maxPerStudent != null ? opts.maxPerStudent : MAX_AUTO_TRANSLATE_NOTES_PER_STUDENT;
         const items = [];
         (studentProfiles || []).forEach((profile, pi) => {
+            let noteCount = 0;
             (profile.notes || []).forEach((note, ni) => {
-                if (note && note.text && !note.textEn) {
-                    items.push({ profileIdx: pi, noteIdx: ni, text: note.text });
+                if (!note || !note.text || note.textEn) {
+                    return;
                 }
-            });
-            (profile.attendanceRecords || []).forEach((rec, ri) => {
-                if (rec && rec.memo && !rec.memoEn) {
-                    items.push({ profileIdx: pi, noteIdx: -1, recIdx: ri, text: rec.memo });
+                if (maxPerStudent >= 0 && noteCount >= maxPerStudent) {
+                    return;
                 }
+                noteCount += 1;
+                items.push({
+                    profileIdx: pi,
+                    noteIdx: ni,
+                    text: note.text,
+                    date: note.date || ''
+                });
             });
+            if (!counselOnly) {
+                (profile.attendanceRecords || []).forEach((rec, ri) => {
+                    if (rec && rec.memo && !rec.memoEn) {
+                        items.push({
+                            profileIdx: pi,
+                            noteIdx: -1,
+                            recIdx: ri,
+                            text: rec.memo,
+                            date: rec.date || ''
+                        });
+                    }
+                });
+            }
         });
+        items.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
         return items;
     }
 
@@ -684,83 +846,237 @@
     }
 
     /**
-     * Translate counseling notes (+ attendance memos) via /api/translate.
-     * API is one text per request; production rate-limits ~30 / 5 min.
-     * Prefer current-class items first so the open Briefing view fills soonest.
+     * Translate counseling notes for one class via /api/translate.
+     * Newest notes first. Abort when translateToken / classId changes.
      */
     async function translateAllNotes(studentProfiles, options) {
         const opts = options || {};
         const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
-        const items = collectTranslateItems(studentProfiles);
+        const shouldAbort = typeof opts.shouldAbort === 'function' ? opts.shouldAbort : () => false;
+        const concurrency = Math.max(1, opts.concurrency || TRANSLATE_CONCURRENCY);
+        const items = collectTranslateItems(studentProfiles, {
+            counselOnly: opts.counselOnly !== false,
+            maxPerStudent:
+                opts.maxPerStudent != null ? opts.maxPerStudent : MAX_AUTO_TRANSLATE_NOTES_PER_STUDENT
+        });
         const stats = { total: items.length, translated: 0, failed: 0, stopped: false, code: '' };
         if (!items.length) {
             return stats;
         }
 
-        for (let i = 0; i < items.length; i += 1) {
-            const item = items[i];
+        let nextIndex = 0;
+
+        async function translateItem(item) {
             let translated = '';
             try {
                 translated = await translateOne(item.text);
             } catch (err) {
                 if (err && err.code === 'RATE_LIMITED') {
                     await new Promise((r) => setTimeout(r, TRANSLATE_RATE_LIMIT_WAIT_MS));
-                    try {
-                        translated = await translateOne(item.text);
-                    } catch (retryErr) {
-                        stats.stopped = true;
-                        stats.code = (retryErr && retryErr.code) || 'RATE_LIMITED';
-                        break;
+                    if (shouldAbort()) {
+                        throw err;
                     }
+                    translated = await translateOne(item.text);
                 } else {
-                    stats.failed += 1;
-                    stats.code = (err && err.code) || 'TRANSLATE_FAILED';
-                    if (err && (err.code === 'TRANSLATE_NOT_CONFIGURED' || err.status === 401)) {
-                        stats.stopped = true;
-                        break;
-                    }
-                    continue;
+                    throw err;
                 }
             }
-            if (applyTranslationItem(studentProfiles, item, translated)) {
-                stats.translated += 1;
-            } else {
-                stats.failed += 1;
-            }
-            if (onProgress) {
-                onProgress(stats, i + 1);
-            }
-            if (i + 1 < items.length) {
-                await new Promise((r) => setTimeout(r, TRANSLATE_GAP_MS));
+            return translated;
+        }
+
+        async function worker() {
+            while (!stats.stopped) {
+                if (shouldAbort()) {
+                    stats.stopped = true;
+                    stats.code = 'paused';
+                    return;
+                }
+                const i = nextIndex;
+                nextIndex += 1;
+                if (i >= items.length) {
+                    return;
+                }
+                const item = items[i];
+                try {
+                    const translated = await translateItem(item);
+                    if (shouldAbort()) {
+                        stats.stopped = true;
+                        stats.code = 'paused';
+                        return;
+                    }
+                    if (applyTranslationItem(studentProfiles, item, translated)) {
+                        stats.translated += 1;
+                    } else {
+                        stats.failed += 1;
+                    }
+                } catch (err) {
+                    if (shouldAbort()) {
+                        stats.stopped = true;
+                        stats.code = 'paused';
+                        return;
+                    }
+                    stats.failed += 1;
+                    stats.code = (err && err.code) || 'TRANSLATE_FAILED';
+                    if (
+                        err &&
+                        (err.code === 'RATE_LIMITED' ||
+                            err.code === 'TRANSLATE_NOT_CONFIGURED' ||
+                            err.status === 401)
+                    ) {
+                        stats.stopped = true;
+                        stats.code = err.code || stats.code;
+                        return;
+                    }
+                }
+                if (onProgress) {
+                    onProgress(stats, Math.min(i + 1, items.length));
+                }
+                if (TRANSLATE_GAP_MS > 0 && nextIndex < items.length) {
+                    await new Promise((r) => setTimeout(r, TRANSLATE_GAP_MS));
+                }
             }
         }
+
+        await Promise.all(Array.from({ length: concurrency }, () => worker()));
         return stats;
     }
 
-    function orderProfilesForTranslation(allProfiles) {
-        const currentKey = classId ? `briefing-${classId}` : '';
-        const current = currentKey ? _cache.get(currentKey) || [] : [];
-        const currentIds = new Set(current.map((p) => String(p && p.studentId)));
-        const first = [];
-        const rest = [];
-        (allProfiles || []).forEach((profile) => {
-            if (profile && currentIds.has(String(profile.studentId))) {
-                first.push(profile);
-            } else {
-                rest.push(profile);
-            }
-        });
-        return first.concat(rest);
+    function getCurrentClassProfiles() {
+        if (!classId) {
+            return [];
+        }
+        return _cache.get(`briefing-${classId}`) || [];
     }
 
-    function refreshCurrentClassFromCache() {
-        if (!classId) {
+    function formatTranslateStatus(stats) {
+        return t('briefingTranslateThisClass', 'Translating this class: {translated}/{total}')
+            .replace('{translated}', String((stats && stats.translated) || 0))
+            .replace('{total}', String((stats && stats.total) || 0));
+    }
+
+    function pauseClassTranslate() {
+        translateToken += 1;
+    }
+
+    async function runTranslateForClass(options) {
+        const opts = options || {};
+        const targetClassId = classId;
+        if (!targetClassId) {
+            return { total: 0, translated: 0, failed: 0, stopped: false, code: '' };
+        }
+        const token = ++translateToken;
+        const profiles = getCurrentClassProfiles();
+        const maxPerStudent =
+            opts.maxPerStudent != null ? opts.maxPerStudent : MAX_AUTO_TRANSLATE_NOTES_PER_STUDENT;
+
+        try {
+            return await translateAllNotes(profiles, {
+                counselOnly: true,
+                maxPerStudent,
+                concurrency: TRANSLATE_CONCURRENCY,
+                shouldAbort: () => token !== translateToken || classId !== targetClassId,
+                onProgress: (stats) => {
+                    if (token !== translateToken || classId !== targetClassId) {
+                        return;
+                    }
+                    showStatus(formatTranslateStatus(stats));
+                    patchTranslatedNotes(profiles);
+                    schedulePersistBriefingCache();
+                }
+            });
+        } finally {
+            if (token === translateToken) {
+                schedulePersistBriefingCache();
+            }
+        }
+    }
+
+    function startCurrentClassAutoTranslate() {
+        const profiles = getCurrentClassProfiles();
+        if (!profiles.length) {
             return;
         }
-        const cached = _cache.get(`briefing-${classId}`);
-        if (cached) {
-            renderAll(cached);
+        const pending = collectTranslateItems(profiles, {
+            counselOnly: true,
+            maxPerStudent: MAX_AUTO_TRANSLATE_NOTES_PER_STUDENT
+        });
+        if (!pending.length) {
+            return;
         }
+        showStatus(formatTranslateStatus({ translated: 0, total: pending.length }));
+        void runTranslateForClass({ maxPerStudent: MAX_AUTO_TRANSLATE_NOTES_PER_STUDENT }).then((tStats) => {
+            if (!tStats || tStats.code === 'paused') {
+                return;
+            }
+            patchTranslatedNotes(getCurrentClassProfiles());
+            const outcome = summarizeTranslateOutcome('', [], tStats);
+            if (outcome.msg) {
+                showStatus(outcome.msg, outcome.isError);
+            }
+        });
+    }
+
+    function summarizeTranslateOutcome(summary, warnings, tStats) {
+        if (!tStats || !tStats.total) {
+            return {
+                msg: summary + (warnings.length ? ` ${warnings.join(' ')}` : ''),
+                isError: warnings.length > 0
+            };
+        }
+        if (tStats.stopped && tStats.code === 'paused') {
+            return { msg: '', isError: false };
+        }
+        if (tStats.stopped && tStats.code === 'TRANSLATE_NOT_CONFIGURED') {
+            return {
+                msg:
+                    summary +
+                    ' ' +
+                    t(
+                        'briefingTranslateNotConfigured',
+                        'Translation is not available on this server.'
+                    ),
+                isError: true
+            };
+        }
+        if (tStats.stopped && tStats.code === 'RATE_LIMITED') {
+            return {
+                msg:
+                    summary +
+                    ' ' +
+                    t(
+                        'briefingTranslateRateLimited',
+                        'Translated {translated} of {total} notes. Rate limit reached — open Briefing again later to continue.'
+                    )
+                        .replace('{translated}', String(tStats.translated))
+                        .replace('{total}', String(tStats.total)),
+                isError: true
+            };
+        }
+        if (tStats.translated > 0) {
+            return {
+                msg: t(
+                    'briefingTranslateThisClassDone',
+                    'Translated {translated} notes in this class.'
+                ).replace('{translated}', String(tStats.translated)),
+                isError: false
+            };
+        }
+        if (tStats.failed > 0) {
+            return {
+                msg:
+                    summary +
+                    ' ' +
+                    t(
+                        'briefingTranslateFailed',
+                        'Could not translate counseling notes. Try again later.'
+                    ),
+                isError: true
+            };
+        }
+        return {
+            msg: summary + (warnings.length ? ` ${warnings.join(' ')}` : ''),
+            isError: warnings.length > 0
+        };
     }
 
     function flagLabel(flag) {
@@ -863,8 +1179,8 @@
                 <td class="briefing-note-date">${esc(note.date)}</td>
                 <td class="briefing-note-kind">${esc(note.kind)}</td>
                 <td class="briefing-note-text">
-                    <div class="briefing-note-ko">${esc(note.text)}</div>
                     ${translated}
+                    <div class="briefing-note-ko">${esc(note.text)}</div>
                     ${flagChips}
                 </td>
             </tr>`;
@@ -964,6 +1280,9 @@
 
     function patchTranslatedNotes(studentProfiles) {
         studentProfiles.forEach((profile) => {
+            if (!profile) {
+                return;
+            }
             const card = document.getElementById(`briefing-card-${profile.studentId}`);
             if (!card) {
                 return;
@@ -974,16 +1293,25 @@
                 if (!note || !note.textEn) {
                     return;
                 }
+                const textCell = row.querySelector('.briefing-note-text');
+                if (!textCell) {
+                    return;
+                }
                 let enEl = row.querySelector('.briefing-note-en');
                 if (!enEl) {
                     enEl = document.createElement('div');
                     enEl.className = 'briefing-note-en';
-                    const textCell = row.querySelector('.briefing-note-text');
-                    if (textCell) {
+                    // Insert English above Korean without touching <details open> state.
+                    const koEl = textCell.querySelector('.briefing-note-ko');
+                    if (koEl) {
+                        textCell.insertBefore(enEl, koEl);
+                    } else {
                         textCell.appendChild(enEl);
                     }
                 }
-                enEl.textContent = note.textEn;
+                if (enEl.textContent !== note.textEn) {
+                    enEl.textContent = note.textEn;
+                }
             });
             const attRows = card.querySelectorAll('.briefing-att-memo');
             attRows.forEach((cell, ri) => {
@@ -991,9 +1319,44 @@
                 if (!rec || !rec.memoEn) {
                     return;
                 }
-                cell.textContent = rec.memoEn;
+                if (cell.textContent !== rec.memoEn) {
+                    cell.textContent = rec.memoEn;
+                }
             });
         });
+    }
+
+    async function onTranslateClick(e) {
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+        }
+        const profiles = getCurrentClassProfiles();
+        if (!profiles.length) {
+            showStatus(
+                t(
+                    'briefingIdleHint',
+                    'Sync TMS once to load counseling notes and attendance for all classes.'
+                ),
+                true
+            );
+            return;
+        }
+        const pending = collectTranslateItems(profiles, {
+            counselOnly: true,
+            maxPerStudent: -1
+        });
+        if (!pending.length) {
+            showStatus(t('briefingTranslateThisClassIdle', 'This class already has English for loaded notes.'));
+            return;
+        }
+        showStatus(formatTranslateStatus({ translated: 0, total: pending.length }));
+        const tStats = await runTranslateForClass({ maxPerStudent: -1 });
+        if (tStats && tStats.code === 'paused') {
+            return;
+        }
+        patchTranslatedNotes(getCurrentClassProfiles());
+        const outcome = summarizeTranslateOutcome('', [], tStats);
+        showStatus(outcome.msg || formatTranslateStatus(tStats), outcome.isError);
     }
 
     function renderIdle() {
@@ -1093,92 +1456,11 @@
             summary = summarizeSyncStats(result && result.stats);
             warnings = buildSyncWarnings(result && result.stats);
             showModalSyncResult(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
-            await new Promise((r) => setTimeout(r, 1200));
+            await new Promise((r) => setTimeout(r, 800));
             closeTmsLoginModal();
             renderIdle();
             showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
-            const profiles = orderProfilesForTranslation(collectProfilesForTranslation(result));
-            const translateItems = collectTranslateItems(profiles);
-            if (translateItems.length) {
-                showStatus(
-                    t('briefingSyncPhaseTranslating', 'Translating counseling notes…') +
-                        ` (0/${translateItems.length})`
-                );
-                let lastPaint = 0;
-                try {
-                    const tStats = await translateAllNotes(profiles, {
-                        onProgress: (stats) => {
-                            showStatus(
-                                t('briefingSyncPhaseTranslating', 'Translating counseling notes…') +
-                                    ` (${stats.translated}/${stats.total})`
-                            );
-                            const now = Date.now();
-                            if (now - lastPaint > 4000) {
-                                lastPaint = now;
-                                refreshCurrentClassFromCache();
-                            }
-                        }
-                    });
-                    refreshCurrentClassFromCache();
-                    if (tStats.stopped && tStats.code === 'TRANSLATE_NOT_CONFIGURED') {
-                        showStatus(
-                            summary +
-                                ' ' +
-                                t(
-                                    'briefingTranslateNotConfigured',
-                                    'Translation is not available on this server.'
-                                ),
-                            true
-                        );
-                    } else if (tStats.stopped && tStats.code === 'RATE_LIMITED') {
-                        showStatus(
-                            summary +
-                                ' ' +
-                                t(
-                                    'briefingTranslateRateLimited',
-                                    'Translated {translated} of {total} notes. Rate limit reached — open Briefing again later to continue.'
-                                )
-                                    .replace('{translated}', String(tStats.translated))
-                                    .replace('{total}', String(tStats.total)),
-                            true
-                        );
-                    } else if (tStats.translated > 0) {
-                        showStatus(
-                            summary +
-                                ' ' +
-                                t(
-                                    'briefingTranslateDone',
-                                    'Translated {translated} counseling notes to English.'
-                                ).replace('{translated}', String(tStats.translated))
-                        );
-                    } else if (tStats.failed > 0) {
-                        showStatus(
-                            summary +
-                                ' ' +
-                                t(
-                                    'briefingTranslateFailed',
-                                    'Could not translate counseling notes. Try again later.'
-                                ),
-                            true
-                        );
-                    } else {
-                        showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
-                    }
-                } catch (_) {
-                    refreshCurrentClassFromCache();
-                    showStatus(
-                        summary +
-                            ' ' +
-                            t(
-                                'briefingTranslateFailed',
-                                'Could not translate counseling notes. Try again later.'
-                            ),
-                        true
-                    );
-                }
-            } else {
-                showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
-            }
+            startCurrentClassAutoTranslate();
         } catch (err) {
             hideModalSyncProgress();
             const code = err && err.code;
@@ -1219,6 +1501,9 @@
         }
         eventsBound = true;
         document.getElementById('briefingSyncBtn')?.addEventListener('click', onSyncClick);
+        document.getElementById('briefingTranslateBtn')?.addEventListener('click', (e) => {
+            void onTranslateClick(e);
+        });
         document.getElementById('briefingTmsConfirmBtn')?.addEventListener('click', () => {
             void confirmTmsLogin();
         });
@@ -1245,18 +1530,27 @@
                     return;
                 }
                 if (detail.classId !== undefined) {
-                    classId = resolveClassId({ classId: detail.classId });
-                    renderIdle();
+                    const nextId = resolveClassId({ classId: detail.classId });
+                    if (nextId !== classId) {
+                        pauseClassTranslate();
+                        classId = nextId;
+                        renderIdle();
+                        startCurrentClassAutoTranslate();
+                    }
                 }
             });
         }
     }
 
-    function initTab(h, options) {
+    async function initTab(h, options) {
         hooks = h;
         classId = resolveClassId(options);
         bindEventsOnce();
+        const hadCache = await loadBriefingCache();
         renderIdle();
+        if (hadCache) {
+            startCurrentClassAutoTranslate();
+        }
     }
 
     global.CCPClassroomBriefing = {
