@@ -2047,6 +2047,8 @@ module.exports = {
     getConfig,
     credentialsConfigured,
     login,
+    fetchPage,
+    stillOnLoginPage,
     scrapeRosters,
     scrapeEssaySubmissions,
     parseWritingListRows,

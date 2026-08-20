@@ -44,7 +44,7 @@
         briefing: [
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-briefing.js?v=20260820-briefing-init'
+            'js/classroom-briefing.js?v=20260820-briefing-batch'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260807-hr-tools',
