@@ -46,4 +46,9 @@ function assert(cond, msg) {
     assert(flags.includes('quit'), 'detect quit keyword');
 }
 
+{
+    const earlyLeave = counsel.detectFlags('오늘 조퇴했습니다');
+    assert(!earlyLeave.includes('quit'), '조퇴 must not flag quit/Left');
+}
+
 console.log('tms-counsel-profiles.test.mjs: ok');

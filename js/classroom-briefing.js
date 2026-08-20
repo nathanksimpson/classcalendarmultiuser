@@ -184,7 +184,7 @@
         if (estimateEl) {
             estimateEl.textContent = t(
                 'briefingSyncEstimate',
-                'Estimated total: about {minutes} min for {count} students'
+                'Estimated total: about {minutes} min for {count} unique students'
             )
                 .replace('{minutes}', String(estimateSyncMinutes(studentTotal)))
                 .replace('{count}', String(studentTotal));
@@ -194,7 +194,7 @@
         updateSyncProgressElapsed();
         syncProgressTimer = setInterval(updateSyncProgressElapsed, 1000);
         setModalProgressPhase(
-            t('briefingSyncPhaseLoading', 'Loading TMS profiles for {count} students across {classes} classes…')
+            t('briefingSyncPhaseLoading', 'Loading TMS profiles for {count} unique students across {classes} classes…')
                 .replace('{count}', String(studentTotal))
                 .replace('{classes}', String(plan.length))
         );
@@ -331,8 +331,22 @@
         return batches;
     }
 
+    /** Unique TMS profiles to scrape (mpidx). Seat overlaps across classes do not inflate this. */
+    function countPlanUniqueMpidx(batches) {
+        const seen = new Set();
+        (batches || []).forEach((batch) => {
+            (batch.students || []).forEach((stu) => {
+                const mpidx = String((stu && (stu.tmsMpidx || stu.mpidx)) || '').trim();
+                if (mpidx) {
+                    seen.add(mpidx);
+                }
+            });
+        });
+        return seen.size;
+    }
+
     function countPlanStudents(batches) {
-        return (batches || []).reduce((sum, batch) => sum + (batch.students ? batch.students.length : 0), 0);
+        return countPlanUniqueMpidx(batches);
     }
 
     function applyBatchSyncResult(result) {
@@ -667,7 +681,7 @@
             const studentTotal = countPlanStudents(pendingSyncPlan);
             hintEl.textContent = t(
                 'briefingTmsSyncScopeHint',
-                'One sign-in loads counseling notes and attendance for {count} students across {classes} classes.'
+                'One sign-in loads counseling notes and attendance for {count} unique students across {classes} classes.'
             )
                 .replace('{count}', String(studentTotal))
                 .replace('{classes}', String(pendingSyncPlan.length));
@@ -1083,10 +1097,10 @@
         const typeMap = {
             quit: t('briefingFlagQuit', 'Left'),
             break: t('briefingFlagBreak', 'On break'),
-            attendance: t('briefingFlagAttendance', 'Attendance issue'),
+            attendance: t('briefingFlagAttendance', 'Absent'),
             ending_soon: t('briefingFlagEndingSoon', 'Ending soon'),
             starting_soon: t('briefingFlagStartingSoon', 'Starting soon'),
-            tms_attendance: t('briefingFlagAttendance', 'Attendance issue')
+            tms_attendance: t('briefingFlagAttendance', 'Absent')
         };
         return typeMap[flag.type] || flag.label || flag.type;
     }
