@@ -88,4 +88,97 @@ const data = {};
 assert(d.migrateClassroomData(data) === true, 'migrate adds arrays');
 assert(Array.isArray(data.debateScores) && data.debateScores.length === 0, 'debateScores migrated');
 
+const students = [
+    { id: 's-pm', name: '김민수', nameEn: 'Minsu' },
+    { id: 's-lo', name: '이서연', nameEn: 'Seoyeon' },
+    { id: 's-legacy', name: '박지훈', nameEn: '' }
+];
+
+const teamSession = {
+    id: 'dts1',
+    classId: 'cls1',
+    date: '2026-07-10',
+    sessionState: {
+        version: 2,
+        debates: [
+            {
+                number: 1,
+                benches: [
+                    {
+                        id: 'gov',
+                        label: 'Government',
+                        members: [
+                            {
+                                name: 'Minsu',
+                                studentId: 's-pm',
+                                role: { abbr: 'PM', name: 'Prime Minister' }
+                            },
+                            {
+                                name: '박지훈',
+                                role: { abbr: 'DPM', name: 'Deputy Prime Minister' }
+                            }
+                        ]
+                    },
+                    {
+                        id: 'opp',
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Seoyeon',
+                                studentId: 's-lo',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+};
+
+const roleMap = d.buildDebateRoleMapFromTeamSession(teamSession, students);
+assert(roleMap['s-pm'] && roleMap['s-pm'].roleAbbr === 'PM', 'role by studentId');
+assert(roleMap['s-lo'] && roleMap['s-lo'].roleAbbr === 'LO', 'role by studentId LO');
+assert(roleMap['s-legacy'] && roleMap['s-legacy'].roleAbbr === 'DPM', 'role by Korean name fallback');
+assert(roleMap['s-pm'].bench === 'Government', 'bench preserved');
+assert(roleMap['s-pm'].debateNumber === 1, 'debate number preserved');
+
+assert(
+    d.formatDebateScoreRoleLabel({ roleAbbr: 'PM', bench: 'Government' }) === 'PM · Government',
+    'role label with bench'
+);
+assert(d.formatDebateScoreRoleLabel({ roleAbbr: 'PM' }) === 'PM', 'role label abbr only');
+assert(
+    d.formatDebateScoreRoleLabel({ roleName: 'Prime Minister' }) === 'Prime Minister',
+    'role label name fallback'
+);
+
+const preservedScores = d.normalizeDebateScoreRecord(
+    {
+        studentId: 's-pm',
+        roleAbbr: 'OLD',
+        scores: { eyeContact: 4, voice: 4, fluency: 4, content: 4, logic: 4, confidence: 4 },
+        note: 'keep me'
+    },
+    'garam'
+);
+assert(preservedScores.note === 'keep me', 'note stays on normalize');
+assert(preservedScores.total === 24, 'scores stay on normalize');
+
+const refreshed = d.normalizeDebateScoreRecord(
+    {
+        studentId: 's-pm',
+        roleAbbr: roleMap['s-pm'].roleAbbr,
+        roleName: roleMap['s-pm'].roleName,
+        debateNumber: roleMap['s-pm'].debateNumber,
+        bench: roleMap['s-pm'].bench,
+        scores: preservedScores.scores,
+        note: preservedScores.note
+    },
+    'garam'
+);
+assert(refreshed.roleAbbr === 'PM', 'teams role replaces old abbr');
+assert(refreshed.note === 'keep me', 'note preserved when roles refresh');
+assert(refreshed.total === 24, 'scores preserved when roles refresh');
+
 console.log('classroom-debate-scores.test.mjs: ok');

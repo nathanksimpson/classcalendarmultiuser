@@ -18,6 +18,9 @@
     let suppressScoreNavUntil = 0;
     const SCORES_AUTOSAVE_DELAY_MS = 700;
     const SCORE_NAV_SUPPRESS_MS = 400;
+    const TOOLBAR_COLLAPSE_STORAGE_KEY = 'ccp.debateScores.toolbarCollapsed';
+    const TOOLBAR_NARROW_MQ = '(max-width: 1024px)';
+    const TOOLBAR_LANDSCAPE_SHORT_MQ = '(orientation: landscape) and (max-height: 900px)';
     const SCORE_NUMPAD_KEYS = [
         { digit: '1' },
         { digit: '2' },
@@ -32,6 +35,8 @@
         { digit: '0' },
         { action: 'backspace', label: '⌫' }
     ];
+    let toolbarCollapseBound = false;
+    let toolbarCollapsed = null;
 
     const CRITERION_I18N = {
         eyeContact: 'classroomDebateScoresCriterionEye',
@@ -242,50 +247,198 @@
     }
 
     function buildRoleMapFromTeams() {
-        const map = Object.create(null);
         const d = domain();
         const data = getAppData();
-        if (!d || !classId || !sessionDate) {
-            return map;
+        if (!d || !d.buildDebateRoleMapFromTeamSession || !classId || !sessionDate) {
+            return Object.create(null);
         }
         const teamSession = d.findDebateTeamSession(data.debateTeamSessions, classId, sessionDate);
-        const state = teamSession && teamSession.sessionState;
-        if (!state || !Array.isArray(state.debates)) {
-            return map;
-        }
-        const nameToId = Object.create(null);
-        getStudents().forEach((entry) => {
-            const student = unwrapStudentEntry(entry);
-            const name = studentDisplayName(student);
-            if (name && student && student.id) {
-                nameToId[name] = student.id;
-                nameToId[String(student.name || '').trim()] = student.id;
-                nameToId[String(student.nameEn || '').trim()] = student.id;
+        return d.buildDebateRoleMapFromTeamSession(teamSession, getStudents());
+    }
+
+    function readToolbarCollapsedPref() {
+        try {
+            if (typeof localStorage === 'undefined') {
+                return null;
             }
+            const raw = localStorage.getItem(TOOLBAR_COLLAPSE_STORAGE_KEY);
+            if (raw === '1') {
+                return true;
+            }
+            if (raw === '0') {
+                return false;
+            }
+        } catch (err) {
+            /* ignore storage errors */
+        }
+        return null;
+    }
+
+    function writeToolbarCollapsedPref(collapsed) {
+        try {
+            if (typeof localStorage === 'undefined') {
+                return;
+            }
+            localStorage.setItem(TOOLBAR_COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0');
+        } catch (err) {
+            /* ignore storage errors */
+        }
+    }
+
+    function prefersCompactChrome() {
+        if (typeof window === 'undefined' || !window.matchMedia) {
+            return false;
+        }
+        return (
+            window.matchMedia(TOOLBAR_NARROW_MQ).matches ||
+            window.matchMedia(TOOLBAR_LANDSCAPE_SHORT_MQ).matches
+        );
+    }
+
+    function resolveToolbarCollapsed() {
+        const pref = readToolbarCollapsedPref();
+        if (pref != null) {
+            return pref;
+        }
+        return prefersCompactChrome();
+    }
+
+    function syncChromeMetrics() {
+        try {
+            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                window.dispatchEvent(new Event('resize'));
+            }
+        } catch (err) {
+            /* ignore */
+        }
+    }
+
+    function updateChromeCompactClass(panel) {
+        if (!panel) {
+            return;
+        }
+        const collapsed = toolbarClassListHasCollapsed(panel);
+        const compact = collapsed && prefersCompactChrome();
+        panel.classList.toggle('classroom-debate-scores--chrome-compact', compact);
+    }
+
+    function templateLabelForSummary(templateId) {
+        const d = domain();
+        const tpl = d ? d.normalizeDebateSheetTemplate(templateId) : 'garam';
+        if (tpl === 'yeoul') {
+            return t('classroomDebateTemplateYeoul');
+        }
+        return t('classroomDebateTemplateGaram');
+    }
+
+    function updateToolbarSummary(panel) {
+        const summary = panel && panel.querySelector('#classroomDebateScoresToolbarSummary');
+        if (!summary) {
+            return;
+        }
+        const collapsed = !!(
+            panel.querySelector('.classroom-debate-scores-toolbar') &&
+            panel
+                .querySelector('.classroom-debate-scores-toolbar')
+                .classList.contains('classroom-debate-scores-toolbar--collapsed')
+        );
+        summary.hidden = !collapsed;
+        if (!collapsed) {
+            summary.textContent = '';
+            return;
+        }
+        const templateId =
+            (draftSession && draftSession.sheetTemplate) ||
+            (panel.querySelector('#classroomDebateScoresTemplate') &&
+                panel.querySelector('#classroomDebateScoresTemplate').value) ||
+            'garam';
+        const templateName = templateLabelForSummary(templateId);
+        const dateStr = String(sessionDate || '').trim();
+        if (dateStr) {
+            summary.textContent = t('classroomDebateScoresToolbarSummary')
+                .replace('{date}', dateStr)
+                .replace('{template}', templateName);
+        } else {
+            summary.textContent = t('classroomDebateScoresToolbarSummaryNoDate').replace(
+                '{template}',
+                templateName
+            );
+        }
+    }
+
+    function applyToolbarCollapsed(panel, collapsed) {
+        if (!panel) {
+            return;
+        }
+        const toolbar = panel.querySelector('.classroom-debate-scores-toolbar');
+        const toggle = panel.querySelector('#classroomDebateScoresToolbarToggle');
+        if (!toolbar || !toggle) {
+            return;
+        }
+        toolbarCollapsed = !!collapsed;
+        toolbar.classList.toggle('classroom-debate-scores-toolbar--collapsed', toolbarCollapsed);
+        toggle.setAttribute('aria-expanded', toolbarCollapsed ? 'false' : 'true');
+        toggle.textContent = t(
+            toolbarCollapsed
+                ? 'classroomDebateScoresToolbarExpand'
+                : 'classroomDebateScoresToolbarCollapse'
+        );
+        updateToolbarSummary(panel);
+        updateChromeCompactClass(panel);
+        updateHint(panel);
+        syncChromeMetrics();
+    }
+
+    function ensureToolbarCollapsedState(panel) {
+        if (toolbarCollapsed == null) {
+            toolbarCollapsed = resolveToolbarCollapsed();
+        }
+        applyToolbarCollapsed(panel, toolbarCollapsed);
+    }
+
+    function bindToolbarCollapse(panel) {
+        const toggle = panel && panel.querySelector('#classroomDebateScoresToolbarToggle');
+        if (!toggle || toggle.dataset.boundCollapse) {
+            return;
+        }
+        toggle.dataset.boundCollapse = '1';
+        toggle.addEventListener('click', () => {
+            const next = !toolbarClassListHasCollapsed(panel);
+            writeToolbarCollapsedPref(next);
+            applyToolbarCollapsed(panel, next);
         });
-        state.debates.forEach((debate) => {
-            const debateNumber = debate && debate.number != null ? Number(debate.number) : null;
-            (debate.benches || []).forEach((bench) => {
-                const benchLabel = bench && bench.label ? String(bench.label) : '';
-                (bench.members || []).forEach((member) => {
-                    if (!member || !member.name) {
-                        return;
+        if (!toolbarCollapseBound && typeof window !== 'undefined' && window.matchMedia) {
+            toolbarCollapseBound = true;
+            const narrowMq = window.matchMedia(TOOLBAR_NARROW_MQ);
+            const landscapeMq = window.matchMedia(TOOLBAR_LANDSCAPE_SHORT_MQ);
+            const onChange = () => {
+                if (readToolbarCollapsedPref() != null) {
+                    const p = panelRef || document.getElementById('panel-debate-scores');
+                    if (p) {
+                        updateChromeCompactClass(p);
+                        updateHint(p);
+                        syncChromeMetrics();
                     }
-                    const sid = nameToId[String(member.name).trim()];
-                    if (!sid) {
-                        return;
-                    }
-                    const role = member.role || {};
-                    map[sid] = {
-                        roleAbbr: role.abbr || '',
-                        roleName: role.name || '',
-                        debateNumber: Number.isFinite(debateNumber) ? debateNumber : null,
-                        bench: benchLabel
-                    };
-                });
+                    return;
+                }
+                const p = panelRef || document.getElementById('panel-debate-scores');
+                if (p) {
+                    applyToolbarCollapsed(p, prefersCompactChrome());
+                }
+            };
+            [narrowMq, landscapeMq].forEach((mq) => {
+                if (typeof mq.addEventListener === 'function') {
+                    mq.addEventListener('change', onChange);
+                } else if (typeof mq.addListener === 'function') {
+                    mq.addListener(onChange);
+                }
             });
-        });
-        return map;
+        }
+    }
+
+    function toolbarClassListHasCollapsed(panel) {
+        const toolbar = panel && panel.querySelector('.classroom-debate-scores-toolbar');
+        return !!(toolbar && toolbar.classList.contains('classroom-debate-scores-toolbar--collapsed'));
     }
 
     function ensureDraftSession() {
@@ -297,13 +450,20 @@
         const data = getAppData();
         const existing = d.findDebateScoreSession(data.debateScores, classId, sessionDate);
         const classData = getClassData();
+        const sameDraft =
+            draftSession &&
+            draftSession.classId === classId &&
+            draftSession.date === sessionDate;
+        const scoreSource = sameDraft ? draftSession : existing;
         const sheetTemplate =
-            (existing && existing.sheetTemplate) || defaultSheetTemplate(classData);
+            (scoreSource && scoreSource.sheetTemplate) ||
+            (existing && existing.sheetTemplate) ||
+            defaultSheetTemplate(classData);
         const roleMap = buildRoleMapFromTeams();
         const teamSession = d.findDebateTeamSession(data.debateTeamSessions, classId, sessionDate);
         const byId = Object.create(null);
-        if (existing && Array.isArray(existing.records)) {
-            existing.records.forEach((r) => {
+        if (scoreSource && Array.isArray(scoreSource.records)) {
+            scoreSource.records.forEach((r) => {
                 if (r && r.studentId) {
                     byId[r.studentId] = r;
                 }
@@ -313,20 +473,22 @@
             const student = unwrapStudentEntry(entry);
             const sid = student && student.id ? String(student.id) : '';
             const prev = byId[sid] || {};
-            const role = roleMap[sid] || {};
+            const fromTeams = Object.prototype.hasOwnProperty.call(roleMap, sid);
+            const role = fromTeams ? roleMap[sid] : {};
             const scores = Object.assign(d.emptyDebateScoresObject(), prev.scores || {});
             return d.normalizeDebateScoreRecord(
                 {
                     studentId: sid,
-                    roleAbbr: role.roleAbbr || prev.roleAbbr || '',
-                    roleName: role.roleName || prev.roleName || '',
-                    debateNumber:
-                        role.debateNumber != null
+                    roleAbbr: fromTeams ? role.roleAbbr || '' : prev.roleAbbr || '',
+                    roleName: fromTeams ? role.roleName || '' : prev.roleName || '',
+                    debateNumber: fromTeams
+                        ? role.debateNumber != null
                             ? role.debateNumber
-                            : prev.debateNumber != null
-                              ? prev.debateNumber
-                              : null,
-                    bench: role.bench || prev.bench || '',
+                            : null
+                        : prev.debateNumber != null
+                          ? prev.debateNumber
+                          : null,
+                    bench: fromTeams ? role.bench || '' : prev.bench || '',
                     scores,
                     note: prev.note || ''
                 },
@@ -334,7 +496,10 @@
             );
         });
         draftSession = {
-            id: existing && existing.id ? existing.id : d.newId('dbs'),
+            id:
+                (sameDraft && draftSession.id) ||
+                (existing && existing.id) ||
+                d.newId('dbs'),
             classId,
             date: sessionDate,
             sheetTemplate: d.normalizeDebateSheetTemplate(sheetTemplate),
@@ -1004,7 +1169,10 @@
                 const sid = student && student.id ? String(student.id) : '';
                 const name = studentDisplayName(student);
                 const rec = byId[sid] || {};
-                const roleLabel = rec.roleAbbr || rec.roleName || '';
+                const roleLabel =
+                    d && d.formatDebateScoreRoleLabel
+                        ? d.formatDebateScoreRoleLabel(rec)
+                        : rec.roleAbbr || rec.roleName || '';
                 const scoreCells = criteria
                     .map((key) => {
                         const val = rec.scores && rec.scores[key] != null ? rec.scores[key] : '';
@@ -1082,6 +1250,10 @@
     function updateHint(panel) {
         const hint = panel.querySelector('#classroomDebateScoresHint');
         if (!hint) {
+            return;
+        }
+        if (panel.classList.contains('classroom-debate-scores--chrome-compact')) {
+            hint.hidden = true;
             return;
         }
         if (!classId || !sessionDate) {
@@ -1170,6 +1342,10 @@
     }
 
     function bindToolbar(panel) {
+        if (!panel) {
+            return;
+        }
+        bindToolbarCollapse(panel);
         if (boundPanel === panel) {
             return;
         }
@@ -1191,6 +1367,7 @@
                 draftSession.records = (draftSession.records || []).map((r) =>
                     d.normalizeDebateScoreRecord(r, draftSession.sheetTemplate)
                 );
+                updateToolbarSummary(panel);
                 render(panel);
                 scheduleSave();
             });
@@ -1247,6 +1424,7 @@
         ensureAutosave(panel);
         bindToolbar(panel);
         applyPanelI18n(panel);
+        ensureToolbarCollapsedState(panel);
         syncAssignmentPicker(panel);
         updateBookChip(panel);
         ensureDraftSession();
@@ -1262,6 +1440,9 @@
         updateHint(panel);
         renderHeader(panel);
         renderRows(panel);
+        updateToolbarSummary(panel);
+        updateChromeCompactClass(panel);
+        syncChromeMetrics();
     }
 
     function resolveContext() {
