@@ -66,26 +66,34 @@ const sorted = mentions.sortMentionCandidates([
 assert(sorted[0].tier === 0 && sorted[0].insertLabel === 'Amy', 'sortMentionCandidates tier 0 first');
 
 const stu1Entry = studentsSingle.find((s) => s.studentId === 'stu-1');
-assert(stu1Entry && stu1Entry.insertLabel === 'Purple T 김민지', 'insertLabel is cohort-first');
+assert(stu1Entry && stu1Entry.insertLabel === 'Purple T: 김민지', 'insertLabel is cohort: Korean name');
 
 const textOther = '@Green M 김민지 participated.';
 const idsOther = mentions.syncTaggedStudentIdsFromText(textOther, 'class-dup', cohorts, classes);
-assert(idsOther.length === 1 && idsOther[0] === 'stu-3', 'sync non-class student with cohort-first tag');
+assert(idsOther.length === 1 && idsOther[0] === 'stu-3', 'sync non-class student with legacy cohort-first tag');
 
 const minjiEntries = studentsDup.filter((s) => s.name === '김민지');
 assert(minjiEntries.length === 2, 'duplicate names appear twice');
 assert(
-    minjiEntries.some((s) => s.insertLabel === 'Purple T 김민지'),
-    'first duplicate uses cohort-first label'
+    minjiEntries.some((s) => s.insertLabel === 'Purple T: 김민지'),
+    'first duplicate uses cohort: Korean label'
 );
 assert(
-    minjiEntries.some((s) => s.insertLabel === 'Green M 김민지'),
-    'second duplicate uses cohort-first label'
+    minjiEntries.some((s) => s.insertLabel === 'Green M: 김민지'),
+    'second duplicate uses cohort: Korean label'
 );
 
-const textKo = '@Purple T 김민지 participated well today.';
-const idsKo = mentions.syncTaggedStudentIdsFromText(textKo, 'class-1', cohorts, classes);
-assert(idsKo.length === 1 && idsKo[0] === 'stu-1', 'sync cohort-first Korean tag');
+const textKoLegacyAt = '@Purple T 김민지 participated well today.';
+const idsKoLegacyAt = mentions.syncTaggedStudentIdsFromText(textKoLegacyAt, 'class-1', cohorts, classes);
+assert(idsKoLegacyAt.length === 1 && idsKoLegacyAt[0] === 'stu-1', 'sync legacy @ cohort-space Korean tag');
+
+const textKoColon = 'Purple T: 김민지 participated well today.';
+const idsKoColon = mentions.syncTaggedStudentIdsFromText(textKoColon, 'class-1', cohorts, classes);
+assert(idsKoColon.length === 1 && idsKoColon[0] === 'stu-1', 'sync bare Class: Name tag');
+
+const textKoAtColon = '@Purple T: 김민지 participated well today.';
+const idsKoAtColon = mentions.syncTaggedStudentIdsFromText(textKoAtColon, 'class-1', cohorts, classes);
+assert(idsKoAtColon.length === 1 && idsKoAtColon[0] === 'stu-1', 'sync @ Class: Name tag');
 
 const textLegacy = '@김민지 participated well today.';
 const idsLegacy = mentions.syncTaggedStudentIdsFromText(textLegacy, 'class-1', cohorts, classes);
@@ -107,7 +115,7 @@ const normalized = dayNotes.normalizeDayNote({
     id: 'n1',
     classId: 'class-1',
     date: '2026-06-10',
-    text: textKo,
+    text: textKoColon,
     createdAt: '2026-06-10T10:00:00.000Z',
     taggedStudentIds: ['stu-1', 'stu-1', '']
 });
@@ -121,9 +129,13 @@ const resolveStu1 = (sid) =>
         ? { name: '김민지', nameEn: 'Minji Kim', cohortName: 'Purple T' }
         : null;
 
-const html = mentions.renderMentionHtml('Hello @Purple T 김민지 & <script>', ['stu-1'], resolveStu1);
-assert(html.includes('<span class="day-note-mention">@Purple T 김민지</span>'), 'render highlights full cohort-first mention');
-assert(html.includes('&lt;script&gt;'), 'render escapes non-mention HTML');
+const htmlLegacy = mentions.renderMentionHtml('Hello @Purple T 김민지 & <script>', ['stu-1'], resolveStu1);
+assert(htmlLegacy.includes('<span class="day-note-mention">@Purple T 김민지</span>'), 'render highlights legacy @ mention');
+assert(htmlLegacy.includes('&lt;script&gt;'), 'render escapes non-mention HTML');
+
+const htmlBare = mentions.renderMentionHtml('Hello Purple T: 김민지 & <script>', ['stu-1'], resolveStu1);
+assert(htmlBare.includes('<span class="day-note-mention">Purple T: 김민지</span>'), 'render highlights bare Class: Name');
+assert(htmlBare.includes('&lt;script&gt;'), 'render escapes non-mention HTML for bare label');
 
 const hayMatch = dayNotes.noteMatchesTextQuery(
     { text: 'quiet day', classId: 'class-1', taggedStudentIds: ['stu-2'] },
@@ -144,21 +156,25 @@ function makeMockTextarea(value, pos) {
 }
 
 const partialTa = makeMockTextarea('@Purple', 7);
-mentions.insertMentionAtCursor(partialTa, 'Purple T 김민지', { atIndex: 0, end: 7 });
+mentions.insertMentionAtCursor(partialTa, 'Purple T: 김민지', { atIndex: 0, end: 7 });
 assert(
-    partialTa.value === '@Purple T 김민지 ',
-    'insertMentionAtCursor replaces partial @query with full multi-word label'
+    partialTa.value === 'Purple T: 김민지 ',
+    'insertMentionAtCursor replaces partial @query with Class: Name and no @'
 );
 
 const afterMentionTa = makeMockTextarea('@Purple T 김민지 ', 17);
 const mentionOpts = { classId: 'class-1', cohorts, classes };
 const afterCtx = mentions.getMentionQueryAtCursor(afterMentionTa, mentionOpts);
-assert(afterCtx === null, 'getMentionQueryAtCursor returns null after completed mention');
+assert(afterCtx === null, 'getMentionQueryAtCursor returns null after completed legacy mention');
 
 const afterMentionMoreText = '@Purple T 김민지 participated well today.';
 const afterMoreTa = makeMockTextarea(afterMentionMoreText, afterMentionMoreText.length);
 const afterMoreCtx = mentions.getMentionQueryAtCursor(afterMoreTa, mentionOpts);
 assert(afterMoreCtx === null, 'getMentionQueryAtCursor returns null after completed mention + more text');
+
+const afterColonInsert = makeMockTextarea('Purple T: 김민지 ', 'Purple T: 김민지 '.length);
+const afterColonCtx = mentions.getMentionQueryAtCursor(afterColonInsert, mentionOpts);
+assert(afterColonCtx === null, 'getMentionQueryAtCursor returns null after bare insert (no @)');
 
 const activeTa = makeMockTextarea('@Purple T', 9);
 const activeCtx = mentions.getMentionQueryAtCursor(activeTa, mentionOpts);
@@ -191,10 +207,10 @@ assert(
 );
 
 const pickTa = makeMockTextarea('@Purple T', 9);
-mentions.insertMentionAtCursor(pickTa, 'Purple T 김민지', { atIndex: 0, end: 9 });
+mentions.insertMentionAtCursor(pickTa, 'Purple T: 김민지', { atIndex: 0, end: 9 });
 assert(
-    pickTa.value === '@Purple T 김민지 ',
-    'insertMentionAtCursor with explicit range inserts full cohort label after ambiguous prefix'
+    pickTa.value === 'Purple T: 김민지 ',
+    'insertMentionAtCursor with explicit range inserts Class: Name after ambiguous prefix'
 );
 
 const savedAmbiguous = '@Purple T 김민지 did great.';
@@ -203,7 +219,21 @@ assert(
     foundAmbiguous.length === 1
         && foundAmbiguous[0].label === 'Purple T 김민지'
         && foundAmbiguous[0].studentId === 'stu-1',
-    'findMentionsInText picks longest insertLabel when shorter prefix also exists'
+    'findMentionsInText picks longest legacy insertLabel when shorter prefix also exists'
+);
+
+const savedAmbiguousColon = 'Purple T: 김민지 did great.';
+const foundAmbiguousColon = mentions.findMentionsInText(
+    savedAmbiguousColon,
+    'class-amb',
+    ambiguousCohorts,
+    ambiguousClasses
+);
+assert(
+    foundAmbiguousColon.length === 1
+        && foundAmbiguousColon[0].label === 'Purple T: 김민지'
+        && foundAmbiguousColon[0].studentId === 'stu-1',
+    'findMentionsInText picks bare Class: Name for ambiguous cohort'
 );
 
 const resolveAmbiguous = (sid) =>
@@ -213,7 +243,13 @@ const resolveAmbiguous = (sid) =>
 const htmlAmbiguous = mentions.renderMentionHtml(savedAmbiguous, ['stu-1'], resolveAmbiguous);
 assert(
     htmlAmbiguous.includes('<span class="day-note-mention">@Purple T 김민지</span>'),
-    'renderMentionHtml highlights full ambiguous cohort mention span'
+    'renderMentionHtml highlights full ambiguous legacy cohort mention span'
+);
+
+const htmlAmbiguousColon = mentions.renderMentionHtml(savedAmbiguousColon, ['stu-1'], resolveAmbiguous);
+assert(
+    htmlAmbiguousColon.includes('<span class="day-note-mention">Purple T: 김민지</span>'),
+    'renderMentionHtml highlights bare Class: Name ambiguous span'
 );
 
 const insertRangeTa = makeMockTextarea('@Purple T', 9);
@@ -224,11 +260,11 @@ assert(
 );
 
 const prevCandidates = [
-    { studentId: 'stu-1', insertLabel: 'Purple T 김민지' },
-    { studentId: 'stu-2', insertLabel: 'Purple T 이서준' }
+    { studentId: 'stu-1', insertLabel: 'Purple T: 김민지' },
+    { studentId: 'stu-2', insertLabel: 'Purple T: 이서준' }
 ];
 const nextCandidates = [
-    { studentId: 'stu-2', insertLabel: 'Purple T 이서준' }
+    { studentId: 'stu-2', insertLabel: 'Purple T: 이서준' }
 ];
 assert(
     mentions.preserveMentionActiveIndex(1, prevCandidates, nextCandidates) === 0,
@@ -256,17 +292,17 @@ assert(
 );
 
 assert(
-    mentions.getMentionCompletionSuffix('Purple', stu1Entry) === ' T 김민지 ',
+    mentions.getMentionCompletionSuffix('Purple', stu1Entry) === ' T: 김민지 ',
     'getMentionCompletionSuffix returns insertLabel remainder for prefix match'
 );
 
 assert(
-    mentions.getMentionCompletionSuffix('Minji', stu1Entry) === 'Purple T 김민지 ',
+    mentions.getMentionCompletionSuffix('Minji', stu1Entry) === 'Purple T: 김민지 ',
     'getMentionCompletionSuffix returns full insertLabel for name prefix match'
 );
 
 assert(
-    mentions.scoreMentionCandidate(stu1Entry, 'Purple T 김민지')
+    mentions.scoreMentionCandidate(stu1Entry, 'Purple T: 김민지')
         > mentions.scoreMentionCandidate(stu1Entry, 'Purple'),
     'exact insertLabel match scores higher than prefix'
 );

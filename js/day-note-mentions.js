@@ -90,14 +90,33 @@
         });
     }
 
+    function buildCohortInsertLabel(cohortName, baseName) {
+        const cohort = String(cohortName || '').trim();
+        const name = String(baseName || '').trim();
+        if (cohort && name) {
+            return `${cohort}: ${name}`;
+        }
+        return name || cohort;
+    }
+
+    function buildLegacyCohortLabel(cohortName, baseName) {
+        const cohort = String(cohortName || '').trim();
+        const name = String(baseName || '').trim();
+        if (cohort && name) {
+            return `${cohort} ${name}`;
+        }
+        return '';
+    }
+
     function buildMentionEntry(row, nameCounts, tier) {
         const student = row.student || {};
         const name = String(student.name || '').trim();
         const nameEn = String(student.nameEn || '').trim();
         const baseName = name || nameEn;
         const cohortName = String(row.cohortName || '').trim();
-        const insertLabel = cohortName ? `${cohortName} ${baseName}` : baseName;
-        const searchParts = [name, nameEn, insertLabel, cohortName].filter(Boolean);
+        const insertLabel = buildCohortInsertLabel(cohortName, baseName);
+        const legacyLabel = buildLegacyCohortLabel(cohortName, baseName);
+        const searchParts = [name, nameEn, insertLabel, legacyLabel, cohortName].filter(Boolean);
         if (cohortName && baseName) {
             searchParts.push(`${baseName}${DISAMBIG_SEP}${cohortName}`);
         }
@@ -265,8 +284,31 @@
             studentEntry.nameEn
         ];
         if (cohortName && baseName) {
+            labels.push(buildCohortInsertLabel(cohortName, baseName));
+            labels.push(buildLegacyCohortLabel(cohortName, baseName));
             labels.push(`${baseName}${DISAMBIG_SEP}${cohortName}`);
-            labels.push(`${cohortName} ${baseName}`);
+        }
+        labels.forEach((label) => {
+            const key = String(label || '').trim();
+            if (!key || seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            out.push(key);
+        });
+        return out;
+    }
+
+    /** Cohort-qualified labels only — used for bare (no @) scanning to limit false positives. */
+    function mentionBareMatchLabels(studentEntry) {
+        const seen = new Set();
+        const out = [];
+        const cohortName = String(studentEntry.cohortName || '').trim();
+        const baseName = String(studentEntry.name || studentEntry.nameEn || '').trim();
+        const labels = [studentEntry.insertLabel];
+        if (cohortName && baseName) {
+            labels.push(buildCohortInsertLabel(cohortName, baseName));
+            labels.push(buildLegacyCohortLabel(cohortName, baseName));
         }
         labels.forEach((label) => {
             const key = String(label || '').trim();
@@ -281,6 +323,18 @@
 
     function isMentionLabelBoundary(next) {
         return next === undefined || next === ' ' || next === '\n' || next === '\r' || next === '\t';
+    }
+
+    function isBareLabelStart(str, index) {
+        if (index <= 0) {
+            return true;
+        }
+        const prev = str[index - 1];
+        return prev === ' ' || prev === '\n' || prev === '\r' || prev === '\t';
+    }
+
+    function rangesOverlap(a, b) {
+        return a.start < b.end && b.start < a.end;
     }
 
     function findLongestMentionLabelAt(rest, labels) {
@@ -305,25 +359,18 @@
         const seen = new Set();
         const out = [];
         getStudentsForMentions(classId, cohorts, classes).forEach((s) => {
-            const label = String(s.insertLabel || '').trim();
-            if (!label || seen.has(label)) {
-                return;
-            }
-            seen.add(label);
-            out.push({ studentId: s.studentId, label });
+            mentionMatchLabels(s).forEach((label) => {
+                if (!label || seen.has(label)) {
+                    return;
+                }
+                seen.add(label);
+                out.push({ studentId: s.studentId, label });
+            });
         });
         return out;
     }
 
-    function findMentionsInText(text, classId, cohorts, classes) {
-        const students = getStudentsForMentions(classId, cohorts, classes);
-        const labels = [];
-        students.forEach((s) => {
-            mentionMatchLabels(s).forEach((label) => {
-                labels.push({ studentId: s.studentId, label });
-            });
-        });
-        const str = String(text || '');
+    function findAtMentionsInText(str, labels) {
         const found = [];
         let i = 0;
         while (i < str.length) {
@@ -349,6 +396,59 @@
         return found;
     }
 
+    function findBareMentionsInText(str, labels, occupied) {
+        const found = [];
+        const occupiedRanges = occupied || [];
+        let i = 0;
+        while (i < str.length) {
+            if (occupiedRanges.some((r) => i >= r.start && i < r.end)) {
+                i += 1;
+                continue;
+            }
+            if (!isBareLabelStart(str, i)) {
+                i += 1;
+                continue;
+            }
+            const rest = str.slice(i);
+            const matched = findLongestMentionLabelAt(rest, labels);
+            if (matched) {
+                const end = i + matched.label.length;
+                const span = {
+                    start: i,
+                    end,
+                    studentId: matched.studentId,
+                    label: matched.label
+                };
+                if (!occupiedRanges.some((r) => rangesOverlap(r, span))
+                    && !found.some((r) => rangesOverlap(r, span))) {
+                    found.push(span);
+                    i = end;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        return found;
+    }
+
+    function findMentionsInText(text, classId, cohorts, classes) {
+        const students = getStudentsForMentions(classId, cohorts, classes);
+        const atLabels = [];
+        const bareLabels = [];
+        students.forEach((s) => {
+            mentionMatchLabels(s).forEach((label) => {
+                atLabels.push({ studentId: s.studentId, label });
+            });
+            mentionBareMatchLabels(s).forEach((label) => {
+                bareLabels.push({ studentId: s.studentId, label });
+            });
+        });
+        const str = String(text || '');
+        const atMentions = findAtMentionsInText(str, atLabels);
+        const bareMentions = findBareMentionsInText(str, bareLabels, atMentions);
+        return atMentions.concat(bareMentions).sort((a, b) => a.start - b.start);
+    }
+
     function syncTaggedStudentIdsFromText(text, classId, cohorts, classes) {
         const mentions = findMentionsInText(text, classId, cohorts, classes);
         const seen = new Set();
@@ -366,7 +466,7 @@
         if (!textarea || !label) {
             return;
         }
-        const token = `@${label} `;
+        const token = `${label} `;
         const value = textarea.value || '';
         let atIdx;
         let end;
@@ -423,8 +523,9 @@
             }
             const cohortName = String(st.cohortName || '').trim();
             const baseName = st.name || st.nameEn || '';
-            const primary = cohortName && baseName ? `${cohortName} ${baseName}` : baseName;
-            [primary, st.name, st.nameEn]
+            const primary = buildCohortInsertLabel(cohortName, baseName);
+            const legacy = buildLegacyCohortLabel(cohortName, baseName);
+            [primary, legacy, st.name, st.nameEn]
                 .concat(cohortName && baseName ? [`${baseName}${DISAMBIG_SEP}${cohortName}`] : [])
                 .filter(Boolean)
                 .forEach((label) => {
@@ -435,26 +536,39 @@
         return labels;
     }
 
-    function scanMentionSpans(text, labels) {
+    function collectRenderBareMentionLabels(taggedStudentIds, resolveStudent) {
+        const labels = [];
+        const idSet = Array.isArray(taggedStudentIds) ? taggedStudentIds : [];
+        idSet.forEach((sid) => {
+            const st = typeof resolveStudent === 'function' ? resolveStudent(sid) : null;
+            if (!st) {
+                return;
+            }
+            const cohortName = String(st.cohortName || '').trim();
+            const baseName = st.name || st.nameEn || '';
+            const primary = buildCohortInsertLabel(cohortName, baseName);
+            const legacy = buildLegacyCohortLabel(cohortName, baseName);
+            [primary, legacy].filter(Boolean).forEach((label) => {
+                labels.push({ studentId: sid, label: String(label).trim() });
+            });
+        });
+        labels.sort((a, b) => b.label.length - a.label.length);
+        return labels;
+    }
+
+    function scanMentionSpans(text, labels, bareLabels) {
         const str = String(text || '');
-        const found = [];
-        let i = 0;
-        while (i < str.length) {
-            const at = str.indexOf('@', i);
-            if (at < 0) {
-                break;
-            }
-            const rest = str.slice(at + 1);
-            const matched = findLongestMentionLabelAt(rest, labels);
-            if (matched) {
-                const end = at + 1 + matched.label.length;
-                found.push({ start: at, end, studentId: matched.studentId });
-                i = end;
-            } else {
-                i = at + 1;
-            }
-        }
-        return found;
+        const atMentions = findAtMentionsInText(str, labels).map((m) => ({
+            start: m.start,
+            end: m.end,
+            studentId: m.studentId
+        }));
+        const bare = findBareMentionsInText(str, bareLabels || labels, atMentions).map((m) => ({
+            start: m.start,
+            end: m.end,
+            studentId: m.studentId
+        }));
+        return atMentions.concat(bare).sort((a, b) => a.start - b.start);
     }
 
     /**
@@ -469,7 +583,8 @@
         if (!labels.length) {
             return escapeHtml(str);
         }
-        const classMentions = scanMentionSpans(str, labels);
+        const bareLabels = collectRenderBareMentionLabels(taggedStudentIds, resolveStudent);
+        const classMentions = scanMentionSpans(str, labels, bareLabels);
         if (!classMentions.length) {
             return escapeHtml(str);
         }
