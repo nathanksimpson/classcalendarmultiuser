@@ -55,7 +55,7 @@
         essays: [
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-essay-resubmit-day-note.js?v=20260702-essay-enhance',
+            'js/classroom-essay-resubmit-day-note.js?v=20260824-mention-no-at-colon',
             'js/classroom-essay-progress.js?v=20260807-hr-tools',
             'js/classroom-essay-progress-print.js?v=20260807-deconflict-min',
             'js/classroom-essay-resubmit-print.js?v=20260807-deconflict-min',

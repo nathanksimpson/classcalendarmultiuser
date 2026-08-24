@@ -26,11 +26,12 @@ const { CCPClassroomEssayResubmitDayNote } = sandbox.window;
             { studentId: 's1', status: 'resubmit_required', note: 'Fix intro' },
             { studentId: 's2', status: 'complete', note: '' }
         ],
-        students: [{ student: { id: 's1', name: 'Amy' } }],
+        students: [{ student: { id: 's1', name: 'Amy' }, cohortName: 'Purple T' }],
         assignmentLabel: '2026-06-25 — Essay 1',
         translate: (k) => k
     });
-    assert(text.includes('@Amy'), 'mentions student');
+    assert(text.includes('Purple T: Amy'), 'mentions student with Class: Name');
+    assert(!text.includes('@Amy'), 'does not keep @ before student name');
     assert(text.includes('Fix intro'), 'includes reason');
     assert(text.includes('classroomEssayResubmitNoteHeader'), 'includes header key');
 }

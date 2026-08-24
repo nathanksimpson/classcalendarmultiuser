@@ -25,7 +25,10 @@
         const map = new Map();
         (students || []).forEach((entry) => {
             if (entry && entry.student && entry.student.id) {
-                map.set(entry.student.id, String(entry.student.name || entry.student.id).trim());
+                const name = String(entry.student.name || entry.student.id).trim();
+                const cohortName = String(entry.cohortName || '').trim();
+                const label = cohortName && name ? `${cohortName}: ${name}` : name;
+                map.set(entry.student.id, label);
             }
         });
         return map;
@@ -63,7 +66,7 @@
                 const name = nameMap.get(rec.studentId) || rec.studentId;
                 const reason = String(rec.note || '').trim();
                 const reasonText = reason || t('classroomEssayResubmitNoteNoReason');
-                lines.push(`@${name} — ${reasonText}`);
+                lines.push(`${name} — ${reasonText}`);
             });
         return lines.join('\n').trim();
     }
