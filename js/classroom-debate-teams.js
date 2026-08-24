@@ -233,11 +233,48 @@
         }
         d.resolveStudentsForClass(classData, data.cohorts).forEach((entry) => {
             const student = unwrapStudentEntry(entry);
-            const name = studentDisplayName(student);
-            if (name && student.id) {
-                nameToStudentId[name] = student.id;
+            if (!student || !student.id) {
+                return;
+            }
+            const sid = String(student.id);
+            const en = String(student.nameEn || '').trim();
+            const ko = String(student.name || '').trim();
+            const display = studentDisplayName(student);
+            if (en) {
+                nameToStudentId[en] = sid;
+            }
+            if (ko) {
+                nameToStudentId[ko] = sid;
+            }
+            if (display) {
+                nameToStudentId[display] = sid;
             }
         });
+    }
+
+    function stampStudentIdsOnSessionState(sessionState) {
+        if (!sessionState || !Array.isArray(sessionState.debates)) {
+            return sessionState;
+        }
+        rebuildNameMap();
+        sessionState.debates.forEach((debate) => {
+            (debate && Array.isArray(debate.benches) ? debate.benches : []).forEach((bench) => {
+                (bench && Array.isArray(bench.members) ? bench.members : []).forEach((member) => {
+                    if (!member) {
+                        return;
+                    }
+                    if (member.studentId) {
+                        return;
+                    }
+                    const name = String(member.name || '').trim();
+                    const sid = name ? nameToStudentId[name] : '';
+                    if (sid) {
+                        member.studentId = sid;
+                    }
+                });
+            });
+        });
+        return sessionState;
     }
 
     function getHomeroomLabel() {
@@ -567,6 +604,7 @@
         const sessionState = Object.assign({}, appState, {
             studentsManual: studentsListTouchedByUser
         });
+        stampStudentIdsOnSessionState(sessionState);
         rebuildNameMap();
         const studentIds = (appState.students || [])
             .map((name) => nameToStudentId[name])
