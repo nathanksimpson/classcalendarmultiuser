@@ -370,6 +370,34 @@ async function runTmsRosterPreview(body) {
     };
 }
 
+async function runTmsEssayPreview(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    const bodyUser = String(payload.username || '').trim();
+    const bodyPass = String(payload.password || '');
+    let scrapeOpts = {};
+    if (bodyUser || bodyPass) {
+        if (!bodyUser || !bodyPass) {
+            const err = new Error('TMS username and password are required');
+            err.code = 'TMS_CREDS_MISSING';
+            err.status = 503;
+            throw err;
+        }
+        scrapeOpts = { username: bodyUser, password: bodyPass };
+    }
+    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
+    if (!tmsRoster.credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        err.status = 503;
+        throw err;
+    }
+    const result = await tmsRoster.scrapeEssaySubmissions(scrapeOpts);
+    return {
+        assignments: result.assignments || [],
+        meta: result.meta || {}
+    };
+}
+
 function sendTmsPreviewError(res, err) {
     const code = err && err.code;
     if (code === 'TMS_LOGIN_FAILED') {
@@ -1294,6 +1322,15 @@ app.post('/api/tms/roster/preview', requireUser, rejectViewAsWrites, async (req,
     }
 });
 
+/** TMS essay submission preview (Writing_list) — body credentials preferred; local .env fallback. */
+app.post('/api/tms/essays/preview', requireUser, rejectViewAsWrites, async (req, res) => {
+    try {
+        return res.json(await runTmsEssayPreview(req.body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
+    }
+});
+
 /**
  * Live-site → localhost bridge (no ClassManager session).
  * Only loopback; CORS allowlisted for classmanager.live so Sync can use the work PC IP.
@@ -1321,6 +1358,22 @@ app.post('/api/tms/bridge/preview', async (req, res) => {
     }
     try {
         return res.json(await runTmsRosterPreview(req.body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
+    }
+});
+
+app.options('/api/tms/bridge/essays/preview', (req, res) => {
+    applyTmsBridgeCors(req, res);
+    res.status(204).end();
+});
+
+app.post('/api/tms/bridge/essays/preview', async (req, res) => {
+    if (!requireTmsBridgeLoopback(req, res)) {
+        return;
+    }
+    try {
+        return res.json(await runTmsEssayPreview(req.body));
     } catch (err) {
         return sendTmsPreviewError(res, err);
     }
