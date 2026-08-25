@@ -10,9 +10,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
 await import(pathToFileURL(path.join(root, 'js', 'syllabus-templates.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'syllabus-curricula-data.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'syllabus-presets.js')).href);
 
 const api = globalThis.CCPSyllabusTemplates;
+const curricula = globalThis.CCPCurriculaData;
 assert.ok(api, 'CCPSyllabusTemplates loaded');
+assert.ok(curricula, 'CCPCurriculaData loaded');
 
 const rows = [
     { id: '1', kind: 'lesson', sessionNumber: 1, planTitle: 'Old', planDetail: '', source: 'generated' },
@@ -72,5 +76,115 @@ const noteTemplates = [
 ];
 const noteForce = api.applyRowTemplatesToSyllabusRows(noteRows, noteTemplates, { force: true });
 assert.equal(noteForce.rows[0].note, 'Curriculum session note', 'force refresh overwrites row note');
+
+// --- Curriculum expand helpers (Write Right / Write Now / Early Writers) ---
+assert.equal(api.getBookSessionCount(templates), 2);
+assert.equal(api.countFillableLessonRows(rows), 2);
+assert.equal(
+    api.shouldOfferLessonExpand({
+        isDebateMonthly: false,
+        hasExistingClassId: true,
+        classLessonCount: 8,
+        bookSessionCount: 18
+    }),
+    true,
+    'offer expand when book longer than class'
+);
+assert.equal(
+    api.shouldOfferLessonExpand({
+        isDebateMonthly: true,
+        hasExistingClassId: true,
+        classLessonCount: 4,
+        bookSessionCount: 18
+    }),
+    false,
+    'never offer expand for debate monthly'
+);
+assert.equal(
+    api.shouldOfferLessonExpand({
+        isDebateMonthly: false,
+        hasExistingClassId: false,
+        classLessonCount: 8,
+        bookSessionCount: 18
+    }),
+    false,
+    'no expand prompt for unsaved new class'
+);
+assert.equal(
+    api.shouldOfferLessonExpand({
+        isDebateMonthly: false,
+        hasExistingClassId: true,
+        classLessonCount: 18,
+        bookSessionCount: 18
+    }),
+    false,
+    'no expand when counts already match'
+);
+
+function makeLessonRows(n) {
+    const out = [];
+    for (let i = 1; i <= n; i += 1) {
+        out.push({
+            id: `r${i}`,
+            kind: 'lesson',
+            sessionNumber: i,
+            lessonNumber: i,
+            planTitle: `Lesson ${i}`,
+            planDetail: '',
+            source: 'generated'
+        });
+    }
+    return out;
+}
+
+function assertBookFill(label, presetId, expectedCount, shortCount) {
+    const preset = curricula.getById(presetId);
+    assert.ok(preset, `${label} preset exists`);
+    const bookTpl = preset.defaultSyllabusRowTemplates || [];
+    assert.equal(api.getBookSessionCount(bookTpl), expectedCount, `${label} book session count`);
+
+    // expand=no: only shortCount rows filled
+    const shortRows = makeLessonRows(shortCount);
+    const partial = api.applyRowTemplatesToSyllabusRows(shortRows, bookTpl, { force: true });
+    assert.equal(partial.applied, shortCount, `${label} partial fill applies ${shortCount}`);
+    assert.equal(api.countFillableLessonRows(partial.rows), shortCount);
+    assert.ok(
+        partial.rows.every((r) => String(r.planDetail || '').trim().length > 0),
+        `${label} short rows all got planDetail`
+    );
+    assert.ok(
+        expectedCount > shortCount,
+        `${label} book longer than short class (partial case)`
+    );
+
+    // expand=yes: rebuild to book length then fill all
+    const fullRows = makeLessonRows(expectedCount);
+    const full = api.applyRowTemplatesToSyllabusRows(fullRows, bookTpl, { force: true });
+    assert.equal(full.applied, expectedCount, `${label} expand fill applies all ${expectedCount}`);
+    assert.ok(
+        full.rows[shortCount] && String(full.rows[shortCount].planDetail || '').trim(),
+        `${label} session ${shortCount + 1} filled after expand`
+    );
+    const last = full.rows[expectedCount - 1];
+    assert.ok(last && String(last.planDetail || '').trim(), `${label} last session filled`);
+}
+
+assertBookFill('Write Right Green', 'preset-wr-sp-green', 18, 8);
+assertBookFill('Write Now Green', 'preset-write-now-green', 20, 8);
+assertBookFill('Early Writers Green', 'preset-early-writers-green', 21, 8);
+
+// Write Right: after expand, project days (sessions 17–18) present
+{
+    const wr = curricula.getById('preset-wr-sp-green').defaultSyllabusRowTemplates;
+    const full = api.applyRowTemplatesToSyllabusRows(makeLessonRows(18), wr, { force: true });
+    assert.ok(
+        full.rows[16].planTitle.includes('Writing Project'),
+        'WR session 17 is Writing Project'
+    );
+    assert.ok(
+        full.rows[4].planTitle.includes('Lesson 3A') || full.rows[4].planDetail.includes('SB'),
+        'WR session 5 (week 3) filled — past first four weeks'
+    );
+}
 
 console.log('syllabus-tab.test.mjs: all passed');
