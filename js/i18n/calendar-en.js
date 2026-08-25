@@ -2479,6 +2479,7 @@
         dailySummaryPrintNoClasses: 'No classes meet on the selected date. Pick another date or turn off “My classes only”.',
         dailySummaryPrintPickOne: 'Select at least one print option.',
         dailySummaryPrintModuleMissing: 'Daily summary print module did not load. Press Ctrl+F5 to refresh.',
+        dailySummaryPrintOpenFailed: 'Could not open daily summary print. Try again or press Ctrl+F5 to refresh.',
         dailySummaryTeacherDocTitle: 'Teacher daily summary',
         dailySummaryStudentDocTitle: "Today's Homework",
         dailySummaryFromLastClass: 'From last class',
