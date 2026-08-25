@@ -1132,7 +1132,8 @@ function mergeCohortLists(lists) {
                 students: [],
                 source: c.source || '',
                 schedule: c.schedule || null,
-                tmsHomeroomName: c.tmsHomeroomName || ''
+                tmsHomeroomName: c.tmsHomeroomName || '',
+                tmsTeachers: Array.isArray(c.tmsTeachers) ? c.tmsTeachers.slice() : []
             });
         }
         const bucket = byKey.get(key);
@@ -1147,6 +1148,13 @@ function mergeCohortLists(lists) {
         }
         if (!bucket.tmsHomeroomName && c.tmsHomeroomName) {
             bucket.tmsHomeroomName = c.tmsHomeroomName;
+        }
+        if (
+            (!bucket.tmsTeachers || !bucket.tmsTeachers.length) &&
+            Array.isArray(c.tmsTeachers) &&
+            c.tmsTeachers.length
+        ) {
+            bucket.tmsTeachers = c.tmsTeachers.slice();
         }
         const seenNames = new Set(bucket.students.map((s) => s.name));
         const seenMpidx = new Set(
@@ -1289,11 +1297,10 @@ function parseClassPopupSchedule(html) {
 }
 
 /**
- * Parse 담임 teacher display name from 담당선생님 / Main teacher row.
- * e.g. 최미영[담임](파닉스),차지민[비담임](애니메이션)
+ * Extract the 담당선생님 / Main teacher title blob from class popup HTML.
  * @returns {string}
  */
-function parseClassPopupHomeroomName(html) {
+function extractClassPopupTeacherBlob(html) {
     const raw = String(html || '');
     const titleMatch =
         raw.match(
@@ -1302,12 +1309,48 @@ function parseClassPopupHomeroomName(html) {
         raw.match(
             /title=["']담당선생님["'][^>]*>[\s\S]*?<td[^>]*>\s*<a[^>]*title=["']([^"']+)["']/i
         );
-    const blob = titleMatch ? titleMatch[1] : '';
+    return titleMatch ? String(titleMatch[1] || '').trim() : '';
+}
+
+/**
+ * Parse full 담당선생님 list from class_Main_New_PopUp.
+ * e.g. 최미영[담임](파닉스),차지민[비담임](애니메이션),Nathan[비담임](Spk&Wr)
+ * @returns {{ name: string, isHomeroom: boolean, subjectRaw: string }[]}
+ */
+function parseClassPopupTeacherAssignments(html) {
+    const blob = extractClassPopupTeacherBlob(html);
     if (!blob) {
-        return '';
+        return [];
     }
-    const hr = blob.match(/([^,，\[]+?)\s*\[\s*담임\s*\]/);
-    return hr ? String(hr[1] || '').trim() : '';
+    const out = [];
+    // Name[담임|비담임](subject) — subject may contain & or Hangul
+    const re = /([^,，\[]+?)\s*\[\s*(담임|비담임)\s*\]\s*(?:\(([^)]*)\))?/g;
+    let m;
+    while ((m = re.exec(blob))) {
+        const name = String(m[1] || '').trim();
+        if (!name) {
+            continue;
+        }
+        const role = String(m[2] || '').trim();
+        const subjectRaw = String(m[3] || '').trim();
+        out.push({
+            name,
+            isHomeroom: role === '담임',
+            subjectRaw
+        });
+    }
+    return out;
+}
+
+/**
+ * Parse 담임 teacher display name from 담당선생님 / Main teacher row.
+ * e.g. 최미영[담임](파닉스),차지민[비담임](애니메이션)
+ * @returns {string}
+ */
+function parseClassPopupHomeroomName(html) {
+    const assignments = parseClassPopupTeacherAssignments(html);
+    const hr = assignments.find((a) => a && a.isHomeroom);
+    return hr ? String(hr.name || '').trim() : '';
 }
 
 /**
@@ -1961,6 +2004,9 @@ async function scrapeRosters(options) {
 
                 const scheduleHtml = accepted ? currentHtml : '';
                 const schedule = scheduleHtml ? parseClassPopupSchedule(scheduleHtml) : null;
+                const tmsTeachers = scheduleHtml
+                    ? parseClassPopupTeacherAssignments(scheduleHtml)
+                    : [];
                 const tmsHomeroomName = scheduleHtml
                     ? parseClassPopupHomeroomName(scheduleHtml)
                     : '';
@@ -1980,7 +2026,8 @@ async function scrapeRosters(options) {
                     students,
                     source,
                     schedule: schedule || null,
-                    tmsHomeroomName: tmsHomeroomName || ''
+                    tmsHomeroomName: tmsHomeroomName || '',
+                    tmsTeachers: tmsTeachers || []
                 });
             }
         }
@@ -2071,6 +2118,8 @@ module.exports = {
     parseClassSelectList,
     parseClassPopupSchedule,
     parseClassPopupHomeroomName,
+    parseClassPopupTeacherAssignments,
+    extractClassPopupTeacherBlob,
     extractClassSelectBlock,
     findClassSelectById,
     classIsSelectedOnPage,

@@ -146,6 +146,156 @@ const D = loadDomain();
     assert(typeof tms.parseClassPopupHomeroomName === 'function', 'homeroom parser');
     const hr = tms.parseClassPopupHomeroomName(html);
     assert(hr === '최미영', `expected 최미영 got ${hr}`);
+    assert(typeof tms.parseClassPopupTeacherAssignments === 'function', 'teacher assignments parser');
+    const teachers = tms.parseClassPopupTeacherAssignments(html);
+    assert(teachers.length === 3, `expected 3 teachers got ${teachers.length}`);
+    assert(teachers[0].name === '최미영' && teachers[0].isHomeroom === true, 'homeroom first');
+    assert(teachers[0].subjectRaw === '파닉스', 'homeroom subject phonics');
+    assert(teachers[1].name === '차지민' && teachers[1].isHomeroom === false, 'co-teacher');
+    assert(teachers[1].subjectRaw === '애니메이션', 'animation subject');
+    assert(teachers[2].name === 'Nathan' && teachers[2].subjectRaw === 'Spk&Wr', 'Nathan Spk&Wr');
+}
+
+{
+    const phonics = D.mapTmsSubjectToTrack('파닉스');
+    assert(phonics.matched && phonics.track === 'phonics', '파닉스 → phonics');
+    const spk = D.mapTmsSubjectToTrack('Spk&Wr');
+    assert(spk.matched && spk.track === 'spkWr', 'Spk&Wr → spkWr');
+    const anim = D.mapTmsSubjectToTrack('애니메이션');
+    assert(anim.matched && anim.track === 'animation', '애니메이션 → animation');
+    const unknown = D.mapTmsSubjectToTrack('MysteryClass');
+    assert(!unknown.matched && unknown.track, 'unknown still has slug track');
+}
+
+{
+    const levels = [
+        { id: 'Orange', name: 'Orange' },
+        { id: 'Yeoul', name: 'Yeoul' },
+        { id: 'Garam', name: 'Garam' }
+    ];
+    assert(D.inferLevelPresetFromTmsName('OrangeM^2606', levels) === 'Orange', 'OrangeM → Orange');
+    assert(D.inferLevelPresetFromTmsName('여울T^2606', levels) === 'Yeoul', '여울T → Yeoul');
+    assert(D.inferLevelPresetFromTmsName('GaramM', levels) === 'Garam', 'GaramM → Garam');
+}
+
+{
+    const accounts = [
+        { userId: 'u_miyoung', displayName: '최미영' },
+        { userId: 'u_nathan', displayName: 'Nathan' }
+    ];
+    const exact = D.matchTmsTeacherToAccount('최미영', accounts);
+    assert(exact.userId === 'u_miyoung' && exact.matchedBy === 'exact', 'exact teacher match');
+    const miss = D.matchTmsTeacherToAccount('없는사람', accounts);
+    assert(!miss.userId && miss.name === '없는사람', 'unmatched keeps name');
+}
+
+{
+    const previousAppData = {
+        classes: [
+            {
+                id: 'cls_phonics',
+                name: 'Orange · phonics',
+                cohortId: 'coh_old',
+                cohortIds: ['coh_old'],
+                period: 2,
+                classTeachers: [{ id: 'ct1', userId: 'u_miyoung', name: '최미영', category: 'phonics' }],
+                syllabusRows: [{ date: '2026-03-05', topic: 'A' }]
+            }
+        ],
+        cohorts: [{ id: 'coh_old', name: 'OrangeM', levelPreset: 'Orange' }]
+    };
+    const specs = [
+        {
+            cohortId: 'tmp_orange',
+            cohortName: 'OrangeM',
+            matchedPreviousCohortId: 'coh_old',
+            tmsSuggestedPeriod: 2,
+            levelPreset: 'Orange',
+            tmsHomeroomName: '최미영',
+            tmsTeachers: [
+                { name: '최미영', isHomeroom: true, subjectRaw: '파닉스' },
+                { name: '차지민', isHomeroom: false, subjectRaw: '애니메이션' },
+                { name: 'Nathan', isHomeroom: false, subjectRaw: 'Spk&Wr' }
+            ],
+            students: [{ name: '김민수', mpidx: '1' }]
+        }
+    ];
+    const accounts = [
+        { userId: 'u_miyoung', displayName: '최미영' },
+        { userId: 'u_nathan', displayName: 'Nathan' }
+    ];
+    const { plans, cohortSpecs } = D.buildTermClassPlansFromTmsAssignments(
+        specs,
+        previousAppData,
+        accounts,
+        { termStart: '2026-06-01', termEnd: '2026-08-31' }
+    );
+    assert(plans.length === 3, `expected 3 class plans got ${plans.length}`);
+    assert(cohortSpecs[0].homeroomTeacherUserId === 'u_miyoung', 'homeroom matched');
+    const phonicsPlan = plans.find((p) => p.subjectTrack === 'phonics');
+    assert(phonicsPlan && phonicsPlan.classMode === 'carry', 'phonics carries');
+    assert(phonicsPlan.previousClassId === 'cls_phonics', 'carry previous class');
+    const animPlan = plans.find((p) => p.subjectTrack === 'animation');
+    assert(animPlan && animPlan.classMode === 'new' && animPlan.unmatched, 'animation unmatched new');
+    const spkPlan = plans.find((p) => p.subjectTrack === 'spkWr');
+    assert(spkPlan && spkPlan.teacherUserId === 'u_nathan', 'Nathan matched for Spk&Wr');
+
+    const finalCohorts = [
+        {
+            id: 'coh_new',
+            name: 'OrangeM',
+            levelPreset: 'Orange',
+            meetingDays: [1, 3, 5],
+            classIds: [],
+            students: []
+        }
+    ];
+    const built = D.buildTermClassesFromTmsAssignments(
+        plans,
+        finalCohorts,
+        new Map([['tmp_orange', 'coh_new']]),
+        previousAppData,
+        {
+            monthShift: 3,
+            shiftIsoDate: (d, delta) => {
+                const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (!m) {
+                    return d;
+                }
+                let month = Number(m[2]) + delta;
+                let year = Number(m[1]);
+                while (month > 12) {
+                    month -= 12;
+                    year += 1;
+                }
+                return `${year}-${String(month).padStart(2, '0')}-${m[3]}`;
+            },
+            newClassId: () => `cls_${Math.random().toString(36).slice(2, 6)}`,
+            newTeacherRowId: () => `ct_${Math.random().toString(36).slice(2, 6)}`
+        }
+    );
+    assert(built.length === 3, `built ${built.length} classes`);
+    const carried = built.find((c) => (c.syllabusRows || []).length);
+    assert(carried, 'carried class keeps syllabus');
+    assert(finalCohorts[0].classIds.length === 3, 'cohort classIds linked');
+}
+
+{
+    // TMS-only: empty previous → all students are adds
+    const plan = D.buildTermMigrateTransferPlan([], [
+        {
+            cohortId: 'coh_new',
+            cohortName: 'OrangeM',
+            levelPreset: 'Orange',
+            students: [
+                { name: '김민수', nameEn: 'Minsu', mpidx: '1001' },
+                { name: '이서연', nameEn: 'Seoyeon', mpidx: '2002' }
+            ]
+        }
+    ]);
+    assert(plan.moves.length === 0, 'tms-only no moves');
+    assert(plan.adds.length === 2, 'tms-only all adds');
+    assert(plan.unmatchedPrevious.length === 0, 'tms-only no unmatched previous');
 }
 
 {
