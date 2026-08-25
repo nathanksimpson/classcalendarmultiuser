@@ -9,6 +9,8 @@
     let previousSnapshot = null;
     let scrapedCohorts = [];
     let createdCohortMap = [];
+    /** @type {object[]} */
+    let classPlans = [];
     let transferPlan = null;
     let selectedMoves = new Set();
     let selectedAdds = new Set();
@@ -20,6 +22,8 @@
         monthShift: 3,
         clearClassroom: true,
         copyEvents: true,
+        /** @type {'migrate'|'tmsOnly'} */
+        mode: 'migrate',
         tmsUser: '',
         tmsPass: ''
     };
@@ -162,26 +166,34 @@
     }
 
     function matchHomeroomTeacherByName(tmsName) {
-        const name = String(tmsName || '').trim();
-        if (!name || !hooks || !hooks.listTeachers) {
-            return { userId: '', name: name };
+        const d = domain();
+        const teachers = hooks && hooks.listTeachers ? hooks.listTeachers() || [] : [];
+        if (d && d.matchTmsTeacherToAccount) {
+            const matched = d.matchTmsTeacherToAccount(tmsName, teachers);
+            return { userId: matched.userId || '', name: matched.name || String(tmsName || '').trim() };
         }
-        const teachers = hooks.listTeachers() || [];
+        const name = String(tmsName || '').trim();
+        if (!name) {
+            return { userId: '', name: '' };
+        }
         const exact = teachers.find(
             (r) => String(r.displayName || '').trim() === name || String(r.name || '').trim() === name
         );
         if (exact) {
             return { userId: exact.userId || '', name: exact.displayName || name };
         }
-        const lower = name.toLowerCase();
-        const fuzzy = teachers.find((r) => {
-            const dn = String(r.displayName || '').toLowerCase();
-            return dn && (dn.includes(lower) || lower.includes(dn));
-        });
-        if (fuzzy) {
-            return { userId: fuzzy.userId || '', name: fuzzy.displayName || name };
-        }
         return { userId: '', name };
+    }
+
+    function listSimsonLevels() {
+        if (hooks && hooks.getAllSimsonLevels) {
+            return hooks.getAllSimsonLevels() || [];
+        }
+        return [];
+    }
+
+    function isTmsOnlyMode() {
+        return wizardSettings.mode === 'tmsOnly';
     }
 
     /**
@@ -189,25 +201,35 @@
      */
     function buildCohortCreateSpecs(tmsCohorts, appData) {
         const d = domain();
-        const previous = (appData && appData.cohorts) || [];
-        const links = (appData && appData.tmsRosterLinks) || {};
+        const previous = isTmsOnlyMode() ? [] : (appData && appData.cohorts) || [];
+        const links = isTmsOnlyMode() ? {} : (appData && appData.tmsRosterLinks) || {};
+        const levels = listSimsonLevels();
         return (Array.isArray(tmsCohorts) ? tmsCohorts : []).map((c) => {
             const sched = inferScheduleFromName(c.cohortName);
             const mapped = mapScheduleForApp(c.schedule, appData);
             const match =
-                d && d.matchPreviousCohortForTmsClass
+                !isTmsOnlyMode() && d && d.matchPreviousCohortForTmsClass
                     ? d.matchPreviousCohortForTmsClass(previous, links, c.tmsClassId, c.cohortName)
                     : { cohort: null, matchedBy: '' };
             const prev = match.cohort;
-            const levelPreset =
-                (prev && (prev.levelPreset || prev.level)) || '';
+            let levelPreset = (prev && (prev.levelPreset || prev.level)) || '';
+            if (!levelPreset && d && d.inferLevelPresetFromTmsName) {
+                levelPreset = d.inferLevelPresetFromTmsName(c.cohortName, levels) || '';
+            }
             let homeroomTeacherUserId = prev ? String(prev.homeroomTeacherUserId || '') : '';
             let homeroomTeacherName = prev ? String(prev.homeroomTeacherName || '') : '';
             let homeroomDaySuffix = prev ? String(prev.homeroomDaySuffix || '') : '';
-            if (!homeroomTeacherUserId && c.tmsHomeroomName) {
-                const hr = matchHomeroomTeacherByName(c.tmsHomeroomName);
-                homeroomTeacherUserId = hr.userId;
-                homeroomTeacherName = hr.name || c.tmsHomeroomName;
+            const tmsTeachers = Array.isArray(c.tmsTeachers) ? c.tmsTeachers.slice() : [];
+            if (!homeroomTeacherUserId && (c.tmsHomeroomName || tmsTeachers.length)) {
+                const hrName =
+                    c.tmsHomeroomName ||
+                    (tmsTeachers.find((a) => a && a.isHomeroom) || {}).name ||
+                    '';
+                if (hrName) {
+                    const hr = matchHomeroomTeacherByName(hrName);
+                    homeroomTeacherUserId = hr.userId;
+                    homeroomTeacherName = hr.name || hrName;
+                }
             }
             return {
                 tmsClassId: String(c.tmsClassId || ''),
@@ -222,25 +244,46 @@
                 tmsSuggestedPeriod: mapped && mapped.period != null ? mapped.period : null,
                 tmsSuggestedTimeSlotId: mapped && mapped.timeSlotId ? mapped.timeSlotId : '',
                 tmsHomeroomName: c.tmsHomeroomName || '',
+                tmsTeachers,
                 levelPreset: String(levelPreset || ''),
                 matchedPreviousCohortId: prev ? prev.id : '',
                 matchedBy: match.matchedBy || '',
                 homeroomTeacherUserId,
                 homeroomTeacherName,
                 homeroomDaySuffix,
-                iTeachHere: false,
-                classMode: null,
-                previousClassId: '',
-                subjectTrack: '',
                 period: mapped && mapped.period != null ? mapped.period : null,
                 startDate: '',
-                endDate: '',
-                previousClassOptions: []
+                endDate: ''
             };
         });
     }
 
+    function rebuildClassPlans() {
+        const d = domain();
+        const appData = getAppData() || {};
+        const monthShift = Number(wizardSettings.monthShift) || 0;
+        const termStart = appData.termStart ? shiftIso(appData.termStart, monthShift) : '';
+        const termEnd = appData.termEnd ? shiftIso(appData.termEnd, monthShift) : '';
+        const teachers = hooks && hooks.listTeachers ? hooks.listTeachers() || [] : [];
+        const previousAppData = isTmsOnlyMode() ? { cohorts: [], classes: [] } : appData;
+        if (d && d.buildTermClassPlansFromTmsAssignments) {
+            const result = d.buildTermClassPlansFromTmsAssignments(
+                createdCohortMap,
+                previousAppData,
+                teachers,
+                { termStart, termEnd }
+            );
+            classPlans = result.plans || [];
+            if (Array.isArray(result.cohortSpecs)) {
+                createdCohortMap = result.cohortSpecs;
+            }
+        } else {
+            classPlans = [];
+        }
+    }
+
     function applyTeachingDefaults() {
+        // Legacy path kept for tests; class plans replace per-user teaching step.
         const d = domain();
         const appData = getAppData() || {};
         const monthShift = Number(wizardSettings.monthShift) || 0;
@@ -258,16 +301,14 @@
                     shiftIsoDate: shiftIso
                 }
             );
-        } else {
-            createdCohortMap = createdCohortMap.map((row) =>
-                Object.assign({}, row, {
-                    startDate: termStart,
-                    endDate: termEnd,
-                    iTeachHere: false,
-                    classMode: null
-                })
-            );
         }
+        createdCohortMap = createdCohortMap.map((row) =>
+            Object.assign({}, row, {
+                startDate: row.startDate || termStart,
+                endDate: row.endDate || termEnd
+            })
+        );
+        rebuildClassPlans();
     }
 
     function rebuildTransferPlan() {
@@ -412,7 +453,7 @@
         if (nextBtn) {
             if (step === 1) {
                 nextBtn.textContent = t('dataTermMigrateScrapeNext');
-            } else if (step === 6) {
+            } else if (step === 5) {
                 nextBtn.textContent = t('dataTermMigrateSubmit');
             } else {
                 nextBtn.textContent = t('dataTermMigrateContinue');
@@ -426,6 +467,20 @@
                     <span>${escapeHtml(t('dataTermCloneNameLabel'))}</span>
                     <input type="text" id="termMigrateNameInput" class="field-input field-control" autocomplete="off" />
                 </label>
+                <fieldset class="form-group">
+                    <legend class="section-hint">${escapeHtml(t('dataTermMigrateModeLabel'))}</legend>
+                    <label class="checkbox-label selection-chip">
+                        <input type="radio" name="termMigrateMode" id="termMigrateModeMigrate" value="migrate"
+                          ${wizardSettings.mode !== 'tmsOnly' ? 'checked' : ''} />
+                        <span>${escapeHtml(t('dataTermMigrateModeMigrate'))}</span>
+                    </label>
+                    <label class="checkbox-label selection-chip">
+                        <input type="radio" name="termMigrateMode" id="termMigrateModeTmsOnly" value="tmsOnly"
+                          ${wizardSettings.mode === 'tmsOnly' ? 'checked' : ''} />
+                        <span>${escapeHtml(t('dataTermMigrateModeTmsOnly'))}</span>
+                    </label>
+                    <p class="section-hint">${escapeHtml(t('dataTermMigrateModeHint'))}</p>
+                </fieldset>
                 <label class="form-group" for="termMigrateMonthShift">
                     <span>${escapeHtml(t('dataTermCloneMonthShift'))}</span>
                     <input type="number" id="termMigrateMonthShift" class="field-input field-control" min="0" max="24" step="1" value="3" />
@@ -537,6 +592,21 @@
         }
 
         if (step === 3) {
+            if (isTmsOnlyMode()) {
+                const totalStudents = createdCohortMap.reduce(
+                    (n, row) => n + ((row.students && row.students.length) || 0),
+                    0
+                );
+                body.innerHTML = `
+                    <p class="section-hint">${escapeHtml(t('dataTermMigrateTmsOnlyStudentsHint'))}</p>
+                    <p class="section-hint">${escapeHtml(
+                        t('dataTermMigrateTmsOnlyStudentsSummary')
+                            .replace('{classes}', String(createdCohortMap.length))
+                            .replace('{students}', String(totalStudents))
+                    )}</p>
+                `;
+                return;
+            }
             rebuildTransferPlan();
             const moves = (transferPlan && transferPlan.moves) || [];
             const adds = (transferPlan && transferPlan.adds) || [];
@@ -685,7 +755,14 @@
         }
 
         if (step === 4) {
-            const cards = createdCohortMap
+            if (!classPlans.length) {
+                rebuildClassPlans();
+            }
+            const missing = createdCohortMap.filter(
+                (r) => !r.homeroomTeacherUserId && !r.homeroomTeacherName
+            ).length;
+            const unmatchedTeachers = classPlans.filter((p) => p && p.unmatched).length;
+            const hrCards = createdCohortMap
                 .map((row, idx) => {
                     return `<div class="form-group term-migrate-hr-card" data-idx="${idx}">
                       <h3 class="form-section-title">${escapeHtml(row.cohortName)}</h3>
@@ -702,11 +779,29 @@
                     </div>`;
                 })
                 .join('');
-            const missing = createdCohortMap.filter(
-                (r) => !r.homeroomTeacherUserId && !r.homeroomTeacherName
-            ).length;
+            const planRows = classPlans
+                .map((plan) => {
+                    const unmatchedCls = plan.unmatched ? ' is-error' : '';
+                    const subjectNote = plan.subjectMatched
+                        ? escapeHtml(plan.subjectTrack || '')
+                        : `${escapeHtml(plan.subjectTrack || plan.subjectRaw || '')} (?)`;
+                    return `<tr class="${unmatchedCls.trim()}">
+                      <td><input type="checkbox" data-plan-create="${escapeHtml(plan.planId)}" ${plan.create !== false ? 'checked' : ''} /></td>
+                      <td>${escapeHtml(plan.cohortName || '')}</td>
+                      <td>${escapeHtml(plan.teacherName || plan.tmsTeacherName || '')}${
+                          plan.unmatched
+                              ? ` <span class="section-hint">${escapeHtml(t('dataTermMigrateTeacherUnmatched'))}</span>`
+                              : ''
+                      }</td>
+                      <td>${escapeHtml(plan.subjectRaw || '')}</td>
+                      <td>${subjectNote}</td>
+                      <td>${escapeHtml(plan.classMode === 'carry' ? t('dataTermMigrateCarryForward') : t('dataTermMigrateBuildNew'))}</td>
+                      <td>${plan.period != null ? `P${plan.period}` : '—'}</td>
+                    </tr>`;
+                })
+                .join('');
             body.innerHTML = `
-                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep4Hint'))}</p>
+                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep4TeachersHint'))}</p>
                 ${
                     missing
                         ? `<p class="section-hint">${escapeHtml(
@@ -714,7 +809,35 @@
                           )}</p>`
                         : ''
                 }
-                <div class="term-migrate-hr-list">${cards}</div>
+                ${
+                    unmatchedTeachers
+                        ? `<p class="section-hint is-error">${escapeHtml(
+                              t('dataTermMigrateTeacherUnmatchedCount').replace(
+                                  '{n}',
+                                  String(unmatchedTeachers)
+                              )
+                          )}</p>`
+                        : ''
+                }
+                <h3 class="form-section-title">${escapeHtml(t('dataTermMigrateHomeroomSection'))}</h3>
+                <div class="term-migrate-hr-list">${hrCards}</div>
+                <h3 class="form-section-title">${escapeHtml(t('dataTermMigrateClassesSection'))}</h3>
+                <div class="classroom-sheet-panel">
+                  <div class="classroom-sheet-scroll">
+                    <table class="classroom-sheet">
+                      <thead><tr>
+                        <th></th>
+                        <th>${escapeHtml(t('dataTermMigrateColClass'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColTeacher'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColSubject'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateSubjectTrack'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColMatch'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColPeriod'))}</th>
+                      </tr></thead>
+                      <tbody>${planRows || `<tr><td colspan="7">${escapeHtml(t('dataTermMigrateNoClassPlans'))}</td></tr>`}</tbody>
+                    </table>
+                  </div>
+                </div>
             `;
             createdCohortMap.forEach((row, idx) => {
                 const mount = document.getElementById(`termMigrateHrMount_${idx}`);
@@ -745,120 +868,23 @@
                     }
                 });
             });
-            return;
-        }
-
-        if (step === 5) {
-            const eventHint = wizardSettings.copyEvents
-                ? t('dataTermMigrateEventsWillCopy').replace(
-                      '{n}',
-                      String(((getAppData() || {}).events || []).length)
-                  )
-                : t('dataTermMigrateEventsSkipped');
-            const cards = createdCohortMap
-                .map((row, idx) => {
-                    const prevOpts = (row.previousClassOptions || [])
-                        .map((c) => {
-                            const sel = row.previousClassId === c.id ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name)}</option>`;
-                        })
-                        .join('');
-                    const tracks = listSubjectTracksForRow(row);
-                    const trackOpts = tracks
-                        .map((tr) => {
-                            const sel = row.subjectTrack === tr ? ' selected' : '';
-                            return `<option value="${escapeHtml(tr)}"${sel}>${escapeHtml(tr)}</option>`;
-                        })
-                        .join('');
-                    const teachOn = row.iTeachHere;
-                    return `<div class="form-group term-migrate-teach-card" data-idx="${idx}">
-                      <h3 class="form-section-title">${escapeHtml(row.cohortName)}</h3>
-                      <p class="section-hint">${escapeHtml(row.levelPreset || '—')} · ${escapeHtml(row.schedulePattern || '')}</p>
-                      <label class="checkbox-label selection-chip">
-                        <input type="checkbox" id="termMigrateTeach_${idx}" ${teachOn ? 'checked' : ''} data-teach-idx="${idx}" />
-                        <span>${escapeHtml(t('dataTermMigrateITeachHere'))}</span>
-                      </label>
-                      <div id="termMigrateTeachDetail_${idx}" ${teachOn ? '' : 'hidden'}>
-                        <div class="form-row">
-                          <label class="checkbox-label selection-chip">
-                            <input type="radio" name="termMigrateMode_${idx}" id="termMigrateModeCarry_${idx}" value="carry"
-                              ${row.classMode !== 'new' ? 'checked' : ''} ${prevOpts ? '' : 'disabled'} />
-                            <span>${escapeHtml(t('dataTermMigrateCarryForward'))}</span>
-                          </label>
-                          <label class="checkbox-label selection-chip">
-                            <input type="radio" name="termMigrateMode_${idx}" id="termMigrateModeNew_${idx}" value="new"
-                              ${row.classMode === 'new' || !prevOpts ? 'checked' : ''} />
-                            <span>${escapeHtml(t('dataTermMigrateBuildNew'))}</span>
-                          </label>
-                        </div>
-                        <label class="form-group" for="termMigratePrevClass_${idx}">
-                          <span>${escapeHtml(t('dataTermMigratePrevClass'))}</span>
-                          <select id="termMigratePrevClass_${idx}" class="field-select field-control" ${prevOpts ? '' : 'disabled'}>
-                            ${prevOpts || `<option value="">${escapeHtml(t('dataTermMigrateNoPrevClass'))}</option>`}
-                          </select>
-                        </label>
-                        <label class="form-group" for="termMigrateTrack_${idx}">
-                          <span>${escapeHtml(t('dataTermMigrateSubjectTrack'))}</span>
-                          <select id="termMigrateTrack_${idx}" class="field-select field-control">
-                            <option value="">${escapeHtml(t('dataTermMigratePickTrack'))}</option>
-                            ${trackOpts}
-                          </select>
-                        </label>
-                        <div class="form-row">
-                          <label class="form-group" for="termMigratePeriod_${idx}">
-                            <span>${escapeHtml(t('dataTermMigrateColPeriod'))}</span>
-                            <select id="termMigratePeriod_${idx}" class="field-select field-control">
-                              <option value="">—</option>
-                              ${periodOptionsHtml(row.period)}
-                            </select>
-                          </label>
-                          <label class="form-group" for="termMigrateStart_${idx}">
-                            <span>${escapeHtml(t('dataTermMigrateStartDate'))}</span>
-                            <input type="date" id="termMigrateStart_${idx}" class="field-input field-control" value="${escapeHtml(row.startDate || '')}" />
-                          </label>
-                          <label class="form-group" for="termMigrateEnd_${idx}">
-                            <span>${escapeHtml(t('dataTermMigrateEndDate'))}</span>
-                            <input type="date" id="termMigrateEnd_${idx}" class="field-input field-control" value="${escapeHtml(row.endDate || '')}" />
-                          </label>
-                        </div>
-                      </div>
-                    </div>`;
-                })
-                .join('');
-            body.innerHTML = `
-                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep5Hint'))}</p>
-                <p class="section-hint">${escapeHtml(eventHint)}</p>
-                <div class="term-migrate-teach-list">${cards}</div>
-            `;
-            body.querySelectorAll('input[data-teach-idx]').forEach((cb) => {
+            body.querySelectorAll('input[data-plan-create]').forEach((cb) => {
                 cb.addEventListener('change', () => {
-                    const idx = Number(cb.getAttribute('data-teach-idx'));
-                    const detail = document.getElementById(`termMigrateTeachDetail_${idx}`);
-                    if (detail) {
-                        detail.hidden = !cb.checked;
-                    }
-                    if (createdCohortMap[idx]) {
-                        createdCohortMap[idx].iTeachHere = cb.checked;
-                        if (cb.checked && !createdCohortMap[idx].classMode) {
-                            createdCohortMap[idx].classMode = createdCohortMap[idx]
-                                .previousClassOptions?.length
-                                ? 'carry'
-                                : 'new';
-                        }
+                    const planId = cb.getAttribute('data-plan-create');
+                    const plan = classPlans.find((p) => p && p.planId === planId);
+                    if (plan) {
+                        plan.create = cb.checked;
                     }
                 });
             });
             return;
         }
 
-        if (step === 6) {
-            const teachCount = createdCohortMap.filter((r) => r.iTeachHere).length;
-            const carryCount = createdCohortMap.filter(
-                (r) => r.iTeachHere && r.classMode === 'carry'
-            ).length;
-            const newCount = createdCohortMap.filter(
-                (r) => r.iTeachHere && r.classMode === 'new'
-            ).length;
+        if (step === 5) {
+            flushStep4Homeroom();
+            const createPlans = classPlans.filter((p) => p && p.create !== false);
+            const carryCount = createPlans.filter((p) => p.classMode === 'carry').length;
+            const newCount = createPlans.filter((p) => p.classMode !== 'carry').length;
             const hrFilled = createdCohortMap.filter(
                 (r) => r.homeroomTeacherUserId || r.homeroomTeacherName
             ).length;
@@ -866,19 +892,29 @@
             const monthShift = Number(wizardSettings.monthShift) || 0;
             const termStart = appData.termStart ? shiftIso(appData.termStart, monthShift) : '—';
             const termEnd = appData.termEnd ? shiftIso(appData.termEnd, monthShift) : '—';
-            const eventCount = wizardSettings.copyEvents
-                ? (appData.events || []).length
-                : 0;
+            const eventCount = wizardSettings.copyEvents ? (appData.events || []).length : 0;
+            const studentMoves = isTmsOnlyMode() ? 0 : selectedMoves.size;
+            const studentAdds = isTmsOnlyMode()
+                ? createdCohortMap.reduce((n, r) => n + ((r.students && r.students.length) || 0), 0)
+                : selectedAdds.size;
             body.innerHTML = `
-                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep6Hint'))}</p>
+                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep5ReviewHint'))}</p>
                 <ul class="section-hint">
+                  <li>${escapeHtml(
+                      t('dataTermMigrateReviewMode').replace(
+                          '{mode}',
+                          isTmsOnlyMode()
+                              ? t('dataTermMigrateModeTmsOnly')
+                              : t('dataTermMigrateModeMigrate')
+                      )
+                  )}</li>
                   <li>${escapeHtml(t('dataTermMigrateReviewClasses').replace('{n}', String(createdCohortMap.length)))}</li>
-                  <li>${escapeHtml(t('dataTermMigrateReviewMoves').replace('{n}', String(selectedMoves.size)))}</li>
-                  <li>${escapeHtml(t('dataTermMigrateReviewAdds').replace('{n}', String(selectedAdds.size)))}</li>
+                  <li>${escapeHtml(t('dataTermMigrateReviewMoves').replace('{n}', String(studentMoves)))}</li>
+                  <li>${escapeHtml(t('dataTermMigrateReviewAdds').replace('{n}', String(studentAdds)))}</li>
                   <li>${escapeHtml(t('dataTermMigrateReviewHomeroom').replace('{n}', String(hrFilled)))}</li>
                   <li>${escapeHtml(
-                      t('dataTermMigrateReviewMyClasses')
-                          .replace('{n}', String(teachCount))
+                      t('dataTermMigrateReviewAllClasses')
+                          .replace('{n}', String(createPlans.length))
                           .replace('{carry}', String(carryCount))
                           .replace('{new}', String(newCount))
                   )}</li>
@@ -938,18 +974,22 @@
             const shiftInput = document.getElementById('termMigrateMonthShift');
             const clearCb = document.getElementById('termMigrateClearClassroom');
             const copyEv = document.getElementById('termMigrateCopyEvents');
+            const modeTms = document.getElementById('termMigrateModeTmsOnly');
             wizardSettings = {
                 newName: trimmed,
                 monthShift: shiftInput ? Number(shiftInput.value) || 0 : 3,
                 clearClassroom: clearCb ? clearCb.checked : true,
                 copyEvents: copyEv ? copyEv.checked : true,
+                mode: modeTms && modeTms.checked ? 'tmsOnly' : 'migrate',
                 tmsUser: user ? user.value : '',
                 tmsPass: pass ? pass.value : ''
             };
             scrapeLoading = true;
             setStatus(t('dataTermMigrateScraping'), false);
             try {
-                previousSnapshot = snapshotPreviousStudents(getAppData());
+                previousSnapshot = isTmsOnlyMode()
+                    ? []
+                    : snapshotPreviousStudents(getAppData());
                 const result = await scrapeTmsRosters(
                     wizardSettings.tmsUser,
                     wizardSettings.tmsPass
@@ -966,6 +1006,7 @@
                         cohortId: `migrate_tmp_${i}_${spec.tmsClassId || i}`
                     })
                 );
+                classPlans = [];
                 step = 2;
                 setStatus(
                     t('dataTermMigrateScrapeDone').replace(
@@ -996,6 +1037,7 @@
         }
 
         if (step === 3) {
+            applyTeachingDefaults();
             step = 4;
             renderStep();
             return;
@@ -1003,20 +1045,12 @@
 
         if (step === 4) {
             flushStep4Homeroom();
-            applyTeachingDefaults();
             step = 5;
             renderStep();
             return;
         }
 
         if (step === 5) {
-            flushStep5Teaching();
-            step = 6;
-            renderStep();
-            return;
-        }
-
-        if (step === 6) {
             await submitMigrate();
         }
     }
@@ -1024,9 +1058,6 @@
     function goBack() {
         if (step <= 1) {
             return;
-        }
-        if (step === 5) {
-            flushStep5Teaching();
         }
         if (step === 4) {
             flushStep4Homeroom();
@@ -1118,9 +1149,16 @@
             setStatus(t('dataTermCloneNameRequired'), true);
             return;
         }
-        flushStep5Teaching();
         flushStep4Homeroom();
-        rebuildTransferPlan();
+        if (isTmsOnlyMode()) {
+            previousSnapshot = [];
+            // All TMS students become adds
+            rebuildTransferPlan();
+            selectedMoves = new Set();
+            selectedAdds = new Set((transferPlan.adds || []).map((_, i) => `a${i}`));
+        } else {
+            rebuildTransferPlan();
+        }
 
         const monthShift = Number(wizardSettings.monthShift) || 0;
         const clearClassroom = wizardSettings.clearClassroom !== false;
@@ -1129,7 +1167,7 @@
         const cloned = global.CCPTermCloneWizard.buildClonedCalendarData(appData, {
             newName: trimmed,
             monthShift,
-            clearClassroom
+            clearClassroom: clearClassroom || isTmsOnlyMode()
         });
 
         cloned.classes = [];
@@ -1157,7 +1195,7 @@
             cloned.events = [];
         }
         cloned.tmsEssayLinks = {};
-        if (clearClassroom) {
+        if (clearClassroom || isTmsOnlyMode()) {
             cloned.attendanceSessions = [];
             cloned.homeworkCompletions = [];
             cloned.essaySubmissions = [];
@@ -1166,7 +1204,13 @@
             cloned.dayNotes = [];
         }
 
-        const oldCohorts = Array.isArray(cloned.cohorts) ? cloned.cohorts.slice() : [];
+        const oldCohorts = isTmsOnlyMode()
+            ? (Array.isArray(cloned.cohorts) ? cloned.cohorts : []).filter(
+                  (c) => c && (c.id === 'cohort-student-archive' || c.isArchiveCohort)
+              )
+            : Array.isArray(cloned.cohorts)
+              ? cloned.cohorts.slice()
+              : [];
         const archive = oldCohorts.find(
             (c) => c && (c.id === 'cohort-student-archive' || c.isArchiveCohort)
         );
@@ -1295,24 +1339,26 @@
         });
         cloned.tmsRosterLinks = Object.assign({}, cloned.tmsRosterLinks || {}, links);
 
-        const builtClasses = [];
-        createdCohortMap.forEach((spec) => {
-            const realId = idRemap.get(spec.cohortId);
-            const cohort = finalCohorts.find((c) => c && c.id === realId);
-            if (!cohort || !spec.iTeachHere) {
-                return;
-            }
-            const cls = buildUserClassForCohort(spec, cohort, sourceSnapshot);
-            if (cls) {
-                builtClasses.push(cls);
-                if (!Array.isArray(cohort.classIds)) {
-                    cohort.classIds = [];
-                }
-                if (!cohort.classIds.includes(cls.id)) {
-                    cohort.classIds.push(cls.id);
-                }
-            }
-        });
+        const plansToCreate = classPlans.filter((p) => p && p.create !== false);
+        const builtClasses =
+            d && d.buildTermClassesFromTmsAssignments
+                ? d.buildTermClassesFromTmsAssignments(
+                      plansToCreate,
+                      finalCohorts,
+                      idRemap,
+                      isTmsOnlyMode() ? { classes: [], cohorts: [] } : sourceSnapshot,
+                      {
+                          monthShift,
+                          shiftIsoDate: shiftIso,
+                          newClassId: () => newEntityId('cls'),
+                          newTeacherRowId: () => newEntityId('ct'),
+                          generateNewClass: hooks && hooks.generateSingleClassForCohort
+                              ? (cohort, track, opts) =>
+                                    hooks.generateSingleClassForCohort(cohort, track, opts)
+                              : null
+                      }
+                  )
+                : [];
         cloned.classes = builtClasses;
 
         try {
@@ -1357,6 +1403,7 @@
         step = 1;
         scrapedCohorts = [];
         createdCohortMap = [];
+        classPlans = [];
         transferPlan = null;
         unclearResolutions = new Map();
         setStatus('', false);
@@ -1374,6 +1421,7 @@
         previousSnapshot = null;
         scrapedCohorts = [];
         createdCohortMap = [];
+        classPlans = [];
         transferPlan = null;
         unclearResolutions = new Map();
         modal.style.display = 'flex';
