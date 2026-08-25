@@ -63,7 +63,7 @@
             'js/classroom-essay-class-summary.js?v=20260807-deconflict-min',
             'js/classroom-essay-class-summary-print.js?v=20260807-deconflict-min',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-essays.js?v=20260807-hr-tools'
+            'js/classroom-essays.js?v=20260825-essay-tms-sync'
         ],
         ledger: [
             'js/classroom-access.js?v=20260807-hr-tools',

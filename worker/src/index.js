@@ -1564,6 +1564,19 @@ export default {
             );
         }
 
+        if (path === '/api/tms/essays/preview' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) return blocked;
+            // Same as counsel: Worker cannot reach TMS; live site uses local bridge.
+            return json(
+                {
+                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
+                    code: 'TMS_BRIDGE_REQUIRED'
+                },
+                503
+            );
+        }
+
         if (path === '/api/teachers' && request.method === 'GET') {
             const calendars = await CalAccess.listCalendarsForUser(env, user);
             const hasCalendarAccess =
