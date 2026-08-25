@@ -84,6 +84,15 @@
         return d ? d.resolveStudentsForClass(getClassData(), data.cohorts) : [];
     }
 
+    function getStudentsForSheet() {
+        const d = domain();
+        const students = getStudents();
+        if (d && d.sortStudentsByDebateOrder) {
+            return d.sortStudentsByDebateOrder(students, buildRoleMapFromTeams());
+        }
+        return students;
+    }
+
     function unwrapStudentEntry(entry) {
         return entry && entry.student ? entry.student : entry;
     }
@@ -965,7 +974,7 @@
     }
 
     function listStudentIdsInSheetOrder() {
-        return getStudents()
+        return getStudentsForSheet()
             .map((entry) => {
                 const student = unwrapStudentEntry(entry);
                 return student && student.id ? String(student.id) : '';
@@ -1155,7 +1164,7 @@
         }
         const criteria = d.getDebateScoreCriteria(draftSession.sheetTemplate);
         const disabled = canEdit() ? '' : ' disabled';
-        const students = getStudents();
+        const students = getStudentsForSheet();
         const byId = Object.create(null);
         (draftSession.records || []).forEach((r) => {
             if (r && r.studentId) {
@@ -1277,14 +1286,20 @@
         if (!draftSession) {
             return [];
         }
+        const ordered = getStudentsForSheet();
         const byId = Object.create(null);
-        getStudents().forEach((entry) => {
+        ordered.forEach((entry) => {
             const student = unwrapStudentEntry(entry);
             if (student && student.id) {
                 byId[String(student.id)] = studentDisplayName(student);
             }
         });
-        return (draftSession.records || [])
+        return ordered
+            .map((entry) => {
+                const student = unwrapStudentEntry(entry);
+                const sid = student && student.id ? String(student.id) : '';
+                return (draftSession.records || []).find((r) => r && r.studentId === sid);
+            })
             .filter((r) => r && r.studentId)
             .map((r) => ({
                 name: byId[r.studentId] || r.studentId,

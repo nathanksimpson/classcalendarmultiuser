@@ -7,7 +7,7 @@
             'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/cohort-management.js?v=20260807-deconflict-min',
-            'js/setup-board.js?v=20260807-deconflict-min',
+            'js/setup-board.js?v=20260821-cohort-new-class',
             'js/cohorts-class-detail.js?v=20260703-design-fidelity'
         ],
         timetable: [
@@ -92,7 +92,7 @@
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260807-deconflict-min',
             'js/classroom-access.js?v=20260807-hr-tools',
-            'js/classroom-debate-teams.js?v=20260818-init-keep-date'
+            'js/classroom-debate-teams.js?v=20260824-studentid-stamp'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
@@ -101,7 +101,7 @@
             'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments',
             'js/debate/debate-teams-v2.js?v=20260807-deconflict-min',
             'js/classroom-access.js?v=20260807-hr-tools',
-            'js/classroom-debate-scores.js?v=20260721-numpad-place'
+            'js/classroom-debate-scores.js?v=20260824-speaking-order'
         ],
         'debate-books': [
             'js/debate-periods.js?v=20260806-per-period-remap',
