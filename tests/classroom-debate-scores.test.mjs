@@ -143,11 +143,8 @@ assert(roleMap['s-legacy'] && roleMap['s-legacy'].roleAbbr === 'DPM', 'role by K
 assert(roleMap['s-pm'].bench === 'Government', 'bench preserved');
 assert(roleMap['s-pm'].debateNumber === 1, 'debate number preserved');
 
-assert(
-    d.formatDebateScoreRoleLabel({ roleAbbr: 'PM', bench: 'Government' }) === 'PM · Government',
-    'role label with bench'
-);
-assert(d.formatDebateScoreRoleLabel({ roleAbbr: 'PM' }) === 'PM', 'role label abbr only');
+assert(d.formatDebateScoreRoleLabel({ roleAbbr: 'PM', bench: 'Government' }) === 'PM', 'role label abbr only');
+assert(d.formatDebateScoreRoleLabel({ roleAbbr: 'PM' }) === 'PM', 'role label abbr');
 assert(
     d.formatDebateScoreRoleLabel({ roleName: 'Prime Minister' }) === 'Prime Minister',
     'role label name fallback'
@@ -180,5 +177,117 @@ const refreshed = d.normalizeDebateScoreRecord(
 assert(refreshed.roleAbbr === 'PM', 'teams role replaces old abbr');
 assert(refreshed.note === 'keep me', 'note preserved when roles refresh');
 assert(refreshed.total === 24, 'scores preserved when roles refresh');
+
+const rosterAbc = [
+    { id: 'a', name: 'A', nameEn: 'A' },
+    { id: 'b', name: 'B', nameEn: 'B' },
+    { id: 'c', name: 'C', nameEn: 'C' },
+    { id: 'unassigned', name: 'Z', nameEn: 'Z' }
+];
+const speakingSession = {
+    id: 'dts-order',
+    classId: 'cls1',
+    date: '2026-07-10',
+    sessionState: {
+        version: 2,
+        formatId: 'ap',
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                order: ['PM', 'LO', 'DPM', 'DLO'],
+                benches: [
+                    {
+                        id: 'gov',
+                        label: 'Proposition',
+                        members: [
+                            { studentId: 'c', name: 'C', role: { abbr: 'PM' } },
+                            { studentId: 'b', name: 'B', role: { abbr: 'DPM' } }
+                        ]
+                    },
+                    {
+                        id: 'opp',
+                        label: 'Opposition',
+                        members: [{ studentId: 'a', name: 'A', role: { abbr: 'LO' } }]
+                    }
+                ]
+            }
+        ]
+    }
+};
+const speakingMap = d.buildDebateRoleMapFromTeamSession(speakingSession, rosterAbc);
+assert(speakingMap.c.speakingIndex === 0, 'PM speaks first');
+assert(speakingMap.a.speakingIndex === 1, 'LO speaks second');
+assert(speakingMap.b.speakingIndex === 2, 'DPM speaks third');
+const sortedIds = d.sortStudentsByDebateOrder(rosterAbc, speakingMap).map((s) => s.id);
+assert(sortedIds.join(',') === 'c,a,b,unassigned', 'speaking order then unassigned last');
+
+const twoDebateSession = {
+    id: 'dts-two',
+    classId: 'cls1',
+    date: '2026-07-10',
+    sessionState: {
+        version: 2,
+        formatId: 'ap',
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                benches: [
+                    {
+                        id: 'gov',
+                        members: [{ studentId: 'b', name: 'B', role: { abbr: 'PM' } }]
+                    },
+                    {
+                        id: 'opp',
+                        members: [{ studentId: 'a', name: 'A', role: { abbr: 'LO' } }]
+                    }
+                ]
+            },
+            {
+                number: 2,
+                formatId: 'ap',
+                benches: [
+                    {
+                        id: 'gov',
+                        members: [{ studentId: 'c', name: 'C', role: { abbr: 'PM' } }]
+                    }
+                ]
+            }
+        ]
+    }
+};
+const twoMap = d.buildDebateRoleMapFromTeamSession(twoDebateSession, rosterAbc);
+const twoIds = d.sortStudentsByDebateOrder(rosterAbc, twoMap).map((s) => s.id);
+assert(twoIds.join(',') === 'b,a,c,unassigned', 'debate 1 speaking then debate 2 then leftover');
+
+const policySession = {
+    id: 'dts-policy',
+    classId: 'cls1',
+    date: '2026-07-10',
+    sessionState: {
+        formatId: 'policy',
+        debates: [
+            {
+                number: 1,
+                formatId: 'policy',
+                order: ['1AC', '1NC'],
+                benches: [
+                    {
+                        id: 'gov',
+                        members: [{ studentId: 'a', name: 'A', role: { abbr: '1A' } }]
+                    },
+                    {
+                        id: 'opp',
+                        members: [{ studentId: 'b', name: 'B', role: { abbr: '1N' } }]
+                    }
+                ]
+            }
+        ]
+    }
+};
+const policyMap = d.buildDebateRoleMapFromTeamSession(policySession, rosterAbc);
+assert(policyMap.a.speakingIndex === 0, 'policy alias 1AC → 1A first');
+assert(policyMap.b.speakingIndex === 1, 'policy alias 1NC → 1N second');
 
 console.log('classroom-debate-scores.test.mjs: ok');

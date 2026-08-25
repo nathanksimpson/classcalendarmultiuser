@@ -532,6 +532,30 @@
         const appData = hooks.getAppData();
         const body = document.createElement('div');
         body.className = 'setup-board-picker-body';
+
+        const createRow = document.createElement('div');
+        createRow.className = 'setup-board-picker-create';
+        const createBtn = document.createElement('button');
+        createBtn.type = 'button';
+        createBtn.className = 'btn btn-primary btn-small';
+        createBtn.textContent = t('setupBoardCreateNewClass');
+        createBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeActivePicker();
+            if (hooks.openNewClassForCohort) {
+                hooks.openNewClassForCohort(cohort.id);
+            }
+        });
+        const createHint = document.createElement('p');
+        createHint.className = 'section-hint';
+        createHint.textContent = t('setupBoardCreateNewClassHint').replace(
+            '{name}',
+            getCohortDisplayTitle(cohort)
+        );
+        createRow.appendChild(createBtn);
+        createRow.appendChild(createHint);
+        body.appendChild(createRow);
+
         const search = document.createElement('input');
         search.type = 'search';
         search.className = 'module-list-search';

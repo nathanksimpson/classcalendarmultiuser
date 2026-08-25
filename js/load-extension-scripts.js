@@ -14,7 +14,7 @@
         'js/books-editor.js?v=20260609-inline-warn-badge',
         'js/homework-import.js?v=20260606-clipboard-dash',
         'js/homework-tab.js?v=20260818-due-next-class',
-        'js/syllabus-templates.js?v=20260709-compressed-dedupe-v6'
+        'js/syllabus-templates.js?v=20260821-curriculum-expand'
     ];
 
     let extensionPromise = null;

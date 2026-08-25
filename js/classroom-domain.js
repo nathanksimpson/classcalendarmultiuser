@@ -4174,6 +4174,49 @@
 
     const DEBATE_SCORE_MAX = 5;
 
+    /** Default speaking order + order-token aliases, matching Debate Teams formats. */
+    const DEBATE_SPEAKING_ORDER_BY_FORMAT = {
+        ap: { order: ['PM', 'LO', 'DPM', 'DLO', 'GW', 'OW', 'OR', 'GR'], aliases: {} },
+        bp: { order: ['PM', 'LO', 'DPM', 'DLO', 'MG', 'MO', 'GW', 'OW'], aliases: {} },
+        wudc: { order: ['PM', 'LO', 'DPM', 'DLO', 'MG', 'MO', 'GW', 'OW'], aliases: {} },
+        policy: {
+            order: ['1AC', '1NC', '2AC', '2NC'],
+            aliases: { '1AC': '1A', '2AC': '2A', '1NC': '1N', '2NC': '2N' }
+        },
+        ld: { order: ['AC', 'NC'], aliases: { AC: 'AFF', NC: 'NEG' } },
+        pf: { order: ['1st Pro', '1st Con', '2nd Pro', '2nd Con'], aliases: {} },
+        bf: { order: ['A1', 'B1', 'A2', 'B2', 'A3', 'B3'], aliases: {} },
+        knc: { order: ['Aff Rep', 'Neg Rep', 'Aff 2', 'Neg 2'], aliases: {} },
+        simson: { order: ['PM', 'LO', 'DPM', 'DLO', 'DPM2', 'DLO2'], aliases: {} },
+        purple: { order: ['PM', 'LO'], aliases: {} },
+        simple: { order: [], aliases: {} }
+    };
+
+    function debateSpeakingFormatSpec(formatId) {
+        const key = normalizeStr(formatId).toLowerCase();
+        return DEBATE_SPEAKING_ORDER_BY_FORMAT[key] || null;
+    }
+
+    function debateRoleAbbrKey(formatId, token) {
+        const raw = normalizeStr(token).replace(/\*/g, '');
+        if (!raw) {
+            return '';
+        }
+        const spec = debateSpeakingFormatSpec(formatId);
+        const aliases = spec && spec.aliases ? spec.aliases : {};
+        return normalizeStr(aliases[raw] || raw);
+    }
+
+    function debateSpeakingOrderTokens(debate, sessionState) {
+        if (debate && Array.isArray(debate.order) && debate.order.length) {
+            return debate.order;
+        }
+        const formatId =
+            (debate && debate.formatId) || (sessionState && sessionState.formatId) || '';
+        const spec = debateSpeakingFormatSpec(formatId);
+        return spec && Array.isArray(spec.order) ? spec.order : [];
+    }
+
     function normalizeDebateSheetTemplate(raw) {
         return normalizeStr(raw) === 'yeoul' ? 'yeoul' : 'garam';
     }
@@ -4243,6 +4286,134 @@
             total: computeDebateScoreTotal(scores, tpl),
             note: normalizeStr(raw.note)
         };
+    }
+
+    /**
+     * Map studentId → role fields from a Debate Teams session.
+     * Prefers member.studentId; falls back to English/Korean/display name match.
+     */
+    function buildDebateRoleMapFromTeamSession(teamSession, students) {
+        const map = Object.create(null);
+        const state = teamSession && teamSession.sessionState;
+        if (!state || !Array.isArray(state.debates)) {
+            return map;
+        }
+        const nameToId = Object.create(null);
+        (Array.isArray(students) ? students : []).forEach((entry) => {
+            const student = entry && entry.student ? entry.student : entry;
+            if (!student || !student.id) {
+                return;
+            }
+            const sid = normalizeStr(student.id);
+            if (!sid) {
+                return;
+            }
+            const en = normalizeStr(student.nameEn);
+            const ko = normalizeStr(student.name);
+            if (en) {
+                nameToId[en] = sid;
+            }
+            if (ko) {
+                nameToId[ko] = sid;
+            }
+            const display = en || ko;
+            if (display) {
+                nameToId[display] = sid;
+            }
+        });
+        state.debates.forEach((debate, debateIdx) => {
+            const debateNumberRaw = debate && debate.number != null ? Number(debate.number) : null;
+            const debateNumber = Number.isFinite(debateNumberRaw) ? debateNumberRaw : debateIdx + 1;
+            const formatId =
+                (debate && debate.formatId) || (state && state.formatId) || '';
+            const orderTokens = debateSpeakingOrderTokens(debate, state);
+            const orderIndex = Object.create(null);
+            orderTokens.forEach((token, i) => {
+                const key = debateRoleAbbrKey(formatId, token);
+                if (key && orderIndex[key] == null) {
+                    orderIndex[key] = i;
+                }
+            });
+            const orderLen = orderTokens.length;
+            let unmatchedIndex = 0;
+            (debate && Array.isArray(debate.benches) ? debate.benches : []).forEach((bench) => {
+                const benchLabel = bench && bench.label ? normalizeStr(bench.label) : '';
+                (bench && Array.isArray(bench.members) ? bench.members : []).forEach((member) => {
+                    if (!member) {
+                        return;
+                    }
+                    let sid = normalizeStr(member.studentId);
+                    if (!sid && member.name) {
+                        sid = nameToId[normalizeStr(member.name)] || '';
+                    }
+                    if (!sid) {
+                        return;
+                    }
+                    const role = member.role && typeof member.role === 'object' ? member.role : {};
+                    const abbr = normalizeStr(role.abbr);
+                    const roleKey = debateRoleAbbrKey(formatId, abbr);
+                    let speakingIndex;
+                    if (roleKey && orderIndex[roleKey] != null) {
+                        speakingIndex = orderIndex[roleKey];
+                    } else if (orderLen) {
+                        speakingIndex = orderLen + unmatchedIndex;
+                        unmatchedIndex += 1;
+                    } else {
+                        speakingIndex = unmatchedIndex;
+                        unmatchedIndex += 1;
+                    }
+                    map[sid] = {
+                        roleAbbr: abbr,
+                        roleName: normalizeStr(role.name),
+                        debateNumber,
+                        bench: benchLabel,
+                        speakingIndex
+                    };
+                });
+            });
+        });
+        return map;
+    }
+
+    function sortStudentsByDebateOrder(students, roleMap) {
+        const list = Array.isArray(students) ? students.slice() : [];
+        const map = roleMap && typeof roleMap === 'object' ? roleMap : Object.create(null);
+        return list
+            .map((entry, index) => ({ entry, index }))
+            .sort((a, b) => {
+                const studentA = a.entry && a.entry.student ? a.entry.student : a.entry;
+                const studentB = b.entry && b.entry.student ? b.entry.student : b.entry;
+                const roleA = (studentA && studentA.id && map[String(studentA.id)]) || {};
+                const roleB = (studentB && studentB.id && map[String(studentB.id)]) || {};
+                const debateA = Number.isFinite(roleA.debateNumber)
+                    ? roleA.debateNumber
+                    : Number.POSITIVE_INFINITY;
+                const debateB = Number.isFinite(roleB.debateNumber)
+                    ? roleB.debateNumber
+                    : Number.POSITIVE_INFINITY;
+                if (debateA !== debateB) {
+                    return debateA - debateB;
+                }
+                const speakA = Number.isFinite(roleA.speakingIndex)
+                    ? roleA.speakingIndex
+                    : Number.POSITIVE_INFINITY;
+                const speakB = Number.isFinite(roleB.speakingIndex)
+                    ? roleB.speakingIndex
+                    : Number.POSITIVE_INFINITY;
+                if (speakA !== speakB) {
+                    return speakA - speakB;
+                }
+                return a.index - b.index;
+            })
+            .map((item) => item.entry);
+    }
+
+    function formatDebateScoreRoleLabel(record) {
+        if (!record || typeof record !== 'object') {
+            return '';
+        }
+        // Keep the Role column compact (abbr only) so landscape rows stay one line tall.
+        return normalizeStr(record.roleAbbr) || normalizeStr(record.roleName);
     }
 
     function normalizeDebateScoreSession(raw) {
@@ -7016,6 +7187,501 @@
         });
     }
 
+    /** Canonical CCMU subject tracks + TMS / KO / EN aliases → track id. */
+    const TMS_SUBJECT_TRACK_ALIASES = {
+        phonics: ['phonics', '파닉스', 'ph'],
+        handInHand: ['handinhand', 'hand in hand', '핸드인핸드'],
+        spkWr: [
+            'spkwr',
+            'spk&wr',
+            'spk & wr',
+            'spk and wr',
+            'speaking & writing',
+            'speaking and writing',
+            '말하기',
+            '쓰기',
+            '말하기&쓰기',
+            '말하기 & 쓰기'
+        ],
+        animation: ['animation', '애니메이션', '애니'],
+        reading: ['reading', '리딩', '독서'],
+        debate: ['debate', '토론'],
+        writeNow: ['writenow', 'write now'],
+        writeRight: ['writeright', 'write right'],
+        news: ['news', '뉴스'],
+        newsLc: ['newslc', 'news lc', '뉴스lc'],
+        grammar: ['grammar', '문법'],
+        ipkV: ['ipkv', 'ipk', 'ipk-v'],
+        ipeNative: ['ipenative', 'ipe', 'ipe native'],
+        toeflRc: ['toeflrc', 'toefl', 'toefl rc']
+    };
+
+    function normalizeSubjectAliasKey(raw) {
+        return normalizeStr(raw)
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/[·・]/g, '')
+            .trim();
+    }
+
+    /**
+     * Map a TMS subject label (파닉스, Spk&Wr, …) to a CCMU subjectTrack id.
+     * @returns {{ track: string, matched: boolean, raw: string }}
+     */
+    function mapTmsSubjectToTrack(raw) {
+        const original = normalizeStr(raw);
+        if (!original) {
+            return { track: '', matched: false, raw: '' };
+        }
+        const key = normalizeSubjectAliasKey(original).replace(/\s/g, '');
+        const keySpaced = normalizeSubjectAliasKey(original);
+        const entries = Object.keys(TMS_SUBJECT_TRACK_ALIASES);
+        for (let i = 0; i < entries.length; i += 1) {
+            const track = entries[i];
+            const aliases = TMS_SUBJECT_TRACK_ALIASES[track] || [];
+            for (let j = 0; j < aliases.length; j += 1) {
+                const a = normalizeSubjectAliasKey(aliases[j]);
+                const aCompact = a.replace(/\s/g, '');
+                if (key === aCompact || keySpaced === a || key.includes(aCompact)) {
+                    return { track, matched: true, raw: original };
+                }
+            }
+        }
+        // Unknown — keep a slug so review can still create a class
+        const slug = key.replace(/[^a-z0-9가-힣]+/gi, '_').replace(/^_|_$/g, '') || 'class';
+        return { track: slug, matched: false, raw: original };
+    }
+
+    /** Hangul → Simson level id when Latin name is not in the TMS class title. */
+    const TMS_LEVEL_HANGUL_ALIASES = {
+        여울: 'Yeoul',
+        샘물: 'Saemmul',
+        가람: 'Garam',
+        바다: 'Bada',
+        별마루: 'Byeolmaru',
+        미리내: 'Mirinae',
+        유마: '유마',
+        레오: '레오',
+        파보: '파보',
+        폴라: '폴라',
+        훅스: '훅스',
+        티카: '티카',
+        빅키: '빅키',
+        바이큘: '바이큘'
+    };
+
+    /**
+     * Infer levelPreset from a TMS class/cohort name (OrangeM^2606, 여울T, …).
+     * @param {string} name
+     * @param {Array<{id?: string, name?: string}>} [simsonLevels]
+     * @returns {string} level id or ''
+     */
+    function inferLevelPresetFromTmsName(name, simsonLevels) {
+        const cleaned = normalizeStr(name)
+            .replace(/^\[[^\]]*\]\s*/u, '')
+            .split('^')[0]
+            .trim();
+        if (!cleaned) {
+            return '';
+        }
+        // Strip trailing M/T schedule suffix: OrangeM → Orange, 여울T → 여울
+        const core = cleaned.replace(/[MTGW]\d*$/i, '').trim() || cleaned;
+        const levels = Array.isArray(simsonLevels) ? simsonLevels : [];
+        const lowerCore = core.toLowerCase();
+
+        for (let i = 0; i < levels.length; i += 1) {
+            const lv = levels[i];
+            if (!lv) {
+                continue;
+            }
+            const id = normalizeStr(lv.id);
+            const nm = normalizeStr(lv.name) || id;
+            if (!id) {
+                continue;
+            }
+            if (
+                lowerCore === id.toLowerCase() ||
+                lowerCore === nm.toLowerCase() ||
+                cleaned.toLowerCase() === id.toLowerCase() ||
+                cleaned.toLowerCase().startsWith(id.toLowerCase())
+            ) {
+                return id;
+            }
+        }
+
+        const hangulHit = Object.keys(TMS_LEVEL_HANGUL_ALIASES).find((k) => core.includes(k));
+        if (hangulHit) {
+            const mapped = TMS_LEVEL_HANGUL_ALIASES[hangulHit];
+            const exists = levels.find(
+                (lv) =>
+                    lv &&
+                    (normalizeStr(lv.id).toLowerCase() === mapped.toLowerCase() ||
+                        normalizeStr(lv.name).toLowerCase() === mapped.toLowerCase())
+            );
+            return exists ? normalizeStr(exists.id) : mapped;
+        }
+
+        // Color / Latin levels without a provided list
+        const colorMatch = core.match(
+            /^(Red|Orange|Yellow|Green|Blue|Navy|Purple|Yeoul|Saemmul|Garam|Bada|Byeolmaru|Mirinae)/i
+        );
+        if (colorMatch) {
+            const hit = colorMatch[1];
+            const known = [
+                'Red',
+                'Orange',
+                'Yellow',
+                'Green',
+                'Blue',
+                'Navy',
+                'Purple',
+                'Yeoul',
+                'Saemmul',
+                'Garam',
+                'Bada',
+                'Byeolmaru',
+                'Mirinae'
+            ];
+            const found = known.find((k) => k.toLowerCase() === hit.toLowerCase());
+            return found || hit.charAt(0).toUpperCase() + hit.slice(1).toLowerCase();
+        }
+        return '';
+    }
+
+    /**
+     * Match a TMS teacher display name to a team account row.
+     * @param {string} tmsName
+     * @param {Array<{userId?: string, displayName?: string, name?: string}>} teachers
+     * @returns {{ userId: string, name: string, matchedBy: string }}
+     */
+    function matchTmsTeacherToAccount(tmsName, teachers) {
+        const name = normalizeStr(tmsName);
+        if (!name) {
+            return { userId: '', name: '', matchedBy: '' };
+        }
+        const list = Array.isArray(teachers) ? teachers : [];
+        const exact = list.find(
+            (r) =>
+                normalizeStr(r && r.displayName) === name ||
+                normalizeStr(r && r.name) === name
+        );
+        if (exact) {
+            return {
+                userId: normalizeStr(exact.userId),
+                name: normalizeStr(exact.displayName) || normalizeStr(exact.name) || name,
+                matchedBy: 'exact'
+            };
+        }
+        const lower = name.toLowerCase();
+        const fuzzy = list.find((r) => {
+            const dn = normalizeStr(r && (r.displayName || r.name)).toLowerCase();
+            return dn && (dn.includes(lower) || lower.includes(dn));
+        });
+        if (fuzzy) {
+            return {
+                userId: normalizeStr(fuzzy.userId),
+                name: normalizeStr(fuzzy.displayName) || normalizeStr(fuzzy.name) || name,
+                matchedBy: 'fuzzy'
+            };
+        }
+        return { userId: '', name, matchedBy: '' };
+    }
+
+    function classSubjectTrackHint(classData) {
+        if (!classData) {
+            return '';
+        }
+        const fromTeachers = (Array.isArray(classData.classTeachers)
+            ? classData.classTeachers
+            : []
+        )
+            .map((r) => normalizeStr(r && r.category))
+            .find(Boolean);
+        if (fromTeachers) {
+            return fromTeachers;
+        }
+        return (
+            normalizeStr(classData.teacherCategory) ||
+            normalizeStr(classData.subjectTrack) ||
+            ''
+        );
+    }
+
+    /**
+     * Find a previous class in a cohort for a teacher + optional subject track.
+     */
+    function findPreviousClassForTeacherAssignment(
+        previousAppData,
+        previousCohortId,
+        teacherUserId,
+        teacherName,
+        subjectTrack
+    ) {
+        const prevId = normalizeStr(previousCohortId);
+        const uid = normalizeStr(teacherUserId);
+        const tname = normalizeStr(teacherName).toLowerCase();
+        const track = normalizeStr(subjectTrack).toLowerCase();
+        const classes = (previousAppData && Array.isArray(previousAppData.classes)
+            ? previousAppData.classes
+            : []
+        ).filter((cls) => cls && classBelongsToCohort(cls, prevId));
+
+        const forTeacher = classes.filter((cls) => {
+            if (uid && classHasTeacherUser(cls, uid)) {
+                return true;
+            }
+            if (!tname) {
+                return false;
+            }
+            const rows = Array.isArray(cls.classTeachers) ? cls.classTeachers : [];
+            if (rows.some((r) => normalizeStr(r && r.name).toLowerCase() === tname)) {
+                return true;
+            }
+            return normalizeStr(cls.assignedTeacherName).toLowerCase() === tname;
+        });
+
+        if (!forTeacher.length) {
+            return null;
+        }
+        if (track) {
+            const byTrack = forTeacher.find((cls) => {
+                const hint = classSubjectTrackHint(cls).toLowerCase();
+                const nm = normalizeStr(cls.name).toLowerCase();
+                return hint === track || nm.includes(track) || hint.includes(track);
+            });
+            if (byTrack) {
+                return byTrack;
+            }
+        }
+        return forTeacher[0];
+    }
+
+    /**
+     * Build reviewable class plans from TMS teacher assignments on cohort specs.
+     * Homeroom-only rows without a subject only update cohort 담임 fields (no class).
+     *
+     * @returns {{ plans: object[], cohortSpecs: object[] }}
+     */
+    function buildTermClassPlansFromTmsAssignments(cohortSpecs, previousAppData, accounts, options) {
+        const opts = options || {};
+        const teachers = Array.isArray(accounts) ? accounts : [];
+        const termStart = normalizeStr(opts.termStart);
+        const termEnd = normalizeStr(opts.termEnd);
+        const plans = [];
+        const nextSpecs = (Array.isArray(cohortSpecs) ? cohortSpecs : []).map((spec) => {
+            const row = Object.assign({}, spec);
+            const assignments = Array.isArray(row.tmsTeachers) ? row.tmsTeachers : [];
+            if (!row.homeroomTeacherUserId && !row.homeroomTeacherName) {
+                const hrAssign =
+                    assignments.find((a) => a && a.isHomeroom) ||
+                    (row.tmsHomeroomName
+                        ? { name: row.tmsHomeroomName, isHomeroom: true, subjectRaw: '' }
+                        : null);
+                if (hrAssign && hrAssign.name) {
+                    const matched = matchTmsTeacherToAccount(hrAssign.name, teachers);
+                    row.homeroomTeacherUserId = matched.userId;
+                    row.homeroomTeacherName = matched.name || hrAssign.name;
+                    row.tmsHomeroomName = row.tmsHomeroomName || hrAssign.name;
+                }
+            }
+
+            const seenTracks = new Set();
+            assignments.forEach((a, ai) => {
+                if (!a || !normalizeStr(a.name)) {
+                    return;
+                }
+                const subjectRaw = normalizeStr(a.subjectRaw);
+                if (!subjectRaw) {
+                    return;
+                }
+                const mapped = mapTmsSubjectToTrack(subjectRaw);
+                const trackKey = `${mapped.track || subjectRaw}`.toLowerCase();
+                if (seenTracks.has(trackKey)) {
+                    return;
+                }
+                seenTracks.add(trackKey);
+
+                const matched = matchTmsTeacherToAccount(a.name, teachers);
+                const prevClass = findPreviousClassForTeacherAssignment(
+                    previousAppData,
+                    row.matchedPreviousCohortId,
+                    matched.userId,
+                    matched.name || a.name,
+                    mapped.track
+                );
+                const planId = `${normalizeStr(row.cohortId) || 'coh'}_${ai}_${trackKey}`;
+                plans.push({
+                    planId,
+                    cohortId: row.cohortId,
+                    cohortName: row.cohortName || '',
+                    tmsTeacherName: a.name,
+                    isHomeroom: Boolean(a.isHomeroom),
+                    subjectRaw,
+                    subjectTrack: mapped.track,
+                    subjectMatched: mapped.matched,
+                    teacherUserId: matched.userId,
+                    teacherName: matched.name || a.name,
+                    teacherMatchedBy: matched.matchedBy,
+                    unmatched: !matched.userId,
+                    classMode: prevClass ? 'carry' : 'new',
+                    previousClassId: prevClass ? prevClass.id : '',
+                    create: true,
+                    period:
+                        row.period != null
+                            ? row.period
+                            : row.tmsSuggestedPeriod != null
+                              ? row.tmsSuggestedPeriod
+                              : prevClass && prevClass.period != null
+                                ? prevClass.period
+                                : null,
+                    startDate: termStart || row.startDate || '',
+                    endDate: termEnd || row.endDate || ''
+                });
+            });
+            return row;
+        });
+        return { plans, cohortSpecs: nextSpecs };
+    }
+
+    /**
+     * Materialize class objects from selected TMS class plans.
+     */
+    function buildTermClassesFromTmsAssignments(
+        plans,
+        finalCohorts,
+        cohortIdRemap,
+        previousAppData,
+        options
+    ) {
+        const opts = options || {};
+        const remap =
+            cohortIdRemap && typeof cohortIdRemap.get === 'function'
+                ? cohortIdRemap
+                : new Map(Object.entries(cohortIdRemap || {}));
+        const monthShift = Number(opts.monthShift) || 0;
+        const newClassId =
+            typeof opts.newClassId === 'function' ? opts.newClassId : () => newId('cls');
+        const newTeacherRowId =
+            typeof opts.newTeacherRowId === 'function' ? opts.newTeacherRowId : () => newId('ct');
+        const generateNew =
+            typeof opts.generateNewClass === 'function' ? opts.generateNewClass : null;
+        const cohorts = Array.isArray(finalCohorts) ? finalCohorts : [];
+        const built = [];
+
+        (Array.isArray(plans) ? plans : []).forEach((plan) => {
+            if (!plan || plan.create === false) {
+                return;
+            }
+            const tempId = normalizeStr(plan.cohortId);
+            const realId = remap.get(tempId) || tempId;
+            const cohort = cohorts.find((c) => c && normalizeStr(c.id) === realId);
+            if (!cohort) {
+                return;
+            }
+            const uid = normalizeStr(plan.teacherUserId);
+            const teacherName = normalizeStr(plan.teacherName) || normalizeStr(plan.tmsTeacherName);
+            const track = normalizeStr(plan.subjectTrack) || 'class';
+            let cls = null;
+
+            if (plan.classMode === 'carry' && plan.previousClassId) {
+                const prev = ((previousAppData && previousAppData.classes) || []).find(
+                    (c) => c && normalizeStr(c.id) === normalizeStr(plan.previousClassId)
+                );
+                if (prev) {
+                    cls = carryForwardClassForTerm(prev, cohort, monthShift, uid, {
+                        shiftIsoDate: opts.shiftIsoDate,
+                        newClassId,
+                        teacherName,
+                        startDate: plan.startDate || '',
+                        endDate: plan.endDate || '',
+                        period: plan.period
+                    });
+                    if (cls && !uid) {
+                        cls.classTeachers = [
+                            {
+                                id: newTeacherRowId(),
+                                userId: '',
+                                name: teacherName,
+                                category: track
+                            }
+                        ];
+                        cls.assignedTeacherUserId = '';
+                        cls.assignedTeacherName = teacherName;
+                        cls.teacherCategory = track;
+                    } else if (cls && cls.classTeachers && cls.classTeachers[0]) {
+                        cls.classTeachers[0].category =
+                            cls.classTeachers[0].category || track;
+                        cls.teacherCategory = cls.classTeachers[0].category || track;
+                    }
+                }
+            }
+
+            if (!cls && generateNew) {
+                cls = generateNew(cohort, track, {
+                    period: plan.period,
+                    startDate: plan.startDate,
+                    endDate: plan.endDate,
+                    userId: uid,
+                    teacherName
+                });
+            }
+
+            if (!cls) {
+                const meetingDays = Array.isArray(cohort.meetingDays)
+                    ? cohort.meetingDays.slice()
+                    : [];
+                const period =
+                    plan.period != null && plan.period !== '' ? Number(plan.period) : undefined;
+                cls = {
+                    id: newClassId(),
+                    name: `${normalizeStr(cohort.name) || 'Cohort'} · ${track}`,
+                    levelPreset: normalizeStr(cohort.levelPreset) || normalizeStr(cohort.level),
+                    level: normalizeStr(cohort.levelPreset) || normalizeStr(cohort.level),
+                    grade: normalizeStr(cohort.grade),
+                    meetingDays,
+                    period,
+                    periodByWeekday: period != null ? {} : {},
+                    classTypeId: '',
+                    cohortId: cohort.id,
+                    cohortIds: [cohort.id],
+                    scheduleBlock: normalizeStr(cohort.scheduleBlock) || 'primary',
+                    startDate: plan.startDate || '',
+                    endDate: plan.endDate || '',
+                    classTeachers: [
+                        {
+                            id: newTeacherRowId(),
+                            userId: uid,
+                            name: teacherName,
+                            category: track,
+                            period
+                        }
+                    ],
+                    assignedTeacherUserId: uid,
+                    assignedTeacherName: teacherName,
+                    teacherCategory: track,
+                    generatedFromCohort: true,
+                    syllabusRows: []
+                };
+                if (period != null && meetingDays.length) {
+                    meetingDays.forEach((d) => {
+                        cls.periodByWeekday[String(d)] = period;
+                    });
+                }
+            }
+
+            if (cls) {
+                built.push(cls);
+                if (!Array.isArray(cohort.classIds)) {
+                    cohort.classIds = [];
+                }
+                if (!cohort.classIds.includes(cls.id)) {
+                    cohort.classIds.push(cls.id);
+                }
+            }
+        });
+        return built;
+    }
+
     /**
      * Shift calendar events[] by month delta (new ids).
      */
@@ -7234,6 +7900,12 @@
         carryForwardClassForTerm,
         shiftClassDatesForTerm,
         buildPerCohortTeachingDefaults,
+        mapTmsSubjectToTrack,
+        inferLevelPresetFromTmsName,
+        matchTmsTeacherToAccount,
+        findPreviousClassForTeacherAssignment,
+        buildTermClassPlansFromTmsAssignments,
+        buildTermClassesFromTmsAssignments,
         shiftCalendarEvents,
         classBelongsToCohort,
         classHasTeacherUser,
@@ -7408,6 +8080,9 @@
         normalizeDebateScoreValue,
         emptyDebateScoresObject,
         computeDebateScoreTotal,
+        buildDebateRoleMapFromTeamSession,
+        sortStudentsByDebateOrder,
+        formatDebateScoreRoleLabel,
         normalizeDebateScoreRecord,
         normalizeDebateScoreSession,
         findDebateScoreSession,

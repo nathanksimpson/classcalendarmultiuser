@@ -10,6 +10,7 @@
         evaluation_deadline: true,
         homework_deadline: true,
         evaluation_period: true,
+        perf_eval: true,
         other: true
     };
 
