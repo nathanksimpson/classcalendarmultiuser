@@ -34,6 +34,8 @@
         countClassEmptySyllabusLessons: () => 0,
         classHasNoMeetingDaysWarning: () => false,
         classNeedsDebateBookPeriodsWarning: () => false,
+        getPerfEvalScheduleWarningsForClass: () => [],
+        previewPerfEvalCloseCompression: () => {},
         getSyncNavWarningsForBell: () => [],
         getUiInboxWarningsForBell: () => [],
         onNotificationDismissed: () => {},
@@ -264,6 +266,21 @@
                 }));
             });
         }
+        const perfEvalWarnings = typeof hooks.getPerfEvalScheduleWarningsForClass === 'function'
+            ? hooks.getPerfEvalScheduleWarningsForClass(classData)
+            : [];
+        (perfEvalWarnings || []).forEach((warningBase) => {
+            CLASS_TAB_IDS.forEach((tabId) => {
+                out.push(Object.assign({}, warningBase, {
+                    tabId,
+                    navigate: Object.assign({}, warningBase.navigate || {}, {
+                        type: 'class',
+                        tabId,
+                        classId: classData.id
+                    })
+                }));
+            });
+        });
         const emptyCount = hooks.countClassEmptySyllabusLessons(classData);
         if (emptyCount > 0) {
             const warningBase = {
@@ -276,6 +293,7 @@
             out.push(Object.assign({}, warningBase, { tabId: 'syllabus' }));
         }
         if (typeof CCPTermDates !== 'undefined' && CCPTermDates.getTermDateRangeISO) {
+            const appData = hooks.getAppData();
             const termRange = CCPTermDates.getTermDateRangeISO(appData, {
                 defaultTermCalendarMonths: 3,
                 minTermMonthCount: 3,
@@ -701,8 +719,15 @@
             if (cls && nav.tabId === 'classes') {
                 hooks.openClassEditor(cls, 'tab');
             }
-            if (warning.id.includes('schedule_gap')) {
-                hooks.focusScheduleAdjustmentForClass(nav.classId);
+            if (warning.id.includes('schedule_gap') || (nav && nav.perfEvalCompress)) {
+                if (nav.perfEvalCompress && typeof hooks.previewPerfEvalCloseCompression === 'function') {
+                    hooks.previewPerfEvalCloseCompression(nav.classId, {
+                        periodId: nav.periodId || '',
+                        closeDate: nav.closeDate || ''
+                    });
+                } else {
+                    hooks.focusScheduleAdjustmentForClass(nav.classId);
+                }
             }
             return;
         }

@@ -16624,9 +16624,9 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    flex: 1 1 360px;
-    min-width: min(100%, 320px);
-    max-width: 480px;
+    flex: 1 1 12rem;
+    min-width: 0;
+    max-width: 28rem;
 }
 
 .classroom-essay-attention-progress .classroom-essay-stats-track {
@@ -16661,6 +16661,108 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 .classroom-essay-toolbar-hint {
     margin: 0;
     flex: 1 1 auto;
+}
+
+/* iPad landscape: keep attention + toolbar on fewer horizontal rows (use width, not height). */
+@media (orientation: landscape) and (max-height: 900px) {
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-strip {
+        padding: var(--space-1) var(--space-3);
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-strip-inner {
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: var(--space-2);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-label {
+        flex-shrink: 0;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-tiles {
+        flex-wrap: nowrap;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-tile {
+        padding: var(--space-1) var(--space-2);
+        gap: var(--space-2);
+        flex: 0 0 auto;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-tile__count {
+        font-size: 1.125rem;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-tile__subtitle {
+        display: none;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-attention-progress {
+        flex: 1 1 10rem;
+        min-width: 8rem;
+        max-width: none;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-toolbar {
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-1) var(--space-3);
+        min-height: 0;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-filters,
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-batch-row {
+        flex-wrap: nowrap;
+        align-items: center;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        min-width: 0;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-toolbar-hint {
+        flex: 0 1 12rem;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="phone"])
+        #panel-essays
+        .classroom-essay-toolbar
+        .toolbar-actions {
+        flex-shrink: 0;
+        flex-wrap: nowrap;
+    }
 }
 
 .classroom-essay-reports-menu {

@@ -388,7 +388,7 @@ The app has **two different filter semantics**. Do not mix them.
 | Field | Type | Notes |
 |-------|------|--------|
 | `id` | string | |
-| `type` | string | `holiday`, `evaluation_period` (remove class days for applicable classes), `evaluation_deadline`, `homework_deadline`, `other` (calendar reference only — does not remove class days) |
+| `type` | string | `holiday`, `evaluation_period` (remove class days for applicable classes), `evaluation_deadline`, `homework_deadline`, `perf_eval_open`, `perf_eval_close`, `perf_eval_reopen`, `perf_eval_finalized`, `other` (calendar reference only — does not remove class days). 수행평가 types share visibility filter `perf_eval` and drive debate/essay deadline warnings. |
 | `name` | string | |
 | `date` or `startDate`/`endDate` | string | Single or range |
 | `isRange` | boolean | |
