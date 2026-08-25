@@ -491,6 +491,10 @@ const EVENT_TYPES = {
     EVALUATION_DEADLINE: 'evaluation_deadline',
     HOMEWORK_DEADLINE: 'homework_deadline',
     EVALUATION_PERIOD: 'evaluation_period',
+    PERF_EVAL_OPEN: 'perf_eval_open',
+    PERF_EVAL_CLOSE: 'perf_eval_close',
+    PERF_EVAL_REOPEN: 'perf_eval_reopen',
+    PERF_EVAL_FINALIZED: 'perf_eval_finalized',
     OTHER: 'other'
 };
 
@@ -500,6 +504,7 @@ const DEFAULT_VISIBILITY_FILTERS = {
     evaluation_deadline: true,
     homework_deadline: true,
     evaluation_period: true,
+    perf_eval: true,
     other: true
 };
 
@@ -540,6 +545,7 @@ const VISIBILITY_FILTER_FIELDS = [
     { key: 'evaluation_deadline', uiId: 'visEvalDeadline', printId: 'printCalEvalDeadline' },
     { key: 'homework_deadline', uiId: 'visHomeworkDeadline', printId: 'printCalHomeworkDeadline' },
     { key: 'evaluation_period', uiId: 'visEvalPeriod', printId: 'printCalEvalPeriod' },
+    { key: 'perf_eval', uiId: 'visPerfEval', printId: 'printCalPerfEval' },
     { key: 'other', uiId: 'visOther', printId: 'printCalOther' }
 ];
 
@@ -556,6 +562,10 @@ const EVENT_TYPE_DEFAULT_COLORS = {
     evaluation_deadline: { bg: '#fecaca', text: '#991b1b' },
     homework_deadline: { bg: '#dbeafe', text: '#1e40af' },
     evaluation_period: { bg: '#e9d5ff', text: '#6b21a1' },
+    perf_eval_open: { bg: '#fde68a', text: '#92400e' },
+    perf_eval_close: { bg: '#fecaca', text: '#991b1b' },
+    perf_eval_reopen: { bg: '#fed7aa', text: '#9a3412' },
+    perf_eval_finalized: { bg: '#e5e7eb', text: '#374151' },
     other: { bg: '#e5e7eb', text: '#374151' }
 };
 
@@ -565,6 +575,10 @@ const EVENT_TYPE_DEFAULT_ACCENTS = {
     evaluation_deadline: '#c96b8e',
     homework_deadline: '#356a9e',
     evaluation_period: '#6f54a8',
+    perf_eval_open: '#d97706',
+    perf_eval_close: '#c96b8e',
+    perf_eval_reopen: '#ea580c',
+    perf_eval_finalized: '#5a6a80',
     other: '#5a6a80'
 };
 
@@ -2512,15 +2526,46 @@ function handleApplyCurriculumToClass() {
         const classId = elements.classId.value;
         const saved = appData.classes.find((c) => c.id === classId);
         if (saved) {
+            const originalLessonCount = getClassLessonCountForCurriculumPush(saved);
             const draft = buildClassDraftFromForm();
             draft.id = classId;
-            draft.syllabusRows = saved.syllabusRows;
+            // Form may already show book lesson count from defaults; expand must
+            // compare against the class’s previous capacity (saved / existing rows).
+            if (originalLessonCount >= 1) {
+                draft.totalLessons = originalLessonCount;
+            }
+            if (Array.isArray(saved.syllabusRows) && saved.syllabusRows.length
+                && !(elements.syllabusTableBody && collectSyllabusRowsFromForm().length)) {
+                draft.syllabusRows = saved.syllabusRows;
+            }
             if (confirm(t('applyCurriculumSyllabusConfirm'))) {
                 const pushResult = pushCurriculumToClassSyllabus(draft, {
                     skipConfirm: true,
                     force: true,
+                    persist: true,
+                    updateEditor: true,
                     confirmMessage: t('applyCurriculumSyllabusConfirm')
                 });
+                if (pushResult.expanded) {
+                    const n = sanitizeTotalLessons(
+                        draft.totalLessons || pushResult.bookSessionCount
+                    );
+                    if (elements.classTotalLessons) {
+                        elements.classTotalLessons.value = String(n);
+                    }
+                    const totalLessons = getTotalLessonsValue();
+                    renderCustomLessonDates(totalLessons, getCustomLessonDatesFromInputs());
+                    renderCompressionOptions(
+                        totalLessons,
+                        getScheduleModelFromForm() === SCHEDULE_MODEL_SEQUENTIAL_TERM
+                            ? []
+                            : getSelectedCompressionMerges()
+                    );
+                } else if (originalLessonCount >= 1 && elements.classTotalLessons) {
+                    // User kept the shorter class; undo form bump from curriculum defaults.
+                    elements.classTotalLessons.value = String(originalLessonCount);
+                    draft.totalLessons = originalLessonCount;
+                }
                 if (pushResult.ok && pushResult.rows && elements.syllabusTableBody
                     && elements.classId && elements.classId.value === classId) {
                     renderSyllabusEditorTable(pushResult.rows);
@@ -3263,7 +3308,7 @@ function buildScheduleGroupsForClass(classData, totalLessons) {
  */
 function resolveScheduleGroupsForClass(classData, availableSlots, options) {
     options = options || {};
-    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const totalLessons = getTotalLessonsForClass(classData, 8);
     const period = options.period || null;
 
     if (classUsesDebateCompression(classData) && period) {
@@ -3733,7 +3778,7 @@ function renderScheduleAdjustmentSummaryBlock(classData, surface) {
 }
 
 function getUnscheduledLessonNumbers(classData, schedule) {
-    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const totalLessons = getTotalLessonsForClass(classData, 8);
     const skippedSet = new Set(getSkippedLessonsFromClass(classData, totalLessons));
     const placed = new Set();
     (schedule.lessons || []).forEach(lesson => {
@@ -4185,9 +4230,25 @@ function syncEventOpenEditorButton() {
     }
 }
 
+function isPerfEvalEventType(type) {
+    if (typeof CCPPerfEvalWindows !== 'undefined' && CCPPerfEvalWindows.isPerfEvalEventType) {
+        return CCPPerfEvalWindows.isPerfEvalEventType(type);
+    }
+    return type === EVENT_TYPES.PERF_EVAL_OPEN
+        || type === EVENT_TYPES.PERF_EVAL_CLOSE
+        || type === EVENT_TYPES.PERF_EVAL_REOPEN
+        || type === EVENT_TYPES.PERF_EVAL_FINALIZED;
+}
+
 function visibilityKeyForEventType(type) {
     const normalized = normalizeEventType(type);
-    return normalized === EVENT_TYPES.HOLIDAY ? 'holidays' : normalized;
+    if (normalized === EVENT_TYPES.HOLIDAY) {
+        return 'holidays';
+    }
+    if (isPerfEvalEventType(normalized)) {
+        return 'perf_eval';
+    }
+    return normalized;
 }
 
 function ensureEventTypeVisibleOnCalendar(ev) {
@@ -6353,6 +6414,10 @@ function getEventTypeLabel(type) {
         evaluation_deadline: 'eventTypeEvalDeadline',
         homework_deadline: 'eventTypeHomeworkDeadline',
         evaluation_period: 'eventTypeEvalPeriod',
+        perf_eval_open: 'eventTypePerfEvalOpen',
+        perf_eval_close: 'eventTypePerfEvalClose',
+        perf_eval_reopen: 'eventTypePerfEvalReopen',
+        perf_eval_finalized: 'eventTypePerfEvalFinalized',
         other: 'eventTypeOther'
     };
     return t(keyMap[type] || 'eventTypeOther');
@@ -16154,6 +16219,8 @@ function initTabWarningsModule() {
         countClassEmptySyllabusLessons,
         classHasNoMeetingDaysWarning,
         classNeedsDebateBookPeriodsWarning,
+        getPerfEvalScheduleWarningsForClass,
+        previewPerfEvalCloseCompression,
         getSyncNavWarningsForBell,
         getUiInboxWarningsForBell,
         onNotificationDismissed: onTabWarningDismissed,
@@ -17808,6 +17875,11 @@ function getDailySummaryPrintOptionsFromForm() {
     };
 }
 
+/**
+ * Open blank print tabs first (same user-gesture tick), then write HTML and print.
+ * If one popup is blocked, still print any tabs that opened.
+ * @param {Array<{ kind: string, title: string, singlePageOnly?: boolean, buildHtml: function }>} jobSpecs
+ */
 function runDailySummaryPrintJobs(jobSpecs) {
     if (!jobSpecs.length) {
         return;
@@ -18717,6 +18789,12 @@ function populateClassCohortSelect(selectedId) {
     none.textContent = t('classCohortNone');
     sel.appendChild(none);
     (appData.cohorts || []).forEach((cohort) => {
+        if (!cohort || !cohort.id) {
+            return;
+        }
+        if (cohort.id === 'cohort-student-archive' || cohort.isArchiveCohort) {
+            return;
+        }
         const opt = document.createElement('option');
         opt.value = cohort.id;
         opt.textContent = cohort.name || cohort.id;
@@ -18745,6 +18823,9 @@ function renderClassCohortMultiChips(classData) {
     }
     cohorts.forEach((cohort) => {
         if (!cohort || !cohort.id) {
+            return;
+        }
+        if (cohort.id === 'cohort-student-archive' || cohort.isArchiveCohort) {
             return;
         }
         const chip = document.createElement('label');
@@ -20192,6 +20273,9 @@ function getSetupBoardHooks() {
             } else if (typeof CCPActiveContext !== 'undefined') {
                 CCPActiveContext.set({ classId, cohortId }, { source: 'cohorts-board' });
             }
+        },
+        openNewClassForCohort(cohortId) {
+            openNewClassForCohort(cohortId);
         }
     });
 }
@@ -20593,6 +20677,14 @@ function getClassroomHooks() {
         getLessonDates(classData, options) {
             return calculateLessonDates(classData, options);
         },
+        getTermDateRange() {
+            return getTermDateRangeISO();
+        },
+        resolvePerfEvalWindowForClass(classData) {
+            return resolvePerfEvalWindowForClass(classData);
+        },
+        focusScheduleAdjustmentForClass,
+        previewPerfEvalCloseCompression,
         async syncPointsDayNote(classId, dateStr) {
             return syncPointsDayNoteForClassDate(classId, dateStr);
         },
@@ -22920,11 +23012,39 @@ function openClassEditor(classData, context, options = {}) {
         });
 }
 
+/**
+ * Open a blank class editor with a cohort already selected (and linked).
+ * Used from Cohorts board "+ Add class → Create new".
+ */
+function openNewClassForCohort(cohortId) {
+    const cid = String(cohortId || '').trim();
+    if (!cid) {
+        openClassEditor(null, 'tab', { host: 'setup' });
+        return;
+    }
+    const cohort = (appData.cohorts || []).find((c) => c && c.id === cid);
+    openClassEditor(null, 'tab', {
+        host: 'setup',
+        cohortId: cid,
+        defaultLevelPreset: cohort
+            ? String(cohort.levelPreset || cohort.level || '').trim()
+            : '',
+        defaultMeetingDays: cohort
+            ? (typeof CCPCohortManagement !== 'undefined' &&
+              CCPCohortManagement.getCohortMeetingDays
+                  ? CCPCohortManagement.getCohortMeetingDays(cohort)
+                  : Array.isArray(cohort.meetingDays)
+                    ? cohort.meetingDays.slice()
+                    : [])
+            : []
+    });
+}
+
 function openClassEditorAfterLoad(classData, context, options = {}) {
     const ctx = context || 'tab';
     populateClassForm(classData, options);
     if (ctx === 'tab') {
-        navigateToTab('classes');
+        navigateToTab('classes', { host: options.host || undefined });
         mountClassForm('tab');
         updateClassEditorEmptyState();
         renderClassList();
@@ -25237,7 +25357,7 @@ function lessonsForSyllabusBuild(classData) {
         });
     }
 
-    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const totalLessons = getTotalLessonsForClass(classData, 8);
     const skipped = getSkippedLessonsFromClass(classData, totalLessons);
     const placedNums = new Set();
     items.forEach(item => {
@@ -25503,8 +25623,52 @@ function getSyllabusRowsForCurriculumPush(classData) {
 }
 
 /**
+ * Effective lesson count for curriculum pull / expand decisions.
+ * Prefer an explicit totalLessons; otherwise fillable row count; never invent 4/8 here.
+ */
+function getClassLessonCountForCurriculumPush(classData) {
+    const parsed = parseInt(classData && classData.totalLessons, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1) {
+        return parsed;
+    }
+    const api = getSyllabusTemplatesApi();
+    if (api && api.countFillableLessonRows && Array.isArray(classData && classData.syllabusRows)) {
+        const n = api.countFillableLessonRows(classData.syllabusRows);
+        if (n >= 1) {
+            return n;
+        }
+    }
+    return 0;
+}
+
+function classNeedsCurriculumLessonExpand(classData, templates) {
+    const api = getSyllabusTemplatesApi();
+    if (!api || !api.shouldOfferLessonExpand || !api.getBookSessionCount) {
+        return false;
+    }
+    const bookSessionCount = api.getBookSessionCount(templates);
+    const declaredLessons = getClassLessonCountForCurriculumPush(classData);
+    let classLessonCount = declaredLessons;
+    if (api.countFillableLessonRows && Array.isArray(classData && classData.syllabusRows)) {
+        const fillable = api.countFillableLessonRows(classData.syllabusRows);
+        if (fillable > 0) {
+            classLessonCount = declaredLessons > 0
+                ? Math.min(declaredLessons, fillable)
+                : fillable;
+        }
+    }
+    return api.shouldOfferLessonExpand({
+        isDebateMonthly: classUsesDebateCompression(classData),
+        hasExistingClassId: !!(classData && classData.id),
+        classLessonCount,
+        bookSessionCount
+    });
+}
+
+/**
  * Class → Syllabus: merge curriculum session templates into syllabusRows via class link.
  * Templates always come from getSyllabusRowTemplatesForClass(classData) (never bypass class).
+ * When the book has more sessions than the class, asks to expand (unless expandToBookSize is set).
  */
 function pushCurriculumToClassSyllabus(classData, options = {}) {
     const silent = !!options.silent;
@@ -25516,32 +25680,141 @@ function pushCurriculumToClassSyllabus(classData, options = {}) {
         if (!silent) {
             alert(t('syllabusModuleMissing'));
         }
-        return { ok: false, applied: 0, rows: null, cancelled: false };
+        return {
+            ok: false,
+            applied: 0,
+            rows: null,
+            cancelled: false,
+            expanded: false,
+            bookSessionCount: 0,
+            classLessonCount: 0,
+            partial: false
+        };
     }
     const editor = window.CCPBooksEditor;
     if (editor && editor.isNoCurriculum(classData.curriculumId)) {
         if (!silent) {
             alert(t('refreshSyllabusFromCurriculumNoTemplates'));
         }
-        return { ok: false, applied: 0, rows: null, cancelled: false };
+        return {
+            ok: false,
+            applied: 0,
+            rows: null,
+            cancelled: false,
+            expanded: false,
+            bookSessionCount: 0,
+            classLessonCount: 0,
+            partial: false
+        };
     }
     const templates = getSyllabusRowTemplatesForClass(classData);
     if (!templates.length) {
         if (!silent) {
             alert(t('refreshSyllabusFromCurriculumNoTemplates'));
         }
-        return { ok: false, applied: 0, rows: null, cancelled: false };
+        return {
+            ok: false,
+            applied: 0,
+            rows: null,
+            cancelled: false,
+            expanded: false,
+            bookSessionCount: 0,
+            classLessonCount: 0,
+            partial: false
+        };
     }
-    let rows = getSyllabusRowsForCurriculumPush(classData);
+    const bookSessionCount = api.getBookSessionCount
+        ? api.getBookSessionCount(templates)
+        : templates.length;
+
+    // Rows that would be painted without a rebuild (stale short table after Apply defaults).
+    let existingRows = getSyllabusRowsForCurriculumPush(classData);
+    const fillableExisting = api.countFillableLessonRows
+        ? api.countFillableLessonRows(existingRows)
+        : 0;
+    const declaredLessons = getClassLessonCountForCurriculumPush(classData);
+    // Cap used for expand prompt: never pretend we can fill more than existing rows
+    // unless we rebuild. Prefer the smaller of declared totalLessons and fillable rows.
+    let classLessonCount = declaredLessons;
+    if (fillableExisting > 0) {
+        classLessonCount = declaredLessons > 0
+            ? Math.min(declaredLessons, fillableExisting)
+            : fillableExisting;
+    }
+    const needsExpand = api.shouldOfferLessonExpand
+        ? api.shouldOfferLessonExpand({
+            isDebateMonthly: classUsesDebateCompression(classData),
+            hasExistingClassId: !!(classData && classData.id),
+            classLessonCount,
+            bookSessionCount
+        })
+        : false;
+
+    const confirmMsg = options.confirmMessage || t('refreshSyllabusFromCurriculumConfirm');
+    if (!skipConfirm && !silent && !confirm(confirmMsg)) {
+        return {
+            ok: false,
+            applied: 0,
+            rows: null,
+            cancelled: true,
+            expanded: false,
+            bookSessionCount,
+            classLessonCount,
+            partial: false
+        };
+    }
+
+    let expandToBook = options.expandToBookSize;
+    if (expandToBook === undefined) {
+        if (!needsExpand) {
+            expandToBook = false;
+        } else if (silent || options.skipExpandConfirm) {
+            expandToBook = false;
+        } else {
+            expandToBook = confirm(
+                t('curriculumExpandLessonsConfirm')
+                    .replace(/\{book\}/g, String(bookSessionCount))
+                    .replace(/\{class\}/g, String(classLessonCount))
+            );
+        }
+    } else {
+        expandToBook = !!expandToBook;
+    }
+
+    let expanded = false;
+    if (expandToBook && bookSessionCount > classLessonCount) {
+        classData.totalLessons = bookSessionCount;
+        classLessonCount = bookSessionCount;
+        expanded = true;
+        if (elements.classTotalLessons && elements.classId
+            && elements.classId.value === classData.id) {
+            elements.classTotalLessons.value = String(bookSessionCount);
+        }
+    }
+
+    let rows;
+    if (expanded) {
+        rows = buildGeneratedSyllabusRows(classData);
+    } else {
+        rows = existingRows;
+    }
+    if (!rows.length) {
+        rows = buildGeneratedSyllabusRows(classData);
+    }
     if (!rows.length) {
         if (!silent) {
             alert(t('homeworkImportNoRows'));
         }
-        return { ok: false, applied: 0, rows: null, cancelled: false };
-    }
-    const confirmMsg = options.confirmMessage || t('refreshSyllabusFromCurriculumConfirm');
-    if (!skipConfirm && !silent && !confirm(confirmMsg)) {
-        return { ok: false, applied: 0, rows: null, cancelled: true };
+        return {
+            ok: false,
+            applied: 0,
+            rows: null,
+            cancelled: false,
+            expanded,
+            bookSessionCount,
+            classLessonCount,
+            partial: false
+        };
     }
     const result = api.applyRowTemplatesToSyllabusRows(rows, templates, {
         force: options.force !== false
@@ -25559,6 +25832,9 @@ function pushCurriculumToClassSyllabus(classData, options = {}) {
         if (index !== -1) {
             appData.classes[index].syllabusRows = mergedRows;
             classData.syllabusRows = mergedRows;
+            if (expanded) {
+                appData.classes[index].totalLessons = bookSessionCount;
+            }
             if (generalNotes !== null) {
                 appData.classes[index].syllabusGeneralNotes = generalNotes;
             }
@@ -25586,15 +25862,51 @@ function pushCurriculumToClassSyllabus(classData, options = {}) {
         if (!silent) {
             alert(t('refreshSyllabusFromCurriculumNone'));
         }
-        return { ok: false, applied: 0, rows: mergedRows, cancelled: false };
+        return {
+            ok: false,
+            applied: 0,
+            rows: mergedRows,
+            cancelled: false,
+            expanded,
+            bookSessionCount,
+            classLessonCount,
+            partial: true
+        };
     }
+    const fillable = api.countFillableLessonRows
+        ? api.countFillableLessonRows(mergedRows)
+        : result.applied;
+    const partial = !expanded && bookSessionCount > fillable;
     if (!silent) {
-        setAppStatusMessage(
-            t('refreshSyllabusFromCurriculumDone').replace('{n}', String(result.applied)),
-            false
-        );
+        if (partial) {
+            const msg = t('refreshSyllabusFromCurriculumPartial')
+                .replace(/\{n\}/g, String(result.applied))
+                .replace(/\{book\}/g, String(bookSessionCount))
+                .replace(/\{class\}/g, String(classLessonCount || fillable));
+            setAppStatusMessage(msg, false);
+            alert(
+                t('curriculumExpandLessonsPartial')
+                    .replace(/\{n\}/g, String(result.applied))
+                    .replace(/\{book\}/g, String(bookSessionCount))
+                    .replace(/\{class\}/g, String(classLessonCount || fillable))
+            );
+        } else {
+            setAppStatusMessage(
+                t('refreshSyllabusFromCurriculumDone').replace('{n}', String(result.applied)),
+                false
+            );
+        }
     }
-    return { ok: true, applied: result.applied, rows: mergedRows, cancelled: false };
+    return {
+        ok: true,
+        applied: result.applied,
+        rows: mergedRows,
+        cancelled: false,
+        expanded,
+        bookSessionCount,
+        classLessonCount,
+        partial
+    };
 }
 
 function getClassesUsingCurriculumIdForPipeline(curriculumId) {
@@ -25685,17 +25997,31 @@ function handleCurriculumUpdatedBannerAction() {
         hideCurriculumUpdatedBanner();
         return;
     }
-    if (!confirm(t('curriculumUpdatedBatchConfirm').replace('{n}', String(classes.length)))) {
+    const expandCount = classes.filter((cls) => {
+        const templates = getSyllabusRowTemplatesForClass(cls);
+        return classNeedsCurriculumLessonExpand(cls, templates);
+    }).length;
+    const batchMsg = expandCount > 0
+        ? t('curriculumUpdatedBatchExpandConfirm')
+            .replace(/\{n\}/g, String(classes.length))
+            .replace(/\{expand\}/g, String(expandCount))
+        : t('curriculumUpdatedBatchConfirm').replace(/\{n\}/g, String(classes.length));
+    if (!confirm(batchMsg)) {
         return;
     }
     let updatedClassCount = 0;
     classes.forEach((cls) => {
         const draft = { ...cls };
+        const needsExpand = classNeedsCurriculumLessonExpand(
+            draft,
+            getSyllabusRowTemplatesForClass(draft)
+        );
         const result = pushCurriculumToClassSyllabus(draft, {
             skipConfirm: true,
             force: true,
             updateEditor: true,
-            silent: true
+            silent: true,
+            expandToBookSize: needsExpand
         });
         if (result.ok) {
             updatedClassCount += 1;
@@ -26807,7 +27133,18 @@ const EVENT_TYPE_HINT_KEYS = {
     evaluation_period: 'eventTypeEvalPeriodHint',
     evaluation_deadline: 'eventTypeEvalDeadlineHint',
     homework_deadline: 'eventTypeHomeworkDeadlineHint',
+    perf_eval_open: 'eventTypePerfEvalOpenHint',
+    perf_eval_close: 'eventTypePerfEvalCloseHint',
+    perf_eval_reopen: 'eventTypePerfEvalReopenHint',
+    perf_eval_finalized: 'eventTypePerfEvalFinalizedHint',
     other: 'eventTypeOtherHint'
+};
+
+const PERF_EVAL_DEFAULT_NAME_KEYS = {
+    perf_eval_open: 'eventTypePerfEvalOpen',
+    perf_eval_close: 'eventTypePerfEvalClose',
+    perf_eval_reopen: 'eventTypePerfEvalReopen',
+    perf_eval_finalized: 'eventTypePerfEvalFinalized'
 };
 
 function syncEventTypeHint() {
@@ -26820,6 +27157,22 @@ function syncEventTypeHint() {
     hintEl.textContent = t(key);
 }
 
+function maybePrefillPerfEvalEventName(type) {
+    if (!elements.holidayName || !isPerfEvalEventType(type)) {
+        return;
+    }
+    const nameKey = PERF_EVAL_DEFAULT_NAME_KEYS[type];
+    if (!nameKey) {
+        return;
+    }
+    const defaultName = t(nameKey);
+    const current = String(elements.holidayName.value || '').trim();
+    const knownDefaults = Object.keys(PERF_EVAL_DEFAULT_NAME_KEYS).map((k) => t(PERF_EVAL_DEFAULT_NAME_KEYS[k]));
+    if (!current || knownDefaults.includes(current)) {
+        elements.holidayName.value = defaultName;
+    }
+}
+
 function applyEventTypeDefaultColors() {
     if (!elements.eventType) return;
     const type = normalizeEventType(elements.eventType.value);
@@ -26830,6 +27183,7 @@ function applyEventTypeDefaultColors() {
         elements.holidayDateRange.style.display = 'grid';
         syncHolidayRangeEndFromStart();
     }
+    maybePrefillPerfEvalEventName(type);
     syncEventTypeHint();
 }
 
@@ -26991,7 +27345,40 @@ function populateClassForm(classData = null, options = {}) {
         updateClassSyllabusSummary(null);
         syncClassDeleteButtonVisibility(false);
         applyDefaultClassDatesForNewClass(options.defaultStartDate);
-        applyClassTeacherFieldsToForm(null);
+        const preferredCohortId = String(options.cohortId || '').trim();
+        applyClassTeacherFieldsToForm(
+            preferredCohortId
+                ? { cohortId: preferredCohortId, cohortIds: [preferredCohortId] }
+                : null
+        );
+        if (preferredCohortId) {
+            const cohortSel = document.getElementById('classCohort');
+            if (cohortSel) {
+                cohortSel.value = preferredCohortId;
+            }
+            updateClassHomeroomLabelDisplay();
+            updateClassCohortAlsoLinkedFromForm();
+        }
+        const defaultLevel = String(options.defaultLevelPreset || '').trim();
+        if (defaultLevel && elements.classLevel) {
+            const hasOpt = Array.from(elements.classLevel.options || []).some(
+                (o) => o.value === defaultLevel
+            );
+            if (hasOpt) {
+                elements.classLevel.value = defaultLevel;
+                if (typeof syncClassCurriculumLevelFromClassLevel === 'function') {
+                    syncClassCurriculumLevelFromClassLevel();
+                }
+            }
+        }
+        if (Array.isArray(options.defaultMeetingDays) && options.defaultMeetingDays.length) {
+            writeMeetingDaysInFormScope(
+                '#classForm',
+                MEETING_DAY_INPUT_CLASS,
+                options.defaultMeetingDays
+            );
+            updateMeetingDayChipLabels();
+        }
     }
     populateClassTypeSelect();
     if (!classData) {
@@ -27896,13 +28283,59 @@ function sanitizeTotalLessons(value) {
     return parsed;
 }
 
+/**
+ * Resolve class lesson count for scheduling / syllabus generation.
+ * Prefer an explicit totalLessons. If missing and a curriculum book is linked,
+ * use the book session count (not hardcoded 4/8). Never overwrite a saved count.
+ */
+function getTotalLessonsForClass(classData, fallbackWhenNoCurriculum = 8) {
+    const parsed = parseInt(classData && classData.totalLessons, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1) {
+        return parsed;
+    }
+    if (classData && classUsesDebateCompression(classData)) {
+        return 4;
+    }
+    if (classData) {
+        const templates = getSyllabusRowTemplatesForClass(classData);
+        const api = getSyllabusTemplatesApi();
+        const fromBook = api && api.getBookSessionCount
+            ? api.getBookSessionCount(templates)
+            : (templates && templates.length) || 0;
+        if (fromBook >= 1) {
+            return fromBook;
+        }
+    }
+    return sanitizeTotalLessons(fallbackWhenNoCurriculum);
+}
+
 function getTotalLessonsValue(surface) {
     const sid = surface || getScheduleAdjustmentSurface();
     if (sid === 'syllabus') {
         const cls = getSelectedSyllabusClass();
-        return sanitizeTotalLessons(cls ? (cls.totalLessons || 4) : 4);
+        return getTotalLessonsForClass(cls, 4);
     }
-    return sanitizeTotalLessons(elements.classTotalLessons && elements.classTotalLessons.value || 4);
+    const fromForm = elements.classTotalLessons && elements.classTotalLessons.value;
+    const parsed = parseInt(fromForm, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1) {
+        return parsed;
+    }
+    if (elements.classId && elements.classId.value) {
+        const saved = appData.classes.find((c) => c.id === elements.classId.value);
+        if (saved) {
+            return getTotalLessonsForClass(saved, 4);
+        }
+    }
+    const link = resolveClassCurriculumLinkFromForm({ includeTeacherFields: false });
+    if (link && link.curriculumId) {
+        return getTotalLessonsForClass({
+            curriculumId: link.curriculumId,
+            classTypeId: link.classTypeId,
+            levelPreset: link.level,
+            scheduleModel: SCHEDULE_MODEL_SEQUENTIAL_TERM
+        }, 4);
+    }
+    return 4;
 }
 
 function formatLessonDayLabel(n) {
@@ -28586,7 +29019,7 @@ function calculateCustomLessonDates(classData) {
 
 function calculateSequentialTermLessonDates(classData) {
     const meetingDays = getMeetingDaysFromClass(classData);
-    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 8);
+    const totalLessons = getTotalLessonsForClass(classData, 8);
 
     if (meetingDays.length === 0) {
         return {
@@ -28824,7 +29257,11 @@ function calculateAutoLessonDates(classData) {
 /** Inline syllabus rows for evaluation markers on lesson days (not reference-only `other`). */
 const SYLLABUS_INLINE_EVENT_TYPE_ORDER = [
     EVENT_TYPES.EVALUATION_PERIOD,
-    EVENT_TYPES.EVALUATION_DEADLINE
+    EVENT_TYPES.EVALUATION_DEADLINE,
+    EVENT_TYPES.PERF_EVAL_CLOSE,
+    EVENT_TYPES.PERF_EVAL_FINALIZED,
+    EVENT_TYPES.PERF_EVAL_OPEN,
+    EVENT_TYPES.PERF_EVAL_REOPEN
 ];
 
 function targetFilterAppliesToClass(target, classData) {
@@ -29189,6 +29626,9 @@ function renderCalendarAgenda(dayIndex) {
             const type = normalizeEventType(ev.type);
             if (type === EVENT_TYPES.HOLIDAY) {
                 return isCalendarItemVisible('holiday');
+            }
+            if (isPerfEvalEventType(type)) {
+                return isCalendarItemVisible('perf_eval');
             }
             return isCalendarItemVisible(type);
         });
@@ -29874,6 +30314,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     const visibleEvents = (dayEvents || []).filter(ev => {
         const type = normalizeEventType(ev.type);
         if (type === EVENT_TYPES.HOLIDAY) return isCalendarItemVisible('holiday');
+        if (isPerfEvalEventType(type)) return isCalendarItemVisible('perf_eval');
         return isCalendarItemVisible(type);
     });
     const blockingEvent = visibleEvents.find(ev => eventTypeBlocksClass(ev.type));
@@ -30171,6 +30612,7 @@ function applyPrintCalendarVisibilityClasses() {
         evaluation_deadline: 'printCalEvalDeadline',
         homework_deadline: 'printCalHomeworkDeadline',
         evaluation_period: 'printCalEvalPeriod',
+        perf_eval: 'printCalPerfEval',
         other: 'printCalOther'
     };
     Object.keys(printMap).forEach(key => {
@@ -30228,6 +30670,7 @@ const PRINT_CALENDAR_VISIBILITY_KEYS = [
     'evaluation_deadline',
     'homework_deadline',
     'evaluation_period',
+    'perf_eval',
     'other'
 ];
 
@@ -30238,6 +30681,7 @@ function readPrintCalendarVisibilityFromForm() {
         evaluation_deadline: document.getElementById('printCalEvalDeadline')?.checked !== false,
         homework_deadline: document.getElementById('printCalHomeworkDeadline')?.checked !== false,
         evaluation_period: document.getElementById('printCalEvalPeriod')?.checked !== false,
+        perf_eval: document.getElementById('printCalPerfEval')?.checked !== false,
         other: document.getElementById('printCalOther')?.checked !== false
     };
 }
@@ -30302,6 +30746,9 @@ function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
         const type = normalizeEventType(ev.type);
         if (type === EVENT_TYPES.HOLIDAY) {
             return isPrintVisibilityOn('holiday');
+        }
+        if (isPerfEvalEventType(type)) {
+            return isPrintVisibilityOn('perf_eval');
         }
         return isPrintVisibilityOn(type);
     });
@@ -34352,6 +34799,207 @@ function classNeedsDebateBookPeriodsWarning(classData) {
     return byMonth.length === 0;
 }
 
+function getPerfEvalApi() {
+    return typeof CCPPerfEvalWindows !== 'undefined' ? CCPPerfEvalWindows : null;
+}
+
+function resolvePerfEvalWindowForClass(classData) {
+    const api = getPerfEvalApi();
+    if (!api || !classData) {
+        return { open: '', close: '', reopen: '', finalized: '' };
+    }
+    return api.resolvePerfEvalWindow(appData.events || [], classData, {
+        eventAppliesToClass
+    });
+}
+
+function getLessonDatesFromClassSyllabus(classData) {
+    const rows = (classData && classData.syllabusRows) || [];
+    return rows
+        .filter((r) => r && r.kind === 'lesson' && r.date)
+        .map((r) => String(r.date).trim())
+        .filter(Boolean)
+        .sort();
+}
+
+function getEssayLessonDatesFromClassSyllabus(classData) {
+    const d = typeof CCPClassroomDomain !== 'undefined' ? CCPClassroomDomain : null;
+    if (d && d.getEssayRowsFromSyllabus) {
+        return d.getEssayRowsFromSyllabus((classData && classData.syllabusRows) || [])
+            .map((r) => String(r.date || '').trim())
+            .filter(Boolean)
+            .sort();
+    }
+    return getLessonDatesFromClassSyllabus(classData);
+}
+
+/**
+ * Bell warnings: debate Day 4 after Close, essay lessons past term end / Close.
+ */
+function getPerfEvalScheduleWarningsForClass(classData) {
+    const warnings = [];
+    if (!classData || !classData.id) {
+        return warnings;
+    }
+    if (classData.customSchedule && classData.customSchedule.enabled) {
+        return warnings;
+    }
+    const api = getPerfEvalApi();
+    if (!api) {
+        return warnings;
+    }
+    const name = classData.name || '';
+    const win = resolvePerfEvalWindowForClass(classData);
+    const termRange = typeof CCPTermDates !== 'undefined' && CCPTermDates.getTermDateRangeISO
+        ? CCPTermDates.getTermDateRangeISO(appData, {
+            defaultTermCalendarMonths: SCHEDULE_CONFIG.defaultTermCalendarMonths || 3,
+            minTermMonthCount: 3,
+            maxTermMonthCount: 6
+        })
+        : { start: '', end: '' };
+    const limits = api.essayDueLimits(classData, termRange.end || '', win);
+
+    if (classUsesDebateCompression(classData) && win.close) {
+        const debateApi = typeof CCPDebatePeriods !== 'undefined' ? CCPDebatePeriods : null;
+        const periods = debateApi && debateApi.enumerateDebatePeriodsInTerm
+            ? debateApi.enumerateDebatePeriodsInTerm(classData)
+            : [];
+        const lessonDates = getLessonDatesFromClassSyllabus(classData);
+        const issues = api.debatePeriodsPastClose(periods, lessonDates, win.close);
+        issues.forEach((issue) => {
+            warnings.push({
+                id: `class:${classData.id}:perf_eval_debate_close:${issue.periodId || issue.periodStart}`,
+                severity: 'warn',
+                messageKey: 'tabWarnPerfEvalDebateClose',
+                params: {
+                    name,
+                    date: issue.lastLessonDate,
+                    close: issue.closeDate
+                },
+                navigate: {
+                    type: 'class',
+                    classId: classData.id,
+                    tabId: 'classes',
+                    perfEvalCompress: true,
+                    periodId: issue.periodId || '',
+                    closeDate: issue.closeDate
+                }
+            });
+        });
+    }
+
+    const essayDates = getEssayLessonDatesFromClassSyllabus(classData);
+    const seenTerm = new Set();
+    const seenClose = new Set();
+    essayDates.forEach((lessonDate) => {
+        if (limits.maxSsDue && api.essayLessonPastSsCap(lessonDate, limits.maxSsDue)) {
+            if (!seenTerm.has(lessonDate)) {
+                seenTerm.add(lessonDate);
+                warnings.push({
+                    id: `class:${classData.id}:perf_eval_essay_term:${lessonDate}`,
+                    severity: 'warn',
+                    messageKey: 'tabWarnPerfEvalEssayTerm',
+                    params: { name, date: lessonDate, cap: limits.maxSsDue },
+                    navigate: {
+                        type: 'class',
+                        classId: classData.id,
+                        tabId: 'classes',
+                        perfEvalCompress: true,
+                        closeDate: limits.maxSsDue
+                    }
+                });
+            }
+        } else if (win.close && api.essayLessonPastClose(lessonDate, win.close)) {
+            if (!seenClose.has(lessonDate)) {
+                seenClose.add(lessonDate);
+                warnings.push({
+                    id: `class:${classData.id}:perf_eval_essay_close:${lessonDate}`,
+                    severity: 'warn',
+                    messageKey: 'tabWarnPerfEvalEssayClose',
+                    params: { name, date: lessonDate, close: win.close },
+                    navigate: {
+                        type: 'class',
+                        classId: classData.id,
+                        tabId: 'classes',
+                        perfEvalCompress: true,
+                        closeDate: win.close
+                    }
+                });
+            }
+        }
+    });
+
+    return warnings;
+}
+
+/**
+ * Opt-in: preview merges/skips so lessons fit on or before Close (or cap date).
+ */
+function previewPerfEvalCloseCompression(classId, options) {
+    const opts = options || {};
+    const cls = (appData.classes || []).find((c) => c && c.id === classId);
+    if (!cls) {
+        return;
+    }
+    const api = getPerfEvalApi();
+    const closeDate = String(opts.closeDate || '').trim()
+        || (resolvePerfEvalWindowForClass(cls).close || '');
+    if (!closeDate || !api) {
+        focusScheduleAdjustmentForClass(classId);
+        return;
+    }
+
+    focusScheduleAdjustmentForClass(classId);
+
+    const totalLessons = sanitizeTotalLessons(cls.totalLessons || 8);
+    const meetingDays = getMeetingDaysFromClass(cls);
+    let rangeStart = parseISODateLocal(cls.startDate);
+    let rangeEnd = parseISODateLocal(closeDate);
+    const periodId = String(opts.periodId || '').trim();
+    if (periodId && typeof CCPDebatePeriods !== 'undefined' && CCPDebatePeriods.enumerateDebatePeriodsInTerm) {
+        const periods = CCPDebatePeriods.enumerateDebatePeriodsInTerm(cls) || [];
+        const period = periods.find((p) => p && p.id === periodId);
+        if (period) {
+            rangeStart = parseISODateLocal(period.rangeStartDate || period.startDate);
+            const periodEnd = parseISODateLocal(period.rangeEndDate || cls.endDate);
+            if (!Number.isNaN(periodEnd.getTime()) && periodEnd < rangeEnd) {
+                rangeEnd = periodEnd;
+            }
+        }
+    }
+    if (meetingDays.length === 0
+        || Number.isNaN(rangeStart.getTime())
+        || Number.isNaN(rangeEnd.getTime())) {
+        return;
+    }
+    const eligible = collectEligibleMeetingDatesInMonth(rangeStart, rangeEnd, meetingDays, cls);
+    const slots = api.slotsBeforeClose(
+        eligible.map((d) => formatDateISO(d)),
+        closeDate
+    );
+    if (slots < 1) {
+        return;
+    }
+    const mergeOrder = getMergeStartOrderForClass(cls);
+    let result;
+    if (window.CCPSchedule && window.CCPSchedule.proposeScheduleFit) {
+        result = window.CCPSchedule.proposeScheduleFit(slots, totalLessons, {
+            mergeStartOrder: mergeOrder
+        });
+    } else {
+        result = { merges: [], skipped: [], canFullyFit: false };
+    }
+    applyScheduleAdjustmentsToForm(result.merges || [], result.skipped || [], 'classForm');
+    renderScheduleAdjustmentSummaryBlock(
+        {
+            ...cls,
+            compressionMerges: result.merges || [],
+            skippedLessons: result.skipped || []
+        },
+        'classForm'
+    );
+}
+
 function getDayNoteAuthorDisplayName(authorUserId) {
     const uid = String(authorUserId || '').trim();
     if (!uid) {
@@ -38116,13 +38764,24 @@ function generateSingleClassForCohortMigrate(cohort, subjectTrack, options) {
                       id: generateId(),
                       userId: uid,
                       name: teacherName,
-                      category: '',
+                      category: track,
                       period
                   }
               ]
-            : [],
+            : teacherName
+              ? [
+                    {
+                        id: generateId(),
+                        userId: '',
+                        name: teacherName,
+                        category: track,
+                        period
+                    }
+                ]
+              : [],
         assignedTeacherUserId: uid,
         assignedTeacherName: teacherName,
+        teacherCategory: track,
         generatedFromCohort: true,
         syllabusRows: []
     };
@@ -38169,6 +38828,7 @@ function setupDataTabTermMigrate() {
             return (user && (user.displayName || user.name)) || '';
         },
         listTeachers: listTimetableTeachers,
+        getAllSimsonLevels,
         buildTeacherSelect: (userId, name) => {
             const sel = document.createElement('select');
             fillTeacherSelectElement(sel, userId, name);

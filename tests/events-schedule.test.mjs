@@ -7,6 +7,10 @@ const EVENT_TYPES = {
     EVALUATION_DEADLINE: 'evaluation_deadline',
     HOMEWORK_DEADLINE: 'homework_deadline',
     EVALUATION_PERIOD: 'evaluation_period',
+    PERF_EVAL_OPEN: 'perf_eval_open',
+    PERF_EVAL_CLOSE: 'perf_eval_close',
+    PERF_EVAL_REOPEN: 'perf_eval_reopen',
+    PERF_EVAL_FINALIZED: 'perf_eval_finalized',
     OTHER: 'other'
 };
 
@@ -73,6 +77,10 @@ assert(eventTypeBlocksClass(''), 'unknown type defaults to holiday');
 assert(!eventTypeBlocksClass('evaluation_deadline'), 'eval deadline does not block via helper');
 assert(eventTypeBlocksClass('evaluation_period'), 'evaluation period blocks class');
 assert(!eventTypeBlocksClass('homework_deadline'), 'homework deadline does not block class');
+assert(!eventTypeBlocksClass(EVENT_TYPES.PERF_EVAL_OPEN), 'perf eval open does not block class');
+assert(!eventTypeBlocksClass(EVENT_TYPES.PERF_EVAL_CLOSE), 'perf eval close does not block class');
+assert(!eventTypeBlocksClass(EVENT_TYPES.PERF_EVAL_REOPEN), 'perf eval reopen does not block class');
+assert(!eventTypeBlocksClass(EVENT_TYPES.PERF_EVAL_FINALIZED), 'perf eval finalized does not block class');
 
 const evalPeriodDay = [
     {
