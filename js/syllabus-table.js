@@ -2126,6 +2126,11 @@ body { font-family: "DM Sans", Arial, sans-serif; font-size: 11pt; color: #111; 
 .syllabus-row-event.syllabus-row-evaluation_deadline td { border-color: #991b1b; background-color: #fecaca; color: #991b1b; }
 .syllabus-row-event.syllabus-row-homework_deadline td { border-color: #1e40af; background-color: #dbeafe; color: #1e40af; }
 .syllabus-row-event.syllabus-row-evaluation_period td { border-color: #6b21a1; background-color: #e9d5ff; color: #6b21a1; }
+.syllabus-row-event.syllabus-row-perf_eval_open td,
+.syllabus-row-event.syllabus-row-perf_eval_close td,
+.syllabus-row-event.syllabus-row-perf_eval_reopen td,
+.syllabus-row-event.syllabus-row-perf_eval_finalized td { border-color: #92400e; background-color: #fde68a; color: #92400e; }
+.syllabus-row-event.syllabus-row-perf_eval_close td { border-color: #991b1b; background-color: #fecaca; color: #991b1b; }
 .syllabus-row-event.syllabus-row-other td { border-color: #6b7280; background-color: #e5e7eb; color: #374151; }
 .syllabus-row-extra td { border-color: #6b7280; border-style: dashed; background-color: #e5e7eb; color: #374151; }
 .syllabus-row-overflow td { border-color: #9ca3af; }

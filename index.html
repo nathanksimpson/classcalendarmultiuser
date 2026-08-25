@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260810-nav-tabs-collapse">
+    <link rel="stylesheet" href="styles.css?v=20260824-essay-toolbar-landscape">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260807-deconflict-min">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -279,6 +279,10 @@
                                     <label class="checkbox-label visibility-chip">
                                         <input type="checkbox" id="visEvalPeriod" checked>
                                         <span data-i18n="showEvalPeriods">Evaluation periods</span>
+                                    </label>
+                                    <label class="checkbox-label visibility-chip">
+                                        <input type="checkbox" id="visPerfEval" checked>
+                                        <span data-i18n="showPerfEval">수행평가 windows</span>
                                     </label>
                                     <label class="checkbox-label visibility-chip">
                                         <input type="checkbox" id="visOther" checked>
@@ -674,29 +678,35 @@
 
             <section id="panel-debate-scores" class="app-tab-panel" data-tab="debate-scores" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
                 <div class="module-toolbar classroom-tab-toolbar classroom-debate-scores-toolbar" data-noprint>
-                    <div class="classroom-debate-scores-toolbar-row">
-                        <label id="classroomDebateScoresAssignmentWrap" class="classroom-debate-assignment-field" hidden>
-                            <span class="classroom-debate-assignment-label" data-i18n="classroomDebateAssignmentLabel">Debate assignment</span>
-                            <select id="classroomDebateScoresAssignmentSelect" class="field-select field-control"></select>
-                        </label>
-                        <p id="classroomDebateScoresAssignmentEmpty" class="section-hint classroom-debate-assignment-empty" hidden data-i18n="classroomDebateAssignmentEmpty">No Day 4 debate dates in this term.</p>
-                        <label class="classroom-debate-assignment-field" for="classroomDebateScoresTemplate">
-                            <span class="classroom-debate-assignment-label" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</span>
-                            <select id="classroomDebateScoresTemplate" class="field-select field-control">
-                                <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam?밠irinae</option>
-                                <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple?밳eoul</option>
-                            </select>
-                        </label>
-                        <span id="classroomDebateScoresBookChip" class="section-hint classroom-debate-scores-book-chip" hidden></span>
-                        <div class="toolbar-actions">
+                    <div class="classroom-debate-scores-toolbar-head">
+                        <button type="button" id="classroomDebateScoresToolbarToggle" class="btn btn-outline btn-compact classroom-debate-scores-toolbar-toggle" aria-expanded="true" aria-controls="classroomDebateScoresToolbarBody" data-i18n="classroomDebateScoresToolbarCollapse">Hide tools</button>
+                        <span id="classroomDebateScoresToolbarSummary" class="classroom-debate-scores-toolbar-summary section-hint" hidden></span>
+                        <div class="toolbar-actions classroom-debate-scores-toolbar-head-actions">
                             <span id="classroomDebateScoresSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                             <button type="button" id="classroomDebateScoresSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
                         </div>
                     </div>
-                    <div class="classroom-debate-scores-toolbar-row classroom-debate-scores-export-row">
-                        <button type="button" id="classroomDebateScoresWordBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadWord">Download Word</button>
-                        <button type="button" id="classroomDebateScoresPdfBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadPdf">Download PDF</button>
-                        <button type="button" id="classroomDebateScoresPrintBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresPrint">Print</button>
+                    <div id="classroomDebateScoresToolbarBody" class="classroom-debate-scores-toolbar-body">
+                        <div class="classroom-debate-scores-toolbar-row">
+                            <label id="classroomDebateScoresAssignmentWrap" class="classroom-debate-assignment-field" hidden>
+                                <span class="classroom-debate-assignment-label" data-i18n="classroomDebateAssignmentLabel">Debate assignment</span>
+                                <select id="classroomDebateScoresAssignmentSelect" class="field-select field-control"></select>
+                            </label>
+                            <p id="classroomDebateScoresAssignmentEmpty" class="section-hint classroom-debate-assignment-empty" hidden data-i18n="classroomDebateAssignmentEmpty">No Day 4 debate dates in this term.</p>
+                            <label class="classroom-debate-assignment-field" for="classroomDebateScoresTemplate">
+                                <span class="classroom-debate-assignment-label" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</span>
+                                <select id="classroomDebateScoresTemplate" class="field-select field-control">
+                                    <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae</option>
+                                    <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul</option>
+                                </select>
+                            </label>
+                            <span id="classroomDebateScoresBookChip" class="section-hint classroom-debate-scores-book-chip" hidden></span>
+                        </div>
+                        <div class="classroom-debate-scores-toolbar-row classroom-debate-scores-export-row">
+                            <button type="button" id="classroomDebateScoresWordBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadWord">Download Word</button>
+                            <button type="button" id="classroomDebateScoresPdfBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadPdf">Download PDF</button>
+                            <button type="button" id="classroomDebateScoresPrintBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresPrint">Print</button>
+                        </div>
                     </div>
                 </div>
                 <p id="classroomDebateScoresHint" class="section-hint" data-i18n="classroomDebateScoresSelectClassDate">Select a class and Day 4 date above to record debate scores.</p>
@@ -1313,7 +1323,7 @@
                     </div>
                     <div class="print-data-section print-data-section--term-migrate">
                         <h2 class="module-section-title" data-i18n="dataTermMigrateHeading">Migrate to next term</h2>
-                        <p class="section-hint" data-i18n="dataTermMigrateHint">Pull TMS rosters, keep student IDs, set homeroom, and carry forward or rebuild your classes.</p>
+                        <p class="section-hint" data-i18n="dataTermMigrateHint">Pull TMS rosters and teachers, set homeroom, create subject classes for the school, and optionally keep student IDs from this calendar.</p>
                         <div class="print-data-actions">
                             <button type="button" id="dataTermMigrateBtn" class="btn btn-outline btn-small" data-i18n="dataTermMigrateOpen">Migrate to next term&hellip;</button>
                         </div>
@@ -2044,6 +2054,8 @@
                 <button type="button" id="essayTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="classroomEssayTmsSyncConfirm">Apply Received updates</button>
             </div>
         </div>
+    </div>
+
     <div id="studentArchiveModal" class="modal" role="dialog" aria-labelledby="studentArchiveModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -2483,6 +2495,7 @@
     </div>
 
     <script defer src="js/schedule-core.js"></script>
+    <script defer src="js/perf-eval-windows.js?v=20260820-perf-eval"></script>
     <script defer src="js/utils.js?v=20260612-export-ascii"></script>
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
@@ -2510,7 +2523,7 @@
     <script defer src="js/term-dates.js?v=20260619-term-flex"></script>
     <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
     <script defer src="js/term-clone-wizard.js?v=20260622-teaching-workflow"></script>
-    <script defer src="js/term-migrate-wizard.js?v=20260807-term-migrate"></script>
+    <script defer src="js/term-migrate-wizard.js?v=20260821-tms-term"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
@@ -2525,7 +2538,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260806-per-period-remap"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260810-book-check"></script>
+    <script defer src="js/classroom-domain.js?v=20260824-speaking-order"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260824-mention-no-at-colon"></script>
@@ -2583,7 +2596,7 @@
     </div>
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
-    <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
+    <script defer src="js/tab-warnings.js?v=20260820-perf-eval"></script>
     <script defer src="js/i18n/calendar-en.js?v=20260825-daily-summary-print"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>

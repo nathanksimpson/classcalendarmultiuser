@@ -382,6 +382,44 @@
         };
     }
 
+    /** Max sessionNumber among curriculum templates (falls back to array length). */
+    function getBookSessionCount(templates) {
+        let max = 0;
+        (templates || []).forEach((tpl) => {
+            const n = parseInt(tpl && tpl.sessionNumber, 10);
+            if (!Number.isNaN(n) && n > max) {
+                max = n;
+            }
+        });
+        if (max > 0) {
+            return max;
+        }
+        return Array.isArray(templates) ? templates.length : 0;
+    }
+
+    /** Rows that can receive curriculum session pages. */
+    function countFillableLessonRows(rows) {
+        return (rows || []).filter((r) => r && (r.kind === 'lesson' || r.kind === 'overflow')).length;
+    }
+
+    /**
+     * Whether Apply/Refresh should ask to grow class totalLessons to match the book.
+     * Debate monthly always stays at 4 days/period — never offer expand.
+     * New unsaved classes get book lesson count from form defaults (no prompt).
+     */
+    function shouldOfferLessonExpand(options) {
+        const opts = options || {};
+        if (opts.isDebateMonthly === true) {
+            return false;
+        }
+        if (opts.hasExistingClassId !== true) {
+            return false;
+        }
+        const book = Number(opts.bookSessionCount) || 0;
+        const classLessons = Number(opts.classLessonCount) || 0;
+        return book > classLessons && classLessons >= 1;
+    }
+
     global.CCPSyllabusTemplates = {
         normalizePlanTitleKey,
         parseCurriculumBlockKey,
@@ -399,6 +437,9 @@
         lessonRowsToRowTemplates,
         noteRowsFromSyllabusRows,
         expandTemplateToEditorRows,
-        collectTemplateFromEditor
+        collectTemplateFromEditor,
+        getBookSessionCount,
+        countFillableLessonRows,
+        shouldOfferLessonExpand
     };
 })(typeof window !== 'undefined' ? window : globalThis);

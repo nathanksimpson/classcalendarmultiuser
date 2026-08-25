@@ -83,6 +83,7 @@ const MINIFY_JS = [
     'js/default-class-editor.js',
     'js/teacher-timetable.js',
     'js/debate-periods.js',
+    'js/perf-eval-windows.js',
     'js/schedule-core.js',
     'js/utils.js',
     'js/client-api.js',
