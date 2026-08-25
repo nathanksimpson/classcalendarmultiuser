@@ -1835,13 +1835,161 @@
     function defaultDueDatesFromRow(row) {
         const d = domain();
         if (!row || !d) {
-            return { ssDueDate: '', teacherEvalDueDate: '' };
+            return { ssDueDate: '', teacherEvalDueDate: '', hints: [] };
         }
         const lesson = normalizeStr(row.date);
+        const limits = getEssayDueLimitsForClass(getClassData());
+        const hints = [];
+        if (lesson && limits.maxSsDue && essayApi() && essayApi().essayLessonPastSsCap(lesson, limits.maxSsDue)) {
+            hints.push({
+                key: 'classroomEssayDuePastTermHint',
+                params: { cap: limits.maxSsDue }
+            });
+            return { ssDueDate: '', teacherEvalDueDate: '', hints, lessonPastCap: true };
+        }
+        let ssDueDate = lesson;
+        let teacherEvalDueDate = lesson && d.addDaysISO ? d.addDaysISO(lesson, 2) : '';
+        if (!teacherEvalDueDate && lesson) {
+            teacherEvalDueDate = addDaysFallback(lesson, 2);
+        }
+        const ssClamp = essayApi()
+            ? essayApi().clampDueDate(ssDueDate, limits.maxSsDue)
+            : { date: ssDueDate, clamped: false };
+        ssDueDate = ssClamp.date;
+        const teClamp = essayApi()
+            ? essayApi().clampDueDate(teacherEvalDueDate, limits.maxTeacherEvalDue)
+            : { date: teacherEvalDueDate, clamped: false };
+        teacherEvalDueDate = teClamp.date;
+        if (teClamp.clamped && limits.maxTeacherEvalDue) {
+            hints.push({
+                key: 'classroomEssayTeacherEvalClampedHint',
+                params: { cap: limits.maxTeacherEvalDue }
+            });
+        }
+        if (lesson && limits.close && essayApi() && essayApi().essayLessonPastClose(lesson, limits.close)) {
+            hints.push({
+                key: 'classroomEssayLessonPastCloseHint',
+                params: { close: limits.close }
+            });
+        }
+        return { ssDueDate, teacherEvalDueDate, hints, lessonPastCap: false };
+    }
+
+    function essayApi() {
+        return typeof CCPPerfEvalWindows !== 'undefined' ? CCPPerfEvalWindows : null;
+    }
+
+    function addDaysFallback(dateStr, delta) {
+        const parts = String(dateStr || '').split('-').map(Number);
+        if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+            return '';
+        }
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+        d.setDate(d.getDate() + delta);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function getEssayDueLimitsForClass(classData) {
+        const api = essayApi();
+        const term = getTermRange();
+        let win = { open: '', close: '', reopen: '', finalized: '' };
+        if (hooks && typeof hooks.resolvePerfEvalWindowForClass === 'function' && classData) {
+            win = hooks.resolvePerfEvalWindowForClass(classData) || win;
+        } else if (api && classData) {
+            win = api.resolvePerfEvalWindow(getAppData().events || [], classData);
+        }
+        if (!api) {
+            const classEnd = normalizeStr(classData && classData.endDate);
+            const termEnd = normalizeStr(term.end);
+            let maxSsDue = '';
+            if (classEnd && termEnd) {
+                maxSsDue = classEnd < termEnd ? classEnd : termEnd;
+            } else {
+                maxSsDue = classEnd || termEnd;
+            }
+            return { maxSsDue, maxTeacherEvalDue: maxSsDue, close: win.close || '', finalized: win.finalized || '' };
+        }
+        const limits = api.essayDueLimits(classData, term.end || '', win);
         return {
-            ssDueDate: lesson,
-            teacherEvalDueDate: lesson ? d.addDaysISO(lesson, 2) : ''
+            maxSsDue: limits.maxSsDue || '',
+            maxTeacherEvalDue: limits.maxTeacherEvalDue || '',
+            close: win.close || '',
+            finalized: win.finalized || ''
         };
+    }
+
+    function applyDueDateLimitsToDraft() {
+        if (!draftSubmission) {
+            return { hints: [] };
+        }
+        const limits = getEssayDueLimitsForClass(getClassData());
+        const hints = [];
+        const lesson = normalizeStr(lessonDate || draftSubmission.lessonDate);
+        if (lesson && limits.maxSsDue && essayApi() && essayApi().essayLessonPastSsCap(lesson, limits.maxSsDue)) {
+            draftSubmission.ssDueDate = '';
+            hints.push({
+                key: 'classroomEssayDuePastTermHint',
+                params: { cap: limits.maxSsDue }
+            });
+        } else if (draftSubmission.ssDueDate && limits.maxSsDue && essayApi()) {
+            const clamped = essayApi().clampDueDate(draftSubmission.ssDueDate, limits.maxSsDue);
+            draftSubmission.ssDueDate = clamped.date;
+        }
+        if (draftSubmission.teacherEvalDueDate && limits.maxTeacherEvalDue && essayApi()) {
+            const te = essayApi().clampDueDate(draftSubmission.teacherEvalDueDate, limits.maxTeacherEvalDue);
+            if (te.clamped) {
+                draftSubmission.teacherEvalDueDate = te.date;
+                hints.push({
+                    key: 'classroomEssayTeacherEvalClampedHint',
+                    params: { cap: limits.maxTeacherEvalDue }
+                });
+            }
+        }
+        if (lesson && limits.close && essayApi() && essayApi().essayLessonPastClose(lesson, limits.close)) {
+            hints.push({
+                key: 'classroomEssayLessonPastCloseHint',
+                params: { close: limits.close }
+            });
+        }
+        return { hints, limits };
+    }
+
+    function formatEssayDueHint(hint) {
+        if (!hint || !hint.key) {
+            return '';
+        }
+        let text = t(hint.key);
+        const params = hint.params || {};
+        Object.keys(params).forEach((key) => {
+            text = text.replace(new RegExp('\\{' + key + '\\}', 'g'), String(params[key]));
+        });
+        return text;
+    }
+
+    function renderEssayDueHints(mount, hints) {
+        let host = mount.querySelector('#classroomEssaysDueHints');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'classroomEssaysDueHints';
+            host.className = 'classroom-essay-due-hints section-hint';
+            const inner = mount.querySelector('.classroom-essays-context-bar-inner');
+            if (inner && inner.parentNode) {
+                inner.parentNode.insertBefore(host, inner.nextSibling);
+            } else {
+                mount.appendChild(host);
+            }
+        }
+        const lines = (hints || []).map(formatEssayDueHint).filter(Boolean);
+        if (!lines.length) {
+            host.hidden = true;
+            host.innerHTML = '';
+            return;
+        }
+        host.hidden = false;
+        host.innerHTML = lines.map((line) => `<p class="classroom-essay-due-hint">${escapeHtml(line)}</p>`).join('');
     }
 
     function normalizeStr(v) {
@@ -1886,6 +2034,7 @@
             base.teacherEvalDueDate = defaults.teacherEvalDueDate;
         }
         draftSubmission = d.ensureEssayRecordsForStudents(base, students);
+        applyDueDateLimitsToDraft();
     }
 
     function getRecord(studentId) {
@@ -2358,16 +2507,38 @@
                 }
             }
             if (target.id === 'classroomEssaysSsDue' && draftSubmission) {
-                draftSubmission.ssDueDate = target.value;
+                const limits = getEssayDueLimitsForClass(getClassData());
+                let next = target.value;
+                if (next && limits.maxSsDue && essayApi()) {
+                    const clamped = essayApi().clampDueDate(next, limits.maxSsDue);
+                    next = clamped.date;
+                    if (clamped.clamped) {
+                        target.value = next;
+                    }
+                }
+                draftSubmission.ssDueDate = next;
                 scheduleSave();
                 renderStatsBar(panel);
                 renderRows(panel);
+                const applied = applyDueDateLimitsToDraft();
+                renderEssayDueHints(mount, applied.hints);
             }
             if (target.id === 'classroomEssaysTeacherEvalDue' && draftSubmission) {
-                draftSubmission.teacherEvalDueDate = target.value;
+                const limits = getEssayDueLimitsForClass(getClassData());
+                let next = target.value;
+                if (next && limits.maxTeacherEvalDue && essayApi()) {
+                    const clamped = essayApi().clampDueDate(next, limits.maxTeacherEvalDue);
+                    next = clamped.date;
+                    if (clamped.clamped) {
+                        target.value = next;
+                    }
+                }
+                draftSubmission.teacherEvalDueDate = next;
                 scheduleSave();
                 renderStatsBar(panel);
                 renderRows(panel);
+                const applied = applyDueDateLimitsToDraft();
+                renderEssayDueHints(mount, applied.hints);
             }
         });
         mount.addEventListener('click', (e) => {
@@ -2393,11 +2564,17 @@
         const editable = access() && access().canEditClass(classData);
         const deadlineDisabled = editable ? '' : ' disabled';
         const summary = getCurrentAssignmentSummary();
+        const dueLimits = getEssayDueLimitsForClass(classData);
+        const appliedHints = applyDueDateLimitsToDraft();
         const ss = draftSubmission
             ? draftSubmission.ssDueDate || (summary && summary.ssDueDate) || ''
             : '';
         const te = draftSubmission
             ? draftSubmission.teacherEvalDueDate || (summary && summary.teacherEvalDueDate) || ''
+            : '';
+        const ssMaxAttr = dueLimits.maxSsDue ? ` max="${escapeAttr(dueLimits.maxSsDue)}"` : '';
+        const teMaxAttr = dueLimits.maxTeacherEvalDue
+            ? ` max="${escapeAttr(dueLimits.maxTeacherEvalDue)}"`
             : '';
 
         const assignments =
@@ -2429,13 +2606,14 @@
                     </div>
                     <label class="classroom-essay-context-field">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssaySsDueShort'))}</span>
-                        <input type="date" id="classroomEssaysSsDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(ss)}"${deadlineDisabled} />
+                        <input type="date" id="classroomEssaysSsDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(ss)}"${ssMaxAttr}${deadlineDisabled} />
                     </label>
                     <label class="classroom-essay-context-field">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayTeacherEvalDueShort'))}</span>
-                        <input type="date" id="classroomEssaysTeacherEvalDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(te)}"${deadlineDisabled} />
+                        <input type="date" id="classroomEssaysTeacherEvalDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(te)}"${teMaxAttr}${deadlineDisabled} />
                     </label>
-                </div>`;
+                </div>
+                <div id="classroomEssaysDueHints" class="classroom-essay-due-hints section-hint" hidden></div>`;
         } else {
             const select = mount.querySelector('#classroomEssaysAssignmentSelect');
             if (select) {
@@ -2452,6 +2630,11 @@
                 if (ssInput.value !== ss) {
                     ssInput.value = ss;
                 }
+                if (dueLimits.maxSsDue) {
+                    ssInput.max = dueLimits.maxSsDue;
+                } else {
+                    ssInput.removeAttribute('max');
+                }
                 ssInput.disabled = !editable;
             }
             const teInput = mount.querySelector('#classroomEssaysTeacherEvalDue');
@@ -2459,9 +2642,15 @@
                 if (teInput.value !== te) {
                     teInput.value = te;
                 }
+                if (dueLimits.maxTeacherEvalDue) {
+                    teInput.max = dueLimits.maxTeacherEvalDue;
+                } else {
+                    teInput.removeAttribute('max');
+                }
                 teInput.disabled = !editable;
             }
         }
+        renderEssayDueHints(mount, appliedHints.hints);
 
         renderClassPickerPopover();
     }
