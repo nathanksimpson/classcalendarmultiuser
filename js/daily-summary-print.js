@@ -66,7 +66,13 @@
         }
         let list = classes.filter((c) => c && c.id);
         if (occursOnDate) {
-            list = list.filter((c) => occursOnDate(c, referenceDate));
+            list = list.filter((c) => {
+                try {
+                    return !!occursOnDate(c, referenceDate);
+                } catch (err) {
+                    return false;
+                }
+            });
         }
         if (myClassesOnly) {
             if (!assignedIds || !assignedIds.size) {

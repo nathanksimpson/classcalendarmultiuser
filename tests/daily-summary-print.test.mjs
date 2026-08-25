@@ -173,6 +173,27 @@ function splitPlanDetailSections(planDetail) {
 }
 
 {
+    const classes = [
+        { id: 'a', name: 'Alpha' },
+        { id: 'b', name: 'Beta' },
+        { id: 'c', name: 'Gamma' }
+    ];
+    const onDate = (c, date) => {
+        if (c.id === 'b') {
+            throw new Error('malformed schedule');
+        }
+        return c.id === 'a' || (c.id === 'c' && date === '2026-06-10');
+    };
+    const resolved = DSP.resolveClassesForDailyPrint(classes, {
+        referenceDate: '2026-06-10',
+        myClassesOnly: false,
+        classOccursOnIsoDate: onDate
+    });
+    assert(resolved.length === 2, 'skips class whose occurs check throws');
+    assert(resolved[0].id === 'a' && resolved[1].id === 'c', 'keeps good classes when one throws');
+}
+
+{
     assert(DSP.gridDimensionsForCopies(4).cols === 2 && DSP.gridDimensionsForCopies(4).rows === 2, '2x2 grid');
     assert(DSP.gridDimensionsForCopies(6).rows === 3, '2x3 grid for 6 copies');
 }

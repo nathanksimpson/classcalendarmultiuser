@@ -2488,6 +2488,7 @@
         dailySummaryPrintNoClasses: '선택한 날짜에 수업이 없습니다. 다른 날짜를 선택하거나 “내 수업만”을 해제하세요.',
         dailySummaryPrintPickOne: '인쇄 항목을 하나 이상 선택하세요.',
         dailySummaryPrintModuleMissing: '일일 요약 인쇄 모듈을 불러오지 못했습니다. Ctrl+F5로 새로고침하세요.',
+        dailySummaryPrintOpenFailed: '일일 요약 인쇄를 열 수 없습니다. 다시 시도하거나 Ctrl+F5로 새로고침하세요.',
         dailySummaryTeacherDocTitle: '교사용 일일 요약',
         dailySummaryStudentDocTitle: '오늘의 숙제',
         dailySummaryFromLastClass: '지난 수업',
