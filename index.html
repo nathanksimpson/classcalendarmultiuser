@@ -12,7 +12,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260820-briefing-unique-gtr';
+        window.CCP_I18N_VERSION = '20260825-essay-tms-sync';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -519,6 +519,8 @@
                             <div id="classroomEssaysBatchActions" class="classroom-essay-filters classroom-batch-row"></div>
                             <p id="classroomEssaysToolbarHint" class="classroom-essay-toolbar-hint section-hint" role="status"></p>
                             <div class="toolbar-actions">
+                                <button type="button" id="classroomEssaysTmsSyncAllBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncAllBtn">Sync all from TMS&hellip;</button>
+                                <button type="button" id="classroomEssaysTmsSyncBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncThisClassBtn">Sync this class&hellip;</button>
                                 <div id="classroomEssaysReportsWrap" class="classroom-essay-reports-menu"></div>
                                 <span id="classroomEssaysSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
                                 <button type="button" id="classroomEssaysSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomEssaySaveAll">Save all</button>
@@ -1979,6 +1981,69 @@
         </div>
     </div>
 
+    <div id="essayTmsSyncModal" class="modal" role="dialog" aria-labelledby="essayTmsSyncModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-wide modal-content--scrollable roster-import-modal-content">
+            <div class="modal-header">
+                <h2 id="essayTmsSyncModalTitle" data-i18n="classroomEssayTmsSyncTitle">Sync essay submissions from TMS</h2>
+                <button type="button" class="modal-close" id="closeEssayTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll roster-import-modal-body">
+                <p class="section-hint" data-i18n="classroomEssayTmsSyncHint">
+                    Pull submitted essays from TMS 에세이관리. Each TMS assignment shows its class, assigned date (wdate), and subject. Confirm or correct the ClassManager class and essay assignment before Apply. Only marks Not submitted → Received.
+                </p>
+                <div id="essayTmsCredForm" class="roster-tms-cred-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="essayTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
+                            <input type="text" id="essayTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label for="essayTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
+                            <input type="password" id="essayTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
+                        </div>
+                    </div>
+                    <label class="checkbox-label selection-chip">
+                        <input type="checkbox" id="essayTmsRememberUser">
+                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
+                    </label>
+                    <p class="section-hint" data-i18n="classroomEssayTmsCredHint">Password is used only for this sync and is not saved. On classmanager.live at work: keep local ClassManager (port 8080) running, and restart it after updating essay Sync code (ping alone is not enough). Local npm start can leave fields blank to use TMS_* from .env.</p>
+                    <div class="toolbar-actions">
+                        <button type="button" id="essayTmsLoadBtn" class="btn btn-primary" data-i18n="classroomEssayTmsLoadBtn">Sign in &amp; load submissions</button>
+                        <button type="button" id="essayTmsBridgeTestBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsBridgeTestBtn">Open bridge test</button>
+                    </div>
+                </div>
+                <p id="essayTmsSyncStatus" class="section-hint" aria-live="polite"></p>
+                <div class="module-toolbar classroom-tab-toolbar roster-tms-sync-toolbar" id="essayTmsSyncBatchBar" hidden>
+                    <div class="toolbar-actions">
+                        <button type="button" id="essayTmsSyncSkipAllBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayTmsSyncSkipAll">Skip all</button>
+                        <button type="button" id="essayTmsSyncSkipUnmappedBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayTmsSyncSkipUnmapped">Skip unmapped</button>
+                        <button type="button" id="essayTmsSyncAcceptSuggestedBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayTmsSyncAcceptSuggested">Accept all suggestions</button>
+                    </div>
+                </div>
+                <div id="essayTmsSyncPreviewTable" class="roster-import-table-wrap"></div>
+                <div id="essayTmsStudentReview" class="roster-tms-student-review" hidden>
+                    <p id="essayTmsStudentReviewProgress" class="section-hint" aria-live="polite"></p>
+                    <p id="essayTmsStudentReviewReason" class="section-hint"></p>
+                    <div class="form-group">
+                        <label id="essayTmsStudentReviewNameLabel" class="form-label"></label>
+                        <p id="essayTmsStudentReviewName" class="roster-tms-review-name"></p>
+                    </div>
+                    <fieldset class="form-group" id="essayTmsStudentReviewChoices">
+                        <legend class="form-label" data-i18n="classroomEssayTmsStudentChoicesLabel">What should happen to this TMS student?</legend>
+                        <div id="essayTmsStudentReviewOptions" class="roster-tms-review-options"></div>
+                    </fieldset>
+                    <div class="toolbar-actions">
+                        <button type="button" id="essayTmsStudentReviewBackBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsReviewBack">Back</button>
+                        <button type="button" id="essayTmsStudentReviewNextBtn" class="btn btn-primary btn-small" data-i18n="rosterTmsReviewNext">Next</button>
+                    </div>
+                </div>
+                <p id="essayTmsSyncError" class="section-hint roster-import-error" hidden role="alert"></p>
+            </div>
+            <div class="form-actions roster-import-actions">
+                <button type="button" id="cancelEssayTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="essayTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="classroomEssayTmsSyncConfirm">Apply Received updates</button>
+            </div>
+        </div>
     <div id="studentArchiveModal" class="modal" role="dialog" aria-labelledby="studentArchiveModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -2429,7 +2494,7 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260820-briefing-class-en"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260825-essay-tms-sync"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -2519,7 +2584,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260820-briefing-unique-gtr"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260825-essay-tms-sync"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
