@@ -167,7 +167,9 @@ Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; work
 - [ ] **Tests** — `npm test` (language-init + `tests/i18n-parity.test.mjs` for en/ko key parity); add `node tests/<name>.test.mjs` if you touched syllabus/homework logic.
 - [ ] **Cache bust** (if `app.js`, `calendar-sync.js`, or `team-auth.js` changed) — bump `?v=` on those script tags in `index.html` (e.g. `?v=20260526-delete-refresh`).
 - [ ] **Push** (optional backup on GitHub) — `git push origin main`
-- [ ] **Deploy** — `npm run deploy` from project folder (requires `npx wrangler login` once).
+- [ ] **Deploy** — `npm run deploy` from project folder.
+  - **Local PC:** requires `npx wrangler login` once (or `CLOUDFLARE_API_TOKEN` in the shell).
+  - **Cursor Cloud Agent:** set environment secrets `CLOUDFLARE_API_TOKEN` (required) and `CLOUDFLARE_ACCOUNT_ID` (recommended). Interactive `wrangler login` does not work in Cloud Agent VMs. Confirm with `npx wrangler whoami` before deploying. See [AGENTS.md](AGENTS.md) → *Cloudflare auth*.
 - [ ] **Cloudflare** — Dashboard → Workers → **classcalendarmultiuser** → confirm latest deployment succeeded.
 - [ ] **D1 migrations** (only if you added a new file under `worker/migrations/`):
 

@@ -79,6 +79,22 @@ Without `npm start`, the app cannot load or save calendar data.
 5. New D1 migration: `npm run db:migrate:remote` then deploy.
 6. Production smoke test + Ctrl+F5 on browsers.
 
+### Cloudflare auth (local PC vs Cloud Agent)
+
+| Where | How Wrangler authenticates |
+|-------|----------------------------|
+| **USB / home / work PC** | `npx wrangler login` once (interactive browser login) |
+| **Cursor Cloud Agent** | Environment secrets — **not** interactive login |
+
+Cloud Agents need these Cursor environment secrets (never commit them; never paste into chat or `.env` in git):
+
+| Secret | Required | Purpose |
+|--------|----------|---------|
+| `CLOUDFLARE_API_TOKEN` | Yes | Wrangler API auth for `whoami` / `npm run deploy` / remote D1 |
+| `CLOUDFLARE_ACCOUNT_ID` | Recommended | Pins the account that owns `classmanager.live` and D1 `calendar-team` |
+
+Create the token at [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) (template **Edit Cloudflare Workers**, plus D1 edit and Workers Routes on `classmanager.live` if using a custom token). Verify in the agent with `npx wrangler whoami` before deploying.
+
 ## Collaborative lock (current behavior)
 
 - No force takeover: blocked user sends **edit request** only.
