@@ -30,8 +30,6 @@ function loadScript(relPath) {
     return sandbox;
 }
 
-import { createRequire } from 'module';
-
 const require = createRequire(import.meta.url);
 const { targetFilterAppliesToClassCore } = require(path.join(root, 'shared', 'event-applicability-core.cjs'));
 
