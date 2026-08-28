@@ -22699,6 +22699,65 @@ function refreshAllClassPeriodSelects() {
     });
 }
 
+function initTimetableImport() {
+    if (typeof CCPTimetableImportUi === 'undefined') {
+        return;
+    }
+    CCPTimetableImportUi.init({
+        getAppData: () => appData,
+        t: (key) => t(key),
+        listTeachers: listTimetableTeachers,
+        generateId: (prefix) =>
+            typeof CCPUtils !== 'undefined' && CCPUtils.newId
+                ? CCPUtils.newId(prefix || 'imp')
+                : `${prefix || 'imp'}_${Date.now().toString(36)}`,
+        showModal: (modal) => {
+            if (!modal) {
+                return;
+            }
+            modal.hidden = false;
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+        },
+        hideModal: (modal) => {
+            if (!modal) {
+                return;
+            }
+            modal.hidden = true;
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        },
+        saveAppData: () => {
+            if (
+                teamSyncEnabled &&
+                typeof CalendarSync !== 'undefined' &&
+                CalendarSync.scheduleSave
+            ) {
+                CalendarSync.scheduleSave(() => {
+                    saveDataToLocalCache();
+                    const payload = JSON.parse(JSON.stringify(appData));
+                    if (payload && payload.ui) {
+                        delete payload.ui;
+                    }
+                    return payload;
+                });
+            } else {
+                saveDataToLocalCache();
+            }
+            scheduleTabWarningsRefresh();
+        },
+        renderAll: () => {
+            renderTimetableTeacherList();
+            const selector = getTimetableTeacherSelectorFromUi();
+            if (selector) {
+                renderTimetableView(selector);
+            }
+            refreshCalendarScopedUi();
+        },
+        showMessage: (msg, isError) => showSyncToast(msg, isError)
+    });
+}
+
 function initTimetableExport() {
     const btn = document.getElementById('timetableExportXlsBtn');
     if (!btn || btn.dataset.timetableInit) {
@@ -22740,6 +22799,7 @@ function initTimetableExport() {
 
 function initTimetableTabListeners() {
     initTimetablePeriodSchedule();
+    initTimetableImport();
     initTimetableExport();
     const teacherSearch = document.getElementById('timetableTeacherSearch');
     if (teacherSearch && !teacherSearch.dataset.timetableInit) {
@@ -24481,8 +24541,14 @@ function openModal(modal, triggerEl) {
         modal.setAttribute('aria-modal', 'true');
     }
     const focusables = getModalFocusables(modal);
-    if (focusables.length) {
-        focusables[0].focus();
+    const initialFocus =
+        focusables.find((el) => el && !el.classList.contains('modal-close')) || focusables[0];
+    if (initialFocus && typeof initialFocus.focus === 'function') {
+        window.setTimeout(() => {
+            if (modal.classList.contains('active')) {
+                initialFocus.focus();
+            }
+        }, 50);
     }
 }
 
@@ -38138,6 +38204,13 @@ function setupDataTabTermMigrate() {
     if (typeof CCPTermMigrateWizard === 'undefined') {
         return;
     }
+    if (
+        typeof CCPTimetableImport !== 'undefined' &&
+        CCPTimetableImport.preloadImportLibraries
+    ) {
+        CCPTimetableImport.preloadImportLibraries().catch(() => {});
+    }
+    initTimetableImport();
     CCPTermMigrateWizard.init({
         getAppData: () => appData,
         t: (key) => t(key),

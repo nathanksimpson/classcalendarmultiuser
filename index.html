@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <link rel="stylesheet" href="styles.css?v=20260827-od-nv-fix">
+    <link rel="stylesheet" href="styles.css?v=20260828-modal-stay">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260807-deconflict-min">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -1117,6 +1117,10 @@
                     <a href="/planner.html" id="timetableOpenPlannerBtn" class="btn btn-outline btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
                     <button type="button" id="timetablePeriodScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodSchedule">Period schedule</button>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
+                    <button type="button" id="timetableImportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableImportExcel">Import Excel</button>
+                    <button type="button" id="timetableImportPdfBtn" class="btn btn-outline btn-small" data-i18n="timetableImportPdf">Import PDF</button>
+                    <button type="button" id="timetableImportPhotoBtn" class="btn btn-outline btn-small" data-i18n="timetableImportPhoto">Import photo</button>
+                    <input type="file" id="timetableImportFileInput" class="visually-hidden" hidden aria-hidden="true" />
                     <button type="button" id="timetableExportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableExportExcel">Export Excel</button>
                     <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
                     <span id="timetableConflictBadge" class="timetable-conflict-badge" role="status" hidden></span>
@@ -1474,6 +1478,23 @@
                 <div class="form-actions">
                     <button type="button" id="termCloneCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                     <button type="button" id="termCloneSubmitBtn" class="btn btn-primary" data-i18n="dataTermCloneSubmit">Create cloned calendar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="timetableImportModal" class="modal" role="dialog" aria-labelledby="timetableImportModalTitle" aria-modal="true" hidden>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="timetableImportModalTitle" data-i18n="timetableImportHeading">Import timetable</h2>
+                <button type="button" class="modal-close" id="timetableImportCloseBtn" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="timetableImportStatus" class="section-hint" aria-live="polite"></p>
+                <p id="timetableImportSummary" class="section-hint"></p>
+                <div id="timetableImportReviewBody" class="timetable-import-review-mount"></div>
+                <div class="form-actions">
+                    <button type="button" id="timetableImportApplyBtn" class="btn btn-primary" data-i18n="timetableImportApply">Apply to calendar</button>
                 </div>
             </div>
         </div>
@@ -2166,6 +2187,34 @@
         </div>
     </div>
 
+    <div id="studentMergeModal" class="modal" role="dialog" aria-labelledby="studentMergeModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="studentMergeModalTitle" data-i18n="studentMergeTitle">Merge students</h2>
+                <button type="button" class="modal-close" id="closeStudentMergeModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <p id="studentMergeSummary" class="section-hint"></p>
+            <div class="form-group">
+                <label for="studentMergeKeepSelect" data-i18n="studentMergeKeepLabel">Keep this student</label>
+                <select id="studentMergeKeepSelect" class="field-select"></select>
+            </div>
+            <div class="form-group">
+                <label for="studentMergeDropSelect" data-i18n="studentMergeDropLabel">Merge this student away</label>
+                <select id="studentMergeDropSelect" class="field-select"></select>
+            </div>
+            <fieldset class="form-group">
+                <legend data-i18n="studentMergeProfileFrom">Use name and tags from</legend>
+                <label class="radio-label"><input type="radio" name="studentMergeProfileFrom" value="keep" checked> <span data-i18n="studentMergeProfileKeep">The student we keep</span></label>
+                <label class="radio-label"><input type="radio" name="studentMergeProfileFrom" value="drop"> <span data-i18n="studentMergeProfileDrop">The student we merge away</span></label>
+            </fieldset>
+            <p id="studentMergeError" class="section-hint roster-import-error" hidden role="alert"></p>
+            <div class="form-actions">
+                <button type="button" id="cancelStudentMergeBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="confirmStudentMergeBtn" class="btn btn-primary" data-i18n="studentMergeConfirm">Merge</button>
+            </div>
+        </div>
+    </div>
+
     <div id="studentSyllabusPrintModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="studentSyllabusPrintModalTitle">
         <div class="modal-content modal-wide print-options-modal-content modal-content--scrollable">
             <div class="modal-header">
@@ -2494,7 +2543,7 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260827-od-nv-fix"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260828-modal-stay"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -2510,9 +2559,14 @@
     <script defer src="js/term-dates.js?v=20260619-term-flex"></script>
     <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
     <script defer src="js/term-clone-wizard.js?v=20260622-teaching-workflow"></script>
-    <script defer src="js/term-migrate-wizard.js?v=20260807-term-migrate"></script>
+    <script defer src="js/timetable-import.js?v=20260828-migrate-ux"></script>
+    <script defer src="js/timetable-import-ocr.js?v=20260828-migrate-ux"></script>
+    <script defer src="js/timetable-import-pdf.js?v=20260828-migrate-ux"></script>
+    <script defer src="js/timetable-import-ui.js?v=20260828-migrate-ux"></script>
+    <script defer src="js/tms-class-name.js?v=20260828-term-code"></script>
+    <script defer src="js/term-migrate-wizard.js?v=20260828-term-code"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
-    <script defer src="js/ui/modal.js?v=20260615-ui-refactor"></script>
+    <script defer src="js/ui/modal.js?v=20260828-modal-stay"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
     <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
     <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
@@ -2584,7 +2638,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260825-daily-summary-print"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260828-student-merge"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2592,7 +2646,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20260825-daily-summary-print"></script>
+    <script defer src="app.js?v=20260828-modal-stay"></script>
 </body>
 </html>
 

@@ -8,12 +8,27 @@
     let step = 1;
     let previousSnapshot = null;
     let scrapedCohorts = [];
+    /** Full unfiltered scrape result */
+    let scrapedCohortsAll = [];
+    /** @type {Set<string>} TMS class ids excluded on step 2 */
+    let excludedTmsClassIds = new Set();
+    /** @type {Array<{ code: string, count: number, kind: string }>} */
+    let discoveredTermCodes = [];
     let createdCohortMap = [];
     let transferPlan = null;
     let selectedMoves = new Set();
     let selectedAdds = new Set();
     /** @type {Map<string, string>} unclearKey → chosen previous studentId */
     let unclearResolutions = new Map();
+    /** @type {Map<string, string>} addKey → previous studentId */
+    let manualAddLinks = new Map();
+    /** @type {Map<string, string>} studentId → toCohortId */
+    let manualUnmatchedMoves = new Map();
+    /** @type {Set<string>} */
+    let manualUnmatchedInclude = new Set();
+    let transferPlanSourceKey = '';
+    /** @type {File[]} */
+    let pendingTimetableFiles = [];
     let scrapeLoading = false;
     let wizardSettings = {
         newName: '',
@@ -21,8 +36,66 @@
         clearClassroom: true,
         copyEvents: true,
         tmsUser: '',
-        tmsPass: ''
+        tmsPass: '',
+        termCodeFilter: ''
     };
+
+    function tmsNameApi() {
+        return global.CCPTmsClassName || null;
+    }
+
+    function cohortScrapeKey(c) {
+        if (!c) {
+            return '';
+        }
+        const id = String(c.tmsClassId || '').trim();
+        if (id) {
+            return `id:${id}`;
+        }
+        return `name:${String(c.cohortName || '')
+            .toLowerCase()
+            .replace(/\s+/g, '')}`;
+    }
+
+    function refreshDiscoveredTermCodes() {
+        const api = tmsNameApi();
+        if (!api || !api.listTermCodesFromNames) {
+            discoveredTermCodes = [];
+            return;
+        }
+        const names = (scrapedCohortsAll || []).map((c) => c && c.cohortName).filter(Boolean);
+        discoveredTermCodes = api.listTermCodesFromNames(names);
+    }
+
+    function getFilteredScrapedCohorts() {
+        const api = tmsNameApi();
+        const filter = String(wizardSettings.termCodeFilter || '').trim();
+        return (scrapedCohortsAll || []).filter((c) => {
+            if (!c) {
+                return false;
+            }
+            const key = cohortScrapeKey(c);
+            if (excludedTmsClassIds.has(key)) {
+                return false;
+            }
+            if (filter && api && api.cohortMatchesTermFilter) {
+                return api.cohortMatchesTermFilter(c.cohortName, filter);
+            }
+            return true;
+        });
+    }
+
+    function rebuildCohortMapFromScrapeFilter() {
+        scrapedCohorts = getFilteredScrapedCohorts();
+        const specs = buildCohortCreateSpecs(scrapedCohorts, getAppData());
+        createdCohortMap = specs.map((spec, i) =>
+            Object.assign({}, spec, {
+                cohortId: `migrate_tmp_${i}_${spec.tmsClassId || i}`
+            })
+        );
+        transferPlanSourceKey = '';
+        transferPlan = null;
+    }
 
     function domain() {
         return global.CCPClassroomDomain || null;
@@ -44,6 +117,13 @@
     }
 
     function cleanTmsCohortName(name) {
+        const api = tmsNameApi();
+        if (api && api.parseTmsClassNameMeta) {
+            const meta = api.parseTmsClassNameMeta(name);
+            if (meta.baseName) {
+                return meta.baseName;
+            }
+        }
         const stripped = String(name || '')
             .replace(/^\[[^\]]+\]\s*/u, '')
             .replace(/\s+/g, ' ')
@@ -52,6 +132,16 @@
     }
 
     function inferScheduleFromName(name) {
+        const api = tmsNameApi();
+        if (api && api.parseTmsClassNameMeta) {
+            const meta = api.parseTmsClassNameMeta(name);
+            if (meta.schedulePattern) {
+                return {
+                    schedulePattern: meta.schedulePattern,
+                    meetingDays: meta.meetingDays.slice()
+                };
+            }
+        }
         const core = cleanTmsCohortName(name).split('^')[0] || '';
         if (/T\s*$/i.test(core) || /T_\d/i.test(core)) {
             return { schedulePattern: 'tth', meetingDays: [2, 4] };
@@ -189,6 +279,7 @@
      */
     function buildCohortCreateSpecs(tmsCohorts, appData) {
         const d = domain();
+        const api = tmsNameApi();
         const previous = (appData && appData.cohorts) || [];
         const links = (appData && appData.tmsRosterLinks) || {};
         return (Array.isArray(tmsCohorts) ? tmsCohorts : []).map((c) => {
@@ -213,6 +304,10 @@
                 tmsClassId: String(c.tmsClassId || ''),
                 cohortName: cleanTmsCohortName(c.cohortName),
                 rawName: c.cohortName || '',
+                tmsTermCode:
+                    api && api.parseTmsClassNameMeta
+                        ? api.parseTmsClassNameMeta(c.cohortName).termCode || ''
+                        : '',
                 students: Array.isArray(c.students) ? c.students.slice() : [],
                 schedulePattern: sched.schedulePattern,
                 meetingDays: sched.meetingDays.slice(),
@@ -270,10 +365,25 @@
         }
     }
 
-    function rebuildTransferPlan() {
+    function rebuildTransferPlan(options) {
+        const opts = options || {};
         const d = domain();
+        const fingerprint = createdCohortMap
+            .map(
+                (r) =>
+                    `${r.cohortId}|${r.levelPreset || ''}|${r.matchedPreviousCohortId || ''}`
+            )
+            .join('||');
+        const preserveSelections =
+            !opts.force && transferPlan && transferPlanSourceKey === fingerprint;
+
         if (!d || !d.buildTermMigrateTransferPlan) {
             transferPlan = { moves: [], adds: [], unmatchedPrevious: [], unclear: [] };
+            transferPlanSourceKey = fingerprint;
+            if (!preserveSelections) {
+                selectedMoves = new Set();
+                selectedAdds = new Set();
+            }
             return;
         }
         const targets = createdCohortMap.map((row) => ({
@@ -283,8 +393,173 @@
             students: row.students || []
         }));
         transferPlan = d.buildTermMigrateTransferPlan(previousSnapshot || [], targets);
-        selectedMoves = new Set((transferPlan.moves || []).map((_, i) => `m${i}`));
-        selectedAdds = new Set((transferPlan.adds || []).map((_, i) => `a${i}`));
+        transferPlanSourceKey = fingerprint;
+        if (!preserveSelections) {
+            selectedMoves = new Set((transferPlan.moves || []).map((_, i) => `m${i}`));
+            selectedAdds = new Set((transferPlan.adds || []).map((_, i) => `a${i}`));
+            manualAddLinks = new Map();
+            manualUnmatchedMoves = new Map();
+            manualUnmatchedInclude = new Set();
+            unclearResolutions = new Map();
+        }
+    }
+
+    function listPreviousCohortsForPicker() {
+        const snap = previousSnapshot || [];
+        const d = domain();
+        return snap.filter((c) => {
+            if (!c) {
+                return false;
+            }
+            if (d && typeof d.isArchiveCohort === 'function' && d.isArchiveCohort(c)) {
+                return false;
+            }
+            return c.id !== 'cohort-student-archive' && !c.isArchiveCohort;
+        });
+    }
+
+    function applyPreviousCohortLink(row, prevCohortId) {
+        const prev = listPreviousCohortsForPicker().find((c) => c.id === prevCohortId);
+        row.matchedPreviousCohortId = prev ? prev.id : '';
+        if (prev) {
+            if (!row.levelPreset) {
+                row.levelPreset = String(prev.levelPreset || prev.level || '');
+            }
+            if (!row.homeroomTeacherUserId && !row.homeroomTeacherName) {
+                row.homeroomTeacherUserId = String(prev.homeroomTeacherUserId || '');
+                row.homeroomTeacherName = String(prev.homeroomTeacherName || '');
+                row.homeroomDaySuffix = String(prev.homeroomDaySuffix || '');
+            }
+        }
+    }
+
+    function getCommittedStudentIds() {
+        const used = new Set();
+        (transferPlan && transferPlan.moves ? transferPlan.moves : []).forEach((m, i) => {
+            if (selectedMoves.has(`m${i}`) && m.studentId) {
+                used.add(m.studentId);
+            }
+        });
+        manualAddLinks.forEach((sid) => {
+            if (sid) {
+                used.add(sid);
+            }
+        });
+        unclearResolutions.forEach((sid) => {
+            if (sid) {
+                used.add(sid);
+            }
+        });
+        manualUnmatchedInclude.forEach((sid) => used.add(sid));
+        return used;
+    }
+
+    function listLinkablePreviousStudents(ignoreStudentId) {
+        const d = domain();
+        const exclude = getCommittedStudentIds();
+        if (ignoreStudentId) {
+            exclude.delete(ignoreStudentId);
+        }
+        if (d && d.listAvailablePreviousStudentsForMigrate) {
+            return d.listAvailablePreviousStudentsForMigrate(previousSnapshot || [], exclude);
+        }
+        return [];
+    }
+
+    function findPreviousStudentById(studentId) {
+        const d = domain();
+        if (d && d.listAvailablePreviousStudentsForMigrate) {
+            return d
+                .listAvailablePreviousStudentsForMigrate(previousSnapshot || [], [])
+                .find((p) => p.studentId === studentId);
+        }
+        return null;
+    }
+
+    function previousStudentOptionsHtml(students, selectedId) {
+        return students
+            .map((p) => {
+                const sel = selectedId === p.studentId ? ' selected' : '';
+                const label = `${p.name}${p.fromCohortName ? ` (${p.fromCohortName})` : ''}`;
+                return `<option value="${escapeHtml(p.studentId)}"${sel}>${escapeHtml(label)}</option>`;
+            })
+            .join('');
+    }
+
+    function listAllPreviousClassesForUser() {
+        const d = domain();
+        const appData = getAppData() || {};
+        const uid = currentUserId();
+        if (!d || !d.findPreviousClassesForUser) {
+            return [];
+        }
+        const out = [];
+        listPreviousCohortsForPicker().forEach((cohort) => {
+            d.findPreviousClassesForUser(appData, cohort.id, uid).forEach((cls) => {
+                out.push({
+                    id: cls.id,
+                    name: cls.name,
+                    cohortName: cohort.name,
+                    cohortId: cohort.id,
+                    period: cls.period
+                });
+            });
+        });
+        return out;
+    }
+
+    function setModalActionsDisabled(disabled) {
+        ['termMigrateNextBtn', 'termMigrateBackBtn', 'termMigrateCancelBtn', 'termMigrateModalClose'].forEach(
+            (id) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.disabled = Boolean(disabled);
+                }
+            }
+        );
+    }
+
+    function showScrapeProgress(msg) {
+        const progress = document.getElementById('termMigrateScrapeProgress');
+        const phase = document.getElementById('termMigrateScrapePhase');
+        const status = document.getElementById('termMigrateStatus');
+        const modalBody = document.getElementById('termMigrateModalBody');
+        if (progress) {
+            progress.hidden = false;
+        }
+        if (phase) {
+            phase.textContent = msg || '';
+        }
+        if (status) {
+            status.textContent = '';
+        }
+        if (modalBody) {
+            modalBody.setAttribute('aria-busy', 'true');
+        }
+        setModalActionsDisabled(true);
+    }
+
+    function hideScrapeProgress() {
+        const progress = document.getElementById('termMigrateScrapeProgress');
+        const phase = document.getElementById('termMigrateScrapePhase');
+        const modalBody = document.getElementById('termMigrateModalBody');
+        if (progress) {
+            progress.hidden = true;
+        }
+        if (phase) {
+            phase.textContent = '';
+        }
+        if (modalBody) {
+            modalBody.removeAttribute('aria-busy');
+        }
+        setModalActionsDisabled(false);
+    }
+
+    function preloadTimetableLibs() {
+        const imp = global.CCPTimetableImport;
+        if (imp && typeof imp.preloadImportLibraries === 'function') {
+            imp.preloadImportLibraries().catch(() => {});
+        }
     }
 
     function ensureModal() {
@@ -329,6 +604,66 @@
             opts.push(`<option value="${p}"${sel}>P${p}</option>`);
         }
         return opts.join('');
+    }
+
+    function flushStep2PrevCohort() {
+        document.querySelectorAll('.term-migrate-prev-cohort').forEach((sel) => {
+            const idx = Number(sel.getAttribute('data-idx'));
+            if (createdCohortMap[idx]) {
+                applyPreviousCohortLink(createdCohortMap[idx], sel.value || '');
+            }
+        });
+    }
+
+    function flushStep3Transfers() {
+        document.querySelectorAll('input[data-move]').forEach((cb) => {
+            const key = cb.getAttribute('data-move');
+            if (cb.checked) {
+                selectedMoves.add(key);
+            } else {
+                selectedMoves.delete(key);
+            }
+        });
+        document.querySelectorAll('input[data-add]').forEach((cb) => {
+            const key = cb.getAttribute('data-add');
+            if (cb.checked) {
+                selectedAdds.add(key);
+            } else {
+                selectedAdds.delete(key);
+            }
+        });
+        document.querySelectorAll('select[data-unclear]').forEach((sel) => {
+            const key = sel.getAttribute('data-unclear');
+            if (sel.value) {
+                unclearResolutions.set(key, sel.value);
+            } else {
+                unclearResolutions.delete(key);
+            }
+        });
+        document.querySelectorAll('select[data-add-link]').forEach((sel) => {
+            const key = sel.getAttribute('data-add-link');
+            if (sel.value) {
+                manualAddLinks.set(key, sel.value);
+            } else {
+                manualAddLinks.delete(key);
+            }
+        });
+        document.querySelectorAll('select[data-unmatched-to]').forEach((sel) => {
+            const sid = sel.getAttribute('data-unmatched-to');
+            if (sel.value) {
+                manualUnmatchedMoves.set(sid, sel.value);
+            } else {
+                manualUnmatchedMoves.delete(sid);
+            }
+        });
+        document.querySelectorAll('input[data-unmatched-include]').forEach((cb) => {
+            const sid = cb.getAttribute('data-unmatched-include');
+            if (cb.checked && manualUnmatchedMoves.get(sid)) {
+                manualUnmatchedInclude.add(sid);
+            } else {
+                manualUnmatchedInclude.delete(sid);
+            }
+        });
     }
 
     function flushStep2Levels() {
@@ -410,6 +745,7 @@
             backBtn.hidden = step <= 1;
         }
         if (nextBtn) {
+            nextBtn.disabled = scrapeLoading;
             if (step === 1) {
                 nextBtn.textContent = t('dataTermMigrateScrapeNext');
             } else if (step === 6) {
@@ -448,6 +784,11 @@
                         <input type="password" id="termMigrateTmsPass" class="field-input field-control" autocomplete="current-password" />
                     </label>
                 </div>
+                <label class="form-group" for="termMigrateTermCodeFilter">
+                    <span>${escapeHtml(t('dataTermMigrateTermCodeLabel'))}</span>
+                    <input type="text" id="termMigrateTermCodeFilter" class="field-input field-control" autocomplete="off" placeholder="2606" />
+                </label>
+                <p class="section-hint">${escapeHtml(t('dataTermMigrateTermCodeHint'))}</p>
                 <p class="section-hint">${escapeHtml(t('dataTermMigrateStep1Hint'))}</p>
             `;
             const appData = getAppData() || {};
@@ -482,10 +823,26 @@
             if (passEl) {
                 passEl.value = wizardSettings.tmsPass || '';
             }
+            const termEl = document.getElementById('termMigrateTermCodeFilter');
+            if (termEl) {
+                termEl.value = wizardSettings.termCodeFilter || '';
+            }
             return;
         }
 
         if (step === 2) {
+            const prevCohorts = listPreviousCohortsForPicker();
+            const codeOpts = discoveredTermCodes
+                .map((row) => {
+                    const sel =
+                        wizardSettings.termCodeFilter === row.code ? ' selected' : '';
+                    const label = t('dataTermMigrateTermCodeOption')
+                        .replace('{code}', row.code)
+                        .replace('{n}', String(row.count));
+                    return `<option value="${escapeHtml(row.code)}"${sel}>${escapeHtml(label)}</option>`;
+                })
+                .join('');
+            const totalScraped = (scrapedCohortsAll || []).length;
             const rows = createdCohortMap
                 .map((row, idx) => {
                     const period =
@@ -494,8 +851,17 @@
                         row.tmsBlockStart && row.tmsBlockEnd
                             ? `${row.tmsBlockStart}–${row.tmsBlockEnd}`
                             : '—';
+                    const prevOpts = prevCohorts
+                        .map((c) => {
+                            const sel =
+                                row.matchedPreviousCohortId === c.id ? ' selected' : '';
+                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
+                        })
+                        .join('');
                     return `<tr>
                         <td>${escapeHtml(row.cohortName)}</td>
+                        <td>${escapeHtml(row.rawName || row.cohortName)}</td>
+                        <td>${escapeHtml(row.tmsTermCode || '—')}</td>
                         <td>${escapeHtml(row.schedulePattern || '')}</td>
                         <td>${escapeHtml(block)}</td>
                         <td>${escapeHtml(period)}</td>
@@ -504,23 +870,54 @@
                           <input type="text" class="field-input field-control term-migrate-level" data-idx="${idx}"
                             value="${escapeHtml(row.levelPreset || '')}" placeholder="${escapeHtml(t('dataTermMigrateLevelPlaceholder'))}" />
                         </td>
+                        <td>
+                          <select class="field-select field-control term-migrate-prev-cohort" data-idx="${idx}">
+                            <option value="">${escapeHtml(t('dataTermMigratePrevCohortNone'))}</option>
+                            ${prevOpts}
+                          </select>
+                        </td>
                     </tr>`;
                 })
                 .join('');
             body.innerHTML = `
                 <p class="section-hint">${escapeHtml(t('dataTermMigrateStep2Hint'))}</p>
+                <p class="section-hint">${escapeHtml(
+                    t('dataTermMigrateTermCodeSummary')
+                        .replace('{shown}', String(createdCohortMap.length))
+                        .replace('{total}', String(totalScraped))
+                        .replace(
+                            '{filter}',
+                            wizardSettings.termCodeFilter
+                                ? wizardSettings.termCodeFilter
+                                : t('dataTermMigrateTermCodeAll')
+                        )
+                )}</p>
+                ${
+                    discoveredTermCodes.length
+                        ? `<label class="form-group" for="termMigrateTermCodeSelect">
+                    <span>${escapeHtml(t('dataTermMigrateTermCodePick'))}</span>
+                    <select id="termMigrateTermCodeSelect" class="field-select field-control">
+                      <option value="">${escapeHtml(t('dataTermMigrateTermCodeAll'))}</option>
+                      ${codeOpts}
+                    </select>
+                  </label>`
+                        : ''
+                }
                 <div class="classroom-sheet-panel">
                   <div class="classroom-sheet-scroll">
                     <table class="classroom-sheet">
                       <thead><tr>
                         <th>${escapeHtml(t('dataTermMigrateColClass'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColTmsRaw'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColTermCode'))}</th>
                         <th>${escapeHtml(t('dataTermMigrateColDays'))}</th>
                         <th>${escapeHtml(t('dataTermMigrateColBlock'))}</th>
                         <th>${escapeHtml(t('dataTermMigrateColPeriod'))}</th>
                         <th>${escapeHtml(t('dataTermMigrateColStudents'))}</th>
                         <th>${escapeHtml(t('level') || 'Level')}</th>
+                        <th>${escapeHtml(t('dataTermMigrateColPrevCohort'))}</th>
                       </tr></thead>
-                      <tbody>${rows || `<tr><td colspan="6">${escapeHtml(t('dataTermMigrateNoClasses'))}</td></tr>`}</tbody>
+                      <tbody>${rows || `<tr><td colspan="9">${escapeHtml(t('dataTermMigrateNoClasses'))}</td></tr>`}</tbody>
                     </table>
                   </div>
                 </div>
@@ -533,15 +930,37 @@
                     }
                 });
             });
+            body.querySelectorAll('.term-migrate-prev-cohort').forEach((sel) => {
+                sel.addEventListener('change', () => {
+                    const idx = Number(sel.getAttribute('data-idx'));
+                    if (createdCohortMap[idx]) {
+                        applyPreviousCohortLink(createdCohortMap[idx], sel.value || '');
+                    }
+                });
+            });
+            const termSel = document.getElementById('termMigrateTermCodeSelect');
+            if (termSel) {
+                termSel.addEventListener('change', () => {
+                    flushStep2Levels();
+                    flushStep2PrevCohort();
+                    wizardSettings.termCodeFilter = termSel.value || '';
+                    rebuildCohortMapFromScrapeFilter();
+                    renderStep();
+                });
+            }
             return;
         }
 
         if (step === 3) {
-            rebuildTransferPlan();
+            rebuildTransferPlan({ force: false });
             const moves = (transferPlan && transferPlan.moves) || [];
             const adds = (transferPlan && transferPlan.adds) || [];
             const unmatched = (transferPlan && transferPlan.unmatchedPrevious) || [];
             const unclear = (transferPlan && transferPlan.unclear) || [];
+            const cohortTargets = createdCohortMap.map((r) => ({
+                id: r.cohortId,
+                name: r.cohortName
+            }));
             const moveRows = moves
                 .map((m, i) => {
                     const key = `m${i}`;
@@ -562,12 +981,22 @@
             const addRows = adds
                 .map((a, i) => {
                     const key = `a${i}`;
+                    const linkable = listLinkablePreviousStudents(manualAddLinks.get(key) || '');
+                    const linkOpts = previousStudentOptionsHtml(
+                        linkable,
+                        manualAddLinks.get(key) || ''
+                    );
                     return `<tr>
                       <td><input type="checkbox" data-add="${key}" ${selectedAdds.has(key) ? 'checked' : ''} /></td>
                       <td>${escapeHtml(a.tmsName || a.name)}</td>
                       <td>—</td>
                       <td>${escapeHtml(a.toCohortName)}</td>
-                      <td>new</td>
+                      <td>
+                        <select class="field-select field-control" data-add-link="${key}">
+                          <option value="">${escapeHtml(t('dataTermMigrateLinkPrevStudentNone'))}</option>
+                          ${linkOpts}
+                        </select>
+                      </td>
                     </tr>`;
                 })
                 .join('');
@@ -575,12 +1004,27 @@
                 .map((u, i) => {
                     const key = `u${i}`;
                     const chosen = unclearResolutions.get(key) || '';
-                    const opts = (u.candidates || [])
+                    const candidateIds = new Set((u.candidates || []).map((c) => c.studentId));
+                    const extra = listLinkablePreviousStudents(chosen || '');
+                    const merged = [];
+                    const seen = new Set();
+                    (u.candidates || []).forEach((c) => {
+                        if (!seen.has(c.studentId)) {
+                            seen.add(c.studentId);
+                            merged.push(c);
+                        }
+                    });
+                    extra.forEach((p) => {
+                        if (!seen.has(p.studentId)) {
+                            seen.add(p.studentId);
+                            merged.push(p);
+                        }
+                    });
+                    const opts = merged
                         .map((c) => {
                             const sel = chosen === c.studentId ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.studentId)}"${sel}>${escapeHtml(
-                                `${c.name} (${c.fromCohortName || ''})`
-                            )}</option>`;
+                            const label = `${c.name}${c.fromCohortName ? ` (${c.fromCohortName})` : ''}`;
+                            return `<option value="${escapeHtml(c.studentId)}"${sel}>${escapeHtml(label)}</option>`;
                         })
                         .join('');
                     return `<tr>
@@ -590,6 +1034,29 @@
                         <select class="field-select field-control" data-unclear="${key}">
                           <option value="">${escapeHtml(t('dataTermMigrateUnclearPick'))}</option>
                           ${opts}
+                        </select>
+                      </td>
+                    </tr>`;
+                })
+                .join('');
+            const unmatchedRows = unmatched
+                .map((u) => {
+                    const toOpts = cohortTargets
+                        .map((c) => {
+                            const sel =
+                                manualUnmatchedMoves.get(u.studentId) === c.id ? ' selected' : '';
+                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name)}</option>`;
+                        })
+                        .join('');
+                    const included = manualUnmatchedInclude.has(u.studentId);
+                    return `<tr>
+                      <td><input type="checkbox" data-unmatched-include="${escapeHtml(u.studentId)}" ${included ? 'checked' : ''} /></td>
+                      <td>${escapeHtml(u.name)}</td>
+                      <td>${escapeHtml(u.fromCohortName || '')}</td>
+                      <td>
+                        <select class="field-select field-control" data-unmatched-to="${escapeHtml(u.studentId)}">
+                          <option value="">${escapeHtml(t('dataTermMigrateUnmatchedMoveTo'))}</option>
+                          ${toOpts}
                         </select>
                       </td>
                     </tr>`;
@@ -612,7 +1079,7 @@
                         <th>${escapeHtml(t('dataTermMigrateColStudent'))}</th>
                         <th>${escapeHtml(t('dataTermMigrateColFrom'))}</th>
                         <th>${escapeHtml(t('dataTermMigrateColTo'))}</th>
-                        <th>${escapeHtml(t('dataTermMigrateColMatch'))}</th>
+                        <th>${escapeHtml(t('dataTermMigrateLinkPrevStudent'))}</th>
                       </tr></thead>
                       <tbody>${moveRows}${addRows || ''}</tbody>
                     </table>
@@ -636,18 +1103,19 @@
                 }
                 ${
                     unmatched.length
-                        ? `<p class="section-hint">${escapeHtml(t('dataTermMigrateUnmatchedHint').replace('{n}', String(unmatched.length)))}</p>
-                        <ul class="section-hint">${unmatched
-                            .slice(0, 40)
-                            .map(
-                                (u) =>
-                                    `<li>${escapeHtml(u.name)} ← ${escapeHtml(u.fromCohortName || '')}</li>`
-                            )
-                            .join('')}${
-                              unmatched.length > 40
-                                  ? `<li>… +${unmatched.length - 40}</li>`
-                                  : ''
-                          }</ul>`
+                        ? `<h3 class="form-section-title">${escapeHtml(t('dataTermMigrateUnmatchedHeading'))}</h3>
+                        <p class="section-hint">${escapeHtml(t('dataTermMigrateUnmatchedHint').replace('{n}', String(unmatched.length)))}</p>
+                        <div class="classroom-sheet-panel"><div class="classroom-sheet-scroll">
+                          <table class="classroom-sheet">
+                            <thead><tr>
+                              <th>${escapeHtml(t('dataTermMigrateUnmatchedInclude'))}</th>
+                              <th>${escapeHtml(t('dataTermMigrateColStudent'))}</th>
+                              <th>${escapeHtml(t('dataTermMigrateColFrom'))}</th>
+                              <th>${escapeHtml(t('dataTermMigrateUnmatchedMoveTo'))}</th>
+                            </tr></thead>
+                            <tbody>${unmatchedRows}</tbody>
+                          </table>
+                        </div></div>`
                         : ''
                 }
             `;
@@ -678,6 +1146,37 @@
                         unclearResolutions.set(key, sel.value);
                     } else {
                         unclearResolutions.delete(key);
+                    }
+                });
+            });
+            body.querySelectorAll('select[data-add-link]').forEach((sel) => {
+                sel.addEventListener('change', () => {
+                    const key = sel.getAttribute('data-add-link');
+                    if (sel.value) {
+                        manualAddLinks.set(key, sel.value);
+                    } else {
+                        manualAddLinks.delete(key);
+                    }
+                });
+            });
+            body.querySelectorAll('select[data-unmatched-to]').forEach((sel) => {
+                sel.addEventListener('change', () => {
+                    const sid = sel.getAttribute('data-unmatched-to');
+                    if (sel.value) {
+                        manualUnmatchedMoves.set(sid, sel.value);
+                    } else {
+                        manualUnmatchedMoves.delete(sid);
+                        manualUnmatchedInclude.delete(sid);
+                    }
+                });
+            });
+            body.querySelectorAll('input[data-unmatched-include]').forEach((cb) => {
+                cb.addEventListener('change', () => {
+                    const sid = cb.getAttribute('data-unmatched-include');
+                    if (cb.checked && manualUnmatchedMoves.get(sid)) {
+                        manualUnmatchedInclude.add(sid);
+                    } else {
+                        manualUnmatchedInclude.delete(sid);
                     }
                 });
             });
@@ -757,12 +1256,21 @@
                 : t('dataTermMigrateEventsSkipped');
             const cards = createdCohortMap
                 .map((row, idx) => {
-                    const prevOpts = (row.previousClassOptions || [])
+                    let prevOpts = (row.previousClassOptions || [])
                         .map((c) => {
                             const sel = row.previousClassId === c.id ? ' selected' : '';
                             return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name)}</option>`;
                         })
                         .join('');
+                    if (!prevOpts) {
+                        prevOpts = listAllPreviousClassesForUser()
+                            .map((c) => {
+                                const sel = row.previousClassId === c.id ? ' selected' : '';
+                                const label = `${c.cohortName || ''} · ${c.name || c.id}`;
+                                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(label)}</option>`;
+                            })
+                            .join('');
+                    }
                     const tracks = listSubjectTracksForRow(row);
                     const trackOpts = tracks
                         .map((tr) => {
@@ -852,6 +1360,7 @@
         }
 
         if (step === 6) {
+            preloadTimetableLibs();
             const teachCount = createdCohortMap.filter((r) => r.iTeachHere).length;
             const carryCount = createdCohortMap.filter(
                 (r) => r.iTeachHere && r.classMode === 'carry'
@@ -869,8 +1378,25 @@
             const eventCount = wizardSettings.copyEvents
                 ? (appData.events || []).length
                 : 0;
+            const fileList =
+                pendingTimetableFiles.length > 0
+                    ? `<ul class="term-migrate-file-list">${pendingTimetableFiles
+                          .map(
+                              (f, i) =>
+                                  `<li><span>${escapeHtml(f.name || `file ${i + 1}`)}</span><button type="button" class="btn btn-small btn-outline" data-timetable-remove="${i}">${escapeHtml(t('dataTermMigrateTimetableRemove'))}</button></li>`
+                          )
+                          .join('')}</ul>
+                      <button type="button" class="btn btn-small btn-outline" id="termMigrateTimetableClearAll">${escapeHtml(t('dataTermMigrateTimetableClearAll'))}</button>`
+                    : '';
             body.innerHTML = `
                 <p class="section-hint">${escapeHtml(t('dataTermMigrateStep6Hint'))}</p>
+                <label class="form-group" for="termMigrateTimetableFiles">
+                    <span>${escapeHtml(t('dataTermMigrateTimetableLabel'))}</span>
+                    <input type="file" id="termMigrateTimetableFiles" class="field-input field-control" multiple accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp" />
+                </label>
+                <p class="section-hint">${escapeHtml(t('dataTermMigrateTimetableHint'))}</p>
+                <p class="section-hint">${escapeHtml(t('dataTermMigrateTimetableSkipHint'))}</p>
+                ${fileList}
                 <ul class="section-hint">
                   <li>${escapeHtml(t('dataTermMigrateReviewClasses').replace('{n}', String(createdCohortMap.length)))}</li>
                   <li>${escapeHtml(t('dataTermMigrateReviewMoves').replace('{n}', String(selectedMoves.size)))}</li>
@@ -886,6 +1412,19 @@
                   <li>${escapeHtml(t('dataTermMigrateReviewEvents').replace('{n}', String(eventCount)))}</li>
                 </ul>
             `;
+            const fileInput = document.getElementById('termMigrateTimetableFiles');
+            if (fileInput && fileInput.dataset.bound !== '1') {
+                fileInput.dataset.bound = '1';
+                fileInput.addEventListener('change', () => {
+                    if (fileInput.files && fileInput.files.length) {
+                        pendingTimetableFiles = pendingTimetableFiles.concat(
+                            Array.from(fileInput.files)
+                        );
+                        fileInput.value = '';
+                        renderStep();
+                    }
+                });
+            }
         }
     }
 
@@ -898,10 +1437,14 @@
             if (!studentId || !u) {
                 return;
             }
-            const cand = (u.candidates || []).find((c) => c.studentId === studentId);
+            let cand = (u.candidates || []).find((c) => c.studentId === studentId);
+            if (!cand) {
+                cand = findPreviousStudentById(studentId);
+            }
             if (!cand) {
                 return;
             }
+            const targetLevel = createdCohortMap.find((r) => r.cohortId === u.toCohortId);
             moves.push({
                 action: 'move',
                 studentId,
@@ -914,9 +1457,78 @@
                 toCohortId: u.toCohortId,
                 toCohortName: u.toCohortName,
                 previousLevel: cand.previousLevel,
-                nextLevel: '',
+                nextLevel: targetLevel ? targetLevel.levelPreset || '' : '',
                 matchedBy: 'unclear',
-                student: cand
+                student: cand.student
+            });
+        });
+        return moves;
+    }
+
+    function collectManualAddMoves() {
+        const adds = (transferPlan && transferPlan.adds) || [];
+        const moves = [];
+        adds.forEach((a, i) => {
+            const key = `a${i}`;
+            if (!selectedAdds.has(key)) {
+                return;
+            }
+            const studentId = manualAddLinks.get(key);
+            if (!studentId) {
+                return;
+            }
+            const cand = findPreviousStudentById(studentId);
+            if (!cand) {
+                return;
+            }
+            const targetLevel = createdCohortMap.find((r) => r.cohortId === a.toCohortId);
+            moves.push({
+                action: 'move',
+                studentId,
+                name: cand.name,
+                nameEn: a.tmsNameEn || cand.nameEn || '',
+                tmsName: a.tmsName || a.name,
+                tmsMpidx: a.tmsMpidx || cand.tmsMpidx || '',
+                fromCohortId: cand.fromCohortId,
+                fromCohortName: cand.fromCohortName,
+                toCohortId: a.toCohortId,
+                toCohortName: a.toCohortName,
+                previousLevel: cand.previousLevel,
+                nextLevel: targetLevel ? targetLevel.levelPreset || '' : '',
+                matchedBy: 'manual',
+                student: cand.student
+            });
+        });
+        return moves;
+    }
+
+    function collectManualUnmatchedMoves() {
+        const moves = [];
+        manualUnmatchedInclude.forEach((studentId) => {
+            const toCohortId = manualUnmatchedMoves.get(studentId);
+            if (!toCohortId) {
+                return;
+            }
+            const cand = findPreviousStudentById(studentId);
+            const target = createdCohortMap.find((r) => r.cohortId === toCohortId);
+            if (!cand || !target) {
+                return;
+            }
+            moves.push({
+                action: 'move',
+                studentId,
+                name: cand.name,
+                nameEn: cand.nameEn || '',
+                tmsName: cand.name,
+                tmsMpidx: cand.tmsMpidx || '',
+                fromCohortId: cand.fromCohortId,
+                fromCohortName: cand.fromCohortName,
+                toCohortId,
+                toCohortName: target.cohortName,
+                previousLevel: cand.previousLevel,
+                nextLevel: target.levelPreset || '',
+                matchedBy: 'manual_unmatched',
+                student: cand.student
             });
         });
         return moves;
@@ -938,35 +1550,40 @@
             const shiftInput = document.getElementById('termMigrateMonthShift');
             const clearCb = document.getElementById('termMigrateClearClassroom');
             const copyEv = document.getElementById('termMigrateCopyEvents');
+            const termCodeInput = document.getElementById('termMigrateTermCodeFilter');
             wizardSettings = {
                 newName: trimmed,
                 monthShift: shiftInput ? Number(shiftInput.value) || 0 : 3,
                 clearClassroom: clearCb ? clearCb.checked : true,
                 copyEvents: copyEv ? copyEv.checked : true,
                 tmsUser: user ? user.value : '',
-                tmsPass: pass ? pass.value : ''
+                tmsPass: pass ? pass.value : '',
+                termCodeFilter: termCodeInput ? termCodeInput.value.trim() : ''
             };
             scrapeLoading = true;
-            setStatus(t('dataTermMigrateScraping'), false);
+            showScrapeProgress(t('dataTermMigrateScraping'));
             try {
                 previousSnapshot = snapshotPreviousStudents(getAppData());
                 const result = await scrapeTmsRosters(
                     wizardSettings.tmsUser,
                     wizardSettings.tmsPass
                 );
-                scrapedCohorts = Array.isArray(result.cohorts) ? result.cohorts : [];
-                if (!scrapedCohorts.length) {
-                    setStatus(t('dataTermMigrateNoClasses'), true);
+                scrapedCohortsAll = Array.isArray(result.cohorts) ? result.cohorts.slice() : [];
+                refreshDiscoveredTermCodes();
+                const api = tmsNameApi();
+                if (!wizardSettings.termCodeFilter && api && api.pickDefaultTermCode) {
+                    wizardSettings.termCodeFilter =
+                        api.pickDefaultTermCode(discoveredTermCodes) || '';
+                }
+                rebuildCohortMapFromScrapeFilter();
+                if (!createdCohortMap.length) {
+                    hideScrapeProgress();
+                    setStatus(t('dataTermMigrateNoClassesForTerm'), true);
                     scrapeLoading = false;
                     return;
                 }
-                const specs = buildCohortCreateSpecs(scrapedCohorts, getAppData());
-                createdCohortMap = specs.map((spec, i) =>
-                    Object.assign({}, spec, {
-                        cohortId: `migrate_tmp_${i}_${spec.tmsClassId || i}`
-                    })
-                );
                 step = 2;
+                hideScrapeProgress();
                 setStatus(
                     t('dataTermMigrateScrapeDone').replace(
                         '{n}',
@@ -976,6 +1593,7 @@
                 );
                 renderStep();
             } catch (err) {
+                hideScrapeProgress();
                 setStatus(
                     t('dataTermMigrateScrapeFailed') +
                         ': ' +
@@ -984,18 +1602,31 @@
                 );
             } finally {
                 scrapeLoading = false;
+                hideScrapeProgress();
             }
             return;
         }
 
         if (step === 2) {
             flushStep2Levels();
+            flushStep2PrevCohort();
+            const termSel = document.getElementById('termMigrateTermCodeSelect');
+            if (termSel) {
+                wizardSettings.termCodeFilter = termSel.value || '';
+            }
+            rebuildCohortMapFromScrapeFilter();
+            if (!createdCohortMap.length) {
+                setStatus(t('dataTermMigrateNoClassesForTerm'), true);
+                return;
+            }
+            rebuildTransferPlan({ force: true });
             step = 3;
             renderStep();
             return;
         }
 
         if (step === 3) {
+            flushStep3Transfers();
             step = 4;
             renderStep();
             return;
@@ -1032,7 +1663,11 @@
             flushStep4Homeroom();
         }
         if (step === 3) {
+            flushStep3Transfers();
+        }
+        if (step === 2) {
             flushStep2Levels();
+            flushStep2PrevCohort();
         }
         step -= 1;
         renderStep();
@@ -1120,7 +1755,10 @@
         }
         flushStep5Teaching();
         flushStep4Homeroom();
-        rebuildTransferPlan();
+        flushStep3Transfers();
+        if (!transferPlan) {
+            rebuildTransferPlan({ force: true });
+        }
 
         const monthShift = Number(wizardSettings.monthShift) || 0;
         const clearClassroom = wizardSettings.clearClassroom !== false;
@@ -1226,9 +1864,26 @@
                 })
             );
         });
+        collectManualAddMoves().forEach((m) => {
+            moves.push(
+                Object.assign({}, m, {
+                    toCohortId: idRemap.get(m.toCohortId) || m.toCohortId
+                })
+            );
+        });
+        collectManualUnmatchedMoves().forEach((m) => {
+            moves.push(
+                Object.assign({}, m, {
+                    toCohortId: idRemap.get(m.toCohortId) || m.toCohortId
+                })
+            );
+        });
         const adds = [];
         (transferPlan.adds || []).forEach((a, i) => {
             if (!selectedAdds.has(`a${i}`)) {
+                return;
+            }
+            if (manualAddLinks.has(`a${i}`)) {
                 return;
             }
             adds.push(
@@ -1252,7 +1907,9 @@
         if (archive) {
             keepIds.add(archive.id);
         }
-        const unmatched = (transferPlan.unmatchedPrevious || []).filter((u) => u && u.studentId);
+        const unmatched = (transferPlan.unmatchedPrevious || []).filter(
+            (u) => u && u.studentId && !manualUnmatchedInclude.has(u.studentId)
+        );
         let finalCohorts = cohortsAfter.filter((c) => c && keepIds.has(c.id));
         if (archive && unmatched.length && d && d.moveStudentsBetweenCohorts) {
             let list = cohortsAfter.slice();
@@ -1315,6 +1972,34 @@
         });
         cloned.classes = builtClasses;
 
+        if (
+            pendingTimetableFiles.length &&
+            global.CCPTimetableImportUi &&
+            typeof global.CCPTimetableImportUi.importFilesForMigrate === 'function'
+        ) {
+            try {
+                setStatus(t('timetableImportLoading'), false);
+                const ttResult = await global.CCPTimetableImportUi.importFilesForMigrate(
+                    pendingTimetableFiles.slice(),
+                    cloned,
+                    {}
+                );
+                cloned.classes = ttResult.classes;
+            } catch (ttErr) {
+                const fmt =
+                    global.CCPTimetableImportUi &&
+                    typeof global.CCPTimetableImportUi.formatImportError === 'function'
+                        ? global.CCPTimetableImportUi.formatImportError(ttErr)
+                        : t('timetableImportFailed');
+                setStatus(
+                    fmt +
+                        (ttErr && ttErr.message ? ': ' + ttErr.message : ''),
+                    true
+                );
+                return;
+            }
+        }
+
         try {
             if (
                 hooks &&
@@ -1356,9 +2041,19 @@
         }
         step = 1;
         scrapedCohorts = [];
+        scrapedCohortsAll = [];
+        excludedTmsClassIds = new Set();
+        discoveredTermCodes = [];
         createdCohortMap = [];
         transferPlan = null;
+        selectedMoves = new Set();
+        selectedAdds = new Set();
+        transferPlanSourceKey = '';
         unclearResolutions = new Map();
+        manualAddLinks = new Map();
+        manualUnmatchedMoves = new Map();
+        manualUnmatchedInclude = new Set();
+        pendingTimetableFiles = [];
         setStatus('', false);
     }
 
@@ -1373,9 +2068,20 @@
         step = 1;
         previousSnapshot = null;
         scrapedCohorts = [];
+        scrapedCohortsAll = [];
+        excludedTmsClassIds = new Set();
+        discoveredTermCodes = [];
         createdCohortMap = [];
         transferPlan = null;
+        selectedMoves = new Set();
+        selectedAdds = new Set();
+        transferPlanSourceKey = '';
         unclearResolutions = new Map();
+        manualAddLinks = new Map();
+        manualUnmatchedMoves = new Map();
+        manualUnmatchedInclude = new Set();
+        pendingTimetableFiles = [];
+        preloadTimetableLibs();
         modal.style.display = 'flex';
         renderStep();
         setStatus('', false);
@@ -1392,6 +2098,22 @@
         document.getElementById('termMigrateBackBtn')?.addEventListener('click', goBack);
         document.getElementById('termMigrateNextBtn')?.addEventListener('click', () => {
             void goNext();
+        });
+        document.getElementById('termMigrateBody')?.addEventListener('click', (e) => {
+            const clearBtn = e.target.closest('#termMigrateTimetableClearAll');
+            if (clearBtn && step === 6) {
+                e.preventDefault();
+                pendingTimetableFiles = [];
+                renderStep();
+                return;
+            }
+            const rmBtn = e.target.closest('[data-timetable-remove]');
+            if (rmBtn && step === 6) {
+                e.preventDefault();
+                const idx = Number(rmBtn.getAttribute('data-timetable-remove'));
+                pendingTimetableFiles = pendingTimetableFiles.filter((_, i) => i !== idx);
+                renderStep();
+            }
         });
     }
 
