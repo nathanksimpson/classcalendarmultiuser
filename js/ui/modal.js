@@ -80,8 +80,14 @@
             modal.setAttribute('aria-modal', 'true');
         }
         const focusables = getModalFocusables(modal);
-        if (focusables.length) {
-            focusables[0].focus();
+        const initialFocus =
+            focusables.find((el) => el && !el.classList.contains('modal-close')) || focusables[0];
+        if (initialFocus && typeof initialFocus.focus === 'function') {
+            window.setTimeout(() => {
+                if (modal.classList.contains('active')) {
+                    initialFocus.focus();
+                }
+            }, 50);
         }
     }
 

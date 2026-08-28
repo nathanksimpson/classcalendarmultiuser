@@ -13,6 +13,10 @@
         timetable: [
             'js/timetable-periods.js?v=20260619-term-flex',
             'js/teacher-timetable.js?v=20260807-deconflict-min',
+            'js/timetable-import.js?v=20260828-timetable-import',
+            'js/timetable-import-ocr.js?v=20260828-timetable-import',
+            'js/timetable-import-pdf.js?v=20260828-timetable-import',
+            'js/timetable-import-ui.js?v=20260828-timetable-import',
             'js/timetable-export.js?v=20260602-tab-fast'
         ],
         teachers: [
@@ -33,7 +37,7 @@
             'js/roster-import.js?v=20260806-name-marks',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260810-book-check'
+            'js/classroom-roster.js?v=20260828-modal-stay'
         ],
         attendance: [
             'js/classroom-access.js?v=20260807-hr-tools',
