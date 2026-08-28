@@ -14614,7 +14614,8 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     cursor: pointer;
 }
 
-.classroom-essay-retest-toggle input.classroom-essay-retest {
+.classroom-essay-retest-toggle input.classroom-essay-retest,
+.classroom-essay-retest-toggle input.classroom-essay-debate-video {
     position: absolute;
     width: 1px;
     height: 1px;

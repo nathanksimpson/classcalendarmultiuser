@@ -87,10 +87,47 @@
         ) {
             essaysOnly = true;
         }
+        const warnMonthRaw = String(ui.classroomZoneEssayWarnMonth || '').trim();
+        const essayWarnMonth = /^\d{4}-\d{2}$/.test(warnMonthRaw) ? warnMonthRaw : '';
         return {
             myClassesOnly: ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1',
-            essaysOnly
+            essaysOnly,
+            essayWarnMonth
         };
+    }
+
+    /** Distinct YYYY-MM keys from essay SS due dates across accessible classes (newest first). */
+    function listEssayWarnMonthOptions() {
+        const d = domain();
+        if (!d || !d.getEssayRowsFromSyllabus || !d.yearMonthKey) {
+            return [];
+        }
+        const data = getAppData();
+        const submissions = getEssayAlertSubmissions();
+        const months = new Set();
+        getBaseAccessibleClasses().forEach((classData) => {
+            if (!classData || !classData.id) {
+                return;
+            }
+            d.getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+                const syllabusRowId = d.getSyllabusRowKey
+                    ? d.getSyllabusRowKey(row)
+                    : row && (row.id || row.date);
+                if (!syllabusRowId) {
+                    return;
+                }
+                const submission =
+                    d.findEssaySubmission &&
+                    d.findEssaySubmission(submissions, classData.id, syllabusRowId);
+                const ssDue =
+                    submission && submission.ssDueDate ? submission.ssDueDate : (row && row.date) || '';
+                const month = d.yearMonthKey(ssDue);
+                if (month) {
+                    months.add(month);
+                }
+            });
+        });
+        return Array.from(months).sort((a, b) => String(b).localeCompare(String(a)));
     }
 
     function getBaseAccessibleClasses() {
@@ -194,10 +231,12 @@
             return { rs: 0, as: 0, od: 0, ae: 0, nv: 0 };
         }
         const data = getAppData();
+        const month = getUiToggles().essayWarnMonth || '';
         return domain().essayAlertCountsForClass(
             getEssayAlertSubmissions(),
             classData,
-            data.cohorts || []
+            data.cohorts || [],
+            month ? { month } : undefined
         );
     }
 
@@ -684,6 +723,20 @@
                 .join(', ')
             : '';
         const showEssaysToggle = activeTabId === 'essays';
+        const essayWarnMonths = showEssaysToggle ? listEssayWarnMonthOptions() : [];
+        const essayWarnMonth = toggles.essayWarnMonth || '';
+        if (essayWarnMonth && !essayWarnMonths.includes(essayWarnMonth)) {
+            essayWarnMonths.unshift(essayWarnMonth);
+        }
+        const essayWarnMonthOptionsHtml = showEssaysToggle
+            ? [
+                  `<option value="">${escapeHtml(t('classroomEssayClassSummaryFilterAllMonths'))}</option>`,
+                  ...essayWarnMonths.map(
+                      (m) =>
+                          `<option value="${escapeAttr(m)}"${m === essayWarnMonth ? ' selected' : ''}>${escapeHtml(m)}</option>`
+                  )
+              ].join('')
+            : '';
         const comboboxValue = comboboxOpen ? classSearchQuery : getSelectedClassName({ classId, classes });
         const sessionDate = getSessionDate() || todayISO();
         const closedTabBadges =
@@ -723,6 +776,10 @@
                         <input type="checkbox" id="classroomZoneEssaysOnly"${toggles.essaysOnly ? ' checked' : ''} />
                         <span>${escapeHtml(t('classroomZoneEssaysOnly'))}</span>
                     </label>` : ''}
+                    ${showEssaysToggle ? `<label class="classroom-essay-resubmit-filter-field classroom-zone-essay-warn-month">
+                        <span class="section-hint">${escapeHtml(t('classroomEssayClassSummaryFilterMonth'))}</span>
+                        <select id="classroomZoneEssayWarnMonth" class="field-select field-control--compact">${essayWarnMonthOptionsHtml}</select>
+                    </label>` : ''}
                 </div>
                 ${teachers ? `<span class="classroom-zone-teachers section-hint">${escapeHtml(t('classroomTeachersLabel'))}: ${escapeHtml(teachers)}</span>` : ''}
             </div>`;
@@ -758,6 +815,14 @@
                 hooks.setUiPref('classroomZoneEssaysOnly', e.target.checked ? '1' : '');
             }
             ensureActiveClassVisible();
+            render(mountEl);
+        });
+        mountEl.querySelector('#classroomZoneEssayWarnMonth')?.addEventListener('change', (e) => {
+            const raw = String(e.target.value || '').trim();
+            const value = /^\d{4}-\d{2}$/.test(raw) ? raw : '';
+            if (hooks && hooks.setUiPref) {
+                hooks.setUiPref('classroomZoneEssayWarnMonth', value);
+            }
             render(mountEl);
         });
         mountEl.querySelector('#classroomZoneSessionDate')?.addEventListener('change', (e) => {
