@@ -12821,7 +12821,8 @@ function holidayHasAnyTargetFilter(holiday) {
     const hasClassIds = holiday.classIds && holiday.classIds.length > 0;
     const hasClassNames = holiday.classNames && holiday.classNames.length > 0;
     const hasSections = holiday.sectionLevels && holiday.sectionLevels.length > 0;
-    return hasGrades || hasClassIds || hasClassNames || hasSections
+    const hasExcluded = holiday.excludedClassIds && holiday.excludedClassIds.length > 0;
+    return hasGrades || hasClassIds || hasClassNames || hasSections || hasExcluded
         || holiday.allElementary === true
         || holiday.allMiddleSchool === true;
 }
@@ -28992,39 +28993,54 @@ function targetFilterAppliesToClass(target, classData) {
     }
 
     const classIds = Array.isArray(target.classIds) ? target.classIds : [];
-    const hasClassNames = target.classNames && target.classNames.length > 0;
     const hasClassIds = classIds.length > 0;
-    const hasGrades = target.grades && target.grades.length > 0;
-    const hasSections = target.sectionLevels && target.sectionLevels.length > 0;
-    const classMatchedById = hasClassIds && classId ? classIds.includes(classId) : false;
-    const classMatchedByName = !hasClassIds && hasClassNames && target.classNames.includes(classData.name);
-    const hasBroadFilters = hasGrades || hasSections
-        || target.allElementary === true
-        || target.allMiddleSchool === true;
+    const hasClassNames = target.classNames && target.classNames.length > 0;
+    const grades = Array.isArray(target.grades) ? target.grades : [];
+    const sections = Array.isArray(target.sectionLevels) ? target.sectionLevels : [];
+    const allElementary = target.allElementary === true;
+    const allMiddleSchool = target.allMiddleSchool === true;
 
-    if (classMatchedById || classMatchedByName) {
-        return true;
-    }
-    if (!hasBroadFilters) {
+    const hasBroadFilters = grades.length > 0
+        || sections.length > 0
+        || allElementary
+        || allMiddleSchool
+        || excludedClassIds.length > 0;
+
+    if ((hasClassIds || hasClassNames) && !hasBroadFilters) {
+        if (hasClassIds && classId && classIds.includes(classId)) {
+            return true;
+        }
+        if (!hasClassIds && hasClassNames && target.classNames.includes(classData.name)) {
+            return true;
+        }
         return false;
     }
-    if (hasGrades && target.grades.includes(classData.grade)) {
-        return true;
-    }
-    if (target.allElementary === true && isElementaryGrade(classData.grade)) {
-        return true;
-    }
-    if (target.allMiddleSchool === true && isMiddleSchoolGrade(classData.grade)) {
-        return true;
-    }
-    if (hasSections) {
-        const sec = getClassSectionPreset(classData);
-        if (sec && target.sectionLevels.includes(sec)) {
-            return true;
+
+    if (allElementary !== allMiddleSchool) {
+        const grade = (classData.grade || '').trim();
+        const matchesBand = (allElementary && isElementaryGrade(grade))
+            || (allMiddleSchool && isMiddleSchoolGrade(grade));
+        if (!matchesBand) {
+            return false;
         }
     }
 
-    return false;
+    const gradeTotal = SCHOOL_GRADE_OPTIONS.length;
+    if (grades.length > 0 && gradeTotal > 0 && grades.length < gradeTotal) {
+        if (!grades.includes((classData.grade || '').trim())) {
+            return false;
+        }
+    }
+
+    const sectionTotal = getAllSimsonLevels().length;
+    if (sections.length > 0 && sectionTotal > 0 && sections.length < sectionTotal) {
+        const sec = getClassSectionPreset(classData);
+        if (!sec || !sections.includes(sec)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 function eventAppliesToClass(event, classData) {
