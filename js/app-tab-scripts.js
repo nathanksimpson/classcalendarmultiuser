@@ -6,8 +6,8 @@
         cohorts: [
             'js/teacher-timetable.js?v=20260807-deconflict-min',
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/cohort-management.js?v=20260807-deconflict-min',
-            'js/setup-board.js?v=20260807-deconflict-min',
+            'js/cohort-management.js?v=20260828-cohort-catch22',
+            'js/setup-board.js?v=20260828-cohort-catch22',
             'js/cohorts-class-detail.js?v=20260703-design-fidelity'
         ],
         timetable: [
