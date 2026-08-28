@@ -2022,6 +2022,11 @@
             global.CCPSetupBoard.setActiveBoardView(defaultPattern === 'tth' ? 'tth' : 'mwf');
         }
         global.__ccpFocusCohortName = true;
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
         renderAll();
     }
 

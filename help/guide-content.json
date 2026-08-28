@@ -137,7 +137,7 @@
         "where": "Class Setup → Cohorts — student groups first",
         "steps": [
           "Head teachers and admins: create student cohorts here before adding subject classes.",
-          "The board shows each cohort with homeroom, classes, and warnings. Use + Add class on a tile; use Edit cohort or Edit class for teachers, homeroom, and subjects.",
+          "The board shows each cohort with homeroom, classes, and warnings. Use + Add class on a tile (Create new class or link an existing one); use Edit cohort or Edit class for teachers, homeroom, and subjects.",
           "For each cohort: name, level, grade, schedule pattern (MWF / T/Th), homeroom teacher (담임).",
           "In Class assignment, check which classes belong to this cohort and click Apply. One class can link to multiple cohorts for combined groups (합반): same class checked on each cohort, or use Combine cohorts to merge duplicate generated classes.",
           "Combined groups: one class record, one calendar and syllabus. If Timetable shows a conflict for the same teacher at the same time, you often have two class records — use Combine cohorts or delete the duplicate.",

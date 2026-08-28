@@ -18699,6 +18699,25 @@ function collectTeacherRowScheduleFields(rowEl) {
     return out;
 }
 
+function sortCohortsForClassSelect(cohorts) {
+    return (Array.isArray(cohorts) ? cohorts : [])
+        .filter((c) => c && c.id)
+        .slice()
+        .sort((a, b) => {
+            const an = String(a.name || a.id || '');
+            const bn = String(b.name || b.id || '');
+            return an.localeCompare(bn, undefined, { sensitivity: 'base' });
+        });
+}
+
+function formatCohortOptionLabel(cohort) {
+    const name = String(cohort.name || cohort.id || '').trim();
+    if (cohort.isArchiveCohort) {
+        return `${name} (${t('studentArchiveCohortName')})`;
+    }
+    return name || cohort.id;
+}
+
 function populateClassCohortSelect(selectedId) {
     const sel = document.getElementById('classCohort');
     if (!sel) {
@@ -18708,7 +18727,7 @@ function populateClassCohortSelect(selectedId) {
     sel.disabled = !admin;
     const reqMark = document.querySelector('.cohort-required-mark');
     if (reqMark) {
-        reqMark.hidden = !admin;
+        reqMark.hidden = true;
     }
     const prev = selectedId != null ? selectedId : sel.value;
     sel.innerHTML = '';
@@ -18716,10 +18735,10 @@ function populateClassCohortSelect(selectedId) {
     none.value = '';
     none.textContent = t('classCohortNone');
     sel.appendChild(none);
-    (appData.cohorts || []).forEach((cohort) => {
+    sortCohortsForClassSelect(appData.cohorts).forEach((cohort) => {
         const opt = document.createElement('option');
         opt.value = cohort.id;
-        opt.textContent = cohort.name || cohort.id;
+        opt.textContent = formatCohortOptionLabel(cohort);
         sel.appendChild(opt);
     });
     if (prev) {
@@ -18739,19 +18758,16 @@ function renderClassCohortMultiChips(classData) {
         : (classData && normalizeStr(classData.cohortId) ? [classData.cohortId] : []);
     const linkedSet = new Set(linked);
     mount.innerHTML = '';
-    const cohorts = appData.cohorts || [];
+    const cohorts = sortCohortsForClassSelect(appData.cohorts);
     if (!cohorts.length) {
         return;
     }
     cohorts.forEach((cohort) => {
-        if (!cohort || !cohort.id) {
-            return;
-        }
         const chip = document.createElement('label');
         chip.className = 'checkbox-label selection-chip class-cohort-multi-chip';
         const checked = linkedSet.has(cohort.id);
         chip.innerHTML = `<input type="checkbox" data-cohort-id="${escapeHtml(cohort.id)}" ${checked ? 'checked' : ''} ${admin ? '' : 'disabled'}>
-            <span>${escapeHtml(cohort.name || cohort.id)}</span>`;
+            <span>${escapeHtml(formatCohortOptionLabel(cohort))}</span>`;
         const cb = chip.querySelector('input');
         cb.addEventListener('change', () => {
             const cohortSel = document.getElementById('classCohort');
@@ -20169,6 +20185,9 @@ function updateCohortsTabCalendarName() {
 function getSetupBoardHooks() {
     const base = getCohortManagementHooks();
     return Object.assign({}, base, {
+        openNewClassForCohort(cohortId) {
+            openNewClassForCohort(cohortId);
+        },
         getBoardScope() {
             return {
                 panelId: 'panel-cohorts',
@@ -22431,6 +22450,11 @@ function syncClassCohortLinks(cohort) {
     });
 }
 
+function syncAllClassCohortLinksInData(data) {
+    const target = data || appData;
+    (target.cohorts || []).forEach((cohort) => syncClassCohortLinks(cohort));
+}
+
 function suggestAndMergeCohorts() {
     const api = getTimetableApi();
     if (!api) {
@@ -22962,6 +22986,34 @@ function initHomeworkTabListeners() {
             void copyHomeworkLastClassNotes();
         });
     }
+}
+
+/**
+ * Open a blank class editor with a cohort already selected (and linked).
+ * Used from Cohorts board "+ Add class → Create new".
+ */
+function openNewClassForCohort(cohortId) {
+    const cid = String(cohortId || '').trim();
+    if (!cid) {
+        openClassEditor(null, 'tab', { host: 'setup' });
+        return;
+    }
+    const cohort = (appData.cohorts || []).find((c) => c && c.id === cid);
+    openClassEditor(null, 'tab', {
+        host: 'setup',
+        cohortId: cid,
+        defaultLevelPreset: cohort
+            ? String(cohort.levelPreset || cohort.level || '').trim()
+            : '',
+        defaultMeetingDays: cohort
+            ? (typeof CCPCohortManagement !== 'undefined' &&
+              CCPCohortManagement.getCohortMeetingDays
+                  ? CCPCohortManagement.getCohortMeetingDays(cohort)
+                  : Array.isArray(cohort.meetingDays)
+                    ? cohort.meetingDays.slice()
+                    : [])
+            : []
+    });
 }
 
 function openClassEditor(classData, context, options = {}) {
@@ -27057,7 +27109,38 @@ function populateClassForm(classData = null, options = {}) {
         updateClassSyllabusSummary(null);
         syncClassDeleteButtonVisibility(false);
         applyDefaultClassDatesForNewClass(options.defaultStartDate);
-        applyClassTeacherFieldsToForm(null);
+        const preferredCohortId = String(options.cohortId || '').trim();
+        applyClassTeacherFieldsToForm(
+            preferredCohortId
+                ? { cohortId: preferredCohortId, cohortIds: [preferredCohortId] }
+                : null
+        );
+        if (preferredCohortId) {
+            const cohortSel = document.getElementById('classCohort');
+            if (cohortSel) {
+                cohortSel.value = preferredCohortId;
+            }
+            updateClassHomeroomLabelDisplay();
+            updateClassCohortAlsoLinkedFromForm();
+        }
+        const defaultLevel = String(options.defaultLevelPreset || '').trim();
+        if (defaultLevel && elements.classLevel) {
+            const hasOpt = Array.from(elements.classLevel.options || []).some(
+                (o) => o.value === defaultLevel
+            );
+            if (hasOpt) {
+                elements.classLevel.value = defaultLevel;
+                syncClassCurriculumLevelFromClassLevel();
+            }
+        }
+        if (Array.isArray(options.defaultMeetingDays) && options.defaultMeetingDays.length) {
+            writeMeetingDaysInFormScope(
+                '#classForm',
+                MEETING_DAY_INPUT_CLASS,
+                options.defaultMeetingDays
+            );
+            updateMeetingDayChipLabels();
+        }
     }
     populateClassTypeSelect();
     if (!classData) {
@@ -27641,10 +27724,9 @@ function handleClassSubmit(e) {
     const { period, periodByWeekday } = collectPeriodFieldsForSave();
     const teacherFields = collectClassTeacherFieldsForSave();
     const formCohortIds = getClassCohortIdsFromForm();
-    if (canAccessTeachersTab() && !formCohortIds.length && !normalizeStr(teacherFields.cohortId)) {
-        alert(t('classCohortRequiredAdmin'));
-        return;
-    }
+    const savedWithoutCohort = canAccessTeachersTab()
+        && !formCohortIds.length
+        && !normalizeStr(teacherFields.cohortId);
     if (teacherFields.book) {
         elements.classBook.value = teacherFields.book;
     }
@@ -27804,6 +27886,8 @@ function handleClassSubmit(e) {
     }
     if (isUpdate) {
         setAppStatusMessage(t('classSaved'), false);
+    } else if (savedWithoutCohort) {
+        setAppStatusMessage(t('classSavedLinkCohortHint'), false);
     }
     if (classEditorMount === 'tab') {
         updateClassEditorEmptyState();
