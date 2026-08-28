@@ -344,6 +344,26 @@ assert(
         d.essayOverdueNotSubmittedCount(receivedLate, yesterday, 2) === 2,
         'OD counts late received plus not_submitted'
     );
+    assert(
+        d.isEssaySubmissionOverdue(receivedLate.records[0], tomorrow) === false,
+        'late received is not overdue when SS due is still in the future'
+    );
+    assert(
+        d.essayOverdueNotSubmittedCount(receivedLate, tomorrow, 2) === 0,
+        'OD is zero when SS due is in the future'
+    );
+    assert(
+        d.isEssaySubmissionOverdue(
+            {
+                studentId: 's1',
+                status: 'not_submitted',
+                submissionLate: false,
+                overdueDismissed: false
+            },
+            tomorrow
+        ) === false,
+        'not_submitted is not overdue when SS due is in the future'
+    );
 
     const dismissed = {
         id: 'es-dismissed',
@@ -458,6 +478,82 @@ assert(classAlerts.od === 1, 'class OD aggregates assignment');
 assert(classAlerts.rs === 0, 'class RS zero without resubmits');
 assert(classAlerts.as === 0, 'class AS zero when only overdue not_submitted');
 assert(classAlerts.ae === 1, 'class AE counts submitted awaiting eval');
+
+{
+    // Month filter on class alert chips — only rows whose SS due is in YYYY-MM.
+    const monthA = d.yearMonthKey(yesterday);
+    const monthBDue = d.addDaysISO(yesterday, 40);
+    const monthB = d.yearMonthKey(monthBDue);
+    assert(monthA && monthB && monthA !== monthB, 'month filter fixture spans two months');
+    const multiMonthClass = {
+        ...essayClass,
+        id: 'cls-essay-months',
+        syllabusRows: [
+            {
+                id: 'row-m1',
+                kind: 'lesson',
+                date: yesterday,
+                planTitle: 'Essay month A'
+            },
+            {
+                id: 'row-m2',
+                kind: 'lesson',
+                date: monthBDue,
+                planTitle: 'Essay month B'
+            }
+        ]
+    };
+    const multiSubs = [
+        {
+            id: 'es-m1',
+            classId: 'cls-essay-months',
+            syllabusRowId: 'row-m1',
+            lessonDate: yesterday,
+            ssDueDate: yesterday,
+            records: [
+                { studentId: 's1', status: 'not_submitted', submittedRetest: false, note: '' },
+                { studentId: 's2', status: 'submitted', submittedRetest: false, note: '' }
+            ]
+        },
+        {
+            id: 'es-m2',
+            classId: 'cls-essay-months',
+            syllabusRowId: 'row-m2',
+            lessonDate: monthBDue,
+            ssDueDate: monthBDue,
+            records: [
+                {
+                    studentId: 's1',
+                    status: 'resubmit_required',
+                    submittedRetest: false,
+                    note: ''
+                },
+                { studentId: 's2', status: 'complete', submittedRetest: false, note: '' }
+            ]
+        }
+    ];
+    const allMonths = d.essayAlertCountsForClass(multiSubs, multiMonthClass, cohorts);
+    assert(allMonths.od === 1, 'all months: OD from month A overdue');
+    assert(allMonths.ae === 1, 'all months: AE from month A submitted');
+    assert(allMonths.rs === 1, 'all months: RS from month B resubmit');
+    const filteredA = d.essayAlertCountsForClass(multiSubs, multiMonthClass, cohorts, {
+        month: monthA
+    });
+    assert(filteredA.od === 1, 'month A filter keeps OD');
+    assert(filteredA.ae === 1, 'month A filter keeps AE');
+    assert(filteredA.rs === 0, 'month A filter excludes month B RS');
+    const filteredB = d.essayAlertCountsForClass(multiSubs, multiMonthClass, cohorts, {
+        month: monthB
+    });
+    assert(filteredB.od === 0, 'month B filter excludes month A OD');
+    assert(filteredB.ae === 0, 'month B filter excludes month A AE');
+    assert(filteredB.rs === 1, 'month B filter keeps RS');
+    const emptyMonth = d.essayAlertCountsForClass(multiSubs, multiMonthClass, cohorts, {
+        month: ''
+    });
+    assert(emptyMonth.od === allMonths.od, 'empty month option matches all months OD');
+    assert(emptyMonth.rs === allMonths.rs, 'empty month option matches all months RS');
+}
 
 {
     // Archived students keep old essay records but must not keep OD warnings.

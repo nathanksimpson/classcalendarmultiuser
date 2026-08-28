@@ -3156,16 +3156,21 @@
     /**
      * Per-student submission overdue: not_submitted past due, or explicitly late received.
      * Cleared when overdueDismissed; received-on-time is never overdue from due date alone.
+     * If SS due is not past (future or missing), never overdue — extending the deadline
+     * clears OD including prior "received late" until the new due passes.
      */
     function isEssaySubmissionOverdue(record, ssDueDate) {
         if (!record || record.overdueDismissed) {
+            return false;
+        }
+        if (!isEssaySsOverdueISO(ssDueDate)) {
             return false;
         }
         if (isEssayReceivedLate(record)) {
             return true;
         }
         const status = ESSAY_STATUSES.includes(record.status) ? record.status : 'not_submitted';
-        return status === 'not_submitted' && isEssaySsOverdueISO(ssDueDate);
+        return status === 'not_submitted';
     }
 
     function essayOverdueNotSubmittedCount(submission, ssDueDate, studentCount, activeStudentIds) {
@@ -3312,10 +3317,16 @@
         };
     }
 
-    function essayAlertCountsForClass(submissions, classData, cohorts) {
+    /**
+     * Sum RS/NS/OD/AE/NV across essay syllabus rows for a class.
+     * Optional options.month (YYYY-MM) limits to assignments whose effective SS due
+     * (submission.ssDueDate || row.date) falls in that month. Empty = all rows.
+     */
+    function essayAlertCountsForClass(submissions, classData, cohorts, options) {
         if (!classData || !classData.id) {
             return { rs: 0, as: 0, od: 0, ae: 0, nv: 0 };
         }
+        const monthFilter = yearMonthKey((options && options.month) || '');
         const students = resolveStudentsForClass(classData, cohorts);
         const totalStudents = students.length;
         const activeStudentIds = students
@@ -3334,6 +3345,9 @@
             const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
             const ssDue =
                 submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+            if (monthFilter && yearMonthKey(ssDue) !== monthFilter) {
+                return;
+            }
             const alerts = essayAlertCountsForAssignment(
                 submission,
                 ssDue,

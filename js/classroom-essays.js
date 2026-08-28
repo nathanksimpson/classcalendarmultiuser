@@ -2362,12 +2362,14 @@
                 scheduleSave();
                 renderStatsBar(panel);
                 renderRows(panel);
+                refreshZoneContextBar();
             }
             if (target.id === 'classroomEssaysTeacherEvalDue' && draftSubmission) {
                 draftSubmission.teacherEvalDueDate = target.value;
                 scheduleSave();
                 renderStatsBar(panel);
                 renderRows(panel);
+                refreshZoneContextBar();
             }
         });
         mount.addEventListener('click', (e) => {
