@@ -2,12 +2,30 @@
  * Run: node tests/events-schedule.test.mjs
  * Mirrors eventTypeBlocksClass / normalizeEventType from app.js (not loaded in Node tests).
  */
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.join(__dirname, '..');
+const require = createRequire(import.meta.url);
+const { targetFilterAppliesToClassCore } = require(path.join(root, 'shared', 'event-applicability-core.cjs'));
+
 const EVENT_TYPES = {
     HOLIDAY: 'holiday',
     EVALUATION_DEADLINE: 'evaluation_deadline',
     HOMEWORK_DEADLINE: 'homework_deadline',
     EVALUATION_PERIOD: 'evaluation_period',
     OTHER: 'other'
+};
+
+const GRADE_TOTAL = 9;
+const ctx = {
+    gradeTotal: GRADE_TOTAL,
+    sectionTotal: 12,
+    isElementaryGrade: (g) => String(g || '').startsWith('초'),
+    isMiddleSchoolGrade: (g) => String(g || '').startsWith('중'),
+    getClassSectionPreset: (c) => c.levelPreset || null
 };
 
 function normalizeEventType(type) {
@@ -25,35 +43,17 @@ function eventAppliesToClass(event, classData) {
     if (!event || !classData) {
         return false;
     }
-    const classId = String(classData.id || '').trim();
-    const excludedClassIds = Array.isArray(event.excludedClassIds) ? event.excludedClassIds : [];
-    if (classId && excludedClassIds.includes(classId)) {
-        return false;
-    }
-    const classIds = Array.isArray(event.classIds) ? event.classIds : [];
-    const hasClassNames = event.classNames && event.classNames.length > 0;
-    const hasClassIds = classIds.length > 0;
-    const hasGrades = event.grades && event.grades.length > 0;
-    const hasSections = event.sectionLevels && event.sectionLevels.length > 0;
-    const hasBroadFilters = hasGrades || hasSections
+    const hasAny = (Array.isArray(event.grades) && event.grades.length > 0)
+        || (Array.isArray(event.classIds) && event.classIds.length > 0)
+        || (Array.isArray(event.classNames) && event.classNames.length > 0)
+        || (Array.isArray(event.sectionLevels) && event.sectionLevels.length > 0)
+        || (Array.isArray(event.excludedClassIds) && event.excludedClassIds.length > 0)
         || event.allElementary === true
         || event.allMiddleSchool === true;
-    if (!hasClassIds && !hasClassNames && !hasBroadFilters) {
+    if (!hasAny) {
         return true;
     }
-    if (hasClassIds && classId && classIds.includes(classId)) {
-        return true;
-    }
-    if (!hasClassIds && hasClassNames && event.classNames.includes(classData.name)) {
-        return true;
-    }
-    if (!hasBroadFilters) {
-        return false;
-    }
-    if (hasGrades && event.grades.includes(classData.grade)) {
-        return true;
-    }
-    return false;
+    return targetFilterAppliesToClassCore(event, classData, ctx);
 }
 
 function isHolidayForClassOnDay(eventsOnDay) {

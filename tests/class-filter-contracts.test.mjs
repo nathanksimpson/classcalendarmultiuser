@@ -12,6 +12,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import vm from 'vm';
+import { createRequire } from 'module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -29,40 +30,35 @@ function loadScript(relPath) {
     return sandbox;
 }
 
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { targetFilterAppliesToClassCore } = require(path.join(root, 'shared', 'event-applicability-core.cjs'));
+
+const ctx = {
+    gradeTotal: 9,
+    sectionTotal: 12,
+    isElementaryGrade: (g) => String(g || '').startsWith('초'),
+    isMiddleSchoolGrade: (g) => String(g || '').startsWith('중'),
+    getClassSectionPreset: (c) => c.levelPreset || null
+};
+
 // --- Applicability: same-name siblings + exclusion precedence ---
 function eventAppliesToClass(event, classData) {
     if (!event || !classData) {
         return false;
     }
-    const classId = String(classData.id || '').trim();
-    const excludedClassIds = Array.isArray(event.excludedClassIds) ? event.excludedClassIds : [];
-    if (classId && excludedClassIds.includes(classId)) {
-        return false;
-    }
-    const classIds = Array.isArray(event.classIds) ? event.classIds : [];
-    const hasClassNames = event.classNames && event.classNames.length > 0;
-    const hasClassIds = classIds.length > 0;
-    const hasGrades = event.grades && event.grades.length > 0;
-    const hasSections = event.sectionLevels && event.sectionLevels.length > 0;
-    const hasBroadFilters = hasGrades || hasSections
+    const hasAny = (Array.isArray(event.grades) && event.grades.length > 0)
+        || (Array.isArray(event.classIds) && event.classIds.length > 0)
+        || (Array.isArray(event.classNames) && event.classNames.length > 0)
+        || (Array.isArray(event.sectionLevels) && event.sectionLevels.length > 0)
+        || (Array.isArray(event.excludedClassIds) && event.excludedClassIds.length > 0)
         || event.allElementary === true
         || event.allMiddleSchool === true;
-    if (!hasClassIds && !hasClassNames && !hasBroadFilters) {
+    if (!hasAny) {
         return true;
     }
-    if (hasClassIds && classId && classIds.includes(classId)) {
-        return true;
-    }
-    if (!hasClassIds && hasClassNames && event.classNames.includes(classData.name)) {
-        return true;
-    }
-    if (!hasBroadFilters) {
-        return false;
-    }
-    if (hasGrades && event.grades.includes(classData.grade)) {
-        return true;
-    }
-    return false;
+    return targetFilterAppliesToClassCore(event, classData, ctx);
 }
 
 {

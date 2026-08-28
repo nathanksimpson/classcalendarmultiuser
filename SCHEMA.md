@@ -288,14 +288,17 @@ The app has **two different filter semantics**. Do not mix them.
 
 **Purpose:** Decide which classes a holiday / evaluation period / other event cancels or annotates. Used by schedule generation, syllabus holiday rows, and homework due-date skipping via `eventAppliesToClass()` / `isHolidayForClass()`.
 
-**Precedence (highest first):**
+**Precedence (additive across categories):**
 
-1. `excludedClassIds` — class is out even if a broad filter would include it
-2. Explicit `classIds` — include those class instances (period siblings with the same display name stay distinct)
-3. Broad includes — `grades`, `sectionLevels`, `allElementary`, `allMiddleSchool` (OR across broad dimensions)
-4. Legacy `classNames` — only when `classIds` is empty; maps by display name (can collapse same-name siblings; prefer re-saving events)
+1. `excludedClassIds` — class is out regardless of other filters
+2. **Class-only mode** — when only `classIds` / legacy `classNames` are set (no grades, sections, bands, or exclusions): whitelist those classes only
+3. **Multi-category mode** — each active category must match (AND). A category is active when it has a partial selection (some but not all options checked). Within an active category, the class must match one of the selected values:
+   - School band — exactly one of `allElementary` / `allMiddleSchool` selected
+   - `grades` — partial grade list
+   - `sectionLevels` — partial section list
+4. Legacy `classNames` — only when `classIds` is empty; maps by display name (prefer re-saving with ids)
 
-**Empty targeting** (no grades / sections / bands / classIds / classNames) means **all classes**.
+**Empty targeting** (no grades / sections / bands / classIds / classNames / excludedClassIds) means **all classes**.
 
 **UI note:** When broad filters are active, unchecked class chips are stored as `excludedClassIds`. When only class chips are used (no broad filters), checked chips become `classIds`.
 
