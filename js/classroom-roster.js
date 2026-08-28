@@ -3964,12 +3964,13 @@
             }
         }
         syncArchiveStartDateVisibility();
-        if (hooks && hooks.openModal) {
-            hooks.openModal(document.getElementById('studentArchiveModal'));
-        }
+        openRosterModal(document.getElementById('studentArchiveModal'));
     }
 
     function closeArchiveModal() {
+        if (isRosterModalGuarded()) {
+            return;
+        }
         archiveBulkMode = false;
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('studentArchiveModal'));
@@ -4185,12 +4186,13 @@
                 opt.textContent = c.name || c.id;
                 sel.appendChild(opt);
             });
-        if (hooks && hooks.openModal) {
-            hooks.openModal(document.getElementById('studentRestoreModal'));
-        }
+        openRosterModal(document.getElementById('studentRestoreModal'));
     }
 
     function closeRestoreModal() {
+        if (isRosterModalGuarded()) {
+            return;
+        }
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('studentRestoreModal'));
         }
@@ -4232,12 +4234,13 @@
         if (pwd) {
             pwd.value = '';
         }
-        if (hooks && hooks.openModal) {
-            hooks.openModal(document.getElementById('studentDeleteModal'));
-        }
+        openRosterModal(document.getElementById('studentDeleteModal'));
     }
 
     function closeDeleteModal() {
+        if (isRosterModalGuarded()) {
+            return;
+        }
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('studentDeleteModal'));
         }
