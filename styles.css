@@ -9128,6 +9128,44 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     min-width: 0;
 }
 
+.command-center-mobile-tabs {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    width: 100%;
+    min-width: 0;
+}
+
+.command-center-mobile-tab {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    font-family: var(--font-main);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    min-height: var(--touch-min);
+}
+
+.command-center-mobile-tab.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-primary);
+}
+
+html[data-viewport="phone"] .command-center-mobile-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: var(--space-2);
+    background: var(--bg-page);
+}
+
 .homework-cc-blocks-heading {
     margin: 0;
 }
