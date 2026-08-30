@@ -1000,6 +1000,73 @@
         }
     }
 
+    /** Fix broken markup like `??/button>` from bad saves / wrong encoding. */
+    function repairCorruptedNotesMarkup() {
+        const buttonRepairs = [
+            {
+                id: 'notesLangToggle',
+                className: 'btn btn-outline btn-small btn-lang',
+                attrs: { 'data-i18n': 'langToggle' }
+            },
+            {
+                id: 'notesThemeToggle',
+                className: 'btn btn-outline btn-small btn-header-theme',
+                attrs: { 'data-i18n': 'themeDark' }
+            },
+            {
+                id: 'notesPrevDayBtn',
+                className: 'btn btn-outline btn-small notes-day-nav-btn',
+                text: '\u2039',
+                attrs: { 'aria-label': 'Previous day' }
+            },
+            {
+                id: 'notesNextDayBtn',
+                className: 'btn btn-outline btn-small notes-day-nav-btn',
+                text: '\u203A',
+                attrs: { 'aria-label': 'Next day' }
+            },
+            {
+                id: 'notesEditorCloseBtn',
+                className: 'btn btn-outline btn-small notes-editor-close-btn',
+                text: '\u00D7',
+                attrs: { 'data-i18n-aria-label': 'notesEditorClose' }
+            }
+        ];
+        buttonRepairs.forEach(({ id, className, text, attrs }) => {
+            const btn = document.getElementById(id);
+            if (!btn || btn.tagName !== 'BUTTON') {
+                return;
+            }
+            const raw = btn.outerHTML || '';
+            if (raw.includes('/button>') && !raw.toLowerCase().includes('</button>')) {
+                const parent = btn.parentNode;
+                if (!parent) {
+                    return;
+                }
+                const next = document.createElement('button');
+                next.id = id;
+                next.type = 'button';
+                next.className = className;
+                if (text) {
+                    next.textContent = text;
+                }
+                if (attrs) {
+                    Object.entries(attrs).forEach(([key, value]) => {
+                        next.setAttribute(key, value);
+                    });
+                }
+                parent.replaceChild(next, btn);
+            }
+        });
+        const search = document.getElementById('notesClassSearch');
+        if (search) {
+            const placeholder = search.getAttribute('placeholder') || '';
+            if (!placeholder || placeholder.includes('??')) {
+                search.setAttribute('placeholder', 'Search classes\u2026');
+            }
+        }
+    }
+
     function setupNotesChrome() {
         const label = document.getElementById('notesCalendarLabel');
         if (label && typeof appData !== 'undefined') {
@@ -1354,6 +1421,8 @@
             loadTheme();
         }
 
+        repairCorruptedNotesMarkup();
+
         bindNotesControls();
         bindNotesAddTextInput();
         bindNotesAddMentionField();
@@ -1461,6 +1530,7 @@
         if (!document.body.classList.contains('notes-page')) {
             return;
         }
+        repairCorruptedNotesMarkup();
         if (typeof initNotesPage === 'function') {
             initNotesPage().catch((err) => {
                 console.error('initNotesPage failed:', err);
