@@ -12405,6 +12405,21 @@ body.notes-page {
     min-height: 100dvh;
     margin: 0;
     padding-bottom: var(--safe-bottom);
+    background: var(--bg-main);
+    color: var(--text-primary);
+}
+
+body.notes-page-loading .notes-main {
+    opacity: 0.72;
+}
+
+body.notes-page-loading .notes-main::before {
+    content: 'Loading calendar…';
+    display: block;
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted, #64748b);
+    font-size: 0.95rem;
 }
 
 .notes-header {
@@ -12625,10 +12640,13 @@ body.notes-page .notes-date-bar {
     margin: 0;
     padding: 0;
     background: rgba(15, 23, 42, 0.45);
+    -webkit-tap-highlight-color: transparent;
 }
 
-.notes-editor-backdrop[hidden] {
+.notes-editor-backdrop[hidden],
+.notes-editor-sheet[hidden] {
     display: none !important;
+    pointer-events: none !important;
 }
 
 body.notes-editor-open.notes-page {
@@ -12653,10 +12671,6 @@ body.notes-editor-open.notes-page {
     box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.18);
     box-sizing: border-box;
     transform: translateZ(0);
-}
-
-.notes-editor-sheet[hidden] {
-    display: none !important;
 }
 
 .notes-editor-sheet-inner {
@@ -19148,6 +19162,20 @@ html[data-viewport="phone"] .team-lock-status-btn--skeuo {
 .event-bar-more:hover {
     color: var(--primary-dark);
     text-decoration: underline;
+}
+
+html[data-viewport="phone"] #panel-calendar .calendar-container {
+    min-height: 40vh;
+}
+
+html[data-viewport="phone"] .calendar-empty-hint,
+html[data-viewport="phone"] .calendar-agenda-empty {
+    min-height: 30vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem;
 }
 
 html[data-viewport="phone"] #panel-calendar .calendar-agenda-list {

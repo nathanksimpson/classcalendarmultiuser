@@ -5286,6 +5286,22 @@ function isViewportNarrowHeader() {
         && window.matchMedia('(max-width: 900px)').matches;
 }
 
+function getPhoneSafeBootTab(tabId) {
+    if (!isViewportPhone()) {
+        return tabId;
+    }
+    if (!APP_TAB_IDS.includes(tabId)) {
+        return 'calendar';
+    }
+    if (tabId === 'notes') {
+        return 'calendar';
+    }
+    if (getHostForTab(tabId) === APP_HOST_SETUP && tabId !== 'calendar') {
+        return 'calendar';
+    }
+    return tabId;
+}
+
 function enforceDesktopCalendarViewMode() {
     ensureUiState();
     const mode = appData.ui.calendarViewMode;
@@ -23787,7 +23803,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             requestAnimationFrame(syncAppChromeStickyTop);
         }
 
-        const savedTab = getActiveTab();
+        const savedTab = getPhoneSafeBootTab(getActiveTab());
         showSavedTabPanelsOnly(savedTab);
 
         try {
@@ -29459,6 +29475,17 @@ function renderCalendarNow(options) {
     }
     ensureTermStartData();
     if (!appData.termStart) {
+        const loadingEl = elements.calendarContainer.querySelector('.calendar-boot-loading');
+        if (loadingEl) {
+            loadingEl.remove();
+        }
+        const hintKey = 'tabWarnTermNotSet';
+        const hintText =
+            (typeof t === 'function' && t(hintKey) !== hintKey)
+                ? t(hintKey)
+                : 'Set a term start month so the calendar can place lessons.';
+        elements.calendarContainer.innerHTML =
+            `<p class="calendar-empty-hint section-hint">${escapeHtml(hintText)}</p>`;
         return;
     }
     const loadingEl = elements.calendarContainer.querySelector('.calendar-boot-loading');
