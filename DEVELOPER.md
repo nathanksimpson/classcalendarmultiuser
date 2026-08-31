@@ -2,7 +2,7 @@
 
 Quick reference for editing this repo and pushing updates. Teachers use [FOR TEACHERS.md](FOR%20TEACHERS.md) and [FOR TEACHERS-ko.md](FOR%20TEACHERS-ko.md); in-app Help is at `help.html` (`js/help-guide.js`, `js/help-page.js`). Production setup uses [CLOUDFLARE-DEPLOY.md](CLOUDFLARE-DEPLOY.md).
 
-**Project location:** `D:\Simson USB\Class Calendar Multi User` on the **Simson USB** stick (drive letter may be `D:`, `E:`, etc.). **GitHub** holds committed code; **production** holds what users see after `npm run deploy`. Those three can disagree briefly (e.g. deployed on work PC but not yet pushed). See [AGENTS.md](AGENTS.md) → *USB portable workflow*.
+**Project location:** `C:\ClassCalendar`. **GitHub** holds committed code; **production** holds what users see after `npm run deploy`. Those three can disagree briefly (e.g. deployed on one PC but not yet pushed). See [AGENTS.md](AGENTS.md) → *Local folder workflow*. The old USB path (`D:\Simson USB\Class Calendar Multi User`) is retired.
 
 ## Local setup
 
@@ -172,7 +172,7 @@ Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; work
 - [ ] **D1 migrations** (only if you added a new file under `worker/migrations/`):
 
   ```powershell
-  cd "D:\Simson USB\Class Calendar Multi User"
+  cd C:\ClassCalendar
   npm run db:migrate:remote
   ```
 
@@ -209,8 +209,8 @@ Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; work
 
 ## Common pitfalls
 
-1. **Wrong repo** — This is `Simson USB\Class Calendar Multi User`, not `f:\Calendar App` (single-user, no team sync).
-2. **USB ≠ deploy** — Carrying the USB between PCs does not update production; only `npm run deploy` does. After switching computers: plug in USB, `git pull origin main`, `npm install` if needed. If live site behavior differs from your folder, pull from GitHub and check who last deployed.
+1. **Wrong repo** — This is `C:\ClassCalendar` (GitHub `classcalendarmultiuser`), not `f:\Calendar App` (single-user, no team sync).
+2. **Local folder ≠ deploy** — Having files on `C:\ClassCalendar` does not update production; only `npm run deploy` does. After switching machines: open `C:\ClassCalendar`, `git pull origin main`, `npm install` if needed. If live site behavior differs from your folder, pull from GitHub and check who last deployed.
 3. Fixing only `server/` leaves production broken until `worker/src/index.js` matches.
 4. Local migrations live in `server/schema.js`; production needs `worker/migrations/*.sql`.
 5. After `sync-from-main`, re-check `index.html` script tags.
