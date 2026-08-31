@@ -718,7 +718,8 @@
                     ? hooks.getHolidayForClass(dateStr, classData)
                     : null;
                 const holName = hol && hol.name ? hol.name : 'Holiday';
-                const colors = getColors ? getColors(hol, 'holiday') : null;
+                const holType = (hol && hol.type) ? hol.type : 'holiday';
+                const colors = getColors ? getColors(hol, holType) : null;
                 rows.push(applyRowColors({
                     id: newRowId(),
                     kind: 'holiday',
@@ -1338,9 +1339,11 @@
                 note: preserveText(prev.note, gen.note, keepEdits),
                 weekLabel: gen.weekLabel || prev.weekLabel,
                 source: keepEdits ? prev.source : 'generated',
-                rowBg: gen.rowBg || prev.rowBg || '',
-                rowColor: gen.rowColor || prev.rowColor || '',
-                eventType: gen.eventType || prev.eventType || ''
+                // Schedule-derived: always take the generated event type/colors so a
+                // calendar type edit reaches print (do not keep a stale prev type).
+                rowBg: gen.rowBg || '',
+                rowColor: gen.rowColor || '',
+                eventType: gen.eventType || ''
             };
         });
 
