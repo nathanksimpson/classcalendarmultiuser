@@ -1408,6 +1408,11 @@
             saveNotesSessionState();
         }
         setNotesPageLoading(false);
+        if (typeof clearAuthBootPending === 'function') {
+            clearAuthBootPending();
+        } else if (typeof document !== 'undefined' && document.documentElement) {
+            document.documentElement.classList.remove('ccp-auth-boot');
+        }
     };
 
     window.syncNotesLockReadOnlyState = function syncNotesLockReadOnlyState() {
@@ -1438,6 +1443,16 @@
     window.initNotesPage = async function initNotesPage() {
         let syncWarning = '';
 
+        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+            try {
+                await TeamAuth.ensure();
+            } catch (e) {
+                if (e && e.message === 'redirect') {
+                    return;
+                }
+            }
+        }
+
         if (typeof loadLanguage === 'function') {
             loadLanguage();
         }
@@ -1458,96 +1473,95 @@
             applyInitialNotesDate(urlDate);
         }
 
-        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
-            try {
-                await TeamAuth.ensure();
-            } catch (e) {
-                if (e && e.message === 'redirect') {
-                    return;
-                }
-            }
-        }
-
-        if (typeof loadData === 'function') {
-            loadData();
-        }
-
         try {
-            if (typeof initTeamSync === 'function') {
-                await initTeamSync();
+            if (typeof loadData === 'function') {
+                loadData();
             }
-            if (typeof ensureActiveCalendarLoaded === 'function') {
-                await ensureActiveCalendarLoaded({
-                    forceIfStale:
-                        !Array.isArray(appData.classes) || appData.classes.length === 0
-                });
-            }
-        } catch (err) {
-            console.error('Notes team sync failed:', err);
-            const syncMsg = typeof t === 'function' ? t('syncError') : 'Sync error';
-            syncWarning = `${syncMsg}: ${err.message || err}`;
-        } finally {
-            if (typeof finishTeamSyncBoot === 'function') {
-                finishTeamSyncBoot();
-            }
-        }
 
-        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
             try {
-                if (typeof ensureTeamTeacherAccountsLoaded === 'function') {
-                    await ensureTeamTeacherAccountsLoaded();
+                if (typeof initTeamSync === 'function') {
+                    await initTeamSync();
                 }
-                if (
-                    typeof linkClassTeachersToTeamAccounts === 'function'
-                    && linkClassTeachersToTeamAccounts()
-                ) {
-                    if (
-                        typeof teamSyncEnabled !== 'undefined'
-                        && teamSyncEnabled
-                        && typeof CalendarSync !== 'undefined'
-                        && CalendarSync.scheduleSave
-                    ) {
-                        CalendarSync.scheduleSave();
-                    } else if (typeof saveData === 'function') {
-                        saveData();
+                if (typeof ensureActiveCalendarLoaded === 'function') {
+                    await ensureActiveCalendarLoaded({
+                        forceIfStale:
+                            !Array.isArray(appData.classes) || appData.classes.length === 0
+                    });
+                }
+            } catch (err) {
+                console.error('Notes team sync failed:', err);
+                const syncMsg = typeof t === 'function' ? t('syncError') : 'Sync error';
+                syncWarning = `${syncMsg}: ${err.message || err}`;
+            } finally {
+                if (typeof finishTeamSyncBoot === 'function') {
+                    finishTeamSyncBoot();
+                }
+            }
+
+            if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+                try {
+                    if (typeof ensureTeamTeacherAccountsLoaded === 'function') {
+                        await ensureTeamTeacherAccountsLoaded();
                     }
+                    if (
+                        typeof linkClassTeachersToTeamAccounts === 'function'
+                        && linkClassTeachersToTeamAccounts()
+                    ) {
+                        if (
+                            typeof teamSyncEnabled !== 'undefined'
+                            && teamSyncEnabled
+                            && typeof CalendarSync !== 'undefined'
+                            && CalendarSync.scheduleSave
+                        ) {
+                            CalendarSync.scheduleSave();
+                        } else if (typeof saveData === 'function') {
+                            saveData();
+                        }
+                    }
+                } catch (_) {
+                    /* teacher account list optional */
                 }
-            } catch (_) {
-                /* teacher account list optional */
-            }
-        }
-
-        try {
-            if (typeof ensureTermStartData === 'function') {
-                ensureTermStartData();
-            }
-            if (typeof applyLanguage === 'function') {
-                applyLanguage();
-            }
-            setupNotesChrome();
-            window.finalizeNotesPageBoot({
-                invalidateIndex: false,
-                preserveFocus: false,
-                initialBoot: true
-            });
-
-            if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
-                CCPSessionRestore.capturePageSession();
             }
 
-            hideNotesInitError();
-            if (syncWarning) {
-                showNotesSyncHint(syncWarning);
-            } else {
-                hideNotesSyncHint();
+            try {
+                if (typeof ensureTermStartData === 'function') {
+                    ensureTermStartData();
+                }
+                if (typeof applyLanguage === 'function') {
+                    applyLanguage();
+                }
+                setupNotesChrome();
+                window.finalizeNotesPageBoot({
+                    invalidateIndex: false,
+                    preserveFocus: false,
+                    initialBoot: true
+                });
+
+                if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.capturePageSession) {
+                    CCPSessionRestore.capturePageSession();
+                }
+
+                hideNotesInitError();
+                if (syncWarning) {
+                    showNotesSyncHint(syncWarning);
+                } else {
+                    hideNotesSyncHint();
+                }
+            } catch (uiErr) {
+                console.error('Notes UI failed:', uiErr);
+                const base = typeof t === 'function' ? t('notesLoadFailed') : 'Could not load notes.';
+                const detail = uiErr && uiErr.message ? ` (${uiErr.message})` : '';
+                showNotesInitError(base + detail);
+                if (syncWarning) {
+                    showNotesSyncHint(syncWarning);
+                }
             }
-        } catch (uiErr) {
-            console.error('Notes UI failed:', uiErr);
-            const base = typeof t === 'function' ? t('notesLoadFailed') : 'Could not load notes.';
-            const detail = uiErr && uiErr.message ? ` (${uiErr.message})` : '';
-            showNotesInitError(base + detail);
-            if (syncWarning) {
-                showNotesSyncHint(syncWarning);
+        } finally {
+            setNotesPageLoading(false);
+            if (typeof clearAuthBootPending === 'function') {
+                clearAuthBootPending();
+            } else if (typeof document !== 'undefined' && document.documentElement) {
+                document.documentElement.classList.remove('ccp-auth-boot');
             }
         }
     };

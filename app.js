@@ -23707,7 +23707,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     const useTeamSync = hasTeamSyncStatusEl();
+    let bootAbortRedirect = false;
     try {
+        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
+            try {
+                await TeamAuth.ensure();
+                setupTeamUserBar();
+                if (
+                    typeof CCPSessionRestore !== 'undefined' &&
+                    CCPSessionRestore.maybeRestoreLastPath &&
+                    CCPSessionRestore.maybeRestoreLastPath()
+                ) {
+                    bootAbortRedirect = true;
+                    return;
+                }
+            } catch (e) {
+                if (e && e.message === 'redirect') {
+                    bootAbortRedirect = true;
+                    return;
+                }
+            }
+        }
         try {
             if (typeof CCPTemplateLoader !== 'undefined' && CCPTemplateLoader.ensureTemplatesLoaded) {
                 await CCPTemplateLoader.ensureTemplatesLoaded();
@@ -23734,23 +23754,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadLanguage();
         loadTheme();
         warnIfOpenedFromNetworkFile();
-        if (typeof TeamAuth !== 'undefined' && location.protocol !== 'file:') {
-            try {
-                await TeamAuth.ensure();
-                setupTeamUserBar();
-                if (
-                    typeof CCPSessionRestore !== 'undefined' &&
-                    CCPSessionRestore.maybeRestoreLastPath &&
-                    CCPSessionRestore.maybeRestoreLastPath()
-                ) {
-                    return;
-                }
-            } catch (e) {
-                if (e && e.message === 'redirect') {
-                    return;
-                }
-            }
-        }
         setupSchoolGradeControls();
         setupSimsonLevelControls();
         setupClassMeetingDaysUI();
@@ -23820,6 +23823,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         scheduleIdleTabPrefetch();
     } finally {
+        if (!bootAbortRedirect) {
+            clearAuthBootPending();
+        }
         if (useTeamSync) {
             teamSyncInitialBootDone = true;
             if (!teamSyncBootAttempted) {
@@ -35292,7 +35298,10 @@ function restoreAppSessionState() {
     if (appData.ui.syllabusListSegment === 'templates' || appData.ui.syllabusListSegment === 'classes') {
         syllabusListSegment = appData.ui.syllabusListSegment;
     }
-    const tab = getActiveTab();
+    let tab = getActiveTab();
+    if (isViewportPhone() && !isNotesPage() && !isWorkspacePage() && !isPlannerPage()) {
+        tab = getPhoneSafeBootTab(tab);
+    }
     navigateToTab(tab, buildTabRestoreOptions(tab));
     applyPrintSummaryVisibilityFromUi();
     if (isClassNotesUiActive()) {
@@ -35747,6 +35756,12 @@ function isCalendarContainerEmpty() {
         return true;
     }
     return !elements.calendarContainer.querySelector('.month-calendar, .calendar-agenda-list');
+}
+
+function clearAuthBootPending() {
+    if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.classList.remove('ccp-auth-boot');
+    }
 }
 
 function showCalendarBootLoading(show) {
