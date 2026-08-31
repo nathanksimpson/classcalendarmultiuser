@@ -2335,6 +2335,12 @@ body:has(#panel-calendar:not([hidden])) {
     background: var(--bg-main);
 }
 
+#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .day-events,
+#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .calendar-event-chips,
+#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .holiday-name {
+    display: none;
+}
+
 #calendarContainer .calendar-day.holiday .day-number {
     background: inherit;
 }
