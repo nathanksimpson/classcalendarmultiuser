@@ -29938,7 +29938,7 @@ function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
     const termEndIso = dayIndex.termEndDate || '';
     const allCells = [];
 
-    // Previous month days
+    // Previous month padding days — number only; adjacent-month lessons/events stay on that month’s card.
     for (let i = firstDay - 1; i >= 0; i--) {
         allCells.push(createDayCell(prevMonthDays - i, true));
     }
@@ -29951,7 +29951,7 @@ function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
         allCells.push(createDayCell(day, false, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
 
-    // Next month days (fill to complete last row)
+    // Next month padding days (fill to complete last row)
     const totalCells = firstDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
@@ -30068,6 +30068,20 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     
     if (isOtherMonth) {
         dayDiv.classList.add('other-month');
+        if (detailLevel === 'month') {
+            const dayTop = document.createElement('div');
+            dayTop.className = 'calendar-day-top';
+            dayTop.style.display = 'flex';
+            dayTop.style.alignItems = 'center';
+            dayTop.style.justifyContent = 'space-between';
+            dayTop.style.gap = '4px';
+            const numberDiv = document.createElement('div');
+            numberDiv.className = 'day-number';
+            numberDiv.textContent = dayNumber;
+            dayTop.appendChild(numberDiv);
+            dayDiv.appendChild(dayTop);
+            return dayDiv;
+        }
     } else if (dateStr && termStartIso && termEndIso && (dateStr < termStartIso || dateStr > termEndIso)) {
         dayDiv.classList.add('out-of-term');
     }
