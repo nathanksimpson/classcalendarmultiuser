@@ -21,7 +21,8 @@
         month: '',
         warnMode: 'all',
         myClassesOnly: false,
-        debateOnly: false
+        debateOnly: false,
+        todayOnly: false
     };
     let classSummaryModalBound = false;
     const STATUS_AUTOSAVE_MS = 400;
@@ -509,6 +510,57 @@
         return d.listDebateBookSummaryEntries(getAppData(), { skipEmptyRoster: true });
     }
 
+    function classSummaryWarnNormalizer() {
+        const summaryApi = booksSummaryApi();
+        return summaryApi && summaryApi.normalizeWarnMode
+            ? summaryApi.normalizeWarnMode.bind(summaryApi)
+            : (mode) => mode;
+    }
+
+    function defaultClassSummaryFilters(normalizeWarn) {
+        const normalize = normalizeWarn || classSummaryWarnNormalizer();
+        return {
+            homeroomKey: '',
+            month: '',
+            warnMode: normalize('all'),
+            myClassesOnly: false,
+            debateOnly: false,
+            todayOnly: false
+        };
+    }
+
+    function parseClassSummaryFilters(raw, normalizeWarn) {
+        const normalize = normalizeWarn || classSummaryWarnNormalizer();
+        if (!raw || typeof raw !== 'object') {
+            return defaultClassSummaryFilters(normalize);
+        }
+        return {
+            homeroomKey: typeof raw.homeroomKey === 'string' ? raw.homeroomKey : '',
+            month: typeof raw.month === 'string' ? raw.month : '',
+            warnMode: normalize(raw.warnMode),
+            myClassesOnly: raw.myClassesOnly === true,
+            debateOnly: raw.debateOnly === true,
+            todayOnly: raw.todayOnly === true
+        };
+    }
+
+    function getClassSummaryTodayIso() {
+        if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.get) {
+            const ctx = global.CCPActiveContext.get();
+            const session = ctx && ctx.sessionDate ? String(ctx.sessionDate).trim() : '';
+            if (session) {
+                return session;
+            }
+        }
+        const ui = getAppData().ui || {};
+        const fromUi = String(ui.classroomTabDate || '').trim();
+        if (fromUi) {
+            return fromUi;
+        }
+        const d = domain();
+        return d && d.todayISO ? d.todayISO() : '';
+    }
+
     function loadClassSummarySelection() {
         const data = getAppData();
         classSummarySelectedKeys.clear();
@@ -522,49 +574,17 @@
             });
         }
         const filtersRaw = data.ui && data.ui.debateBookClassSummaryFilters;
-        classSummaryFilters = {
-            homeroomKey: '',
-            month: '',
-            warnMode: 'all',
-            myClassesOnly: false,
-            debateOnly: false
-        };
-        const summaryApi = booksSummaryApi();
-        const normalizeWarn =
-            summaryApi && summaryApi.normalizeWarnMode
-                ? summaryApi.normalizeWarnMode.bind(summaryApi)
-                : (mode) => mode;
+        const normalizeWarn = classSummaryWarnNormalizer();
+        classSummaryFilters = defaultClassSummaryFilters(normalizeWarn);
         if (typeof filtersRaw === 'string' && filtersRaw.trim()) {
             try {
                 const parsed = JSON.parse(filtersRaw);
-                if (parsed && typeof parsed === 'object') {
-                    classSummaryFilters = {
-                        homeroomKey:
-                            typeof parsed.homeroomKey === 'string' ? parsed.homeroomKey : '',
-                        month: typeof parsed.month === 'string' ? parsed.month : '',
-                        warnMode: normalizeWarn(parsed.warnMode),
-                        myClassesOnly: parsed.myClassesOnly === true,
-                        debateOnly: parsed.debateOnly === true
-                    };
-                }
+                classSummaryFilters = parseClassSummaryFilters(parsed, normalizeWarn);
             } catch (_err) {
-                classSummaryFilters = {
-                    homeroomKey: '',
-                    month: '',
-                    warnMode: 'all',
-                    myClassesOnly: false,
-                    debateOnly: false
-                };
+                classSummaryFilters = defaultClassSummaryFilters(normalizeWarn);
             }
         } else if (filtersRaw && typeof filtersRaw === 'object') {
-            classSummaryFilters = {
-                homeroomKey:
-                    typeof filtersRaw.homeroomKey === 'string' ? filtersRaw.homeroomKey : '',
-                month: typeof filtersRaw.month === 'string' ? filtersRaw.month : '',
-                warnMode: normalizeWarn(filtersRaw.warnMode),
-                myClassesOnly: filtersRaw.myClassesOnly === true,
-                debateOnly: filtersRaw.debateOnly === true
-            };
+            classSummaryFilters = parseClassSummaryFilters(filtersRaw, normalizeWarn);
         }
     }
 
@@ -586,7 +606,8 @@
                     month: classSummaryFilters.month || '',
                     warnMode: classSummaryFilters.warnMode || 'all',
                     myClassesOnly: classSummaryFilters.myClassesOnly === true,
-                    debateOnly: classSummaryFilters.debateOnly === true
+                    debateOnly: classSummaryFilters.debateOnly === true,
+                    todayOnly: classSummaryFilters.todayOnly === true
                 })
             );
         }
@@ -595,10 +616,15 @@
     function getClassSummaryFilterContext() {
         return {
             currentUserId: hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
+            todayIso: getClassSummaryTodayIso(),
             deps: {
                 classIsMine:
                     hooks && hooks.classIsMine
                         ? (classData, userId) => hooks.classIsMine(classData, userId)
+                        : undefined,
+                classOccursOnIsoDate:
+                    hooks && hooks.classOccursOnIsoDate
+                        ? (classData, isoDate) => hooks.classOccursOnIsoDate(classData, isoDate)
                         : undefined
             }
         };
@@ -607,11 +633,15 @@
     function syncClassSummaryFilterCheckboxesFromState() {
         const myCb = document.getElementById('debateBookClassSummaryMyClassesOnly');
         const debateCb = document.getElementById('debateBookClassSummaryDebateOnly');
+        const todayCb = document.getElementById('debateBookClassSummaryTodayOnly');
         if (myCb) {
             myCb.checked = classSummaryFilters.myClassesOnly === true;
         }
         if (debateCb) {
             debateCb.checked = classSummaryFilters.debateOnly === true;
+        }
+        if (todayCb) {
+            todayCb.checked = classSummaryFilters.todayOnly === true;
         }
     }
 
@@ -621,17 +651,15 @@
         const warnEl = document.getElementById('debateBookClassSummaryWarnModeFilter');
         const myCb = document.getElementById('debateBookClassSummaryMyClassesOnly');
         const debateCb = document.getElementById('debateBookClassSummaryDebateOnly');
-        const summaryApi = booksSummaryApi();
-        const normalizeWarn =
-            summaryApi && summaryApi.normalizeWarnMode
-                ? summaryApi.normalizeWarnMode.bind(summaryApi)
-                : (mode) => mode;
+        const todayCb = document.getElementById('debateBookClassSummaryTodayOnly');
+        const normalizeWarn = classSummaryWarnNormalizer();
         classSummaryFilters = {
             homeroomKey: hrEl ? String(hrEl.value || '') : classSummaryFilters.homeroomKey || '',
             month: monthEl ? String(monthEl.value || '') : classSummaryFilters.month || '',
             warnMode: normalizeWarn(warnEl ? warnEl.value : classSummaryFilters.warnMode),
             myClassesOnly: myCb ? myCb.checked : classSummaryFilters.myClassesOnly === true,
-            debateOnly: debateCb ? debateCb.checked : classSummaryFilters.debateOnly === true
+            debateOnly: debateCb ? debateCb.checked : classSummaryFilters.debateOnly === true,
+            todayOnly: todayCb ? todayCb.checked : classSummaryFilters.todayOnly === true
         };
         saveClassSummaryFilters();
     }
@@ -649,7 +677,9 @@
                 homeroomKey: '',
                 month: '',
                 myClassesOnly: classSummaryFilters.myClassesOnly === true,
-                debateOnly: classSummaryFilters.debateOnly === true
+                debateOnly: classSummaryFilters.debateOnly === true,
+                todayOnly: classSummaryFilters.todayOnly === true,
+                skipPeriodNarrow: true
             },
             getClassSummaryFilterContext()
         );
@@ -888,16 +918,26 @@
         }
     }
 
-    function formatClassSummaryEntryHint(entry) {
+    function formatClassSummaryEntryHintHtml(entry) {
         const summaryApi = booksSummaryApi();
         const hint =
             summaryApi && summaryApi.formatEntryHint
                 ? summaryApi.formatEntryHint(entry)
-                : { issued: 0, total: entry.totalStudents || 0 };
-        return tf('classroomDebateBooksClassSummaryEntryHint', {
-            issued: hint.issued,
-            total: hint.total
-        });
+                : { issued: 0, notIssued: 0, total: entry.totalStudents || 0 };
+        const issued = escapeHtml(
+            tf('classroomDebateBooksClassSummaryEntryHint', {
+                issued: hint.issued,
+                total: hint.total
+            })
+        );
+        const notIssued = hint.notIssued || 0;
+        if (!notIssued) {
+            return `<span class="section-hint">${issued}</span>`;
+        }
+        const unissued = escapeHtml(
+            tf('classroomDebateBooksClassSummaryEntryHintNotIssued', { count: notIssued })
+        );
+        return `<span class="section-hint">${issued}</span> <span class="section-hint classroom-debate-books-summary-entry-unissued">${unissued}</span>`;
     }
 
     function renderClassSummaryModal() {
@@ -918,11 +958,14 @@
             entries
                 .map((row) => {
                     const checked = classSummarySelectedKeys.has(row.key) ? ' checked' : '';
-                    const hint = formatClassSummaryEntryHint(row);
-                    return `<label class="selection-chip classroom-debate-books-summary-entry">
+                    const hintHtml = formatClassSummaryEntryHintHtml(row);
+                    const notIssued =
+                        row.counts && row.counts.not_issued ? Number(row.counts.not_issued) : 0;
+                    const unissuedCls = notIssued > 0 ? ' classroom-debate-books-summary-entry--has-unissued' : '';
+                    return `<label class="selection-chip classroom-debate-books-summary-entry${unissuedCls}">
                     <input type="checkbox" class="debate-book-class-summary-entry-check" data-entry-key="${escapeAttr(row.key)}"${checked} />
                     <span class="classroom-debate-books-summary-entry-label">${escapeHtml(row.className)} — ${escapeHtml(row.periodLabel)}</span>
-                    <span class="section-hint">${escapeHtml(hint)}</span>
+                    ${hintHtml}
                 </label>`;
                 })
                 .join('') ||
@@ -993,6 +1036,12 @@
             });
         document
             .getElementById('debateBookClassSummaryMyClassesOnly')
+            ?.addEventListener('change', () => {
+                syncClassSummaryFiltersFromDom();
+                renderClassSummaryModal();
+            });
+        document
+            .getElementById('debateBookClassSummaryTodayOnly')
             ?.addEventListener('change', () => {
                 syncClassSummaryFiltersFromDom();
                 renderClassSummaryModal();

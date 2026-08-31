@@ -113,9 +113,9 @@
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/ui/classroom-autosave.js?v=20260807-deconflict-min',
             'js/classroom-essay-class-summary.js?v=20260807-deconflict-min',
-            'js/classroom-debate-books-summary.js?v=20260807-books-filters',
-            'js/classroom-debate-books-summary-print.js?v=20260807-books-filters',
-            'js/classroom-debate-books.js?v=20260810-book-check'
+            'js/classroom-debate-books-summary.js?v=20260831-books-today',
+            'js/classroom-debate-books-summary-print.js?v=20260831-books-today',
+            'js/classroom-debate-books.js?v=20260831-books-today'
         ],
         'speaking-test': [
             'js/roster-import.js?v=20260630-essay-import',
