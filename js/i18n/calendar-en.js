@@ -1157,8 +1157,13 @@
         rosterTmsBridgeTestBtn: 'Open bridge test',
         rosterTmsSyncColTms: 'TMS class',
         rosterTmsSyncColStudents: 'Students',
+        rosterTmsSyncColHomeroom: 'Homeroom (TMS)',
         rosterTmsSyncColTarget: 'ClassManager cohort',
         rosterTmsSyncColPreview: 'Preview',
+        rosterTmsSyncApplyHomeroom: 'Update homeroom from TMS',
+        rosterTmsSyncApplyHomeroomAll: 'Apply all homeroom updates',
+        rosterTmsSyncHomeroomUnmatched: 'No matching account — name saved as text',
+        rosterTmsSyncHomeroomWillChange: 'Differs from current: {current}',
         rosterTmsSyncPreviewLine:
             '+{added} new · {matched} matched · {flagged} missing from TMS · clear {cleared}',
         rosterTmsSyncPreviewLineWithReview:

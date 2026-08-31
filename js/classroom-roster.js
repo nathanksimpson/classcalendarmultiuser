@@ -1339,6 +1339,19 @@
         batchBar.hidden = Boolean(tmsSyncLoading) || tmsSyncPlan.length === 0;
     }
 
+    function applyAllTmsHomeroomRows() {
+        tmsSyncPlan.forEach((row) => {
+            if (!row || row.userAction === 'skip' || !row.tmsHomeroomName) {
+                return;
+            }
+            row.applyHomeroomFromTms = true;
+            row.homeroomApplyUserSet = true;
+            syncTmsRowHomeroomFields(row);
+        });
+        setTmsSyncError('');
+        renderTmsSyncTable();
+    }
+
     function skipAllTmsSyncRows() {
         tmsSyncPlan.forEach((row) => {
             row.userAction = 'skip';
@@ -1430,6 +1443,7 @@
             importCohortName: name,
             tmsClassId: resolved.tmsClassId || tmsClassId || '',
             tmsLinkKey: resolved.key || '',
+            tmsHomeroomName: (c && c.tmsHomeroomName) || '',
             studentCount: Array.isArray(c.students) ? c.students.length : 0,
             students: Array.isArray(c.students) ? c.students.slice() : [],
             scrapeSource,
@@ -1441,8 +1455,82 @@
             userTargetId: resolved.userTargetId || '',
             suggestedTargetId: resolved.suggestedTargetId || '',
             remembered: Boolean(resolved.remembered),
-            linkSource: resolved.source || 'none'
+            linkSource: resolved.source || 'none',
+            applyHomeroomFromTms: false,
+            homeroomApplyUserSet: false,
+            homeroomTeacherUserId: '',
+            homeroomTeacherName: ''
         };
+    }
+
+    function listTmsSyncTeachers() {
+        return hooks && hooks.listTeachers ? hooks.listTeachers() || [] : [];
+    }
+
+    function syncTmsRowHomeroomFields(row) {
+        if (!row || row.userAction === 'skip') {
+            return;
+        }
+        const d = domain();
+        if (!d || !d.resolveTmsHomeroomForRow) {
+            return;
+        }
+        let cohort = null;
+        if (row.userAction === 'map' && row.userTargetId) {
+            cohort = getCohorts().find((c) => c && c.id === row.userTargetId);
+        }
+        const res = d.resolveTmsHomeroomForRow(row, listTmsSyncTeachers(), cohort);
+        row._homeroomMeta = res;
+        row.homeroomTeacherUserId = res.matchedUserId;
+        row.homeroomTeacherName = res.matchedName;
+        if (!row.homeroomApplyUserSet) {
+            if (row.userAction === 'create' && res.tmsHomeroomName) {
+                row.applyHomeroomFromTms = true;
+            } else {
+                row.applyHomeroomFromTms = res.defaultApplyHomeroom;
+            }
+        }
+    }
+
+    function refreshTmsPlanHomeroomFields() {
+        tmsSyncPlan.forEach((row) => syncTmsRowHomeroomFields(row));
+    }
+
+    function buildTmsHomeroomCellHtml(row, idx) {
+        if (!row || row.userAction === 'skip') {
+            return '<td class="roster-tms-homeroom-cell">—</td>';
+        }
+        syncTmsRowHomeroomFields(row);
+        const tmsName = String(row.tmsHomeroomName || '').trim();
+        if (!tmsName) {
+            return '<td class="roster-tms-homeroom-cell">—</td>';
+        }
+        const meta = row._homeroomMeta || {};
+        const hints = [];
+        if (!meta.matchedUserId) {
+            hints.push(t('rosterTmsSyncHomeroomUnmatched'));
+        }
+        if (meta.willChange && (meta.currentName || meta.currentUserId)) {
+            const currentLabel = meta.currentName || meta.currentUserId;
+            hints.push(
+                t('rosterTmsSyncHomeroomWillChange').replace('{current}', String(currentLabel))
+            );
+        }
+        const disabled = !tmsName;
+        const checked = row.applyHomeroomFromTms ? ' checked' : '';
+        const hintHtml = hints
+            .map((hint) => `<div class="section-hint">${escapeHtml(hint)}</div>`)
+            .join('');
+        return `<td class="roster-tms-homeroom-cell">
+            <div>${escapeHtml(tmsName)}</div>
+            ${hintHtml}
+            <label class="checkbox-label roster-tms-hr-apply-label">
+                <input type="checkbox" class="roster-tms-hr-apply" data-tms-row="${idx}"${checked}${
+                    disabled ? ' disabled' : ''
+                }>
+                <span>${escapeHtml(t('rosterTmsSyncApplyHomeroom'))}</span>
+            </label>
+        </td>`;
     }
 
     function buildTmsPreviewLine(summary) {
@@ -2713,6 +2801,7 @@
                 return `<tr data-tms-row="${idx}">
                     <td>${escapeHtml(row.importCohortName)}${linkHint}</td>
                     <td>${row.studentCount}</td>
+                    ${buildTmsHomeroomCellHtml(row, idx)}
                     <td><select class="field-select roster-tms-target" data-tms-row="${idx}">${optionsHtml(selected)}</select></td>
                     <td>${escapeHtml(buildTmsPreviewLine(summary))}${clearHint}${warn}</td>
                 </tr>`;
@@ -2722,14 +2811,27 @@
         mount.innerHTML = `<table class="roster-import-table"><thead><tr>
             <th>${escapeHtml(t('rosterTmsSyncColTms'))}</th>
             <th>${escapeHtml(t('rosterTmsSyncColStudents'))}</th>
+            <th>${escapeHtml(t('rosterTmsSyncColHomeroom'))}</th>
             <th>${escapeHtml(t('rosterTmsSyncColTarget'))}</th>
             <th>${escapeHtml(t('rosterTmsSyncColPreview'))}</th>
         </tr></thead><tbody>${
             rows ||
-            `<tr><td colspan="4">${escapeHtml(
+            `<tr><td colspan="5">${escapeHtml(
                 tmsSyncHasFetched ? t('rosterTmsSyncEmpty') : t('rosterTmsSyncIdle')
             )}</td></tr>`
         }</tbody></table>`;
+
+        mount.querySelectorAll('input.roster-tms-hr-apply').forEach((input) => {
+            input.addEventListener('change', () => {
+                const idx = Number(input.getAttribute('data-tms-row'));
+                const row = tmsSyncPlan[idx];
+                if (!row) {
+                    return;
+                }
+                row.applyHomeroomFromTms = Boolean(input.checked);
+                row.homeroomApplyUserSet = true;
+            });
+        });
 
         mount.querySelectorAll('select.roster-tms-target').forEach((sel) => {
             sel.addEventListener('change', () => {
@@ -2739,6 +2841,7 @@
                     return;
                 }
                 const val = sel.value;
+                row.homeroomApplyUserSet = false;
                 if (val === '__skip__') {
                     row.userAction = 'skip';
                     row.userTargetId = '';
@@ -3019,6 +3122,7 @@
             const calendar = getCohorts();
             const links = getTmsRosterLinks();
             tmsSyncPlan = cohorts.map((c) => buildTmsPlanRowFromScrape(c, calendar, links));
+            refreshTmsPlanHomeroomFields();
             if (!tmsSyncPlan.length) {
                 setTmsSyncStatus(
                     usedBridge
@@ -3195,6 +3299,7 @@
             pendingBookChecks = recorded.appData.pendingDebateBookChecks;
             didRecordBookChecks = true;
         }
+        refreshTmsPlanHomeroomFields();
         const applied = domain().applyTmsRosterPlan(cohorts, tmsSyncPlan, {
             newStudentId: () => domain().newId('stu'),
             newCohortId: () => domain().newId('cohort'),
@@ -3419,6 +3524,9 @@
         });
         document.getElementById('rosterTmsStudentReviewNextBtn')?.addEventListener('click', () => {
             advanceTmsWizard();
+        });
+        document.getElementById('rosterTmsSyncApplyHomeroomAllBtn')?.addEventListener('click', () => {
+            applyAllTmsHomeroomRows();
         });
         document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
             skipAllTmsSyncRows();

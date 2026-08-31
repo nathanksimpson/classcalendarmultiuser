@@ -1157,8 +1157,13 @@
         rosterTmsBridgeTestBtn: '브리지 테스트 열기',
         rosterTmsSyncColTms: 'TMS 반',
         rosterTmsSyncColStudents: '학생 수',
+        rosterTmsSyncColHomeroom: '담임 (TMS)',
         rosterTmsSyncColTarget: 'ClassManager 코호트',
         rosterTmsSyncColPreview: '미리보기',
+        rosterTmsSyncApplyHomeroom: 'TMS 담임 적용',
+        rosterTmsSyncApplyHomeroomAll: '담임 일괄 적용',
+        rosterTmsSyncHomeroomUnmatched: '일치하는 계정 없음 — 이름만 저장',
+        rosterTmsSyncHomeroomWillChange: '현재 담임과 다름: {current}',
         rosterTmsSyncPreviewLine:
             '+{added} 신규 · {matched} 일치 · {flagged} TMS 목록 없음 · 해제 {cleared}',
         rosterTmsSyncPreviewLineWithReview:

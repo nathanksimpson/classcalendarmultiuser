@@ -1095,10 +1095,102 @@
         return still;
     }
 
+    function matchHomeroomTeacherByName(tmsName, teachers) {
+        const name = String(tmsName || '').trim();
+        if (!name) {
+            return { userId: '', name: '' };
+        }
+        const list = Array.isArray(teachers) ? teachers : [];
+        const exact = list.find(
+            (r) =>
+                String(r.displayName || '').trim() === name || String(r.name || '').trim() === name
+        );
+        if (exact) {
+            return {
+                userId: normalizeStr(exact.userId),
+                name: String(exact.displayName || name).trim()
+            };
+        }
+        const lower = name.toLowerCase();
+        const fuzzy = list.find((r) => {
+            const dn = String(r.displayName || '').toLowerCase();
+            return dn && (dn.includes(lower) || lower.includes(dn));
+        });
+        if (fuzzy) {
+            return {
+                userId: normalizeStr(fuzzy.userId),
+                name: String(fuzzy.displayName || name).trim()
+            };
+        }
+        return { userId: '', name };
+    }
+
+    function cohortHomeroomSnapshot(cohort) {
+        if (!cohort) {
+            return { userId: '', name: '' };
+        }
+        return {
+            userId: normalizeStr(cohort.homeroomTeacherUserId),
+            name: normalizeStr(cohort.homeroomTeacherName)
+        };
+    }
+
+    function resolveTmsHomeroomForRow(row, teachers, existingCohort) {
+        const tmsHomeroomName = normalizeStr(row && row.tmsHomeroomName);
+        const matched = matchHomeroomTeacherByName(tmsHomeroomName, teachers);
+        const current = cohortHomeroomSnapshot(existingCohort);
+        const matchedUserId = matched.userId;
+        const matchedName = matchedUserId
+            ? matched.name || tmsHomeroomName
+            : tmsHomeroomName || matched.name;
+        let willChange = false;
+        if (tmsHomeroomName) {
+            if (matchedUserId) {
+                willChange = matchedUserId !== current.userId;
+            } else if (matchedName) {
+                willChange = matchedName !== current.name;
+            }
+        }
+        const defaultApplyHomeroom = Boolean(tmsHomeroomName) && !current.userId && !current.name;
+        return {
+            tmsHomeroomName,
+            matchedUserId,
+            matchedName,
+            currentUserId: current.userId,
+            currentName: current.name,
+            willChange,
+            defaultApplyHomeroom
+        };
+    }
+
+    function applyTmsHomeroomToCohort(cohort, row) {
+        if (!cohort || !row || !row.applyHomeroomFromTms) {
+            return cohort;
+        }
+        const uid = normalizeStr(row.homeroomTeacherUserId);
+        const name = normalizeStr(row.homeroomTeacherName) || normalizeStr(row.tmsHomeroomName);
+        if (!uid && !name) {
+            return cohort;
+        }
+        const out = Object.assign({}, cohort);
+        if (uid) {
+            out.homeroomTeacherUserId = uid;
+        } else {
+            delete out.homeroomTeacherUserId;
+        }
+        out.homeroomTeacherName = name;
+        return out;
+    }
+
     function createTmsRosterCohort(row, options) {
         const opts = options || {};
         const newCohortId =
             typeof opts.newCohortId === 'function' ? opts.newCohortId : () => newId('cohort');
+        const applyHr = Boolean(row && row.applyHomeroomFromTms);
+        const rowHrUid = applyHr ? normalizeStr(row.homeroomTeacherUserId) : '';
+        const rowHrName = applyHr
+            ? normalizeStr(row.homeroomTeacherName) || normalizeStr(row.tmsHomeroomName)
+            : '';
         return {
             id: newCohortId(),
             name: normalizeStr(row && row.importCohortName),
@@ -1117,8 +1209,10 @@
             periodCount: 0,
             scheduleBlock: normalizeStr(row && row.scheduleBlock) || 'primary',
             subjectSlots: [],
-            homeroomTeacherUserId: normalizeStr(opts.homeroomTeacherUserId),
-            homeroomTeacherName: '',
+            homeroomTeacherUserId: applyHr
+                ? rowHrUid
+                : normalizeStr(opts.homeroomTeacherUserId),
+            homeroomTeacherName: rowHrName,
             homeroomDaySuffix: '',
             tmsBlockStart: normalizeStr(row && row.tmsBlockStart),
             tmsBlockEnd: normalizeStr(row && row.tmsBlockEnd),
@@ -1207,13 +1301,16 @@
                 suppressMissing: Boolean(row && row.suppressMissingReview),
                 archiveStudents
             });
-            cohorts[idx] = Object.assign({}, targetAfterRestore, {
-                students: merged.students,
-                tmsStudentResolutions: mergeTmsStudentResolutions(
-                    targetAfterRestore.tmsStudentResolutions,
-                    sessionResolutions
-                )
-            });
+            cohorts[idx] = applyTmsHomeroomToCohort(
+                Object.assign({}, targetAfterRestore, {
+                    students: merged.students,
+                    tmsStudentResolutions: mergeTmsStudentResolutions(
+                        targetAfterRestore.tmsStudentResolutions,
+                        sessionResolutions
+                    )
+                }),
+                row
+            );
             results.push({
                 importCohortName: row.importCohortName,
                 targetId,
@@ -7237,6 +7334,9 @@
         withStudentTag,
         withoutStudentTag,
         mergeRosterByKoreanName,
+        matchHomeroomTeacherByName,
+        resolveTmsHomeroomForRow,
+        applyTmsHomeroomToCohort,
         applyTmsRosterPlan,
         detectTmsRosterTransfers,
         applyTmsRosterTransfers,

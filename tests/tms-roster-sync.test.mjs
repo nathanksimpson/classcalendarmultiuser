@@ -893,4 +893,104 @@ function assert(cond, msg) {
     assert(dropStatus.summary.added.length === 0, '신규학생 not added as student');
 }
 
+// TMS homeroom (담임) match + apply on roster sync
+{
+    const teachers = [{ userId: 'u_hr', displayName: '최미영' }];
+    const exact = D.matchHomeroomTeacherByName('최미영', teachers);
+    assert(exact.userId === 'u_hr', 'homeroom exact account match');
+    const fuzzy = D.matchHomeroomTeacherByName('미영', teachers);
+    assert(fuzzy.userId === 'u_hr', 'homeroom fuzzy account match');
+
+    const emptyResolve = D.resolveTmsHomeroomForRow(
+        { tmsHomeroomName: '최미영' },
+        teachers,
+        null
+    );
+    assert(emptyResolve.defaultApplyHomeroom === true, 'default apply when cohort has no HR');
+
+    const cohorts = [
+        {
+            id: 'c1',
+            name: 'Yellow M',
+            students: [{ id: 's1', name: '김민수', tags: [] }],
+            homeroomTeacherUserId: '',
+            homeroomTeacherName: ''
+        }
+    ];
+    const mapPlan = [
+        {
+            userAction: 'map',
+            userTargetId: 'c1',
+            importCohortName: 'YellowM^2609',
+            students: [{ name: '김민수' }],
+            tmsHomeroomName: '최미영',
+            applyHomeroomFromTms: true,
+            homeroomTeacherUserId: 'u_hr',
+            homeroomTeacherName: '최미영'
+        }
+    ];
+    const mapped = D.applyTmsRosterPlan(cohorts, mapPlan, { newStudentId: () => 'stu_new' });
+    assert(mapped.cohorts[0].homeroomTeacherUserId === 'u_hr', 'mapped cohort gets TMS HR user');
+    assert(mapped.cohorts[0].homeroomTeacherName === '최미영', 'mapped cohort gets TMS HR name');
+
+    const cohortsKeep = [
+        {
+            id: 'c1',
+            name: 'Yellow M',
+            students: [],
+            homeroomTeacherUserId: 'other',
+            homeroomTeacherName: 'Other Teacher'
+        }
+    ];
+    const keepPlan = [
+        {
+            userAction: 'map',
+            userTargetId: 'c1',
+            importCohortName: 'YellowM^2609',
+            students: [],
+            tmsHomeroomName: '최미영',
+            applyHomeroomFromTms: false,
+            homeroomTeacherUserId: 'u_hr',
+            homeroomTeacherName: '최미영'
+        }
+    ];
+    const kept = D.applyTmsRosterPlan(cohortsKeep, keepPlan, {});
+    assert(kept.cohorts[0].homeroomTeacherUserId === 'other', 'existing HR kept when apply unchecked');
+
+    const createPlan = [
+        {
+            userAction: 'create',
+            importCohortName: 'Orange M',
+            students: [{ name: '이서연' }],
+            tmsHomeroomName: '최미영',
+            applyHomeroomFromTms: true,
+            homeroomTeacherUserId: 'u_hr',
+            homeroomTeacherName: '최미영'
+        }
+    ];
+    const created = D.applyTmsRosterPlan([], createPlan, {
+        newCohortId: () => 'cohort_hr',
+        homeroomTeacherUserId: 'current_user'
+    });
+    assert(created.cohorts[0].homeroomTeacherUserId === 'u_hr', 'create cohort uses TMS HR not current user');
+
+    const nameOnlyPlan = [
+        {
+            userAction: 'create',
+            importCohortName: 'Navy M',
+            students: [{ name: '박지훈' }],
+            tmsHomeroomName: 'Unknown Teacher',
+            applyHomeroomFromTms: true,
+            homeroomTeacherUserId: '',
+            homeroomTeacherName: 'Unknown Teacher'
+        }
+    ];
+    const nameOnly = D.applyTmsRosterPlan([], nameOnlyPlan, {
+        newCohortId: () => 'cohort_name',
+        homeroomTeacherUserId: 'current_user'
+    });
+    assert(!nameOnly.cohorts[0].homeroomTeacherUserId, 'unmatched HR stores name only');
+    assert(nameOnly.cohorts[0].homeroomTeacherName === 'Unknown Teacher', 'unmatched HR name text');
+}
+
 console.log('tms-roster-sync.test.mjs: ok');
