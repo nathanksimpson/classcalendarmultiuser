@@ -8,6 +8,19 @@
     display: none !important;
 }
 
+/* Hide shell until auth + first paint boot completes (see ccp-auth-boot on html). */
+html.ccp-auth-boot {
+    background: var(--bg-main, #f4f6f9);
+}
+
+html.ccp-auth-boot body {
+    visibility: hidden;
+}
+
+[data-theme='dark'] html.ccp-auth-boot {
+    background: var(--bg-main, #0f172a);
+}
+
 :root {
     color-scheme: light;
     --primary: #14b98f;
