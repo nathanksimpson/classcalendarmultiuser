@@ -404,8 +404,9 @@
         classroomDebateBooksClassSummaryTitleNotIssued: '교재 미배부',
         classroomDebateBooksClassSummaryTitleMissing: '교재 분실',
         classroomDebateBooksClassSummaryFilterHint:
-            '담임 교사, 교재 월, 또는 범위로 필터한 뒤, 인쇄·복사에 포함할 반을 선택하세요.',
+            '담임 교사, 교재 월, 오늘 수업, 또는 범위로 필터한 뒤, 인쇄·복사에 포함할 반을 선택하세요.',
         classroomDebateBooksClassSummaryFilterMyClasses: '내 수업만',
+        classroomDebateBooksClassSummaryFilterTodayOnly: '오늘 수업만',
         classroomDebateBooksClassSummaryFilterDebateOnly: '토론 수업만',
         classroomDebateBooksClassSummaryFilterHomeroom: '담임 교사',
         classroomDebateBooksClassSummaryFilterMonth: '교재 월',
@@ -429,6 +430,7 @@
         classroomDebateBooksClassSummaryCopyDone: '교재 수업 요약을 복사했습니다.',
         classroomDebateBooksClassSummaryCopyFailed: '복사에 실패했습니다. 다시 시도하거나 인쇄를 사용하세요.',
         classroomDebateBooksClassSummaryEntryHint: '{issued}/{total} 배부',
+        classroomDebateBooksClassSummaryEntryHintNotIssued: '미배부 {count}명',
         speakingTestSelectClass: '위에서 반을 선택해 스피킹 점수를 관리하세요.',
         speakingTestMountError: '스피킹 테스트 도구를 불러오지 못했습니다. 새로고침 후 다시 시도하세요.',
         speakingTestSortTitle: '학생 정렬',

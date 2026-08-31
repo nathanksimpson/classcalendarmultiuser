@@ -21601,9 +21601,55 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     font-weight: 600;
 }
 
+.classroom-debate-books-summary-entry--has-unissued {
+    border-color: var(--banner-warn-border);
+}
+
+.classroom-debate-books-summary-entry-unissued {
+    color: var(--banner-warn-color);
+    font-weight: 600;
+}
+
 .classroom-debate-books-class-summary-preview {
     max-height: 320px;
     overflow: auto;
+}
+
+.classroom-debate-books-class-summary-preview .debate-book-class-summary-status-chip {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.classroom-debate-books-class-summary-preview .debate-book-summary-status--not-issued {
+    background: var(--banner-warn-bg);
+    border-color: var(--banner-warn-border);
+    color: var(--banner-warn-color);
+}
+
+.classroom-debate-books-class-summary-preview .debate-book-summary-status--issued {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+.classroom-debate-books-class-summary-preview .debate-book-summary-status--missing {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--text-on-primary, #fff);
+}
+
+.classroom-debate-books-class-summary-preview .debate-book-class-summary-row--not-issued td {
+    background: var(--banner-warn-bg);
+    color: var(--banner-warn-color);
+}
+
+.classroom-debate-books-class-summary-preview .debate-book-class-summary-row--missing td {
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
 }
 
 /* ============================================
