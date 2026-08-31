@@ -95,6 +95,115 @@ function assert(cond, msg) {
     assert(rows[0].planTitle.includes('Substitute Holiday'), 'holiday name in plan');
     assert(rows[0].planTitle.includes('(3/2)'), 'short date in plan');
     assert((rows[0].planDetail || '').length > 0, 'holiday has subline detail');
+    assert(rows[0].eventType === 'holiday', 'holiday eventType from colors');
+}
+
+// Evaluation period blocking slot uses the event's type, not a hardcoded holiday type
+{
+    const classData = { name: 'Navy' };
+    const lessons = [
+        { date: '2026-03-02', monthKey: '2026-03', label: '', __syllabusHoliday: true }
+    ];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(classData, lessons, {
+        isHolidayForClass: () => true,
+        getHolidayForClass: () => ({
+            name: 'Midterm week',
+            type: 'evaluation_period',
+            bgColor: '#e9d5ff',
+            textColor: '#6b21a1'
+        }),
+        getEventColors: (_ev, type) => ({
+            bg: '#e9d5ff',
+            text: '#6b21a1',
+            type: type || 'holiday'
+        })
+    });
+    assert(rows[0].kind === 'holiday', 'blocking eval period still occupies the slot');
+    assert(rows[0].eventType === 'evaluation_period', 'eventType follows calendar event type');
+}
+
+// Merge replaces stale eventType/colors when the calendar event type changes
+{
+    const existing = [{
+        id: 'h1',
+        kind: 'holiday',
+        date: '2026-03-02',
+        sessionNumber: 0,
+        planTitle: '(3/2) Midterm week',
+        planDetail: 'No class',
+        source: 'generated',
+        rowBg: '#fef3c7',
+        rowColor: '#b45309',
+        eventType: 'holiday'
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'holiday',
+        date: '2026-03-02',
+        sessionNumber: 0,
+        planTitle: '(3/2) Midterm week',
+        planDetail: 'No class',
+        source: 'generated',
+        rowBg: '#e9d5ff',
+        rowColor: '#6b21a1',
+        eventType: 'evaluation_period'
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated, { refreshScheduleTitles: true });
+    assert(merged[0].eventType === 'evaluation_period', 'merge takes generated eventType');
+    assert(merged[0].rowBg === '#e9d5ff', 'merge takes generated rowBg');
+    assert(merged[0].rowColor === '#6b21a1', 'merge takes generated rowColor');
+}
+
+// Merge clears leftover eventType when the generated row is a regular lesson
+{
+    const existing = [{
+        id: 'h1',
+        kind: 'holiday',
+        date: '2026-03-02',
+        sessionNumber: 0,
+        planTitle: '(3/2) Old holiday',
+        source: 'generated',
+        eventType: 'holiday',
+        rowBg: '#fef3c7'
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-03-02',
+        sessionNumber: 1,
+        lessonNumber: 1,
+        planTitle: 'Lesson 1',
+        source: 'generated'
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated);
+    assert(merged[0].kind === 'lesson', 'lesson replaces holiday when type no longer blocks');
+    assert(!merged[0].eventType, 'stale holiday eventType is not kept on lesson row');
+}
+
+// Same-key merge: empty generated eventType/colors must not keep the previous type
+{
+    const existing = [{
+        id: 'h1',
+        kind: 'holiday',
+        date: '2026-03-02',
+        sessionNumber: 0,
+        planTitle: 'Day off',
+        source: 'generated',
+        eventType: 'holiday',
+        rowBg: '#fef3c7',
+        rowColor: '#b45309'
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'holiday',
+        date: '2026-03-02',
+        sessionNumber: 0,
+        planTitle: 'Day off',
+        source: 'generated'
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated);
+    assert(merged[0].eventType === '', 'empty generated eventType clears stale type');
+    assert(merged[0].rowBg === '', 'empty generated rowBg clears stale color');
 }
 
 // Holiday meeting day consumes scheduled lesson (no orphan lesson slot)

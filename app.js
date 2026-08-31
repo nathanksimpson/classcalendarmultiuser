@@ -858,10 +858,13 @@ function initAppStoreAndRenderOrchestrator() {
             if (scheduleTypes.has(action.type) && typeof invalidateScheduleCache === 'function') {
                 invalidateScheduleCache();
             }
-            if (action.type === 'classes/upsert' || action.type === 'classes/remove') {
+            if (action.type === 'classes/upsert' || action.type === 'classes/remove'
+                || action.type === 'events/upsert' || action.type === 'events/remove') {
                 pendingCalendarForceFull = true;
-                if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
-                    CCPClassColorTile.refreshAll();
+                if (action.type === 'classes/upsert' || action.type === 'classes/remove') {
+                    if (typeof CCPClassColorTile !== 'undefined' && CCPClassColorTile.refreshAll) {
+                        CCPClassColorTile.refreshAll();
+                    }
                 }
             }
         });
@@ -3186,21 +3189,19 @@ function getSyllabusEventColors(event, type) {
     };
 }
 
-/** Fill rowBg/rowColor on holiday/event rows when missing (stale saves, form collect). */
+/** Fill rowBg/rowColor/eventType from the live calendar event (print + editor). */
 function enrichSyllabusRowColors(rows, classData) {
     if (!Array.isArray(rows) || !rows.length) {
         return rows || [];
     }
     return rows.map(row => {
-        if (row.rowBg) {
-            return row;
-        }
         const kind = row.kind || 'lesson';
         if (kind === 'holiday' && row.date && classData) {
             const hol = isHolidayForClass(row.date, classData)
                 ? getBlockingEventForClass(row.date, classData)
                 : null;
-            const colors = getSyllabusEventColors(hol, hol && hol.type ? hol.type : 'holiday');
+            const liveType = hol && hol.type ? hol.type : 'holiday';
+            const colors = getSyllabusEventColors(hol, liveType);
             return { ...row, rowBg: colors.bg, rowColor: colors.text, eventType: colors.type };
         }
         if (kind === 'event' && row.date && classData) {
@@ -7686,6 +7687,17 @@ let cachedDayIndexKey = '';
 
 function getDayIndexCacheKey() {
     const lf = appData.ui && appData.ui.lessonFilters;
+    const eventSig = (appData.events || []).map((e) => [
+        e && e.id ? e.id : '',
+        e && e.type ? e.type : '',
+        e && e.date ? e.date : '',
+        e && e.startDate ? e.startDate : '',
+        e && e.endDate ? e.endDate : '',
+        e && e.isRange ? '1' : '0',
+        e && e.accentColor ? e.accentColor : '',
+        e && e.bgColor ? e.bgColor : '',
+        e && e.name ? e.name : ''
+    ].join(':')).join('|');
     return JSON.stringify({
         termStart: appData.termStart,
         termEnd: appData.termEnd,
@@ -7694,6 +7706,7 @@ function getDayIndexCacheKey() {
         classIds: (appData.classes || []).map((c) => c.id).join(','),
         classColors: (appData.classes || []).map((c) => `${c.id}:${c.color || ''}:${c.textColor || ''}`).join('|'),
         eventCount: (appData.events || []).length,
+        eventSig,
         showAllCurricula: Boolean(appData.ui && appData.ui.showAllCurricula),
         lessonFilters: lf ? JSON.stringify(lf) : ''
     });
@@ -28015,7 +28028,8 @@ function handleHolidaySubmit(e) {
 
     syncHolidaysFromEvents();
     saveData();
-    if (eventTypeBlocksClass(eventData.type)) {
+    if (eventTypeBlocksClass(eventData.type)
+        || (existingEv && eventTypeBlocksClass(existingEv.type))) {
         const affected = getClassesAffectedByBlockingEventChange(existingEv, eventData);
         if (affected.length) {
             showEventSyllabiUpdateBanner(
@@ -30506,12 +30520,20 @@ function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
         return isPrintVisibilityOn(type);
     });
 
-    const schoolWideHoliday = visibleEvents.find(isSchoolWideHolidayEvent);
-    if (schoolWideHoliday) {
+    const schoolWideBlocking = visibleEvents.find((ev) =>
+        eventTypeBlocksClass(ev.type) && !eventHasAnyTargetFilter(ev)
+    );
+    if (schoolWideBlocking) {
+        const type = normalizeEventType(schoolWideBlocking.type);
+        const displayColors = resolveEventDisplayColors(schoolWideBlocking);
         return {
             chips: [],
-            holidayName: getEventDisplayName(schoolWideHoliday),
-            isHoliday: true
+            holidayName: getEventDisplayName(schoolWideBlocking),
+            isHoliday: type === EVENT_TYPES.HOLIDAY,
+            isBlockingEvent: true,
+            eventType: type,
+            bgColor: displayColors.bg,
+            textColor: displayColors.text
         };
     }
 
@@ -30618,8 +30640,14 @@ function buildCalendarPrintDayCell(dayData) {
     if (dayData.isOtherMonth) {
         cell.classList.add('is-other-month');
     }
-    if (dayData.isHoliday) {
+    if (dayData.isHoliday || dayData.isBlockingEvent) {
         cell.classList.add('is-holiday');
+        if (dayData.eventType) {
+            cell.classList.add(`cal-item-${dayData.eventType}`);
+        }
+        if (dayData.bgColor) {
+            cell.style.backgroundColor = dayData.bgColor;
+        }
     }
 
     const top = document.createElement('div');
@@ -30627,11 +30655,20 @@ function buildCalendarPrintDayCell(dayData) {
     const num = document.createElement('span');
     num.className = 'calendar-print-day-num';
     num.textContent = String(dayData.dayNumber);
+    if (dayData.textColor) {
+        num.style.color = dayData.textColor;
+    }
     top.appendChild(num);
     if (dayData.holidayName) {
         const hol = document.createElement('span');
         hol.className = 'calendar-print-holiday-label';
         hol.textContent = dayData.holidayName;
+        if (dayData.eventType) {
+            hol.classList.add(`cal-item-${dayData.eventType}`);
+        }
+        if (dayData.textColor) {
+            hol.style.color = dayData.textColor;
+        }
         top.appendChild(hol);
     }
     cell.appendChild(top);
@@ -31178,6 +31215,7 @@ function buildCalendarPrintContainerHtml() {
     if (!appData.ui.printVisibility) {
         appData.ui.printVisibility = readPrintCalendarVisibilityFromForm();
     }
+    invalidateScheduleCache();
     syncHolidaysFromEvents();
     if (pruneLessonFiltersToScheduledOptions()) {
         saveUiStateToLocalStorage();
@@ -32127,6 +32165,8 @@ function runAppPrint(printMode) {
         showSummary,
         syllabusOnly: showSummary && formOpts.syllabusOnly
     };
+
+    invalidateScheduleCache();
 
     ensureUiState();
     appData.ui.printVisibility = readPrintCalendarVisibilityFromForm();

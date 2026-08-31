@@ -85,7 +85,7 @@
                 return;
             }
             if (type === 'events/upsert' || type === 'events/remove') {
-                requestMany(['calendar', 'eventList']);
+                requestMany(['calendar', 'eventList', 'syllabus']);
                 return;
             }
             if (type === 'dayNotes/upsert' || type === 'dayNotes/remove' || type === 'dayNotes/mutate') {
