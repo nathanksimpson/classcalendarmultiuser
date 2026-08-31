@@ -404,8 +404,9 @@
         classroomDebateBooksClassSummaryTitleNotIssued: 'Books not issued',
         classroomDebateBooksClassSummaryTitleMissing: 'Books missing',
         classroomDebateBooksClassSummaryFilterHint:
-            'Filter by homeroom teacher, book month, or scope, then choose which classes to include in print and copy.',
+            'Filter by homeroom teacher, book month, today\'s classes, or scope, then choose which classes to include in print and copy.',
         classroomDebateBooksClassSummaryFilterMyClasses: 'My classes only',
+        classroomDebateBooksClassSummaryFilterTodayOnly: "Today's classes only",
         classroomDebateBooksClassSummaryFilterDebateOnly: 'Debate classes only',
         classroomDebateBooksClassSummaryFilterHomeroom: 'Homeroom teacher',
         classroomDebateBooksClassSummaryFilterMonth: 'Book month',
@@ -429,6 +430,7 @@
         classroomDebateBooksClassSummaryCopyDone: 'Books class summary copied.',
         classroomDebateBooksClassSummaryCopyFailed: 'Copy failed. Try again or use Print.',
         classroomDebateBooksClassSummaryEntryHint: '{issued}/{total} issued',
+        classroomDebateBooksClassSummaryEntryHintNotIssued: '{count} not issued',
         speakingTestSelectClass: 'Select a class above to manage speaking scores.',
         speakingTestMountError: 'Could not load speaking test tools. Refresh and try again.',
         speakingTestSortTitle: 'Student sort order',

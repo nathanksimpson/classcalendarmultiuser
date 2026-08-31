@@ -152,4 +152,93 @@ assert(html.includes('Missing'), 'print html includes status');
 const copyText = summary.formatCopyText(groups, labels);
 assert(copyText.includes('Student Two'), 'copy text includes student');
 
+assert(summary.rowHighlightCssClass('not_issued') === 'debate-book-class-summary-row--not-issued', 'not-issued row class');
+assert(summary.rowHighlightCssClass('missing') === 'debate-book-class-summary-row--missing', 'missing row class');
+assert(summary.rowHighlightCssClass('issued') === '', 'issued has no highlight class');
+
+const allGroups = summary.groupRowsByHomeroom(
+    summary.listRowsForEntries(appData, entries.filter((entry) => entry.classId === 'cls2')),
+    appData,
+    { warnMode: 'all' }
+);
+const allHtml = printApi.renderDocumentHtml({ groups: allGroups, generatedAt: '2026-03-15' }, labels);
+assert(allHtml.includes('debate-book-class-summary-row--not-issued'), 'print html highlights not issued');
+assert(allHtml.includes('Student Three'), 'print html includes unissued student');
+
+const cls2Hint = summary.formatEntryHint(entries.find((entry) => entry.classId === 'cls2'));
+assert(cls2Hint.notIssued === 1, 'entry hint counts not issued');
+assert(cls2Hint.issued === 0, 'entry hint issued for term class');
+
+const todayCtx = {
+    todayIso: '2026-03-15',
+    classOccursOnDate: (classData) => classData && classData.id === 'cls1'
+};
+assert(
+    summary.filterEntriesByHrAndMonth(entries, appData, { todayOnly: true }, todayCtx).length === 1,
+    'today-only keeps classes that meet today'
+);
+assert(
+    summary.filterEntriesByHrAndMonth(entries, appData, { todayOnly: true }, todayCtx)[0].classId ===
+        'cls1',
+    'today-only keeps the on-day class'
+);
+assert(
+    summary.filterEntriesByHrAndMonth(entries, appData, { todayOnly: true }, { todayIso: '2026-03-15' })
+        .length === 0,
+    'today-only with no occurs helper hides all'
+);
+
+const multiMonthData = {
+    classes: [
+        {
+            id: 'clsM',
+            name: 'Multi',
+            cohortIds: ['cohM'],
+            scheduleModel: 'debateMonthly',
+            startDate: '2026-03-01',
+            endDate: '2026-04-30',
+            book: 'Purple Book',
+            homeroomTeacherName: 'Kim HR',
+            classTeachers: [{ userId: 'u1', name: 'Teacher One' }]
+        }
+    ],
+    cohorts: [
+        {
+            id: 'cohM',
+            name: 'M',
+            homeroomTeacherName: 'Kim HR',
+            students: [{ id: 's9', name: 'Student Nine', active: true }]
+        }
+    ],
+    debateBookDistributions: []
+};
+const multiEntries = d.listDebateBookSummaryEntries(multiMonthData, { skipEmptyRoster: true });
+assert(multiEntries.length === 2, 'two month periods for multi-month class');
+const multiTodayCtx = {
+    todayIso: '2026-03-15',
+    classOccursOnDate: (classData) => classData && classData.id === 'clsM'
+};
+const narrowed = summary.filterEntriesByHrAndMonth(
+    multiEntries,
+    multiMonthData,
+    { todayOnly: true },
+    multiTodayCtx
+);
+assert(narrowed.length === 1, 'today-only with empty month keeps current period');
+assert(narrowed[0].periodKey === '2026-03', 'current period is March');
+const scopedMonths = summary.filterEntriesByHrAndMonth(
+    multiEntries,
+    multiMonthData,
+    { todayOnly: true, skipPeriodNarrow: true },
+    multiTodayCtx
+);
+assert(scopedMonths.length === 2, 'scope filter keeps all months for today class');
+const aprilPicked = summary.filterEntriesByHrAndMonth(
+    multiEntries,
+    multiMonthData,
+    { todayOnly: true, month: '2026-04' },
+    multiTodayCtx
+);
+assert(aprilPicked.length === 1 && aprilPicked[0].periodKey === '2026-04', 'explicit month still wins');
+
 console.log('classroom-debate-books-summary.test.mjs: ok');

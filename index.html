@@ -6,7 +6,7 @@
     <title>ClassManager &mdash; Team</title>
     <script>document.documentElement.classList.add('ccp-auth-boot');</script>
     <style>html.ccp-auth-boot body{visibility:hidden}html.ccp-auth-boot{background:var(--bg-main,#f4f6f9)}</style>
-    <link rel="stylesheet" href="styles.css?v=20260831-auth-boot-fix">
+    <link rel="stylesheet" href="styles.css?v=20260831-books-today">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260807-deconflict-min">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -14,7 +14,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260831-tms-hr-sync';
+        window.CCP_I18N_VERSION = '20260831-books-today';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1653,7 +1653,7 @@
                 <button type="button" class="modal-close" id="debateBookClassSummaryClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body classroom-essay-progress-modal-body classroom-debate-books-class-summary-modal-body">
-                <p class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterHint">Filter by homeroom teacher, book month, or scope, then choose which classes to include in print and copy.</p>
+                <p class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterHint">Filter by homeroom teacher, book month, today's classes, or scope, then choose which classes to include in print and copy.</p>
                 <div class="classroom-essay-progress-filters">
                     <label class="classroom-essay-resubmit-filter-field">
                         <span class="section-hint" data-i18n="classroomDebateBooksClassSummaryFilterHomeroom">Homeroom teacher</span>
@@ -1670,6 +1670,10 @@
                     <label class="checkbox-label">
                         <input type="checkbox" id="debateBookClassSummaryMyClassesOnly" />
                         <span data-i18n="classroomDebateBooksClassSummaryFilterMyClasses">My classes only</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="debateBookClassSummaryTodayOnly" />
+                        <span data-i18n="classroomDebateBooksClassSummaryFilterTodayOnly">Today's classes only</span>
                     </label>
                     <label class="checkbox-label">
                         <input type="checkbox" id="debateBookClassSummaryDebateOnly" />
@@ -2643,7 +2647,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260828-cohort-catch22"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260831-books-today"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2651,7 +2655,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20260831-auth-boot-fix"></script>
+    <script defer src="app.js?v=20260831-books-today"></script>
 </body>
 </html>
 

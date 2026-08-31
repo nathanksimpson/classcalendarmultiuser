@@ -28,6 +28,20 @@
         return map[status] || map.not_issued;
     }
 
+    function rowHighlightCssClass(status) {
+        const api = global.CCPClassroomDebateBooksSummary;
+        if (api && typeof api.rowHighlightCssClass === 'function') {
+            return api.rowHighlightCssClass(status);
+        }
+        if (status === 'not_issued') {
+            return 'debate-book-class-summary-row--not-issued';
+        }
+        if (status === 'missing') {
+            return 'debate-book-class-summary-row--missing';
+        }
+        return '';
+    }
+
     function formatStudentName(row) {
         const api = global.CCPClassroomDebateBooksSummary;
         if (api && typeof api.formatStudentDisplayName === 'function') {
@@ -42,7 +56,9 @@
         const label = statusLabel(r.status, labels);
         const note = String(r.note || '').trim();
         const issuedAt = r.status === 'issued' && r.issuedAt ? String(r.issuedAt) : '—';
-        return `<tr class="debate-book-class-summary-row">
+        const highlight = r.rowHighlightCss || rowHighlightCssClass(r.status);
+        const rowCls = ['debate-book-class-summary-row', highlight].filter(Boolean).join(' ');
+        return `<tr class="${escapeHtml(rowCls)}">
             <td class="debate-book-class-summary-col-index">${escapeHtml(String(r.rosterIndex || ''))}</td>
             <td class="debate-book-class-summary-col-student">${escapeHtml(formatStudentName(r))}</td>
             <td class="debate-book-class-summary-col-status">
@@ -139,9 +155,11 @@
 .debate-book-class-summary-table th { background: #f1f4f8; font-weight: 600; }
 .debate-book-class-summary-col-index { width: 2rem; text-align: right; }
 .debate-book-class-summary-status-chip { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 8.5pt; font-weight: 600; color: #fff; border: 1px solid transparent; }
-.debate-book-class-summary-status-chip.debate-book-summary-status--not-issued { background: #b6c0cf; border-color: #b6c0cf; color: #1f2937; }
+.debate-book-class-summary-status-chip.debate-book-summary-status--not-issued { background: #fef3c7; border-color: #f59e0b; color: #78350f; }
 .debate-book-class-summary-status-chip.debate-book-summary-status--issued { background: #14b98f; border-color: #14b98f; }
 .debate-book-class-summary-status-chip.debate-book-summary-status--missing { background: #dc2626; border-color: #dc2626; }
+.debate-book-class-summary-row--not-issued td { background: #fef3c7; }
+.debate-book-class-summary-row--missing td { background: #fdecec; }
 .debate-book-class-summary-empty { color: #666; font-style: italic; }
 @media print {
     .debate-book-class-summary-header { page-break-after: avoid; break-after: avoid; }

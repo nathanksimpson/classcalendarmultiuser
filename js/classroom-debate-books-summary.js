@@ -50,6 +50,16 @@
         return STATUS_CSS[status] || STATUS_CSS.not_issued;
     }
 
+    function rowHighlightCssClass(status) {
+        if (status === 'not_issued') {
+            return 'debate-book-class-summary-row--not-issued';
+        }
+        if (status === 'missing') {
+            return 'debate-book-class-summary-row--missing';
+        }
+        return '';
+    }
+
     function normalizeWarnMode(mode) {
         const m = String(mode || '').trim();
         return WARN_MODES.includes(m) ? m : 'all';
@@ -129,12 +139,30 @@
         return (classData.classTeachers || []).some((row) => row && row.userId === userId);
     }
 
+    function entryClassOccursOnDate(classData, isoDate, ctx) {
+        const date = String(isoDate || '').trim();
+        if (!classData || !date) {
+            return false;
+        }
+        const deps = (ctx && ctx.deps) || {};
+        if (typeof deps.classOccursOnIsoDate === 'function') {
+            return deps.classOccursOnIsoDate(classData, date) === true;
+        }
+        if (ctx && typeof ctx.classOccursOnDate === 'function') {
+            return ctx.classOccursOnDate(classData, date) === true;
+        }
+        return false;
+    }
+
     function filterEntriesByHrAndMonth(entries, appData, filters, ctx) {
         const f = filters || {};
         const homeroomKey = String(f.homeroomKey || '').trim();
         const month = String(f.month || '').trim();
         const debateOnly = f.debateOnly === true;
         const myClassesOnly = f.myClassesOnly === true;
+        const todayOnly = f.todayOnly === true;
+        const skipPeriodNarrow = f.skipPeriodNarrow === true;
+        const todayIso = String((ctx && ctx.todayIso) || '').trim();
         const d = domain();
         return (Array.isArray(entries) ? entries : []).filter((entry) => {
             if (!entry) {
@@ -159,6 +187,17 @@
                 const userId = (ctx && ctx.currentUserId) || '';
                 if (!entryClassIsMine(classData, userId, ctx && ctx.deps)) {
                     return false;
+                }
+            }
+            if (todayOnly) {
+                if (!entryClassOccursOnDate(classData, todayIso, ctx)) {
+                    return false;
+                }
+                if (!month && !skipPeriodNarrow && classData && d && d.pickDefaultDebateBookPeriodKey) {
+                    const expected = d.pickDefaultDebateBookPeriodKey(classData, todayIso);
+                    if (expected && String(entry.periodKey || '') !== String(expected)) {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -257,7 +296,8 @@
                                     .map((student, index) =>
                                         Object.assign({}, student, {
                                             rosterIndex: index + 1,
-                                            statusCss: statusCssClass(student.status)
+                                            statusCss: statusCssClass(student.status),
+                                            rowHighlightCss: rowHighlightCssClass(student.status)
                                         })
                                     );
                                 return Object.assign({}, period, { students });
@@ -371,8 +411,10 @@
     function formatEntryHint(entry) {
         const counts = (entry && entry.counts) || {};
         const issued = counts.issued || 0;
+        const notIssued = counts.not_issued || 0;
+        const missing = counts.missing || 0;
         const total = entry && entry.totalStudents ? entry.totalStudents : 0;
-        return { issued, total };
+        return { issued, notIssued, missing, total };
     }
 
     global.CCPClassroomDebateBooksSummary = {
@@ -380,6 +422,7 @@
         WARN_MODES,
         STATUS_CSS,
         statusCssClass,
+        rowHighlightCssClass,
         normalizeWarnMode,
         rowMatchesWarnMode,
         filterRowsByWarnMode,
