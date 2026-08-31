@@ -4411,6 +4411,105 @@
         return normalizeDebateSheetTemplate(sheetTemplate) === 'yeoul' ? 20 : 30;
     }
 
+    function unwrapDebateScoreStudent(entry) {
+        if (!entry || typeof entry !== 'object') {
+            return null;
+        }
+        if (entry.student && typeof entry.student === 'object') {
+            return entry.student;
+        }
+        return entry;
+    }
+
+    function formatDebateScoreRoleLabel(rec) {
+        if (!rec || typeof rec !== 'object') {
+            return '';
+        }
+        const abbr = normalizeStr(rec.roleAbbr);
+        const bench = normalizeStr(rec.bench);
+        if (abbr && bench) {
+            return `${abbr} · ${bench}`;
+        }
+        if (abbr) {
+            return abbr;
+        }
+        return normalizeStr(rec.roleName);
+    }
+
+    function buildDebateRoleMapFromTeamSession(teamSession, students) {
+        const map = Object.create(null);
+        const debates =
+            teamSession &&
+            teamSession.sessionState &&
+            Array.isArray(teamSession.sessionState.debates)
+                ? teamSession.sessionState.debates
+                : [];
+        const list = Array.isArray(students) ? students : [];
+        const byId = Object.create(null);
+        const byName = Object.create(null);
+        list.forEach((entry) => {
+            const student = unwrapDebateScoreStudent(entry);
+            const sid = normalizeStr(student && student.id);
+            if (!sid) {
+                return;
+            }
+            byId[sid] = student;
+            [student.name, student.nameEn].forEach((raw) => {
+                const name = normalizeStr(raw);
+                if (name && !byName[name]) {
+                    byName[name] = student;
+                }
+            });
+        });
+
+        debates.forEach((debate, debateIdx) => {
+            if (!debate) {
+                return;
+            }
+            const debateNumberRaw = debate.number;
+            const debateNumber =
+                debateNumberRaw == null || debateNumberRaw === ''
+                    ? debateIdx + 1
+                    : Number(debateNumberRaw);
+            const resolvedNumber = Number.isFinite(debateNumber) ? debateNumber : debateIdx + 1;
+            const benches = Array.isArray(debate.benches) ? debate.benches : [];
+            benches.forEach((bench) => {
+                if (!bench) {
+                    return;
+                }
+                const benchLabel = normalizeStr(bench.label) || normalizeStr(bench.name);
+                const members = Array.isArray(bench.members) ? bench.members : [];
+                members.forEach((member) => {
+                    if (!member) {
+                        return;
+                    }
+                    const role = member.role && typeof member.role === 'object' ? member.role : {};
+                    const roleAbbr = normalizeStr(role.abbr) || normalizeStr(member.roleAbbr);
+                    const roleName = normalizeStr(role.name) || normalizeStr(member.roleName);
+                    let student = null;
+                    const memberId = normalizeStr(member.studentId);
+                    if (memberId && byId[memberId]) {
+                        student = byId[memberId];
+                    } else {
+                        const memberName = normalizeStr(member.name);
+                        student = memberName ? byName[memberName] : null;
+                    }
+                    const studentId = normalizeStr(student && student.id);
+                    if (!studentId) {
+                        return;
+                    }
+                    map[studentId] = {
+                        roleAbbr,
+                        roleName,
+                        debateNumber: resolvedNumber,
+                        bench: benchLabel
+                    };
+                });
+            });
+        });
+        return map;
+    }
+
     function normalizeDebateCustomFormat(raw) {
         if (!raw || !raw.id) {
             return null;
@@ -7528,6 +7627,8 @@
         upsertDebateScoreSession,
         getDebateScoreCriteria,
         getDebateScoreMaxTotal,
+        formatDebateScoreRoleLabel,
+        buildDebateRoleMapFromTeamSession,
         migrateClassroomData,
         newId
     };
