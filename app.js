@@ -20667,6 +20667,7 @@ function getClassroomHooks() {
         getClassLevelDisplay,
         getEffectiveClassPeriodValues,
         getClassTeachersList: getClassTeachersListForLessonFilter,
+        listTeachers: listTimetableTeachers,
         formatClassTypeFilterLabel(classTypeId) {
             const def = getClassTypeDefinitionById(classTypeId);
             return getClassTypeOptionLabel(def);

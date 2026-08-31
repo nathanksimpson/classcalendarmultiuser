@@ -14,7 +14,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260828-cohort-catch22';
+        window.CCP_I18N_VERSION = '20260831-tms-hr-sync';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1973,6 +1973,7 @@
                 <p id="rosterTmsSyncStatus" class="section-hint" aria-live="polite"></p>
                 <div class="module-toolbar classroom-tab-toolbar roster-tms-sync-toolbar" id="rosterTmsSyncBatchBar" hidden>
                     <div class="toolbar-actions">
+                        <button type="button" id="rosterTmsSyncApplyHomeroomAllBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsSyncApplyHomeroomAll">Apply all homeroom updates</button>
                         <button type="button" id="rosterTmsSyncCreateAllBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsSyncCreateAll">Create all new cohorts</button>
                         <button type="button" id="rosterTmsSyncSkipAllBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsSyncSkipAll">Skip all</button>
                         <button type="button" id="rosterTmsSyncSkipUnmappedBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsSyncSkipUnmapped">Skip unmapped</button>
@@ -2583,7 +2584,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260806-per-period-remap"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260827-od-future-due"></script>
+    <script defer src="js/classroom-domain.js?v=20260831-tms-hr-sync"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260824-mention-no-at-colon"></script>

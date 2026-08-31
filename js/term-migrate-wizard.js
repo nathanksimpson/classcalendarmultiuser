@@ -252,26 +252,12 @@
     }
 
     function matchHomeroomTeacherByName(tmsName) {
-        const name = String(tmsName || '').trim();
-        if (!name || !hooks || !hooks.listTeachers) {
+        const d = domain();
+        if (!d || !d.matchHomeroomTeacherByName) {
+            const name = String(tmsName || '').trim();
             return { userId: '', name: name };
         }
-        const teachers = hooks.listTeachers() || [];
-        const exact = teachers.find(
-            (r) => String(r.displayName || '').trim() === name || String(r.name || '').trim() === name
-        );
-        if (exact) {
-            return { userId: exact.userId || '', name: exact.displayName || name };
-        }
-        const lower = name.toLowerCase();
-        const fuzzy = teachers.find((r) => {
-            const dn = String(r.displayName || '').toLowerCase();
-            return dn && (dn.includes(lower) || lower.includes(dn));
-        });
-        if (fuzzy) {
-            return { userId: fuzzy.userId || '', name: fuzzy.displayName || name };
-        }
-        return { userId: '', name };
+        return d.matchHomeroomTeacherByName(tmsName, hooks.listTeachers ? hooks.listTeachers() : []);
     }
 
     /**

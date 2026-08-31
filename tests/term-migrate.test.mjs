@@ -146,6 +146,13 @@ const D = loadDomain();
     assert(typeof tms.parseClassPopupHomeroomName === 'function', 'homeroom parser');
     const hr = tms.parseClassPopupHomeroomName(html);
     assert(hr === '최익하', `expected 최익하 got ${hr}`);
+
+    const yellowHtml = readFileSync(
+        path.join(__dirname, 'fixtures', 'tms', 'class-popup-yellow-schedule-snippet.html'),
+        'utf8'
+    );
+    const yellowHr = tms.parseClassPopupHomeroomName(yellowHtml);
+    assert(yellowHr === '최익하', `yellow fixture 담임 got ${yellowHr}`);
 }
 
 {

@@ -37,7 +37,7 @@
             'js/roster-import.js?v=20260806-name-marks',
             'js/classroom-access.js?v=20260807-hr-tools',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260828-student-archive-fix'
+            'js/classroom-roster.js?v=20260831-tms-hr-sync'
         ],
         attendance: [
             'js/classroom-access.js?v=20260807-hr-tools',
