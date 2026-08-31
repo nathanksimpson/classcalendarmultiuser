@@ -1448,6 +1448,11 @@
                 await TeamAuth.ensure();
             } catch (e) {
                 if (e && e.message === 'redirect') {
+                    if (typeof clearAuthBootPending === 'function') {
+                        clearAuthBootPending();
+                    } else if (typeof document !== 'undefined' && document.documentElement) {
+                        document.documentElement.classList.remove('ccp-auth-boot');
+                    }
                     return;
                 }
             }
