@@ -389,12 +389,30 @@
         const backdrop = getNotesEditorBackdrop();
         if (sheet) {
             sheet.hidden = true;
+            sheet.setAttribute('hidden', '');
         }
         if (backdrop) {
             backdrop.hidden = true;
+            backdrop.setAttribute('hidden', '');
             backdrop.setAttribute('aria-hidden', 'true');
         }
         document.body.classList.remove('notes-editor-open');
+    }
+
+    /** Keep the list visible — editor overlay must not stick open and cover the page. */
+    function resetNotesEditorChrome() {
+        concealNotesEditorSheet();
+    }
+
+    function setNotesPageLoading(loading) {
+        if (!document.body.classList.contains('notes-page')) {
+            return;
+        }
+        document.body.classList.toggle('notes-page-loading', loading === true);
+        const main = document.querySelector('.notes-main');
+        if (main) {
+            main.setAttribute('aria-busy', loading ? 'true' : 'false');
+        }
     }
 
     function setNotesEditorOpen(open) {
@@ -1341,11 +1359,16 @@
         }
         setupNotesChrome();
         syncNotesReadOnlyBanner();
+        resetNotesEditorChrome();
 
         let classId = '';
         if (initialBoot) {
             notesSelectedClassId = null;
             syncNotesUrlFromSelection('', dateStr);
+            const urlClassId = normalizeNotesClassId(getParams().get('classId'));
+            if (urlClassId && classExistsInAppData(urlClassId)) {
+                classId = urlClassId;
+            }
         } else {
             const inMemoryId = normalizeNotesClassId(notesSelectedClassId);
             if (editorWasOpen && inMemoryId && classExistsInAppData(inMemoryId)) {
@@ -1384,6 +1407,7 @@
             }
             saveNotesSessionState();
         }
+        setNotesPageLoading(false);
     };
 
     window.syncNotesLockReadOnlyState = function syncNotesLockReadOnlyState() {
@@ -1422,6 +1446,8 @@
         }
 
         repairCorruptedNotesMarkup();
+        resetNotesEditorChrome();
+        setNotesPageLoading(true);
 
         bindNotesControls();
         bindNotesAddTextInput();
@@ -1531,6 +1557,7 @@
             return;
         }
         repairCorruptedNotesMarkup();
+        resetNotesEditorChrome();
         if (typeof initNotesPage === 'function') {
             initNotesPage().catch((err) => {
                 console.error('initNotesPage failed:', err);
