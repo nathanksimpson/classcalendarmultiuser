@@ -29882,6 +29882,11 @@ function renderMonthsIncremental(dayIndex, forceFull) {
     }
 }
 
+/** ISO date for a day in a calendar grid cell (handles month/year rollover). */
+function getCalendarGridDateIso(year, monthIndex, dayNumber) {
+    return formatDateISO(new Date(year, monthIndex, dayNumber));
+}
+
 /** Build (but do not attach) a `.month-calendar` node for the given month. */
 function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
     const year = date.getFullYear();
@@ -29939,7 +29944,11 @@ function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
 
     // Previous month days
     for (let i = firstDay - 1; i >= 0; i--) {
-        allCells.push(createDayCell(prevMonthDays - i, true));
+        const dayNumber = prevMonthDays - i;
+        const dateStr = getCalendarGridDateIso(year, month - 1, dayNumber);
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        allCells.push(createDayCell(dayNumber, true, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
 
     // Current month days
@@ -29954,7 +29963,10 @@ function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
     const totalCells = firstDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
-        allCells.push(createDayCell(i, true));
+        const dateStr = getCalendarGridDateIso(year, month + 1, i);
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        allCells.push(createDayCell(i, true, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
 
     const weekRows = [];
@@ -30314,7 +30326,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         dayDiv.appendChild(eventsDiv);
     }
 
-    if (!isOtherMonth && dateStr) {
+    if (dateStr) {
         dayDiv.dataset.date = dateStr;
         dayDiv.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -30495,9 +30507,6 @@ function getCalendarPrintWeekdayLabels() {
 }
 
 function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
-    if (isOtherMonth) {
-        return { chips: [], holidayName: '', isHoliday: false };
-    }
     const visibleEvents = (dayEvents || []).filter((ev) => {
         const type = normalizeEventType(ev.type);
         if (type === EVENT_TYPES.HOLIDAY) {
@@ -30565,12 +30574,16 @@ function collectCalendarPrintMonthWeeks(monthDate, dayIndex) {
     let maxChipsInDay = 0;
 
     for (let i = firstDay - 1; i >= 0; i--) {
+        const dayNumber = prevMonthDays - i;
+        const dateStr = getCalendarGridDateIso(year, month - 1, dayNumber);
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons, true);
+        maxChipsInDay = Math.max(maxChipsInDay, content.chips.length);
         allCells.push({
-            dayNumber: prevMonthDays - i,
+            dayNumber,
             isOtherMonth: true,
-            chips: [],
-            holidayName: '',
-            isHoliday: false
+            ...content
         });
     }
 
@@ -30590,12 +30603,15 @@ function collectCalendarPrintMonthWeeks(monthDate, dayIndex) {
     const totalCells = firstDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
+        const dateStr = getCalendarGridDateIso(year, month + 1, i);
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons, true);
+        maxChipsInDay = Math.max(maxChipsInDay, content.chips.length);
         allCells.push({
             dayNumber: i,
             isOtherMonth: true,
-            chips: [],
-            holidayName: '',
-            isHoliday: false
+            ...content
         });
     }
 
