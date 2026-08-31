@@ -20703,6 +20703,7 @@ function getClassroomHooks() {
             }
             return false;
         },
+        classOccursOnIsoDate: (classData, isoDate) => classOccursOnIsoDate(classData, isoDate),
         classMatchesTeachers: classMatchesLessonFilterTeachers
     };
 }
