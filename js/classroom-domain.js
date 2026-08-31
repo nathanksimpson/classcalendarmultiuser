@@ -4456,6 +4456,73 @@
         return list.find((s) => s && debateTeamSessionKey(s.classId, s.date) === key) || null;
     }
 
+    function formatDebateScoreRoleLabel(rec) {
+        if (!rec || typeof rec !== 'object') {
+            return '';
+        }
+        const abbr = normalizeStr(rec.roleAbbr);
+        const bench = normalizeStr(rec.bench);
+        const name = normalizeStr(rec.roleName);
+        if (abbr && bench) {
+            return `${abbr} · ${bench}`;
+        }
+        if (abbr) {
+            return abbr;
+        }
+        return name;
+    }
+
+    function buildDebateRoleMapFromTeamSession(teamSession, students) {
+        const map = Object.create(null);
+        const state = teamSession && teamSession.sessionState;
+        const debates = state && Array.isArray(state.debates) ? state.debates : [];
+        if (!debates.length) {
+            return map;
+        }
+        const byId = Object.create(null);
+        const byName = Object.create(null);
+        (Array.isArray(students) ? students : []).forEach((st) => {
+            if (!st || !st.id) {
+                return;
+            }
+            const id = normalizeStr(st.id);
+            byId[id] = st;
+            [st.name, st.nameEn].forEach((raw) => {
+                const key = normalizeStr(raw);
+                if (key && !byName[key]) {
+                    byName[key] = st;
+                }
+            });
+        });
+        debates.forEach((debate) => {
+            const debateNumber = Number(debate && debate.number);
+            const benches = debate && Array.isArray(debate.benches) ? debate.benches : [];
+            benches.forEach((bench) => {
+                const benchLabel = normalizeStr(bench && bench.label);
+                const members = bench && Array.isArray(bench.members) ? bench.members : [];
+                members.forEach((member) => {
+                    if (!member) {
+                        return;
+                    }
+                    const sid = normalizeStr(member.studentId);
+                    const memberName = normalizeStr(member.name);
+                    const student = (sid && byId[sid]) || (memberName && byName[memberName]) || null;
+                    if (!student) {
+                        return;
+                    }
+                    const role = member.role && typeof member.role === 'object' ? member.role : {};
+                    map[student.id] = {
+                        roleAbbr: normalizeStr(role.abbr || member.roleAbbr),
+                        roleName: normalizeStr(role.name || member.roleName),
+                        debateNumber: Number.isFinite(debateNumber) ? debateNumber : null,
+                        bench: benchLabel
+                    };
+                });
+            });
+        });
+        return map;
+    }
+
     function upsertDebateTeamSession(sessions, entry) {
         const normalized = normalizeDebateTeamSession(entry);
         if (!normalized) {
@@ -7479,6 +7546,8 @@
         normalizeDebateTeamSession,
         normalizeDebateCustomFormat,
         findDebateTeamSession,
+        buildDebateRoleMapFromTeamSession,
+        formatDebateScoreRoleLabel,
         upsertDebateTeamSession,
         debateTeamSessionKey,
         normalizeSpeakingTestRecord,
