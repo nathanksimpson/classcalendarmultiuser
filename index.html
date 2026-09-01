@@ -6,7 +6,7 @@
     <title>ClassManager &mdash; Team</title>
     <script>document.documentElement.classList.add('ccp-auth-boot');</script>
     <style>html.ccp-auth-boot body{visibility:hidden}html.ccp-auth-boot{background:var(--bg-main,#f4f6f9)}</style>
-    <link rel="stylesheet" href="styles.css?v=20260831-books-today">
+    <link rel="stylesheet" href="styles.css?v=20260901-homeroom-print">
     <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260807-deconflict-min">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -14,7 +14,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260831-books-today';
+        window.CCP_I18N_VERSION = '20260901-homeroom-print';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1196,6 +1196,7 @@
                 <div class="cohorts-floating-toolbar" role="toolbar" aria-label="Cohort actions">
                     <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--primary">
                         <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
+                        <button type="button" id="cohortsPrintHomeroomListBtn" class="btn btn-outline btn-compact" data-i18n="homeroomDirectoryPrint">Print homeroom list</button>
                         <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search field-control--compact" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
                         <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
                             <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
@@ -2552,7 +2553,7 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260828-modal-stay"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260901-homeroom-print"></script>
     <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
@@ -2647,7 +2648,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260831-books-today"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260901-homeroom-print"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2655,7 +2656,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20260831-padding-days"></script>
+    <script defer src="app.js?v=20260901-homeroom-print"></script>
 </body>
 </html>
 

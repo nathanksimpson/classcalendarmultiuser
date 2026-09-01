@@ -9828,7 +9828,8 @@ body.dino-game-open {
         align-items: center;
     }
 
-    .cohorts-floating-toolbar-row--primary #cohortsAddBtn {
+    .cohorts-floating-toolbar-row--primary #cohortsAddBtn,
+    .cohorts-floating-toolbar-row--primary #cohortsPrintHomeroomListBtn {
         flex: 0 0 auto;
     }
 
