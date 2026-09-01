@@ -8,7 +8,9 @@
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/cohort-management.js?v=20260828-cohort-catch22',
             'js/setup-board.js?v=20260828-cohort-catch22',
-            'js/cohorts-class-detail.js?v=20260703-design-fidelity'
+            'js/cohorts-class-detail.js?v=20260703-design-fidelity',
+            'js/homeroom-directory.js?v=20260901-homeroom-print',
+            'js/homeroom-directory-print.js?v=20260901-homeroom-print'
         ],
         timetable: [
             'js/timetable-periods.js?v=20260619-term-flex',

@@ -20369,6 +20369,16 @@ async function initCohortsTabControls(options = {}) {
                 navigateToZone('schedule', 'timetable');
             });
         }
+        if (typeof CCPHomeroomDirectory !== 'undefined' && CCPHomeroomDirectory.init) {
+            CCPHomeroomDirectory.init({
+                getAppData: () => appData,
+                listTeachers: listTimetableTeachers,
+                ensureTeamTeacherAccountsLoaded,
+                getCalendarName: () => (appData.calendarName || '').trim(),
+                t,
+                showToast: (msg, isError) => showSyncToast(msg, isError)
+            });
+        }
         updateSetupGuideBanner();
         requestAnimationFrame(() => {
             syncCohortsBoardStickyOffsets();
