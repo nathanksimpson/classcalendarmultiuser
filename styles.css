@@ -278,7 +278,7 @@ html.ccp-auth-boot body {
     --app-chrome-sticky-top: 72px;
     /* Classroom class+date bar under the sticky chrome (set from JS when visible) */
     --classroom-zone-context-height: 56px;
-    /* Cohorts setup board: palette sticky top + viewport lock (set from JS) */
+    /* Cohorts: legacy tokens (board height is flex-fill on #panel-cohorts; not set from JS) */
     --cohorts-palette-sticky-top: calc(var(--app-chrome-sticky-top) + 4.5rem);
     --cohorts-board-chrome-height: 12rem;
     /* Homework copy tab: viewport offset to split layout (set from JS) */
@@ -1409,12 +1409,6 @@ body {
     color: var(--danger-color, #e74c3c);
 }
 
-.visibility-bar-label {
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-right: 4px;
-}
-
 .visibility-chip {
     font-size: 0.8125rem;
     margin: 0;
@@ -2333,12 +2327,6 @@ body:has(#panel-calendar:not([hidden])) {
 
 #calendarContainer .calendar-day.other-month .day-number {
     background: var(--bg-main);
-}
-
-#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .day-events,
-#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .calendar-event-chips,
-#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .holiday-name {
-    display: none;
 }
 
 #calendarContainer .calendar-day.holiday .day-number {
@@ -9029,6 +9017,12 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     flex: 1 1 100%;
 }
 
+.homework-due-date-input {
+    width: auto;
+    min-width: 10rem;
+    max-width: 12rem;
+}
+
 .homework-due-value--iso {
     font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
     font-variant-numeric: tabular-nums;
@@ -11514,22 +11508,6 @@ body.snake-game-open {
     text-align: center;
 }
 
-.workspace-snake-trigger {
-    color: #64748b;
-    border-color: var(--lock-btn-border);
-    background: var(--lock-btn-bg);
-}
-
-.workspace-header-actions .workspace-snake-trigger {
-    flex-shrink: 0;
-}
-
-[data-theme="dark"] .workspace-snake-trigger {
-    color: #94a3b8;
-    background: #334155;
-    border-color: #475569;
-}
-
 /* ============================================
    Hidden dinosaur runner easter egg
    ============================================ */
@@ -11611,6 +11589,24 @@ body.dino-game-open {
     font-size: 0.75rem;
     color: var(--text-muted, var(--text-secondary));
     text-align: center;
+}
+
+/* Cohorts tab — viewport fill + board scrollport (Homework-style flex remainder) */
+#panel-cohorts {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - var(--space-4, 16px));
+}
+
+#panel-cohorts .cohorts-extra-panel,
+#panel-cohorts .cohorts-floating-toolbar {
+    flex-shrink: 0;
+}
+
+#panel-cohorts .cohorts-board-with-detail {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
 }
 
 /* Cohorts tab — collapsible extra info (caret matches Term settings) */
@@ -11817,8 +11813,11 @@ body.dino-game-open {
 }
 
 #panel-cohorts .setup-board-layout {
-    height: calc(100dvh - var(--cohorts-board-chrome-height, 12rem));
-    max-height: calc(100dvh - var(--cohorts-board-chrome-height, 12rem));
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
     overflow: hidden;
     align-items: stretch;
 }
@@ -11838,6 +11837,7 @@ body.dino-game-open {
 #panel-cohorts .setup-board-center {
     display: flex;
     flex-direction: column;
+    flex: 1 1 0%;
     min-height: 0;
     overflow: hidden;
     height: 100%;
@@ -11851,6 +11851,7 @@ body.dino-game-open {
 }
 
 #panel-cohorts .setup-board-main {
+    flex: 1 1 0%;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
@@ -12334,6 +12335,15 @@ body.dino-game-open {
 }
 
 @media (max-width: 960px) {
+    #panel-cohorts {
+        min-height: 0;
+    }
+
+    #panel-cohorts .cohorts-board-with-detail {
+        flex: none;
+        min-height: 0;
+    }
+
     #panel-cohorts .setup-board-layout {
         height: auto;
         max-height: none;
@@ -12341,13 +12351,16 @@ body.dino-game-open {
     }
 
     #panel-cohorts .setup-board-center {
+        flex: none;
         height: auto;
         overflow: visible;
     }
 
     #panel-cohorts .setup-board-main {
+        flex: none;
         min-height: 12rem;
-        overflow-y: auto;
+        overflow: visible;
+        overscroll-behavior: auto;
     }
 
     .cohorts-extra-panel--collapsed .cohorts-extra-label {
@@ -12364,7 +12377,8 @@ body.dino-game-open {
         align-items: center;
     }
 
-    .cohorts-floating-toolbar-row--primary #cohortsAddBtn {
+    .cohorts-floating-toolbar-row--primary #cohortsAddBtn,
+    .cohorts-floating-toolbar-row--primary #cohortsPrintHrListBtn {
         flex: 0 0 auto;
     }
 
@@ -14323,14 +14337,15 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     min-height: var(--touch-min, 36px);
     margin: 0 2px -1px 0;
     padding: var(--space-2) var(--space-4);
-    border: 1px solid transparent;
+    border: 1px solid var(--border-color);
     border-bottom: none;
     border-radius: var(--radius-md) var(--radius-md) 0 0;
-    background: transparent;
+    background: linear-gradient(180deg, var(--surface-elevated), var(--bg-hover));
     color: var(--text-secondary);
     font-weight: 600;
     font-size: var(--text-body-md, 0.875rem);
     line-height: 1.2;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-card) 55%, transparent);
     cursor: pointer;
     white-space: nowrap;
     transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
@@ -14343,12 +14358,12 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
 
 .app-zone-btn.is-active,
 .app-zone-btn[aria-selected="true"] {
-    z-index: var(--z-sticky-cell);
-    border-color: var(--zone-tab-rail);
-    border-bottom-color: var(--zone-tab-active-bg);
-    background: var(--zone-tab-active-bg);
-    color: var(--primary);
-    box-shadow: 0 -1px 0 var(--zone-tab-rail);
+    z-index: var(--z-above-base);
+    color: var(--text-primary);
+    background: linear-gradient(180deg, var(--bg-card), var(--bg-hover));
+    border-color: var(--border-color);
+    border-top: 3px solid var(--shell-zone-active-top);
+    box-shadow: 0 -3px 8px color-mix(in srgb, var(--text-primary) 10%, transparent), inset 0 1px 0 var(--bg-card);
 }
 
 .app-zone-segment-nav {
@@ -14399,17 +14414,18 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    min-height: 30px;
+    min-height: var(--touch-min, 36px);
     margin: 0 2px -1px 0;
     padding: var(--space-1) var(--space-3);
-    border: 1px solid transparent;
+    border: 1px solid var(--border-color);
     border-bottom: none;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    background: transparent;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    background: linear-gradient(180deg, var(--surface-elevated), var(--bg-hover));
     color: var(--text-secondary);
-    font-size: var(--text-body-sm, 0.8125rem);
-    font-weight: 500;
+    font-size: var(--text-body-md, 0.875rem);
+    font-weight: 600;
     line-height: 1.2;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-card) 55%, transparent);
     cursor: pointer;
     white-space: nowrap;
     transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
@@ -14420,14 +14436,29 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     color: var(--text-primary);
 }
 
+[data-theme="dark"] .app-zone-btn,
+[data-theme="dark"] .app-zone-segment-btn {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-card) 8%, transparent);
+}
+
+[data-theme="dark"] .app-zone-btn.is-active,
+[data-theme="dark"] .app-zone-btn[aria-selected="true"],
+[data-theme="dark"] .app-zone-segment-btn.is-active,
+[data-theme="dark"] .app-zone-segment-btn[aria-selected="true"] {
+    color: var(--text-primary);
+    background: linear-gradient(180deg, var(--bg-card), var(--bg-hover));
+    border-color: var(--border-color);
+    box-shadow: 0 -3px 8px color-mix(in srgb, var(--text-primary) 18%, transparent), inset 0 1px 0 color-mix(in srgb, var(--bg-card) 12%, transparent);
+}
+
 .app-zone-segment-btn.is-active,
 .app-zone-segment-btn[aria-selected="true"] {
     z-index: var(--z-above-base);
-    margin-bottom: -2px;
-    border-color: var(--zone-tab-rail);
-    border-bottom: 2px solid var(--primary);
-    background: var(--accent-muted, rgba(37, 99, 235, 0.08));
-    color: var(--primary);
+    color: var(--text-primary);
+    background: linear-gradient(180deg, var(--bg-card), var(--bg-hover));
+    border-color: var(--border-color);
+    border-top: 3px solid var(--shell-zone-active-top);
+    box-shadow: 0 -3px 8px color-mix(in srgb, var(--text-primary) 10%, transparent), inset 0 1px 0 var(--bg-card);
     font-weight: 600;
 }
 
@@ -15009,7 +15040,7 @@ html[data-viewport="phone"] .app-zone-segment-btn {
 }
 
 .classroom-roster-layout {
-    grid-template-columns: minmax(140px, 200px) minmax(160px, 240px) minmax(0, 1fr);
+    grid-template-columns: minmax(22rem, 28rem) minmax(0, 1fr);
 }
 
 @media (max-width: 1280px) {
@@ -18303,6 +18334,7 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 
 .classroom-roster-student-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: stretch;
     gap: var(--space-2);
     border-bottom: 1px solid var(--border-color);
@@ -18324,7 +18356,8 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 }
 
 .classroom-roster-student-name {
-    flex: 1;
+    flex: 1 1 12rem;
+    min-width: 0;
     text-align: left;
     border: none;
     border-radius: 0;
@@ -18354,17 +18387,29 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     align-items: flex-start;
     gap: 2px;
     min-width: 0;
+    overflow: visible;
 }
 
 .classroom-roster-student-primary {
     font-weight: 600;
     line-height: 1.3;
+    white-space: nowrap;
 }
 
 .classroom-roster-student-secondary,
 .classroom-roster-student-meta {
     font-size: 0.8125rem;
     line-height: 1.2;
+    white-space: nowrap;
+}
+
+.classroom-roster-student-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
 }
 
 .classroom-roster-student-card {
@@ -18416,8 +18461,30 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 .classroom-roster-toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    align-items: flex-end;
+    overflow: visible;
+}
+
+.classroom-roster-cohort-picker {
+    position: relative;
+    flex: 0 1 260px;
+    min-width: 200px;
+    /* Below sticky chrome so the field scrolls under the top bar; still above the roster list. */
+    z-index: var(--z-dropdown);
+}
+
+.classroom-roster-cohort-picker .classroom-zone-class-combobox {
+    width: 100%;
+}
+
+.classroom-roster-cohort-picker .classroom-zone-class-field {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+    width: 100%;
+    margin: 0;
 }
 
 @media (max-width: 1024px) {
@@ -18751,44 +18818,6 @@ html[data-nav-tabs-collapsed="1"] .nav-tabs-collapsed-chip:not([hidden]) {
     width: 100%;
 }
 
-.app-zone-btn {
-    padding: 9px 17px;
-    font-size: var(--text-body-md);
-    font-weight: 600;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-    border: 1px solid var(--border-color);
-    border-bottom: none;
-    margin-bottom: -1px;
-    color: var(--text-secondary);
-    background: linear-gradient(180deg, var(--surface-elevated), var(--bg-hover));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.app-zone-btn.is-active,
-.app-zone-btn[aria-selected="true"] {
-    color: var(--text-primary);
-    background: linear-gradient(180deg, var(--bg-card), var(--bg-hover));
-    border-color: var(--border-color);
-    border-top: 3px solid var(--shell-zone-active-top);
-    box-shadow: 0 -3px 8px rgba(20, 30, 50, 0.1), inset 0 1px 0 #fff;
-    position: relative;
-    z-index: var(--z-above-base);
-}
-
-[data-theme="dark"] .app-zone-btn {
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-[data-theme="dark"] .app-zone-btn.is-active,
-[data-theme="dark"] .app-zone-btn[aria-selected="true"] {
-    color: #eaf6f1;
-    background: linear-gradient(180deg, #26354b, #172234);
-    border-color: #3a4d6a;
-    box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
 .app-zone-segment-nav {
     display: flex;
     align-items: flex-end;
@@ -18810,48 +18839,6 @@ html[data-nav-tabs-collapsed="1"] .nav-tabs-collapsed-chip:not([hidden]) {
     min-width: 0;
     background: transparent;
     box-shadow: none;
-}
-
-.app-zone-segment-btn {
-    position: relative;
-    z-index: var(--z-base);
-    padding: 7px 14px;
-    font-size: var(--text-body-md);
-    font-weight: 600;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-    border: 1px solid var(--border-color);
-    border-bottom: none;
-    margin: 0 2px -1px 0;
-    color: var(--text-secondary);
-    background: linear-gradient(180deg, var(--surface-elevated), var(--bg-hover));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.app-zone-segment-btn.is-active,
-.app-zone-segment-btn[aria-selected="true"] {
-    z-index: var(--z-above-base);
-    color: var(--text-primary);
-    background: linear-gradient(180deg, var(--bg-card), var(--bg-hover));
-    border-color: var(--border-color);
-    border-top: 3px solid var(--shell-zone-active-top);
-    box-shadow: 0 -3px 8px rgba(20, 30, 50, 0.1), inset 0 1px 0 #fff;
-}
-
-[data-theme="dark"] .app-zone-segment-btn {
-    color: #9aa8bd;
-    background: linear-gradient(180deg, #1e2b3e, #16202f);
-    border-color: #2a374e;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-[data-theme="dark"] .app-zone-segment-btn.is-active,
-[data-theme="dark"] .app-zone-segment-btn[aria-selected="true"] {
-    color: #eaf6f1;
-    background: linear-gradient(180deg, #26354b, #172234);
-    border-color: #3a4d6a;
-    box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .term-summary-strip {

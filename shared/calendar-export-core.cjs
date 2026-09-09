@@ -36,6 +36,7 @@ const CALENDAR_DOMAIN_TOP_LEVEL_KEYS = [
     'debateTeamSessions',
     'debateScores',
     'debateCustomFormats',
+    'essayGraderSettings',
     'speakingTestRecords',
     'debateBookDistributions',
     'pendingDebateBookChecks',
@@ -81,6 +82,7 @@ const ARRAY_KEYS = new Set([
 const OBJECT_KEYS = new Set([
     'tmsRosterLinks',
     'tmsEssayLinks',
+    'essayGraderSettings',
     'periodSlotMap',
     'defaultClassTypeOverrides',
     'bookOverrides',

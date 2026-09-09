@@ -462,6 +462,7 @@ function prepareClassroomForSave(user, calendarData, payload) {
     );
     const hasTmsRosterLinks = Object.prototype.hasOwnProperty.call(body, 'tmsRosterLinks');
     const hasTmsEssayLinks = Object.prototype.hasOwnProperty.call(body, 'tmsEssayLinks');
+    const hasEssayGraderSettings = Object.prototype.hasOwnProperty.call(body, 'essayGraderSettings');
 
     if (
         !hasCohorts &&
@@ -477,7 +478,8 @@ function prepareClassroomForSave(user, calendarData, payload) {
         !hasDebateBookDistributions &&
         !hasPendingDebateBookChecks &&
         !hasTmsRosterLinks &&
-        !hasTmsEssayLinks
+        !hasTmsEssayLinks &&
+        !hasEssayGraderSettings
     ) {
         return { error: 'No classroom fields to save', merged: {} };
     }
@@ -600,6 +602,12 @@ function prepareClassroomForSave(user, calendarData, payload) {
     if (hasTmsEssayLinks) {
         const raw = body.tmsEssayLinks;
         merged.tmsEssayLinks =
+            raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    }
+
+    if (hasEssayGraderSettings) {
+        const raw = body.essayGraderSettings;
+        merged.essayGraderSettings =
             raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
     }
 

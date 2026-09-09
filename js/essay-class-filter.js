@@ -6,7 +6,9 @@
         if (!classData || !domainApi) {
             return false;
         }
-        const rows = domainApi.getEssayRowsFromSyllabus(classData.syllabusRows);
+        const rows = domainApi.getEssayRowsFromSyllabus(classData.syllabusRows, {
+            classData
+        });
         return rows.length > 0;
     }
 

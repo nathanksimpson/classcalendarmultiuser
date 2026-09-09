@@ -92,6 +92,86 @@
         return `${monthKey}-01`;
     }
 
+    function monthKeyFromDateStr(dateStr) {
+        return ISO_DATE.test(dateStr) ? dateStr.slice(0, 7) : '';
+    }
+
+    /**
+     * Monday of the Mon–Fri school week containing dateStr.
+     * Same rule as syllabus-table getSchoolWeekMonday (Sun → previous Monday).
+     */
+    function schoolWeekMondayStr(dateStr) {
+        const d = parseISODateLocal(dateStr);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        const day = d.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        d.setDate(d.getDate() + diff);
+        return formatDateISO(d);
+    }
+
+    /**
+     * Teaching month for book handouts: Mon–Fri of the school week containing dateStr.
+     * Sat/Sun use the upcoming Monday. If that week crosses months, use Friday's YYYY-MM.
+     */
+    function teachingMonthKeyForDate(dateStr) {
+        if (!ISO_DATE.test(dateStr)) {
+            return '';
+        }
+        const d = parseISODateLocal(dateStr);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        const weekday = d.getDay();
+        let focus = dateStr;
+        if (weekday === 0) {
+            focus = addDays(dateStr, 1);
+        } else if (weekday === 6) {
+            focus = addDays(dateStr, 2);
+        }
+        const monday = schoolWeekMondayStr(focus);
+        if (!monday) {
+            return monthKeyFromDateStr(dateStr);
+        }
+        const friday = addDays(monday, 4);
+        const monMonth = monthKeyFromDateStr(monday);
+        const friMonth = monthKeyFromDateStr(friday);
+        if (monMonth && friMonth && monMonth !== friMonth) {
+            return friMonth;
+        }
+        return monthKeyFromDateStr(focus) || monMonth;
+    }
+
+    /**
+     * Suggested start for a calendar-month book unit.
+     * If the 1st is Tue–Fri, start on that week's Monday (clamped to termStart);
+     * otherwise start on the 1st (also clamped).
+     */
+    function periodStartForCalendarMonth(monthKey, termStart) {
+        const first = monthKeyToFirstDay(monthKey);
+        if (!ISO_DATE.test(first)) {
+            return '';
+        }
+        const d = parseISODateLocal(first);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        const weekday = d.getDay();
+        let start = first;
+        if (weekday >= 2 && weekday <= 5) {
+            start = schoolWeekMondayStr(first) || first;
+        }
+        if (termStart && ISO_DATE.test(termStart)) {
+            start = maxDateStr(termStart, start);
+        }
+        return start;
+    }
+
+    function monthKeyForPeriodStart(startDate) {
+        return teachingMonthKeyForDate(startDate) || monthKeyFromDateStr(startDate);
+    }
+
     function normalizeDebateBookPeriods(classData) {
         const raw = Array.isArray(classData && classData.debateBookPeriods)
             ? classData.debateBookPeriods
@@ -159,8 +239,7 @@
 
         const termStart = classData.startDate || '';
         const periods = keys.map((monthKey) => {
-            const firstOfMonth = monthKeyToFirstDay(monthKey);
-            const startDate = maxDateStr(termStart, firstOfMonth);
+            const startDate = periodStartForCalendarMonth(monthKey, termStart);
             return {
                 id: generatePeriodId(),
                 startDate,
@@ -187,8 +266,9 @@
         }
         const target = classData.compressionMergesByPeriod;
         periods.forEach((period) => {
-            const monthKey = period.startDate.slice(0, 7);
-            if (Array.isArray(byMonth[monthKey]) && !target[period.id]) {
+            const start = period && period.startDate ? String(period.startDate).trim() : '';
+            const monthKey = monthKeyForPeriodStart(start);
+            if (monthKey && Array.isArray(byMonth[monthKey]) && !target[period.id]) {
                 target[period.id] = byMonth[monthKey].slice();
             }
         });
@@ -225,8 +305,8 @@
             const start = String(period.startDate || '').trim();
             if (ISO_DATE.test(start)) {
                 byStart.set(start, merges.slice());
-                const monthKey = start.slice(0, 7);
-                if (!byMonth.has(monthKey)) {
+                const monthKey = monthKeyForPeriodStart(start);
+                if (monthKey && !byMonth.has(monthKey)) {
                     byMonth.set(monthKey, merges.slice());
                 }
             }
@@ -254,7 +334,7 @@
                 merges = byStart.get(start);
             }
             if (!merges && ISO_DATE.test(start)) {
-                merges = byMonth.get(start.slice(0, 7));
+                merges = byMonth.get(monthKeyForPeriodStart(start));
             }
             if (Array.isArray(merges) && merges.length) {
                 result[period.id] = merges.slice();
@@ -342,7 +422,7 @@
         const monthKeys = enumerateMonthKeysBetween(startDateStr, endDateStr);
         return monthKeys.map((monthKey) => ({
             id: generatePeriodId(),
-            startDate: maxDateStr(startDateStr, monthKeyToFirstDay(monthKey)),
+            startDate: periodStartForCalendarMonth(monthKey, startDateStr),
             book
         })).filter((p) => ISO_DATE.test(p.startDate));
     }
@@ -371,6 +451,9 @@
         minDateStr,
         generatePeriodId,
         enumerateMonthKeysBetween,
+        teachingMonthKeyForDate,
+        periodStartForCalendarMonth,
+        monthKeyForPeriodStart,
         normalizeDebateBookPeriods,
         migrateBooksByMonthToPeriods,
         ensureDebateBookPeriodsForClass,

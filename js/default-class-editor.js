@@ -721,7 +721,13 @@
             duplicateBtn.addEventListener('click', () => {
                 const sourceId = list.value;
                 if (!sourceId) {
-                    alert(hooks.t('defaultClassEditorDuplicatePick'));
+                    if (typeof CCPNotice !== 'undefined' && CCPNotice.show) {
+                        CCPNotice.show(hooks.t('defaultClassEditorDuplicatePick'), {
+                            type: 'error',
+                            force: true,
+                            dismissible: true
+                        });
+                    }
                     return;
                 }
                 const newId = duplicateClassType(sourceId, getAppData());

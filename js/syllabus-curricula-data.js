@@ -2,22 +2,22 @@
  * PDF-derived session templates (day-independent). Source: Reference/Syllabi/Sample Syllabi/.
  */
 (function (global) {
-    const GR_PLAN_DETAIL = `<수업>
+    const GR_PLAN_DETAIL = `수업
 1) 과제검사
 2) 문제풀이
 3) 시험
-<과제>
+과제
 1) 문법공부계획표 작성
 2) 문법공부
 3) 문법문제풀이
 4) 문법시험`;
 
-    const RC_GREENBLUE_DETAIL = `<수업>
+    const RC_GREENBLUE_DETAIL = `수업
 1) 과제검사
 2) 단어시험 (10분)
 3) 본 수업 (30~35분)
 - 원어수업
-<과제>
+과제
 1) 음원듣고 따라읽기
 2) 해석숙제
 3) 워크북 (복습 숙제)
@@ -25,7 +25,7 @@
 - 주 1회 진행
 5) 틀린 단어 오답 해오기`;
 
-    const RC_NAVY_DETAIL = `<수업>
+    const RC_NAVY_DETAIL = `수업
 1) 출석체크
 2) 단어 or 해석시험 (10분)
 - 단어 : 20개 중 10개 시험
@@ -37,38 +37,38 @@
 - 본문해석 & 문제풀이
 - RC Chart & Summary
 - Grammar
-<과제>
+과제
 1) 음원 듣고 멘트 싸인받기
 2) 배운 내용 해석(Subnote)
 3) 매 유닛 학습 후, 워크북
 4) 필수보카 / 해석 시험준비
 5) 단어/ 해석시험 오답`;
 
-    const RC_SAEMMUL_DETAIL = `<수업>
+    const RC_SAEMMUL_DETAIL = `수업
 1) 과제검사
 2) 단어시험 (10분)
 3) 본 수업 (30~35분)
 - RC Reading
-<과제>
+과제
 1) 음원듣고 따라읽기
 2) 해석숙제
 3) 워크북
 4) 단어시험준비
 5) 틀린 단어 오답`;
 
-    const SIMDOK_DETAIL = `<수업>
+    const SIMDOK_DETAIL = `수업
 1) 출석체크
 2) 단어 or 해석시험 (10분)
 3) 과제 확인 및 채점 (10분)
 4) 본 수업(35-40분)
-<과제>
+과제
 1회차: 음원듣기, 문장해석, 단어정리, RC 문제풀기
 2회차: 음원듣기, 문장해석, Fix&Arrange, Essay Builder, 온라인보카, 다음유닛 보카+셀프리딩`;
 
-    const PHONICS_RED_DETAIL = `<수업>
+    const PHONICS_RED_DETAIL = `수업
 1) 파닉스 본 수업
 2) 책 따라 읽기 / 쓰기
-<과제>
+과제
 1) 음원 듣기
 2) 워크북
 3) 복습`;
@@ -254,11 +254,11 @@
         const book = writeRightBookLabel(bookNum);
         const typeLabel = SESSION_KIND_LABEL[spec.kind] || spec.kind;
         if (spec.kind === 'project') {
-            return `<${typeLabel} — ${book}, ${spec.projectLabel}>
+            return `${typeLabel} — ${book}, ${spec.projectLabel}
 Covered in class: ${formatWriteRightSbListDetail(spec.sbRanges)}
 ${WRITE_RIGHT_INCOMPLETE_HW}`;
         }
-        return `<${typeLabel} — ${book}, Lesson ${spec.lesson}${spec.part}>
+        return `${typeLabel} — ${book}, Lesson ${spec.lesson}${spec.part}
 Covered in class: ${formatWriteRightSbWbDetail(spec.sbRange, spec.wbRange)}
 ${WRITE_RIGHT_INCOMPLETE_HW}`;
     }
@@ -380,7 +380,7 @@ ${EARLY_WRITERS_INCOMPLETE_HW}`;
         }
         const typeLabel = SESSION_KIND_LABEL[spec.kind] || spec.kind;
         const half = spec.kind === 'speak' ? '[1/2]' : '[2/2]';
-        return `<${typeLabel} — ${book}, Unit ${spec.unit} ${half}>
+        return `${typeLabel} — ${book}, Unit ${spec.unit} ${half}
 ${formatEarlyWritersClassLine(spec.sbRange, spec.wbRange)}
 ${EARLY_WRITERS_INCOMPLETE_HW}`;
     }
@@ -454,7 +454,7 @@ ${EARLY_WRITERS_INCOMPLETE_HW}`;
         const book = bestWritingStarterBookLabel(bookNum);
         const typeLabel = SESSION_KIND_LABEL[spec.kind] || spec.kind;
         if (spec.kind === 'review') {
-            return `<${typeLabel} — ${book}, Review ${spec.review}>
+            return `${typeLabel} — ${book}, Review ${spec.review}
 Covered in class: Student Book ${formatPageRangeDetail(spec.sbRange)}
 Homework: ${BWS_HW_EVERY_OTHER_DAY}`;
         }
@@ -462,7 +462,7 @@ Homework: ${BWS_HW_EVERY_OTHER_DAY}`;
         const homework = spec.kind === 'speak'
             ? BWS_HW_EVERY_OTHER_DAY
             : `Portfolio book Unit ${spec.unit}`;
-        return `<${typeLabel} — ${book}, Unit ${spec.unit}-${partNum}>
+        return `${typeLabel} — ${book}, Unit ${spec.unit}-${partNum}
 Covered in class: Student Book ${formatPageRangeDetail(spec.sbRange)}
 Homework: ${homework}`;
     }

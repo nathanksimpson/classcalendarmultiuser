@@ -1,0 +1,438 @@
+
+
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1">
+	<title>심슨어학원에 오신 것을 환영합니다.</title>
+	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+	<link href="http://www.esimson.com/css/style.css" type="text/css" rel="stylesheet" />
+
+
+	<link rel="shortcut icon" href="http://www.esimson.com/favicon.ico" type="image/x-icon">
+</head>
+<script src="/Js/Jquery/jquery-1.8.2.min.js" type="text/javascript"></script>
+<link href="/css/Jquery/jquery-ui-1.8.18.custom.css" rel="stylesheet" type="text/css" />
+
+
+
+
+<script src="/Js/Jquery/jquery-ui-1.8.18.min.js" type="text/javascript"></script>
+<script src="/Js/Jquery/jquery.tooltip.js" type="text/javascript"></script>
+<script src="js/HuskyEZCreator.js" type="text/javascript"></script>
+<link href="/css/Jquery/jquery.tooltip.css" rel="stylesheet" type="text/css" />
+
+<script type="text/javascript">
+	$(document).ready(function () {
+
+
+		$('a').tooltip({ showURL: false, delay: 0, fade: 50, track: true, showBody: "@" });
+
+
+	})
+
+	function Setgo() {
+
+		if (document.getElementById("lblfile1").innerText == "") {
+			alert("동영상파일을 업로드 또는 녹화해 주세요");
+			return;
+
+		}
+		opener.document.getElementById("txtvideofilename").value = document.getElementById("lblfile1").innerText;
+
+
+		if (gubun == "") {
+			if (document.getElementById("opt2").checked == true) {
+				opener.document.getElementById("opt2").checked = true;
+			}
+			else {
+				opener.document.getElementById("opt3").checked = true;
+			}
+		}
+
+		window.close();
+
+	}
+
+	$(document).ready(function () {
+
+		//Default Action
+		$(".btn_show").show();
+		$(".btn_hide").hide();
+		$(".ex_box").hide();
+
+		//On Click Event
+		$(".btn_show a").click(function () {
+			$(".ex_box").show();
+			$(".btn_show").hide();
+			$(".btn_hide").show();
+			return false;
+		});
+
+		$(".btn_hide a").click(function () {
+			$(".ex_box").hide();
+			$(".btn_hide").hide();
+			$(".btn_show").show();
+			return false;
+		});
+
+	})
+
+	function Chk_Save() {
+
+		if (document.getElementById("txttitle").value == "") {
+			alert("제목을 입력해 주세요");
+			document.getElementById("txttitle").focus();
+			return false;
+		}
+
+		document.getElementById("txtcontent1").value = oEditors.getById["txtcontent1"].getIR();
+
+		if (document.getElementById("opt1").checked == true) {
+			if (document.getElementById("txtcontent1").value == "") {
+				alert("에세이을 입력해 주세요");
+				document.getElementById("txtcontent1").focus();
+				return false;
+			}
+		}
+		else {
+			if (document.getElementById("lblfile1").innerText == "" && document.getElementById("file1").value == "") {
+				alert("동영상녹화 화일을 업로드 해 주세요");
+				return false;
+			}
+
+			var dsFile, dsFile1, fileSize, maxSize, ext;
+
+			dsFile = document.getElementById("file1").value;
+			if (dsFile != "") {
+				if (document.getElementById("lblfile1").innerText != "") {
+					alert("동영상파일을 먼저 삭제하여 주세요.");
+					return false;
+				}
+
+				var ext = dsFile.substring(dsFile.lastIndexOf('.')).toLowerCase();
+				if (ext !== ".mp4") {
+					alert("mp4 파일만 서버에 저장할 수 있습니다.")
+					return false;
+				}
+
+				dsFile1 = document.getElementById("file1")
+
+				fileSize = dsFile1.files[0].size;
+				maxSize = 130 * 1024 * 1024;
+
+				if (fileSize > maxSize) {
+					alert("올릴 파일이 큽니다. 130MB 이하로 압축하세요.")
+					return false;
+				}
+			}
+		}
+	}
+
+	function homeview() {
+
+		if (document.getElementById("cmdhomeview").value == "HomeWork View") {
+			document.getElementById("cmdhomeview").value = "HomeWork Hidden";
+			$("#homeworkdetail").show();
+
+		}
+		else {
+			document.getElementById("cmdhomeview").value = "HomeWork View"
+			$("#homeworkdetail").hide();
+		}
+
+
+	}
+
+	function GoDong() {
+
+		filename = document.getElementById("lblfile1").innerText;
+		if (filename == "") {
+
+			alert("해당동영상이 없습니다.");
+			return;
+		}
+		window.open("/popup/viewdong.aspx?filename=" + filename, "govideo", "width=500,height=350,scrollbars=yes");
+
+	}
+
+	function SetAllScript() {
+
+		window.open("/popup/popup_Teacher_All.aspx?homeworkitemidx=1283783", "govideo", "width=950,height=750,scrollbars=yes");
+	}
+</script>
+<body id="page_body">
+	<form method="post" action="./recphotopholi.aspx?mpidx=124553&amp;classidx=30974&amp;homeworkitemidx=1283783&amp;wdate=20260722" id="form1" enctype="multipart/form-data">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUJNTY0MzEzODE3D2QWAmYPFgIeB2VuY3R5cGUFE211bHRpcGFydC9mb3JtLWRhdGEWFAINDxYCHgRUZXh0BRnquYDsnKDqsrhbWW9vR3l1bV0g7ZWZ7IOdZAISDxAPFgIeB0VuYWJsZWRnZGRkZAIZDw8WAh8BZWRkAhoPDxYCHgdWaXNpYmxlaGRkAiMPEGQPFgZmAgECAgIDAgQCBRYGEAUV7ZWZ7IOd7Y+s7J247Yq47ISg7YOdZWcQBRLqs7zsoJzsmrDsiJjsnpBbMV0FATNnEAUi7JuU6rCEIFBUIOuwnO2RnCDsmrDsiJjsnpAgMeuTsVs1XQUBNGcQBSbsm5TqsIQg64m07IqkIOy0rOyYgSDsmrDsiJjsnpAgMeuTsVs1XQUBN2cQBSbsm5TqsIQg64m07IqkIOy0rOyYgSDsmrDsiJjsnpAgMuuTsVszXQUBOGcQBSLsm5TqsIQgUFQg67Cc7ZGcIOyasOyImOyekCAy65OxWzNdBQIxMGdkZAIkDxYCHglpbm5lcmh0bWxlZAImDxYCHwNoZAInDxYCHwEFywtbV3JpdGluZ108ZGl2PjxiPuqzvOygnO2ZleyduCwg7IWA7ZSE7LK07YGsIO2bhCDsoIDsnqXtlZjrqbQg7Y+s7J247Yq4ICsx7KCQPC9iPjwvZGl2PjxkaXY+PGI+PGJyPjwvYj48L2Rpdj48ZGl2PjxiPuykgOu5hOusvDog6rWQ7J6sLCDsgrzsg4nrs7ztjpwsIO2Yleq0ke2OnCwg7Jew7ZWELCDsp4DsmrDqsJwsIO2SgDwvYj48L2Rpdj48ZGl2Pjxicj48L2Rpdj48ZGl2PuKZpeyImO2Wie2PieqwgCDrsJjsmIEhIOyImeygnOq8vOq8vO2eiCDtlbTsmKTquLDimaU8L2Rpdj48ZGl2Pjxicj48L2Rpdj48ZGl2PjxiPjxzcGFuIHN0eWxlPSdiYWNrZ3JvdW5kLWNvbG9yOiByZ2IoMjU1LCAyMzksIDApOyc+Ny8yNCjquIgpIDombmJzcDs8L3NwYW4+PC9iPjxiPjxzcGFuIHN0eWxlPSdiYWNrZ3JvdW5kLWNvbG9yOiByZ2IoMjU1LCAyMzksIDApOyc+7LSs7JiBL+u5iOy5uCZuYnNwOzwvc3Bhbj48L2I+PC9kaXY+PGRpdj48Yj48YnI+PC9iPjwvZGl2PjxkaXY+PGI+VG9waWMgOiBXaGF0IElzIGFuIElQTzwvYj48L2Rpdj48ZGl2Pjxicj48L2Rpdj48ZGl2PjxiPjEuIOyXkOyEuOydtCDsoJzstpwgfjcvMjco7JuUKTwvYj48L2Rpdj48ZGl2PjxiPjxicj48L2I+PC9kaXY+PGRpdj48Yj7sl5DshLjsnbQg7KO87KCcIDog6riw7JeF7J2YIOyDgeyepSDsmrTsmIHqs7wg67mE7IOB7J6lIOyatOyYgeydmCDsnqXri6jsoJA8L2I+PC9kaXY+PGRpdj48ZGl2PkVzc2F5IEV2YWx1YXRpb24gR3VpZGUgZm9yIEp1bHkuPC9kaXY+PGRpdj5QbGVhc2Ugbm90ZSB0aGUgZm9sbG93aW5nIGd1aWRlbGluZSBmb3IgdGhlIGVzc2F5IGV2YWx1YXRpb24gZm9yIEp1bHkuPC9kaXY+PGRpdj4xc3QgZ3JhZGU8L2Rpdj48ZGl2Pi0gTG93ZXIgbGV2ZWwoVW1hLCBMZW8pOiBtaW5pbXVtIDEwIHNlbnRlbmNlczwvZGl2PjxkaXY+LSBBbGwgc3R1ZGVudHMgYXJlIHRvPC9kaXY+PGRpdj4xKSBmb2xsb3cgW2ludHJvZHVjdGlvbiAtIGJvZHkgLSBjb25jbHVzaW9uXSBmb3JtYXQ8L2Rpdj48ZGl2PjIpIHN1Z2dlc3QgYXQgbGVhc3QgdHdvIGV2aWRlbmNlcyBmb3IgdGhlIGFyZ3VtZW50PC9kaXY+PGRpdj4zKSB1c2UgVmFyaW91cyB2ZXJicyBUZW5zZShwYXN0LXByZXNlbnQtZnV0dXJlIHRlbnNlKSwgQWRqZWN0aXZlIGNsYXVzZXMgKE4gdG8tdiwgTiB2aW5nLCBOIHBwKTwvZGl2PjwvZGl2PjxkaXY+PGJyPjwvZGl2PjxkaXY+7LWc7IaMIDEw66y47J6lPC9kaXY+PGRpdj48ZGl2PuuLpOyWke2VnCDsi5zsoJzsnZgg64+Z7IKsIOyCrOyaqSA6IOqzvOqxsCwg7ZiE7J6sLCDrr7jrnpgg7Iuc7KCcPC9kaXY+PGRpdj7tmJXsmqnsgqzsoIEg7Jqp67KVIOyCrOyaqSA6PC9kaXY+PGRpdj7rqoXsgqwgKyB0b+u2gOygleyCrCAoTiArIHRvLXYpPC9kaXY+PGRpdj7rqoXsgqwgKyDtmITsnqzrtoTsgqwgKE4gKyBWLWluZyk8L2Rpdj48ZGl2PuuqheyCrCArIOqzvOqxsOu2hOyCrCAoTiArIHAucC4pPC9kaXY+PC9kaXY+PGRpdj48YnI+PC9kaXY+ZAIoDxYCHwEFnwU8c3BhbiBjbGFzcz1ibHVlPuq5gOycoOqyuO2VmeyDneydmCBXcml0aW5n7J6F64uI64ukLjwvc3Bhbj48YnIvPiBJIHRoaW5rIHRoYXQgdGhlcmUgYXJlIG1hbnkgbGlzdGluZyBhbmQgdW5saXN0ZWQgb3BlcmF0aW9uJ3MgcHJvcyBhbmQgY29ucy48YnIgLz4KVGhlIHJlYXNvbnMgYXJlIGFzIGZsbG93cy48YnIgLz4KIEZpcnN0LCBsaXN0aW5nJ3MgcHJvcyBjYW4gY29sbGVjdCBtb25leSBlYXNpbHkuPGJyIC8+CkJlY2F1c2UgSWYgdGhleSBsaXN0LCBtYW55IHBlb3BsZSBpbnZlc3QgbW9uZXkuPGJyIC8+CiBTZWNvbmQsIGxzdGluZydzIGNvbnMgaXMgdGhhdCBvdGhlciBwZXNvbiBpbnRlcmZlcmUgbWFuYWdlbWVudC48YnIgLz4KQmVjYXVzZSBhbnN3ZXIgdG8gc2hhcmVob2xkZXJzLjxiciAvPgogVGhpcmQscHJpdmF0ZSdzIHByb3MgaXMgdGhleSBjYW4gY29udHJvbGwgY29tcGFueSBjb21mb3J0YWJseS48YnIgLz4KQmVjYXVzZSBvZiB3aXRob3V0IG91dHNpZGUgaW50ZXJmZXJlbmNlLjxiciAvPgogRmluYWxseSwgcHJpdmF0ZSdzIGNvbnMgaXNjYW4ndCBnZXQgbW9uZXkgZWFzaWx5LjxiciAvPgpCZWNhdXNlIHRoZXkgZG9uJ3QgbGlzdGluZy48YnIgLz4KIFNvIGxpc3RpbmcgYW5kIHVubGlzdGVkIG9wZXJhdGlvbidzIHByb3MgYW5kIGNvbnMgaXMgdmVyeSBtYW55LmQCKQ8WAh8EBfwXJmx0O3MmZ3Q7SSB0aGluayB0aGF0IHRoZXJlIGFyZSBtYW55IGxpc3RpbmcgYW5kIHVubGlzdGVkIG9wZXJhdGlvbiYjMzk7cyBwcm9zIGFuZCBjb25zLiZsdDsvcyZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7Zm9udCBjb2xvcj0mIzM5O3JlZCYjMzk7Jmd0O0kgYmVsaWV2ZSB0aGVyZSBhcmUgbWFueSBwcm9zIGFuZCBjb25zIHRvIGJvdGggbGlzdGVkIGFuZCB1bmxpc3RlZCBvcGVyYXRpb25zLiZsdDsvZm9udCZndDsmbHQ7YnImZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O3MmZ3Q7VGhlIHJlYXNvbnMgYXJlIGFzIGZsbG93cy4mbHQ7L3MmZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2ZvbnQgY29sb3I9JiMzOTtyZWQmIzM5OyZndDtUaGUgcmVhc29ucyBhcmUgYXMgZm9sbG93cy4mbHQ7L2ZvbnQmZ3Q7Jmx0O2JyJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtzJmd0O0ZpcnN0LCBsaXN0aW5nJiMzOTtzIHByb3MgY2FuIGNvbGxlY3QgbW9uZXkgZWFzaWx5LiZsdDsvcyZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7Zm9udCBjb2xvcj0mIzM5O3JlZCYjMzk7Jmd0O0ZpcnN0LCBvbmUgb2YgdGhlIGFkdmFudGFnZXMgb2YgbGlzdGluZyBpcyB0aGF0IGl0IGNhbiBjb2xsZWN0IG1vbmV5IGVhc2lseS4mbHQ7L2ZvbnQmZ3Q7Jmx0O2JyJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtzJmd0O0JlY2F1c2UgSWYgdGhleSBsaXN0LCBtYW55IHBlb3BsZSBpbnZlc3QgbW9uZXkuJmx0Oy9zJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtmb250IGNvbG9yPSYjMzk7cmVkJiMzOTsmZ3Q7VGhpcyBpcyBiZWNhdXNlIHdoZW4gY29tcGFuaWVzIGdvIHB1YmxpYywgbWFueSBwZW9wbGUgaW52ZXN0IG1vbmV5LiZsdDsvZm9udCZndDsmbHQ7YnImZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O3MmZ3Q7U2Vjb25kLCBsc3RpbmcmIzM5O3MgY29ucyBpcyB0aGF0IG90aGVyIHBlc29uIGludGVyZmVyZSBtYW5hZ2VtZW50LiZsdDsvcyZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7Zm9udCBjb2xvcj0mIzM5O3JlZCYjMzk7Jmd0O1NlY29uZCwgYSBkaXNhZHZhbnRhZ2Ugb2YgbGlzdGluZyBpcyB0aGF0IGl0IGFsbG93cyBvdGhlciBpbmRpdmlkdWFscyB0byBpbnRlcmZlcmUgaW4gbWFuYWdlbWVudC4mbHQ7L2ZvbnQmZ3Q7Jmx0O2JyJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtzJmd0O0JlY2F1c2UgYW5zd2VyIHRvIHNoYXJlaG9sZGVycy4mbHQ7L3MmZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2ZvbnQgY29sb3I9JiMzOTtyZWQmIzM5OyZndDtUaGlzIGlzIGJlY2F1c2UgdGhlcmUgaXMgYSBuZWVkIHRvIGFuc3dlciB0byBzaGFyZWhvbGRlcnMuJmx0Oy9mb250Jmd0OyZsdDticiZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7cyZndDtUaGlyZCxwcml2YXRlJiMzOTtzIHByb3MgaXMgdGhleSBjYW4gY29udHJvbGwgY29tcGFueSBjb21mb3J0YWJseS4mbHQ7L3MmZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2ZvbnQgY29sb3I9JiMzOTtyZWQmIzM5OyZndDtUaGlyZCwgYSBwcm8gb2YgYmVpbmcgcHJpdmF0ZSBpcyB0aGF0IHRoZXkgY2FuIGNvbnRyb2wgdGhlIGNvbXBhbnkgY29tZm9ydGFibHkuJmx0Oy9mb250Jmd0OyZsdDticiZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7cyZndDtCZWNhdXNlIG9mIHdpdGhvdXQgb3V0c2lkZSBpbnRlcmZlcmVuY2UuJmx0Oy9zJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtmb250IGNvbG9yPSYjMzk7cmVkJiMzOTsmZ3Q7VGhpcyBpcyBiZWNhdXNlIG9mIHRoZSBsYWNrIG9mIG91dHNpZGUgaW50ZXJmZXJlbmNlLiZsdDsvZm9udCZndDsmbHQ7YnImZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O3MmZ3Q7RmluYWxseSwgcHJpdmF0ZSYjMzk7cyBjb25zIGlzY2FuJiMzOTt0IGdldCBtb25leSBlYXNpbHkuJmx0Oy9zJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtmb250IGNvbG9yPSYjMzk7cmVkJiMzOTsmZ3Q7RmluYWxseSwgYSBjb24gb2YgYmVpbmcgcHJpdmF0ZSBpcyB0aGF0IGl0IGNhbm5vdCBlYXNpbHkgYWNxdWlyZSBmdW5kaW5nLiZsdDsvZm9udCZndDsmbHQ7YnImZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O3MmZ3Q7QmVjYXVzZSB0aGV5IGRvbiYjMzk7dCBsaXN0aW5nLiZsdDsvcyZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7Zm9udCBjb2xvcj0mIzM5O3JlZCYjMzk7Jmd0O1RoaXMgaXMgYmVjYXVzZSB0aGV5IGRvbiYjMzk7dCBnbyBwdWJsaWMuJmx0Oy9mb250Jmd0OyZsdDticiZndDsmbHQ7YnIgLyZndDsmbHQ7YnIgLyZndDsmbHQ7cyZndDtTbyBsaXN0aW5nIGFuZCB1bmxpc3RlZCBvcGVyYXRpb24mIzM5O3MgcHJvcyBhbmQgY29ucyBpcyB2ZXJ5IG1hbnkuJmx0Oy9zJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDtmb250IGNvbG9yPSYjMzk7cmVkJiMzOTsmZ3Q7U28gdGhlIHByb3MgYW5kIGNvbnMgb2YgYm90aCBsaXN0ZWQgYW5kIHVubGlzdGVkIG9wZXJhdGlvbnMgYXJlIG51bWVyb3VzLiZsdDsvZm9udCZndDsmbHQ7YnImZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7Jmx0O2ImZ3Q7U3VnZ2VzdGlvbnMgZm9yIEltcHJvdmVtZW50OiZsdDsvYiZndDsgJmx0O2JyIC8mZ3Q7Jmx0O2JyIC8mZ3Q7VGFrZSBjYXJlIHRvIHVzZSB0aGUgcHJvcGVyIGZvcm0gZm9yIEVuZ2xpc2ggd29yZHMuIEFsc28sIHN0cnVjdHVyZSB5b3VyIHNlbnRlbmNlcyBwcm9wZXJseS4gTWFrZSBzdXJlIHlvdXIgc2VudGVuY2VzIGFyZSBjbGVhciBhbmQgY29uY2lzZS4gV2hlbiBkaXNjdXNzaW5nIHRoZSBwcm9zIGFuZCBjb25zIG9mIHNvbWV0aGluZywgc3RhdGUgdGhlIHJlYXNvbnMgY2xlYXJseSBhbmQgcHJvdmlkZSBleGFtcGxlcyBpZiBwb3NzaWJsZS4gQWxzbywgdXNlIGNvbm5lY3Rpbmcgd29yZHMgdG8gbWFrZSB5b3VyIHdyaXRpbmcgZmxvdyBiZXR0ZXIuICZsdDticiAvJmd0OyZsdDticiAvJmd0OyZsdDticiAvJmd0O1lvdXIgU2NvcmU6IENkGAEFHl9fQ29udHJvbHNSZXF1aXJlUG9zdEJhY2tLZXlfXxYYBQdpbWdTYXZlBQhvcHRob21lMQUIb3B0aG9tZTEFCG9wdGhvbWUyBQRvcHQxBQRvcHQyBQRvcHQyBQRvcHQzBQRvcHQzBQRvcHQ0BQRvcHQ0BQRvcHQ2BQRvcHQ2BQdvcHRldmwxBQdvcHRldmwyBQdvcHRldmwyBQdvcHRldmwzBQdvcHRldmwzBQdvcHRldmw0BQdvcHRldmw0BQdvcHRldmw1BQdvcHRldmw1BQdvcHRldmw2BQdvcHRldmw2j19tCuM7EqFIGxnLAvdX0u959O0/RYs7CqeElSozkcc=" />
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="F1ADB562" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEdACskVMSbkBwSXR/+FNxF39FjBnAUdh45LtGF8vCTP/BAsLNWcblY4bL/Actx37iTl8KA4gbh1yeG5/IKFLx2dTRPrFHDqzmlkQMbIUsEvdP2EPT5hyuycW3aL1A84QOak712MP247pzVKQeGg5zkbhRGAnt1BIbT7puWpLYsZJqLZZA8aN96uSyTslWW0DCWtvur7JkHLGIEMCqy/CmGD9iswuoYQul3MuE6bNaeSGN+yOLI+AHaYY2yYABHBxYXvNyG9vlga/YqvMKzDLWrXpWq+WsYt9EEKw9YWY0V4Vpei9w6xs5OSodLE6kslAADRA3YJ4MARLHS+h8JPxC34RAc0lEJObKHbg+9C+FIeZXw+09j9PyTj17p0D/kUsRVK8V7foAoi0j+vDaW22TT07VjoPcBM5xrcK9e5rPQLX94HUgPjT7rAxc8emm4/PsMNVJlYJhwKXBvhq6vBstLAdGbwC6vB2PAbkuocyPQrne+hiUpv1PE9gUP5M6P+iLso8jRnxXUxWh2AG/fluTqH+M0w5IVs1SR4EQhBr10WRc7ETLk2Zbn09nCPVoAKYEqWaQH8fpVyHFei1dEZ1I6ayL6Lac91t038vl7lKxfn6trlYvQEQNZktevyUMjmEAlqOyTd9KuhnQ8Pt0txbJsqkT4u4JQJ22GeRbT0KuIs+k6AZL+gOkPxCBeVZfRQcVmzl6v9F+Sb88W+FFbB/jIzsHKzcrOqrnVCq4Wk/6DWY/Ougt+sga+JAA6nAMGSx7RxSxgGQum3ZfKLQZ+bU0qab1BQbAxSPbcwzYVWUYJO6bU6tkw0nopcgFe239lo3QnjBSB9bFIkVPlnB8bVBKrNZAwnitwXp9VASvmcA2+wbhq36OP5GyoQa0C+2fl+/kWhW1QfDz1AKBW3F4ukCrt1EvbVKepthjmnxUSQmcJbFwYCHEMuDzkbShERCfth7iKeoY=" />
+		<input type="hidden" name="Hgubun" id="Hgubun" />
+		<input type="hidden" name="Hmpidx" id="Hmpidx" value="124553" />
+		<input type="hidden" name="Hclassidx" id="Hclassidx" value="30974" />
+		<input type="hidden" name="Hhomeworkitemidx" id="Hhomeworkitemidx" value="1283783" />
+		<input type="hidden" name="Hhomeworkstudentidx" id="Hhomeworkstudentidx" value="10268659" />
+
+		<input type="hidden" name="Hsubject" id="Hsubject" value="238" />
+		<input type="hidden" name="Hjaesisubject" id="Hjaesisubject" value="123348" />
+		<input type="hidden" name="Hwdate" id="Hwdate" value="20260722" />
+		<input type="hidden" name="Hjaesisubjectname" id="Hjaesisubjectname" value="News" />
+		<input type="hidden" name="HJaeSiInd" id="HJaeSiInd" />
+		<input type="hidden" name="HHak" id="HHak" value="7" />
+
+		<input type="hidden" name="HCreateBy" id="HCreateBy" />
+		<input type="hidden" name="HFileName" id="HFileName" />
+
+		<div class="box_popup">
+
+
+			<script type="text/javascript">
+				$(document).ready(function () {
+
+					//Default Action
+					$(".btn_show").show();
+					$(".btn_hide").hide();
+					$(".ex_box").hide();
+
+					//On Click Event
+					$(".btn_show a").click(function () {
+						$(".ex_box").show();
+						$(".btn_show").hide();
+						$(".btn_hide").show();
+						return false;
+					});
+
+					$(".btn_hide a").click(function () {
+						$(".ex_box").hide();
+						$(".btn_hide").hide();
+						$(".btn_show").show();
+						return false;
+					});
+				})
+			</script>
+			<div class="popup_content">
+				<div class="ex_title">먼저 확인해 주세요.</div>
+				<!-- 141110 추가 시작 -->
+				<div class="topStudent">
+					김유겸[YooGyum] 학생
+				</div>
+				<!-- 141110 추가 끝 -->
+				<!-- 141106 추가 시작 -->
+				<div id="board_top">
+					<a href="#">
+						<input type="image" name="imgSave" id="imgSave" src="http://www.esimson.com/images/btn/btn_save2.jpg" alt="저장하기" onclick="return Chk_Save();" />
+						<a href="javascript:window.close();">
+							<img src="http://www.esimson.com/images/btn/btn_popup_close.jpg" alt="닫기" border="0" /></a>
+
+						<span class="blue">(촬영 및 평가까지 한 후 저장하기 버튼을 눌러주세요)</span>
+				</div>
+				<!-- 141106 추가 끝 -->
+				<div class="btn_box">
+					<div class="btn_show">
+						<a href="#">
+							<img src="http://www.esimson.com/images/btn/btn_show.png" alt="보기" /></a>
+					</div>
+					<div class="btn_hide">
+						<a href="#">
+							<img src="http://www.esimson.com/images/btn/btn_hide.png" alt="닫기" /></a>
+					</div>
+				</div>
+				<div class="clear"></div>
+				<div class="ex_box">
+					<ul>
+						<li>&bull; 먼저 웹캠이 정확히 설치가 되었는지 확인해 주세요.</li>
+						<li>&bull; 처음에 Adobo Flash Palyer설정에서 맨밑에 <span class="blue">닫기</span>를 선택해주세요</li>
+						<li>&bull; 카메라 및 마이크 <span class="blue">액세스에서 허용</span>을 선택해주세요</li>
+						<li>&bull;
+                            <img src="http://www.esimson.com/images/etc/icon_recorder.jpg" alt="녹화" />
+							이 버튼을 누르면 녹화가 시작됩니다.</li>
+						<li>&bull;
+                            <img src="http://www.esimson.com/images/etc/icon_stop.jpg" alt="정지" />
+							녹화중지버튼입니다.</li>
+						<li>&bull;
+                            <img src="http://www.esimson.com/images/etc/icon_play.jpg" alt="실행" />
+							녹화된 영상을 보실수가 있습니다.</li>
+						<li>&bull;
+                            <img src="http://www.esimson.com/images/etc/icon_upload.jpg" alt="업로드" />
+							잘녹화가 되었다구 생각하면 이버튼을 누르시면서버에 저장이 됩니다. </li>
+						<li>&bull; <strong>서버에 저장이 되면 텍스트박스에 녹화화일이 나타나면 옆에 있는 <span class="red">녹화파일 선택</span> 버튼을 누르면 완료가 됩니다.</strong></li>
+					</ul>
+				</div>
+			</div>
+			<!-- 141110 재수정 시작 -->
+			<div class="popuplisttable10">
+				<table width="100%" border="0" cellspacing="0" cellpadding="0">
+					<colgroup>
+						<col style="width: 10%;" />
+						<col style="width: 40%;" />
+						<col style="width: 10%;" />
+						<col />
+					</colgroup>
+					<tr id="Tr1">
+						<th>포트폴리오제목</th>
+						<td>
+							<input name="txttitle" type="text" id="txttitle" class="textarea_mem" style="width: 95%;" value="2026-07-22날 에세이숙제" /></td>
+						<th>홈피여부</th>
+						<td>:<input id="opthome1" type="radio" name="bbb" value="opthome1" /><label for="opthome1">View</label>
+							<input id="opthome2" type="radio" name="bbb" value="opthome2" checked="checked" /><label for="opthome2">No View</label></td>
+					</tr>
+					<tr id="Tr2">
+						<th>구분</th>
+						<td>
+							<input id="opt1" type="radio" name="aaa" value="opt1" checked="checked" /><label for="opt1">에세이</label>
+							<input id="opt2" type="radio" name="aaa" value="opt2" /><label for="opt2">뉴스</label>
+							<input id="opt3" type="radio" name="aaa" value="opt3" /><label for="opt3">P/T(IP)</label>
+							<input id="opt4" type="radio" name="aaa" value="opt4" /><label for="opt4">자소서</label>
+							<input id="opt6" type="radio" name="aaa" value="opt6" onclick="javascript:setTimeout(&#39;__doPostBack(\&#39;opt6\&#39;,\&#39;\&#39;)&#39;, 0)" /><label for="opt6">DEBATE</label>
+							<br />
+							<br />
+							<span id="spndd" class="FSB14"></span>
+						</td>
+						<th>동영상</th>
+						<td>
+							<input type="file" name="file1" id="file1" />
+							<span id="lblfile1"><font color="Blue"></font></span>
+							
+							<br />
+
+							<input type="button" value="해당동영상보기" onclick="GoDong()" style="width: 100px; height: 25px" />
+							<br />
+							
+							<p class="red">(샤나인코더 사용 - Mp4파일만 직접선택)</p></td>
+					</tr>
+					<tr id="evl" style="display: none">
+						<th rowspan="2">학생평가</th>
+						<td>
+							<textarea name="txtcomment" rows="2" cols="20" id="txtcomment">
+</textarea>
+							<input id="optevl1" type="radio" name="evl" value="optevl1" checked="checked" /><label for="optevl1">A</label>
+							<input id="optevl2" type="radio" name="evl" value="optevl2" /><label for="optevl2">B</label>
+							<input id="optevl3" type="radio" name="evl" value="optevl3" /><label for="optevl3">C</label>
+							<input id="optevl4" type="radio" name="evl" value="optevl4" /><label for="optevl4">N</label>
+							<input id="optevl5" type="radio" name="evl" value="optevl5" /><label for="optevl5">F</label>
+							<input id="optevl6" type="radio" name="evl" value="optevl6" /><label for="optevl6">X</label>&nbsp;
+                            <span id="spnJaeSi" class="FSBK14"></span>
+						</td>
+						<th>학생포인트</th>
+						<td>
+							<select name="cmbpoint" id="cmbpoint">
+	<option selected="selected" value="">학생포인트선택</option>
+	<option value="3">과제우수자[1]</option>
+	<option value="4">월간 PT 발표 우수자 1등[5]</option>
+	<option value="7">월간 뉴스 촬영 우수자 1등[5]</option>
+	<option value="8">월간 뉴스 촬영 우수자 2등[3]</option>
+	<option value="10">월간 PT 발표 우수자 2등[3]</option>
+
+</select></td>
+					</tr>
+					<tr id="evl2" style="display: none">
+						<td>
+							<script type="text/javascript">
+
+								$(document).ready(function () {
+
+									//On mouseenter Event
+									$("div#studentBox").mouseenter(function () {
+										$(this).removeClass("studentBox");
+										$(this).addClass("studentBox_over");
+									});
+
+									//On mouseleave Event
+									$("div#studentBox").mouseleave(function () {
+										$(this).removeClass("studentBox_over");
+										$(this).addClass("studentBox");
+									});
+
+								});
+							</script>
+							<div id="studentBox" class="studentBox">
+								<table width="100%" border="0" cellspacing="0" cellpadding="0">
+									<colgroup>
+										<col width="67%;" />
+										<col />
+									</colgroup>
+									
+								</table>
+							</div>
+						</td>
+						<th>재시내용</th>
+						<td>
+							<textarea name="txtjaesi" id="txtjaesi" rows="2" style="width: 88%;"></textarea>
+							<br />
+							<span id="optjaesi"><input id="optjaesi_0" type="radio" name="optjaesi" value="2" /><label for="optjaesi_0">미참석</label><input id="optjaesi_1" type="radio" name="optjaesi" value="1" /><label for="optjaesi_1">합격</label><input id="optjaesi_2" type="radio" name="optjaesi" value="0" /><label for="optjaesi_2">불합격</label><input id="optjaesi_3" type="radio" name="optjaesi" value="3" /><label for="optjaesi_3">약재</label><input id="optjaesi_4" type="radio" name="optjaesi" value="" checked="checked" /><label for="optjaesi_4">재시아님</label></span>
+						</td>
+					</tr>
+					<tr>
+						<th>동영상 촬영</th>
+						<td colspan="3">
+							<div id="recorder" style="height:50px;">
+								You need Flash player 8+ and JavaScript enabled to view this video.
+							</div>
+
+						</td>
+					</tr>
+					
+					<tr id="homework" style="display: none">
+						<th>숙제<br />
+							<input type="button" value="HomeWork View" onclick="homeview()" id="cmdhomeview" style="height: 28px; width: 140px" /></th>
+						<td colspan="3">
+
+
+							<div id="homeworkdetail" style="display: none" class="homeclassBox">
+								[Writing]<div><b>과제확인, 셀프체크 후 저장하면 포인트 +1점</b></div><div><b><br></b></div><div><b>준비물: 교재, 삼색볼펜, 형광펜, 연필, 지우개, 풀</b></div><div><br></div><div>♥수행평가 반영! 숙제꼼꼼히 해오기♥</div><div><br></div><div><b><span style='background-color: rgb(255, 239, 0);'>7/24(금) :&nbsp;</span></b><b><span style='background-color: rgb(255, 239, 0);'>촬영/빈칸&nbsp;</span></b></div><div><b><br></b></div><div><b>Topic : What Is an IPO</b></div><div><br></div><div><b>1. 에세이 제출 ~7/27(월)</b></div><div><b><br></b></div><div><b>에세이 주제 : 기업의 상장 운영과 비상장 운영의 장단점</b></div><div><div>Essay Evaluation Guide for July.</div><div>Please note the following guideline for the essay evaluation for July.</div><div>1st grade</div><div>- Lower level(Uma, Leo): minimum 10 sentences</div><div>- All students are to</div><div>1) follow [introduction - body - conclusion] format</div><div>2) suggest at least two evidences for the argument</div><div>3) use Various verbs Tense(past-present-future tense), Adjective clauses (N to-v, N ving, N pp)</div></div><div><br></div><div>최소 10문장</div><div><div>다양한 시제의 동사 사용 : 과거, 현재, 미래 시제</div><div>형용사적 용법 사용 :</div><div>명사 + to부정사 (N + to-v)</div><div>명사 + 현재분사 (N + V-ing)</div><div>명사 + 과거분사 (N + p.p.)</div></div><div><br></div>
+							</div>
+						</td>
+					</tr>
+					<tr id="essay" style="display: none">
+						<th>에세이일경우</th>
+						<td colspan="3">
+							<div class="scriptBox">
+								<span class=blue>김유겸학생의 Writing입니다.</span><br/> I think that there are many listing and unlisted operation's pros and cons.<br />
+The reasons are as fllows.<br />
+ First, listing's pros can collect money easily.<br />
+Because If they list, many people invest money.<br />
+ Second, lsting's cons is that other peson interfere management.<br />
+Because answer to shareholders.<br />
+ Third,private's pros is they can controll company comfortably.<br />
+Because of without outside interference.<br />
+ Finally, private's cons iscan't get money easily.<br />
+Because they don't listing.<br />
+ So listing and unlisted operation's pros and cons is very many.
+
+
+							</div>
+							<textarea name="txtcontent1" id="txtcontent1" rows="20" class="textarea_mem2" style="width: 95%; margin: 5px">&lt;s&gt;I think that there are many listing and unlisted operation&#39;s pros and cons.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;I believe there are many pros and cons to both listed and unlisted operations.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;The reasons are as fllows.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;The reasons are as follows.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;First, listing&#39;s pros can collect money easily.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;First, one of the advantages of listing is that it can collect money easily.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Because If they list, many people invest money.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;This is because when companies go public, many people invest money.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Second, lsting&#39;s cons is that other peson interfere management.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;Second, a disadvantage of listing is that it allows other individuals to interfere in management.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Because answer to shareholders.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;This is because there is a need to answer to shareholders.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Third,private&#39;s pros is they can controll company comfortably.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;Third, a pro of being private is that they can control the company comfortably.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Because of without outside interference.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;This is because of the lack of outside interference.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Finally, private&#39;s cons iscan&#39;t get money easily.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;Finally, a con of being private is that it cannot easily acquire funding.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;Because they don&#39;t listing.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;This is because they don&#39;t go public.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;s&gt;So listing and unlisted operation&#39;s pros and cons is very many.&lt;/s&gt;&lt;br /&gt;&lt;br /&gt;&lt;font color=&#39;red&#39;&gt;So the pros and cons of both listed and unlisted operations are numerous.&lt;/font&gt;&lt;br&gt;&lt;br /&gt;&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Suggestions for Improvement:&lt;/b&gt; &lt;br /&gt;&lt;br /&gt;Take care to use the proper form for English words. Also, structure your sentences properly. Make sure your sentences are clear and concise. When discussing the pros and cons of something, state the reasons clearly and provide examples if possible. Also, use connecting words to make your writing flow better. &lt;br /&gt;&lt;br /&gt;&lt;br /&gt;Your Score: C</textarea>
+						</td>
+					</tr>
+				</table>
+			</div>
+			<!-- 141110 재수정 끝 -->
+			<div class="clear"></div>
+		</div>
+		<script language="javascript">
+			var oEditors = [];
+			nhn.husky.EZCreator.createInIFrame({
+				oAppRef: oEditors,
+				elPlaceHolder: "txtcontent1",
+				sSkinURI: "SmartEditor2Skin.html",
+				htParams: {
+					bUseToolbar: true, 			// 툴바 사용 여부 (true:사용/ false:사용하지 않음)
+					bUseVerticalResizer: false, 	// 입력창 크기 조절바 사용 여부 (true:사용/ false:사용하지 않음)
+					bUseModeChanger: false, 		// 모드 탭(Editor | HTML | TEXT) 사용 여부 (true:사용/ false:사용하지 않음)
+					fOnBeforeUnload: function () {
+						//alert("아싸!");	
+					}
+				}, //boolean
+				fOnAppLoad: function () {
+					//예제 코드
+					//oEditors.getById["txtContent"].exec("PASTE_HTML", ["로딩이 완료된 후에 본문에 삽입되는 text입니다."]);
+				},
+				fCreator: "createSEditor2"
+			});
+    $('#evl').show();$('#evl2').show();$('#jaesi').show();$('#essay').show();$('#homework').show()
+</script>
+	</form>
+</body>
+</html>

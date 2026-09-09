@@ -66,7 +66,7 @@
             if (!classData || !classData.id) {
                 return;
             }
-            const rows = d.getEssayRowsFromSyllabus(classData.syllabusRows);
+            const rows = d.getEssayRowsFromSyllabus(classData.syllabusRows, { classData });
             rows.forEach((row) => {
                 const syllabusRowId = d.getSyllabusRowKey(row);
                 if (!syllabusRowId) {
@@ -81,8 +81,9 @@
                     .map((entry) => entry && entry.student && entry.student.id)
                     .filter(Boolean);
                 const counts = d.countEssayByStatus(submissionWithRecords, activeStudentIds);
-                const ssDue =
-                    submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+                const ssDue = d.resolveEssayStudentDueDate
+                    ? d.resolveEssayStudentDueDate(row, classData, submission)
+                    : (submission && submission.ssDueDate ? submission.ssDueDate : row.date || '');
                 const teDue =
                     submission && submission.teacherEvalDueDate
                         ? submission.teacherEvalDueDate

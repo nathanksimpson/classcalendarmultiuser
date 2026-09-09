@@ -1,10 +1,20 @@
-@import url('css/design-fidelity-append.css');
-@import url('css/debate-teams-v2.css');
-
 /* CSS Variables & Reset */
 
 [hidden] {
     display: none !important;
+}
+
+/* Hide shell until auth + first paint boot completes (see ccp-auth-boot on html). */
+html.ccp-auth-boot {
+    background: var(--bg-main, #f4f6f9);
+}
+
+html.ccp-auth-boot body {
+    visibility: hidden;
+}
+
+[data-theme='dark'] html.ccp-auth-boot {
+    background: var(--bg-main, #0f172a);
 }
 
 :root {
@@ -264,7 +274,7 @@
     --app-chrome-sticky-top: 72px;
     /* Classroom class+date bar under the sticky chrome (set from JS when visible) */
     --classroom-zone-context-height: 56px;
-    /* Cohorts setup board: palette sticky top + viewport lock (set from JS) */
+    /* Cohorts: legacy tokens (board height is flex-fill on #panel-cohorts; not set from JS) */
     --cohorts-palette-sticky-top: calc(var(--app-chrome-sticky-top) + 4.5rem);
     --cohorts-board-chrome-height: 12rem;
     /* Homework copy tab: viewport offset to split layout (set from JS) */

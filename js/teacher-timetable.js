@@ -40,7 +40,8 @@
         { id: 'ts4', start: '17:00', end: '18:00', durationMin: 55, sortOrder: 4 },
         { id: 'ts5', start: '18:00', end: '19:00', durationMin: 55, sortOrder: 5 },
         { id: 'ts6', start: '19:00', end: '20:00', durationMin: 55, sortOrder: 6 },
-        { id: 'ts7', start: '20:00', end: '21:00', durationMin: 55, sortOrder: 7 }
+        { id: 'ts7', start: '20:00', end: '21:00', durationMin: 55, sortOrder: 7 },
+        { id: 'ts8', start: '21:00', end: '21:55', durationMin: 55, sortOrder: 8 }
     ];
 
     const DEFAULT_PERIOD_SLOT_MAP = {
@@ -50,7 +51,8 @@
         '4': 'ts4',
         '5': 'ts5',
         '6': 'ts6',
-        '7': 'ts7'
+        '7': 'ts7',
+        '8': 'ts8'
     };
 
     function getPeriodCap() {
@@ -61,7 +63,7 @@
         if (global.CCPTimetablePeriods && global.CCPTimetablePeriods.getMaxPeriodNumber) {
             return global.CCPTimetablePeriods.getMaxPeriodNumber(appData);
         }
-        return 7;
+        return 8;
     }
 
     function normalizeStr(v) {

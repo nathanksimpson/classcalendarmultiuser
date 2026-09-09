@@ -83,11 +83,15 @@
         if (!parts.length) {
             return null;
         }
-        return {
+        const merged = {
             planTitle: combinedPlanTitle || parts.map((p) => p.planTitle).filter(Boolean).join(' + '),
             planDetail: parts.map((p) => (p.planDetail || '').trim()).filter(Boolean).join('\n\n'),
             note: parts.map((p) => (p.note || '').trim()).filter(Boolean).join(' ')
         };
+        if (parts.some((p) => p.trackEssay === true)) {
+            merged.trackEssay = true;
+        }
+        return merged;
     }
 
     function mergeDebateTemplates(indexes, titles, combinedPlanTitle) {
@@ -95,11 +99,15 @@
         if (!parts.length) {
             return null;
         }
-        return {
+        const merged = {
             planTitle: combinedPlanTitle || parts.map((p) => p.planTitle).filter(Boolean).join(' & '),
             planDetail: parts.map((p) => (p.planDetail || '').trim()).filter(Boolean).join('\n\n'),
             note: parts.map((p) => (p.note || '').trim()).filter(Boolean).join(' ')
         };
+        if (parts.some((p) => p.trackEssay === true)) {
+            merged.trackEssay = true;
+        }
+        return merged;
     }
 
     function getIndividualDayTemplateDetail(indexes, dayNum) {
@@ -148,12 +156,8 @@
         return false;
     }
 
+    /** Always join standard Day 2 + Day 3 templates (ignore legacy Combined pack text). */
     function resolveDay2And3CombinedTemplate(indexes) {
-        const combined = templateByTitle(indexes, 'Day 2 & 3 Combined');
-        const combinedDetail = combined ? String(combined.planDetail || '').trim() : '';
-        if (combinedDetail && combinedTemplateCoversAllDays(combinedDetail, indexes, 2, 3)) {
-            return combined;
-        }
         return mergeDebateTemplates(indexes, ['Day 2', 'Day 3'], 'Day 2 & 3 Combined');
     }
 
@@ -274,6 +278,10 @@
             }
         } else if (tpl.note && !row.note) {
             row.note = tpl.note;
+            applied = true;
+        }
+        if (tpl.trackEssay === true && row.trackEssay !== false) {
+            row.trackEssay = true;
             applied = true;
         }
         return applied;

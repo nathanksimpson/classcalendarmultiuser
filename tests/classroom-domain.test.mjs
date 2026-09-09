@@ -918,6 +918,73 @@ assert(
     assert(reparseCustom.essayRowsFound === 1, 'reparse still counts preserved custom essay');
 }
 
+{
+    // Last-month / overflow Day 4 with essay text must appear in essay auto-build.
+    const lastMonthOverflowClass = {
+        id: 'cls-last-overflow',
+        endDate: '2026-08-28',
+        syllabusRows: [
+            {
+                id: 'row-jun-d4',
+                kind: 'lesson',
+                date: '2026-06-24',
+                planTitle: 'Day 4 / Preview',
+                planDetail: 'Write an essay with the opposite opinion.',
+                sessionNumber: 4
+            },
+            {
+                id: 'row-jul-d4',
+                kind: 'lesson',
+                date: '2026-07-22',
+                planTitle: 'Day 4 / Preview',
+                planDetail: 'Write an essay with the opposite opinion.',
+                sessionNumber: 4
+            },
+            {
+                id: 'row-aug-overflow-d4',
+                kind: 'overflow',
+                date: '',
+                planTitle: 'Day 4 / Preview',
+                planDetail: 'Write an essay with the opposite opinion of your debate speech.',
+                sessionNumber: 4,
+                periodRangeEndDate: '2026-08-28'
+            },
+            {
+                id: 'row-note-only',
+                kind: 'lesson',
+                date: '2026-08-10',
+                planTitle: 'Day 1',
+                planDetail: 'Vocab',
+                note: 'Remember the essay later'
+            }
+        ]
+    };
+    const overflowEssays = d.getEssayRowsFromSyllabus(lastMonthOverflowClass.syllabusRows, {
+        classData: lastMonthOverflowClass
+    });
+    assert(overflowEssays.length === 3, 'overflow Day 4 essay included with dated essays');
+    assert(
+        overflowEssays.some((r) => r.id === 'row-aug-overflow-d4'),
+        'last-month overflow essay row present'
+    );
+    const aug = overflowEssays.find((r) => r.id === 'row-aug-overflow-d4');
+    assert(aug && aug.date === '2026-08-28', 'overflow essay gets period end date fallback');
+    const listedOverflow = d.listEssayAssignmentsForClass(lastMonthOverflowClass, {
+        essaySubmissions: []
+    });
+    assert(listedOverflow.length === 3, 'listEssayAssignmentsForClass includes last-month overflow');
+    assert(
+        listedOverflow.some((a) => a.syllabusRowId === 'row-aug-overflow-d4'),
+        'assignment list has last-month overflow id'
+    );
+    assert(
+        d.getEssayRowsFromSyllabus(lastMonthOverflowClass.syllabusRows).filter(
+            (r) => r.id === 'row-note-only'
+        ).length === 0,
+        'essay only in note is still excluded'
+    );
+}
+
 assert(
     d.createCustomEssayAssignment({ id: 'c' }, { title: '', date: today }).error ===
         'missing_title',

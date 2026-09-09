@@ -436,6 +436,17 @@
         merged.debateTeamSessions = mergeArrayById(local.debateTeamSessions, server.debateTeamSessions);
         merged.debateScores = mergeArrayById(local.debateScores, server.debateScores);
         merged.debateCustomFormats = mergeArrayById(local.debateCustomFormats, server.debateCustomFormats);
+        if (local.essayGraderSettings || server.essayGraderSettings) {
+            const localAt = local.essayGraderSettings && local.essayGraderSettings.updatedAt;
+            const serverAt = server.essayGraderSettings && server.essayGraderSettings.updatedAt;
+            if (localAt && serverAt && String(localAt) >= String(serverAt)) {
+                merged.essayGraderSettings = local.essayGraderSettings;
+            } else if (local.essayGraderSettings && !server.essayGraderSettings) {
+                merged.essayGraderSettings = local.essayGraderSettings;
+            } else {
+                merged.essayGraderSettings = server.essayGraderSettings || local.essayGraderSettings;
+            }
+        }
         merged.speakingTestRecords = mergeArrayById(local.speakingTestRecords, server.speakingTestRecords);
         merged.debateBookDistributions = mergeArrayById(
             local.debateBookDistributions,
@@ -980,6 +991,9 @@
             }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'tmsEssayLinks')) {
                 body.tmsEssayLinks = fields.tmsEssayLinks;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'essayGraderSettings')) {
+                body.essayGraderSettings = fields.essayGraderSettings;
             }
             setStatus('saving');
             state.saving = true;

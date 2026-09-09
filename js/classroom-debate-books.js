@@ -25,6 +25,7 @@
         todayOnly: false
     };
     let classSummaryModalBound = false;
+    let classSummarySearchQuery = '';
     const STATUS_AUTOSAVE_MS = 400;
     let focusStudentId = '';
 
@@ -688,15 +689,19 @@
     function listFilteredClassSummaryEntries() {
         const scoped = listScopeClassSummaryEntries();
         const summaryApi = booksSummaryApi();
-        if (!summaryApi || !summaryApi.filterEntriesByHrAndMonth) {
-            return scoped;
+        let filtered = scoped;
+        if (summaryApi && summaryApi.filterEntriesByHrAndMonth) {
+            filtered = summaryApi.filterEntriesByHrAndMonth(
+                scoped,
+                getAppData(),
+                classSummaryFilters,
+                getClassSummaryFilterContext()
+            );
         }
-        return summaryApi.filterEntriesByHrAndMonth(
-            scoped,
-            getAppData(),
-            classSummaryFilters,
-            getClassSummaryFilterContext()
-        );
+        if (summaryApi && summaryApi.filterEntriesByClassSummarySearch) {
+            return summaryApi.filterEntriesByClassSummarySearch(filtered, classSummarySearchQuery);
+        }
+        return filtered;
     }
 
     function getClassSummaryLabels() {
@@ -950,9 +955,17 @@
         populateClassSummaryFilterSelects(listScopeClassSummaryEntries());
         const entries = listFilteredClassSummaryEntries();
         const savedSelection = getAppData().ui && getAppData().ui.debateBookClassSummarySelection;
-        const neverSavedSelection = savedSelection == null || savedSelection === '';
+        const neverSavedSelection = savedSelection === undefined || savedSelection === null;
         if (neverSavedSelection && !classSummarySelectedKeys.size && entries.length) {
-            entries.forEach((row) => classSummarySelectedKeys.add(row.key));
+            entries.forEach((row) => {
+                if (row && row.key) {
+                    classSummarySelectedKeys.add(row.key);
+                }
+            });
+        }
+        const searchEl = document.getElementById('debateBookClassSummaryClassSearch');
+        if (searchEl && searchEl.value !== classSummarySearchQuery) {
+            searchEl.value = classSummarySearchQuery;
         }
         listEl.innerHTML =
             entries
@@ -995,6 +1008,7 @@
         if (!modal) {
             return;
         }
+        classSummarySearchQuery = '';
         loadClassSummarySelection();
         renderClassSummaryModal();
         modal.hidden = false;
@@ -1052,16 +1066,25 @@
                 syncClassSummaryFiltersFromDom();
                 renderClassSummaryModal();
             });
+        document.getElementById('debateBookClassSummaryClassSearch')?.addEventListener('input', (event) => {
+            const target = event && event.target;
+            classSummarySearchQuery = target ? String(target.value || '') : '';
+            renderClassSummaryModal();
+        });
         document.getElementById('debateBookClassSummarySelectAll')?.addEventListener('click', () => {
-            listFilteredClassSummaryEntries().forEach((row) =>
-                classSummarySelectedKeys.add(row.key)
-            );
+            listFilteredClassSummaryEntries().forEach((row) => {
+                if (row && row.key) {
+                    classSummarySelectedKeys.add(row.key);
+                }
+            });
             saveClassSummarySelection();
             renderClassSummaryModal();
         });
         document.getElementById('debateBookClassSummaryClearAll')?.addEventListener('click', () => {
             listFilteredClassSummaryEntries().forEach((row) => {
-                classSummarySelectedKeys.delete(row.key);
+                if (row && row.key) {
+                    classSummarySelectedKeys.delete(row.key);
+                }
             });
             saveClassSummarySelection();
             renderClassSummaryModal();
@@ -1408,18 +1431,12 @@
             periodKey = '';
             return;
         }
-        if (!isMonthlyMode()) {
+        periodKey = d.resolveDebateBookPeriodKeyForClass
+            ? d.resolveDebateBookPeriodKeyForClass(classData, getPeriodPreferenceMap()) || ''
+            : '';
+        if (!periodKey && !isMonthlyMode()) {
             periodKey = d.DEBATE_BOOK_TERM_PERIOD_KEY;
-            return;
         }
-        const map = getPeriodPreferenceMap();
-        const preferred = map[classId] || '';
-        const options = d.listDebateBookMonthOptions(classData);
-        if (preferred && options.some((opt) => opt.periodKey === preferred)) {
-            periodKey = preferred;
-            return;
-        }
-        periodKey = d.pickDefaultDebateBookPeriodKey(classData) || '';
     }
 
     function bindMountEvents(panel) {

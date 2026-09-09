@@ -19,8 +19,16 @@ const DEFAULT_BASE = 'http://tms.esimson.com';
 const LOGIN_PATH = '/member/login.aspx';
 const CLASS_POPUP_PATH = '/class/class_Main_New_PopUp.aspx';
 const WRITING_LIST_PATH = '/lms/Writing_list.aspx';
+/**
+ * TMS essay detail popup opened by photopoliview(mpidx, classidx, homeworkitemidx, wdate):
+ * /recorder/rec_video/recphotopholi.aspx?mpidx=&classidx=&homeworkitemidx=&wdate=
+ */
+const WRITING_DETAIL_PATH = '/recorder/rec_video/recphotopholi.aspx';
 /** Max Writing_list pagination posts after the first page (ctl00… ≈ pages 2+). */
 const MAX_WRITING_LIST_PAGES = 12;
+/** Max concurrent detail fetches when scraping essay bodies. */
+const MAX_ESSAY_DETAIL_CONCURRENCY = 3;
+const ESSAY_BODY_LABELS = ['작성내용', '에세이내용', '본문', '내용', '에세이', '에세이일경우'];
 
 function envGet(key) {
     try {
@@ -740,10 +748,110 @@ function parseStudentsFromTextLines(text) {
 }
 
 /**
+ * Read first txtenglishname input value inside an HTML window.
+ * @param {string} window
+ * @returns {string}
+ */
+function extractTxtEnglishNameValue(window) {
+    const inputRe = /<input\b[^>]*>/gi;
+    let im;
+    while ((im = inputRe.exec(String(window || '')))) {
+        const tag = im[0];
+        if (!/txtenglishname/i.test(tag)) {
+            continue;
+        }
+        const val = tag.match(/\bvalue=["']([^"']*)["']/i);
+        if (val) {
+            return decodeHtmlEntities(val[1]).replace(/\s+/g, ' ').trim();
+        }
+    }
+    return '';
+}
+
+/**
+ * 상담&학생정보 tab on class_Main_New_PopUp: full English in
+ * Repe_SangDam$ctlNN$txtenglishname, keyed by SangDamView(mpidx) (fallback: setpoint).
+ * Window is until the next SangDamView so intervening setpoint(...) does not truncate.
+ * @returns {Map<string, string>} mpidx → English name
+ */
+function parseCounselingEnglishByMpidx(html) {
+    const raw = String(html || '');
+    const map = new Map();
+    if (!raw) {
+        return map;
+    }
+
+    function collect(fnName, onlyIfMissing) {
+        const re = new RegExp(
+            String(fnName) + '\\s*\\(\\s*[\'"]?(\\d+)[\'"]?\\s*\\)',
+            'gi'
+        );
+        let m;
+        while ((m = re.exec(raw))) {
+            const mpidx = String(m[1] || '').trim();
+            if (!mpidx) {
+                continue;
+            }
+            if (onlyIfMissing && map.has(mpidx)) {
+                continue;
+            }
+            const start = m.index + m[0].length;
+            const rest = raw.slice(start);
+            // Cut at next SangDamView so setpoint between View and the input stays in-window.
+            const nextView = rest.search(/SangDamView\s*\(/i);
+            const windowEnd =
+                nextView >= 0 ? start + nextView : Math.min(raw.length, start + 2500);
+            const nameEn = extractTxtEnglishNameValue(raw.slice(start, windowEnd));
+            if (nameEn) {
+                map.set(mpidx, nameEn);
+            }
+        }
+    }
+
+    collect('SangDamView', false);
+    collect('setpoint', true);
+    return map;
+}
+
+/**
+ * Prefer longer counseling English over truncated main-list paren hints.
+ * Soft-fails (returns shallow copies) when html/map is empty — never clears nameEn.
+ * @param {Array<{name?: string, nameEn?: string, mpidx?: string}>} students
+ * @param {string} html
+ */
+function enrichStudentsWithCounselingEnglish(students, html) {
+    const list = Array.isArray(students) ? students : [];
+    if (!list.length) {
+        return [];
+    }
+    const byMpidx = parseCounselingEnglishByMpidx(html);
+    if (!byMpidx.size) {
+        return list.map((s) => Object.assign({}, s));
+    }
+    return list.map((s) => {
+        const copy = Object.assign({}, s);
+        const id = String((s && (s.mpidx || s.tmsMpidx)) || '').trim();
+        if (!id || !byMpidx.has(id)) {
+            return copy;
+        }
+        const counsel = String(byMpidx.get(id) || '').trim();
+        if (!counsel) {
+            return copy;
+        }
+        const current = String((s && s.nameEn) || '').trim();
+        if (!current || counsel.length >= current.length) {
+            copy.nameEn = counsel;
+        }
+        return copy;
+    });
+}
+
+/**
  * Primary: studentinf(mpidx) / StudentPopup.aspx?mpidx= (+ optional English / trailing ◆).
  * Inner HTML may nest spans/fonts (권이안<span>◆</span>) — strip tags, keep mark.
  * Fallback: numbered paste-style blocks after cutting homework/self-check tails.
  * Never greedy-scan all Hangul table cells (avoids 매우만족 etc.).
+ * After parse, enrich nameEn from 상담&학생정보 txtenglishname when present.
  */
 function parseStudentsFromClassPopup(html) {
     const raw = String(html || '');
@@ -833,20 +941,21 @@ function parseStudentsFromClassPopup(html) {
     }
 
     if (students.length) {
-        return students.map((s) => ({
+        const normalized = students.map((s) => ({
             name: s.name,
             nameEn: s.nameEn || '',
             mpidx: s.mpidx || '',
             statusMarks: s.statusMarks || { isNew: false, shuttle: false, transferIn: false },
             parseUncertain: s.parseUncertain === true
         }));
+        return enrichStudentsWithCounselingEnglish(normalized, raw);
     }
 
     // Fallback: paste-style numbered list from visible text (tail-trimmed).
     const text = stripTags(decodeHtmlEntities(raw))
         .replace(/\s{2,}/g, '\n')
         .replace(/\n{3,}/g, '\n\n');
-    return parseStudentsFromNumberedBlocks(text);
+    return enrichStudentsWithCounselingEnglish(parseStudentsFromNumberedBlocks(text), raw);
 }
 
 /** @deprecated Use parseStudentsFromClassPopup — kept as alias for call sites. */
@@ -1491,12 +1600,358 @@ function extractLabeledFieldValue(html, label) {
 }
 
 function parseEssayDetailMeta(html) {
-    const portfolioTitle = extractLabeledFieldValue(html, '포트폴리오제목');
+    const fromInput = extractInputValueById(html, 'txttitle');
+    const portfolioTitle =
+        fromInput ||
+        extractLabeledFieldValue(html, '포트폴리오제목') ||
+        extractLabeledFieldValue(html, '제목');
     const assignedDate = parsePortfolioAssignedDate(portfolioTitle);
     return {
         portfolioTitle,
         assignedDate,
         assignedMonth: assignedDate ? assignedDate.slice(0, 7) : ''
+    };
+}
+
+function extractInputValueById(html, id) {
+    const raw = String(html || '');
+    const escaped = String(id || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!escaped) {
+        return '';
+    }
+    const re = new RegExp(
+        `<input\\b[^>]*\\bid=["']${escaped}["'][^>]*>|<input\\b[^>]*\\bname=["']${escaped}["'][^>]*>`,
+        'i'
+    );
+    const tag = raw.match(re);
+    if (!tag) {
+        return '';
+    }
+    const val = tag[0].match(/\bvalue=["']([^"']*)["']/i);
+    return val ? decodeHtmlEntities(val[1]).replace(/\s+/g, ' ').trim() : '';
+}
+
+function formatWritingStudentDisplayName(raw, parsed) {
+    const stripped = stripTags(decodeHtmlEntities(String(raw || '')))
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (stripped) {
+        return stripped;
+    }
+    const p = parsed || {};
+    const name = String(p.name || '').trim();
+    const en = String(p.nameEn || '').trim();
+    if (!name) {
+        return '';
+    }
+    return en ? `${name}(${en})` : name;
+}
+
+/**
+ * Read photopoliview window.open target from Writing_list.aspx scripts.
+ * Returns absolute-or-root path with query placeholders, or empty string.
+ */
+function extractPhotopoliviewUrlTemplate(html) {
+    const raw = String(html || '');
+    const openMatch = raw.match(
+        /window\.open\s*\(\s*['"]([^'"]*recphotopholi\.aspx[^'"]*)['"]\s*\+/i
+    );
+    if (openMatch) {
+        return decodeHtmlEntities(openMatch[1]);
+    }
+    const fnMatch = raw.match(
+        /function\s+photopoliview\s*\([^)]*\)\s*\{([\s\S]{0,2000}?)\}/i
+    );
+    const block = fnMatch ? fnMatch[1] : raw;
+    const urlMatch =
+        block.match(/["']([^"']*recphotopholi\.aspx[^"']*)["']/i) ||
+        block.match(/["']([^"']*(?:Writing|PhotoPoli|portfolio)[^"']*\.aspx[^"']*)["']/i) ||
+        block.match(/["'](\/lms\/[^"']+\.aspx[^"']*)["']/i);
+    if (!urlMatch) {
+        return '';
+    }
+    return decodeHtmlEntities(urlMatch[1]).replace(/^\./, '');
+}
+
+function lessonDateToWdate(lessonDate) {
+    return String(lessonDate || '').replace(/\D/g, '').slice(0, 8);
+}
+
+function buildWritingDetailUrl(baseUrl, row, urlTemplate) {
+    const mpidx = String((row && row.mpidx) || '').trim();
+    const tmsClassId = String((row && row.tmsClassId) || '').trim();
+    const homeworkItemIdx = String((row && row.homeworkItemIdx) || '').trim();
+    const wdate = lessonDateToWdate(row && row.lessonDate);
+    if (!mpidx || !tmsClassId || !homeworkItemIdx || !wdate) {
+        return '';
+    }
+    const base = String(baseUrl || DEFAULT_BASE).replace(/\/$/, '');
+    const tmpl = String(urlTemplate || '').trim();
+    // Known TMS pattern: '/recorder/rec_video/recphotopholi.aspx?mpidx=' + mpidx + ...
+    if (!tmpl || /recphotopholi\.aspx/i.test(tmpl)) {
+        const qs = new URLSearchParams({
+            mpidx,
+            classidx: tmsClassId,
+            homeworkitemidx: homeworkItemIdx,
+            wdate
+        });
+        return `${base}${WRITING_DETAIL_PATH}?${qs.toString()}`;
+    }
+    let path = tmpl;
+    if (!/^https?:\/\//i.test(path)) {
+        path = path.startsWith('/') ? path : `/${path}`;
+        path = `${base}${path}`;
+    }
+    if (/[?&](mpidx|classidx|homeworkitemidx|hwidx|wdate)=/i.test(path) || path.endsWith('=')) {
+        // Prefix form: ...aspx?mpidx=  → append remaining params
+        if (/mpidx=$/i.test(path) || /mpidx=\s*$/i.test(path)) {
+            return `${path}${mpidx}&classidx=${tmsClassId}&homeworkitemidx=${homeworkItemIdx}&wdate=${wdate}`;
+        }
+        return path
+            .replace(/\{mpidx\}/gi, mpidx)
+            .replace(/\{classidx\}/gi, tmsClassId)
+            .replace(/\{hwidx\}/gi, homeworkItemIdx)
+            .replace(/\{homeworkitemidx\}/gi, homeworkItemIdx)
+            .replace(/\{wdate\}/gi, wdate);
+    }
+    const qs = new URLSearchParams({
+        mpidx,
+        classidx: tmsClassId,
+        homeworkitemidx: homeworkItemIdx,
+        wdate
+    });
+    return `${path}?${qs.toString()}`;
+}
+
+function extractTextareaById(html, idPattern) {
+    const raw = String(html || '');
+    const re = new RegExp(
+        `<textarea[^>]*id=["']${idPattern}["'][^>]*>([\\s\\S]*?)<\\/textarea>`,
+        'i'
+    );
+    const m = raw.match(re);
+    if (!m) {
+        return '';
+    }
+    return decodeHtmlEntities(m[1]).replace(/\r\n/g, '\n').trim();
+}
+
+/**
+ * Prefer original student Writing text from #essay .scriptBox (not teacher markup).
+ */
+function extractOriginalEssayFromDetailHtml(html) {
+    const raw = String(html || '');
+    const essayRow =
+        raw.match(/<tr\b[^>]*\bid=["']essay["'][^>]*>([\s\S]*?)<\/tr>/i) ||
+        raw.match(/<div\b[^>]*class=["'][^"']*\bscriptBox\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (!essayRow) {
+        return '';
+    }
+    let block = essayRow[1];
+    // Drop "홍길동학생의 Writing입니다." header span
+    block = block.replace(/<span\b[^>]*>[\s\S]*?Writing입니다\.?<\/span>/gi, '');
+    block = block.replace(/<textarea\b[\s\S]*?<\/textarea>/gi, '');
+    block = block.replace(/<th\b[^>]*>[\s\S]*?<\/th>/gi, '');
+    const text = stripTags(decodeHtmlEntities(block))
+        .replace(/\u00a0/g, ' ')
+        .replace(/^\s*에세이일경우\s*/u, '')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    return text;
+}
+
+/**
+ * If only corrected HTML is available, recover struck-through (<s>/<del>) original lines.
+ */
+function extractOriginalFromCorrectedHtml(htmlFragment) {
+    const raw = decodeHtmlEntities(String(htmlFragment || ''));
+    const struck = [];
+    const re = /<(?:s|del|strike)\b[^>]*>([\s\S]*?)<\/(?:s|del|strike)>/gi;
+    let m;
+    while ((m = re.exec(raw))) {
+        const t = stripTags(m[1]).replace(/\s+/g, ' ').trim();
+        if (t) {
+            struck.push(t);
+        }
+    }
+    if (struck.length) {
+        return struck.join('\n');
+    }
+    return stripTags(raw)
+        .replace(/\s+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function extractEssayBodyFromDetailHtml(html) {
+    const raw = String(html || '');
+    if (!raw.trim()) {
+        return '';
+    }
+    const original = extractOriginalEssayFromDetailHtml(raw);
+    if (original && original.length > 10) {
+        return original;
+    }
+    const fromTextarea =
+        extractTextareaById(raw, 'txtcontent1') ||
+        extractTextareaById(raw, 'txtContent') ||
+        extractTextareaById(raw, 'txtEssay') ||
+        extractTextareaById(raw, 'txtBody') ||
+        extractTextareaById(raw, 'content');
+    if (fromTextarea) {
+        return extractOriginalFromCorrectedHtml(fromTextarea);
+    }
+    for (let i = 0; i < ESSAY_BODY_LABELS.length; i += 1) {
+        const labeled = extractLabeledFieldValue(raw, ESSAY_BODY_LABELS[i]);
+        if (labeled && labeled.length > 20) {
+            return labeled;
+        }
+    }
+    return '';
+}
+
+/**
+ * Parse TMS essay detail / recphotopholi page for portfolio meta + student body text.
+ */
+function parseEssayDetailContent(html) {
+    const meta = parseEssayDetailMeta(html);
+    const body = extractEssayBodyFromDetailHtml(html);
+    const teacherFeedback =
+        extractTextareaById(html, 'txtcomment') ||
+        extractLabeledFieldValue(html, '교사피드백') ||
+        extractLabeledFieldValue(html, '피드백') ||
+        extractLabeledFieldValue(html, 'Teacher Feedback') ||
+        '';
+    return Object.assign({}, meta, {
+        body,
+        teacherFeedback
+    });
+}
+
+async function mapWithConcurrency(items, limit, fn) {
+    const list = Array.isArray(items) ? items : [];
+    const cap = Math.max(1, Number(limit) || 1);
+    const results = new Array(list.length);
+    let nextIdx = 0;
+    async function worker() {
+        while (nextIdx < list.length) {
+            const i = nextIdx;
+            nextIdx += 1;
+            results[i] = await fn(list[i], i);
+        }
+    }
+    const workers = [];
+    for (let w = 0; w < Math.min(cap, list.length); w += 1) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
+    return results;
+}
+
+async function fetchEssayDetail(jar, cfg, row, urlTemplate) {
+    const detailUrl = buildWritingDetailUrl(cfg.baseUrl, row, urlTemplate);
+    if (!detailUrl) {
+        const err = new Error('Essay detail URL could not be built');
+        err.code = 'TMS_ESSAY_DETAIL_URL';
+        throw err;
+    }
+    const page = await fetchPage(jar, detailUrl);
+    if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
+        const err = new Error('TMS essay detail fetch failed');
+        err.code = 'TMS_ESSAY_DETAIL_FAILED';
+        err.status = page.status;
+        throw err;
+    }
+    const parsed = parseEssayDetailContent(page.text);
+    return {
+        url: page.finalUrl || detailUrl,
+        status: page.status,
+        body: parsed.body || '',
+        portfolioTitle: parsed.portfolioTitle || '',
+        teacherFeedback: parsed.teacherFeedback || ''
+    };
+}
+
+/**
+ * Fetch essay bodies for selected Writing_list rows (read-only; no TMS write).
+ */
+async function scrapeEssayContents(options) {
+    const cfg = Object.assign({}, getConfig(), options || {});
+    const rowsIn = Array.isArray(options && options.rows) ? options.rows : [];
+    if (!rowsIn.length) {
+        return { essays: [], meta: { fetched: 0, failed: 0 } };
+    }
+    if (!credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        throw err;
+    }
+    const jar = createJar();
+    await login(cfg, jar);
+    let urlTemplate = String((options && options.detailUrlTemplate) || '').trim();
+    if (!urlTemplate) {
+        try {
+            const listPage = await fetchPage(jar, `${cfg.baseUrl}${WRITING_LIST_PATH}`);
+            urlTemplate = extractPhotopoliviewUrlTemplate(listPage.text);
+        } catch (_) {
+            urlTemplate = '';
+        }
+    }
+    const concurrency = Math.min(
+        MAX_ESSAY_DETAIL_CONCURRENCY,
+        Math.max(1, Number((options && options.concurrency) || MAX_ESSAY_DETAIL_CONCURRENCY))
+    );
+    const essays = await mapWithConcurrency(rowsIn, concurrency, async (row) => {
+        const base = {
+            mpidx: String((row && row.mpidx) || ''),
+            tmsClassId: String((row && row.tmsClassId) || ''),
+            homeworkItemIdx: String((row && row.homeworkItemIdx) || ''),
+            lessonDate: String((row && row.lessonDate) || ''),
+            name: String((row && row.name) || ''),
+            displayName: String((row && row.displayName) || row.name || ''),
+            className: String((row && row.className) || ''),
+            title: String((row && row.title) || '')
+        };
+        try {
+            const detail = await fetchEssayDetail(jar, cfg, row, urlTemplate);
+            if (!detail.body) {
+                return Object.assign({}, base, {
+                    ok: false,
+                    body: '',
+                    portfolioTitle: detail.portfolioTitle || '',
+                    teacherFeedback: detail.teacherFeedback || '',
+                    url: detail.url,
+                    error: 'Essay body not found on detail page',
+                    code: 'TMS_ESSAY_BODY_EMPTY'
+                });
+            }
+            return Object.assign({}, base, {
+                ok: true,
+                body: detail.body || '',
+                portfolioTitle: detail.portfolioTitle || '',
+                teacherFeedback: detail.teacherFeedback || '',
+                url: detail.url
+            });
+        } catch (err) {
+            return Object.assign({}, base, {
+                ok: false,
+                body: '',
+                error: (err && err.message) || String(err),
+                code: (err && err.code) || 'TMS_ESSAY_DETAIL_FAILED'
+            });
+        }
+    });
+    const fetched = essays.filter((e) => e.ok && e.body).length;
+    const failed = essays.filter((e) => !e.ok || !e.body).length;
+    return {
+        essays,
+        meta: {
+            fetched,
+            failed,
+            rowCount: essays.length,
+            detailUrlTemplate: urlTemplate || WRITING_DETAIL_PATH
+        }
     };
 }
 
@@ -1539,6 +1994,9 @@ function parseWritingListRows(html) {
         if (!className || isNoiseClassName(className)) {
             continue;
         }
+        const teacher = stripTags(decodeHtmlEntities(cells[2] || ''))
+            .replace(/\s+/g, ' ')
+            .trim();
         const title = stripTags(decodeHtmlEntities(cells[3] || ''))
             .replace(/\s+/g, ' ')
             .trim();
@@ -1548,13 +2006,19 @@ function parseWritingListRows(html) {
         const correct = stripTags(decodeHtmlEntities(cells[4] || ''))
             .replace(/\s+/g, ' ')
             .trim();
+        const evaluator = stripTags(decodeHtmlEntities(cells[5] || ''))
+            .replace(/\s+/g, ' ')
+            .trim();
         const submittedAt = parseIsoDateLoose(stripTags(decodeHtmlEntities(cells[6] || '')));
         rows.push({
             name: student.name,
             nameEn: student.nameEn,
+            displayName: formatWritingStudentDisplayName(cells[0], student),
             statusMarks: student.statusMarks,
             parseUncertain: Boolean(student.parseUncertain),
             className,
+            teacher,
+            evaluator,
             tmsClassId: photo ? photo[2] : '',
             mpidx: photo ? photo[1] : '',
             homeworkItemIdx: photo ? photo[3] : '',
@@ -2051,10 +2515,15 @@ module.exports = {
     stillOnLoginPage,
     scrapeRosters,
     scrapeEssaySubmissions,
+    scrapeEssayContents,
+    fetchEssayDetail,
+    parseEssayDetailContent,
     parseWritingListRows,
     parseWritingStudentLabel,
     groupWritingRowsIntoAssignments,
     extractWritingPagingTargets,
+    extractPhotopoliviewUrlTemplate,
+    buildWritingDetailUrl,
     parseEssayDetailMeta,
     parsePortfolioAssignedDate,
     parseWritingCmbbanOptions,
@@ -2066,6 +2535,8 @@ module.exports = {
     parseStudentsFromTextLines,
     parseStudentsFromHtml,
     parseStudentsFromClassPopup,
+    parseCounselingEnglishByMpidx,
+    enrichStudentsWithCounselingEnglish,
     parseStudentsFromNumberedBlocks,
     trimRosterPasteTail,
     parseClassSelectList,
@@ -2084,5 +2555,6 @@ module.exports = {
     isNoiseClassName,
     isJunkHeaderCohortName,
     CLASS_POPUP_PATH,
-    WRITING_LIST_PATH
+    WRITING_LIST_PATH,
+    WRITING_DETAIL_PATH
 };

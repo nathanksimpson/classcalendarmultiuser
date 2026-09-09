@@ -164,8 +164,6 @@
                                 dismissible: true,
                                 force: true
                             });
-                        } else {
-                            alert(msg);
                         }
                     });
                 });

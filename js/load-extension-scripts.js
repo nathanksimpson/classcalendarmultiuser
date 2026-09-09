@@ -4,17 +4,17 @@
  */
 (function (global) {
     const EXTENSION_SCRIPTS = [
-        'js/syllabus-table.js?v=20260721-event-timeline-orphan-fix',
+        'js/syllabus-table.js?v=20260908-debate-combine',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
-        'js/syllabus-curricula-data.js?v=20260602-tab-fast',
+        'js/syllabus-curricula-data.js?v=20260907-strip-angle',
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
-        'js/default-class-editor.js',
-        'js/books-editor.js?v=20260609-inline-warn-badge',
-        'js/homework-import.js?v=20260606-clipboard-dash',
-        'js/homework-tab.js?v=20260818-due-next-class',
-        'js/syllabus-templates.js?v=20260709-compressed-dedupe-v6'
+        'js/default-class-editor.js?v=20260908-quick-wins',
+        'js/books-editor.js?v=20260908-quick-wins',
+        'js/homework-import.js?v=20260907-strip-angle',
+        'js/homework-tab.js?v=20260908-debate-combine',
+        'js/syllabus-templates.js?v=20260908-debate-combine'
     ];
 
     let extensionPromise = null;

@@ -176,7 +176,8 @@
             4: '17:00–18:00',
             5: '18:00–19:00',
             6: '19:00–20:00',
-            7: '20:00–21:00'
+            7: '20:00–21:00',
+            8: '21:00–21:55'
         };
         let slots = [];
         if (global.CCPTimetablePeriods && typeof global.CCPTimetablePeriods.getSortedTimeSlots === 'function') {

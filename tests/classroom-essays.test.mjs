@@ -518,7 +518,66 @@ const { CCPClassroomEssays } = sandbox.window;
 
 }
 
+{
+    const homeworkCode = readFileSync(path.join(root, 'js', 'homework-tab.js'), 'utf8');
+    vm.runInNewContext(homeworkCode, sandbox);
+    const D = sandbox.window.CCPClassroomDomain;
+    const HT = sandbox.window.CCPHomeworkTab;
+    assert(D && typeof D.resolveEssayStudentDueDate === 'function', 'domain exports resolveEssayStudentDueDate');
+    assert(HT && typeof HT.resolveHomeworkDueDate === 'function', 'homework tab exports resolveHomeworkDueDate');
 
+    const classData = {
+        id: 'c1',
+        startDate: '2026-05-01',
+        endDate: '2026-06-30',
+        meetingDays: [1, 3, 5],
+        syllabusRows: [
+            {
+                id: 'row-essay',
+                kind: 'lesson',
+                date: '2026-05-04',
+                sessionNumber: 1,
+                planTitle: 'Essay 1',
+                planDetail: 'Write essay',
+                trackEssay: true
+            },
+            {
+                id: 'row-2',
+                kind: 'lesson',
+                date: '2026-05-08',
+                sessionNumber: 2,
+                planTitle: 'Next',
+                planDetail: 'HW'
+            }
+        ]
+    };
+    sandbox.window.CCPGetHomeworkTabHooks = () => ({
+        getMeetingDays: (c) => c.meetingDays || [],
+        isHolidayForClass: () => false
+    });
+
+    const row = classData.syllabusRows[0];
+    const autoDue = D.resolveEssayStudentDueDate(row, classData, null);
+    assert(autoDue === '2026-05-06', 'essay default due is next MWF meeting (Wed), not lesson day');
+
+    const overriddenRow = { ...row, homeworkDueDate: '2026-05-20' };
+    assert(
+        D.resolveEssayStudentDueDate(overriddenRow, classData, null) === '2026-05-20',
+        'essay due reads homeworkDueDate override'
+    );
+
+    const legacyStored = { ssDueDate: '2026-05-04' };
+    assert(
+        D.resolveEssayStudentDueDate(row, classData, legacyStored) === '2026-05-06',
+        'legacy lesson-day ssDueDate upgrades to homework next-class due'
+    );
+
+    const customStored = { ssDueDate: '2026-05-15' };
+    assert(
+        D.resolveEssayStudentDueDate(row, classData, customStored) === '2026-05-15',
+        'explicit custom ssDueDate still wins'
+    );
+}
 
 console.log('classroom-essays.test.mjs: all passed');
 

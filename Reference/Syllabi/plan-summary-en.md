@@ -127,7 +127,7 @@ Sample PDFs that used Wed+Fri or Tue+Thu only define **content**; your section�
 
 Pick **your** meeting day(s) for the section. PDF examples (Wed-only, Tue-only, etc.) are not forced by the app.
 
-GR presets include `<수업>` / `<과제>` templates applied by **session number** after refresh.
+GR presets include `수업` / `과제` templates applied by **session number** after refresh.
 
 ---
 

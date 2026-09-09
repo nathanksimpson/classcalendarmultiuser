@@ -144,7 +144,7 @@ const rows = [
     const syllabusRows = [
         { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
         resolved[0],
-        { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planTitle: 'Day 4', planDetail: 'HW-DAY-4' }
+        { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 4, planTitle: 'Day 4', planDetail: 'HW-DAY-4' }
     ];
     const pkt = HT.computeHomeworkForClass({
         classData: debateClass,
@@ -156,6 +156,75 @@ const rows = [
     assert(pkt.assignHomework.includes('HW-DAY-2'), 'assign includes day 2 homework');
     assert(pkt.assignHomework.includes('HW-DAY-3'), 'assign includes day 3 homework');
     assert(pkt.gradingHomework.includes('HW-DAY-1'), 'grading from previous session unchanged');
+}
+
+// Compressed Day 2+3: due is next syllabus Day 4, not gap weekday / stale Day 3
+{
+    const debateClassGap = {
+        scheduleModel: 'debateMonthly',
+        startDate: '2026-03-01',
+        endDate: '2026-06-30',
+        meetingDays: [3]
+    };
+    const wedHooks = {
+        getMeetingDays: (c) => c.meetingDays || [],
+        isHolidayForClass: () => false
+    };
+    const compressed = {
+        id: 'c23',
+        kind: 'lesson',
+        date: '2026-03-11',
+        sessionNumber: 2,
+        lessonNumber: 2,
+        planTitle: 'Merge Day 2+3',
+        planDetail: 'HW-DAY-2\n\nHW-DAY-3',
+        scheduleCompressed: true,
+        compressedGroupStart: 2,
+        compressedGroupEnd: 3,
+        debateCompressed: true,
+        debateGroupStart: 2,
+        debateGroupEnd: 3
+    };
+    const syllabusRowsGap = [
+        {
+            id: 'd1',
+            kind: 'lesson',
+            date: '2026-03-04',
+            sessionNumber: 1,
+            lessonNumber: 1,
+            planTitle: 'Day 1',
+            planDetail: 'HW-DAY-1'
+        },
+        compressed,
+        {
+            id: 'stale3',
+            kind: 'lesson',
+            date: '2026-03-18',
+            sessionNumber: 3,
+            lessonNumber: 3,
+            planTitle: 'Day 3',
+            planDetail: 'STALE-DAY-3'
+        },
+        {
+            id: 'd4',
+            kind: 'lesson',
+            date: '2026-03-25',
+            sessionNumber: 4,
+            lessonNumber: 4,
+            planTitle: 'Day 4',
+            planDetail: 'HW-DAY-4'
+        }
+    ];
+    const pktGap = HT.computeHomeworkForClass({
+        classData: debateClassGap,
+        syllabusRows: syllabusRowsGap,
+        referenceDate: '2026-03-11',
+        hooks: wedHooks
+    });
+    assert(pktGap.dueDate === '2026-03-25', 'compressed assign due is Day 4 date, not gap/stale Day 3');
+    assert(pktGap.dueDateAutomatic === '2026-03-25', 'automatic due matches Day 4');
+    const meetingOnly = HT.getNextClassMeetingAfter(debateClassGap, '2026-03-11', wedHooks);
+    assert(meetingOnly === '2026-03-18', 'sanity: bare next meeting is the gap Wednesday');
 }
 
 // Regression: incomplete combined template must not drop saved Day 3 homework
@@ -195,7 +264,7 @@ const rows = [
         syllabusRows: [
             { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planDetail: 'HW-DAY-1' },
             resolved[0],
-            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planDetail: 'HW-DAY-4' }
+            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 4, planDetail: 'HW-DAY-4' }
         ],
         referenceDate: '2026-03-11',
         hooks
@@ -240,7 +309,7 @@ const rows = [
         syllabusRows: [
             { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planDetail: 'HW-DAY-1' },
             resolved[0],
-            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planDetail: 'HW-DAY-4' }
+            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 4, planDetail: 'HW-DAY-4' }
         ],
         referenceDate: '2026-03-11',
         hooks
@@ -283,7 +352,7 @@ const rows = [
         syllabusRows: [
             { id: 'r1', kind: 'lesson', date: '2026-03-04', sessionNumber: 1, planDetail: 'HW-DAY-1' },
             resolved[0],
-            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 3, planDetail: 'HW-DAY-4' }
+            { id: 'r4', kind: 'lesson', date: '2026-03-18', sessionNumber: 4, planDetail: 'HW-DAY-4' }
         ],
         referenceDate: '2026-03-11',
         hooks
@@ -461,6 +530,106 @@ function meetingHooks(holidayMap) {
     assert(!block.includes('2026-08-20'), 'clipboard text does not include due date');
     assert(block.includes('Blue T'), 'clipboard still includes class name');
     assert(block.includes('Read p. 12'), 'clipboard includes homework body');
+}
+
+{
+    assert(HT.textIncludesDebateDay3('Day 3') === true, 'Day 3 title matches');
+    assert(HT.textIncludesDebateDay3('Alt Day 3') === true, 'Alt Day 3 title matches');
+    assert(HT.textIncludesDebateDay3('Day 2 & 3 Combined') === true, 'combined title matches');
+    assert(HT.textIncludesDebateDay3('Day 2') === false, 'Day 2 alone does not match');
+    assert(HT.textIncludesDebateDay3('Day 4 / Preview') === false, 'Day 4 does not match');
+    assert(HT.isDebateHomeworkClass({ scheduleModel: 'debateMonthly' }) === true, 'debateMonthly is debate class');
+    assert(HT.isDebateHomeworkClass({ scheduleModel: 'sequentialTerm' }) === false, 'sequential is not debate');
+
+    const debateClass = { scheduleModel: 'debateMonthly', name: 'Garam Debate' };
+    assert(
+        HT.assignHomeworkIncludesDebateDay3(debateClass, {
+            assignSourceTitle: 'Day 3',
+            assignHomework: 'Memorize speech'
+        }) === true,
+        'packet with Day 3 title triggers automation'
+    );
+    assert(
+        HT.assignHomeworkIncludesDebateDay3(debateClass, {
+            assignSourceTitle: 'Day 1',
+            assignHomework: 'Vocab'
+        }) === false,
+        'Day 1 packet does not trigger'
+    );
+    assert(
+        HT.assignHomeworkIncludesDebateDay3({ scheduleModel: 'sequentialTerm' }, {
+            assignSourceTitle: 'Day 3'
+        }) === false,
+        'non-debate class ignores Day 3 title'
+    );
+    assert(
+        HT.assignHomeworkIncludesDebateDay3(debateClass, {
+            assignSourceTitle: '',
+            assignSourceSessionNumber: 3,
+            assignHomework: ''
+        }) === true,
+        'session number 3 triggers for debate class'
+    );
+}
+
+{
+    const start = HT.DEBATE_TEAMS_BLOCK_START;
+    const end = HT.DEBATE_TEAMS_BLOCK_END;
+    const base = 'Memorize your speech for class.';
+    const teams = 'DEBATE 1\n1. Alice (PM) — Proposition';
+    const once = HT.injectDebateTeamsIntoAssignText(base, teams);
+    assert(once.includes(start), 'inject adds start marker');
+    assert(once.includes(end), 'inject adds end marker');
+    assert(once.includes(teams), 'inject adds speaking order');
+    assert(once.startsWith(base), 'inject keeps homework body');
+
+    const twice = HT.injectDebateTeamsIntoAssignText(once, 'DEBATE 1\n1. Bob (LO)');
+    assert(twice.includes('Bob (LO)'), 're-inject replaces with new teams');
+    assert(!twice.includes('Alice (PM)'), 'old teams block removed on re-inject');
+    assert((twice.match(new RegExp(start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length === 1,
+        'only one start marker after re-inject');
+
+    const stripped = HT.stripDebateTeamsBlock(twice);
+    assert(!stripped.includes(start), 'strip removes teams block');
+    assert(stripped.includes(base), 'strip keeps homework body');
+}
+
+// Manual homeworkDueDate override on assign syllabus row
+{
+    const rowsWithOverride = rows.map((r) =>
+        r.id === 'row-1' ? { ...r, homeworkDueDate: '2026-05-20' } : { ...r }
+    );
+    const pkt = HT.computeHomeworkForClass({
+        classData,
+        syllabusRows: rowsWithOverride,
+        referenceDate: '2026-05-04',
+        hooks
+    });
+    assert(pkt.dueDate === '2026-05-20', 'override due date wins over next class');
+    assert(pkt.dueDateOverridden === true, 'packet marks due as overridden');
+    assert(pkt.dueDateAutomatic === '2026-05-08', 'automatic next-class still exposed');
+    assert(pkt.skippedClassDates.some((s) => s.date === '2026-05-06'),
+        'skips still listed between assign and override due');
+}
+
+{
+    const resolved = HT.resolveHomeworkDueDate(classData, rows[0], hooks, rows);
+    assert(resolved.dueDate === '2026-05-08', 'resolve without override uses next class');
+    assert(resolved.dueDateOverridden === false, 'not overridden');
+
+    const cleared = HT.resolveHomeworkDueDate(
+        classData,
+        { ...rows[0], homeworkDueDate: '' },
+        hooks,
+        rows
+    );
+    assert(cleared.dueDate === '2026-05-08', 'empty override clears to automatic');
+    assert(cleared.dueDateOverridden === false, 'empty override is not overridden');
+}
+
+{
+    assert(HT.isValidHomeworkDueIso('2026-05-20') === true, 'valid ISO accepted');
+    assert(HT.isValidHomeworkDueIso('bad') === false, 'invalid ISO rejected');
 }
 
 console.log('homework-tab.test.mjs: all passed');

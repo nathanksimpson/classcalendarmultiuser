@@ -2489,12 +2489,98 @@
         }
     }
 
+    function resolveHomeroomLabel(cohort) {
+        const name = normalizeStr(cohort && cohort.homeroomTeacherName);
+        if (name) {
+            return name;
+        }
+        const uid = normalizeStr(cohort && cohort.homeroomTeacherUserId);
+        if (!uid) {
+            return '';
+        }
+        const teachers = hooks && typeof hooks.listTeachers === 'function' ? hooks.listTeachers() : [];
+        const match = teachers.find((row) => normalizeStr(row && row.userId) === uid);
+        if (match) {
+            return normalizeStr(match.displayName) || uid;
+        }
+        return uid;
+    }
+
+    function printHrTeacherList() {
+        const dataApi = global.CCPHrTeacherList;
+        const printApi = global.CCPHrTeacherListPrint;
+        if (!dataApi || !printApi || typeof dataApi.buildRows !== 'function') {
+            if (hooks && hooks.showMessage) {
+                hooks.showMessage(t('cohortsModuleMissing'), true);
+            }
+            return;
+        }
+        const appData = hooks.getAppData();
+        const cohorts = (appData.cohorts || []).filter((c) => c && c.id && !c.isArchiveCohort);
+        if (!cohorts.length) {
+            hooks.showMessage(t('cohortsPrintHrListEmpty'), true);
+            return;
+        }
+        const rows = dataApi.buildRows(appData, {
+            getAllSimsonLevels: hooks.getAllSimsonLevels,
+            getDefaultSimsonLevelColors: hooks.getDefaultSimsonLevelColors,
+            getEffectiveCohortPattern: (cohort, data) => getEffectiveCohortPattern(cohort, data),
+            formatCohortDisplayTitle,
+            getHomeroomLabel: resolveHomeroomLabel
+        });
+        const calendarName = hooks.getCalendarName ? hooks.getCalendarName() : '';
+        const labels = {
+            title: t('cohortsPrintHrListTitle'),
+            colCohort: t('cohortsPrintHrListColCohort'),
+            colMHrt: t('cohortsPrintHrListColMHrt'),
+            colTHrt: t('cohortsPrintHrListColTHrt')
+        };
+        const bodyHtml = printApi.renderDocumentHtml(rows, labels, { calendarName });
+        const title = calendarName ? `${labels.title} — ${calendarName}` : labels.title;
+        const cssHref = hooks.getAppStylesheetHref ? hooks.getAppStylesheetHref() : '';
+        const html = printApi.buildPrintDocumentHtml(bodyHtml, title, cssHref);
+        if (hooks.beginPrintColorMode) {
+            hooks.beginPrintColorMode();
+        }
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            if (hooks.endPrintColorMode) {
+                hooks.endPrintColorMode();
+            }
+            hooks.showMessage(t('printSyllabusBlocked'), true);
+            return;
+        }
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        printWin.document.title = title;
+        printWin.document.documentElement.classList.add('print-color-mode-light');
+        printWin.focus();
+        const ready = typeof hooks.whenPrintWindowReady === 'function'
+            ? hooks.whenPrintWindowReady
+            : (_win, fn) => setTimeout(fn, 50);
+        ready(printWin, () => {
+            requestAnimationFrame(() => {
+                printWin.addEventListener('afterprint', () => {
+                    try {
+                        printWin.close();
+                    } catch (e) { /* ignore */ }
+                    if (hooks.endPrintColorMode) {
+                        hooks.endPrintColorMode();
+                    }
+                }, { once: true });
+                printWin.print();
+            });
+        });
+    }
+
     function bindOnce() {
         if (document.body.dataset.cohortsTabBound === '1') {
             return;
         }
         document.body.dataset.cohortsTabBound = '1';
         document.getElementById('cohortsAddBtn')?.addEventListener('click', () => addCohort());
+        document.getElementById('cohortsPrintHrListBtn')?.addEventListener('click', () => printHrTeacherList());
         document.getElementById('cohortsImportBtn')?.addEventListener('click', () => importFromClasses());
         document.getElementById('cohortsListSearch')?.addEventListener('input', () => {
             renderCohortList();
@@ -2604,6 +2690,7 @@
         buildSubjectSlotsFromMatrix,
         generateClassesForCohort,
         importFromClasses,
-        inferBlankCohortSchedulesIfNeeded
+        inferBlankCohortSchedulesIfNeeded,
+        printHrTeacherList
     };
 })(typeof window !== 'undefined' ? window : globalThis);

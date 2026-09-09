@@ -26,7 +26,8 @@ const CLASSROOM_ENTITIES = new Set([
     'debateBookDistributions',
     'pendingDebateBookChecks',
     'tmsRosterLinks',
-    'tmsEssayLinks'
+    'tmsEssayLinks',
+    'essayGraderSettings'
 ]);
 
 const DAYNOTES_ENTITIES = new Set(['dayNotes']);
@@ -238,6 +239,15 @@ function applyClassroomMutation(next, m) {
         }
         return;
     }
+    if (entity === 'essayGraderSettings') {
+        if (action === 'upsert' || action === 'replace') {
+            const value = payload.essayGraderSettings != null ? payload.essayGraderSettings : payload.value;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                next.essayGraderSettings = value;
+            }
+        }
+        return;
+    }
     if (action === 'remove') {
         const id = extractClassroomRemoveId(entity, payload);
         next[entity] = removeById(next[entity], id, 'id');
@@ -418,6 +428,18 @@ function classroomFieldsToMutations(fields) {
             entity: 'tmsEssayLinks',
             action: 'upsert',
             payload: { tmsEssayLinks: body.tmsEssayLinks || {} },
+            timestamp: ts
+        });
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'essayGraderSettings')) {
+        const settings =
+            body.essayGraderSettings && typeof body.essayGraderSettings === 'object'
+                ? body.essayGraderSettings
+                : {};
+        mutations.push({
+            entity: 'essayGraderSettings',
+            action: 'replace',
+            payload: { essayGraderSettings: settings },
             timestamp: ts
         });
     }

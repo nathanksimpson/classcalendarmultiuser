@@ -663,10 +663,130 @@
                 return;
             }
         }
-        const shuffled = shuffle(state.students);
         state.debates = assignDebates();
         notifySave();
         render();
+    }
+
+    /**
+     * Programmatic generate (no confirm/alert UI). Used by homework Day 3 automation.
+     * @returns {{ ok: boolean, reason?: string, count?: number }}
+     */
+    function generateDebatesSilent(options) {
+        options = options || {};
+        const f = fmt();
+        const n = state.students.length;
+        if (n < f.min) {
+            return { ok: false, reason: 'min', count: n, min: f.min, formatName: f.name };
+        }
+        if (state.debates.length && options.replace !== true) {
+            return { ok: false, reason: 'exists', count: state.debates.length };
+        }
+        state.debates = assignDebates();
+        if (options.notify !== false) {
+            notifySave();
+        }
+        if (options.render !== false) {
+            render();
+        }
+        return { ok: true, count: state.debates.length };
+    }
+
+    /** Plain-text speaking order block from current or provided session debates. */
+    function formatSpeakingOrderBlock(sessionState) {
+        const src = sessionState || state;
+        const debates = Array.isArray(src.debates) ? src.debates : [];
+        if (!debates.length) {
+            return '';
+        }
+        let text = '';
+        debates.forEach((d) => {
+            text += 'DEBATE ' + d.number + '\n' + '-'.repeat(20) + '\n';
+            const f = baseFmt(d.formatId || src.formatId);
+            const rank = new Map();
+            (d.order || f.order || []).forEach((token, i) => {
+                const base = String(token).replace('*', '');
+                const abbr = (f.aliases && f.aliases[base]) || base;
+                if (!rank.has(abbr)) {
+                    rank.set(abbr, i);
+                }
+            });
+            const speakers = [];
+            (d.benches || []).forEach((b) => {
+                (b.members || []).forEach((m) => {
+                    if (!m || !m.name) {
+                        return;
+                    }
+                    speakers.push({
+                        name: m.name,
+                        roleAbbr: m.role ? m.role.abbr : '',
+                        bench: b.label || '',
+                        _r: m.role && rank.has(m.role.abbr) ? rank.get(m.role.abbr) : 999
+                    });
+                });
+            });
+            speakers.sort((a, b) => a._r - b._r);
+            speakers.forEach((s, idx) => {
+                text +=
+                    String(idx + 1) +
+                    '. ' +
+                    s.name +
+                    (s.roleAbbr ? ' (' + s.roleAbbr + ')' : '') +
+                    (s.bench ? ' — ' + s.bench : '') +
+                    '\n';
+            });
+            text += '\n';
+        });
+        return text.trim();
+    }
+
+    /** Speakers list for score-sheet export from a session snapshot. */
+    function speakersFromSession(sessionState) {
+        const src = sessionState || state;
+        const out = [];
+        (src.debates || []).forEach((d) => {
+            const f = baseFmt(d.formatId || src.formatId);
+            const rank = new Map();
+            (d.order || f.order || []).forEach((token, i) => {
+                const base = String(token).replace('*', '');
+                const abbr = (f.aliases && f.aliases[base]) || base;
+                if (!rank.has(abbr)) {
+                    rank.set(abbr, i);
+                }
+            });
+            const all = [];
+            (d.benches || []).forEach((b) =>
+                (b.members || []).forEach((m) => {
+                    if (!m || !m.name) {
+                        return;
+                    }
+                    all.push({
+                        name: exportName(m.name),
+                        roleAbbr: m.role ? m.role.abbr : '',
+                        roleName: m.role ? m.role.name : '',
+                        debate: String(d.number),
+                        bench: b.label,
+                        _r: m.role && rank.has(m.role.abbr) ? rank.get(m.role.abbr) : 999
+                    });
+                })
+            );
+            all.sort((a, b) => a._r - b._r);
+            out.push(...all);
+        });
+        return out;
+    }
+
+    function buildExportContextFromSession(sessionState) {
+        const src = sessionState || state;
+        const formatId = src.formatId || 'ap';
+        const f = baseFmt(formatId);
+        return {
+            classTitle: String(src.classTitle || '').trim(),
+            hrTeacher: String(src.hrTeacher || '').trim(),
+            formatName: f.name || formatId,
+            sheetTemplate: src.sheetTemplate === 'yeoul' ? 'yeoul' : 'garam',
+            speakers: speakersFromSession(src)
+        };
     }
 
     function updMember(di, bi, mi, key, val) {
@@ -2019,6 +2139,10 @@
         render,
         assignDebates,
         generateDebates,
+        generateDebatesSilent,
+        formatSpeakingOrderBlock,
+        speakersFromSession,
+        buildExportContextFromSession,
         applyMetadataDefaults,
         applyClassFormatDefaults,
         applyPurpleModeSettings,

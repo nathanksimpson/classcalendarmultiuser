@@ -673,7 +673,8 @@ function getDefaultTimetableTimeSlots() {
         { id: 'ts4', start: '17:00', end: '18:00', durationMin: 55, sortOrder: 4 },
         { id: 'ts5', start: '18:00', end: '19:00', durationMin: 55, sortOrder: 5 },
         { id: 'ts6', start: '19:00', end: '20:00', durationMin: 55, sortOrder: 6 },
-        { id: 'ts7', start: '20:00', end: '21:00', durationMin: 55, sortOrder: 7 }
+        { id: 'ts7', start: '20:00', end: '21:00', durationMin: 55, sortOrder: 7 },
+        { id: 'ts8', start: '21:00', end: '21:55', durationMin: 55, sortOrder: 8 }
     ];
 }
 
@@ -681,7 +682,7 @@ function getDefaultPeriodSlotMap() {
     if (typeof CCPTeacherTimetable !== 'undefined' && CCPTeacherTimetable.getDefaultPeriodSlotMap) {
         return CCPTeacherTimetable.getDefaultPeriodSlotMap();
     }
-    return { '1': 'ts1', '2': 'ts2', '3': 'ts3', '4': 'ts4', '5': 'ts5', '6': 'ts6', '7': 'ts7' };
+    return { '1': 'ts1', '2': 'ts2', '3': 'ts3', '4': 'ts4', '5': 'ts5', '6': 'ts6', '7': 'ts7', '8': 'ts8' };
 }
 
 function getDefaultAppData() {
@@ -722,6 +723,7 @@ function getDefaultAppData() {
         debateTeamSessions: [],
         debateScores: [],
         debateCustomFormats: [],
+        essayGraderSettings: null,
         speakingTestRecords: [],
         debateBookDistributions: [],
         pendingDebateBookChecks: [],
@@ -1100,9 +1102,9 @@ const SCHEDULE_CONFIG = {
     autoMergePreferredPairStart: 2
 };
 
-/** School day periods (1 = first period … 7 = seventh). */
+/** School day periods (1 = first period … 8 = eighth). */
 const CLASS_PERIOD_MIN = 1;
-const CLASS_PERIOD_MAX = 7;
+const CLASS_PERIOD_MAX = 8;
 
 function parseClassPeriodValue(raw) {
     if (raw === undefined || raw === null || raw === '') {
@@ -3756,6 +3758,56 @@ function getUnscheduledLessonNumbers(classData, schedule) {
 }
 
 /**
+ * Debate monthly: curriculum days missing within each book period (not global across term).
+ * So last-period Day 4 still surfaces as overflow when earlier months already placed Day 4.
+ * @returns {{ periodId: string, periodStartDate: string, periodRangeEndDate: string, lessonNum: number, label: string }[]}
+ */
+function getDebateUnscheduledOverflowItems(classData, schedule) {
+    if (!classUsesDebateCompression(classData)) {
+        return [];
+    }
+    const totalLessons = sanitizeTotalLessons(classData.totalLessons || 4);
+    const skippedSet = new Set(getSkippedLessonsFromClass(classData, totalLessons));
+    const debateApi = getCCPDebatePeriods();
+    const periods = debateApi && typeof debateApi.enumerateDebatePeriodsInTerm === 'function'
+        ? debateApi.enumerateDebatePeriodsInTerm(classData) || []
+        : [];
+    const lessons = (schedule && schedule.lessons) || [];
+    const out = [];
+
+    periods.forEach((period) => {
+        if (!period || !period.id) {
+            return;
+        }
+        const periodLessons = lessons.filter((lesson) => lesson && lesson.periodId === period.id);
+        const placed = new Set();
+        periodLessons.forEach((lesson) => {
+            if (lesson.group && Array.isArray(lesson.group.days)) {
+                lesson.group.days.forEach((d) => placed.add(Number(d)));
+            } else if (lesson.group && lesson.group.start) {
+                placed.add(Number(lesson.group.start));
+                if (lesson.compressed && lesson.group.end) {
+                    placed.add(Number(lesson.group.end));
+                }
+            }
+        });
+        for (let n = 1; n <= totalLessons; n += 1) {
+            if (skippedSet.has(n) || placed.has(n)) {
+                continue;
+            }
+            out.push({
+                periodId: period.id,
+                periodStartDate: period.startDate || '',
+                periodRangeEndDate: period.rangeEndDate || classData.endDate || '',
+                lessonNum: n,
+                label: formatLessonDayLabel(n)
+            });
+        }
+    });
+    return out;
+}
+
+/**
  * Chronological class meeting slots for syllabus rows (includes holidays as slots).
  * @returns {{ slots: Array, unscheduledLessonNumbers: number[] }}
  */
@@ -5609,31 +5661,9 @@ function initCalendarSwipe() {
     );
 }
 
-/** Cohorts setup board: palette sticky top + viewport height for the board grid. */
+/** Cohorts board uses CSS flex-fill on #panel-cohorts; measured chrome height retired. */
 function syncCohortsBoardStickyOffsets() {
-    const panel = document.getElementById('panel-cohorts');
-    const root = document.documentElement;
-    if (!panel || panel.hidden) {
-        return;
-    }
-    const layout = panel.querySelector('.setup-board-layout');
-    if (!layout) {
-        return;
-    }
-
-    const appTopRaw = getComputedStyle(root).getPropertyValue('--app-chrome-sticky-top').trim();
-    const appTop = Math.max(0, Math.ceil(parseFloat(appTopRaw)) || 72);
-    const toolbar = panel.querySelector('.cohorts-floating-toolbar');
-    const toolbarH = toolbar ? Math.ceil(toolbar.getBoundingClientRect().height) : 0;
-    const paletteTop = appTop + toolbarH;
-    root.style.setProperty('--cohorts-palette-sticky-top', `${paletteTop}px`);
-
-    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    const layoutDocTop = layout.getBoundingClientRect().top + scrollY;
-    const chrome = Math.ceil(layoutDocTop);
-    if (chrome > 0) {
-        root.style.setProperty('--cohorts-board-chrome-height', `${chrome}px`);
-    }
+    /* no-op — kept so existing tab/resize call sites stay safe */
 }
 
 let appChromeStickyResizeObserver = null;
@@ -5641,26 +5671,9 @@ let cohortsBoardStickyResizeObserver = null;
 let homeworkSidebarLayoutResizeObserver = null;
 
 function initCohortsBoardStickyOffsets() {
-    const panel = document.getElementById('panel-cohorts');
-    if (!panel) {
-        return;
-    }
-    syncCohortsBoardStickyOffsets();
-
-    if (typeof ResizeObserver === 'undefined') {
-        return;
-    }
     if (cohortsBoardStickyResizeObserver) {
         cohortsBoardStickyResizeObserver.disconnect();
-    }
-    cohortsBoardStickyResizeObserver = new ResizeObserver(() => syncCohortsBoardStickyOffsets());
-    const toolbar = panel.querySelector('.cohorts-floating-toolbar');
-    if (toolbar) {
-        cohortsBoardStickyResizeObserver.observe(toolbar);
-    }
-    const extraPanel = document.getElementById('cohortsExtraPanel');
-    if (extraPanel) {
-        cohortsBoardStickyResizeObserver.observe(extraPanel);
+        cohortsBoardStickyResizeObserver = null;
     }
 }
 
@@ -13402,9 +13415,15 @@ function collectDebateBookPeriodsFromForm() {
 /** @deprecated Legacy map; debate classes use debateBookPeriods. */
 function collectBooksByMonthFromForm() {
     const map = {};
+    const debateApi = getCCPDebatePeriods();
     collectDebateBookPeriodsFromForm().forEach(p => {
         if (p.startDate) {
-            map[p.startDate.slice(0, 7)] = p.book;
+            const key = debateApi && typeof debateApi.teachingMonthKeyForDate === 'function'
+                ? (debateApi.teachingMonthKeyForDate(p.startDate) || p.startDate.slice(0, 7))
+                : p.startDate.slice(0, 7);
+            if (key) {
+                map[key] = p.book;
+            }
         }
     });
     return map;
@@ -16472,6 +16491,11 @@ function getHomeworkTabHooks() {
     };
 }
 
+/** Exposed for Tools → Essays / classroom-domain to resolve the same homework due. */
+if (typeof window !== 'undefined') {
+    window.CCPGetHomeworkTabHooks = getHomeworkTabHooks;
+}
+
 /** Month shown in homework tab mini calendar ({ year, month } with 0-based month). */
 let homeworkRefCalendarView = null;
 
@@ -17359,6 +17383,135 @@ function saveHomeworkDetailToSyllabus(classData, rowId, planDetail) {
     return true;
 }
 
+/**
+ * Persist optional homework due override on the assign syllabus row.
+ * Empty string clears the override (automatic next-class due).
+ * Syncs matching essaySubmissions.ssDueDate when present (unless syncEssay: false).
+ */
+function saveHomeworkDueDateToSyllabus(classData, rowId, homeworkDueDate, options) {
+    const opts = options || {};
+    const row = findSyllabusRowInClass(classData, rowId);
+    if (!row) {
+        return false;
+    }
+    const mod = getHomeworkTabModule();
+    const raw = String(homeworkDueDate || '').trim();
+    const next = raw && (!mod || mod.isValidHomeworkDueIso(raw)) ? raw : '';
+    if (next) {
+        row.homeworkDueDate = next;
+    } else {
+        delete row.homeworkDueDate;
+    }
+    if (row.source === 'generated') {
+        row.source = 'edited';
+    }
+    const idx = appData.classes.findIndex((c) => c.id === classData.id);
+    if (idx >= 0) {
+        appData.classes[idx].syllabusRows = classData.syllabusRows;
+    }
+    saveData();
+    if (opts.syncEssay !== false) {
+        let effectiveDue = next;
+        if (!effectiveDue && mod && typeof mod.resolveHomeworkDueDate === 'function') {
+            const resolved = mod.resolveHomeworkDueDate(
+                classData,
+                row,
+                getHomeworkTabHooks(),
+                classData.syllabusRows
+            );
+            effectiveDue = resolved && resolved.dueDate ? resolved.dueDate : '';
+        }
+        syncEssaySubmissionDueFromHomeworkRow(classData, rowId, effectiveDue);
+    }
+    return true;
+}
+
+/** Keep Tools → Essays student due aligned with homework due for the same syllabus row. */
+function syncEssaySubmissionDueFromHomeworkRow(classData, rowId, effectiveDueDate) {
+    if (!classData || !rowId || !appData) {
+        return;
+    }
+    const domainApi = typeof CCPClassroomDomain !== 'undefined' ? CCPClassroomDomain : null;
+    if (!domainApi || typeof domainApi.findEssaySubmission !== 'function') {
+        return;
+    }
+    const existing = domainApi.findEssaySubmission(appData.essaySubmissions, classData.id, rowId);
+    if (!existing) {
+        return;
+    }
+    const due = String(effectiveDueDate || '').trim();
+    const autoTe = due && typeof domainApi.addDaysISO === 'function'
+        ? domainApi.addDaysISO(due, 2)
+        : '';
+    const next = Object.assign({}, existing, {
+        ssDueDate: due,
+        teacherEvalDueDate: existing.teacherEvalDueDate || autoTe || existing.teacherEvalDueDate || ''
+    });
+    if (!next.teacherEvalDueDate && autoTe) {
+        next.teacherEvalDueDate = autoTe;
+    }
+    // When due changes, refresh teacher eval default only if it was empty or exactly old ss+2.
+    if (due && autoTe) {
+        const prevSs = String(existing.ssDueDate || '').trim();
+        const prevTe = String(existing.teacherEvalDueDate || '').trim();
+        const prevAutoTe = prevSs && typeof domainApi.addDaysISO === 'function'
+            ? domainApi.addDaysISO(prevSs, 2)
+            : '';
+        if (!prevTe || prevTe === prevAutoTe) {
+            next.teacherEvalDueDate = autoTe;
+        }
+    }
+    appData.essaySubmissions = domainApi.upsertEssaySubmission(appData.essaySubmissions, next);
+    void saveClassroomPartial({ essaySubmissions: appData.essaySubmissions });
+}
+
+function persistHomeworkDueDateFromUi(options) {
+    const opts = options || {};
+    const clearOverride = opts.clearOverride === true;
+    const state = homeworkEditorState;
+    if (!state || !state.classId || !state.packet) {
+        return false;
+    }
+    const classData = appData.classes.find((c) => c.id === state.classId);
+    if (!classData) {
+        return false;
+    }
+    const rowId = state.packet.assignSourceRowId;
+    if (!rowId) {
+        setAppStatusMessage(t('homeworkTabNoSyllabusRow'), true);
+        return false;
+    }
+    const input = document.getElementById('homeworkDueDateInput');
+    const value = clearOverride ? '' : (input ? input.value : '');
+    const ok = saveHomeworkDueDateToSyllabus(classData, rowId, value);
+    if (!ok) {
+        setAppStatusMessage(t('homeworkTabNoSyllabusRow'), true);
+        return false;
+    }
+    setAppStatusMessage(t('homeworkTabSaved'), false);
+    renderHomeworkEditor();
+    return true;
+}
+
+function updateHomeworkDueDateControls(packet) {
+    const dueEl = document.getElementById('homeworkDueDateDisplay');
+    const dueInput = document.getElementById('homeworkDueDateInput');
+    const resetBtn = document.getElementById('homeworkDueDateResetBtn');
+    const canEdit = Boolean(packet && packet.assignSourceRowId);
+    const dueDate = packet && packet.dueDate ? String(packet.dueDate) : '';
+    const overridden = packet && packet.dueDateOverridden === true;
+    if (dueInput) {
+        dueInput.disabled = !canEdit;
+        dueInput.value = dueDate;
+    }
+    if (dueEl) {
+        dueEl.textContent = dueDate ? formatHomeworkDueDateDisplay(dueDate) : '—';
+    }
+    if (resetBtn) {
+        resetBtn.hidden = !canEdit || !overridden;
+    }
+}
+
 function updateHomeworkSourceHints(packet) {
     const gradingHint = document.getElementById('homeworkGradingSourceHint');
     const assignHint = document.getElementById('homeworkAssignSourceHint');
@@ -17581,7 +17734,6 @@ function renderHomeworkEditor() {
     const content = document.getElementById('homeworkEditorContent');
     const gradingEl = document.getElementById('homeworkGradingText');
     const assignEl = document.getElementById('homeworkAssignText');
-    const dueEl = document.getElementById('homeworkDueDateDisplay');
     const msgEl = document.getElementById('homeworkTabMessage');
     const titleEl = document.getElementById('homeworkClassTitle');
     const classMetaEl = document.getElementById('homeworkClassMeta');
@@ -17595,6 +17747,7 @@ function renderHomeworkEditor() {
         empty.hidden = false;
         content.hidden = true;
         renderHomeworkLastClassNotes(null, null);
+        updateHomeworkDueDateControls(null);
         const queueEl = document.getElementById('homeworkClassQueue');
         if (queueEl) {
             queueEl.hidden = true;
@@ -17636,9 +17789,7 @@ function renderHomeworkEditor() {
         assignEl.disabled = !packet.assignSourceRowId;
     }
     updateHomeworkSourceHints(packet);
-    if (dueEl) {
-        dueEl.textContent = packet.dueDate ? formatHomeworkDueDateDisplay(packet.dueDate) : '—';
-    }
+    updateHomeworkDueDateControls(packet);
     renderHomeworkDueDateSkips(packet);
     renderHomeworkLastClassNotes(classData, packet);
     if (msgEl) {
@@ -18372,6 +18523,132 @@ function showHomeworkCopyStatus(ok) {
         ok ? t('homeworkTabCopied') : t('homeworkTabCopyFailed'),
         !ok
     );
+}
+
+/**
+ * Copy assign homework; for debate Day 3, optionally sync roster, build teams,
+ * inject speaking order, then download the level-appropriate Word score sheet.
+ */
+async function copyHomeworkAssignWithDebateDay3Automation() {
+    const state = homeworkEditorState;
+    const classData = state?.classId
+        ? appData.classes.find((c) => c.id === state.classId)
+        : null;
+    const packet = state?.packet;
+    const assignEl = document.getElementById('homeworkAssignText');
+    let body = assignEl ? assignEl.value || '' : '';
+    const mod = getHomeworkTabModule();
+
+    const isDay3 =
+        classData &&
+        packet &&
+        mod &&
+        typeof mod.assignHomeworkIncludesDebateDay3 === 'function' &&
+        mod.assignHomeworkIncludesDebateDay3(classData, packet);
+
+    if (!isDay3) {
+        const formatted =
+            classData && packet ? formatHomeworkPasteBlock(body, classData, packet, 'assign') : body;
+        showHomeworkCopyStatus(await copyTextToClipboard(formatted));
+        return;
+    }
+
+    const sessionDate = String(packet.targetLessonDate || '').trim();
+    if (!sessionDate) {
+        setAppStatusMessage(t('homeworkDebateDay3MissingDate'), true);
+        return;
+    }
+
+    const wantSync = window.confirm(t('homeworkDebateDay3SyncRosterConfirm'));
+    if (wantSync) {
+        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+            await CCPTabScripts.ensureTabScripts('students');
+        }
+        const roster = typeof CCPClassroomRoster !== 'undefined' ? CCPClassroomRoster : null;
+        if (roster && roster.ensureHooks) {
+            roster.ensureHooks(getClassroomHooks());
+        }
+        if (roster && typeof roster.requestTmsSyncThen === 'function') {
+            await roster.requestTmsSyncThen();
+        } else {
+            setAppStatusMessage(t('homeworkDebateDay3RosterUnavailable'), false);
+        }
+    }
+
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebateCoreScripts) {
+        await CCPTabScripts.ensureDebateCoreScripts();
+    }
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+        await CCPTabScripts.ensureTabScripts('debate-teams');
+    }
+
+    const teamsApi =
+        typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null;
+    if (!teamsApi || typeof teamsApi.buildAndPersistForHomework !== 'function') {
+        setAppStatusMessage(t('homeworkDebateDay3TeamsUnavailable'), true);
+        return;
+    }
+    teamsApi.ensureHooks(getClassroomHooks());
+
+    const built = await teamsApi.buildAndPersistForHomework({
+        classId: classData.id,
+        date: sessionDate,
+        hooks: getClassroomHooks()
+    });
+    if (!built || !built.ok) {
+        const reason = built && built.reason ? String(built.reason) : '';
+        if (reason === 'empty') {
+            setAppStatusMessage(t('homeworkDebateDay3NoStudents'), true);
+        } else if (reason === 'readonly') {
+            setAppStatusMessage(t('homeworkDebateDay3Readonly'), true);
+        } else if (reason === 'min') {
+            setAppStatusMessage(t('homeworkDebateDay3NeedMinStudents'), true);
+        } else {
+            setAppStatusMessage(t('homeworkDebateDay3TeamsFailed'), true);
+        }
+        return;
+    }
+
+    const eng = typeof CCPDebateTeamsV2 !== 'undefined' ? CCPDebateTeamsV2 : null;
+    const teamsBlock =
+        eng && typeof eng.formatSpeakingOrderBlock === 'function'
+            ? eng.formatSpeakingOrderBlock(built.sessionState)
+            : '';
+    if (teamsBlock && mod && typeof mod.injectDebateTeamsIntoAssignText === 'function') {
+        body = mod.injectDebateTeamsIntoAssignText(body, teamsBlock);
+        if (assignEl) {
+            assignEl.value = body;
+        }
+        persistHomeworkTextareaToSyllabus('assign');
+    }
+
+    const formatted = formatHomeworkPasteBlock(body, classData, packet, 'assign');
+    const copied = await copyTextToClipboard(formatted);
+
+    let sheetOk = false;
+    try {
+        const exp =
+            typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
+        if (exp && eng && typeof eng.buildExportContextFromSession === 'function') {
+            const exportOpts = eng.buildExportContextFromSession(built.sessionState);
+            const ctx = exp.buildExportContext(exportOpts);
+            await exp.exportWord(ctx);
+            sheetOk = true;
+        }
+    } catch (err) {
+        console.error('Day 3 score sheet export failed', err);
+    }
+
+    if (copied && sheetOk) {
+        setAppStatusMessage(
+            built.reused ? t('homeworkDebateDay3CopyReuseSuccess') : t('homeworkDebateDay3CopySuccess'),
+            false
+        );
+    } else if (copied) {
+        setAppStatusMessage(t('homeworkDebateDay3CopyNoSheet'), false);
+    } else {
+        showHomeworkCopyStatus(false);
+    }
 }
 
 function getTimetableApi() {
@@ -19984,7 +20261,7 @@ function renderCohortTimetablePreviewInto(mountEl, cohortId, options) {
     if (!grid || !grid.blocks || !grid.blocks.length) {
         const empty = document.createElement('p');
         empty.className = 'module-empty-hint';
-        empty.textContent = t('setupHubTimetableEmpty');
+        empty.textContent = t('cohortsTimetableEmpty');
         mountEl.appendChild(empty);
         return;
     }
@@ -20410,6 +20687,9 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.debateCustomFormats)) {
         appData.debateCustomFormats = serverData.debateCustomFormats;
     }
+    if (serverData.essayGraderSettings && typeof serverData.essayGraderSettings === 'object') {
+        appData.essayGraderSettings = serverData.essayGraderSettings;
+    }
     if (Array.isArray(serverData.speakingTestRecords)) {
         appData.speakingTestRecords = serverData.speakingTestRecords;
     }
@@ -20472,6 +20752,12 @@ async function saveClassroomPartial(fields, options) {
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'debateCustomFormats')) {
             appData.debateCustomFormats = fieldBag.debateCustomFormats;
         }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'essayGraderSettings')) {
+            appData.essayGraderSettings =
+                fieldBag.essayGraderSettings && typeof fieldBag.essayGraderSettings === 'object'
+                    ? fieldBag.essayGraderSettings
+                    : {};
+        }
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'speakingTestRecords')) {
             appData.speakingTestRecords = fieldBag.speakingTestRecords;
         }
@@ -20514,6 +20800,7 @@ async function saveClassroomPartial(fields, options) {
             'debateTeamSessions',
             'debateScores',
             'debateCustomFormats',
+            'essayGraderSettings',
             'speakingTestRecords',
             'debateBookDistributions',
             'pendingDebateBookChecks',
@@ -20622,6 +20909,14 @@ function getClassroomHooks() {
         },
         async saveClassroom(fields, options) {
             return saveClassroomPartial(fields, options);
+        },
+        /** Persist shared homework due override on a syllabus row (Tools Essays SS due sync). */
+        saveHomeworkDueDate(classId, rowId, homeworkDueDate) {
+            const classData = (appData.classes || []).find((c) => c && c.id === classId);
+            if (!classData) {
+                return false;
+            }
+            return saveHomeworkDueDateToSyllabus(classData, rowId, homeworkDueDate, { syncEssay: false });
         },
         refreshTabWarnings() {
             scheduleTabWarningsRefresh();
@@ -20858,6 +21153,11 @@ function getCohortManagementHooks() {
         getCalendarName: () => (appData.calendarName || '').trim(),
         getAllSimsonLevels,
         getSimsonLevelById,
+        getDefaultSimsonLevelColors,
+        getAppStylesheetHref,
+        beginPrintColorMode,
+        endPrintColorMode,
+        whenPrintWindowReady,
         findCurriculumPresetForLevel,
         getClassesInDisplayOrder,
         compareClassesForDisplayOrder,
@@ -22926,6 +23226,16 @@ function initHomeworkTabListeners() {
         assignTa.addEventListener('input', () => debouncedSaveHomeworkAssign());
         assignTa.addEventListener('blur', () => persistHomeworkTextareaToSyllabus('assign'));
     }
+    const dueInput = document.getElementById('homeworkDueDateInput');
+    if (dueInput && !dueInput.dataset.homeworkInit) {
+        dueInput.dataset.homeworkInit = '1';
+        dueInput.addEventListener('change', () => persistHomeworkDueDateFromUi());
+    }
+    const dueReset = document.getElementById('homeworkDueDateResetBtn');
+    if (dueReset && !dueReset.dataset.homeworkInit) {
+        dueReset.dataset.homeworkInit = '1';
+        dueReset.addEventListener('click', () => persistHomeworkDueDateFromUi({ clearOverride: true }));
+    }
     const copyGrading = document.getElementById('homeworkCopyGradingBtn');
     if (copyGrading && !copyGrading.dataset.homeworkInit) {
         copyGrading.dataset.homeworkInit = '1';
@@ -22945,15 +23255,7 @@ function initHomeworkTabListeners() {
     if (copyAssign && !copyAssign.dataset.homeworkInit) {
         copyAssign.dataset.homeworkInit = '1';
         copyAssign.addEventListener('click', async () => {
-            const state = homeworkEditorState;
-            const classData = state?.classId
-                ? appData.classes.find((c) => c.id === state.classId)
-                : null;
-            const body = document.getElementById('homeworkAssignText')?.value || '';
-            const formatted = classData && state?.packet
-                ? formatHomeworkPasteBlock(body, classData, state.packet, 'assign')
-                : body;
-            showHomeworkCopyStatus(await copyTextToClipboard(formatted));
+            await copyHomeworkAssignWithDebateDay3Automation();
         });
     }
     const copyBoth = document.getElementById('homeworkCopyBothBtn');
@@ -23217,6 +23519,25 @@ const SIMSON_LEVEL_GROUPS = (() => {
             ]
         },
         {
+            id: 'pre-middle',
+            labelKey: 'simsonLevelsPreMiddle',
+            fallbackLabel: 'Pre middle school',
+            levels: [
+                { id: 'Pre \uC720\uB9C8', name: 'Pre \uC720\uB9C8', grade: null, preOf: '\uC720\uB9C8' },
+                { id: 'Pre \uB808\uC624', name: 'Pre \uB808\uC624', grade: null, preOf: '\uB808\uC624' },
+                { id: 'Pre \uD30C\uBCF4', name: 'Pre \uD30C\uBCF4', grade: null, preOf: '\uD30C\uBCF4' },
+                { id: 'Pre \uD3F4\uB77C', name: 'Pre \uD3F4\uB77C', grade: null, preOf: '\uD3F4\uB77C' },
+                { id: 'Pre \uD649\uC2A4', name: 'Pre \uD649\uC2A4', grade: null, preOf: '\uD649\uC2A4' },
+                { id: 'Pre \uD2F0\uCE74', name: 'Pre \uD2F0\uCE74', grade: null, preOf: '\uD2F0\uCE74' },
+                { id: 'Pre \uBE45\uD0A4', name: 'Pre \uBE45\uD0A4', grade: null, preOf: '\uBE45\uD0A4' },
+                { id: 'Pre \uBC14\uC774\uCEEC', name: 'Pre \uBC14\uC774\uCEEC', grade: null, preOf: '\uBC14\uC774\uCEEC' },
+                { id: 'Pre \uC548\uB098', name: 'Pre \uC548\uB098', grade: null, preOf: '\uC548\uB098' },
+                { id: 'Pre \uB0AD\uAC00', name: 'Pre \uB0AD\uAC00', grade: null, preOf: '\uB0AD\uAC00' },
+                { id: 'Pre \uB85C\uCCB4', name: 'Pre \uB85C\uCCB4', grade: null, preOf: '\uB85C\uCCB4' },
+                { id: 'Pre \uCE89\uCCB8', name: 'Pre \uCE89\uCCB8', grade: null, preOf: '\uCE89\uCCB8' }
+            ]
+        },
+        {
             id: 'middle',
             labelKey: 'simsonLevelsMiddleSchool',
             fallbackLabel: 'Middle school',
@@ -23288,6 +23609,14 @@ function getDefaultSimsonLevelColors(levelId) {
         color: bgHex,
         textColor: getReadableTextOnBackground(bgHex, DEFAULT_CLASS_TEXT_COLOR)
     });
+
+    // Pre middle-school levels inherit the linked MS band color without setting school grade.
+    if (def.preOf) {
+        const linked = getSimsonLevelById(def.preOf);
+        if (linked && linked.grade) {
+            return getDefaultSimsonLevelColors(linked.id);
+        }
+    }
 
     if (def.grade) {
         if (def.grade === midGrade1) {
@@ -25369,7 +25698,25 @@ function lessonsForSyllabusBuild(classData) {
         });
     });
 
-    if (unscheduledLessonNumbers.length > 0) {
+    if (classUsesDebateCompression(classData)) {
+        const scheduleOpts = getViewerCurriculumScheduleOptions(classData);
+        const schedule = calculateLessonDates(classData, scheduleOpts);
+        const debateOverflow = getDebateUnscheduledOverflowItems(classData, schedule);
+        if (debateOverflow.length > 0) {
+            items.push({ __syllabusOverflowIntro: true });
+            debateOverflow.forEach((entry) => {
+                items.push({
+                    __syllabusUnscheduled: true,
+                    lessonNum: entry.lessonNum,
+                    label: entry.label,
+                    periodId: entry.periodId,
+                    periodStartDate: entry.periodStartDate,
+                    periodRangeEndDate: entry.periodRangeEndDate,
+                    overflowDate: entry.periodRangeEndDate || ''
+                });
+            });
+        }
+    } else if (unscheduledLessonNumbers.length > 0) {
         items.push({ __syllabusOverflowIntro: true });
         unscheduledLessonNumbers.forEach(lessonNum => {
             items.push({
@@ -28683,7 +29030,12 @@ function getCompressionMergesForPeriod(classData, period, totalLessons) {
         const byMonth = classData.compressionMergesByMonth && typeof classData.compressionMergesByMonth === 'object'
             ? classData.compressionMergesByMonth
             : {};
-        const monthKey = period.startDate ? period.startDate.slice(0, 7) : '';
+        const debateApi = getCCPDebatePeriods();
+        const monthKey = period.startDate
+            ? (debateApi && typeof debateApi.monthKeyForPeriodStart === 'function'
+                ? debateApi.monthKeyForPeriodStart(period.startDate)
+                : period.startDate.slice(0, 7))
+            : '';
         if (monthKey && Array.isArray(byMonth[monthKey])) {
             return normalizeCompressionMerges(byMonth[monthKey], totalLessons);
         }
@@ -29938,9 +30290,13 @@ function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
     const termEndIso = dayIndex.termEndDate || '';
     const allCells = [];
 
-    // Previous month padding days — number only; adjacent-month lessons/events stay on that month’s card.
+    // Previous month padding days — show that date’s lessons/events on the overlapping week.
     for (let i = firstDay - 1; i >= 0; i--) {
-        allCells.push(createDayCell(prevMonthDays - i, true));
+        const dayNum = prevMonthDays - i;
+        const dateStr = formatDateISO(new Date(year, month - 1, dayNum));
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        allCells.push(createDayCell(dayNum, true, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
 
     // Current month days
@@ -29951,11 +30307,14 @@ function buildMonthNode(date, dayIndex, monthIndex, monthCount) {
         allCells.push(createDayCell(day, false, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
 
-    // Next month padding days (fill to complete last row)
+    // Next month padding days (fill to complete last row) — same overlapping-week content.
     const totalCells = firstDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
-        allCells.push(createDayCell(i, true));
+        const dateStr = formatDateISO(new Date(year, month + 1, i));
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        allCells.push(createDayCell(i, true, dayEvents, lessons, dateStr, termStartIso, termEndIso));
     }
 
     const weekRows = [];
@@ -30068,20 +30427,6 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
     
     if (isOtherMonth) {
         dayDiv.classList.add('other-month');
-        if (detailLevel === 'month') {
-            const dayTop = document.createElement('div');
-            dayTop.className = 'calendar-day-top';
-            dayTop.style.display = 'flex';
-            dayTop.style.alignItems = 'center';
-            dayTop.style.justifyContent = 'space-between';
-            dayTop.style.gap = '4px';
-            const numberDiv = document.createElement('div');
-            numberDiv.className = 'day-number';
-            numberDiv.textContent = dayNumber;
-            dayTop.appendChild(numberDiv);
-            dayDiv.appendChild(dayTop);
-            return dayDiv;
-        }
     } else if (dateStr && termStartIso && termEndIso && (dateStr < termStartIso || dateStr > termEndIso)) {
         dayDiv.classList.add('out-of-term');
     }
@@ -30329,7 +30674,7 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         dayDiv.appendChild(eventsDiv);
     }
 
-    if (!isOtherMonth && dateStr) {
+    if (dateStr) {
         dayDiv.dataset.date = dateStr;
         dayDiv.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -30509,10 +30854,7 @@ function getCalendarPrintWeekdayLabels() {
     return t('dayNamesShort').map((label) => String(label).toUpperCase());
 }
 
-function getCalendarPrintDayContent(dateStr, dayEvents, lessons, isOtherMonth) {
-    if (isOtherMonth) {
-        return { chips: [], holidayName: '', isHoliday: false };
-    }
+function getCalendarPrintDayContent(dateStr, dayEvents, lessons) {
     const visibleEvents = (dayEvents || []).filter((ev) => {
         const type = normalizeEventType(ev.type);
         if (type === EVENT_TYPES.HOLIDAY) {
@@ -30580,12 +30922,16 @@ function collectCalendarPrintMonthWeeks(monthDate, dayIndex) {
     let maxChipsInDay = 0;
 
     for (let i = firstDay - 1; i >= 0; i--) {
+        const dayNumber = prevMonthDays - i;
+        const dateStr = formatDateISO(new Date(year, month - 1, dayNumber));
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons);
+        maxChipsInDay = Math.max(maxChipsInDay, content.chips.length);
         allCells.push({
-            dayNumber: prevMonthDays - i,
+            dayNumber,
             isOtherMonth: true,
-            chips: [],
-            holidayName: '',
-            isHoliday: false
+            ...content
         });
     }
 
@@ -30593,7 +30939,7 @@ function collectCalendarPrintMonthWeeks(monthDate, dayIndex) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayEvents = eventsByDate[dateStr] || [];
         const lessons = scheduledLessons[dateStr] || [];
-        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons, false);
+        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons);
         maxChipsInDay = Math.max(maxChipsInDay, content.chips.length);
         allCells.push({
             dayNumber: day,
@@ -30605,12 +30951,15 @@ function collectCalendarPrintMonthWeeks(monthDate, dayIndex) {
     const totalCells = firstDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
+        const dateStr = formatDateISO(new Date(year, month + 1, i));
+        const dayEvents = eventsByDate[dateStr] || [];
+        const lessons = scheduledLessons[dateStr] || [];
+        const content = getCalendarPrintDayContent(dateStr, dayEvents, lessons);
+        maxChipsInDay = Math.max(maxChipsInDay, content.chips.length);
         allCells.push({
             dayNumber: i,
             isOtherMonth: true,
-            chips: [],
-            holidayName: '',
-            isHoliday: false
+            ...content
         });
     }
 
@@ -37238,6 +37587,152 @@ const OLD_LEVEL_TO_GRADE_MAP = {
     'Advanced': ''
 };
 
+/**
+ * Remove < and > from saved syllabus plain text (built-in labels like <수업> / <Speaking — …>).
+ * Returns true if any field changed.
+ */
+function stripSyllabusAngleBracketsInData(data) {
+    if (!data || typeof data !== 'object') {
+        return false;
+    }
+    const strip = (typeof CCPUtils !== 'undefined' && CCPUtils.stripAngleBrackets)
+        ? CCPUtils.stripAngleBrackets
+        : (text) => String(text ?? '').replace(/[<>]/g, '');
+    let changed = false;
+
+    function scrubField(obj, key) {
+        if (!obj || typeof obj !== 'object' || typeof obj[key] !== 'string') {
+            return;
+        }
+        const next = strip(obj[key]);
+        if (next !== obj[key]) {
+            obj[key] = next;
+            changed = true;
+        }
+    }
+
+    function scrubRowLike(row) {
+        if (!row || typeof row !== 'object') {
+            return;
+        }
+        scrubField(row, 'planDetail');
+        scrubField(row, 'planTitle');
+        scrubField(row, 'note');
+        scrubField(row, 'notes');
+        scrubField(row, 'title');
+        scrubField(row, 'speakingPages');
+        scrubField(row, 'writingPages');
+    }
+
+    function scrubRowList(list) {
+        if (!Array.isArray(list)) {
+            return;
+        }
+        list.forEach(scrubRowLike);
+    }
+
+    function scrubOverridePatch(patch) {
+        if (!patch || typeof patch !== 'object') {
+            return;
+        }
+        scrubRowList(patch.sessions);
+        scrubRowList(patch.defaultSyllabusRowTemplates);
+        scrubRowList(patch.rowTemplates);
+        scrubField(patch, 'syllabusGeneralNotes');
+        scrubField(patch, 'notes');
+        if (patch.classDefaults && typeof patch.classDefaults === 'object') {
+            scrubField(patch.classDefaults, 'syllabusGeneralNotes');
+        }
+    }
+
+    (data.classes || []).forEach((classData) => {
+        if (!classData || typeof classData !== 'object') {
+            return;
+        }
+        scrubRowList(classData.syllabusRows);
+        scrubRowList(classData.syllabusUnits);
+        scrubField(classData, 'syllabusGeneralNotes');
+    });
+
+    (data.customSyllabusTemplates || []).forEach((tpl) => {
+        if (!tpl || typeof tpl !== 'object') {
+            return;
+        }
+        scrubField(tpl, 'notes');
+        scrubField(tpl, 'syllabusGeneralNotes');
+        scrubRowList(tpl.rowTemplates);
+        scrubRowList(tpl.noteRows);
+        scrubRowList(tpl.syllabusUnits);
+    });
+
+    if (data.curriculumOverrides && typeof data.curriculumOverrides === 'object') {
+        Object.keys(data.curriculumOverrides).forEach((id) => {
+            scrubOverridePatch(data.curriculumOverrides[id]);
+        });
+    }
+    if (data.bookOverrides && typeof data.bookOverrides === 'object') {
+        Object.keys(data.bookOverrides).forEach((id) => {
+            scrubOverridePatch(data.bookOverrides[id]);
+        });
+    }
+    if (data.defaultClassTypeOverrides && typeof data.defaultClassTypeOverrides === 'object') {
+        Object.keys(data.defaultClassTypeOverrides).forEach((id) => {
+            scrubOverridePatch(data.defaultClassTypeOverrides[id]);
+        });
+    }
+
+    return changed;
+}
+
+/**
+ * One-time: rebuild debate / compressed syllabi so sessionNumber = curriculum day
+ * and combined Day 2+3 text comes from standard day templates.
+ * Marker: ui.syllabusCompressedDayRetconV1
+ */
+function classNeedsCompressedDaySyllabusRetcon(classData) {
+    if (!classData) {
+        return false;
+    }
+    if (String(classData.scheduleModel || '').trim() === 'debateMonthly') {
+        return true;
+    }
+    const rows = Array.isArray(classData.syllabusRows) ? classData.syllabusRows : [];
+    return rows.some((row) => row && (row.scheduleCompressed === true || row.debateCompressed === true
+        || (row.compressedGroupEnd != null && row.compressedGroupStart != null
+            && Number(row.compressedGroupEnd) > Number(row.compressedGroupStart))));
+}
+
+function migrateCompressedDaySyllabusRetcon(data) {
+    if (!data || typeof data !== 'object') {
+        return false;
+    }
+    if (!data.ui || typeof data.ui !== 'object') {
+        data.ui = {};
+    }
+    if (data.ui.syllabusCompressedDayRetconV1 === true) {
+        return false;
+    }
+    const classes = Array.isArray(data.classes) ? data.classes : [];
+    let touched = false;
+    classes.forEach((classData) => {
+        if (!classNeedsCompressedDaySyllabusRetcon(classData)) {
+            return;
+        }
+        classData._syllabusNeedsCalendarSync = true;
+        touched = true;
+        if (typeof getSyllabusModule === 'function' && getSyllabusModule()
+            && typeof syncClassSyllabusRowsFromCalendar === 'function') {
+            try {
+                syncClassSyllabusRowsFromCalendar(classData, { refreshScheduleTitles: true });
+            } catch (err) {
+                console.warn('Compressed-day syllabus retcon sync failed', classData && classData.id, err);
+            }
+        }
+    });
+    data.ui.syllabusCompressedDayRetconV1 = true;
+    return true;
+}
+
 function migrateData(data) {
     let migrated = false;
     let migratedClasses = 0;
@@ -37366,7 +37861,7 @@ function migrateData(data) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'speakingTestRecords', 'debateBookDistributions', 'pendingDebateBookChecks', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'essayGraderSettings', 'speakingTestRecords', 'debateBookDistributions', 'pendingDebateBookChecks', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;
@@ -37401,6 +37896,26 @@ function migrateData(data) {
         );
         if (JSON.stringify(normalizedMap) !== JSON.stringify(data.periodSlotMap)) {
             data.periodSlotMap = normalizedMap;
+            migrated = true;
+        }
+    }
+    // Append standard period 8 (21:00–21:55) when missing from older calendars.
+    if (Array.isArray(data.timetableTimeSlots) && data.periodSlotMap && typeof data.periodSlotMap === 'object') {
+        const hasTs8 = data.timetableTimeSlots.some((s) => s && s.id === 'ts8');
+        const hasPeriod8 = Object.prototype.hasOwnProperty.call(data.periodSlotMap, '8');
+        if (!hasTs8 && !hasPeriod8) {
+            const maxSort = data.timetableTimeSlots.reduce(
+                (m, s) => Math.max(m, Number(s && s.sortOrder) || 0),
+                0
+            );
+            data.timetableTimeSlots = data.timetableTimeSlots.concat([{
+                id: 'ts8',
+                start: '21:00',
+                end: '21:55',
+                durationMin: 55,
+                sortOrder: maxSort + 1
+            }]);
+            data.periodSlotMap = Object.assign({}, data.periodSlotMap, { '8': 'ts8' });
             migrated = true;
         }
     }
@@ -37793,6 +38308,14 @@ function migrateData(data) {
         return normalized;
     });
     syncHolidaysFromEvents();
+
+    if (stripSyllabusAngleBracketsInData(data)) {
+        migrated = true;
+    }
+
+    if (migrateCompressedDaySyllabusRetcon(data)) {
+        migrated = true;
+    }
     
     if (migratedClasses > 0 || migratedHolidays > 0) {
         const msg = t('migrationNotice')

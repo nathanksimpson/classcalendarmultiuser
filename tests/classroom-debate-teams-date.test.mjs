@@ -191,4 +191,27 @@ function load() {
     );
 }
 
+{
+    const { sandbox } = load();
+    const d = sandbox.CCPClassroomDomain;
+    const classData = {
+        id: 'c-day3',
+        scheduleModel: 'debateMonthly',
+        syllabusRows: [
+            { kind: 'lesson', date: '2026-09-10', sessionNumber: 3, planTitle: 'Day 3' },
+            { kind: 'lesson', date: '2026-09-12', sessionNumber: 4, planTitle: 'Day 4' }
+        ]
+    };
+    assert(d.isDebateDayThreeTitle('Day 2 & 3 Combined') === true, 'combined is day 3 title');
+    const assignments = d.listDebateTeamAssignmentsForClass(classData, {
+        debateTeamSessions: [
+            { classId: 'c-day3', date: '2026-09-08', sessionState: { debates: [{ number: 1 }] } }
+        ]
+    });
+    const dates = assignments.map((a) => a.date);
+    assert(dates.includes('2026-09-10'), 'Day 3 syllabus date listed');
+    assert(dates.includes('2026-09-12'), 'Day 4 syllabus date listed');
+    assert(dates.includes('2026-09-08'), 'existing session date listed');
+}
+
 console.log('classroom-debate-teams-date.test.mjs: all passed');

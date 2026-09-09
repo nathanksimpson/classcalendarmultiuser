@@ -53,6 +53,13 @@ const MIN_PASSWORD_LENGTH = 8;
 
 const MAX_TRANSLATE_BODY_BYTES = 30 * 1024;
 const RATE_TRANSLATE_WINDOW_MS = 5 * 60 * 1000;
+const MAX_OPENAI_PROXY_BODY_BYTES = 2 * 1024 * 1024;
+const RATE_OPENAI_PROXY_WINDOW_MS = 5 * 60 * 1000;
+const OPENAI_PROXY_CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
 
 function isDegenerateTranslationOutput(text, sourceText) {
     const value = String(text ?? '').trim();
@@ -874,8 +881,15 @@ async function readJson(request, maxBytes = MAX_CALENDAR_BODY_BYTES) {
         err.status = 413;
         throw err;
     }
+    const text = await request.text();
+    const byteLength = new TextEncoder().encode(text).length;
+    if (byteLength > maxBytes) {
+        const err = new Error('Payload too large');
+        err.status = 413;
+        throw err;
+    }
     try {
-        return await request.json();
+        return text ? JSON.parse(text) : {};
     } catch (_) {
         return {};
     }
@@ -1078,6 +1092,64 @@ export default {
                 localhostUrl: publicUrl(env, request),
                 authMode: kakaoId ? 'kakao' : 'open'
             });
+        }
+
+        // Batch Essay Editor OpenAI CORS proxy (key from browser Authorization; no server secret).
+        if (path.startsWith('/api/openai-proxy/v1')) {
+            if (request.method === 'OPTIONS') {
+                return new Response(null, { status: 204, headers: OPENAI_PROXY_CORS });
+            }
+            if (request.method !== 'POST' && request.method !== 'GET') {
+                return json({ error: { message: 'Method not allowed' } }, 405, OPENAI_PROXY_CORS);
+            }
+            const limited = await rateLimitOr429(
+                env,
+                request,
+                'openai_proxy',
+                60,
+                RATE_OPENAI_PROXY_WINDOW_MS
+            );
+            if (limited) {
+                const headers = new Headers(limited.headers);
+                Object.keys(OPENAI_PROXY_CORS).forEach((k) => headers.set(k, OPENAI_PROXY_CORS[k]));
+                return new Response(limited.body, { status: limited.status, headers });
+            }
+            const suffix = path.slice('/api/openai-proxy/v1'.length) || '/';
+            const targetUrl = `https://api.openai.com/v1${suffix}${url.search || ''}`;
+            const auth = request.headers.get('Authorization') || '';
+            let bodyText;
+            if (request.method !== 'GET' && request.method !== 'HEAD') {
+                bodyText = await request.text();
+                if (bodyText.length > MAX_OPENAI_PROXY_BODY_BYTES) {
+                    return json({ error: { message: 'Request body too large' } }, 413, OPENAI_PROXY_CORS);
+                }
+            }
+            try {
+                const upstream = await fetch(targetUrl, {
+                    method: request.method,
+                    headers: {
+                        'Content-Type': request.headers.get('Content-Type') || 'application/json',
+                        Authorization: auth
+                    },
+                    body: bodyText
+                });
+                const respHeaders = new Headers(OPENAI_PROXY_CORS);
+                respHeaders.set(
+                    'Content-Type',
+                    upstream.headers.get('Content-Type') || 'application/json'
+                );
+                return new Response(upstream.body, {
+                    status: upstream.status,
+                    headers: respHeaders
+                });
+            } catch (err) {
+                console.error('OpenAI proxy error:', err && err.message ? err.message : err);
+                return json(
+                    { error: { message: (err && err.message) || 'OpenAI proxy failed' } },
+                    502,
+                    OPENAI_PROXY_CORS
+                );
+            }
         }
 
         if (path === '/api/auth/me' && request.method === 'GET') {
@@ -1577,6 +1649,18 @@ export default {
             );
         }
 
+        if (path === '/api/tms/essays/content' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) return blocked;
+            return json(
+                {
+                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
+                    code: 'TMS_BRIDGE_REQUIRED'
+                },
+                503
+            );
+        }
+
         if (path === '/api/teachers' && request.method === 'GET') {
             const calendars = await CalAccess.listCalendarsForUser(env, user);
             const hasCalendarAccess =
@@ -2017,6 +2101,9 @@ export default {
                     }
                     if (Object.prototype.hasOwnProperty.call(body, 'tmsEssayLinks')) {
                         payload.tmsEssayLinks = body.tmsEssayLinks;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'essayGraderSettings')) {
+                        payload.essayGraderSettings = body.essayGraderSettings;
                     }
                     const prepared = prepareClassroomForSave(user, existingData, payload);
                     if (prepared.error) {

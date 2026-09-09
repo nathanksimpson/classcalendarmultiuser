@@ -48,7 +48,12 @@ function splitStyles() {
 
     if (preamble.trim()) {
         const tokens = fileBuckets.get('tokens.css');
-        tokens.unshift(preamble.trim());
+        // styles.css @imports are for the root stylesheet only — do not copy them
+        // into css/tokens.css (they would resolve as css/css/...).
+        const withoutImports = preamble.trim().replace(/^@import\s+url\([^)]+\)\s*;\s*/gm, '').trim();
+        if (withoutImports) {
+            tokens.unshift(withoutImports);
+        }
     }
 
     fileBuckets.forEach((chunks, file) => {

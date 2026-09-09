@@ -120,52 +120,57 @@ assert(
     'denial message mentions homeroom'
 );
 
-// --- Counseling English enrich (quarantined until parsers land on this tree) ---
+// --- Counseling English enrich ---
 const fixture = fs.readFileSync(
     path.join(__dirname, 'fixtures', 'tms', 'class-popup-counsel-english-snippet.html'),
     'utf8'
 );
 const mainStudents = tms.parseStudentsFromClassPopup(fixture);
 assert(mainStudents.length === 3, 'fixture has 3 students');
-const hyeonj = mainStudents.find((s) => s.mpidx === '36723');
-assert(hyeonj && hyeonj.nameEn === 'Hyeonj', 'main roster truncated Hyeonj');
-const benjamin = mainStudents.find((s) => s.mpidx === '126672');
-assert(benjamin && benjamin.nameEn === 'Benjam', 'main roster truncated Benjam');
+// parseStudentsFromClassPopup enriches from 상담 txtenglishname (full EN).
+assert(
+    mainStudents.find((s) => s.mpidx === '36723').nameEn === 'Hyeonjun',
+    'popup parse uses full counsel English Hyeonjun'
+);
+assert(
+    mainStudents.find((s) => s.mpidx === '126672').nameEn === 'Benjamin',
+    'popup parse uses full counsel English Benjamin'
+);
+assert(
+    mainStudents.find((s) => s.mpidx === '109554').nameEn === 'Ian',
+    'short counsel English kept as Ian'
+);
 
-if (
-    typeof tms.parseCounselingEnglishByMpidx !== 'function' ||
-    typeof tms.enrichStudentsWithCounselingEnglish !== 'function'
-) {
-    console.log(
-        'homeroom-tms-en-offroster.test.mjs: skip counseling-EN enrich (parsers not in this tree yet)'
-    );
-} else {
-    const byMpidx = tms.parseCounselingEnglishByMpidx(fixture);
-    assert(byMpidx.get('36723') === 'Hyeonjun', 'counsel Hyeonjun');
-    assert(byMpidx.get('126672') === 'Benjamin', 'counsel Benjamin');
-    assert(byMpidx.get('109554') === 'Ian', 'counsel Ian');
+const byMpidx = tms.parseCounselingEnglishByMpidx(fixture);
+assert(byMpidx.get('36723') === 'Hyeonjun', 'counsel Hyeonjun');
+assert(byMpidx.get('126672') === 'Benjamin', 'counsel Benjamin');
+assert(byMpidx.get('109554') === 'Ian', 'counsel Ian');
 
-    const enriched = tms.enrichStudentsWithCounselingEnglish(mainStudents, fixture);
-    assert(
-        enriched.find((s) => s.mpidx === '36723').nameEn === 'Hyeonjun',
-        'enrich replaces truncated English'
-    );
-    assert(
-        enriched.find((s) => s.mpidx === '126672').nameEn === 'Benjamin',
-        'enrich Benjamin full'
-    );
-    assert(
-        enriched.find((s) => s.mpidx === '109554').nameEn === 'Ian',
-        'short counsel English kept'
-    );
+// Enrich upgrades truncated main-list paren hints when called standalone.
+const truncated = [
+    { name: '신현준', nameEn: 'Hyeonj', mpidx: '36723' },
+    { name: '고영후', nameEn: 'Benjam', mpidx: '126672' },
+    { name: '권이안', nameEn: 'Ian', mpidx: '109554' }
+];
+const enriched = tms.enrichStudentsWithCounselingEnglish(truncated, fixture);
+assert(
+    enriched.find((s) => s.mpidx === '36723').nameEn === 'Hyeonjun',
+    'enrich replaces truncated English'
+);
+assert(
+    enriched.find((s) => s.mpidx === '126672').nameEn === 'Benjamin',
+    'enrich Benjamin full'
+);
+assert(
+    enriched.find((s) => s.mpidx === '109554').nameEn === 'Ian',
+    'short counsel English kept'
+);
 
-    // Prefer longer counseling over shorter main
-    const soft = tms.enrichStudentsWithCounselingEnglish(
-        [{ name: 'X', nameEn: 'Abc', mpidx: '1' }],
-        ''
-    );
-    assert(soft[0].nameEn === 'Abc', 'empty html soft-fails');
-}
+// Prefer longer counseling over shorter main
+const softSrc = [{ name: 'X', nameEn: 'Abc', mpidx: '1' }];
+const soft = tms.enrichStudentsWithCounselingEnglish(softSrc, '');
+assert(soft[0].nameEn === 'Abc', 'empty html soft-fails');
+assert(soft[0] !== softSrc[0], 'enrich returns new objects');
 
 // --- adopt prefers longer nameEn ---
 const D = loadDomain();

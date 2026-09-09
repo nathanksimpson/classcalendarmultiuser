@@ -274,7 +274,7 @@
         if (/^(IPE|Subject Link|Simson Reading)/im.test(n)) {
             return 'nonDebate';
         }
-        if (/Unit\s*\d+/i.test(n) && (/<수업>|과제검사|문법공부/i.test(n))) {
+        if (/Unit\s*\d+/i.test(n) && (/수업|과제검사|문법공부/i.test(n))) {
             return 'grUnit';
         }
         return 'unitPair';

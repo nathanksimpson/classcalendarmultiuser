@@ -164,3 +164,35 @@ All dynamic user text should pass through `CCPUtils.escapeHtml` before `innerHTM
 - [ ] Phone width: agenda view, no setup board
 - [ ] Team lock: read-only message when blocked
 - [ ] `npm run build` then smoke test `dist/` if deploying
+
+---
+
+## 8. September 2026 addendum (quick-wins review)
+
+Follow-up to the June 2026 audit. Live IA is **5 zones** (Schedule, Class Setup, Classroom, Tools, Data) — `CLAUDE_DESIGN_STATUS.md` and the IA rule were updated to match. Setup Hub leftovers were removed except the `?zone=setup-hub` → Cohorts redirect.
+
+**Fixed this pass**
+
+- Mojibake in `index.html` debate template + notes translate labels (already restored to EN i18n glyphs).
+- Script loader: one `?v=` per path; eager `index.html` scripts no longer re-listed in `js/app-tab-scripts.js`; debate core script URLs shared as constants (`DEBATE_CORE_SCRIPTS`). Homework Day 3 still loads `students` + `debate-teams` + debate core.
+- Worker `readJson` enforces the 5MB cap after reading body bytes (not only `Content-Length`).
+- Duplicate `css/debate-teams-v2.css` `<link>` removed; splitter no longer copies root `@import`s into `css/tokens.css`.
+- Orphan `js/workspace.js` and unused `.workspace-snake-trigger` / `.visibility-bar-label` CSS deleted.
+- Bell `aria-label`, localized static aria-labels, segment pills `role="tab"` / `aria-selected`.
+- Bare class-form + notes selects gained `.field-select`. Essays Save uses `btn-outline` like other sheets.
+- Six satellite `alert()` calls routed through `CCPNotice`.
+- Duplicate `.app-zone-btn` / `.app-zone-segment-btn` CSS blocks merged to tokens.
+- Guardrails: `tests/script-manifest.test.mjs` and extended `tests/i18n-parity.test.mjs`.
+
+**Deferred backlog**
+
+- Extract `app.js` clusters (notes → homework → print → calendar → sync → migration).
+- Finish store migration; delete redundant `render*()` after dispatch.
+- Replace remaining local `escapeHtml` copies; single `deepClone`.
+- Route all `/api` traffic through one `apiFetch` (CCPApi).
+- Convert remaining `alert()`/`confirm()` in `app.js` and debate modules.
+- `t()` coverage in `syllabus-table.js`; Students/Notes onto the shared context bar or document as exceptions.
+- CSS: retokenize per-selector dark overrides; normalize stray breakpoints; stop dated “pass” sections.
+- Backend: `shared/lock-core.cjs` + DB adapter; route-parity contract test; shared calendar PUT validator; Express rate limit on `/api/translate`; CSP headers.
+- ESLint (no-restricted-syntax for unescaped `innerHTML`, local `escapeHtml`, native `alert`).
+- Decide fate of Portfolio nav entry and Teachers placeholder.

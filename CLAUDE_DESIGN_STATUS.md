@@ -2,7 +2,7 @@
 
 **Purpose:** Detailed, codebase-derived snapshot of how the app looks and is structured today. Paste this into Claude Design (with or without [`CLAUDE_DESIGN_BRIEF.md`](CLAUDE_DESIGN_BRIEF.md)) when you want redesigns grounded in the **actual** UI — not screenshots.
 
-**Last aligned with codebase:** July 2026 (4-zone IA, classroom zone context bar, essay two-stage pipeline).
+**Last aligned with codebase:** September 2026 (5-zone IA including Tools, classroom zone context bar, essay two-stage pipeline).
 
 **Companion docs:**
 
@@ -40,6 +40,7 @@ flowchart TB
     main --> schedule[Schedule zone]
     main --> classes[Class Setup zone]
     main --> classroom[Classroom zone]
+    main --> tools[Tools zone]
     main --> data[Data zone]
 ```
 
@@ -91,6 +92,7 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
+| Briefing | `#panel-briefing` | Class session briefing (TMS / today) |
 | Students | `#panel-students` | 3-column: cohort list \| student list \| student editor |
 | Attendance | `#panel-attendance` | Sheet table (student × attendance × notes) |
 | Ledger | `#panel-ledger` | Wide sheet (attendance + homework + points columns) |
@@ -98,9 +100,19 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 | Points | `#panel-points` | Points sheet with reason picker |
 | Tests | `#panel-tests` | Test scores sheet |
 | Notes | `#panel-notes` | In-app class notes (desktop); phone redirects to `notes.html` |
-| Portfolio | — | **Disabled / coming soon** (hidden segment) |
+| Portfolio | — | **Disabled / coming soon** (hidden segment; **no panel**) |
 
-### Zone 4: Data (`data-zone="more"` — internal id; tab label **Data**)
+### Zone 4: Tools (`data-zone="tools"`)
+
+| Segment | Panel ID | Layout pattern |
+|---------|----------|----------------|
+| Essays | `#panel-essays` | Assignment bar + two-stage sheet |
+| Debate Teams | `#panel-debate-teams` | Team builder / speaking order |
+| Debate Scores | `#panel-debate-scores` | Score sheet for Day 4 dates |
+| Books | `#panel-debate-books` | Debate book progress sheet |
+| Speaking Test | `#panel-speaking-test` | Speaking test session UI |
+
+### Zone 5: Data (`data-zone="more"` — internal id; tab label **Data**)
 
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
@@ -128,7 +140,7 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 │  │ 🔒 lock skeuo badge │ label │ action │ Details │ saved dot    │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 2 ZONES (.app-zone-nav) ────────────────────────────────┐ │
-│  │ Schedule │ Class Setup │ Classroom │ Data                              │ │
+│  │ Schedule │ Class Setup │ Classroom │ Tools │ Data                      │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 3 SEGMENTS + TERM STRIP ─────────────────────────────────┐ │
 │  │ [segment pills for active zone]     Term name · dates · settings│ │
