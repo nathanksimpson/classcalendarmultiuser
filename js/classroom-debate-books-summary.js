@@ -408,6 +408,28 @@
         return sanitizeCopyText(lines.join('\n').trimEnd());
     }
 
+    function entryMatchesClassSummarySearch(entry, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q) {
+            return true;
+        }
+        if (!entry) {
+            return false;
+        }
+        const hay = [entry.className, entry.periodLabel, entry.bookTitle]
+            .map((part) => String(part || '').toLowerCase())
+            .join(' ');
+        return hay.includes(q);
+    }
+
+    function filterEntriesByClassSummarySearch(entries, query) {
+        const list = Array.isArray(entries) ? entries : [];
+        if (!String(query || '').trim()) {
+            return list.slice();
+        }
+        return list.filter((entry) => entryMatchesClassSummarySearch(entry, query));
+    }
+
     function formatEntryHint(entry) {
         const counts = (entry && entry.counts) || {};
         const issued = counts.issued || 0;
@@ -429,6 +451,8 @@
         listHomeroomFilterOptions,
         listMonthFilterOptions,
         filterEntriesByHrAndMonth,
+        entryMatchesClassSummarySearch,
+        filterEntriesByClassSummarySearch,
         listRowsForEntries,
         groupRowsByHomeroom,
         formatCopyText,

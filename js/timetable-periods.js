@@ -98,7 +98,7 @@
         if (nums.length) {
             return Math.max(...nums);
         }
-        return 7;
+        return 8;
     }
 
     function getMinPeriodNumber(appData) {

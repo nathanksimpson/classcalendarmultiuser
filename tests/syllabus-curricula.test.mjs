@@ -175,4 +175,26 @@ function assert(cond, msg) {
     assert(CCPCurriculaData.getDebateBandLevels('senior').includes('\uD649\uC2A4'), 'senior band includes MS');
 }
 
+// No angle brackets in factory planDetail (breaks external homework paste targets)
+{
+    const presets = CCPSyllabusPresets.getAll();
+    presets.forEach((p) => {
+        (p.defaultSyllabusRowTemplates || []).forEach((row, i) => {
+            const d = String(row.planDetail || '');
+            assert(!/[<>]/.test(d), `${p.id} session ${i + 1} planDetail must not contain < or >`);
+        });
+    });
+    const gr = CCPSyllabusPresets.getById('preset-gr-garam');
+    assert(gr.defaultSyllabusRowTemplates[0].planDetail.includes('수업'), 'GR class section label');
+    assert(gr.defaultSyllabusRowTemplates[0].planDetail.includes('과제'), 'GR homework section label');
+    const wr = CCPSyllabusPresets.getById('preset-write-right-1')
+        || CCPSyllabusPresets.getAll().find((p) => (p.id || '').includes('write-right'));
+    if (wr && wr.defaultSyllabusRowTemplates[0]) {
+        assert(
+            !wr.defaultSyllabusRowTemplates[0].planDetail.startsWith('<'),
+            'Write Right detail has no leading <'
+        );
+    }
+}
+
 console.log('syllabus-curricula.test.mjs: all passed');

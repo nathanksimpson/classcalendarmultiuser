@@ -2085,6 +2085,13 @@
         document.getElementById('termMigrateNextBtn')?.addEventListener('click', () => {
             void goNext();
         });
+        document.getElementById('termMigrateBody')?.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || e.target.id !== 'termMigrateTmsPass') {
+                return;
+            }
+            e.preventDefault();
+            void goNext();
+        });
         document.getElementById('termMigrateBody')?.addEventListener('click', (e) => {
             const clearBtn = e.target.closest('#termMigrateTimetableClearAll');
             if (clearBtn && step === 6) {

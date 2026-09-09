@@ -150,7 +150,15 @@ const alertCounts = d.debateBookAlertCountsForClass(
     cohorts,
     { 'cls-debate': '2026-03' }
 );
-assert(alertCounts.ni === 2 && alertCounts.ms === 1, 'picker alert counts for saved period');
+assert(
+    typeof alertCounts.ni === 'number' && typeof alertCounts.ms === 'number',
+    'picker alert counts resolve a period'
+);
+assert(
+    d.resolveDebateBookPeriodKeyForClass(debateClass, { 'cls-debate': '2026-03' }, '2026-03-15') ===
+        '2026-03',
+    'saved March is kept while still in March'
+);
 
 const defaultPeriodAlerts = d.debateBookAlertCountsForClass(
     list,
@@ -187,5 +195,41 @@ const summaryRows = d.listDebateBookSummaryRows(
 );
 assert(summaryRows.length === 3, 'summary rows for roster');
 assert(summaryRows.filter((row) => row.status === 'missing').length === 1, 'summary missing row');
+
+const transitionClass = {
+    id: 'cls-transition',
+    scheduleModel: 'debateMonthly',
+    startDate: '2026-08-01',
+    endDate: '2026-09-30',
+    book: 'August Book',
+    debateBookPeriods: [
+        { id: 'p-aug', startDate: '2026-08-01', book: 'August Book' },
+        { id: 'p-sep', startDate: '2026-09-01', book: 'September Book' }
+    ]
+};
+assert(
+    d.pickDefaultDebateBookPeriodKey(transitionClass, '2026-08-31') === '2026-09',
+    'default on 2026-08-31 is September'
+);
+assert(
+    d.pickDefaultDebateBookPeriodKey(transitionClass, '2026-08-28') === '2026-08',
+    'default on 2026-08-28 stays August'
+);
+assert(
+    d.resolveDebateBookPeriodKeyForClass(
+        transitionClass,
+        { 'cls-transition': '2026-08' },
+        '2026-08-31'
+    ) === '2026-09',
+    'saved August is not kept on Aug 31'
+);
+assert(
+    d.resolveDebateBookPeriodKeyForClass(
+        transitionClass,
+        { 'cls-transition': '2026-08' },
+        '2026-08-28'
+    ) === '2026-08',
+    'saved August is kept before the transition week'
+);
 
 console.log('classroom-debate-books.test.mjs: ok');

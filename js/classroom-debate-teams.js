@@ -85,8 +85,10 @@
         if (!d || !classData || !d.listDebateTeamAssignmentsForClass) {
             return [];
         }
+        const data = getAppData();
         return d.listDebateTeamAssignmentsForClass(classData, {
-            scheduledLessons: getScheduledLessonsForClass(classData)
+            scheduledLessons: getScheduledLessonsForClass(classData),
+            debateTeamSessions: data.debateTeamSessions
         });
     }
 
@@ -591,6 +593,230 @@
         }
     }
 
+    function canEditClassData(classData) {
+        const a = access();
+        if (a && classData && a.canEditClass && a.canEditClass(classData)) {
+            return true;
+        }
+        if (a && a.canBypass && a.canBypass()) {
+            return true;
+        }
+        if (global.TeamAuth && global.TeamAuth.getUser) {
+            const user = global.TeamAuth.getUser();
+            const role = user && user.role ? String(user.role) : '';
+            if (role === 'admin' || role === 'super_admin') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function ensureHooks(h) {
+        if (h) {
+            hooks = h;
+        }
+        return !!hooks;
+    }
+
+    /**
+     * Generate (or reuse) debate teams for a class+date and persist like the Debate Teams tab.
+     * Used by Homework Copy assign when Day 3 homework is present.
+     */
+    async function buildAndPersistForHomework(options) {
+        options = options || {};
+        if (options.hooks) {
+            ensureHooks(options.hooks);
+        }
+        const targetClassId = String(options.classId || '').trim();
+        const targetDate = String(options.date || '').trim();
+        if (!targetClassId || !targetDate) {
+            return { ok: false, reason: 'missing' };
+        }
+        if (!hooks) {
+            return { ok: false, reason: 'hooks' };
+        }
+        if (!(await ensureCoreReady())) {
+            return { ok: false, reason: 'core' };
+        }
+        const eng = engine();
+        const d = domain();
+        if (!eng || !d || !eng.collectState || !eng.loadState || !eng.importRoster) {
+            return { ok: false, reason: 'core' };
+        }
+        if (!eng.generateDebatesSilent) {
+            return { ok: false, reason: 'core' };
+        }
+
+        const data = getAppData();
+        const classData = (data.classes || []).find((c) => c && c.id === targetClassId) || null;
+        if (!classData) {
+            return { ok: false, reason: 'class' };
+        }
+        if (!canEditClassData(classData)) {
+            return { ok: false, reason: 'readonly' };
+        }
+
+        const existing = d.findDebateTeamSession(data.debateTeamSessions, targetClassId, targetDate);
+        if (
+            existing &&
+            existing.sessionState &&
+            Array.isArray(existing.sessionState.debates) &&
+            existing.sessionState.debates.length > 0
+        ) {
+            return {
+                ok: true,
+                reused: true,
+                entry: existing,
+                sessionState: existing.sessionState
+            };
+        }
+
+        const names = d
+            .resolveStudentsForClass(classData, data.cohorts)
+            .map(studentDisplayName)
+            .filter(Boolean);
+        if (!names.length) {
+            return { ok: false, reason: 'empty' };
+        }
+
+        const prevState = eng.collectState();
+        const prevClassId = classId;
+        const prevSessionDate = sessionDate;
+        const prevHydrated = hydratedSessionKey;
+        const prevManual = studentsListTouchedByUser;
+        const prevRosterAuto = rosterAutoImported;
+        const savedAutosave = autosave;
+        autosave = null;
+
+        try {
+            classId = targetClassId;
+            sessionDate = targetDate;
+            studentsListTouchedByUser = false;
+            rosterAutoImported = true;
+
+            if (existing && existing.sessionState) {
+                eng.loadState(existing.sessionState);
+            } else {
+                eng.loadState({
+                    version: 2,
+                    students: [],
+                    formatId: 'ap',
+                    purpleMode: false,
+                    includeReply: false,
+                    maxTeamSize: 3,
+                    classTitle: '',
+                    hrTeacher: '',
+                    topic: '',
+                    sheetTemplate: 'garam',
+                    debates: []
+                });
+            }
+
+            const imported = eng.importRoster(names, { confirm: false, clearDebates: true });
+            if (!imported || !imported.ok) {
+                classId = prevClassId;
+                sessionDate = prevSessionDate;
+                hydratedSessionKey = prevHydrated;
+                studentsListTouchedByUser = prevManual;
+                rosterAutoImported = prevRosterAuto;
+                if (prevState) {
+                    eng.loadState(prevState);
+                }
+                return { ok: false, reason: (imported && imported.reason) || 'import' };
+            }
+
+            const title = String(classData.name || classData.displayName || '').trim();
+            if (eng.applyMetadataDefaults) {
+                eng.applyMetadataDefaults(title, getHomeroomLabel(), { force: true });
+            }
+            if (eng.applyClassFormatDefaults) {
+                eng.applyClassFormatDefaults(classData, {
+                    debateBook: getDebateBookChip(),
+                    onlyIfPristine: true
+                });
+            }
+
+            const gen = eng.generateDebatesSilent({ replace: true, notify: false, render: false });
+            if (!gen.ok) {
+                classId = prevClassId;
+                sessionDate = prevSessionDate;
+                hydratedSessionKey = prevHydrated;
+                studentsListTouchedByUser = prevManual;
+                rosterAutoImported = prevRosterAuto;
+                if (prevState) {
+                    eng.loadState(prevState);
+                }
+                return { ok: false, reason: gen.reason || 'generate', detail: gen };
+            }
+
+            const appState = eng.collectState();
+            const sessionState = Object.assign({}, appState, { studentsManual: false });
+            rebuildNameMap();
+            stampStudentIdsOnSessionState(sessionState);
+            const studentIds = (appState.students || [])
+                .map((name) => nameToStudentId[name])
+                .filter(Boolean);
+
+            const entry = {
+                id: existing && existing.id ? existing.id : d.newId('dts'),
+                classId: targetClassId,
+                date: targetDate,
+                sessionState: sessionState,
+                studentIds: studentIds,
+                authorUserId: hooks.getCurrentUserId ? hooks.getCurrentUserId() : '',
+                updatedAt: new Date().toISOString()
+            };
+            const nextSessions = d.upsertDebateTeamSession(getAppData().debateTeamSessions, entry);
+            if (hooks.saveClassroom) {
+                await hooks.saveClassroom({ debateTeamSessions: nextSessions });
+            }
+
+            const keepLive = prevClassId === targetClassId && prevSessionDate === targetDate;
+            if (keepLive) {
+                hydratedSessionKey = sessionKey();
+                studentsListTouchedByUser = false;
+                rosterAutoImported = true;
+                if (eng.render) {
+                    eng.render();
+                }
+                const panel = panelRef || document.getElementById('panel-debate-teams');
+                if (panel) {
+                    updateSidebarMeta();
+                    syncShellToolbar(true);
+                    syncAssignmentPicker(panel);
+                }
+            } else {
+                classId = prevClassId;
+                sessionDate = prevSessionDate;
+                hydratedSessionKey = prevHydrated;
+                studentsListTouchedByUser = prevManual;
+                rosterAutoImported = prevRosterAuto;
+                if (prevState) {
+                    eng.loadState(prevState);
+                }
+            }
+
+            return { ok: true, reused: false, entry: entry, sessionState: sessionState };
+        } catch (err) {
+            console.error('buildAndPersistForHomework failed', err);
+            classId = prevClassId;
+            sessionDate = prevSessionDate;
+            hydratedSessionKey = prevHydrated;
+            studentsListTouchedByUser = prevManual;
+            rosterAutoImported = prevRosterAuto;
+            if (prevState && eng.loadState) {
+                try {
+                    eng.loadState(prevState);
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+            return { ok: false, reason: 'error', error: err };
+        } finally {
+            autosave = savedAutosave;
+        }
+    }
+
     async function persistSession() {
         const eng = engine();
         const d = domain();
@@ -951,6 +1177,8 @@
         flushBeforeLeave,
         importFromRoster,
         refreshIfActive,
-        reloadSessionFromStore
+        reloadSessionFromStore,
+        ensureHooks,
+        buildAndPersistForHomework
     };
 })(typeof window !== 'undefined' ? window : globalThis);

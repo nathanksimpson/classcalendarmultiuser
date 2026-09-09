@@ -551,12 +551,6 @@
     color: var(--danger-color, #e74c3c);
 }
 
-.visibility-bar-label {
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-right: 4px;
-}
-
 .visibility-chip {
     font-size: 0.8125rem;
     margin: 0;
@@ -1476,12 +1470,6 @@ body:has(#panel-calendar:not([hidden])) {
 
 #calendarContainer .calendar-day.other-month .day-number {
     background: var(--bg-main);
-}
-
-#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .day-events,
-#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .calendar-event-chips,
-#calendarContainer .month-calendar:not(.week-calendar-card) .calendar-day.other-month .holiday-name {
-    display: none;
 }
 
 #calendarContainer .calendar-day.holiday .day-number {

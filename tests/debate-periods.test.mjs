@@ -59,6 +59,20 @@ assert(suggested.length === 3, 'three calendar months suggested');
 assert(suggested[0].startDate === '2026-01-15', 'first period uses class start not 1st');
 assert(suggested[1].startDate === '2026-02-01', 'second period uses month start');
 
+assert(DP.teachingMonthKeyForDate('2026-08-31') === '2026-09', 'Mon 31 Aug 2026 is September teaching month');
+assert(DP.teachingMonthKeyForDate('2026-08-30') === '2026-09', 'Sun 30 Aug 2026 is already September');
+assert(DP.teachingMonthKeyForDate('2026-08-29') === '2026-09', 'Sat 29 Aug 2026 is already September');
+assert(DP.teachingMonthKeyForDate('2026-08-28') === '2026-08', 'Fri 28 Aug 2026 stays August');
+assert(DP.teachingMonthKeyForDate('2026-08-01') === '2026-08', 'Sat 1 Aug 2026 stays August');
+assert(DP.periodStartForCalendarMonth('2026-09', '2026-08-01') === '2026-08-31', 'Sep 2026 starts Aug 31');
+assert(DP.periodStartForCalendarMonth('2025-09', '2025-08-01') === '2025-09-01', 'Sep 2025 Monday 1st stays Sep 1');
+assert(DP.periodStartForCalendarMonth('2026-08', '2026-08-01') === '2026-08-01', 'Aug 2026 Saturday 1st stays Aug 1');
+
+const suggestedTransition = DP.suggestPeriodsFromCalendarMonths('2026-08-01', '2026-09-30', 'Same Book');
+assert(suggestedTransition.length === 2, 'Aug–Sep 2026 suggests two periods');
+assert(suggestedTransition[0].startDate === '2026-08-01', 'August 2026 period stays Aug 1');
+assert(suggestedTransition[1].startDate === '2026-08-31', 'September 2026 period starts Aug 31');
+
 const normalized = DP.normalizeDebateBookPeriods({
     startDate: '2026-01-01',
     endDate: '2026-12-31',

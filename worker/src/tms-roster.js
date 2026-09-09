@@ -16,6 +16,9 @@ export const parseCohortsFromHtml = TmsRosterCore.parseCohortsFromHtml;
 export const parseStudentsFromTextLines = TmsRosterCore.parseStudentsFromTextLines;
 export const parseStudentsFromHtml = TmsRosterCore.parseStudentsFromHtml;
 export const parseStudentsFromClassPopup = TmsRosterCore.parseStudentsFromClassPopup;
+export const parseCounselingEnglishByMpidx = TmsRosterCore.parseCounselingEnglishByMpidx;
+export const enrichStudentsWithCounselingEnglish =
+    TmsRosterCore.enrichStudentsWithCounselingEnglish;
 export const parseStudentsFromNumberedBlocks = TmsRosterCore.parseStudentsFromNumberedBlocks;
 export const trimRosterPasteTail = TmsRosterCore.trimRosterPasteTail;
 export const parseClassSelectList = TmsRosterCore.parseClassSelectList;

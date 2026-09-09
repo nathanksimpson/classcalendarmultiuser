@@ -49,7 +49,7 @@
         const classId = selectedClassId || ctx.classId;
         const classData = classId ? getClassData(classId) : null;
         if (!classData) {
-            mount.innerHTML = `<p class="module-empty-hint">${escapeHtml(t('setupHubNoClass'))}</p>`;
+            mount.innerHTML = `<p class="module-empty-hint">${escapeHtml(t('cohortsNoClass'))}</p>`;
             return;
         }
         const api = global.CCPTeacherTimetable;
@@ -66,17 +66,17 @@
         const periodVal = classData.period != null && classData.period !== '' ? String(classData.period) : '';
         const readOnly = hooks.isReadOnly && hooks.isReadOnly();
         mount.innerHTML = `
-            <div class="setup-hub-class-detail">
-                <h3 class="setup-hub-class-detail-title">${escapeHtml(classData.name || classData.id)}</h3>
-                <p class="section-hint setup-hub-class-detail-teachers">${teacherLines}</p>
-                <label class="setup-hub-period-field">
-                    <span>${escapeHtml(t('setupHubPeriodLabel'))}</span>
+            <div class="cohorts-class-detail">
+                <h3 class="cohorts-class-detail-title">${escapeHtml(classData.name || classData.id)}</h3>
+                <p class="section-hint cohorts-class-detail-teachers">${teacherLines}</p>
+                <label class="cohorts-period-field">
+                    <span>${escapeHtml(t('cohortsPeriodLabel'))}</span>
                     <input type="number" id="cohortsClassPeriodInput" class="field-input" min="1" max="7" step="1" value="${escapeHtml(periodVal)}" ${readOnly ? 'disabled' : ''}>
                 </label>
                 <div class="cohorts-class-detail-actions">
-                    <button type="button" class="btn btn-primary btn-small" id="cohortsSavePeriodBtn" ${readOnly ? 'disabled' : ''}>${escapeHtml(t('setupHubSavePeriod'))}</button>
-                    <button type="button" class="btn btn-outline btn-small" id="cohortsPrintSyllabusBtn">${escapeHtml(t('setupHubPrintSyllabus'))}</button>
-                    <button type="button" class="btn btn-outline btn-small" id="cohortsOpenClassEditorBtn">${escapeHtml(t('setupHubOpenClassEditor'))}</button>
+                    <button type="button" class="btn btn-primary btn-small" id="cohortsSavePeriodBtn" ${readOnly ? 'disabled' : ''}>${escapeHtml(t('cohortsSavePeriod'))}</button>
+                    <button type="button" class="btn btn-outline btn-small" id="cohortsPrintSyllabusBtn">${escapeHtml(t('cohortsPrintSyllabus'))}</button>
+                    <button type="button" class="btn btn-outline btn-small" id="cohortsOpenClassEditorBtn">${escapeHtml(t('cohortsOpenClassEditor'))}</button>
                 </div>
             </div>`;
         mount.querySelector('#cohortsSavePeriodBtn')?.addEventListener('click', () => {

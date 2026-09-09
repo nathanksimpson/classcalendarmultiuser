@@ -19,6 +19,7 @@ const sandbox = { window: {}, globalThis: {} };
 sandbox.globalThis = sandbox.window;
 
 await import(pathToFileURL(path.join(root, 'js', 'debate-periods.js')).href);
+sandbox.window.CCPDebatePeriods = globalThis.CCPDebatePeriods;
 vm.runInNewContext(readFileSync(path.join(root, 'js', 'classroom-domain.js'), 'utf8'), sandbox);
 vm.runInNewContext(
     readFileSync(path.join(root, 'js', 'classroom-essay-class-summary.js'), 'utf8'),
@@ -240,5 +241,54 @@ const aprilPicked = summary.filterEntriesByHrAndMonth(
     multiTodayCtx
 );
 assert(aprilPicked.length === 1 && aprilPicked[0].periodKey === '2026-04', 'explicit month still wins');
+
+const transitionData = {
+    classes: [
+        {
+            id: 'clsT',
+            name: 'Transition',
+            cohortIds: ['cohT'],
+            scheduleModel: 'debateMonthly',
+            startDate: '2026-08-01',
+            endDate: '2026-09-30',
+            book: 'September Book',
+            homeroomTeacherName: 'Kim HR',
+            classTeachers: [{ userId: 'u1', name: 'Teacher One' }]
+        }
+    ],
+    cohorts: [
+        {
+            id: 'cohT',
+            name: 'T',
+            homeroomTeacherName: 'Kim HR',
+            students: [{ id: 'sT', name: 'Student T', active: true }]
+        }
+    ],
+    debateBookDistributions: []
+};
+const transitionEntries = d.listDebateBookSummaryEntries(transitionData, { skipEmptyRoster: true });
+assert(transitionEntries.length === 2, 'transition class has August and September entries');
+const transitionTodayCtx = {
+    todayIso: '2026-08-31',
+    classOccursOnDate: (classData) => classData && classData.id === 'clsT'
+};
+const transitionNarrowed = summary.filterEntriesByHrAndMonth(
+    transitionEntries,
+    transitionData,
+    { todayOnly: true },
+    transitionTodayCtx
+);
+assert(transitionNarrowed.length === 1, 'today-only on transition date keeps one period');
+assert(transitionNarrowed[0].periodKey === '2026-09', 'transition date uses September');
+
+assert(summary.entryMatchesClassSummarySearch(null, 'aug') === false, 'null entry does not match search');
+assert(summary.entryMatchesClassSummarySearch(transitionEntries[0], '') === true, 'empty search matches');
+const augHits = summary.filterEntriesByClassSummarySearch(transitionEntries, 'aug');
+assert(augHits.length === 1, 'aug matches one period chip');
+assert(augHits[0].periodKey === '2026-08', 'aug hit is August');
+assert(
+    summary.filterEntriesByClassSummarySearch(transitionEntries, 'Transition').length === 2,
+    'class name search keeps both months'
+);
 
 console.log('classroom-debate-books-summary.test.mjs: ok');

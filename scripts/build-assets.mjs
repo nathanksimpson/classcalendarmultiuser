@@ -70,7 +70,6 @@ const MINIFY_JS = [
     'js/admin.js',
     'js/help-guide.js',
     'js/help-page.js',
-    'js/workspace.js',
     'js/notes.js',
     'js/day-notes.js',
     'js/day-note-categories.js',
@@ -210,6 +209,15 @@ async function main() {
         console.warn('CSS flatten from styles.css failed, using copied styles.css:', err.message);
     }
     await minifyFiles();
+    // Production root alias — Cloudflare SPA would otherwise serve index.html for /essay-batch-editor.html
+    try {
+        const editorSrc = path.join(dist, 'tools', 'essay-batch-editor.html');
+        if (fs.existsSync(editorSrc)) {
+            fs.copyFileSync(editorSrc, path.join(dist, 'essay-batch-editor.html'));
+        }
+    } catch (err) {
+        console.warn('Could not alias essay-batch-editor.html to dist root:', err.message);
+    }
     let bytes = 0;
     for (const rel of [...MINIFY_JS, ...MINIFY_CSS]) {
         const p = path.join(dist, rel);

@@ -1,6 +1,7 @@
 require('./load-env');
 const path = require('path');
 const crypto = require('crypto');
+const https = require('https');
 const express = require('express');
 const calendars = require('./calendars');
 const users = require('./users');
@@ -394,6 +395,42 @@ async function runTmsEssayPreview(body) {
     const result = await tmsRoster.scrapeEssaySubmissions(scrapeOpts);
     return {
         assignments: result.assignments || [],
+        rows: result.rows || [],
+        meta: result.meta || {}
+    };
+}
+
+async function runTmsEssayContent(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    const bodyUser = String(payload.username || '').trim();
+    const bodyPass = String(payload.password || '');
+    let scrapeOpts = {};
+    if (bodyUser || bodyPass) {
+        if (!bodyUser || !bodyPass) {
+            const err = new Error('TMS username and password are required');
+            err.code = 'TMS_CREDS_MISSING';
+            err.status = 503;
+            throw err;
+        }
+        scrapeOpts = { username: bodyUser, password: bodyPass };
+    }
+    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
+    if (!tmsRoster.credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        err.status = 503;
+        throw err;
+    }
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    if (!rows.length) {
+        const err = new Error('At least one essay row is required');
+        err.code = 'TMS_ESSAY_ROWS_MISSING';
+        err.status = 400;
+        throw err;
+    }
+    const result = await tmsRoster.scrapeEssayContents(Object.assign({}, scrapeOpts, { rows: rows }));
+    return {
+        essays: result.essays || [],
         meta: result.meta || {}
     };
 }
@@ -1331,6 +1368,18 @@ app.post('/api/tms/essays/preview', requireUser, rejectViewAsWrites, async (req,
     }
 });
 
+/** TMS essay body fetch for selected Writing_list rows — read-only. */
+app.post('/api/tms/essays/content', requireUser, rejectViewAsWrites, async (req, res) => {
+    try {
+        return res.json(await runTmsEssayContent(req.body));
+    } catch (err) {
+        if (err && err.code === 'TMS_ESSAY_ROWS_MISSING') {
+            return res.status(400).json({ error: err.message, code: err.code });
+        }
+        return sendTmsPreviewError(res, err);
+    }
+});
+
 /**
  * Live-site → localhost bridge (no ClassManager session).
  * Only loopback; CORS allowlisted for classmanager.live so Sync can use the work PC IP.
@@ -1376,6 +1425,85 @@ app.post('/api/tms/bridge/essays/preview', async (req, res) => {
         return res.json(await runTmsEssayPreview(req.body));
     } catch (err) {
         return sendTmsPreviewError(res, err);
+    }
+});
+
+app.options('/api/tms/bridge/essays/content', (req, res) => {
+    applyTmsBridgeCors(req, res);
+    res.status(204).end();
+});
+
+app.post('/api/tms/bridge/essays/content', async (req, res) => {
+    if (!requireTmsBridgeLoopback(req, res)) {
+        return;
+    }
+    try {
+        return res.json(await runTmsEssayContent(req.body));
+    } catch (err) {
+        if (err && err.code === 'TMS_ESSAY_ROWS_MISSING') {
+            return res.status(400).json({ error: err.message, code: err.code });
+        }
+        return sendTmsPreviewError(res, err);
+    }
+});
+
+/** OpenAI API proxy for tools/essay-batch-editor.html (avoids browser CORS). */
+const OPENAI_PROXY_CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+
+app.options('/api/openai-proxy/v1/*', (req, res) => {
+    res.writeHead(204, OPENAI_PROXY_CORS);
+    res.end();
+});
+
+app.use('/api/openai-proxy/v1', (req, res) => {
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204, OPENAI_PROXY_CORS);
+        res.end();
+        return;
+    }
+    const targetPath = req.url || '/';
+    // express.json() already consumed the stream — re-serialize body instead of req.pipe.
+    let bodyBuf = null;
+    if (req.body != null && typeof req.body === 'object') {
+        bodyBuf = Buffer.from(JSON.stringify(req.body), 'utf8');
+    } else if (typeof req.body === 'string' && req.body) {
+        bodyBuf = Buffer.from(req.body, 'utf8');
+    }
+    const headers = {
+        'Content-Type': 'application/json',
+        Authorization: req.headers.authorization || ''
+    };
+    if (bodyBuf) {
+        headers['Content-Length'] = String(bodyBuf.length);
+    }
+    const proxyReq = https.request(
+        {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: `/v1${targetPath}`,
+            method: req.method,
+            headers
+        },
+        (proxyRes) => {
+            const outHeaders = Object.assign({}, OPENAI_PROXY_CORS, {
+                'Content-Type': proxyRes.headers['content-type'] || 'application/json'
+            });
+            res.writeHead(proxyRes.statusCode || 500, outHeaders);
+            proxyRes.pipe(res);
+        }
+    );
+    proxyReq.on('error', (err) => {
+        res.writeHead(502, Object.assign({}, OPENAI_PROXY_CORS, { 'Content-Type': 'application/json' }));
+        res.end(JSON.stringify({ error: { message: err.message } }));
+    });
+    if (bodyBuf) {
+        proxyReq.end(bodyBuf);
+    } else {
+        proxyReq.end();
     }
 });
 
@@ -1819,7 +1947,8 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         debateBookDistributions,
         pendingDebateBookChecks,
         tmsRosterLinks,
-        tmsEssayLinks
+        tmsEssayLinks,
+        essayGraderSettings
     } = req.body || {};
     const label = req.user.displayName || req.user.email || 'Teacher';
     if (classroomOnly) {
@@ -1865,6 +1994,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'tmsEssayLinks')) {
             payload.tmsEssayLinks = tmsEssayLinks;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'essayGraderSettings')) {
+            payload.essayGraderSettings = essayGraderSettings;
         }
         const result = calendars.updateCalendarClassroom(
             req.params.id,
@@ -2009,6 +2141,9 @@ app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => 
 });
 
 const staticRoot = path.join(__dirname, '..');
+app.get('/essay-batch-editor.html', (req, res) => {
+    res.sendFile(path.join(staticRoot, 'tools', 'essay-batch-editor.html'));
+});
 app.use(express.static(staticRoot, { index: false }));
 
 app.get('*', (req, res) => {

@@ -33,8 +33,12 @@ const U = loadUtils();
 {
     assert(
         U.normalizeClipboardText('<Speaking — Write Right> Unit 1 – Speaking')
-            === '<Speaking - Write Right> Unit 1 - Speaking',
-        'em and en dash → hyphen'
+            === 'Speaking - Write Right Unit 1 - Speaking',
+        'em/en dash → hyphen and angle brackets stripped'
+    );
+    assert(
+        U.stripAngleBrackets('<수업>\n1) 과제\n<과제>\n2) 숙제') === '수업\n1) 과제\n과제\n2) 숙제',
+        'stripAngleBrackets removes labels brackets'
     );
     assert(
         U.normalizeClipboardText('p.8\u221211') === 'p.8-11',
@@ -58,8 +62,8 @@ const U = loadUtils();
     assert(U.normalizeClipboardText('wait\u2026') === 'wait...', 'ellipsis');
     assert(U.normalizeClipboardText('\uAE40\uBBFC\uC9C0 \u00B7 Purple') === '\uAE40\uBBFC\uC9C0  -  Purple', 'middle dot');
     assert(
-        U.sanitizeExportText('<Speaking \u2014 Write>') === '<Speaking - Write>',
-        'sanitizeExportText alias'
+        U.sanitizeExportText('<Speaking \u2014 Write>') === 'Speaking - Write',
+        'sanitizeExportText alias strips angle brackets'
     );
 }
 

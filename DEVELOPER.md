@@ -82,7 +82,7 @@ Reference implementations: class editor (`.form-group`), calendar visibility bar
 | Tablet | 901–1024px | `tablet` | `isViewportTabletOrBelow()` |
 | Desktop | >1024px | (unset) | default |
 
-Use `--bp-sm`, `--bp-md`, `--bp-lg`, `--bp-tablet`, `--bp-xl` in new `@media` rules instead of ad-hoc pixel values. Split sidebars: `--split-sidebar-min` / `--split-sidebar-max`. Editor prose max width: `--editor-prose-max`.
+In new `@media` rules use the **fixed pixel tiers** that match those tokens: **640**, **900**, and **1024** (`max-width: 640px`, `max-width: 900px`, `max-width: 1024px`). CSS custom properties cannot be used in `@media` queries — do not write `max-width: var(--bp-sm)`. Split sidebars: `--split-sidebar-min` / `--split-sidebar-max`. Editor prose max width: `--editor-prose-max`.
 
 **Mobile UX notes:**
 

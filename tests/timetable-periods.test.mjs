@@ -22,12 +22,12 @@ function assert(cond, msg) {
 assert(api.computeDurationMin('14:30', '15:20') === 50, 'duration 14:30–15:20');
 
 const defaults = api.resetToDefaultSchedule();
-assert(defaults.slots.length >= 7, 'default slots');
-assert(Object.keys(defaults.map).length >= 7, 'default period map');
+assert(defaults.slots.length >= 8, 'default slots');
+assert(Object.keys(defaults.map).length >= 8, 'default period map');
 
 const added = api.addPeriod(defaults.slots, defaults.map);
 assert(added.ok, 'add period');
-assert(api.getPeriodNumbers(added.map).length === 8, 'eight periods after add');
+assert(api.getPeriodNumbers(added.map).length === 9, 'nine periods after add');
 
 const appData = {
     classes: [{

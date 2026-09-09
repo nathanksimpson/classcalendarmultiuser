@@ -376,7 +376,9 @@ function assert(cond, msg) {
         debateGroupEnd: 3,
         sessionNumber: 2
     });
-    assert(combined && combined.planDetail.includes('HW-COMBINED-23'), 'merge 2+3 uses combined template');
+    assert(combined && combined.planDetail.includes('HW-DAY-2'), 'merge 2+3 includes day 2 (not Combined pack)');
+    assert(combined.planDetail.includes('HW-DAY-3'), 'merge 2+3 includes day 3');
+    assert(!combined.planDetail.includes('HW-COMBINED-23'), 'merge 2+3 ignores Combined pack text');
     const bridge = globalThis.CCPSyllabusTemplates.resolveDebateRowTemplate(indexes, {
         debateTemplateKey: 'day4and1bridge'
     });
@@ -403,10 +405,14 @@ function assert(cond, msg) {
         templateIndexes: indexes
     });
     const mergeRow = rows.find((r) => r.planTitle && /Day 2/.test(r.planTitle) && r.date === '2026-03-11');
-    assert(mergeRow && mergeRow.planDetail.includes('HW-COMBINED-23'), 'syllabus merge row filled');
+    assert(mergeRow && mergeRow.planDetail.includes('HW-DAY-2'), 'syllabus merge row has day 2');
+    assert(mergeRow.planDetail.includes('HW-DAY-3'), 'syllabus merge row has day 3');
+    assert(mergeRow.sessionNumber === 2, 'compressed row sessionNumber is curriculum start day');
     const bridgeRow = rows.find((r) => r.date === '2026-03-18');
     assert(bridgeRow && bridgeRow.planDetail.includes('HW-DAY-4'), 'march bridge day 4');
     assert(bridgeRow.planDetail.includes('HW-DAY-1'), 'march bridge day 1');
+    assert(bridgeRow.sessionNumber === 4, 'Day 4 after 2+3 merge has sessionNumber 4 not 3');
+    assert(bridgeRow.lessonNumber === 4, 'Day 4 lessonNumber is 4');
 }
 
 // Debate: incomplete combined template at generation → row merges Day 2 + Day 3
@@ -516,7 +522,7 @@ function assert(cond, msg) {
 {
     const templates = [
         { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
-        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4' }
+        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4', trackEssay: true }
     ];
     const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
     const lessons = [
@@ -532,6 +538,64 @@ function assert(cond, msg) {
     const mayLast = rows.find((r) => r.date === '2026-05-28');
     assert(mayLast && mayLast.planDetail.includes('HW-DAY-4'), 'term-end day 4');
     assert(mayLast.planDetail.includes('HW-DAY-1'), 'term-end day 1 preview');
+    assert(mayLast.trackEssay === true, 'term-end day 4 bridge copies trackEssay');
+}
+
+// mergeSyllabusRows preserves trackEssay from existing rows
+{
+    const existing = [{
+        id: 'e1',
+        kind: 'lesson',
+        date: '2026-06-18',
+        sessionNumber: 4,
+        lessonNumber: 4,
+        planTitle: 'Day 4 / Preview',
+        planDetail: 'Write an essay',
+        source: 'manual',
+        trackEssay: true
+    }];
+    const generated = [{
+        id: 'g1',
+        kind: 'lesson',
+        date: '2026-06-18',
+        sessionNumber: 4,
+        lessonNumber: 4,
+        planTitle: 'Day 4 / Preview',
+        planDetail: 'Write an essay',
+        source: 'generated'
+    }];
+    const merged = CCPSyllabus.mergeSyllabusRows(existing, generated);
+    assert(merged[0].trackEssay === true, 'merge keeps trackEssay from prev');
+}
+
+// Overflow Day 4 with essay text is built with period metadata
+{
+    const templates = [
+        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'Write an essay please', trackEssay: true }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const lessons = [
+        {
+            __syllabusUnscheduled: true,
+            lessonNum: 4,
+            label: 'Day 4',
+            periodId: 'p-aug',
+            periodStartDate: '2026-08-01',
+            periodRangeEndDate: '2026-08-28',
+            overflowDate: '2026-08-28'
+        }
+    ];
+    const rows = CCPSyllabus.buildSyllabusRowsFromSchedule(
+        { scheduleModel: 'debateMonthly', totalLessons: 4 },
+        lessons,
+        { isHolidayForClass: () => false, rowTemplates: templates, templateIndexes: indexes }
+    );
+    const overflow = rows.find((r) => r.kind === 'overflow');
+    assert(overflow, 'overflow row built');
+    assert(overflow.planDetail.includes('essay'), 'overflow has essay planDetail');
+    assert(overflow.trackEssay === true, 'overflow copies trackEssay');
+    assert(overflow.periodId === 'p-aug', 'overflow keeps periodId');
+    assert(overflow.date === '2026-08-28', 'overflow uses period end date');
 }
 
 // Refresh from calendar updates plan titles even when plan detail was edited (source manual)

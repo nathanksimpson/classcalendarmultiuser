@@ -493,7 +493,9 @@
             return `note:${row.id || row.planTitle || ''}`;
         }
         if (row.kind === 'overflow') {
-            return `overflow:${getCurriculumLessonNumber(row)}`;
+            const period = row.periodId || row.periodStartDate || '';
+            const num = getCurriculumLessonNumber(row);
+            return period ? `overflow:${period}:${num}` : `overflow:${num}`;
         }
         if (row.kind === 'lesson') {
             return `lesson:${row.date || ''}:${getCurriculumLessonNumber(row)}`;
@@ -747,7 +749,8 @@
             const rowForTemplate = {
                 planTitle,
                 lessonNumber: curriculumLessonNumber,
-                sessionNumber: lessonNumber,
+                // Curriculum day (group.start), not meeting ordinal — after Day 2+3 merge, Day 4 is 4 not 3.
+                sessionNumber: curriculumLessonNumber,
                 scheduleModel: classData && classData.scheduleModel ? classData.scheduleModel : '',
                 debateTemplateKey: lesson.__debateTemplateKey || '',
                 debateCompressed: isDebateSchedule && isCompressed,
@@ -771,6 +774,9 @@
                     }
                     if (tpl.planDetail) {
                         planDetail = tpl.planDetail;
+                    }
+                    if (tpl.trackEssay === true) {
+                        rowForTemplate.trackEssay = true;
                     }
                 }
             }
@@ -804,20 +810,35 @@
                 colors = getColors ? getColors(inlineEv, inlineEv.type) : null;
             }
 
-            rows.push(applyRowColors({
+            const lessonRow = applyRowColors({
                 id: newRowId(),
                 kind,
                 date: dateStr,
                 monthKey,
                 weekLabel,
-                sessionNumber: lessonNumber,
+                sessionNumber: curriculumLessonNumber,
                 lessonNumber: curriculumLessonNumber,
                 scheduleCompressed: lesson.compressed === true,
+                compressedGroupStart: isCompressed ? groupStart : undefined,
+                compressedGroupEnd: isCompressed ? groupEnd : undefined,
+                debateCompressed: isDebateSchedule && isCompressed ? true : undefined,
+                debateGroupStart: isDebateSchedule && isCompressed ? groupStart : undefined,
+                debateGroupEnd: isDebateSchedule && isCompressed ? groupEnd : undefined,
                 planTitle,
                 planDetail,
                 note: '',
                 source: 'generated'
-            }, colors));
+            }, colors);
+            if (rowForTemplate.trackEssay === true && kind === 'lesson') {
+                lessonRow.trackEssay = true;
+            }
+            if (lesson.__debateTemplateKey) {
+                lessonRow.debateTemplateKey = lesson.__debateTemplateKey;
+            }
+            if (lesson.periodId) {
+                lessonRow.periodId = lesson.periodId;
+            }
+            rows.push(lessonRow);
         });
 
         let overflowIntroPlaced = false;
@@ -865,28 +886,55 @@
                 const overflowRow = {
                     planTitle: overflowTitle,
                     lessonNumber: lessonNum,
-                    sessionNumber: lessonNum
+                    sessionNumber: lessonNum,
+                    scheduleModel: classData && classData.scheduleModel ? classData.scheduleModel : '',
+                    periodId: item.periodId || '',
+                    periodStartDate: item.periodStartDate || ''
                 };
                 let overflowDetail = planDetailFromUnits(lessonNum, units, overflowTitle);
+                let overflowTrackEssay = false;
                 if (resolveRowTemplate) {
                     const tpl = resolveRowTemplate(overflowRow);
                     if (tpl && tpl.planDetail) {
                         overflowDetail = tpl.planDetail;
                     }
+                    if (tpl && tpl.planTitle) {
+                        overflowRow.planTitle = tpl.planTitle;
+                    }
+                    if (tpl && tpl.trackEssay === true) {
+                        overflowTrackEssay = true;
+                    }
                 }
-                rows.push({
+                const overflowDate = item.overflowDate || item.periodRangeEndDate || '';
+                const builtOverflow = {
                     id: newRowId(),
                     kind: 'overflow',
-                    date: '',
-                    monthKey: '',
+                    date: overflowDate,
+                    monthKey: overflowDate ? String(overflowDate).slice(0, 7) : '',
                     weekLabel: '',
                     sessionNumber: lessonNum,
                     lessonNumber: lessonNum,
-                    planTitle: overflowTitle,
+                    planTitle: overflowRow.planTitle || overflowTitle,
                     planDetail: overflowDetail,
                     note: overflowNote,
                     source: 'generated'
-                });
+                };
+                if (item.periodId) {
+                    builtOverflow.periodId = item.periodId;
+                }
+                if (item.periodStartDate) {
+                    builtOverflow.periodStartDate = item.periodStartDate;
+                }
+                if (item.periodRangeEndDate) {
+                    builtOverflow.periodRangeEndDate = item.periodRangeEndDate;
+                }
+                if (overflowDate) {
+                    builtOverflow.overflowDate = overflowDate;
+                }
+                if (overflowTrackEssay) {
+                    builtOverflow.trackEssay = true;
+                }
+                rows.push(builtOverflow);
             }
         });
 
@@ -1162,12 +1210,6 @@
             return '';
         }
         if (start === 2 && end === 3) {
-            const combined = templatesApi.templateByTitle(templateOpts.templateIndexes, 'Day 2 & 3 Combined');
-            const combinedDetail = combined ? String(combined.planDetail || '').trim() : '';
-            if (combinedDetail
-                && combinedTemplateCoversAllDays(combinedDetail, templateOpts, start, end, true)) {
-                return combinedDetail;
-            }
             const merged = templatesApi.mergeDebateTemplates(
                 templateOpts.templateIndexes,
                 ['Day 2', 'Day 3'],
@@ -1340,7 +1382,13 @@
                 source: keepEdits ? prev.source : 'generated',
                 rowBg: gen.rowBg || prev.rowBg || '',
                 rowColor: gen.rowColor || prev.rowColor || '',
-                eventType: gen.eventType || prev.eventType || ''
+                eventType: gen.eventType || prev.eventType || '',
+                trackEssay: typeof prev.trackEssay === 'boolean'
+                    ? prev.trackEssay
+                    : (typeof gen.trackEssay === 'boolean' ? gen.trackEssay : undefined),
+                homeworkDueDate: (prev.homeworkDueDate || '').trim()
+                    ? String(prev.homeworkDueDate).trim()
+                    : (gen.homeworkDueDate || undefined)
             };
         });
 

@@ -37,15 +37,20 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
+    /** Remove angle brackets that external paste targets treat as HTML/markup. */
+    function stripAngleBrackets(text) {
+        return String(text ?? '').replace(/[<>]/g, '');
+    }
+
     /** Punctuation → ASCII for external paste targets (messengers, legacy editors). */
     function normalizeClipboardText(text) {
-        return String(text ?? '')
+        return stripAngleBrackets(String(text ?? '')
             .replace(/\u2014/g, '-')
             .replace(/\u2013/g, '-')
             .replace(/\u2212/g, '-')
             .replace(/\u2026/g, '...')
             .replace(/\u00B7/g, ' - ')
-            .replace(/[\u2500-\u2503\u2508-\u250B\u2550-\u2551]/g, (ch) => (ch === '\u2550' || ch === '\u2551' ? '=' : '-'));
+            .replace(/[\u2500-\u2503\u2508-\u250B\u2550-\u2551]/g, (ch) => (ch === '\u2550' || ch === '\u2551' ? '=' : '-')));
     }
 
     /** Alias for note export builders (same rules as clipboard). */
@@ -59,6 +64,7 @@
         escapeRegExp,
         parseISODateLocal,
         formatDateISO,
+        stripAngleBrackets,
         normalizeClipboardText,
         sanitizeExportText
     };

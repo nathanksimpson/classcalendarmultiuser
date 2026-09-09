@@ -2905,9 +2905,55 @@
         return isEssaySyllabusRow(row);
     }
 
-    function getEssayRowsFromSyllabus(rows) {
-        const lessons = getLessonRowsFromSyllabus(rows);
-        return lessons.filter(isEssayAssignmentRow);
+    /**
+     * Fallback date for undated overflow essay rows (last dated lesson, else class end, else today).
+     */
+    function resolveEssayRowFallbackDate(rows, classData) {
+        const dated = (rows || [])
+            .filter((r) => r && (normalizeStr(r.kind) || 'lesson') === 'lesson' && normalizeStr(r.date))
+            .map((r) => normalizeStr(r.date))
+            .sort(compareDateStr);
+        if (dated.length) {
+            return dated[dated.length - 1];
+        }
+        const end = normalizeStr(classData && classData.endDate);
+        if (end) {
+            return end;
+        }
+        return todayISO();
+    }
+
+    /**
+     * Essay assignments from syllabus: dated lessons and overflow rows with essay text / trackEssay.
+     * @param {object[]} rows
+     * @param {{ fallbackDate?: string, classData?: object }} [options]
+     */
+    function getEssayRowsFromSyllabus(rows, options) {
+        const opts = options || {};
+        let fallbackDate = normalizeStr(opts.fallbackDate);
+        if (!fallbackDate && opts.classData) {
+            fallbackDate = resolveEssayRowFallbackDate(rows, opts.classData);
+        }
+
+        const essayRows = (rows || []).filter(isEssayAssignmentRow);
+        const enriched = essayRows.map((row) => {
+            if (normalizeStr(row && row.date)) {
+                return row;
+            }
+            const periodEnd = normalizeStr(row && (row.periodRangeEndDate || row.overflowDate));
+            const date = periodEnd || fallbackDate;
+            if (!date) {
+                return row;
+            }
+            return Object.assign({}, row, { date });
+        });
+        return enriched.slice().sort((a, b) => {
+            const byDate = compareDateStr(a && a.date, b && b.date);
+            if (byDate !== 0) {
+                return byDate;
+            }
+            return (Number(a && a.sessionNumber) || 0) - (Number(b && b.sessionNumber) || 0);
+        });
     }
 
     function isCustomEssayAssignmentRow(row) {
@@ -3030,7 +3076,7 @@
             return 0;
         }
         const essayRowIds = new Set(
-            getEssayRowsFromSyllabus(classData.syllabusRows)
+            getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
                 .map((row) => getSyllabusRowKey(row))
                 .filter(Boolean)
         );
@@ -3434,14 +3480,13 @@
         let od = 0;
         let ae = 0;
         let nv = 0;
-        getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+        getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).forEach((row) => {
             const syllabusRowId = getSyllabusRowKey(row);
             if (!syllabusRowId) {
                 return;
             }
             const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
-            const ssDue =
-                submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+            const ssDue = resolveEssayStudentDueDate(row, classData, submission);
             if (monthFilter && yearMonthKey(ssDue) !== monthFilter) {
                 return;
             }
@@ -3520,6 +3565,49 @@
         return normalizeStr(classData.levelCustom) || normalizeStr(classData.levelPreset);
     }
 
+    function getHomeworkDueResolveHooks() {
+        if (typeof global.CCPGetHomeworkTabHooks === 'function') {
+            try {
+                return global.CCPGetHomeworkTabHooks();
+            } catch (err) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Student essay due for a syllabus row: shared homework due (override or next class),
+     * with stored ssDueDate winning unless it is only the legacy lesson-day default.
+     */
+    function resolveEssayStudentDueDate(row, classData, submission) {
+        const lesson = normalizeStr(row && row.date);
+        const stored = submission && submission.ssDueDate ? normalizeStr(submission.ssDueDate) : '';
+        let homeworkDue = '';
+        const ht = global.CCPHomeworkTab;
+        if (ht && typeof ht.resolveHomeworkDueDate === 'function' && classData && row) {
+            const resolved = ht.resolveHomeworkDueDate(
+                classData,
+                row,
+                getHomeworkDueResolveHooks(),
+                classData.syllabusRows
+            );
+            homeworkDue = resolved && resolved.dueDate ? normalizeStr(resolved.dueDate) : '';
+        } else {
+            const override = normalizeStr(row && row.homeworkDueDate);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(override)) {
+                homeworkDue = override;
+            }
+        }
+        if (!stored) {
+            return homeworkDue || lesson;
+        }
+        if (homeworkDue && stored === lesson && stored !== homeworkDue) {
+            return homeworkDue;
+        }
+        return stored;
+    }
+
     function listEssayAssignmentsForClass(classData, appData) {
         if (!classData || !classData.id) {
             return [];
@@ -3530,11 +3618,10 @@
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const students = resolveStudentsForClass(classData, cohorts);
         const totalStudents = students.length;
-        return getEssayRowsFromSyllabus(classData.syllabusRows).map((row) => {
+        return getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).map((row) => {
             const syllabusRowId = getSyllabusRowKey(row);
             const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
-            const ssDue =
-                submission && submission.ssDueDate ? submission.ssDueDate : row.date || '';
+            const ssDue = resolveEssayStudentDueDate(row, classData, submission);
             const teDue =
                 submission && submission.teacherEvalDueDate
                     ? submission.teacherEvalDueDate
@@ -3599,7 +3686,7 @@
             });
             const classTypeLabel = resolveClassTypeLabel(classData, data);
             const levelLabel = resolveClassLevelLabel(classData);
-            getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+            getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).forEach((row) => {
                 const syllabusRowId = getSyllabusRowKey(row);
                 if (!syllabusRowId) {
                     return;
@@ -3685,17 +3772,14 @@
             const students = resolveStudentsForClass(classData, cohorts);
             const classTypeLabel = resolveClassTypeLabel(classData, data);
             const levelLabel = resolveClassLevelLabel(classData);
-            getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+            getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).forEach((row) => {
                 const syllabusRowId = getSyllabusRowKey(row);
                 if (!syllabusRowId) {
                     return;
                 }
                 const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
                 const assignmentLabel = getEssayAssignmentLabel(row);
-                const ssDue =
-                    submission && submission.ssDueDate
-                        ? submission.ssDueDate
-                        : row.date || '';
+                const ssDue = resolveEssayStudentDueDate(row, classData, submission);
                 students.forEach((entry) => {
                     const studentId = entry && entry.student && normalizeStr(entry.student.id);
                     if (!studentId) {
@@ -3784,17 +3868,14 @@
             const students = resolveStudentsForClass(classData, cohorts);
             const classTypeLabel = resolveClassTypeLabel(classData, data);
             const levelLabel = resolveClassLevelLabel(classData);
-            getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+            getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).forEach((row) => {
                 const syllabusRowId = getSyllabusRowKey(row);
                 if (!syllabusRowId) {
                     return;
                 }
                 const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
                 const assignmentLabel = getEssayAssignmentLabel(row);
-                const ssDue =
-                    submission && submission.ssDueDate
-                        ? submission.ssDueDate
-                        : row.date || '';
+                const ssDue = resolveEssayStudentDueDate(row, classData, submission);
                 students.forEach((entry) => {
                     const studentId = entry && entry.student && normalizeStr(entry.student.id);
                     if (!studentId) {
@@ -3948,7 +4029,9 @@
      * in that month). If none, first essay on/after ref, else last essay.
      */
     function pickDefaultEssaySyllabusRow(classData, refDate) {
-        const rows = getEssayRowsFromSyllabus(classData && classData.syllabusRows);
+        const rows = getEssayRowsFromSyllabus(classData && classData.syllabusRows, {
+            classData
+        });
         if (!rows.length) {
             return null;
         }
@@ -3982,15 +4065,37 @@
         return /\bday\s*4\b/.test(text);
     }
 
+    /** Day 3 / Alt Day 3 / Day 2 & 3 Combined — teams are assigned with Day 3 homework. */
+    function isDebateDayThreeTitle(title) {
+        const text = normalizeStr(title).toLowerCase();
+        if (!text) {
+            return false;
+        }
+        if (/alt\s*day\s*3/.test(text)) {
+            return true;
+        }
+        if (/day\s*2\s*(?:&|and)\s*3/.test(text)) {
+            return true;
+        }
+        if (/combined/.test(text) && /day\s*[23]/.test(text)) {
+            return true;
+        }
+        if (/day\s*2/.test(text) && /day\s*3/.test(text)) {
+            return true;
+        }
+        return /\bday\s*3\b/.test(text);
+    }
+
     function isDebateTeamAssignmentRow(row) {
         if (!row || !isEssayTrackableSyllabusRow(row)) {
             return false;
         }
         const sessionNum = Number(row.sessionNumber || row.lessonNumber || 0);
-        if (sessionNum === 4) {
+        if (sessionNum === 4 || sessionNum === 3) {
             return true;
         }
-        return isDebateDayFourTitle(row.planTitle || row.label || '');
+        const title = row.planTitle || row.label || '';
+        return isDebateDayFourTitle(title) || isDebateDayThreeTitle(title);
     }
 
     function getDebateTeamRowsFromSyllabus(rows) {
@@ -4014,10 +4119,14 @@
             return false;
         }
         const group = lesson.group;
-        if (group && Array.isArray(group.days) && group.days.map(Number).includes(4)) {
-            return true;
+        if (group && Array.isArray(group.days)) {
+            const days = group.days.map(Number);
+            if (days.includes(4) || days.includes(3)) {
+                return true;
+            }
         }
-        return isDebateDayFourTitle(lesson.label || '');
+        const label = lesson.label || '';
+        return isDebateDayFourTitle(label) || isDebateDayThreeTitle(label);
     }
 
     function classUsesDebateTeamAssignments(classData) {
@@ -4071,6 +4180,20 @@
                 );
             });
         }
+
+        // Include dates that already have a saved team session (e.g. Day 3 from homework copy).
+        const sessions = Array.isArray(opts.debateTeamSessions) ? opts.debateTeamSessions : [];
+        const classKey = normalizeStr(classData.id);
+        sessions.forEach((session) => {
+            if (!session || normalizeStr(session.classId) !== classKey) {
+                return;
+            }
+            const dateStr = normalizeStr(session.date);
+            if (!dateStr) {
+                return;
+            }
+            pushAssignment(dateStr, 'Debate teams', '', { date: dateStr, planTitle: 'Debate teams' });
+        });
 
         out.sort((a, b) => compareDateStr(a.date, b.date));
         return out;
@@ -4707,7 +4830,11 @@
         if (!options.length) {
             return '';
         }
-        const refMonth = yearMonthKey(refDate) || yearMonthKey(todayISO());
+        const ref = normalizeStr(refDate) || todayISO();
+        let refMonth = yearMonthKey(ref);
+        if (global.CCPDebatePeriods && typeof global.CCPDebatePeriods.teachingMonthKeyForDate === 'function') {
+            refMonth = global.CCPDebatePeriods.teachingMonthKeyForDate(ref) || refMonth;
+        }
         const exact = options.find((opt) => opt.periodKey === refMonth);
         if (exact) {
             return exact.periodKey;
@@ -4903,7 +5030,7 @@
         return counts;
     }
 
-    function resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId) {
+    function resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId, refDate) {
         if (!classData) {
             return '';
         }
@@ -4914,10 +5041,17 @@
             uiPeriodByClassId && typeof uiPeriodByClassId === 'object' ? uiPeriodByClassId : {};
         const preferred = normalizeDebateBookPeriodKey(map[classData.id]);
         const options = listDebateBookMonthOptions(classData);
-        if (preferred && options.some((opt) => opt.periodKey === preferred)) {
-            return preferred;
+        const defaultKey = pickDefaultDebateBookPeriodKey(classData, refDate);
+        if (
+            preferred &&
+            preferred !== DEBATE_BOOK_TERM_PERIOD_KEY &&
+            options.some((opt) => opt.periodKey === preferred)
+        ) {
+            if (!defaultKey || preferred >= defaultKey) {
+                return preferred;
+            }
         }
-        return pickDefaultDebateBookPeriodKey(classData);
+        return defaultKey;
     }
 
     function debateBookAlertCountsForClass(distributions, classData, cohorts, uiPeriodByClassId) {
@@ -5865,7 +5999,7 @@
             if (!c || !c.id) {
                 return false;
             }
-            return getEssayRowsFromSyllabus(c.syllabusRows).length > 0;
+            return getEssayRowsFromSyllabus(c.syllabusRows, { classData: c }).length > 0;
         });
     }
 
@@ -6116,7 +6250,7 @@
                 });
                 return;
             }
-            const essayRow = getEssayRowsFromSyllabus(classData.syllabusRows).find(
+            const essayRow = getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find(
                 (r) => getSyllabusRowKey(r) === syllabusRowId
             );
             if (!essayRow) {
@@ -6570,16 +6704,18 @@
                 );
                 const row =
                     classData &&
-                    getEssayRowsFromSyllabus(classData.syllabusRows).find(
+                    getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find(
                         (r) => getSyllabusRowKey(r) === syllabusRowId
                     );
+                const ssDue =
+                    resolveEssayStudentDueDate(row, classData, null) || (row && row.date) || '';
                 submission = {
                     id: opts.newSubmissionId ? opts.newSubmissionId() : newId('essay'),
                     classId,
                     syllabusRowId,
                     lessonDate: (row && row.date) || (rows[0] && rows[0].lessonDate) || '',
-                    ssDueDate: (row && row.date) || '',
-                    teacherEvalDueDate: row && row.date ? addDaysISO(row.date, 2) : '',
+                    ssDueDate: ssDue,
+                    teacherEvalDueDate: ssDue ? addDaysISO(ssDue, 2) : '',
                     records: []
                 };
             } else {
@@ -7442,6 +7578,7 @@
         resolveClassTypeLabel,
         resolveClassLevelLabel,
         listEssayAssignmentsForClass,
+        resolveEssayStudentDueDate,
         listEssayResubmitRows,
         listEssayOverdueRows,
         listEssayOutstandingStudentRows,
@@ -7450,11 +7587,13 @@
         daysUntilISO,
         yearMonthKey,
         sameCalendarMonth,
+        resolveEssayRowFallbackDate,
         getEssayRowsFromSyllabus,
         getEssayRowsForTerm,
         getEssayRowsForAssignedMonth,
         pickDefaultEssaySyllabusRow,
         isDebateDayFourTitle,
+        isDebateDayThreeTitle,
         isDebateTeamAssignmentRow,
         getDebateTeamRowsFromSyllabus,
         getDebateTeamAssignmentLabel,

@@ -341,12 +341,16 @@
                 }
             } catch (err) {
                 checked = true;
-                alert(
-                    (err && err.message) ||
+                {
+                    const msg =
+                        (err && err.message) ||
                         (typeof CCPViewAsI18n !== 'undefined' && CCPViewAsI18n.tViewAs
                             ? CCPViewAsI18n.tViewAs('viewAsLinkExpired')
-                            : 'View As link expired. Close this tab and try again from Admin.')
-                );
+                            : 'View As link expired. Close this tab and try again from Admin.');
+                    if (typeof CCPNotice !== 'undefined' && CCPNotice.show) {
+                        CCPNotice.show(msg, { type: 'error', force: true, dismissible: true });
+                    }
+                }
                 throw err;
             }
             try {

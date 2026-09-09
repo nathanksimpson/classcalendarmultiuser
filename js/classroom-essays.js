@@ -240,7 +240,8 @@
                 filtered = base.filter((c) => api.classHasEssayAssignments(c, d));
             } else if (d && typeof d.getEssayRowsFromSyllabus === 'function') {
                 filtered = base.filter(
-                    (c) => d.getEssayRowsFromSyllabus(c && c.syllabusRows).length > 0
+                    (c) =>
+                        d.getEssayRowsFromSyllabus(c && c.syllabusRows, { classData: c }).length > 0
                 );
             }
         }
@@ -285,7 +286,7 @@
             return false;
         }
         return d
-            .getEssayRowsFromSyllabus(classData.syllabusRows)
+            .getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
             .some((r) => d.getSyllabusRowKey(r) === rowId);
     }
 
@@ -301,7 +302,7 @@
         const savedId = map[classData.id] || '';
         if (savedId && rowExistsInClass(classData, savedId)) {
             const saved = d
-                .getEssayRowsFromSyllabus(classData.syllabusRows)
+                .getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
                 .find((r) => d.getSyllabusRowKey(r) === savedId);
             if (saved) {
                 if (!preferred) {
@@ -378,7 +379,7 @@
             return '';
         }
         const row = d
-            .getEssayRowsFromSyllabus(classData.syllabusRows)
+            .getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
             .find((r) => d.getSyllabusRowKey(r) === syllabusRowId);
         if (!row) {
             return '';
@@ -1837,10 +1838,13 @@
         if (!row || !d) {
             return { ssDueDate: '', teacherEvalDueDate: '' };
         }
-        const lesson = normalizeStr(row.date);
+        const classData = getClassData();
+        const ss = d.resolveEssayStudentDueDate
+            ? d.resolveEssayStudentDueDate(row, classData, null)
+            : normalizeStr(row.date);
         return {
-            ssDueDate: lesson,
-            teacherEvalDueDate: lesson ? d.addDaysISO(lesson, 2) : ''
+            ssDueDate: ss,
+            teacherEvalDueDate: ss ? d.addDaysISO(ss, 2) : ''
         };
     }
 
@@ -1866,7 +1870,7 @@
         const existing = d.findEssaySubmission(data.essaySubmissions, classId, syllabusRowId);
         const row =
             classData &&
-            d.getEssayRowsFromSyllabus(classData.syllabusRows).find((r) => d.getSyllabusRowKey(r) === syllabusRowId);
+            d.getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find((r) => d.getSyllabusRowKey(r) === syllabusRowId);
         const defaults = defaultDueDatesFromRow(row);
         const base = existing
             ? JSON.parse(JSON.stringify(existing))
@@ -1879,11 +1883,23 @@
                 teacherEvalDueDate: defaults.teacherEvalDueDate,
                 records: []
             };
-        if (!base.ssDueDate && defaults.ssDueDate) {
+        if (typeof d.resolveEssayStudentDueDate === 'function') {
+            const resolvedSs = d.resolveEssayStudentDueDate(row, classData, base);
+            if (resolvedSs) {
+                base.ssDueDate = resolvedSs;
+            }
+        } else if (!base.ssDueDate && defaults.ssDueDate) {
             base.ssDueDate = defaults.ssDueDate;
         }
         if (!base.teacherEvalDueDate && defaults.teacherEvalDueDate) {
             base.teacherEvalDueDate = defaults.teacherEvalDueDate;
+        } else if (base.ssDueDate && defaults.teacherEvalDueDate) {
+            const prevLesson = normalizeStr(row && row.date);
+            const prevTe = normalizeStr(base.teacherEvalDueDate);
+            const legacyTe = prevLesson ? d.addDaysISO(prevLesson, 2) : '';
+            if (prevTe === legacyTe && base.ssDueDate !== prevLesson) {
+                base.teacherEvalDueDate = d.addDaysISO(base.ssDueDate, 2);
+            }
         }
         draftSubmission = d.ensureEssayRecordsForStudents(base, students);
     }
@@ -2359,6 +2375,9 @@
             }
             if (target.id === 'classroomEssaysSsDue' && draftSubmission) {
                 draftSubmission.ssDueDate = target.value;
+                if (hooks && typeof hooks.saveHomeworkDueDate === 'function' && classId && syllabusRowId) {
+                    hooks.saveHomeworkDueDate(classId, syllabusRowId, target.value);
+                }
                 scheduleSave();
                 renderStatsBar(panel);
                 renderRows(panel);
@@ -4324,7 +4343,7 @@
                         const ok =
                             classData &&
                             d
-                                .getEssayRowsFromSyllabus(classData.syllabusRows)
+                                .getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
                                 .some((r) => d.getSyllabusRowKey(r) === row.userSyllabusRowId);
                         if (!ok) {
                             row.userSyllabusRowId =
@@ -4784,6 +4803,12 @@
         document.getElementById('essayTmsLoadBtn')?.addEventListener('click', () => {
             void loadEssayTmsPreview();
         });
+        document.getElementById('essayTmsPassword')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                void loadEssayTmsPreview();
+            }
+        });
         document.getElementById('essayTmsSyncConfirmBtn')?.addEventListener('click', () => {
             void confirmEssayTmsSync();
         });
@@ -4821,6 +4846,19 @@
         hooks = h;
         await flushBeforeLeave();
         bindEssayTmsSyncUi();
+        if (global.CCPClassroomEssayScrapeEditor && typeof global.CCPClassroomEssayScrapeEditor.init === 'function') {
+            global.CCPClassroomEssayScrapeEditor.init(
+                Object.assign({}, hooks, {
+                    refreshEssaysSheet() {
+                        loadSubmission();
+                        const panel = document.getElementById('panel-essays');
+                        if (panel) {
+                            render(panel);
+                        }
+                    }
+                })
+            );
+        }
         const data = getAppData();
         const d = domain();
         const visible = getEssayPickerClasses();

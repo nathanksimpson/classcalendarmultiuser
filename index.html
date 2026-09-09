@@ -6,15 +6,14 @@
     <title>ClassManager &mdash; Team</title>
     <script>document.documentElement.classList.add('ccp-auth-boot');</script>
     <style>html.ccp-auth-boot body{visibility:hidden}html.ccp-auth-boot{background:var(--bg-main,#f4f6f9)}</style>
-    <link rel="stylesheet" href="styles.css?v=20260831-books-today">
-    <link rel="stylesheet" href="css/debate-teams-v2.css?v=20260807-deconflict-min">
+    <link rel="stylesheet" href="styles.css?v=20260908-hw-due">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260831-books-today';
+        window.CCP_I18N_VERSION = '20260908-hw-due';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -62,7 +61,7 @@
                     </button>
                     <button type="button" id="navTabsCollapseToggle" class="btn btn-outline btn-small nav-tabs-collapse-toggle" aria-expanded="true" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="navTabsHide" data-i18n-title="navTabsHideTitle" title="Hide navigation tabs">Hide tabs</button>
                     <div id="appWarningsNotify" class="app-warnings-notify" hidden>
-                <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
+                <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" aria-label="Notifications" data-i18n-aria-label="appNotificationsBtnTitle" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
                     <span class="app-notify-bell-icon" aria-hidden="true">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -72,13 +71,13 @@
                     <span id="appWarningsCount" class="app-warnings-count" hidden aria-hidden="true">0</span>
                 </button>
                     </div>
-                    <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions">
+                    <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions" data-i18n-aria-label="headerQuickActionsAria">
                     <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
                     <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
                     <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
                     <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme" aria-label="Theme">◐</button>
+                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" data-i18n-aria-label="themeToggleTitle" title="Switch light/dark theme" aria-label="Switch light/dark theme">◐</button>
                     <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
                         <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
                             <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
@@ -132,7 +131,7 @@
                     </span>
                 </div>
                 <div class="app-top-bar-row app-top-bar-row--zones" id="appZoneNavCluster">
-                    <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections">
+                    <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections" data-i18n-aria-label="zoneNavAria">
                         <button type="button" class="app-zone-btn is-active" role="tab" id="zoneBtn-schedule" data-zone="schedule" aria-selected="true" data-i18n="zoneSchedule">Schedule</button>
                         <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classes" data-zone="classes" aria-selected="false" data-i18n="zoneClassSetup">Class Setup</button>
                         <button type="button" class="app-zone-btn" role="tab" id="zoneBtn-classroom" data-zone="classroom" aria-selected="false" data-i18n="zoneClassroom">Classroom</button>
@@ -141,38 +140,38 @@
                     </div>
                 </div>
                 <div class="app-top-bar-row app-top-bar-row--nav" id="appZoneSegmentNavRow">
-                    <nav class="app-zone-segment-nav" id="appZoneSegmentNav" aria-label="Section">
-                        <div id="zoneSegments-schedule" class="app-zone-segment-panel is-active" data-zone="schedule">
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="events" data-tab="events" data-i18n="tabEvents">Events</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="command-center" data-tab="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-tab="homework" data-i18n="tabHomework">Homework copy</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
+                    <nav class="app-zone-segment-nav" id="appZoneSegmentNav" role="tablist" aria-label="Section" data-i18n-aria-label="zoneSegmentNavAria">
+                        <div id="zoneSegments-schedule" class="app-zone-segment-panel is-active" data-zone="schedule" role="presentation">
+                            <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="events" data-tab="events" data-i18n="tabEvents">Events</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="command-center" data-tab="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="homework" data-tab="homework" data-i18n="tabHomework">Homework copy</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
                         </div>
-                        <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="classes" data-tab="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="cohorts" data-tab="cohorts" data-i18n="tabCohorts">Cohorts</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="teachers" data-tab="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Books</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabi</button>
+                        <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden role="presentation">
+                            <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="classes" data-tab="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="cohorts" data-tab="cohorts" data-i18n="tabCohorts">Cohorts</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="teachers" data-tab="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Books</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabi</button>
                         </div>
-                        <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden>
-                            <button type="button" class="app-zone-segment-btn" data-segment="briefing" data-tab="briefing" data-i18n="classroomTabBriefing">Briefing</button>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="students" data-tab="students" data-i18n="classroomTabStudents">Students</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="attendance" data-tab="attendance" data-i18n="classroomTabAttendance">Attendance</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="ledger" data-tab="ledger" data-i18n="classroomTabLedger">Ledger</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="homework" data-tab="homework-tracking" data-i18n="classroomTabHomework">Homework</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="points" data-tab="points" data-i18n="classroomTabPoints">Points</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="tests" data-tab="tests" data-i18n="classroomTabTests">Tests</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
-                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" data-segment="portfolio" data-tab="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
+                        <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden role="presentation">
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="briefing" data-tab="briefing" data-i18n="classroomTabBriefing">Briefing</button>
+                            <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="students" data-tab="students" data-i18n="classroomTabStudents">Students</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="attendance" data-tab="attendance" data-i18n="classroomTabAttendance">Attendance</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="ledger" data-tab="ledger" data-i18n="classroomTabLedger">Ledger</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="homework" data-tab="homework-tracking" data-i18n="classroomTabHomework">Homework</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="points" data-tab="points" data-i18n="classroomTabPoints">Points</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="tests" data-tab="tests" data-i18n="classroomTabTests">Tests</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
+                            <button type="button" class="app-zone-segment-btn app-zone-segment-btn--disabled" role="tab" aria-selected="false" data-segment="portfolio" data-tab="portfolio" disabled aria-disabled="true" title="Coming soon" data-i18n="classroomTabPortfolio" hidden>Portfolio</button>
                         </div>
-                        <div id="zoneSegments-tools" class="app-zone-segment-panel" data-zone="tools" hidden>
-                            <button type="button" class="app-zone-segment-btn is-active" data-segment="essays" data-tab="essays" data-i18n="classroomTabEssays">Essays</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="debate-teams" data-tab="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="debate-scores" data-tab="debate-scores" data-i18n="classroomTabDebateScores">Debate Scores</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="debate-books" data-tab="debate-books" data-i18n="classroomTabDebateBooks">Books</button>
-                            <button type="button" class="app-zone-segment-btn" data-segment="speaking-test" data-tab="speaking-test" data-i18n="classroomTabSpeakingTest">Speaking Test</button>
+                        <div id="zoneSegments-tools" class="app-zone-segment-panel" data-zone="tools" hidden role="presentation">
+                            <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="essays" data-tab="essays" data-i18n="classroomTabEssays">Essays</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="debate-teams" data-tab="debate-teams" data-i18n="classroomTabDebateTeams">Debate Teams</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="debate-scores" data-tab="debate-scores" data-i18n="classroomTabDebateScores">Debate Scores</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="debate-books" data-tab="debate-books" data-i18n="classroomTabDebateBooks">Books</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="speaking-test" data-tab="speaking-test" data-i18n="classroomTabSpeakingTest">Speaking Test</button>
                         </div>
                     </nav>
                     <div id="termSummaryStrip" class="term-summary-strip" hidden>
@@ -342,7 +341,7 @@
                                 </div>
                                 <div class="toolbar-field">
                                     <label for="termMonthCount" data-i18n="termMonthCount">Months to display:</label>
-                                    <select id="termMonthCount" aria-label="Term month count">
+                                    <select id="termMonthCount" class="field-select" aria-label="Term month count" data-i18n-aria-label="termMonthCount">
                                         <option value="3">3</option>
                                         <option value="4">4</option>
                                         <option value="5">5</option>
@@ -378,6 +377,7 @@
 
             <section id="panel-students" class="app-tab-panel" data-tab="students" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
                 <div class="module-toolbar classroom-tab-toolbar classroom-roster-toolbar">
+                    <div id="classroomRosterCohortPicker" class="classroom-roster-cohort-picker"></div>
                     <div class="toolbar-actions">
                     <button type="button" id="classroomRosterAddBtn" class="btn btn-primary btn-compact" data-i18n="classroomAddStudent">+ Add student</button>
                     <details class="header-dropdown classroom-roster-import-menu">
@@ -400,10 +400,6 @@
                     </div>
                 </div>
                 <div class="classroom-roster-layout module-split-layout">
-                    <aside class="module-list-panel" aria-label="Cohort list">
-                        <input type="search" id="classroomRosterCohortSearch" class="module-list-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortListSearchPlaceholder" placeholder="Search cohorts&hellip;">
-                        <div id="classroomRosterCohortList" class="module-list" role="listbox"></div>
-                    </aside>
                     <div class="module-list-panel classroom-roster-student-list-panel">
                         <div id="classroomRosterBulkActions" class="classroom-roster-bulk-actions" hidden>
                             <button type="button" id="classroomRosterSelectAllBtn" class="btn btn-outline btn-compact" data-i18n="studentMoveSelectAll">Select all</button>
@@ -521,11 +517,12 @@
                             <div id="classroomEssaysBatchActions" class="classroom-essay-filters classroom-batch-row"></div>
                             <p id="classroomEssaysToolbarHint" class="classroom-essay-toolbar-hint section-hint" role="status"></p>
                             <div class="toolbar-actions">
+                                <button type="button" id="classroomEssaysScrapeEditorBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayScrapeEditorBtn">Scrape &amp; open editor&hellip;</button>
                                 <button type="button" id="classroomEssaysTmsSyncAllBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncAllBtn">Sync all from TMS&hellip;</button>
                                 <button type="button" id="classroomEssaysTmsSyncBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncThisClassBtn">Sync this class&hellip;</button>
                                 <div id="classroomEssaysReportsWrap" class="classroom-essay-reports-menu"></div>
                                 <span id="classroomEssaysSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
-                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-primary btn-compact" data-i18n="classroomEssaySaveAll">Save all</button>
+                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssaySaveAll">Save all</button>
                             </div>
                         </div>
                         <div class="classroom-sheet-scroll classroom-essay-sheet-scroll" tabindex="0">
@@ -685,8 +682,8 @@
                         <label class="classroom-debate-assignment-field" for="classroomDebateScoresTemplate">
                             <span class="classroom-debate-assignment-label" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</span>
                             <select id="classroomDebateScoresTemplate" class="field-select field-control">
-                                <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam?밠irinae</option>
-                                <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple?밳eoul</option>
+                                <option value="garam" data-i18n="classroomDebateTemplateGaram">Garam–Mirinae</option>
+                                <option value="yeoul" data-i18n="classroomDebateTemplateYeoul">Purple–Yeoul</option>
                             </select>
                         </label>
                         <span id="classroomDebateScoresBookChip" class="section-hint classroom-debate-scores-book-chip" hidden></span>
@@ -801,7 +798,7 @@
                                     <div class="class-notes-add-fields">
                                         <label class="class-notes-filter-field" for="classNotesAddClass">
                                             <span data-i18n="classNotesAddClass">Class</span>
-                                            <select id="classNotesAddClass" class="class-notes-add-select" required></select>
+                                            <select id="classNotesAddClass" class="field-select class-notes-add-select" required></select>
                                         </label>
                                         <label class="class-notes-filter-field class-notes-add-datetime-field" for="classNotesAddDatetime">
                                             <span data-i18n="classNotesAddDatetime">Date &amp; time</span>
@@ -812,7 +809,7 @@
                                         </label>
                                         <label class="class-notes-filter-field" for="classNotesAddCategory">
                                             <span data-i18n="dayNoteCategoryLabel">Category</span>
-                                            <select id="classNotesAddCategory" class="class-notes-add-select"></select>
+                                            <select id="classNotesAddCategory" class="field-select class-notes-add-select"></select>
                                         </label>
                                     </div>
                                     <label class="class-notes-filter-field" for="classNotesAddText">
@@ -836,7 +833,7 @@
                                         <input type="search" id="classNotesTextSearch" class="module-list-search class-notes-text-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classNotesTextSearchPlaceholder" placeholder="Search notes, classes&hellip;">
                                         <label class="class-notes-sort-label" for="classNotesSortSelect">
                                             <span data-i18n="classNotesSortLabel">Sort</span>
-                                            <select id="classNotesSortSelect" class="class-notes-sort-select" aria-label="Sort notes">
+                                            <select id="classNotesSortSelect" class="field-select class-notes-sort-select" aria-label="Sort notes" data-i18n-aria-label="classNotesSortLabel">
                                                 <option value="classGroup" data-i18n="classNotesSortClassGroup">By class</option>
                                                 <option value="homeroomGroup" data-i18n="classNotesSortHomeroomGroup">By homeroom teacher</option>
                                                 <option value="newest" data-i18n="classNotesSortNewest">Newest (time)</option>
@@ -851,7 +848,7 @@
                                             <p class="class-notes-export-categories-hint section-hint" data-i18n="classNotesExportCategoriesHint">Uncheck categories to exclude them from export.</p>
                                         </div>
                                         <label class="class-notes-sort-label" for="classNotesTranslateOnCopy">
-                                            <span data-i18n="classNotesTranslateOnCopy">Translate EN?묷O when copying</span>
+                                            <span data-i18n="classNotesTranslateOnCopy">Translate EN→KO when copying</span>
                                             <input type="checkbox" id="classNotesTranslateOnCopy">
                                         </label>
                                         <div class="class-notes-export-actions">
@@ -923,7 +920,7 @@
                                         <button type="button" id="syllabusDeleteTemplateBtn" class="header-dropdown-item header-dropdown-item--danger" hidden data-i18n="syllabusDeleteTemplate">Delete template</button>
                                     </div>
                                 </details>
-                                <select id="syllabusApplyTemplateSelect" class="syllabus-apply-select" hidden aria-label="Apply custom syllabus">
+                                <select id="syllabusApplyTemplateSelect" class="field-select syllabus-apply-select" hidden aria-label="Apply custom syllabus" data-i18n-aria-label="syllabusApplyTemplatePick">
                                     <option value="" data-i18n="syllabusApplyTemplatePick">Apply custom syllabus&hellip;</option>
                                 </select>
                                 <button type="button" id="syllabusSaveTemplateBtn" class="btn btn-primary btn-small" hidden data-i18n="syllabusSaveTemplate">Save template</button>
@@ -1090,9 +1087,11 @@
                                     </div>
                                 </div>
                                 <div class="homework-due-block homework-due-block--assign">
-                                    <span class="homework-due-label" data-i18n="homeworkTabDueNextClass">Due next class</span>
+                                    <span id="homeworkDueLabel" class="homework-due-label" data-i18n="homeworkTabDueNextClass">Due next class</span>
                                     <div class="homework-due-date-row">
-                                        <strong id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso"></strong>
+                                        <input type="date" id="homeworkDueDateInput" class="field-input field-control homework-due-date-input" aria-labelledby="homeworkDueLabel" disabled />
+                                        <span id="homeworkDueDateDisplay" class="homework-due-value homework-due-value--iso" aria-live="polite"></span>
+                                        <button type="button" id="homeworkDueDateResetBtn" class="btn btn-outline btn-small" hidden data-i18n="homeworkTabDueUseAutomatic">Use automatic</button>
                                     </div>
                                     <div id="homeworkDueDateSkips" class="homework-due-skips" hidden></div>
                                 </div>
@@ -1196,6 +1195,7 @@
                 <div class="cohorts-floating-toolbar" role="toolbar" aria-label="Cohort actions">
                     <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--primary">
                         <button type="button" id="cohortsAddBtn" class="btn btn-primary btn-compact" data-i18n="timetableAddCohort">+ Add cohort</button>
+                        <button type="button" id="cohortsPrintHrListBtn" class="btn btn-outline btn-compact" data-i18n="cohortsPrintHrListBtn">Print HR T list</button>
                         <input type="search" id="cohortsListSearch" class="module-list-search cohorts-toolbar-search field-control--compact" autocomplete="off" spellcheck="false" data-i18n-placeholder="cohortsListSearchPlaceholder" placeholder="Search cohorts&hellip;" aria-label="Search cohorts">
                         <div class="setup-board-view-switch" role="tablist" aria-label="Board view">
                             <button type="button" class="syllabus-segment-btn is-active" id="setupBoardViewBtnMwf" data-board-view="mwf" data-i18n="setupBoardViewMwf">MWF cohorts</button>
@@ -1204,7 +1204,7 @@
                         </div>
                     </div>
                     <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--contextual" id="cohortsContextualActions" hidden>
-                        <button type="button" id="cohortsOpenTimetableBtn" class="btn btn-outline btn-compact" data-i18n="setupHubOpenTimetable">Open timetable</button>
+                        <button type="button" id="cohortsOpenTimetableBtn" class="btn btn-outline btn-compact" data-i18n="cohortsOpenTimetable">Open timetable</button>
                         <button type="button" id="cohortsEditBtn" class="btn btn-outline btn-compact" hidden data-i18n="cohortsEditBtn">Edit cohort</button>
                         <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
                     </div>
@@ -1219,8 +1219,8 @@
                     </div>
                 </div>
                 <aside class="cohorts-class-detail-pane" aria-label="Class details">
-                    <h2 class="setup-hub-panel-title" data-i18n="setupHubClassDetailTitle">Class details</h2>
-                    <div id="cohortsClassDetail" class="setup-hub-class-detail-mount"></div>
+                    <h2 class="cohorts-panel-title" data-i18n="cohortsClassDetailTitle">Class details</h2>
+                    <div id="cohortsClassDetail" class="cohorts-class-detail-mount"></div>
                 </aside>
                 </div>
             </section>
@@ -1679,6 +1679,10 @@
                         <input type="checkbox" id="debateBookClassSummaryDebateOnly" />
                         <span data-i18n="classroomDebateBooksClassSummaryFilterDebateOnly">Debate classes only</span>
                     </label>
+                    <label class="classroom-essay-resubmit-filter-field">
+                        <span class="section-hint" data-i18n="classListSearchPlaceholder">Search classes…</span>
+                        <input type="search" id="debateBookClassSummaryClassSearch" class="field-input field-control--compact" autocomplete="off" spellcheck="false" data-i18n-placeholder="classListSearchPlaceholder" placeholder="Search classes…" />
+                    </label>
                     <button type="button" id="debateBookClassSummarySelectAll" class="btn btn-outline btn-compact" data-i18n="classroomDebateBooksClassSummarySelectAll">Select all</button>
                     <button type="button" id="debateBookClassSummaryClearAll" class="btn btn-outline btn-compact" data-i18n="classroomDebateBooksClassSummaryClearAll">Clear all</button>
                 </div>
@@ -2074,6 +2078,114 @@
         </div>
     </div>
 
+    <div id="essayScrapeEditorModal" class="modal" role="dialog" aria-labelledby="essayScrapeEditorModalTitle" aria-modal="true" aria-hidden="true">
+        <div class="modal-content modal-wide modal-content--scrollable roster-import-modal-content">
+            <div class="modal-header">
+                <h2 id="essayScrapeEditorModalTitle" data-i18n="classroomEssayScrapeEditorTitle">Scrape essays &amp; open batch editor</h2>
+                <button type="button" class="modal-close" id="closeEssayScrapeEditorModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll roster-import-modal-body">
+                <p class="section-hint" data-i18n="classroomEssayScrapeEditorHint">
+                    Load the TMS Writing list, filter the batch you want to grade, fetch essay text for selected students, then open the Batch Essay Editor. Paste feedback back into TMS yourself — ClassManager does not write to TMS.
+                </p>
+                <div class="roster-tms-cred-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="essayScrapeUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
+                            <input type="text" id="essayScrapeUsername" class="field-input" name="tms-username-scrape" autocomplete="username" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label for="essayScrapePassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
+                            <input type="password" id="essayScrapePassword" class="field-input" name="tms-password-scrape" autocomplete="current-password">
+                        </div>
+                    </div>
+                    <label class="checkbox-label selection-chip">
+                        <input type="checkbox" id="essayScrapeRememberUser">
+                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
+                    </label>
+                    <div class="toolbar-actions">
+                        <button type="button" id="essayScrapeLoadBtn" class="btn btn-primary" data-i18n="classroomEssayScrapeLoadBtn">Sign in &amp; load list</button>
+                        <button type="button" id="essayScrapeBridgeTestBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsBridgeTestBtn">Open bridge test</button>
+                    </div>
+                </div>
+                <p id="essayScrapeStatus" class="section-hint" aria-live="polite"></p>
+                <div id="essayScrapeFilters" class="essay-scrape-filters" hidden>
+                    <div class="module-toolbar classroom-tab-toolbar">
+                        <p class="section-hint" data-i18n="classroomEssayScrapeFiltersLabel">Filters (empty group = all)</p>
+                        <div class="toolbar-actions">
+                            <button type="button" id="essayScrapeClearFiltersBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayScrapeClearFilters">Clear filters</button>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label data-i18n="classroomEssayScrapeFilterClass">Class</label>
+                            <div id="essayScrapeFilterClass" class="roster-tms-review-options"></div>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="classroomEssayScrapeFilterTitle">Essay type</label>
+                            <div id="essayScrapeFilterTitle" class="roster-tms-review-options"></div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label data-i18n="classroomEssayScrapeFilterTeacher">Teacher</label>
+                            <div id="essayScrapeFilterTeacher" class="roster-tms-review-options"></div>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="classroomEssayScrapeFilterEvaluator">Evaluator</label>
+                            <div id="essayScrapeFilterEvaluator" class="roster-tms-review-options"></div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label data-i18n="classroomEssayScrapeFilterEval">Evaluation status</label>
+                            <div id="essayScrapeFilterEval" class="roster-tms-review-options"></div>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="classroomEssayScrapeFilterDates">Input date</label>
+                            <div class="form-row">
+                                <input type="date" id="essayScrapeFromDate" class="field-input" aria-label="From date">
+                                <input type="date" id="essayScrapeToDate" class="field-input" aria-label="To date">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="essayScrapeResults" hidden>
+                    <div class="module-toolbar classroom-tab-toolbar">
+                        <p id="essayScrapeResultsCount" class="section-hint" role="status"></p>
+                        <div class="toolbar-actions">
+                            <button type="button" id="essayScrapeSelectAllBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayScrapeSelectAll">Select filtered</button>
+                            <button type="button" id="essayScrapeClearSelectionBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayScrapeClearSelection">Clear selection</button>
+                            <button type="button" id="essayScrapeFetchBodiesBtn" class="btn btn-secondary btn-small" disabled data-i18n="classroomEssayScrapeFetchBodies">Fetch essay text</button>
+                        </div>
+                    </div>
+                    <div class="roster-import-table-wrap classroom-sheet-scroll">
+                        <table class="classroom-sheet">
+                            <thead>
+                                <tr>
+                                    <th scope="col"></th>
+                                    <th scope="col" data-i18n="classroomColStudent">Student</th>
+                                    <th scope="col" data-i18n="classroomEssayScrapeColClass">Class</th>
+                                    <th scope="col" data-i18n="classroomEssayScrapeColTeacher">Teacher</th>
+                                    <th scope="col" data-i18n="classroomEssayScrapeColTitle">Type</th>
+                                    <th scope="col" data-i18n="classroomEssayScrapeColEval">Eval</th>
+                                    <th scope="col" data-i18n="classroomEssayScrapeColDate">Date</th>
+                                    <th scope="col" data-i18n="classroomEssayScrapeColBody">Text</th>
+                                </tr>
+                            </thead>
+                            <tbody id="essayScrapeTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <p id="essayScrapeError" class="section-hint roster-import-error" hidden role="alert"></p>
+            </div>
+            <div class="form-actions roster-import-actions">
+                <button type="button" id="cancelEssayScrapeEditorBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                <button type="button" id="essayScrapeOpenEditorBtn" class="btn btn-primary" disabled data-i18n="classroomEssayScrapeOpenEditor">Open Batch Editor</button>
+            </div>
+        </div>
+    </div>
+
     <div id="studentArchiveModal" class="modal" role="dialog" aria-labelledby="studentArchiveModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -2442,7 +2554,7 @@
                 <div id="classDayNoteExisting" class="day-note-existing-list" hidden></div>
                 <label class="day-note-category-field" for="classDayNoteCategory">
                     <span data-i18n="dayNoteCategoryLabel">Category</span>
-                    <select id="classDayNoteCategory" class="day-note-category-select"></select>
+                    <select id="classDayNoteCategory" class="field-select day-note-category-select"></select>
                 </label>
                 <label for="classDayNoteText" data-i18n="dayNoteTextLabel">What happened in this class?</label>
                 <textarea id="classDayNoteText" class="day-note-textarea" rows="5" spellcheck="true"></textarea>
@@ -2541,7 +2653,7 @@
     </div>
 
     <script defer src="js/schedule-core.js"></script>
-    <script defer src="js/utils.js?v=20260612-export-ascii"></script>
+    <script defer src="js/utils.js?v=20260907-strip-angle"></script>
     <script defer src="js/client-api.js?v=20260527-modal-ux"></script>
     <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
@@ -2552,11 +2664,11 @@
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260828-modal-stay"></script>
-    <script defer src="js/load-extension-scripts.js?v=20260622-teaching-workflow"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260909-period8"></script>
+    <script defer src="js/load-extension-scripts.js?v=20260908-debate-combine"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
-    <script defer src="js/view-as-banner.js?v=20260608-i18n-audit"></script>
-    <script defer src="js/team-auth.js?v=20260807-delete-calendar-pw"></script>
+    <script defer src="js/view-as-banner.js?v=20260908-quick-wins"></script>
+    <script defer src="js/team-auth.js?v=20260908-quick-wins"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-mutations.js?v=20260810-book-check"></script>
     <script defer src="js/calendar-export.js?v=20260810-full-export"></script>
@@ -2566,7 +2678,7 @@
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary-print.js?v=20260618-term-summary"></script>
     <script defer src="js/term-dates.js?v=20260619-term-flex"></script>
-    <script defer src="js/timetable-periods.js?v=20260619-term-flex"></script>
+    <script defer src="js/timetable-periods.js?v=20260909-period8"></script>
     <script defer src="js/term-clone-wizard.js?v=20260622-teaching-workflow"></script>
     <script defer src="js/timetable-import.js?v=20260828-migrate-ux"></script>
     <script defer src="js/timetable-import-ocr.js?v=20260828-migrate-ux"></script>
@@ -2581,14 +2693,14 @@
     <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
     <script defer src="js/views/event-list-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/calendar-view.js?v=20260615-ui-refactor"></script>
-    <script defer src="js/core/app-state.js?v=20260810-book-check"></script>
+    <script defer src="js/core/app-state.js?v=20260909-period8"></script>
     <script defer src="js/core/app-store.js?v=20260619-delta-sync"></script>
     <script defer src="js/core/render-orchestrator.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-enums.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
-    <script defer src="js/debate-periods.js?v=20260806-per-period-remap"></script>
+    <script defer src="js/debate-periods.js?v=20260901-transition-week"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260831-tms-hr-sync"></script>
+    <script defer src="js/classroom-domain.js?v=20260908-hw-due"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260824-mention-no-at-colon"></script>
@@ -2630,7 +2742,7 @@
         <div class="team-calendar-popover-body">
             <label class="classroom-header-field team-calendar-field" for="teamCalendarSelect">
                 <span data-i18n="teamCalendar">Team calendar:</span>
-                <select id="teamCalendarSelect" class="field-select field-control--compact team-calendar-select" aria-label="Team calendar" data-i18n-title="teamCalendarHint"></select>
+                <select id="teamCalendarSelect" class="field-select field-control--compact team-calendar-select" aria-label="Team calendar" data-i18n-aria-label="teamCalendarSelectAria" data-i18n-title="teamCalendarHint"></select>
             </label>
             <div class="team-calendar-popover-actions">
                 <button type="button" id="addClassBtn" class="btn btn-primary btn-small" data-i18n="addClass">+ Add Class</button>
@@ -2647,7 +2759,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260831-books-today"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260908-hw-due"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2655,7 +2767,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20260831-padding-days"></script>
+    <script defer src="app.js?v=20260909-period8"></script>
 </body>
 </html>
 

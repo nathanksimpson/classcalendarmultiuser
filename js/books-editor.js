@@ -2129,7 +2129,13 @@
                 const tbody = document.getElementById(tbodyId);
                 const rows = collectEditorRowsFromTbody(tbody);
                 if (rows.length < MIN_SESSION_ROWS) {
-                    alert(hooks.t('booksEditorNoRows'));
+                    if (typeof CCPNotice !== 'undefined' && CCPNotice.show) {
+                        CCPNotice.show(hooks.t('booksEditorNoRows'), {
+                            type: 'error',
+                            force: true,
+                            dismissible: true
+                        });
+                    }
                     return;
                 }
                 const saveOpts = collectCurriculumEditorSaveOpts(prefix);
@@ -2219,7 +2225,13 @@
                 const tbody = document.getElementById(tbodyId);
                 const rows = collectEditorRowsFromTbody(tbody);
                 if (rows.length < MIN_SESSION_ROWS) {
-                    alert(hooks.t('booksEditorNoRows'));
+                    if (typeof CCPNotice !== 'undefined' && CCPNotice.show) {
+                        CCPNotice.show(hooks.t('booksEditorNoRows'), {
+                            type: 'error',
+                            force: true,
+                            dismissible: true
+                        });
+                    }
                     return;
                 }
                 const activeBook = getBookById(fullPageEditingBookId, getAppData());
@@ -2244,7 +2256,13 @@
             if (e.target.id === duplicateId && fullPageEditingBookId) {
                 const newId = duplicateCurriculum(fullPageEditingBookId, getAppData());
                 if (!newId) {
-                    alert(hooks.t('curriculumDuplicateFailed'));
+                    if (typeof CCPNotice !== 'undefined' && CCPNotice.show) {
+                        CCPNotice.show(hooks.t('curriculumDuplicateFailed'), {
+                            type: 'error',
+                            force: true,
+                            dismissible: true
+                        });
+                    }
                     return;
                 }
                 if (fullPageAfterDuplicate) {

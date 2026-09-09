@@ -34,6 +34,7 @@
 | `debateTeamSessions` | array | Debate Teams session state per class+date |
 | `debateScores` | array | Debate Scores rubric entries (Tools → Debate Scores) |
 | `debateCustomFormats` | array | Custom debate formats for scoring |
+| `essayGraderSettings` | object\|null | Batch Essay Editor shared config per calendar: `rules`, `promptBlocks`, `modelEssays`, `speechTemplate` (API keys stay browser-local) |
 | `speakingTestRecords` | array | Speaking Test scores per class (Tools → Speaking Test) |
 | `debateBookDistributions` | array | Debate Books handout checklist per class+period (Tools → Debate Books) |
 | `pendingDebateBookChecks` | array | Mid-term cohort-move reminders to confirm book delivery (Tools → Debate Books + Notifications bell) — see below |
@@ -222,7 +223,7 @@ Initialized as empty arrays on migrate. Reserved for points, tests, portfolio, S
 
 ### `periodSlotMap` (optional)
 
-Object mapping period number strings (`"1"` … `"7"`) to a `timetableTimeSlots[].id`.
+Object mapping period number strings (`"1"` … `"8"`) to a `timetableTimeSlots[].id`.
 
 ### `ui` viewer preferences (optional)
 
@@ -383,6 +384,7 @@ The app has **two different filter semantics**. Do not mix them.
 | `sessionNumber` | number | Class # column (1-based in term) |
 | `planTitle` | string | Lesson or holiday title |
 | `planDetail` | string | Book pages / extra plan line |
+| `homeworkDueDate` | string | Optional `YYYY-MM-DD` override for homework due (default = next class after this lesson). Tools → Essays uses the same effective due for essay-tracked rows. |
 | `note` | string | Note column |
 | `source` | string | `generated`, `manual`, or `imported` (manual/imported edits kept on refresh) |
 

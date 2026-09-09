@@ -87,13 +87,13 @@
                     <div class="form-row">
                         <div class="form-group form-group-class-period">
                             <label for="classPeriod" data-i18n="classPeriod">Period</label>
-                            <select id="classPeriod"></select>
+                            <select id="classPeriod" class="field-select"></select>
                             <p class="section-hint form-group--full-only" data-i18n="classPeriodHint">Lower numbers appear first in lists, print summary, and on days with multiple classes (1 = first period).</p>
                         </div>
 
                         <div class="form-group">
                             <label for="classLevel" data-i18n="classLevelPreset">Section (preset)</label>
-                            <select id="classLevel">
+                            <select id="classLevel" class="field-select">
                                 <option value="" data-i18n="selectLevel">Select level</option>
                             </select>
                         </div>
@@ -105,7 +105,7 @@
 
                         <div class="form-group">
                             <label for="classGrade" data-i18n="grade">Grade</label>
-                            <select id="classGrade">
+                            <select id="classGrade" class="field-select">
                                 <option value="" data-i18n="selectGrade">Select grade (optional)</option>
                             </select>
                         </div>
@@ -113,7 +113,7 @@
                     <div class="form-row">
                         <div class="form-group form-group--full-only">
                             <label for="classScheduleBlock" data-i18n="classScheduleBlock">Schedule block</label>
-                            <select id="classScheduleBlock">
+                            <select id="classScheduleBlock" class="field-select">
                                 <option value="primary" data-i18n="classScheduleBlockPrimary">Primary (main grid)</option>
                                 <option value="secondary" data-i18n="classScheduleBlockSecondary">Secondary (Conversation / IPE / MS)</option>
                             </select>
@@ -126,7 +126,7 @@
                     <section class="class-curriculum-picker form-row" aria-describedby="classCurriculumHint classCurriculumPipelineHint">
                         <div class="form-group">
                             <label for="classCurriculumBook" data-i18n="classCurriculumBook">Book (from Curriculum)</label>
-                            <select id="classCurriculumBook" disabled aria-describedby="classCurriculumHint">
+                            <select id="classCurriculumBook" class="field-select" disabled aria-describedby="classCurriculumHint">
                                 <option value="" data-i18n="classCurriculumBookPickLevel">Select level first</option>
                             </select>
                         </div>
@@ -175,7 +175,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="classCohort" data-i18n="classCohort">Primary cohort <span class="cohort-required-mark" data-i18n="classCohortRecommended">(recommended)</span></label>
-                            <select id="classCohort">
+                            <select id="classCohort" class="field-select">
                                 <option value="" data-i18n="classCohortNone">— No cohort —</option>
                             </select>
                         </div>
@@ -193,7 +193,7 @@
                         <summary data-i18n="debateBookPeriods">Book periods (debate)</summary>
                         <div class="form-group books-by-month-section debate-book-periods-section">
                             <p class="section-hint" data-i18n="debateBookPeriodsHint">Each row is when a new debate book starts (any date in the term). Lessons from that date through the next period use that book and restart Day 1–4.</p>
-                            <p class="section-hint" data-i18n="termCalendarMonthsHint">Suggested: one period per calendar month; adjust start dates (e.g. last week of the prior month).</p>
+                            <p class="section-hint" data-i18n="termCalendarMonthsHint">One book unit per month. Default is 3 months = 3 books. When a month starts Tuesday–Friday, the start date moves into the prior week automatically.</p>
                             <div id="debateBookPeriodRows" class="debate-book-period-rows"></div>
                             <div class="form-row books-by-month-actions">
                                 <button type="button" id="addBookMonthRowBtn" class="btn btn-outline btn-small" data-i18n="addBookPeriod">Add book period</button>

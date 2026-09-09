@@ -99,4 +99,66 @@ for (const rel of jsFiles) {
     }
 }
 
+const mojibakeRe = /\?[가-힣]/;
+const scanRoots = [
+    path.join(root, 'index.html'),
+    ...fs
+        .readdirSync(path.join(root, 'templates'))
+        .filter((f) => f.endsWith('.html'))
+        .map((f) => path.join(root, 'templates', f))
+];
+
+function walkJs(dir, acc) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach((ent) => {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+            walkJs(full, acc);
+            return;
+        }
+        if (ent.name.endsWith('.js')) {
+            acc.push(full);
+        }
+    });
+    return acc;
+}
+walkJs(path.join(root, 'js'), scanRoots);
+
+const mojibakeHits = [];
+scanRoots.forEach((filePath) => {
+    const text = fs.readFileSync(filePath, 'utf8');
+    const lines = text.split('\n');
+    lines.forEach((line, i) => {
+        if (mojibakeRe.test(line)) {
+            mojibakeHits.push(`${path.relative(root, filePath)}:${i + 1}`);
+        }
+    });
+});
+assert(mojibakeHits.length === 0, `Mojibake pattern "?[Hangul]" found:\n${mojibakeHits.join('\n')}`);
+
+const enKeySet = new Set(appEn);
+const htmlFiles = [
+    path.join(root, 'index.html'),
+    ...fs
+        .readdirSync(path.join(root, 'templates'))
+        .filter((f) => f.endsWith('.html'))
+        .map((f) => path.join(root, 'templates', f))
+];
+const missingDomKeys = [];
+const attrRe = /data-i18n(?:-title|-aria-label)?=["']([a-zA-Z][a-zA-Z0-9_]*)["']/g;
+htmlFiles.forEach((filePath) => {
+    const text = fs.readFileSync(filePath, 'utf8');
+    let m;
+    while ((m = attrRe.exec(text))) {
+        if (!enKeySet.has(m[1])) {
+            missingDomKeys.push(`${path.relative(root, filePath)}: ${m[1]}`);
+        }
+    }
+});
+assert(
+    missingDomKeys.length === 0,
+    `data-i18n / data-i18n-title / data-i18n-aria-label keys missing from calendar-en.js:\n${missingDomKeys.slice(0, 30).join('\n')}${
+        missingDomKeys.length > 30 ? `\n...and ${missingDomKeys.length - 30} more` : ''
+    }`
+);
+
 console.log('i18n-parity.test.mjs: all passed');

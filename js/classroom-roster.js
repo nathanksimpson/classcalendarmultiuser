@@ -26,8 +26,16 @@
     let tmsCohortConflictQueue = [];
     let tmsCohortConflictIndex = 0;
     let tmsCreateEditorUnsub = null;
+    let tmsSyncPendingCallback = null;
+    let tmsSyncAppliedThisClose = false;
+    let tmsSyncModalBound = false;
     const selectedStudentIds = new Set();
     const TMS_CREATE_VALUE = '__create__';
+    let cohortComboboxOpen = false;
+    let cohortSearchQuery = '';
+    let cohortComboboxHighlight = -1;
+    let cohortComboboxEventsBound = false;
+    let rosterLanguageBound = false;
 
     function cleanTmsSyncCohortName(name) {
         const stripped = String(name || '')
@@ -174,6 +182,17 @@
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
+    }
+
+    function escapeAttr(s) {
+        return escapeHtml(s).replace(/"/g, '&quot;');
+    }
+
+    function getAppDataSafe() {
+        if (hooks && typeof hooks.getAppData === 'function') {
+            return hooks.getAppData() || {};
+        }
+        return global.appData || {};
     }
 
     function getCohorts() {
@@ -1275,6 +1294,19 @@
         return raw && typeof raw === 'object' ? raw : {};
     }
 
+    function settleTmsSyncPending(result) {
+        const cb = tmsSyncPendingCallback;
+        tmsSyncPendingCallback = null;
+        if (typeof cb !== 'function') {
+            return;
+        }
+        try {
+            cb(result || { applied: false });
+        } catch (err) {
+            console.error('TMS sync pending callback failed', err);
+        }
+    }
+
     function closeTmsSyncModal() {
         cleanupTmsCreateEditorListener();
         tmsSyncPlan.forEach((row) => {
@@ -1329,6 +1361,9 @@
         if (hooks && hooks.closeModal) {
             hooks.closeModal(document.getElementById('rosterTmsSyncModal'));
         }
+        const applied = tmsSyncAppliedThisClose;
+        tmsSyncAppliedThisClose = false;
+        settleTmsSyncPending({ applied: !!applied });
     }
 
     function syncTmsBatchBarVisibility() {
@@ -2907,10 +2942,59 @@
         }
     }
 
-    function openTmsSyncModal() {
-        if (!hooks || !hooks.openModal) {
+    function ensureTmsSyncModalHandlers() {
+        if (tmsSyncModalBound) {
             return;
         }
+        tmsSyncModalBound = true;
+        document.getElementById('closeRosterTmsSyncModal')?.addEventListener('click', closeTmsSyncModal);
+        document.getElementById('cancelRosterTmsSyncBtn')?.addEventListener('click', closeTmsSyncModal);
+        document.getElementById('rosterTmsLoadBtn')?.addEventListener('click', () => {
+            void loadTmsSyncPreview();
+        });
+        document.getElementById('rosterTmsBridgeTestBtn')?.addEventListener('click', () => {
+            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
+        });
+        document.getElementById('rosterTmsPassword')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                void loadTmsSyncPreview();
+            }
+        });
+        document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
+            void confirmTmsSync();
+        });
+        document.getElementById('rosterTmsStudentReviewBackBtn')?.addEventListener('click', () => {
+            setTmsSyncError('');
+            backTmsWizard();
+        });
+        document.getElementById('rosterTmsStudentReviewNextBtn')?.addEventListener('click', () => {
+            advanceTmsWizard();
+        });
+        document.getElementById('rosterTmsSyncApplyHomeroomAllBtn')?.addEventListener('click', () => {
+            applyAllTmsHomeroomRows();
+        });
+        document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
+            skipAllTmsSyncRows();
+        });
+        document.getElementById('rosterTmsSyncCreateAllBtn')?.addEventListener('click', () => {
+            createAllTmsSyncRows();
+        });
+        document.getElementById('rosterTmsSyncSkipUnmappedBtn')?.addEventListener('click', () => {
+            skipUnmappedTmsSyncRows();
+        });
+    }
+
+    function openTmsSyncModal(options) {
+        options = options || {};
+        if (!hooks || !hooks.openModal) {
+            settleTmsSyncPending({ applied: false, reason: 'no-modal' });
+            return;
+        }
+        if (typeof options.onComplete === 'function') {
+            tmsSyncPendingCallback = options.onComplete;
+        }
+        ensureTmsSyncModalHandlers();
         tmsSyncPlan = [];
         tmsSyncLoading = false;
         tmsSyncHasFetched = false;
@@ -2921,6 +3005,7 @@
         tmsMissingIndex = 0;
         tmsCohortConflictQueue = [];
         tmsCohortConflictIndex = 0;
+        tmsSyncAppliedThisClose = false;
         setTmsSyncError('');
         setTmsSyncStatus('');
         hydrateTmsCredForm();
@@ -2933,6 +3018,27 @@
         } else if (passEl) {
             passEl.focus();
         }
+    }
+
+    /**
+     * Open TMS sync wizard; invoke onComplete once when the modal closes
+     * (after Apply or Cancel/dismiss).
+     */
+    function requestTmsSyncThen(onComplete) {
+        return new Promise((resolve) => {
+            const done = (result) => {
+                const payload = result || { applied: false };
+                if (typeof onComplete === 'function') {
+                    try {
+                        onComplete(payload);
+                    } catch (err) {
+                        console.error('requestTmsSyncThen onComplete failed', err);
+                    }
+                }
+                resolve(payload);
+            };
+            openTmsSyncModal({ onComplete: done });
+        });
     }
 
     function isLocalClassManagerHost() {
@@ -3456,6 +3562,7 @@
             }
             dirty = false;
             hooks.showToast(t('rosterTmsSyncSuccess'));
+            tmsSyncAppliedThisClose = true;
             closeTmsSyncModal();
             render(document.getElementById('panel-students'));
         } catch (err) {
@@ -3501,42 +3608,7 @@
 
         document.getElementById('closeRosterPasteModal')?.addEventListener('click', closePasteModal);
         document.getElementById('cancelRosterPasteBtn')?.addEventListener('click', closePasteModal);
-        document.getElementById('closeRosterTmsSyncModal')?.addEventListener('click', closeTmsSyncModal);
-        document.getElementById('cancelRosterTmsSyncBtn')?.addEventListener('click', closeTmsSyncModal);
-        document.getElementById('rosterTmsLoadBtn')?.addEventListener('click', () => {
-            void loadTmsSyncPreview();
-        });
-        document.getElementById('rosterTmsBridgeTestBtn')?.addEventListener('click', () => {
-            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
-        });
-        document.getElementById('rosterTmsPassword')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                void loadTmsSyncPreview();
-            }
-        });
-        document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
-            void confirmTmsSync();
-        });
-        document.getElementById('rosterTmsStudentReviewBackBtn')?.addEventListener('click', () => {
-            setTmsSyncError('');
-            backTmsWizard();
-        });
-        document.getElementById('rosterTmsStudentReviewNextBtn')?.addEventListener('click', () => {
-            advanceTmsWizard();
-        });
-        document.getElementById('rosterTmsSyncApplyHomeroomAllBtn')?.addEventListener('click', () => {
-            applyAllTmsHomeroomRows();
-        });
-        document.getElementById('rosterTmsSyncSkipAllBtn')?.addEventListener('click', () => {
-            skipAllTmsSyncRows();
-        });
-        document.getElementById('rosterTmsSyncCreateAllBtn')?.addEventListener('click', () => {
-            createAllTmsSyncRows();
-        });
-        document.getElementById('rosterTmsSyncSkipUnmappedBtn')?.addEventListener('click', () => {
-            skipUnmappedTmsSyncRows();
-        });
+        ensureTmsSyncModalHandlers();
         document.getElementById('rosterPasteConfirmBtn')?.addEventListener('click', () => {
             void confirmRosterPaste();
         });
@@ -3612,7 +3684,66 @@
         return hooks && hooks.getArchiveRetentionDays ? hooks.getArchiveRetentionDays() : 90;
     }
 
-    function renderCohortList(mountEl) {
+    function getCohortPickerHost(mountEl) {
+        const panel = mountEl && mountEl.closest ? mountEl.closest('#panel-students') : null;
+        return (panel || document).querySelector('#classroomRosterCohortPicker');
+    }
+
+    function getCohortClassIdsForPicker(appData, cohort) {
+        const api = global.CCPTeacherTimetable;
+        if (api && typeof api.getCohortClassIds === 'function') {
+            return api.getCohortClassIds(appData, cohort) || [];
+        }
+        if (!cohort || !cohort.id) {
+            return [];
+        }
+        const classIdSet = new Set((appData.classes || []).map((c) => c && c.id).filter(Boolean));
+        const ids = new Set(
+            (Array.isArray(cohort.classIds) ? cohort.classIds : []).filter((id) => classIdSet.has(id))
+        );
+        (appData.classes || []).forEach((c) => {
+            if (!c || !c.id) {
+                return;
+            }
+            const cids = Array.isArray(c.cohortIds) ? c.cohortIds : (c.cohortId ? [c.cohortId] : []);
+            if (cids.includes(cohort.id)) {
+                ids.add(c.id);
+            }
+        });
+        return Array.from(ids);
+    }
+
+    function getActiveClassroomClassId() {
+        if (global.CCPClassroomZoneContext && typeof global.CCPClassroomZoneContext.getActiveClassId === 'function') {
+            return global.CCPClassroomZoneContext.getActiveClassId() || '';
+        }
+        if (global.CCPActiveContext && typeof global.CCPActiveContext.getActiveClassId === 'function') {
+            return global.CCPActiveContext.getActiveClassId() || '';
+        }
+        return '';
+    }
+
+    function getCohortTileClassData(cohort) {
+        if (!cohort) {
+            return null;
+        }
+        const appData = getAppDataSafe();
+        const ids = getCohortClassIdsForPicker(appData, cohort);
+        const classes = ids
+            .map((id) => (appData.classes || []).find((c) => c && c.id === id))
+            .filter(Boolean);
+        const activeId = getActiveClassroomClassId();
+        const preferred = (activeId && classes.find((c) => c.id === activeId)) || classes[0];
+        if (preferred) {
+            return preferred;
+        }
+        if (cohort.color) {
+            return { color: cohort.color, id: cohort.id, name: cohort.name };
+        }
+        return null;
+    }
+
+    function getCohortsForPicker() {
         const d = domain();
         let cohorts = getCohorts();
         if (d && d.ensureArchiveCohort) {
@@ -3623,36 +3754,301 @@
                 cohorts = ensured.cohorts;
             }
         }
-        const q = (mountEl.querySelector('#classroomRosterCohortSearch')?.value || '').toLowerCase();
-        const listEl = mountEl.querySelector('#classroomRosterCohortList');
-        if (!listEl) {
+        return sortCohortsForList(cohorts);
+    }
+
+    function ensureSelectedCohort(cohorts) {
+        const list = Array.isArray(cohorts) ? cohorts : [];
+        if (!list.length) {
+            selectedCohortId = null;
             return;
         }
-        listEl.innerHTML = '';
-        sortCohortsForList(cohorts)
-            .filter((c) => !q || (c.name || '').toLowerCase().includes(q) || isArchiveCohort(c))
-            .forEach((cohort) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                let cls = 'module-list-item' + (cohort.id === selectedCohortId ? ' is-selected' : '');
-                if (isArchiveCohort(cohort)) {
-                    cls += ' is-archive-cohort';
+        if (selectedCohortId && list.some((c) => c && c.id === selectedCohortId)) {
+            return;
+        }
+        const first = list.find((c) => !isArchiveCohort(c)) || list[0];
+        selectedCohortId = first && first.id ? first.id : null;
+    }
+
+    function cohortDisplayName(cohort) {
+        if (!cohort) {
+            return '';
+        }
+        if (isArchiveCohort(cohort)) {
+            return t('studentArchiveCohortName');
+        }
+        return cohort.name || cohort.id || '';
+    }
+
+    function cohortStudentCount(cohort) {
+        const d = domain();
+        return d && d.normalizeCohortStudents ? d.normalizeCohortStudents(cohort).length : 0;
+    }
+
+    function filterCohortsForSearch(cohorts, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q) {
+            return cohorts.slice();
+        }
+        return cohorts.filter((c) => {
+            if (isArchiveCohort(c)) {
+                return true;
+            }
+            const hay = `${c.name || ''} ${c.id || ''}`.toLowerCase();
+            return hay.includes(q);
+        });
+    }
+
+    function buildCohortComboboxListHtml(cohorts) {
+        const filtered = filterCohortsForSearch(cohorts, cohortSearchQuery);
+        if (!filtered.length) {
+            return `<p class="classroom-zone-combobox-empty section-hint">${escapeHtml(t('classroomCohortComboboxEmpty'))}</p>`;
+        }
+        return filtered
+            .map((cohort, index) => {
+                const selected = cohort.id === selectedCohortId ? ' is-selected' : '';
+                const highlighted = index === cohortComboboxHighlight ? ' is-highlighted' : '';
+                const archive = isArchiveCohort(cohort) ? ' is-archive-cohort' : '';
+                const count = cohortStudentCount(cohort);
+                const label = `${cohortDisplayName(cohort)} (${count})`;
+                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}${archive}" role="option" data-cohort-id="${escapeAttr(cohort.id)}" aria-selected="${cohort.id === selectedCohortId ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+            })
+            .join('');
+    }
+
+    function applyCohortComboboxColors(host, cohorts) {
+        const tile = global.CCPClassColorTile;
+        if (!tile || !host) {
+            return;
+        }
+        const list = host.querySelector('#classroomRosterCohortList');
+        if (list) {
+            list.querySelectorAll('.classroom-zone-combobox-item[data-cohort-id]').forEach((btn) => {
+                const id = btn.getAttribute('data-cohort-id');
+                const cohort = (cohorts || []).find((c) => c && c.id === id);
+                const classData = getCohortTileClassData(cohort);
+                if (!classData) {
+                    tile.clear(btn);
+                    return;
                 }
-                btn.className = cls;
-                const count = d ? d.normalizeCohortStudents(cohort).length : 0;
-                const label = isArchiveCohort(cohort) ? t('studentArchiveCohortName') : cohort.name || cohort.id;
-                btn.textContent = `${label} (${count})`;
-                btn.addEventListener('click', () => {
-                    selectedCohortId = cohort.id;
-                    selectedStudentId = null;
-                    clearStudentBulkSelection();
-                    render(mountEl.closest('#panel-students') || mountEl.parentElement);
-                });
-                listEl.appendChild(btn);
+                tile.apply(btn, classData, { selected: btn.classList.contains('is-selected') });
             });
-        if (!selectedCohortId && cohorts.length) {
-            const first = sortCohortsForList(cohorts).find((c) => !isArchiveCohort(c)) || cohorts[0];
-            selectedCohortId = first.id;
+        }
+        const input = host.querySelector('#classroomRosterCohortInput');
+        if (!input) {
+            return;
+        }
+        if (!cohortComboboxOpen && selectedCohortId) {
+            const cohort = (cohorts || []).find((c) => c && c.id === selectedCohortId);
+            const classData = getCohortTileClassData(cohort);
+            if (classData) {
+                tile.apply(input, classData, { selected: true });
+                return;
+            }
+        }
+        tile.clear(input);
+    }
+
+    function syncCohortComboboxOpenUi(host, cohorts) {
+        const wrap = host && host.querySelector('.classroom-zone-class-combobox');
+        const list = host && host.querySelector('#classroomRosterCohortList');
+        const input = host && host.querySelector('#classroomRosterCohortInput');
+        if (wrap) {
+            wrap.classList.toggle('is-open', cohortComboboxOpen);
+        }
+        if (list) {
+            list.hidden = !cohortComboboxOpen;
+            if (cohortComboboxOpen) {
+                list.innerHTML = buildCohortComboboxListHtml(cohorts);
+                const highlighted = list.querySelector('.classroom-zone-combobox-item.is-highlighted');
+                if (highlighted && typeof highlighted.scrollIntoView === 'function') {
+                    highlighted.scrollIntoView({ block: 'nearest' });
+                }
+            }
+        }
+        if (input) {
+            input.setAttribute('aria-expanded', cohortComboboxOpen ? 'true' : 'false');
+            const selected = (cohorts || []).find((c) => c && c.id === selectedCohortId);
+            input.value = cohortComboboxOpen ? cohortSearchQuery : cohortDisplayName(selected);
+        }
+        applyCohortComboboxColors(host, cohorts);
+    }
+
+    function selectRosterCohortId(cohortId, mountEl) {
+        if (!cohortId) {
+            return;
+        }
+        selectedCohortId = cohortId;
+        selectedStudentId = null;
+        clearStudentBulkSelection();
+        cohortComboboxOpen = false;
+        cohortSearchQuery = '';
+        cohortComboboxHighlight = -1;
+        const panel = (mountEl && mountEl.closest && mountEl.closest('#panel-students')) || document.getElementById('panel-students');
+        const input = panel && panel.querySelector('#classroomRosterCohortInput');
+        if (input) {
+            input.blur();
+        }
+        render(panel);
+    }
+
+    function bindCohortComboboxEventsOnce(host) {
+        if (!host || cohortComboboxEventsBound) {
+            return;
+        }
+        cohortComboboxEventsBound = true;
+
+        host.addEventListener('focusin', (e) => {
+            if (e.target.id !== 'classroomRosterCohortInput') {
+                return;
+            }
+            cohortComboboxOpen = true;
+            cohortSearchQuery = '';
+            syncCohortComboboxOpenUi(host, getCohortsForPicker());
+            e.target.select();
+        });
+
+        host.addEventListener('input', (e) => {
+            if (e.target.id !== 'classroomRosterCohortInput') {
+                return;
+            }
+            cohortSearchQuery = e.target.value;
+            cohortComboboxHighlight = -1;
+            cohortComboboxOpen = true;
+            syncCohortComboboxOpenUi(host, getCohortsForPicker());
+        });
+
+        host.addEventListener('keydown', (e) => {
+            if (e.target.id !== 'classroomRosterCohortInput') {
+                return;
+            }
+            const panel = host.closest('#panel-students') || document.getElementById('panel-students');
+
+            function listItems() {
+                const list = host.querySelector('#classroomRosterCohortList');
+                return list ? Array.from(list.querySelectorAll('[data-cohort-id]')) : [];
+            }
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!cohortComboboxOpen) {
+                    cohortComboboxOpen = true;
+                    cohortSearchQuery = '';
+                }
+                syncCohortComboboxOpenUi(host, getCohortsForPicker());
+                const itemsAfter = listItems();
+                if (!itemsAfter.length) {
+                    return;
+                }
+                if (e.key === 'ArrowDown') {
+                    cohortComboboxHighlight = Math.min(cohortComboboxHighlight + 1, itemsAfter.length - 1);
+                } else {
+                    cohortComboboxHighlight = Math.max(cohortComboboxHighlight - 1, 0);
+                }
+                syncCohortComboboxOpenUi(host, getCohortsForPicker());
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const items = listItems();
+                if (!items.length) {
+                    cohortComboboxOpen = false;
+                    cohortSearchQuery = '';
+                    syncCohortComboboxOpenUi(host, getCohortsForPicker());
+                    e.target.blur();
+                    return;
+                }
+                const index = cohortComboboxHighlight >= 0 ? cohortComboboxHighlight : 0;
+                const pick = items[index];
+                const id = pick && pick.getAttribute('data-cohort-id');
+                if (id) {
+                    selectRosterCohortId(id, panel);
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cohortComboboxOpen = false;
+                cohortSearchQuery = '';
+                cohortComboboxHighlight = -1;
+                syncCohortComboboxOpenUi(host, getCohortsForPicker());
+                e.target.blur();
+            }
+        });
+
+        host.addEventListener('mousedown', (e) => {
+            const item = e.target.closest('.classroom-zone-combobox-item[data-cohort-id]');
+            if (item) {
+                e.preventDefault();
+            }
+        });
+
+        host.addEventListener('click', (e) => {
+            const item = e.target.closest('.classroom-zone-combobox-item[data-cohort-id]');
+            if (!item) {
+                return;
+            }
+            const id = item.getAttribute('data-cohort-id');
+            const panel = host.closest('#panel-students') || document.getElementById('panel-students');
+            if (id) {
+                selectRosterCohortId(id, panel);
+            }
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (!cohortComboboxOpen) {
+                return;
+            }
+            if (host.contains(e.target)) {
+                return;
+            }
+            cohortComboboxOpen = false;
+            cohortSearchQuery = '';
+            cohortComboboxHighlight = -1;
+            syncCohortComboboxOpenUi(host, getCohortsForPicker());
+        });
+    }
+
+    function renderCohortCombobox(mountEl) {
+        const host = getCohortPickerHost(mountEl);
+        if (!host) {
+            return;
+        }
+        const cohorts = getCohortsForPicker();
+        ensureSelectedCohort(cohorts);
+        const selected = cohorts.find((c) => c && c.id === selectedCohortId) || null;
+        const comboboxValue = cohortComboboxOpen ? cohortSearchQuery : cohortDisplayName(selected);
+        const inputEl = host.querySelector('#classroomRosterCohortInput');
+        const restoreFocus = inputEl && document.activeElement === inputEl;
+        const selStart = restoreFocus ? inputEl.selectionStart : null;
+        const selEnd = restoreFocus ? inputEl.selectionEnd : null;
+
+        host.innerHTML = `
+            <div class="classroom-zone-class-combobox${cohortComboboxOpen ? ' is-open' : ''}" data-cohort-combobox>
+                <label class="classroom-zone-field classroom-zone-class-field">
+                    <span>${escapeHtml(t('classroomCohortLabel'))}</span>
+                    <div class="classroom-zone-class-input-wrap">
+                        <input type="search" id="classroomRosterCohortInput" class="module-list-search classroom-zone-class-input" role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="classroomRosterCohortList" aria-expanded="${cohortComboboxOpen ? 'true' : 'false'}" placeholder="${escapeAttr(t('cohortListSearchPlaceholder'))}" value="${escapeAttr(comboboxValue)}" />
+                    </div>
+                </label>
+                <div id="classroomRosterCohortList" class="classroom-zone-class-list module-list" role="listbox"${cohortComboboxOpen ? '' : ' hidden'}>${buildCohortComboboxListHtml(cohorts)}</div>
+            </div>`;
+
+        bindCohortComboboxEventsOnce(host);
+        syncCohortComboboxOpenUi(host, cohorts);
+
+        if (restoreFocus) {
+            const newInput = host.querySelector('#classroomRosterCohortInput');
+            if (newInput) {
+                newInput.focus();
+                if (selStart != null && typeof newInput.setSelectionRange === 'function') {
+                    try {
+                        newInput.setSelectionRange(selStart, selEnd);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }
+            }
         }
     }
 
@@ -4665,7 +5061,7 @@
         if (!panel) {
             return;
         }
-        renderCohortList(panel);
+        renderCohortCombobox(panel);
         renderStudentList(panel);
         renderStudentEditor(panel);
 
@@ -4676,10 +5072,6 @@
             if (nameInput) {
                 nameInput.focus();
             }
-        }, { once: true });
-
-        panel.querySelector('#classroomRosterCohortSearch')?.addEventListener('input', () => {
-            renderCohortList(panel);
         }, { once: true });
 
         panel.querySelector('#classroomRosterStudentSearch')?.addEventListener('input', () => {
@@ -4693,11 +5085,27 @@
         syncRetentionSettingsUi(panel);
     }
 
+    function ensureHooks(h) {
+        if (h) {
+            hooks = h;
+        }
+        return !!hooks;
+    }
+
     function initTab(h, options) {
         hooks = h;
         const panel = document.getElementById('panel-students');
         if (options && options.cohortId) {
             selectedCohortId = options.cohortId;
+        }
+        if (!rosterLanguageBound) {
+            rosterLanguageBound = true;
+            document.addEventListener('calendarLanguageChanged', () => {
+                const live = document.getElementById('panel-students');
+                if (live && !live.hidden) {
+                    render(live);
+                }
+            });
         }
         setupRosterImportExport(panel);
         setupStudentRowActions(panel);
@@ -4711,6 +5119,9 @@
         initTab,
         render,
         studentSearchHaystack,
-        studentInitial
+        studentInitial,
+        openTmsSyncModal,
+        requestTmsSyncThen,
+        ensureHooks
     };
 })(typeof window !== 'undefined' ? window : globalThis);

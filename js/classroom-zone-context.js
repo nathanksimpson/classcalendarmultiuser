@@ -109,7 +109,7 @@
             if (!classData || !classData.id) {
                 return;
             }
-            d.getEssayRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
+            d.getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).forEach((row) => {
                 const syllabusRowId = d.getSyllabusRowKey
                     ? d.getSyllabusRowKey(row)
                     : row && (row.id || row.date);
