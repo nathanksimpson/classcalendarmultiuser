@@ -518,51 +518,60 @@ function loadDebateEngine(options = {}) {
         ]
     });
 
-    assert(api.moveMemberInsert, 'moveMemberInsert is exported');
-    assert(
-        !api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: 0 }),
-        'insert-before-self is a no-op'
-    );
-    assert(
-        !api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: 1 }),
-        'insert-before-next on same bench is a no-op'
-    );
+    assert(api.applyMemberDrop, 'applyMemberDrop is exported');
+    assert(api.moveToTeamNextRole, 'moveToTeamNextRole is exported');
 
-    // Move Ann (gov[0]) onto Ben's slot (opp[0]) → insert before Ben; roles reassigned by order.
-    const movedSame = api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 1, mi: 0 });
-    assert(movedSame, 'same-debate insert succeeds');
+    // Same-team drop on student → within-team swap (roles stay on slots).
+    const swappedSame = api.applyMemberDrop(
+        { di: 0, bi: 0, mi: 0 },
+        { kind: 'member', target: { di: 0, bi: 0, mi: 1 } }
+    );
+    assert(swappedSame, 'same-team member drop swaps');
     let st = api.collectState();
-    const d0 = st.debates[0];
-    assert(d0.benches[0].members.length === 1, 'gov left with Cal only');
-    assert(d0.benches[0].members[0].name === 'Cal', 'Cal stays on gov');
-    assert(d0.benches[0].members[0].role.abbr === 'PM', 'Cal becomes PM after Ann leaves');
-    assert(d0.benches[1].members[0].name === 'Ann', 'Ann inserted at front of opp');
-    assert(d0.benches[1].members[0].role.abbr === 'LO', 'Ann gets LO from drop position');
-    assert(d0.benches[1].members[0].present === 'Ann present', 'present notes travel with Ann');
-    assert(d0.benches[1].members[0].rebut === 'Ann rebut', 'rebut notes travel with Ann');
-    assert(d0.benches[1].members[1].name === 'Ben', 'Ben shifts down on opp');
-    assert(d0.benches[1].members[1].role.abbr === 'DLO', 'Ben becomes DLO after reorder');
+    let d0 = st.debates[0];
+    assert(d0.benches[0].members[0].name === 'Cal', 'PM slot gets Cal after within-team swap');
+    assert(d0.benches[0].members[0].role.abbr === 'PM', 'PM role stays on first gov slot');
+    assert(d0.benches[0].members[1].name === 'Ann', 'second gov slot gets Ann');
+    assert(d0.benches[0].members[1].role.abbr === 'MG', 'MG role stays on second gov slot');
+    assert(d0.benches[0].members[1].present === 'Ann present', 'notes travel with Ann on swap');
 
-    // Append Eve from debate 2 onto debate 1 gov (empty append via mi: null).
-    const appended = api.moveMemberInsert({ di: 1, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: null });
-    assert(appended, 'cross-debate append succeeds');
+    // Bench drop zone (other team) → move to next available role (append), not swap/insert-before.
+    const movedToOpp = api.applyMemberDrop(
+        { di: 0, bi: 0, mi: 0 },
+        { kind: 'bench', target: { di: 0, bi: 1, mi: null } }
+    );
+    assert(movedToOpp, 'bench drop moves to other team');
     st = api.collectState();
-    assert(st.debates[0].benches[0].members.map((m) => m.name).join(',') === 'Cal,Eve', 'Eve appended to gov');
-    assert(st.debates[0].benches[0].members[1].role.abbr === 'DPM', 'Eve gets DPM by position');
+    d0 = st.debates[0];
+    assert(d0.benches[0].members.length === 1, 'gov left with Ann only');
+    assert(d0.benches[0].members[0].name === 'Ann', 'Ann remains on gov after Cal leaves');
+    assert(d0.benches[0].members[0].role.abbr === 'PM', 'Ann becomes PM after Cal leaves');
+    assert(d0.benches[1].members.map((m) => m.name).join(',') === 'Ben,Dan,Cal', 'Cal appended to opp');
+    assert(d0.benches[1].members[2].name === 'Cal', 'Cal is last on opp');
+    assert(d0.benches[1].members[2].role.abbr === 'OW', 'Cal gets next free opp role (OW)');
+    assert(d0.benches[1].members[0].role.abbr === 'LO', 'Ben keeps LO');
+    assert(d0.benches[1].members[1].role.abbr === 'DLO', 'Dan gets DLO after team reassign');
+
+    // Between-team drop on a student → swap across teams.
+    const swappedCross = api.applyMemberDrop(
+        { di: 0, bi: 0, mi: 0 },
+        { kind: 'member', target: { di: 0, bi: 1, mi: 0 } }
+    );
+    assert(swappedCross, 'between-team member drop swaps');
+    st = api.collectState();
+    d0 = st.debates[0];
+    assert(d0.benches[0].members[0].name === 'Ben', 'gov PM becomes Ben after cross swap');
+    assert(d0.benches[0].members[0].role.abbr === 'PM', 'PM role stays on gov slot after cross swap');
+    assert(d0.benches[1].members[0].name === 'Ann', 'opp LO becomes Ann after cross swap');
+    assert(d0.benches[1].members[0].role.abbr === 'LO', 'LO role stays on opp slot after cross swap');
+
+    // Cross-debate bench drop → move to next role on that debate's team.
+    const movedDebate = api.moveToTeamNextRole({ di: 1, bi: 0, mi: 0 }, 0, 0);
+    assert(movedDebate, 'cross-debate moveToTeamNextRole succeeds');
+    st = api.collectState();
+    assert(st.debates[0].benches[0].members.map((m) => m.name).join(',') === 'Ben,Eve', 'Eve joins debate 1 gov');
+    assert(st.debates[0].benches[0].members[1].role.abbr === 'DPM', 'Eve gets next free gov role');
     assert(st.debates[1].benches[0].members.length === 0, 'debate 2 gov empty after move');
-    assert(st.debates[1].benches[1].members[0].name === 'Fay', 'Fay remains on debate 2 opp');
-    assert(st.debates[1].benches[1].members[0].role.abbr === 'LO', 'Fay still LO on solo opp');
-
-    // Same-bench reorder: move Dan before Ann on opp of debate 1.
-    // Current opp: Ann(LO), Ben(DLO), Dan(OW)
-    const reordered = api.moveMemberInsert({ di: 0, bi: 1, mi: 2 }, { di: 0, bi: 1, mi: 0 });
-    assert(reordered, 'same-bench reorder succeeds');
-    st = api.collectState();
-    const opp = st.debates[0].benches[1].members;
-    assert(opp.map((m) => m.name).join(',') === 'Dan,Ann,Ben', 'opp order after reorder');
-    assert(opp[0].role.abbr === 'LO', 'first opp role is LO');
-    assert(opp[1].role.abbr === 'DLO', 'second opp role is DLO');
-    assert(opp[2].role.abbr === 'OW', 'third opp role is OW');
 }
 
 {
@@ -797,7 +806,7 @@ function loadDebateEngine(options = {}) {
             }
         ]
     });
-    const moved = api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 1, mi: null });
+    const moved = api.moveToTeamNextRole({ di: 0, bi: 0, mi: 0 }, 0, 1);
     assert(moved, 'move onto opp bench without ids succeeds');
     const st = api.collectState();
     assert(st.debates[0].benches[0].members.length === 0, 'gov emptied');
