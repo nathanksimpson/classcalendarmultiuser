@@ -518,30 +518,51 @@ function loadDebateEngine(options = {}) {
         ]
     });
 
-    assert(api.swapMembers, 'swapMembers is exported');
+    assert(api.moveMemberInsert, 'moveMemberInsert is exported');
     assert(
-        !api.swapMembers({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: 0 }),
-        'same-slot swap is a no-op'
+        !api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: 0 }),
+        'insert-before-self is a no-op'
+    );
+    assert(
+        !api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: 1 }),
+        'insert-before-next on same bench is a no-op'
     );
 
-    const swappedSame = api.swapMembers({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 1, mi: 0 });
-    assert(swappedSame, 'same-debate swap succeeds');
+    // Move Ann (gov[0]) onto Ben's slot (opp[0]) → insert before Ben; roles reassigned by order.
+    const movedSame = api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 1, mi: 0 });
+    assert(movedSame, 'same-debate insert succeeds');
     let st = api.collectState();
     const d0 = st.debates[0];
-    assert(d0.benches[0].members[0].name === 'Ben', 'PM slot gets Ben after swap');
-    assert(d0.benches[0].members[0].role.abbr === 'PM', 'PM role stays on gov slot');
-    assert(d0.benches[0].members[0].present === 'Ben present', 'present notes move with student');
-    assert(d0.benches[1].members[0].name === 'Ann', 'LO slot gets Ann after swap');
-    assert(d0.benches[1].members[0].role.abbr === 'LO', 'LO role stays on opp slot');
-    assert(d0.benches[1].members[0].rebut === 'Ann rebut', 'rebut notes move with student');
+    assert(d0.benches[0].members.length === 1, 'gov left with Cal only');
+    assert(d0.benches[0].members[0].name === 'Cal', 'Cal stays on gov');
+    assert(d0.benches[0].members[0].role.abbr === 'PM', 'Cal becomes PM after Ann leaves');
+    assert(d0.benches[1].members[0].name === 'Ann', 'Ann inserted at front of opp');
+    assert(d0.benches[1].members[0].role.abbr === 'LO', 'Ann gets LO from drop position');
+    assert(d0.benches[1].members[0].present === 'Ann present', 'present notes travel with Ann');
+    assert(d0.benches[1].members[0].rebut === 'Ann rebut', 'rebut notes travel with Ann');
+    assert(d0.benches[1].members[1].name === 'Ben', 'Ben shifts down on opp');
+    assert(d0.benches[1].members[1].role.abbr === 'DLO', 'Ben becomes DLO after reorder');
 
-    const swappedCross = api.swapMembers({ di: 0, bi: 0, mi: 0 }, { di: 1, bi: 0, mi: 0 });
-    assert(swappedCross, 'cross-debate swap succeeds');
+    // Append Eve from debate 2 onto debate 1 gov (empty append via mi: null).
+    const appended = api.moveMemberInsert({ di: 1, bi: 0, mi: 0 }, { di: 0, bi: 0, mi: null });
+    assert(appended, 'cross-debate append succeeds');
     st = api.collectState();
-    assert(st.debates[0].benches[0].members[0].name === 'Eve', 'debate 1 PM becomes Eve');
-    assert(st.debates[0].benches[0].members[0].role.abbr === 'PM', 'debate 1 PM role unchanged');
-    assert(st.debates[1].benches[0].members[0].name === 'Ben', 'debate 2 PM becomes Ben');
-    assert(st.debates[1].benches[0].members[0].role.abbr === 'PM', 'debate 2 PM role unchanged');
+    assert(st.debates[0].benches[0].members.map((m) => m.name).join(',') === 'Cal,Eve', 'Eve appended to gov');
+    assert(st.debates[0].benches[0].members[1].role.abbr === 'DPM', 'Eve gets DPM by position');
+    assert(st.debates[1].benches[0].members.length === 0, 'debate 2 gov empty after move');
+    assert(st.debates[1].benches[1].members[0].name === 'Fay', 'Fay remains on debate 2 opp');
+    assert(st.debates[1].benches[1].members[0].role.abbr === 'LO', 'Fay still LO on solo opp');
+
+    // Same-bench reorder: move Dan before Ann on opp of debate 1.
+    // Current opp: Ann(LO), Ben(DLO), Dan(OW)
+    const reordered = api.moveMemberInsert({ di: 0, bi: 1, mi: 2 }, { di: 0, bi: 1, mi: 0 });
+    assert(reordered, 'same-bench reorder succeeds');
+    st = api.collectState();
+    const opp = st.debates[0].benches[1].members;
+    assert(opp.map((m) => m.name).join(',') === 'Dan,Ann,Ben', 'opp order after reorder');
+    assert(opp[0].role.abbr === 'LO', 'first opp role is LO');
+    assert(opp[1].role.abbr === 'DLO', 'second opp role is DLO');
+    assert(opp[2].role.abbr === 'OW', 'third opp role is OW');
 }
 
 {
@@ -678,6 +699,63 @@ function loadDebateEngine(options = {}) {
     api.generateDebates();
     assert(confirmCalls === 2, 'regenerate confirms again when accepted');
     assert(api.collectState().debates.length >= 1, 'accepted regenerate still produces debates');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['A', 'B', 'C', 'D', 'E'],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 2,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    const debates = api.assignDebates();
+    assert(debates.length === 1, 'under-6 with maxTeamSize 2 still packs into one debate');
+    const total = debates[0].benches.reduce((n, b) => n + b.members.length, 0);
+    assert(total === 5, 'all five students stay in the single debate');
+    assert(
+        debates[0].benches.every((b) => b.members.every((m) => m.role && m.role.abbr)),
+        'every under-6 member receives a role abbr'
+    );
+}
+
+{
+    const { api } = loadDebateEngine({
+        confirm() {
+            return true;
+        }
+    });
+    api.loadState({
+        version: 2,
+        students: ['Ann', 'Ben', 'Cal', 'Dan', 'Eve'],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 2,
+        classTitle: 'Homework Class',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    const gen = api.generateDebatesSilent({ replace: true, notify: false, render: false });
+    assert(gen.ok === true, 'silent generate succeeds for homework path');
+    assert(gen.count === 1, 'silent generate under-6 yields one debate (homework packing)');
+    const sessionState = api.collectState();
+    assert(
+        sessionState.debates[0].benches.some((b) => b.members.some((m) => m.role && m.role.abbr === 'PM')),
+        'silent generate stamps role.abbr for speaking-order / scoresheet'
+    );
+    const block = api.formatSpeakingOrderBlock(sessionState);
+    assert(typeof block === 'string' && block.trim().length > 0, 'speaking order block is non-empty');
+    assert(/PM|LO|DPM|DLO|GW|OW/i.test(block), 'speaking order block includes role labels');
 }
 
 console.log('classroom-debate-teams.test.mjs: all passed');

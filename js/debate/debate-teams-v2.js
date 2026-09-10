@@ -518,7 +518,9 @@
     function genTwo(list, f) {
         const maxPer = effMax(f) * 2;
         const minDebateSize = f.allowSoloDebate ? 1 : 2;
-        const d = Math.max(1, Math.ceil(list.length / maxPer));
+        // Prefer one room for small classes (not Purple / 1v1). Shared with homework silent generate.
+        const forceSingle = list.length < 6 && !f.oneVsOne && !f.allowSoloDebate;
+        const d = forceSingle ? 1 : Math.max(1, Math.ceil(list.length / maxPer));
         const sizes = Array(d).fill(0);
         for (let i = 0; i < list.length; i++) {
             sizes[i % d]++;
@@ -813,6 +815,106 @@
             return null;
         }
         return { di, bi, mi, member: debates[di].benches[bi].members[mi] };
+    }
+
+    /** Format catalog for a debate card (respects purple / reply settings). */
+    function fmtForDebate(debate) {
+        if (state.purpleMode || (debate && debate.formatId === 'purple')) {
+            return Object.assign({}, FORMATS.purple);
+        }
+        const base = baseFmt((debate && debate.formatId) || state.formatId);
+        const f = Object.assign({}, base);
+        if (state.includeReply && base.reply) {
+            f.govRoles = [...base.govRoles, Object.assign({}, base.reply.gov)];
+            f.oppRoles = [...base.oppRoles, Object.assign({}, base.reply.opp)];
+        }
+        return f;
+    }
+
+    function rolesForBench(debate, bench) {
+        if (!debate || !bench) {
+            return [];
+        }
+        const f = fmtForDebate(debate);
+        if (debate.fourTeam && f.roles && f.roles[bench.id]) {
+            return f.roles[bench.id];
+        }
+        if (debate.simplified && f.roles) {
+            if (bench.id === 'gov' || bench.id === 'og') {
+                return f.roles.og || [];
+            }
+            if (bench.id === 'opp' || bench.id === 'oo') {
+                return f.roles.oo || [];
+            }
+        }
+        const isOpp = bench.id === 'opp' || bench.id === 'oo' || bench.id === 'co';
+        if (isOpp) {
+            return f.oppRoles || [];
+        }
+        return f.govRoles || [];
+    }
+
+    function reassignBenchRoles(debate, bench) {
+        if (!bench || !Array.isArray(bench.members)) {
+            return;
+        }
+        const roles = rolesForBench(debate, bench);
+        bench.members.forEach((m, i) => {
+            m.role = roles[i] ? Object.assign({}, roles[i]) : null;
+        });
+    }
+
+    /**
+     * Insert a student at a bench position and reassign roles on affected benches.
+     * target: { di, bi, mi } insert before mi; omit/null mi to append.
+     * @returns {boolean} true if a move occurred
+     */
+    function moveMemberInsert(sourceRef, target) {
+        if (!guardEdit()) {
+            return false;
+        }
+        const slotA = getMemberSlot(sourceRef);
+        if (!slotA || !target || target.di == null || target.bi == null) {
+            return false;
+        }
+        const tDi = Number(target.di);
+        const tBi = Number(target.bi);
+        const debates = state.debates;
+        if (!debates[tDi] || !debates[tDi].benches[tBi]) {
+            return false;
+        }
+        const srcDebate = debates[slotA.di];
+        const srcBench = srcDebate.benches[slotA.bi];
+        const tgtDebate = debates[tDi];
+        const tgtBench = tgtDebate.benches[tBi];
+        const append = target.mi == null || target.mi === '' || Number.isNaN(Number(target.mi));
+        let rawMi = append ? tgtBench.members.length : Number(target.mi);
+
+        if (slotA.di === tDi && slotA.bi === tBi) {
+            if (rawMi === slotA.mi || rawMi === slotA.mi + 1) {
+                return false;
+            }
+        }
+
+        const [member] = srcBench.members.splice(slotA.mi, 1);
+        if (!member) {
+            return false;
+        }
+
+        let insertAt = rawMi;
+        if (slotA.di === tDi && slotA.bi === tBi && slotA.mi < insertAt) {
+            insertAt -= 1;
+        }
+        insertAt = Math.max(0, Math.min(insertAt, tgtBench.members.length));
+        tgtBench.members.splice(insertAt, 0, member);
+
+        reassignBenchRoles(srcDebate, srcBench);
+        if (srcBench !== tgtBench) {
+            reassignBenchRoles(tgtDebate, tgtBench);
+        }
+
+        notifySave();
+        return true;
     }
 
     /**
@@ -1218,7 +1320,7 @@
                     <div class="debate-v2-bench-label" style="color:${color}">
                         <span class="debate-v2-bench-dot" style="background:${color}"></span>${escapeHtml(b.label)}
                     </div>
-                    <div class="debate-v2-members">`;
+                    <div class="debate-v2-members" data-di="${di}" data-bi="${bi}">`;
                 b.members.forEach((m, mi) => {
                     const chipClass =
                         m.role && m.role.isWhip
@@ -1844,13 +1946,61 @@
             };
         }
 
+        function benchTargetFromEl(benchEl) {
+            if (!benchEl) {
+                return null;
+            }
+            return {
+                di: Number(benchEl.dataset.di),
+                bi: Number(benchEl.dataset.bi),
+                mi: null
+            };
+        }
+
+        /** Resolve drop target: insert-before member, or append to bench list. */
+        function dropTargetFromEvent(e) {
+            const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
+            if (member && root.contains(member)) {
+                return { kind: 'member', el: member, target: memberRefFromEl(member) };
+            }
+            const bench = e.target && e.target.closest ? e.target.closest('.debate-v2-members') : null;
+            if (bench && root.contains(bench)) {
+                return { kind: 'bench', el: bench, target: benchTargetFromEl(bench) };
+            }
+            return null;
+        }
+
         function clearMemberDragUi() {
             if (!root) {
                 return;
             }
-            root.querySelectorAll('.debate-v2-member--dragging, .debate-v2-member--drop-target').forEach((node) => {
-                node.classList.remove('debate-v2-member--dragging', 'debate-v2-member--drop-target');
+            root
+                .querySelectorAll(
+                    '.debate-v2-member--dragging, .debate-v2-member--drop-target, .debate-v2-members--drop-target'
+                )
+                .forEach((node) => {
+                    node.classList.remove(
+                        'debate-v2-member--dragging',
+                        'debate-v2-member--drop-target',
+                        'debate-v2-members--drop-target'
+                    );
+                });
+        }
+
+        function setDropHighlight(dropInfo) {
+            if (!root || !dropInfo) {
+                return;
+            }
+            root.querySelectorAll('.debate-v2-member--drop-target, .debate-v2-members--drop-target').forEach((node) => {
+                if (node !== dropInfo.el) {
+                    node.classList.remove('debate-v2-member--drop-target', 'debate-v2-members--drop-target');
+                }
             });
+            if (dropInfo.kind === 'member') {
+                dropInfo.el.classList.add('debate-v2-member--drop-target');
+            } else {
+                dropInfo.el.classList.add('debate-v2-members--drop-target');
+            }
         }
 
         root.addEventListener(
@@ -1886,8 +2036,8 @@
                 if (!dragMemberSource) {
                     return;
                 }
-                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
-                if (!member || !root.contains(member)) {
+                const dropInfo = dropTargetFromEvent(e);
+                if (!dropInfo) {
                     return;
                 }
                 e.preventDefault();
@@ -1906,17 +2056,12 @@
                 if (!dragMemberSource) {
                     return;
                 }
-                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
-                if (!member || !root.contains(member)) {
+                const dropInfo = dropTargetFromEvent(e);
+                if (!dropInfo) {
                     return;
                 }
                 e.preventDefault();
-                root.querySelectorAll('.debate-v2-member--drop-target').forEach((node) => {
-                    if (node !== member) {
-                        node.classList.remove('debate-v2-member--drop-target');
-                    }
-                });
-                member.classList.add('debate-v2-member--drop-target');
+                setDropHighlight(dropInfo);
             },
             { signal }
         );
@@ -1925,14 +2070,20 @@
             'dragleave',
             (e) => {
                 const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
-                if (!member) {
-                    return;
-                }
+                const bench = e.target && e.target.closest ? e.target.closest('.debate-v2-members') : null;
                 const related = e.relatedTarget;
-                if (related && member.contains(related)) {
-                    return;
+                if (member) {
+                    if (related && member.contains(related)) {
+                        return;
+                    }
+                    member.classList.remove('debate-v2-member--drop-target');
                 }
-                member.classList.remove('debate-v2-member--drop-target');
+                if (bench && (!related || !bench.contains(related))) {
+                    // Only clear bench highlight when leaving the list (not entering a child member).
+                    if (!member || !bench.contains(member)) {
+                        bench.classList.remove('debate-v2-members--drop-target');
+                    }
+                }
             },
             { signal }
         );
@@ -1940,19 +2091,18 @@
         root.addEventListener(
             'drop',
             (e) => {
-                const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
-                if (!member || !root.contains(member)) {
+                const dropInfo = dropTargetFromEvent(e);
+                if (!dropInfo) {
                     return;
                 }
                 e.preventDefault();
-                const target = memberRefFromEl(member);
                 const source = dragMemberSource;
                 dragMemberSource = null;
                 clearMemberDragUi();
-                if (!source || !target) {
+                if (!source || !dropInfo.target) {
                     return;
                 }
-                if (swapMembers(source, target)) {
+                if (moveMemberInsert(source, dropInfo.target)) {
                     render();
                 }
             },
@@ -2147,6 +2297,7 @@
         applyClassFormatDefaults,
         applyPurpleModeSettings,
         swapMembers,
+        moveMemberInsert,
         isPurpleDebateClass,
         setEditEnabled,
         migrateOldSession
