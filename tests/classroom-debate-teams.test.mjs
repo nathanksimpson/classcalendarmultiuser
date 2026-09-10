@@ -727,6 +727,86 @@ function loadDebateEngine(options = {}) {
 }
 
 {
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['A', 'B', 'C', 'D', 'E'],
+        formatId: 'bp',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    const silent = api.generateDebatesSilent({ replace: true, notify: false, render: false });
+    assert(silent.ok === true, 'BP under-6 does not fail format min:8');
+    assert(silent.count === 1, 'BP under-6 packs into one simplified debate');
+    const st = api.collectState();
+    assert(st.debates[0].simplified === true, 'BP under-6 debate is simplified two-bench');
+    assert(st.debates[0].benches[0].members[0].role.abbr === 'PM', 'BP simplified assigns PM');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['Ann', 'Ben'],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                fourTeam: false,
+                notes: '',
+                order: ['PM', 'LO'],
+                benches: [
+                    {
+                        // Missing id — role lookup must use bench index / label.
+                        label: 'Proposition',
+                        members: [
+                            {
+                                name: 'Ann',
+                                role: { abbr: 'PM', name: 'Prime Minister' },
+                                present: '',
+                                rebut: ''
+                            }
+                        ]
+                    },
+                    {
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Ben',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' },
+                                present: '',
+                                rebut: ''
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    });
+    const moved = api.moveMemberInsert({ di: 0, bi: 0, mi: 0 }, { di: 0, bi: 1, mi: null });
+    assert(moved, 'move onto opp bench without ids succeeds');
+    const st = api.collectState();
+    assert(st.debates[0].benches[0].members.length === 0, 'gov emptied');
+    assert(st.debates[0].benches[1].members.map((m) => m.name).join(',') === 'Ben,Ann', 'Ann appended to opp');
+    assert(st.debates[0].benches[1].members[0].role.abbr === 'LO', 'Ben stays LO');
+    assert(st.debates[0].benches[1].members[1].role.abbr === 'DLO', 'Ann gets DLO on opp (not leftover PM)');
+}
+
+{
     const { api } = loadDebateEngine({
         confirm() {
             return true;
