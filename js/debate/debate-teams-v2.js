@@ -515,11 +515,66 @@
         return a;
     }
 
+    /** Small non-Purple classes pack into one room (Homework + Generate share this). */
+    function shouldForceSingleDebate(f, n) {
+        return n < 6 && !f.oneVsOne && !f.allowSoloDebate;
+    }
+
+    /**
+     * Format catalog mins (e.g. BP=8) must not block under-6 packing.
+     * Purple / 1v1 keep their own mins.
+     */
+    function effectiveGenerateMin(f, n) {
+        if (shouldForceSingleDebate(f, n)) {
+            return Math.min(Number(f.min) || 2, 2);
+        }
+        return Number(f.min) || 2;
+    }
+
+    function pushNamedMember(arr, name, roles) {
+        arr.push({
+            name,
+            role: roles[arr.length] ? Object.assign({}, roles[arr.length]) : null,
+            present: '',
+            rebut: ''
+        });
+    }
+
+    /** One simplified two-bench debate (used for BP leftovers and under-6 four-team). */
+    function buildSimplifiedDebate(chunk, f) {
+        const gov = [];
+        const opp = [];
+        const govRoles = (f.roles && f.roles.og) || f.govRoles || [];
+        const oppRoles = (f.roles && f.roles.oo) || f.oppRoles || [];
+        chunk.forEach((name, i) => {
+            if (i % 2 === 0) {
+                pushNamedMember(gov, name, govRoles);
+            } else {
+                pushNamedMember(opp, name, oppRoles);
+            }
+        });
+        const govLabel =
+            (f.benches && f.benches[0] && f.benches[0].name) || f.govName || 'Government';
+        const oppLabel =
+            (f.benches && f.benches[1] && f.benches[1].name) || f.oppName || 'Opposition';
+        return {
+            number: 1,
+            formatId: state.formatId,
+            fourTeam: false,
+            simplified: true,
+            notes: '',
+            order: ['PM', 'LO', 'DPM', 'DLO'],
+            benches: [
+                { id: 'gov', label: govLabel, members: gov },
+                { id: 'opp', label: oppLabel, members: opp }
+            ]
+        };
+    }
+
     function genTwo(list, f) {
         const maxPer = effMax(f) * 2;
         const minDebateSize = f.allowSoloDebate ? 1 : 2;
-        // Prefer one room for small classes (not Purple / 1v1). Shared with homework silent generate.
-        const forceSingle = list.length < 6 && !f.oneVsOne && !f.allowSoloDebate;
+        const forceSingle = shouldForceSingleDebate(f, list.length);
         const d = forceSingle ? 1 : Math.max(1, Math.ceil(list.length / maxPer));
         const sizes = Array(d).fill(0);
         for (let i = 0; i < list.length; i++) {
@@ -548,12 +603,7 @@
             chunk.forEach((name, i) => {
                 const arr = i % 2 === 0 ? gov : opp;
                 const roles = i % 2 === 0 ? f.govRoles : f.oppRoles;
-                arr.push({
-                    name,
-                    role: roles[arr.length] ? Object.assign({}, roles[arr.length]) : null,
-                    present: '',
-                    rebut: ''
-                });
+                pushNamedMember(arr, name, roles || []);
             });
             out.push({
                 number: out.length + 1,
@@ -577,6 +627,10 @@
     }
 
     function genFour(list, f) {
+        // Prefer one simplified room for small classes (same under-6 rule as genTwo).
+        if (shouldForceSingleDebate(f, list.length) && list.length >= 2) {
+            return [buildSimplifiedDebate(list, f)];
+        }
         const out = [];
         let idx = 0;
         const seat = ['og', 'oo', 'og', 'oo', 'cg', 'co', 'cg', 'co'];
@@ -605,30 +659,9 @@
         }
         const left = list.slice(idx);
         if (left.length >= 4) {
-            const gov = [];
-            const opp = [];
-            left.forEach((name, i) => {
-                const arr = i % 2 === 0 ? gov : opp;
-                const roles = i % 2 === 0 ? f.roles.og : f.roles.oo;
-                arr.push({
-                    name,
-                    role: roles[arr.length] ? Object.assign({}, roles[arr.length]) : null,
-                    present: '',
-                    rebut: ''
-                });
-            });
-            out.push({
-                number: out.length + 1,
-                formatId: state.formatId,
-                fourTeam: false,
-                simplified: true,
-                notes: '',
-                order: ['PM', 'LO', 'DPM', 'DLO'],
-                benches: [
-                    { id: 'gov', label: 'Government', members: gov },
-                    { id: 'opp', label: 'Opposition', members: opp }
-                ]
-            });
+            const simplified = buildSimplifiedDebate(left, f);
+            simplified.number = out.length + 1;
+            out.push(simplified);
         } else if (left.length && out.length) {
             const benches = out[out.length - 1].benches;
             left.forEach((name, i) =>
@@ -652,10 +685,11 @@
         }
         const f = fmt();
         const n = state.students.length;
-        if (n < f.min) {
+        const minNeeded = effectiveGenerateMin(f, n);
+        if (n < minNeeded) {
             alert(
                 (t('classroomDebateNeedMinStudents') || 'Please add at least {count} students for {format}.')
-                    .replace('{count}', String(f.min))
+                    .replace('{count}', String(minNeeded))
                     .replace('{format}', f.name)
             );
             return;
@@ -678,8 +712,9 @@
         options = options || {};
         const f = fmt();
         const n = state.students.length;
-        if (n < f.min) {
-            return { ok: false, reason: 'min', count: n, min: f.min, formatName: f.name };
+        const minNeeded = effectiveGenerateMin(f, n);
+        if (n < minNeeded) {
+            return { ok: false, reason: 'min', count: n, min: minNeeded, formatName: f.name };
         }
         if (state.debates.length && options.replace !== true) {
             return { ok: false, reason: 'exists', count: state.debates.length };
@@ -836,20 +871,44 @@
             return [];
         }
         const f = fmtForDebate(debate);
-        if (debate.fourTeam && f.roles && f.roles[bench.id]) {
-            return f.roles[bench.id];
+        const id = String(bench.id || '').toLowerCase();
+        if (debate.fourTeam && f.roles && id && f.roles[id]) {
+            return f.roles[id];
         }
         if (debate.simplified && f.roles) {
-            if (bench.id === 'gov' || bench.id === 'og') {
+            if (id === 'gov' || id === 'og') {
                 return f.roles.og || [];
             }
-            if (bench.id === 'opp' || bench.id === 'oo') {
+            if (id === 'opp' || id === 'oo') {
                 return f.roles.oo || [];
             }
         }
-        const isOpp = bench.id === 'opp' || bench.id === 'oo' || bench.id === 'co';
+        const label = String(bench.label || '').toLowerCase();
+        const isOpp =
+            id === 'opp' ||
+            id === 'oo' ||
+            id === 'co' ||
+            /opp|neg|con\b|opposition|negative/.test(label);
+        const isGov =
+            id === 'gov' ||
+            id === 'og' ||
+            id === 'cg' ||
+            /prop|aff|pro\b|government|proposition|affirmative/.test(label);
         if (isOpp) {
             return f.oppRoles || [];
+        }
+        if (isGov) {
+            return f.govRoles || [];
+        }
+        // Missing id/label: fall back to bench index in two-team cards (0=gov, 1=opp).
+        if (!debate.fourTeam && Array.isArray(debate.benches)) {
+            const idx = debate.benches.indexOf(bench);
+            if (idx === 1) {
+                return f.oppRoles || [];
+            }
+            if (idx === 0) {
+                return f.govRoles || [];
+            }
         }
         return f.govRoles || [];
     }
@@ -864,8 +923,15 @@
         });
     }
 
+    function reassignDebateRoles(debate) {
+        if (!debate || !Array.isArray(debate.benches)) {
+            return;
+        }
+        debate.benches.forEach((bench) => reassignBenchRoles(debate, bench));
+    }
+
     /**
-     * Insert a student at a bench position and reassign roles on affected benches.
+     * Insert a student at a bench position and reassign roles on affected debates.
      * target: { di, bi, mi } insert before mi; omit/null mi to append.
      * @returns {boolean} true if a move occurred
      */
@@ -887,6 +953,13 @@
         const srcBench = srcDebate.benches[slotA.bi];
         const tgtDebate = debates[tDi];
         const tgtBench = tgtDebate.benches[tBi];
+        // Ensure destination benches always have stable ids for role lookup.
+        if (!tgtBench.id) {
+            tgtBench.id = tBi === 1 ? 'opp' : 'gov';
+        }
+        if (!srcBench.id) {
+            srcBench.id = slotA.bi === 1 ? 'opp' : 'gov';
+        }
         const append = target.mi == null || target.mi === '' || Number.isNaN(Number(target.mi));
         let rawMi = append ? tgtBench.members.length : Number(target.mi);
 
@@ -900,6 +973,8 @@
         if (!member) {
             return false;
         }
+        // Clear stale role before reassignment so chips never keep the old side.
+        member.role = null;
 
         let insertAt = rawMi;
         if (slotA.di === tDi && slotA.bi === tBi && slotA.mi < insertAt) {
@@ -908,9 +983,9 @@
         insertAt = Math.max(0, Math.min(insertAt, tgtBench.members.length));
         tgtBench.members.splice(insertAt, 0, member);
 
-        reassignBenchRoles(srcDebate, srcBench);
-        if (srcBench !== tgtBench) {
-            reassignBenchRoles(tgtDebate, tgtBench);
+        reassignDebateRoles(srcDebate);
+        if (srcDebate !== tgtDebate) {
+            reassignDebateRoles(tgtDebate);
         }
 
         notifySave();
