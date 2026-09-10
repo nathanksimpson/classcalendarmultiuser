@@ -930,10 +930,66 @@
         debate.benches.forEach((bench) => reassignBenchRoles(debate, bench));
     }
 
+    function ensureBenchIds(debate) {
+        if (!debate || !Array.isArray(debate.benches)) {
+            return;
+        }
+        debate.benches.forEach((bench, bi) => {
+            if (!bench.id) {
+                if (debate.fourTeam) {
+                    return;
+                }
+                bench.id = bi === 1 ? 'opp' : 'gov';
+            }
+        });
+    }
+
     /**
-     * Insert a student at a bench position and reassign roles on affected debates.
+     * Move a student onto a team and assign the next free role (append + reassign).
+     * Same-team drop zone → rearrange to end of that team.
+     */
+    function moveToTeamNextRole(sourceRef, tDi, tBi) {
+        if (!guardEdit()) {
+            return false;
+        }
+        const slotA = getMemberSlot(sourceRef);
+        if (!slotA) {
+            return false;
+        }
+        const debates = state.debates;
+        if (!debates[tDi] || !debates[tDi].benches[tBi]) {
+            return false;
+        }
+        const srcDebate = debates[slotA.di];
+        const srcBench = srcDebate.benches[slotA.bi];
+        const tgtDebate = debates[tDi];
+        const tgtBench = tgtDebate.benches[tBi];
+        ensureBenchIds(srcDebate);
+        ensureBenchIds(tgtDebate);
+
+        const sameBench = slotA.di === tDi && slotA.bi === tBi;
+        if (sameBench && slotA.mi === srcBench.members.length - 1) {
+            return false;
+        }
+
+        const [member] = srcBench.members.splice(slotA.mi, 1);
+        if (!member) {
+            return false;
+        }
+        member.role = null;
+        tgtBench.members.push(member);
+
+        reassignDebateRoles(srcDebate);
+        if (srcDebate !== tgtDebate) {
+            reassignDebateRoles(tgtDebate);
+        }
+        notifySave();
+        return true;
+    }
+
+    /**
+     * Insert a student at a bench position and reassign roles (same-team rearrange helper).
      * target: { di, bi, mi } insert before mi; omit/null mi to append.
-     * @returns {boolean} true if a move occurred
      */
     function moveMemberInsert(sourceRef, target) {
         if (!guardEdit()) {
@@ -953,13 +1009,8 @@
         const srcBench = srcDebate.benches[slotA.bi];
         const tgtDebate = debates[tDi];
         const tgtBench = tgtDebate.benches[tBi];
-        // Ensure destination benches always have stable ids for role lookup.
-        if (!tgtBench.id) {
-            tgtBench.id = tBi === 1 ? 'opp' : 'gov';
-        }
-        if (!srcBench.id) {
-            srcBench.id = slotA.bi === 1 ? 'opp' : 'gov';
-        }
+        ensureBenchIds(srcDebate);
+        ensureBenchIds(tgtDebate);
         const append = target.mi == null || target.mi === '' || Number.isNaN(Number(target.mi));
         let rawMi = append ? tgtBench.members.length : Number(target.mi);
 
@@ -973,7 +1024,6 @@
         if (!member) {
             return false;
         }
-        // Clear stale role before reassignment so chips never keep the old side.
         member.role = null;
 
         let insertAt = rawMi;
@@ -990,6 +1040,46 @@
 
         notifySave();
         return true;
+    }
+
+    /**
+     * DnD policy:
+     * - Team/bench drop zone → move to next available role on that team
+     * - Drop on student, same team → within-team swap (roles stay on slots)
+     * - Drop on student, other team → between-team swap; if not feasible, move to next role
+     */
+    function applyMemberDrop(sourceRef, dropInfo) {
+        if (!dropInfo || !dropInfo.target) {
+            return false;
+        }
+        const target = dropInfo.target;
+        const tDi = Number(target.di);
+        const tBi = Number(target.bi);
+
+        if (dropInfo.kind === 'bench') {
+            return moveToTeamNextRole(sourceRef, tDi, tBi);
+        }
+
+        // Dropped on a specific student
+        const sameTeam =
+            sourceRef &&
+            Number(sourceRef.di) === tDi &&
+            Number(sourceRef.bi) === tBi;
+
+        if (sameTeam) {
+            // Within-team: prefer swap; fall back to rearrange-before if swap no-ops
+            if (swapMembers(sourceRef, target)) {
+                return true;
+            }
+            return moveMemberInsert(sourceRef, target);
+        }
+
+        // Between teams: prefer swap with that student
+        if (swapMembers(sourceRef, target)) {
+            return true;
+        }
+        // Not feasible (missing slot, etc.) → join that team on next free role
+        return moveToTeamNextRole(sourceRef, tDi, tBi);
     }
 
     /**
@@ -1391,7 +1481,7 @@
             d.benches.forEach((b, bi) => {
                 const color = COLORS[b.id] || '#3d6b5e';
                 const isGovSide = b.id === 'gov' || b.id === 'og' || b.id === 'cg';
-                html += `<section class="debate-v2-bench">
+                html += `<section class="debate-v2-bench" data-di="${di}" data-bi="${bi}">
                     <div class="debate-v2-bench-label" style="color:${color}">
                         <span class="debate-v2-bench-dot" style="background:${color}"></span>${escapeHtml(b.label)}
                     </div>
@@ -2032,13 +2122,37 @@
             };
         }
 
-        /** Resolve drop target: insert-before member, or append to bench list. */
+        /**
+         * Resolve drop target:
+         * - member → swap path (within / between team)
+         * - bench / members list → move to next free role on that team
+         */
         function dropTargetFromEvent(e) {
             const member = e.target && e.target.closest ? e.target.closest('.debate-v2-member') : null;
             if (member && root.contains(member)) {
+                // Ignore the row being dragged so empty-team drops still hit the bench.
+                if (dragMemberSource) {
+                    const ref = memberRefFromEl(member);
+                    if (
+                        ref &&
+                        ref.di === dragMemberSource.di &&
+                        ref.bi === dragMemberSource.bi &&
+                        ref.mi === dragMemberSource.mi
+                    ) {
+                        const bench =
+                            member.closest('.debate-v2-members') || member.closest('.debate-v2-bench');
+                        if (bench && root.contains(bench)) {
+                            return { kind: 'bench', el: bench, target: benchTargetFromEl(bench) };
+                        }
+                    }
+                }
                 return { kind: 'member', el: member, target: memberRefFromEl(member) };
             }
-            const bench = e.target && e.target.closest ? e.target.closest('.debate-v2-members') : null;
+            const members = e.target && e.target.closest ? e.target.closest('.debate-v2-members') : null;
+            if (members && root.contains(members)) {
+                return { kind: 'bench', el: members, target: benchTargetFromEl(members) };
+            }
+            const bench = e.target && e.target.closest ? e.target.closest('.debate-v2-bench') : null;
             if (bench && root.contains(bench)) {
                 return { kind: 'bench', el: bench, target: benchTargetFromEl(bench) };
             }
@@ -2051,13 +2165,14 @@
             }
             root
                 .querySelectorAll(
-                    '.debate-v2-member--dragging, .debate-v2-member--drop-target, .debate-v2-members--drop-target'
+                    '.debate-v2-member--dragging, .debate-v2-member--drop-target, .debate-v2-members--drop-target, .debate-v2-bench--drop-target'
                 )
                 .forEach((node) => {
                     node.classList.remove(
                         'debate-v2-member--dragging',
                         'debate-v2-member--drop-target',
-                        'debate-v2-members--drop-target'
+                        'debate-v2-members--drop-target',
+                        'debate-v2-bench--drop-target'
                     );
                 });
         }
@@ -2066,13 +2181,23 @@
             if (!root || !dropInfo) {
                 return;
             }
-            root.querySelectorAll('.debate-v2-member--drop-target, .debate-v2-members--drop-target').forEach((node) => {
-                if (node !== dropInfo.el) {
-                    node.classList.remove('debate-v2-member--drop-target', 'debate-v2-members--drop-target');
-                }
-            });
+            root
+                .querySelectorAll(
+                    '.debate-v2-member--drop-target, .debate-v2-members--drop-target, .debate-v2-bench--drop-target'
+                )
+                .forEach((node) => {
+                    if (node !== dropInfo.el) {
+                        node.classList.remove(
+                            'debate-v2-member--drop-target',
+                            'debate-v2-members--drop-target',
+                            'debate-v2-bench--drop-target'
+                        );
+                    }
+                });
             if (dropInfo.kind === 'member') {
                 dropInfo.el.classList.add('debate-v2-member--drop-target');
+            } else if (dropInfo.el.classList.contains('debate-v2-bench')) {
+                dropInfo.el.classList.add('debate-v2-bench--drop-target');
             } else {
                 dropInfo.el.classList.add('debate-v2-members--drop-target');
             }
@@ -2177,7 +2302,7 @@
                 if (!source || !dropInfo.target) {
                     return;
                 }
-                if (moveMemberInsert(source, dropInfo.target)) {
+                if (applyMemberDrop(source, dropInfo)) {
                     render();
                 }
             },
@@ -2373,6 +2498,8 @@
         applyPurpleModeSettings,
         swapMembers,
         moveMemberInsert,
+        moveToTeamNextRole,
+        applyMemberDrop,
         isPurpleDebateClass,
         setEditEnabled,
         migrateOldSession
