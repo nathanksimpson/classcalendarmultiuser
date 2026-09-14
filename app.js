@@ -5208,7 +5208,7 @@ function ensureUiState() {
     if (dayNotesApi && dayNotesApi.normalizeClassNotesSortMode) {
         appData.ui.classNotesSort = dayNotesApi.normalizeClassNotesSortMode(appData.ui.classNotesSort);
     } else {
-        appData.ui.classNotesSort = 'classGroup';
+        appData.ui.classNotesSort = 'newest';
     }
     if (typeof appData.ui.classNotesTranslateOnCopy !== 'boolean') {
         appData.ui.classNotesTranslateOnCopy = false;
@@ -10903,7 +10903,7 @@ function getClassNotesSortMode() {
     if (api && api.normalizeClassNotesSortMode) {
         return api.normalizeClassNotesSortMode(appData.ui.classNotesSort);
     }
-    return 'classGroup';
+    return 'newest';
 }
 
 function syncClassNotesSortSelect() {
@@ -10920,7 +10920,7 @@ function saveClassNotesSortToUi() {
     const api = getDayNotesApi();
     const mode = api && api.normalizeClassNotesSortMode
         ? api.normalizeClassNotesSortMode(select ? select.value : '')
-        : 'classGroup';
+        : 'newest';
     appData.ui.classNotesSort = mode;
     saveUiStateToLocalStorage();
 }
