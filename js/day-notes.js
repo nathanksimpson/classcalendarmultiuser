@@ -172,7 +172,7 @@
 
     function normalizeClassNotesSortMode(mode) {
         const m = String(mode || '').trim();
-        return CLASS_NOTES_SORT_MODES.has(m) ? m : 'classGroup';
+        return CLASS_NOTES_SORT_MODES.has(m) ? m : 'newest';
     }
 
     function sortNotesForDisplay(notes, sortMode, classOrderIds, opts) {
