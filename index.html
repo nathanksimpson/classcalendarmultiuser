@@ -6,14 +6,14 @@
     <title>ClassManager &mdash; Team</title>
     <script>document.documentElement.classList.add('ccp-auth-boot');</script>
     <style>html.ccp-auth-boot body{visibility:hidden}html.ccp-auth-boot{background:var(--bg-main,#f4f6f9)}</style>
-    <link rel="stylesheet" href="styles.css?v=20260910-drop-zones">
+    <link rel="stylesheet" href="styles.css?v=20260911-topbar-narrow">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20260908-hw-due';
+        window.CCP_I18N_VERSION = '20260914-pptx';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -55,39 +55,7 @@
                     <h1 class="visually-hidden" data-i18n="appTitle">ClassManager</h1>
                     <span id="topBarCalendarLabel" class="top-bar-calendar-label visually-hidden" hidden></span>
                     <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status" hidden>Connecting&hellip;</span>
-                    <div class="app-top-bar-row__spacer" aria-hidden="true"></div>
-                    <button type="button" id="navTabsCollapsedChip" class="nav-tabs-collapsed-chip" hidden aria-hidden="true">
-                        <span id="navTabsCollapsedChipLabel" class="nav-tabs-collapsed-chip__label"></span>
-                    </button>
-                    <button type="button" id="navTabsCollapseToggle" class="btn btn-outline btn-small nav-tabs-collapse-toggle" aria-expanded="true" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="navTabsHide" data-i18n-title="navTabsHideTitle" title="Hide navigation tabs">Hide tabs</button>
-                    <div id="appWarningsNotify" class="app-warnings-notify" hidden>
-                <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" aria-label="Notifications" data-i18n-aria-label="appNotificationsBtnTitle" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
-                    <span class="app-notify-bell-icon" aria-hidden="true">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                        </svg>
-                    </span>
-                    <span id="appWarningsCount" class="app-warnings-count" hidden aria-hidden="true">0</span>
-                </button>
-                    </div>
-                    <div class="app-header-unified__tools app-top-bar-actions header-tools-row" role="group" aria-label="Quick actions" data-i18n-aria-label="headerQuickActionsAria">
-                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
-                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
-                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
-                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
-                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" data-i18n-aria-label="themeToggleTitle" title="Switch light/dark theme" aria-label="Switch light/dark theme">◐</button>
-                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
-                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
-                            <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
-                            <span id="teamAccountAvatar" class="team-account-avatar" aria-hidden="true"></span>
-                        </button>
-                    </div>
-                    <input type="file" id="importFile" accept=".json" hidden>
-                </div>
-                </div>
-                <div id="teamLockSyncBar" class="team-lock-sync-bar" hidden>
+                    <div id="teamLockSyncBar" class="team-lock-sync-bar team-lock-sync-bar--inline" hidden>
                     <div id="teamLockStatus" class="team-lock-status team-lock-status--compact team-lock-status--sync-bar">
                         <div class="team-lock-control">
                             <button type="button" id="teamLockStatusBtn" class="team-lock-status-btn team-lock-status-btn--skeuo" aria-live="polite">
@@ -129,6 +97,41 @@
                         <span class="team-sync-saved-indicator__dot" aria-hidden="true"></span>
                         <span data-i18n="syncAllSaved">All changes saved</span>
                     </span>
+                    </div>
+                    <div class="app-top-bar-row__spacer" aria-hidden="true"></div>
+                    <button type="button" id="navTabsCollapsedChip" class="nav-tabs-collapsed-chip" hidden aria-hidden="true">
+                        <span id="navTabsCollapsedChipLabel" class="nav-tabs-collapsed-chip__label"></span>
+                    </button>
+                    <button type="button" id="navTabsCollapseToggle" class="btn btn-outline btn-small nav-tabs-collapse-toggle" aria-expanded="true" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="navTabsHide" data-i18n-title="navTabsHideTitle" title="Hide navigation tabs">Hide tabs</button>
+                    <div id="appWarningsNotify" class="app-warnings-notify" hidden>
+                <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" aria-label="Notifications" data-i18n-aria-label="appNotificationsBtnTitle" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
+                    <span class="app-notify-bell-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                    </span>
+                    <span id="appWarningsCount" class="app-warnings-count" hidden aria-hidden="true">0</span>
+                </button>
+                    </div>
+                    <div class="app-header-unified__tools app-top-bar-actions header-tools-row" id="headerToolsRow" role="group" aria-label="Quick actions" data-i18n-aria-label="headerQuickActionsAria">
+                    <button type="button" id="headerToolsOverflowBtn" class="btn btn-outline btn-small header-tools-overflow-btn" aria-expanded="false" aria-controls="headerToolsCollapsible" data-i18n-aria-label="headerToolsMoreAria" data-i18n-title="headerToolsMoreAria" title="More actions" aria-label="More actions">&#8942;</button>
+                    <div class="app-header-unified__tools-collapsible" id="headerToolsCollapsible">
+                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
+                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
+                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
+                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
+                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
+                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" data-i18n-aria-label="themeToggleTitle" title="Switch light/dark theme" aria-label="Switch light/dark theme">◐</button>
+                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                        <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
+                            <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
+                            <span id="teamAccountAvatar" class="team-account-avatar" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <input type="file" id="importFile" accept=".json" hidden>
+                    </div>
+                </div>
                 </div>
                 <div class="app-top-bar-row app-top-bar-row--zones" id="appZoneNavCluster">
                     <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections" data-i18n-aria-label="zoneNavAria">
@@ -160,7 +163,7 @@
                             <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="students" data-tab="students" data-i18n="classroomTabStudents">Students</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="attendance" data-tab="attendance" data-i18n="classroomTabAttendance">Attendance</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="ledger" data-tab="ledger" data-i18n="classroomTabLedger">Ledger</button>
-                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="homework" data-tab="homework-tracking" data-i18n="classroomTabHomework">Homework</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="homework-tracking" data-tab="homework-tracking" data-i18n="classroomTabHomework">Homework</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="points" data-tab="points" data-i18n="classroomTabPoints">Points</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="tests" data-tab="tests" data-i18n="classroomTabTests">Tests</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="notes" data-tab="notes" data-i18n="tabNotes">Notes</button>
@@ -517,6 +520,8 @@
                             <div id="classroomEssaysBatchActions" class="classroom-essay-filters classroom-batch-row"></div>
                             <p id="classroomEssaysToolbarHint" class="classroom-essay-toolbar-hint section-hint" role="status"></p>
                             <div class="toolbar-actions">
+                                <button type="button" id="classroomEssaysNewGroupBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayGroupNewBtn">New essay group</button>
+                                <button type="button" id="classroomEssaysEditGroupBtn" class="btn btn-outline btn-compact" hidden data-i18n="classroomEssayGroupEditBtn">Edit group</button>
                                 <button type="button" id="classroomEssaysScrapeEditorBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayScrapeEditorBtn">Scrape &amp; open editor&hellip;</button>
                                 <button type="button" id="classroomEssaysTmsSyncAllBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncAllBtn">Sync all from TMS&hellip;</button>
                                 <button type="button" id="classroomEssaysTmsSyncBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncThisClassBtn">Sync this class&hellip;</button>
@@ -1098,6 +1103,7 @@
                                 <div class="homework-copy-text-panel">
                                     <div class="homework-copy-text-panel-header">
                                         <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignBtn" data-i18n="homeworkTabCopyHomework">Copy homework</button>
+                                        <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyAssignDutiesBtn" data-i18n="homeworkTabCopyWithDuties">Copy with duties</button>
                                     </div>
                                     <textarea id="homeworkAssignText" class="homework-copy-textarea" rows="8" spellcheck="false" aria-describedby="homeworkAssignSourceHint"></textarea>
                                     <p id="homeworkAssignSourceHint" class="homework-source-hint section-hint" hidden></p>
@@ -1598,7 +1604,12 @@
             </div>
             <div class="modal-body">
                 <p class="section-hint" data-i18n="classroomEssayAddAssignmentHint">Adds a tracked essay lesson to this class syllabus. Use for custom work such as monthly news essays or a presentation script.</p>
-                <p id="essayAddAssignmentClassLabel" class="section-hint"></p>
+                <p id="essayAddAssignmentClassLabel" class="section-hint" hidden></p>
+                <div id="essayAddAssignmentClassListWrap" class="form-group">
+                    <label data-i18n="classroomEssayAddAssignmentClassesLabel">Classes</label>
+                    <p class="section-hint" data-i18n="classroomEssayAddAssignmentClassesHint">Same title and date for every checked class.</p>
+                    <div id="essayAddAssignmentClassList" class="essay-add-assignment-class-list" role="group" aria-label="Classes"></div>
+                </div>
                 <div class="form-group">
                     <label for="essayAddAssignmentTitleInput" data-i18n="classroomEssayAddAssignmentTitleLabel">Title</label>
                     <input type="text" id="essayAddAssignmentTitleInput" class="field-input" maxlength="200" autocomplete="off" spellcheck="true" data-i18n-placeholder="classroomEssayAddAssignmentTitlePlaceholder" placeholder="e.g. News essay — March" />
@@ -1611,6 +1622,36 @@
                 <div class="form-actions">
                     <button type="button" id="essayAddAssignmentCancel" class="btn btn-outline" data-i18n="cancel">Cancel</button>
                     <button type="button" id="essayAddAssignmentConfirm" class="btn btn-primary" data-i18n="classroomEssayAddAssignmentConfirm">Add assignment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="essayGroupModal" class="modal" role="dialog" aria-labelledby="essayGroupModalTitle" aria-modal="true" hidden>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2 id="essayGroupModalTitle" data-i18n="classroomEssayGroupModalCreateTitle">New essay group</h2>
+                <button type="button" class="modal-close" id="essayGroupModalClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="section-hint" data-i18n="classroomEssayGroupModalHint">Create a group of selected students to assign and check essays separately. This is not a real class — it only appears in Essays.</p>
+                <div class="form-group">
+                    <label for="essayGroupNameInput" data-i18n="classroomEssayGroupNameLabel">Group name</label>
+                    <input type="text" id="essayGroupNameInput" class="field-input" maxlength="120" autocomplete="off" data-i18n-placeholder="classroomEssayGroupNamePlaceholder" placeholder="e.g. March makeups" />
+                </div>
+                <div class="form-group">
+                    <label for="essayGroupSourceClassSelect" data-i18n="classroomEssayGroupSourceClassLabel">Pick students from class</label>
+                    <select id="essayGroupSourceClassSelect" class="field-select"></select>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="classroomEssayGroupStudentsLabel">Students</label>
+                    <div id="essayGroupStudentList" class="essay-add-assignment-class-list" role="group"></div>
+                </div>
+                <p id="essayGroupModalError" class="section-hint" role="alert" hidden></p>
+                <div class="form-actions">
+                    <button type="button" id="essayGroupModalDelete" class="btn btn-danger" hidden data-i18n="classroomEssayGroupDelete">Delete group</button>
+                    <button type="button" id="essayGroupModalCancel" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="essayGroupModalConfirm" class="btn btn-primary" data-i18n="classroomEssayGroupSave">Save group</button>
                 </div>
             </div>
         </div>
@@ -2659,21 +2700,21 @@
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
     <script defer src="js/active-context.js?v=20260807-no-auto-cohort"></script>
-    <script defer src="js/essay-class-filter.js?v=20260703-zone-context"></script>
-    <script defer src="js/classroom-zone-context.js?v=20260827-essay-warn-month"></script>
+    <script defer src="js/essay-class-filter.js?v=20260911-essay-groups"></script>
+    <script defer src="js/classroom-zone-context.js?v=20260911-essay-groups"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20260806-syllabus-reorder"></script>
-    <script defer src="js/app-tab-scripts.js?v=20260910-drop-zones"></script>
+    <script defer src="js/app-tab-scripts.js?v=20260914-pptx-big"></script>
     <script defer src="js/load-extension-scripts.js?v=20260908-debate-combine"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260908-quick-wins"></script>
     <script defer src="js/team-auth.js?v=20260908-quick-wins"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
-    <script defer src="js/calendar-mutations.js?v=20260810-book-check"></script>
-    <script defer src="js/calendar-export.js?v=20260810-full-export"></script>
-    <script defer src="js/calendar-sync.js?v=20260810-book-check"></script>
-    <script defer src="js/conflict-merge.js?v=20260806-patch-mutations"></script>
+    <script defer src="js/calendar-mutations.js?v=20260911-essay-groups"></script>
+    <script defer src="js/calendar-export.js?v=20260911-essay-groups"></script>
+    <script defer src="js/calendar-sync.js?v=20260911-essay-groups"></script>
+    <script defer src="js/conflict-merge.js?v=20260911-essay-groups"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary-print.js?v=20260618-term-summary"></script>
@@ -2700,7 +2741,7 @@
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260901-transition-week"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20260908-hw-due"></script>
+    <script defer src="js/classroom-domain.js?v=20260911-essay-groups"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260824-mention-no-at-colon"></script>
@@ -2759,7 +2800,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260619-viewport-tier"></script>
     <script defer src="js/tab-warnings.js?v=20260810-book-check"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260908-hw-due"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20260914-pptx"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2767,7 +2808,7 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20260909-period8"></script>
+    <script defer src="app.js?v=20260914-pptx"></script>
 </body>
 </html>
 
