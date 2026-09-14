@@ -718,6 +718,7 @@ function getDefaultAppData() {
         attendanceSessions: [],
         homeworkCompletions: [],
         essaySubmissions: [],
+        essayGroups: [],
         studentPoints: [],
         studentTests: [],
         debateTeamSessions: [],
@@ -8125,6 +8126,8 @@ const NOW_CLASS_POPUP_DISMISS_UNTIL_KEY = 'ccpNowClassPopupDismissUntil:v1';
 const NOW_CLASS_POPUP_DISMISS_MAP_KEY = 'ccpNowClassPopupDismissMap:v1';
 const NOW_CLASS_POPUP_DISMISS_DURATION_KEY = 'ccpNowClassPopupDismissDuration:v1';
 const NOW_CLASS_POPUP_ENABLED_PREFIX = 'ccpNowClassPopupEnabled:v1';
+/** Unset localStorage default: On only for this email; Off for everyone else. */
+const NOW_CLASS_POPUP_DEFAULT_ON_EMAIL = 'nathanksimpson@gmail.com';
 const NOW_CLASS_POPUP_DISMISS_DURATIONS = ['5', '15', '30', '60', 'rest'];
 let nowClassPopupTimer = 0;
 let nowClassPopupLastSig = '';
@@ -8268,15 +8271,27 @@ function getNowClassPopupEnabledStorageKey() {
     }
 }
 
+function getNowClassPopupDefaultEnabled() {
+    try {
+        const user = typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
+        const email = String((user && user.email) || '')
+            .trim()
+            .toLowerCase();
+        return email === NOW_CLASS_POPUP_DEFAULT_ON_EMAIL;
+    } catch (_) {
+        return false;
+    }
+}
+
 function getNowClassPopupEnabled() {
     try {
         const raw = localStorage.getItem(getNowClassPopupEnabledStorageKey());
         if (raw === null || raw === undefined || raw === '') {
-            return true;
+            return getNowClassPopupDefaultEnabled();
         }
         return raw === '1' || raw === 'true';
     } catch (_) {
-        return true;
+        return getNowClassPopupDefaultEnabled();
     }
 }
 
@@ -13683,7 +13698,7 @@ const ZONE_SEGMENT_TO_TAB = {
         students: 'students',
         attendance: 'attendance',
         ledger: 'ledger',
-        homework: 'homework-tracking',
+        'homework-tracking': 'homework-tracking',
         points: 'points',
         tests: 'tests',
         notes: 'notes'
@@ -14195,6 +14210,10 @@ function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
         zone = APP_ZONE_SCHEDULE;
         segment = 'timetable';
     }
+    // Old Classroom bookmarks used segment=homework (same slug as Schedule Homework copy).
+    if (zone === APP_ZONE_CLASSROOM && segment === 'homework') {
+        segment = 'homework-tracking';
+    }
     if (zone === APP_ZONE_MORE && segment === 'data') {
         segment = '';
     }
@@ -14223,7 +14242,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     students: { zone: APP_ZONE_CLASSROOM, segment: 'students' },
     attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
     ledger: { zone: APP_ZONE_CLASSROOM, segment: 'ledger' },
-    'homework-tracking': { zone: APP_ZONE_CLASSROOM, segment: 'homework' },
+    'homework-tracking': { zone: APP_ZONE_CLASSROOM, segment: 'homework-tracking' },
     essays: { zone: APP_ZONE_TOOLS, segment: 'essays' },
     points: { zone: APP_ZONE_CLASSROOM, segment: 'points' },
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
@@ -16072,6 +16091,44 @@ function setupNavTabsCollapseToggle() {
     setNavTabsCollapsed(stored, { force: true });
 }
 
+function setHeaderToolsOverflowOpen(open) {
+    const row = document.getElementById('headerToolsRow');
+    const btn = document.getElementById('headerToolsOverflowBtn');
+    if (!row || !btn) {
+        return;
+    }
+    const next = Boolean(open);
+    row.classList.toggle('is-overflow-open', next);
+    btn.setAttribute('aria-expanded', String(next));
+}
+
+function setupHeaderToolsOverflow() {
+    const row = document.getElementById('headerToolsRow');
+    const btn = document.getElementById('headerToolsOverflowBtn');
+    if (!row || !btn || btn.dataset.bound === '1') {
+        return;
+    }
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        setHeaderToolsOverflowOpen(!row.classList.contains('is-overflow-open'));
+    });
+    document.addEventListener('click', (event) => {
+        if (!row.classList.contains('is-overflow-open')) {
+            return;
+        }
+        if (row.contains(event.target)) {
+            return;
+        }
+        setHeaderToolsOverflowOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            setHeaderToolsOverflowOpen(false);
+        }
+    });
+}
+
 function syncContentExpandToggleVisibility(tabId) {
     const btn = document.getElementById('contentExpandToggleBtn');
     if (!btn) {
@@ -16236,6 +16293,7 @@ function initAppTabs() {
     setupContentExpandToggle();
     syncContentExpandToggleVisibility();
     setupNavTabsCollapseToggle();
+    setupHeaderToolsOverflow();
     setupLockDrawerToggle();
     syncZoneNavPermissions();
     if (typeof CCPZoneNavReorder !== 'undefined') {
@@ -18526,8 +18584,184 @@ function showHomeworkCopyStatus(ok) {
 }
 
 /**
+ * Optional TMS roster sync confirm used by Day 3 / duties homework copy.
+ */
+async function maybeSyncHomeworkDebateRoster() {
+    const wantSync = window.confirm(t('homeworkDebateDay3SyncRosterConfirm'));
+    if (!wantSync) {
+        return;
+    }
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+        await CCPTabScripts.ensureTabScripts('students');
+    }
+    const roster = typeof CCPClassroomRoster !== 'undefined' ? CCPClassroomRoster : null;
+    if (roster && roster.ensureHooks) {
+        roster.ensureHooks(getClassroomHooks());
+    }
+    if (roster && typeof roster.requestTmsSyncThen === 'function') {
+        await roster.requestTmsSyncThen();
+    } else {
+        setAppStatusMessage(t('homeworkDebateDay3RosterUnavailable'), false);
+    }
+}
+
+function homeworkDebateExportMeta(classData, packet, sessionState) {
+    return {
+        classTitle:
+            (sessionState && sessionState.classTitle) ||
+            (classData && (classData.name || classData.displayName)) ||
+            '',
+        topic: (sessionState && sessionState.topic) || '',
+        date: packet ? String(packet.targetLessonDate || '').trim() : ''
+    };
+}
+
+/**
+ * Copy assign homework plus ROLE (Name) - Present/Rebut duties.
+ * Asks to sync roster, builds/reuses teams, injects duties, downloads Word
+ * scoresheet + duties PPT.
+ */
+async function copyHomeworkAssignWithSpeakingDuties() {
+    const state = homeworkEditorState;
+    const classData = state?.classId
+        ? appData.classes.find((c) => c.id === state.classId)
+        : null;
+    const packet = state?.packet;
+    const assignEl = document.getElementById('homeworkAssignText');
+    let body = assignEl ? assignEl.value || '' : '';
+    const mod = getHomeworkTabModule();
+
+    const sessionDate = packet ? String(packet.targetLessonDate || '').trim() : '';
+    const classId = classData && classData.id ? classData.id : '';
+
+    let injectedTeams = false;
+    let sessionState = null;
+    let built = null;
+
+    if (!classId) {
+        showHomeworkCopyStatus(await copyTextToClipboard(body));
+        return;
+    }
+    if (!sessionDate) {
+        setAppStatusMessage(t('homeworkDebateDay3MissingDate'), true);
+        return;
+    }
+
+    await maybeSyncHomeworkDebateRoster();
+
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebateCoreScripts) {
+        await CCPTabScripts.ensureDebateCoreScripts();
+    }
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+        await CCPTabScripts.ensureTabScripts('debate-teams');
+    }
+
+    const teamsApi =
+        typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null;
+    if (!teamsApi || typeof teamsApi.buildAndPersistForHomework !== 'function') {
+        setAppStatusMessage(t('homeworkDebateDay3TeamsUnavailable'), true);
+        return;
+    }
+    teamsApi.ensureHooks(getClassroomHooks());
+
+    built = await teamsApi.buildAndPersistForHomework({
+        classId,
+        date: sessionDate,
+        hooks: getClassroomHooks()
+    });
+    if (!built || !built.ok) {
+        const reason = built && built.reason ? String(built.reason) : '';
+        if (reason === 'empty') {
+            setAppStatusMessage(t('homeworkDebateDay3NoStudents'), true);
+        } else if (reason === 'readonly') {
+            setAppStatusMessage(t('homeworkDebateDay3Readonly'), true);
+        } else if (reason === 'min') {
+            setAppStatusMessage(t('homeworkDebateDay3NeedMinStudents'), true);
+        } else if (reason === 'missing') {
+            setAppStatusMessage(t('homeworkDebateDay3MissingDate'), true);
+        } else {
+            setAppStatusMessage(t('homeworkDebateDay3TeamsFailed'), true);
+        }
+        return;
+    }
+    sessionState = built.sessionState || null;
+
+    const eng = typeof CCPDebateTeamsV2 !== 'undefined' ? CCPDebateTeamsV2 : null;
+    if (sessionState && eng) {
+        if (typeof eng.fillEmptyRoleDefaultDuties === 'function') {
+            eng.fillEmptyRoleDefaultDuties(sessionState);
+        }
+        const dutiesBlock =
+            typeof eng.formatSpeakingDutiesBlock === 'function'
+                ? eng.formatSpeakingDutiesBlock(sessionState) || ''
+                : '';
+        if (dutiesBlock && mod && typeof mod.injectDebateTeamsIntoAssignText === 'function') {
+            body = mod.injectDebateTeamsIntoAssignText(body, dutiesBlock);
+            if (assignEl) {
+                assignEl.value = body;
+            }
+            persistHomeworkTextareaToSyllabus('assign');
+            injectedTeams = true;
+        }
+    }
+
+    const formatted =
+        classData && packet ? formatHomeworkPasteBlock(body, classData, packet, 'assign') : body;
+    const copied = await copyTextToClipboard(formatted);
+
+    let sheetOk = false;
+    let pptOk = false;
+    try {
+        const exp =
+            typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
+        if (exp && eng && sessionState && typeof eng.buildExportContextFromSession === 'function') {
+            const exportOpts = eng.buildExportContextFromSession(sessionState);
+            const ctx = exp.buildExportContext(exportOpts);
+            await exp.exportWord(ctx);
+            sheetOk = true;
+        }
+    } catch (err) {
+        console.error('Duties copy score sheet export failed', err);
+    }
+
+    try {
+        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebatePptxScripts) {
+            await CCPTabScripts.ensureDebatePptxScripts();
+        }
+        const pptApi =
+            typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
+        if (pptApi && sessionState && typeof pptApi.exportDutiesPptx === 'function') {
+            await pptApi.exportDutiesPptx(
+                sessionState,
+                homeworkDebateExportMeta(classData, packet, sessionState)
+            );
+            pptOk = true;
+        }
+    } catch (err) {
+        console.error('Duties PPT export failed', err);
+    }
+
+    if (!copied) {
+        showHomeworkCopyStatus(false);
+        return;
+    }
+    if (injectedTeams && sheetOk && pptOk) {
+        setAppStatusMessage(t('homeworkTabCopiedDutiesSheetPpt'), false);
+    } else if (injectedTeams && sheetOk) {
+        setAppStatusMessage(t('homeworkTabCopiedDutiesSheetNoPpt'), false);
+    } else if (injectedTeams && pptOk) {
+        setAppStatusMessage(t('homeworkTabCopiedDutiesPptNoSheet'), false);
+    } else if (injectedTeams) {
+        setAppStatusMessage(t('homeworkTabCopiedWithDuties'), false);
+    } else {
+        setAppStatusMessage(t('homeworkTabCopiedDutiesMissing'), false);
+    }
+}
+
+/**
  * Copy assign homework; for debate Day 3, optionally sync roster, build teams,
- * inject speaking order, then download the level-appropriate Word score sheet.
+ * inject speaking order, then download the level-appropriate Word score sheet
+ * and a roles PPT for class display.
  */
 async function copyHomeworkAssignWithDebateDay3Automation() {
     const state = homeworkEditorState;
@@ -18559,21 +18793,7 @@ async function copyHomeworkAssignWithDebateDay3Automation() {
         return;
     }
 
-    const wantSync = window.confirm(t('homeworkDebateDay3SyncRosterConfirm'));
-    if (wantSync) {
-        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
-            await CCPTabScripts.ensureTabScripts('students');
-        }
-        const roster = typeof CCPClassroomRoster !== 'undefined' ? CCPClassroomRoster : null;
-        if (roster && roster.ensureHooks) {
-            roster.ensureHooks(getClassroomHooks());
-        }
-        if (roster && typeof roster.requestTmsSyncThen === 'function') {
-            await roster.requestTmsSyncThen();
-        } else {
-            setAppStatusMessage(t('homeworkDebateDay3RosterUnavailable'), false);
-        }
-    }
+    await maybeSyncHomeworkDebateRoster();
 
     if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebateCoreScripts) {
         await CCPTabScripts.ensureDebateCoreScripts();
@@ -18639,11 +18859,38 @@ async function copyHomeworkAssignWithDebateDay3Automation() {
         console.error('Day 3 score sheet export failed', err);
     }
 
-    if (copied && sheetOk) {
+    let pptOk = false;
+    try {
+        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebatePptxScripts) {
+            await CCPTabScripts.ensureDebatePptxScripts();
+        }
+        const pptApi =
+            typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
+        if (pptApi && built.sessionState && typeof pptApi.exportRolesPptx === 'function') {
+            await pptApi.exportRolesPptx(
+                built.sessionState,
+                homeworkDebateExportMeta(classData, packet, built.sessionState)
+            );
+            pptOk = true;
+        }
+    } catch (err) {
+        console.error('Day 3 roles PPT export failed', err);
+    }
+
+    if (copied && sheetOk && pptOk) {
+        setAppStatusMessage(
+            built.reused
+                ? t('homeworkDebateDay3CopyReuseSuccessPpt')
+                : t('homeworkDebateDay3CopySuccessPpt'),
+            false
+        );
+    } else if (copied && sheetOk) {
         setAppStatusMessage(
             built.reused ? t('homeworkDebateDay3CopyReuseSuccess') : t('homeworkDebateDay3CopySuccess'),
             false
         );
+    } else if (copied && pptOk) {
+        setAppStatusMessage(t('homeworkDebateDay3CopyPptNoSheet'), false);
     } else if (copied) {
         setAppStatusMessage(t('homeworkDebateDay3CopyNoSheet'), false);
     } else {
@@ -20669,6 +20916,9 @@ function mergeClassroomFieldsFromServer(serverData, options) {
     if (Array.isArray(serverData.essaySubmissions)) {
         appData.essaySubmissions = serverData.essaySubmissions;
     }
+    if (Array.isArray(serverData.essayGroups)) {
+        appData.essayGroups = serverData.essayGroups;
+    }
     if (Array.isArray(serverData.studentPoints)) {
         appData.studentPoints = serverData.studentPoints;
         if (!options || !options.skipPointsNoteReconcile) {
@@ -20737,6 +20987,11 @@ async function saveClassroomPartial(fields, options) {
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'essaySubmissions')) {
             appData.essaySubmissions = fieldBag.essaySubmissions;
         }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'essayGroups')) {
+            appData.essayGroups = Array.isArray(fieldBag.essayGroups)
+                ? fieldBag.essayGroups
+                : [];
+        }
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'studentPoints')) {
             appData.studentPoints = fieldBag.studentPoints;
         }
@@ -20795,6 +21050,7 @@ async function saveClassroomPartial(fields, options) {
             'attendanceSessions',
             'homeworkCompletions',
             'essaySubmissions',
+            'essayGroups',
             'studentPoints',
             'studentTests',
             'debateTeamSessions',
@@ -23258,6 +23514,13 @@ function initHomeworkTabListeners() {
             await copyHomeworkAssignWithDebateDay3Automation();
         });
     }
+    const copyAssignDuties = document.getElementById('homeworkCopyAssignDutiesBtn');
+    if (copyAssignDuties && !copyAssignDuties.dataset.homeworkInit) {
+        copyAssignDuties.dataset.homeworkInit = '1';
+        copyAssignDuties.addEventListener('click', async () => {
+            await copyHomeworkAssignWithSpeakingDuties();
+        });
+    }
     const copyBoth = document.getElementById('homeworkCopyBothBtn');
     if (copyBoth && !copyBoth.dataset.homeworkInit) {
         copyBoth.dataset.homeworkInit = '1';
@@ -23990,6 +24253,12 @@ function initActiveContextUi() {
             getAppData: () => appData,
             t,
             onCohortCleared() {
+                if (!appData.ui) {
+                    appData.ui = {};
+                }
+                // Keep Cohorts board selection in sync so reopening the tab
+                // does not re-apply the list filter from a stale ui id.
+                appData.ui.cohortsTabSelectedId = '';
                 renderClassList();
                 renderEventList();
                 renderHomeworkClassList();
@@ -24050,11 +24319,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     CCPSessionRestore.maybeRestoreLastPath()
                 ) {
                     bootAbortRedirect = true;
+                    clearAuthBootPending();
                     return;
                 }
             } catch (e) {
                 if (e && e.message === 'redirect') {
                     bootAbortRedirect = true;
+                    clearAuthBootPending();
                     return;
                 }
             }
@@ -24127,6 +24398,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyLanguage();
 
         appShellBootComplete = true;
+
+        // Reveal chrome before team sync so a hung/slow sync cannot leave a blank phone screen.
+        clearAuthBootPending();
 
         if (useTeamSync) {
             showCalendarBootLoading(true);
@@ -37861,7 +38135,7 @@ function migrateData(data) {
             migrated = true;
         }
     } else {
-        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'essayGraderSettings', 'speakingTestRecords', 'debateBookDistributions', 'pendingDebateBookChecks', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
+        ['attendanceSessions', 'homeworkCompletions', 'essaySubmissions', 'essayGroups', 'studentPoints', 'studentTests', 'debateTeamSessions', 'debateScores', 'debateCustomFormats', 'essayGraderSettings', 'speakingTestRecords', 'debateBookDistributions', 'pendingDebateBookChecks', 'portfolioRecordings', 'portfolioEntries', 'smsLog'].forEach((key) => {
             if (!Array.isArray(data[key])) {
                 data[key] = [];
                 migrated = true;

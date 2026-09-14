@@ -197,6 +197,93 @@
         }
     };
 
+    /**
+     * Default Present/Rebut scripts by role abbr (AP-style parliamentary).
+     * Applied on generate/regenerate into Tools page textareas.
+     */
+    const ROLE_DEFAULT_DUTIES = {
+        PM: {
+            rebut: '',
+            present: 'Introduce topic and key terms. Arguments to introduce, Prop Clash Point 1'
+        },
+        LO: {
+            rebut: 'Rebut Pro Clash Point 1',
+            present: 'present Opp Clash Point 1'
+        },
+        DPM: {
+            rebut: 'Rebut Opp Clash Point 1',
+            present: 'Introduce Pro Clash Point 2'
+        },
+        DLO: {
+            rebut: 'Rebut Pro Clash Point 2',
+            present: 'Introduce Opp Clash Point 2'
+        },
+        GW: {
+            rebut: '',
+            present: 'Summarize and reinforce Pro'
+        },
+        OW: {
+            rebut: '',
+            present: 'Summarize and reinforce Opp'
+        }
+    };
+
+    function defaultsForRoleAbbr(abbr) {
+        const key = String(abbr || '').trim();
+        if (!key || !ROLE_DEFAULT_DUTIES[key]) {
+            return { rebut: '', present: '' };
+        }
+        return {
+            rebut: ROLE_DEFAULT_DUTIES[key].rebut || '',
+            present: ROLE_DEFAULT_DUTIES[key].present || ''
+        };
+    }
+
+    /** Set present/rebut from role defaults only when both fields are empty. */
+    function applyRoleDefaultDuties(member) {
+        if (!member || !member.role || !member.role.abbr) {
+            return member;
+        }
+        const hasRebut = !!(member.rebut && String(member.rebut).trim());
+        const hasPresent = !!(member.present && String(member.present).trim());
+        if (hasRebut || hasPresent) {
+            return member;
+        }
+        const d = defaultsForRoleAbbr(member.role.abbr);
+        member.rebut = d.rebut;
+        member.present = d.present;
+        return member;
+    }
+
+    function makeMember(name, role) {
+        const member = {
+            name,
+            role: role ? Object.assign({}, role) : null,
+            present: '',
+            rebut: ''
+        };
+        return applyRoleDefaultDuties(member);
+    }
+
+    /** Fill empty present/rebut on all members in a session/engine state. */
+    function fillEmptyRoleDefaultDuties(sessionState) {
+        const src = sessionState || state;
+        let filled = 0;
+        (src.debates || []).forEach((d) => {
+            (d.benches || []).forEach((b) => {
+                (b.members || []).forEach((m) => {
+                    const beforeR = m.rebut;
+                    const beforeP = m.present;
+                    applyRoleDefaultDuties(m);
+                    if (m.rebut !== beforeR || m.present !== beforeP) {
+                        filled += 1;
+                    }
+                });
+            });
+        });
+        return filled;
+    }
+
     const COLORS = {
         gov: '#3d6b5e',
         opp: '#8c4a3f',
@@ -218,6 +305,9 @@
     const showArguments = true;
     const showNotes = true;
     let dragMemberSource = null;
+    /** Last class used for format/sheet defaults (so unchecking purple restores Yeoul sheet). */
+    let formatDefaultClassData = null;
+    let formatDefaultDebateBook = '';
 
     const state = {
         version: 2,
@@ -241,7 +331,8 @@
         return state.purpleMode ? FORMATS.purple.name : baseFmt(state.formatId).name;
     }
 
-    function applyPurpleModeSettings(on) {
+    function applyPurpleModeSettings(on, options) {
+        options = options || {};
         if (on) {
             state.maxTeamSize = 1;
             state.includeReply = false;
@@ -249,7 +340,16 @@
             return;
         }
         state.maxTeamSize = state.includeReply ? 4 : 3;
-        state.sheetTemplate = 'garam';
+        const classData =
+            options.classData !== undefined ? options.classData : formatDefaultClassData;
+        const book =
+            options.debateBook !== undefined ? options.debateBook : formatDefaultDebateBook;
+        const domain = global.CCPClassroomDomain;
+        if (domain && typeof domain.defaultDebateSheetTemplate === 'function') {
+            state.sheetTemplate = domain.defaultDebateSheetTemplate(classData, book);
+        } else {
+            state.sheetTemplate = 'garam';
+        }
     }
 
     function normalizePurpleSession(session) {
@@ -532,12 +632,8 @@
     }
 
     function pushNamedMember(arr, name, roles) {
-        arr.push({
-            name,
-            role: roles[arr.length] ? Object.assign({}, roles[arr.length]) : null,
-            present: '',
-            rebut: ''
-        });
+        const role = roles[arr.length] ? Object.assign({}, roles[arr.length]) : null;
+        arr.push(makeMember(name, role));
     }
 
     /** One simplified two-bench debate (used for BP leftovers and under-6 four-team). */
@@ -641,12 +737,9 @@
             chunk.forEach((name, i) => {
                 const bench = benches.find((x) => x.id === seat[i]);
                 const roles = f.roles[seat[i]];
-                bench.members.push({
-                    name,
-                    role: roles[bench.members.length] ? Object.assign({}, roles[bench.members.length]) : null,
-                    present: '',
-                    rebut: ''
-                });
+                const role =
+                    roles[bench.members.length] ? Object.assign({}, roles[bench.members.length]) : null;
+                bench.members.push(makeMember(name, role));
             });
             out.push({
                 number: out.length + 1,
@@ -665,7 +758,7 @@
         } else if (left.length && out.length) {
             const benches = out[out.length - 1].benches;
             left.forEach((name, i) =>
-                benches[i % benches.length].members.push({ name, role: null, present: '', rebut: '' })
+                benches[i % benches.length].members.push(makeMember(name, null))
             );
         }
         return out;
@@ -1281,6 +1374,86 @@
             }
             text += '\n';
         });
+        navigator.clipboard.writeText(text).then(
+            () => showToast(t('classroomDebateCopySuccess') || 'Results copied to clipboard'),
+            () => showToast(t('classroomDebateCopyFailed') || 'Copy failed — select and copy manually')
+        );
+    }
+
+    /**
+     * Compact speaking-duties text: ROLE (Name) - rebut, present in speaking order.
+     * Always lists every speaker; appends duty text when Present/Rebut are non-empty.
+     */
+    function formatSpeakingDutiesBlock(sessionState) {
+        const src = sessionState || state;
+        const debates = Array.isArray(src.debates) ? src.debates : [];
+        if (!debates.length) {
+            return '';
+        }
+        let text = '';
+        debates.forEach((d) => {
+            if (debates.length > 1) {
+                text += 'DEBATE ' + d.number + '\n';
+            }
+            const f = baseFmt(d.formatId || src.formatId);
+            const rank = new Map();
+            (d.order || f.order || []).forEach((token, i) => {
+                const base = String(token).replace('*', '');
+                const abbr = (f.aliases && f.aliases[base]) || base;
+                if (!rank.has(abbr)) {
+                    rank.set(abbr, i);
+                }
+            });
+            const speakers = [];
+            (d.benches || []).forEach((b) => {
+                (b.members || []).forEach((m) => {
+                    if (!m || !m.name) {
+                        return;
+                    }
+                    const defaults = defaultsForRoleAbbr(m.role && m.role.abbr);
+                    const rebut = (m.rebut && m.rebut.trim()) || defaults.rebut || '';
+                    const present = (m.present && m.present.trim()) || defaults.present || '';
+                    const parts = [];
+                    if (rebut) {
+                        parts.push(rebut);
+                    }
+                    if (present) {
+                        parts.push(present);
+                    }
+                    speakers.push({
+                        name: m.name,
+                        roleAbbr: m.role ? m.role.abbr : '',
+                        duties: parts.join(', '),
+                        _r: m.role && rank.has(m.role.abbr) ? rank.get(m.role.abbr) : 999
+                    });
+                });
+            });
+            speakers.sort((a, b) => a._r - b._r);
+            if (!speakers.length) {
+                return;
+            }
+            speakers.forEach((s) => {
+                const rolePart = s.roleAbbr ? s.roleAbbr + ' (' + s.name + ')' : s.name;
+                text += s.duties ? rolePart + ' - ' + s.duties + '\n' : rolePart + '\n';
+            });
+            text += '\n';
+        });
+        return text.trim();
+    }
+
+    /**
+     * Compact speaking-duties paste for students: ROLE (Name) - rebut, present
+     * in speaking order. Used by Copy duties after Present/Rebut are filled.
+     */
+    function copySpeakingDuties() {
+        fillEmptyRoleDefaultDuties(state);
+        const text = formatSpeakingDutiesBlock(state);
+        if (!text) {
+            showToast(t('classroomDebateCopyDutiesEmpty') || 'Generate teams and fill Present/Rebut first');
+            return;
+        }
+        notifySave();
+        render();
         navigator.clipboard.writeText(text).then(
             () => showToast(t('classroomDebateCopySuccess') || 'Results copied to clipboard'),
             () => showToast(t('classroomDebateCopyFailed') || 'Copy failed — select and copy manually')
@@ -1934,6 +2107,10 @@
                     copyResults();
                     return;
                 }
+                if (target.closest('#debateV2CopyDuties')) {
+                    copySpeakingDuties();
+                    return;
+                }
                 if (target.closest('#debateV2PrintCards')) {
                     printAssignmentCards();
                     return;
@@ -2418,9 +2595,9 @@
 
     function applyClassFormatDefaults(classData, options) {
         options = options || {};
-        if (!isPurpleDebateClass(classData, options.debateBook)) {
-            return;
-        }
+        formatDefaultClassData = classData || null;
+        formatDefaultDebateBook =
+            options.debateBook != null ? String(options.debateBook) : '';
         // Never re-force on stored sessions (onlyIfPristine: false). Brand-new /
         // pristine sessions only — so a saved purpleMode:false always wins.
         if (options.onlyIfPristine === false) {
@@ -2435,9 +2612,21 @@
         if (!pristine) {
             return;
         }
-        state.purpleMode = true;
-        applyPurpleModeSettings(true);
-        render();
+        if (isPurpleDebateClass(classData, options.debateBook)) {
+            state.purpleMode = true;
+            applyPurpleModeSettings(true);
+            render();
+            return;
+        }
+        const domain = global.CCPClassroomDomain;
+        const tpl =
+            domain && typeof domain.defaultDebateSheetTemplate === 'function'
+                ? domain.defaultDebateSheetTemplate(classData, options.debateBook)
+                : 'garam';
+        if (tpl === 'yeoul') {
+            state.sheetTemplate = 'yeoul';
+            render();
+        }
     }
 
     function applyMetadataDefaults(classTitle, hrTeacher, options) {
@@ -2491,6 +2680,8 @@
         generateDebates,
         generateDebatesSilent,
         formatSpeakingOrderBlock,
+        formatSpeakingDutiesBlock,
+        fillEmptyRoleDefaultDuties,
         speakersFromSession,
         buildExportContextFromSession,
         applyMetadataDefaults,
