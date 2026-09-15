@@ -800,6 +800,10 @@
             }
             return;
         }
+        if (nav.type === 'event_notify') {
+            hooks.navigateToTab('events', { eventId: nav.eventId || '' });
+            return;
+        }
         if (nav.type === 'debate_book_check') {
             if (typeof hooks.clearActiveCohortFilter === 'function') {
                 hooks.clearActiveCohortFilter('notification-debate-book-check');

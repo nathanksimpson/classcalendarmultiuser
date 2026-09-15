@@ -420,6 +420,8 @@ The app has **two different filter semantics**. Do not mix them.
 | `allElementary`, `allMiddleSchool` | boolean | Quick school-band includes |
 | `bgColor`, `textColor` | string | Display colors (derived from `accentColor` when set) |
 | `accentColor` | string | Optional calm-palette accent hex (theme-aware tint at render) |
+| `notifyOnStart` | boolean | When true, show an in-app Notifications bell item on the start day (`date` or `startDate`) |
+| `notifyOnEnd` | boolean | When true (range events only), show a bell item on the `endDate`; ignored for single-day events |
 
 If no targeting filters are set, the event applies to all classes. See **Class filter contracts → Applicability filters** above for precedence.
 
