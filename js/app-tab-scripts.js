@@ -3,9 +3,9 @@
  */
 (function (global) {
     const SCRIPT_FEEDBACK_TEMPLATES = 'js/debate/feedback-templates.js?v=20260710-debate-v2';
-    const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20260721-feedback-comments';
-    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20260914-role-duties';
-    const SCRIPT_DEBATE_DUTIES_PPTX = 'js/debate/debate-duties-pptx.js?v=20260914-pptx-big';
+    const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20260915-class-prefix';
+    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20260915-name-first-duties';
+    const SCRIPT_DEBATE_DUTIES_PPTX = 'js/debate/debate-duties-pptx.js?v=20260915-name-first';
     const SCRIPT_PPTXGENJS = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
     const SCRIPT_CLASS_CURRICULUM_SLICES = 'js/class-curriculum-slices.js?v=20260603-curriculum-pipeline';
     const SCRIPT_ROSTER_IMPORT = 'js/roster-import.js?v=20260806-name-marks';
@@ -52,13 +52,14 @@
         briefing: [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-briefing.js?v=20260820-briefing-unique-gtr'
+            'js/classroom-briefing.js?v=20260914-hw-skip-warn'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-homework.js?v=20260806-status-chip',
+            'js/classroom-homework.js?v=20260914-navym-hw',
+            'js/classroom-homework-tms.js?v=20260914-navym-hw'
         ],
         essays: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -103,7 +104,7 @@
             SCRIPT_DEBATE_TEAMS_V2,
             SCRIPT_DEBATE_DUTIES_PPTX,
             'js/classroom-access.js?v=20260911-essay-groups',
-            'js/classroom-debate-teams.js?v=20260907-day3-homework-build'
+            'js/classroom-debate-teams.js?v=20260915-sheet-reuse-fix'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',

@@ -43,7 +43,7 @@ async function main() {
     info.rosterLikeLinks.slice(0, 10).forEach((u) => console.log('  ', u));
 
     console.log('\nScraping rosters (class popup first)…');
-    const scraped = await tms.scrapeRosters();
+    const scraped = await tms.scrapeRosters({ includeHomeworkChecks: true });
     console.log(`Source: ${scraped.meta && scraped.meta.source}`);
     console.log(`Found ${scraped.cohorts.length} cohort(s)`);
     scraped.cohorts.forEach((c) => {
@@ -75,6 +75,29 @@ async function main() {
         'utf8'
     );
     console.log('\nWrote', outPath);
+    const homeworkDump = (scraped.cohorts || []).map((c) => ({
+        className: c.cohortName,
+        tmsClassId: c.tmsClassId,
+        homeworkChecks: c.homeworkChecks || []
+    }));
+    const hwPath = path.join(outDir, 'homework-checks.json');
+    fs.writeFileSync(hwPath, JSON.stringify({ probedAt: new Date().toISOString(), homeworkDump }, null, 2), 'utf8');
+    console.log('Wrote', hwPath);
+    const sampleHw = homeworkDump.find((c) => (c.homeworkChecks || []).some((s) => s.missing || s.selfCheckRaw));
+    if (sampleHw) {
+        console.log(
+            `Homework sample: ${sampleHw.className} (${sampleHw.homeworkChecks.length} students, missing=${
+                sampleHw.homeworkChecks.filter((s) => s.missing).length
+            })`
+        );
+        sampleHw.homeworkChecks.slice(0, 5).forEach((s) => {
+            console.log(
+                `    ${s.name} mpidx=${s.mpidx} missing=${s.missing} self=${s.selfCheckRaw || '—'} parent=${s.parentCheck}`
+            );
+        });
+    } else {
+        console.log('Homework sample: no 숙제확인 / No Check / Hselfcheck values found on class popups.');
+    }
     console.log(
         'Tip: real class names come from class_Main_New_PopUp.aspx. TMS_ROSTER_URLS is only a fallback.'
     );

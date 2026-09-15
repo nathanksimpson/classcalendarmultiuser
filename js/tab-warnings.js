@@ -275,6 +275,29 @@
             };
             out.push(Object.assign({}, warningBase, { tabId: 'syllabus' }));
         }
+        const domainApi = global.CCPClassroomDomain;
+        if (domainApi && typeof domainApi.listHomeworkChronicSkippers === 'function') {
+            const data = typeof hooks.getAppData === 'function' ? hooks.getAppData() : null;
+            const skippers = domainApi.listHomeworkChronicSkippers(
+                data,
+                classData.id,
+                domainApi.todayISO ? domainApi.todayISO() : ''
+            );
+            if (skippers.length) {
+                out.push({
+                    id: `class:${classData.id}:homework_chronic_skip`,
+                    tabId: 'homework-tracking',
+                    severity: 'warn',
+                    messageKey: 'tabWarnHomeworkChronicSkip',
+                    params: { name, count: skippers.length },
+                    navigate: {
+                        type: 'class',
+                        tabId: 'homework-tracking',
+                        classId: classData.id
+                    }
+                });
+            }
+        }
         if (typeof CCPTermDates !== 'undefined' && CCPTermDates.getTermDateRangeISO) {
             const termRange = CCPTermDates.getTermDateRangeISO(appData, {
                 defaultTermCalendarMonths: 3,

@@ -121,6 +121,9 @@
      * @param {Array} [cohorts] optional; otherwise uses setCohortsProvider / appData.cohorts
      */
     function canEditClass(classData, cohorts) {
+        if (classData && classData.isEssayGroup) {
+            return canEditEssayGroup(classData, cohorts);
+        }
         if (canBypass()) {
             return true;
         }
@@ -128,6 +131,42 @@
             return true;
         }
         return isHomeroomForClass(classData, cohorts);
+    }
+
+    /** Essay-only groups: any teacher who can edit at least one class (or bypass). */
+    function canEditEssayGroup(group, cohorts) {
+        if (canBypass()) {
+            return true;
+        }
+        if (!currentUserId()) {
+            return false;
+        }
+        const sourceId = group && group.sourceClassId ? String(group.sourceClassId) : '';
+        const data =
+            typeof global !== 'undefined' && global.appData
+                ? global.appData
+                : typeof window !== 'undefined' && window.appData
+                  ? window.appData
+                  : null;
+        if (sourceId && data && Array.isArray(data.classes)) {
+            const source = data.classes.find((c) => c && c.id === sourceId);
+            if (source) {
+                if (isUserAssignedToClass(source, currentUserId())) {
+                    return true;
+                }
+                if (isHomeroomForClass(source, cohorts || (data && data.cohorts))) {
+                    return true;
+                }
+            }
+        }
+        const classes = (data && data.classes) || [];
+        const cohortList = cohorts || (data && data.cohorts) || [];
+        return classes.some(
+            (c) =>
+                c &&
+                !c.isEssayGroup &&
+                (isUserAssignedToClass(c, currentUserId()) || isHomeroomForClass(c, cohortList))
+        );
     }
 
     function canViewClassroom() {
@@ -155,6 +194,7 @@
         isHomeroomForClass,
         canEditCohortRoster,
         canEditClass,
+        canEditEssayGroup,
         canViewClassroom,
         canDeleteStudentPermanently,
         canArchiveStudent,

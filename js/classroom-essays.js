@@ -186,7 +186,24 @@
 
     function getClassData() {
         const data = getAppData();
-        return (data.classes || []).find((c) => c && c.id === classId) || null;
+        const d = domain();
+        if (d && typeof d.resolveEssayTarget === 'function') {
+            return d.resolveEssayTarget(data, classId);
+        }
+        const fromClasses = (data.classes || []).find((c) => c && c.id === classId) || null;
+        if (fromClasses) {
+            return fromClasses;
+        }
+        if (d && typeof d.findEssayGroup === 'function' && typeof d.essayGroupAsClassView === 'function') {
+            const group = d.findEssayGroup(data, classId);
+            return group ? d.essayGroupAsClassView(group) : null;
+        }
+        return null;
+    }
+
+    function isCurrentEssayGroup() {
+        const classData = getClassData();
+        return Boolean(classData && classData.isEssayGroup);
     }
 
     function getStudents() {
@@ -204,6 +221,25 @@
         );
     }
 
+    function getAccessibleEssayGroups() {
+        const data = getAppData();
+        const d = domain();
+        const cohorts = data.cohorts || [];
+        if (!d || !d.essayGroupAsClassView) {
+            return [];
+        }
+        return (data.essayGroups || [])
+            .map((g) => d.essayGroupAsClassView(g))
+            .filter(
+                (g) =>
+                    g &&
+                    (!access() ||
+                        (access().canEditEssayGroup && access().canEditEssayGroup(g, cohorts)) ||
+                        access().canEditClass(g, cohorts) ||
+                        access().canBypass())
+            );
+    }
+
     function getEssayVisibleClasses(options) {
         // Do NOT rely on CCPClassroomZoneContext here.
         // In production the zone context is not active for Essays, so its internal activeTabId
@@ -218,7 +254,10 @@
         const myClassesOnly = Object.prototype.hasOwnProperty.call(opts, 'myClassesOnly')
             ? Boolean(opts.myClassesOnly)
             : false;
-        const base = getAccessibleClasses();
+        const includeGroups = Object.prototype.hasOwnProperty.call(opts, 'includeGroups')
+            ? Boolean(opts.includeGroups)
+            : true;
+        const base = getAccessibleClasses().concat(includeGroups ? getAccessibleEssayGroups() : []);
         const api = global.CCPEssayClassFilter;
         const d = domain();
         const ctx = {
@@ -250,9 +289,9 @@
             : filtered;
     }
 
-    /** Class picker: all editable classes (so Add assignment works before any essays exist). */
+    /** Class picker: all editable classes + essay groups (so Add assignment works before any essays exist). */
     function getEssayPickerClasses() {
-        return getEssayVisibleClasses({ essaysOnly: false });
+        return getEssayVisibleClasses({ essaysOnly: false, includeGroups: true });
     }
 
     function syncClassIdFromContext() {
@@ -2375,7 +2414,13 @@
             }
             if (target.id === 'classroomEssaysSsDue' && draftSubmission) {
                 draftSubmission.ssDueDate = target.value;
-                if (hooks && typeof hooks.saveHomeworkDueDate === 'function' && classId && syllabusRowId) {
+                if (
+                    hooks &&
+                    typeof hooks.saveHomeworkDueDate === 'function' &&
+                    classId &&
+                    syllabusRowId &&
+                    !isCurrentEssayGroup()
+                ) {
                     hooks.saveHomeworkDueDate(classId, syllabusRowId, target.value);
                 }
                 scheduleSave();
@@ -2527,6 +2572,72 @@
         }
     }
 
+    function updateAddAssignmentConfirmLabel() {
+        const confirmBtn = document.getElementById('essayAddAssignmentConfirm');
+        const list = document.getElementById('essayAddAssignmentClassList');
+        if (!confirmBtn) {
+            return;
+        }
+        if (isCurrentEssayGroup()) {
+            confirmBtn.textContent = t('classroomEssayAddAssignmentConfirm');
+            return;
+        }
+        const checked = list
+            ? list.querySelectorAll('input[type="checkbox"][data-class-id]:checked').length
+            : 1;
+        if (checked > 1) {
+            confirmBtn.textContent = tf('classroomEssayAddAssignmentConfirmMany', { count: checked });
+        } else {
+            confirmBtn.textContent = t('classroomEssayAddAssignmentConfirm');
+        }
+    }
+
+    function renderAddAssignmentClassList(preselectedId) {
+        const list = document.getElementById('essayAddAssignmentClassList');
+        const wrap = document.getElementById('essayAddAssignmentClassListWrap');
+        const classLabel = document.getElementById('essayAddAssignmentClassLabel');
+        if (!list) {
+            return;
+        }
+        if (isCurrentEssayGroup()) {
+            if (wrap) {
+                wrap.hidden = true;
+            }
+            if (classLabel) {
+                const classData = getClassData();
+                classLabel.hidden = false;
+                classLabel.textContent = tf('classroomEssayAddAssignmentForGroup', {
+                    name: (classData && classData.name) || classId
+                });
+            }
+            list.innerHTML = '';
+            return;
+        }
+        if (wrap) {
+            wrap.hidden = false;
+        }
+        if (classLabel) {
+            classLabel.hidden = true;
+            classLabel.textContent = '';
+        }
+        const classes = getAccessibleClasses().slice().sort((a, b) =>
+            String(a.name || a.id).localeCompare(String(b.name || b.id))
+        );
+        list.innerHTML = classes
+            .map((c) => {
+                const checked = c.id === preselectedId ? ' checked' : '';
+                return `<label class="selection-chip checkbox-label">
+                    <input type="checkbox" data-class-id="${escapeAttr(c.id)}"${checked} />
+                    <span>${escapeHtml(c.name || c.id)}</span>
+                </label>`;
+            })
+            .join('');
+        list.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+            input.addEventListener('change', () => updateAddAssignmentConfirmLabel());
+        });
+        updateAddAssignmentConfirmLabel();
+    }
+
     function openAddAssignmentModal(panel) {
         const classData = getClassData();
         const d = domain();
@@ -2543,12 +2654,7 @@
         if (!modal) {
             return;
         }
-        const classLabel = document.getElementById('essayAddAssignmentClassLabel');
-        if (classLabel) {
-            classLabel.textContent = tf('classroomEssayAddAssignmentForClass', {
-                name: classData.name || classData.id
-            });
-        }
+        renderAddAssignmentClassList(classData.id);
         const titleInput = document.getElementById('essayAddAssignmentTitleInput');
         const dateInput = document.getElementById('essayAddAssignmentDateInput');
         if (titleInput) {
@@ -2558,6 +2664,7 @@
             dateInput.value = (d.todayISO && d.todayISO()) || '';
         }
         setAddAssignmentError('');
+        updateAddAssignmentConfirmLabel();
         if (hooks && hooks.openModal) {
             hooks.openModal(modal);
         } else {
@@ -2573,7 +2680,7 @@
         const d = domain();
         const classData = getClassData();
         const panel = panelRef || document.getElementById('panel-essays');
-        if (!d || !d.createCustomEssayAssignment || !classData) {
+        if (!d || !classData) {
             return;
         }
         if (access() && !access().canEditClass(classData) && !access().canBypass()) {
@@ -2582,26 +2689,115 @@
         }
         const title = (document.getElementById('essayAddAssignmentTitleInput')?.value || '').trim();
         const date = (document.getElementById('essayAddAssignmentDateInput')?.value || '').trim();
-        const result = d.createCustomEssayAssignment(classData, { title, date });
-        if (result.error === 'missing_title') {
+
+        if (classData.isEssayGroup) {
+            if (!d.createCustomEssayAssignmentOnGroup || !d.upsertEssayGroup || !d.findEssayGroup) {
+                setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
+                return;
+            }
+            const data = getAppData();
+            const existing = d.findEssayGroup(data, classData.id);
+            if (!existing) {
+                setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
+                return;
+            }
+            const result = d.createCustomEssayAssignmentOnGroup(existing, { title, date });
+            if (result.error === 'missing_title') {
+                setAddAssignmentError(t('classroomEssayAddAssignmentNeedTitle'));
+                return;
+            }
+            if (result.error === 'invalid_date') {
+                setAddAssignmentError(t('classroomEssayAddAssignmentNeedDate'));
+                return;
+            }
+            if (result.error || !result.group || !result.syllabusRowId) {
+                setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
+                return;
+            }
+            const authorUserId = hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+            const upserted = d.upsertEssayGroup(data, result.group, { authorUserId });
+            if (upserted.error) {
+                setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
+                return;
+            }
+            try {
+                if (hooks && hooks.saveClassroom) {
+                    await hooks.saveClassroom({ essayGroups: data.essayGroups });
+                }
+            } catch (err) {
+                setAddAssignmentError(
+                    (err && err.message) || t('classroomEssayAddAssignmentFailed')
+                );
+                return;
+            }
+            closeAddAssignmentModal();
+            syllabusRowId = result.syllabusRowId;
+            lessonDate = date;
+            persistEssayAssignmentForClass(classData.id, result.syllabusRowId);
+            selectedStudentIds.clear();
+            currentFilter = 'all';
+            loadSubmission();
+            if (panel) {
+                render(panel);
+            }
+            refreshZoneContextBar();
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayAddAssignmentDone'));
+            }
+            return;
+        }
+
+        const list = document.getElementById('essayAddAssignmentClassList');
+        const selectedIds = list
+            ? Array.from(list.querySelectorAll('input[type="checkbox"][data-class-id]:checked')).map(
+                  (el) => el.getAttribute('data-class-id')
+              )
+            : [classData.id];
+        const data = getAppData();
+        const cohorts = data.cohorts || [];
+        const targets = selectedIds
+            .map((id) => (data.classes || []).find((c) => c && c.id === id))
+            .filter(
+                (c) =>
+                    c &&
+                    (!access() || access().canEditClass(c, cohorts) || access().canBypass())
+            );
+        if (!targets.length) {
+            setAddAssignmentError(t('classroomEssayAddAssignmentNeedClass'));
+            return;
+        }
+        const batch =
+            targets.length === 1
+                ? (() => {
+                      const one = d.createCustomEssayAssignment(targets[0], { title, date });
+                      return {
+                          error: one.error,
+                          results: one.error ? [] : [one],
+                          updatedClasses: one.error ? [] : [one.classData]
+                      };
+                  })()
+                : d.createCustomEssayAssignmentsForClasses
+                  ? d.createCustomEssayAssignmentsForClasses(targets, { title, date })
+                  : { error: 'missing_helper', results: [], updatedClasses: [] };
+
+        if (batch.error === 'missing_title') {
             setAddAssignmentError(t('classroomEssayAddAssignmentNeedTitle'));
             return;
         }
-        if (result.error === 'invalid_date') {
+        if (batch.error === 'invalid_date') {
             setAddAssignmentError(t('classroomEssayAddAssignmentNeedDate'));
             return;
         }
-        if (result.error || !result.classData || !result.syllabusRowId) {
+        if (batch.error || !batch.updatedClasses.length) {
             setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
             return;
         }
-        const data = getAppData();
-        const idx = (data.classes || []).findIndex((c) => c && c.id === classData.id);
-        if (idx < 0) {
-            setAddAssignmentError(t('classroomEssayAddAssignmentFailed'));
-            return;
-        }
-        data.classes[idx] = result.classData;
+        batch.updatedClasses.forEach((updated) => {
+            const idx = (data.classes || []).findIndex((c) => c && c.id === updated.id);
+            if (idx >= 0) {
+                data.classes[idx] = updated;
+            }
+        });
         try {
             if (typeof global.saveData === 'function') {
                 await Promise.resolve(global.saveData());
@@ -2613,17 +2809,34 @@
             return;
         }
         closeAddAssignmentModal();
-        syllabusRowId = result.syllabusRowId;
+        const stayId = selectedIds.includes(classId) ? classId : selectedIds[0];
+        const stayResult =
+            batch.results.find((r) => r && r.classData && r.classData.id === stayId) ||
+            batch.results[0];
+        if (stayId && stayId !== classId) {
+            classId = stayId;
+            if (hooks && hooks.setUiPref) {
+                hooks.setUiPref('classroomTabClassId', classId);
+            }
+        }
+        syllabusRowId = stayResult ? stayResult.syllabusRowId : '';
         lessonDate = date;
-        persistEssayAssignmentForClass(classData.id, result.syllabusRowId);
+        if (syllabusRowId) {
+            persistEssayAssignmentForClass(classId, syllabusRowId);
+        }
         selectedStudentIds.clear();
         currentFilter = 'all';
         loadSubmission();
         if (panel) {
             render(panel);
         }
+        refreshZoneContextBar();
         if (hooks && hooks.showToast) {
-            hooks.showToast(t('classroomEssayAddAssignmentDone'));
+            hooks.showToast(
+                batch.results.length > 1
+                    ? tf('classroomEssayAddAssignmentDoneMany', { count: batch.results.length })
+                    : t('classroomEssayAddAssignmentDone')
+            );
         }
     }
 
@@ -2646,6 +2859,309 @@
             if (e.key === 'Enter') {
                 e.preventDefault();
                 void confirmAddAssignment();
+            }
+        });
+    }
+
+    let essayGroupModalEditId = '';
+
+    function setEssayGroupModalError(message) {
+        const el = document.getElementById('essayGroupModalError');
+        if (!el) {
+            return;
+        }
+        if (message) {
+            el.hidden = false;
+            el.textContent = message;
+        } else {
+            el.hidden = true;
+            el.textContent = '';
+        }
+    }
+
+    function closeEssayGroupModal() {
+        const modal = document.getElementById('essayGroupModal');
+        if (!modal) {
+            return;
+        }
+        essayGroupModalEditId = '';
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+            modal.hidden = true;
+        }
+    }
+
+    function renderEssayGroupStudentList(sourceClassId, selectedIds) {
+        const list = document.getElementById('essayGroupStudentList');
+        const d = domain();
+        if (!list || !d) {
+            return;
+        }
+        const data = getAppData();
+        const classData = (data.classes || []).find((c) => c && c.id === sourceClassId) || null;
+        const students = classData
+            ? d.resolveStudentsForClass(classData, data.cohorts)
+            : [];
+        const selected = new Set((selectedIds || []).map(String));
+        if (!students.length) {
+            list.innerHTML = `<p class="section-hint">${escapeHtml(t('classroomEssayGroupNoStudents'))}</p>`;
+            return;
+        }
+        list.innerHTML = students
+            .map((entry) => {
+                const student = entry.student;
+                const checked = selected.has(String(student.id)) ? ' checked' : '';
+                const name = student.name || student.nameEn || student.id;
+                return `<label class="selection-chip checkbox-label">
+                    <input type="checkbox" data-student-id="${escapeAttr(student.id)}"${checked} />
+                    <span>${escapeHtml(name)}</span>
+                </label>`;
+            })
+            .join('');
+    }
+
+    function fillEssayGroupSourceClassSelect(preferredId) {
+        const select = document.getElementById('essayGroupSourceClassSelect');
+        if (!select) {
+            return;
+        }
+        const classes = getAccessibleClasses().slice().sort((a, b) =>
+            String(a.name || a.id).localeCompare(String(b.name || b.id))
+        );
+        select.innerHTML = classes
+            .map((c) => {
+                const sel = c.id === preferredId ? ' selected' : '';
+                return `<option value="${escapeAttr(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
+            })
+            .join('');
+        if (!select.value && classes[0]) {
+            select.value = classes[0].id;
+        }
+    }
+
+    function openEssayGroupModal(editGroupId) {
+        const d = domain();
+        const data = getAppData();
+        const modal = document.getElementById('essayGroupModal');
+        if (!modal || !d) {
+            return;
+        }
+        essayGroupModalEditId = editGroupId || '';
+        const titleEl = document.getElementById('essayGroupModalTitle');
+        const deleteBtn = document.getElementById('essayGroupModalDelete');
+        const nameInput = document.getElementById('essayGroupNameInput');
+        const existing = essayGroupModalEditId
+            ? d.findEssayGroup(data, essayGroupModalEditId)
+            : null;
+        if (titleEl) {
+            titleEl.textContent = existing
+                ? t('classroomEssayGroupModalEditTitle')
+                : t('classroomEssayGroupModalCreateTitle');
+        }
+        if (deleteBtn) {
+            deleteBtn.hidden = !existing;
+        }
+        if (nameInput) {
+            nameInput.value = existing ? existing.name : '';
+        }
+        const sourcePreferred =
+            (existing && existing.sourceClassId) ||
+            (!isCurrentEssayGroup() ? classId : '') ||
+            (getAccessibleClasses()[0] && getAccessibleClasses()[0].id) ||
+            '';
+        fillEssayGroupSourceClassSelect(sourcePreferred);
+        const sourceSelect = document.getElementById('essayGroupSourceClassSelect');
+        const sourceId = sourceSelect ? sourceSelect.value : sourcePreferred;
+        renderEssayGroupStudentList(sourceId, existing ? existing.studentIds : []);
+        setEssayGroupModalError('');
+        if (hooks && hooks.openModal) {
+            hooks.openModal(modal);
+        } else {
+            modal.classList.add('active');
+            modal.hidden = false;
+        }
+        if (nameInput) {
+            nameInput.focus();
+        }
+    }
+
+    async function confirmEssayGroupModal() {
+        const d = domain();
+        const data = getAppData();
+        if (!d || !d.upsertEssayGroup) {
+            return;
+        }
+        const name = (document.getElementById('essayGroupNameInput')?.value || '').trim();
+        const sourceClassId =
+            (document.getElementById('essayGroupSourceClassSelect')?.value || '').trim();
+        const studentIds = Array.from(
+            document.querySelectorAll('#essayGroupStudentList input[type="checkbox"][data-student-id]:checked')
+        ).map((el) => el.getAttribute('data-student-id'));
+        if (!name) {
+            setEssayGroupModalError(t('classroomEssayGroupNeedName'));
+            return;
+        }
+        if (!studentIds.length) {
+            setEssayGroupModalError(t('classroomEssayGroupNeedStudents'));
+            return;
+        }
+        const existing = essayGroupModalEditId
+            ? d.findEssayGroup(data, essayGroupModalEditId)
+            : null;
+        const payload = {
+            id: essayGroupModalEditId || undefined,
+            name,
+            studentIds,
+            sourceClassId,
+            assignments: existing && Array.isArray(existing.assignments) ? existing.assignments : []
+        };
+        const authorUserId = hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+        const result = d.upsertEssayGroup(data, payload, { authorUserId });
+        if (result.error === 'missing_students') {
+            setEssayGroupModalError(t('classroomEssayGroupNeedStudents'));
+            return;
+        }
+        if (result.error || !result.group) {
+            setEssayGroupModalError(t('classroomEssayGroupSaveFailed'));
+            return;
+        }
+        try {
+            if (hooks && hooks.saveClassroom) {
+                await hooks.saveClassroom({ essayGroups: data.essayGroups });
+            }
+        } catch (err) {
+            setEssayGroupModalError((err && err.message) || t('classroomEssayGroupSaveFailed'));
+            return;
+        }
+        closeEssayGroupModal();
+        classId = result.group.id;
+        if (hooks && hooks.setUiPref) {
+            hooks.setUiPref('classroomTabClassId', classId);
+        }
+        applyResolvedAssignment(getClassData());
+        selectedStudentIds.clear();
+        loadSubmission();
+        const panel = panelRef || document.getElementById('panel-essays');
+        if (panel) {
+            render(panel);
+        }
+        refreshZoneContextBar();
+        if (hooks && hooks.showToast) {
+            hooks.showToast(t('classroomEssayGroupSaved'));
+        }
+    }
+
+    async function deleteEssayGroupFromModal() {
+        const d = domain();
+        const data = getAppData();
+        if (!d || !d.deleteEssayGroup || !essayGroupModalEditId) {
+            return;
+        }
+        if (
+            typeof global.confirm === 'function' &&
+            !global.confirm(t('classroomEssayGroupDeleteConfirm'))
+        ) {
+            return;
+        }
+        const result = d.deleteEssayGroup(data, essayGroupModalEditId);
+        if (result.error) {
+            setEssayGroupModalError(t('classroomEssayGroupDeleteFailed'));
+            return;
+        }
+        try {
+            if (hooks && hooks.saveClassroom) {
+                await hooks.saveClassroom({
+                    essayGroups: data.essayGroups,
+                    essaySubmissions: data.essaySubmissions
+                });
+            }
+        } catch (err) {
+            setEssayGroupModalError((err && err.message) || t('classroomEssayGroupDeleteFailed'));
+            return;
+        }
+        const deletedId = essayGroupModalEditId;
+        closeEssayGroupModal();
+        if (classId === deletedId) {
+            const next = getEssayPickerClasses()[0];
+            classId = next ? next.id : '';
+            if (hooks && hooks.setUiPref) {
+                hooks.setUiPref('classroomTabClassId', classId);
+            }
+        }
+        applyResolvedAssignment(getClassData());
+        selectedStudentIds.clear();
+        loadSubmission();
+        const panel = panelRef || document.getElementById('panel-essays');
+        if (panel) {
+            render(panel);
+        }
+        refreshZoneContextBar();
+        if (hooks && hooks.showToast) {
+            hooks.showToast(t('classroomEssayGroupDeleted'));
+        }
+    }
+
+    function bindEssayGroupModal() {
+        const modal = document.getElementById('essayGroupModal');
+        if (!modal || modal.dataset.bound === '1') {
+            return;
+        }
+        modal.dataset.bound = '1';
+        document.getElementById('essayGroupModalClose')?.addEventListener('click', () => {
+            closeEssayGroupModal();
+        });
+        document.getElementById('essayGroupModalCancel')?.addEventListener('click', () => {
+            closeEssayGroupModal();
+        });
+        document.getElementById('essayGroupModalConfirm')?.addEventListener('click', () => {
+            void confirmEssayGroupModal();
+        });
+        document.getElementById('essayGroupModalDelete')?.addEventListener('click', () => {
+            void deleteEssayGroupFromModal();
+        });
+        document.getElementById('essayGroupSourceClassSelect')?.addEventListener('change', (e) => {
+            const selected = Array.from(
+                document.querySelectorAll(
+                    '#essayGroupStudentList input[type="checkbox"][data-student-id]:checked'
+                )
+            ).map((el) => el.getAttribute('data-student-id'));
+            renderEssayGroupStudentList(e.target.value, selected);
+        });
+    }
+
+    function syncEssayGroupToolbarButtons(panel) {
+        const root = panel || panelRef || document.getElementById('panel-essays');
+        if (!root) {
+            return;
+        }
+        const editBtn = root.querySelector('#classroomEssaysEditGroupBtn');
+        if (editBtn) {
+            editBtn.hidden = !isCurrentEssayGroup();
+        }
+        const tmsThis = root.querySelector('#classroomEssaysTmsSyncBtn');
+        if (tmsThis) {
+            tmsThis.disabled = isCurrentEssayGroup();
+        }
+        const scrapeBtn = root.querySelector('#classroomEssaysScrapeEditorBtn');
+        if (scrapeBtn) {
+            scrapeBtn.disabled = isCurrentEssayGroup();
+        }
+    }
+
+    function bindEssayGroupToolbar(panel) {
+        const root = panel || document.getElementById('panel-essays');
+        if (!root || root.dataset.essayGroupToolbarBound === '1') {
+            return;
+        }
+        root.dataset.essayGroupToolbarBound = '1';
+        root.querySelector('#classroomEssaysNewGroupBtn')?.addEventListener('click', () => {
+            openEssayGroupModal('');
+        });
+        root.querySelector('#classroomEssaysEditGroupBtn')?.addEventListener('click', () => {
+            if (isCurrentEssayGroup()) {
+                openEssayGroupModal(classId);
             }
         });
     }
@@ -3638,6 +4154,7 @@
         }
         panelRef = panel;
         syncClassIdFromContext();
+        bindEssayGroupToolbar(panel);
         renderHeader(panel);
         renderContextBar(panel);
         renderStatsBar(panel);
@@ -3645,6 +4162,7 @@
         renderToolbarHint(panel);
         renderRows(panel);
         renderFooterHint(panel);
+        syncEssayGroupToolbarButtons(panel);
 
         ensureAutosave(panel);
         if (autosave) {
@@ -4883,6 +5401,7 @@
         bindProgressReportModal();
         bindClassSummaryModal();
         bindAddAssignmentModal();
+        bindEssayGroupModal();
         bindResubmitSummaryModal();
         ensureClassVisibleAfterFilter(document.getElementById('panel-essays'), { silent: true });
         const panel = document.getElementById('panel-essays');

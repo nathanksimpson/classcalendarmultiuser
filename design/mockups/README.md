@@ -5,6 +5,7 @@ Reference HTML from Claude Design for side-by-side implementation verification.
 | File | Scene | Use |
 |------|-------|-----|
 | `essays-redesign.html` | `SCENE-ESSAYS` | Essay panel: deadlines strip, stat bar, two-stage status cells |
+| `classmanager-shell-fixes.html` | Shell / consistency | Row-1 lock/sync, Waiting dashed amber, Debate Books label, segment fade callouts |
 
 ## Verification gate (required before UI PR is done)
 

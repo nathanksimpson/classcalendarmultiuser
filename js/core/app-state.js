@@ -69,6 +69,7 @@
             attendanceSessions: [],
             homeworkCompletions: [],
             essaySubmissions: [],
+            essayGroups: [],
             studentPoints: [],
             studentTests: [],
             debateTeamSessions: [],

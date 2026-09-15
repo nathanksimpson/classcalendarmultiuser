@@ -48,6 +48,24 @@
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
+    function sanitizeClassForFilename(raw) {
+        const cleaned = String(raw || '')
+            .replace(/[^\w\-]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '')
+            .slice(0, 40);
+        return cleaned || 'Class';
+    }
+
+    function wordExportFilename(ctx) {
+        const classPart = sanitizeClassForFilename(ctx && ctx.classTitle);
+        const label = String((ctx && ctx.template && ctx.template.fileLabel) || 'Sheet').replace(
+            '–',
+            '-'
+        );
+        return classPart + '-Debate-Feedback-' + label + '-' + dateForFilename() + '.docx';
+    }
+
     function escapeHtml(text) {
         return String(text || '')
             .replace(/&/g, '&amp;')
@@ -582,7 +600,7 @@
             new Blob([new Uint8Array(out)], {
                 type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             }),
-            'Debate-Feedback-' + ctx.template.fileLabel.replace('–', '-') + '-' + dateForFilename() + '.docx'
+            wordExportFilename(ctx)
         );
     }
 
@@ -651,6 +669,8 @@
         buildScoreSheetPdfHtml,
         buildPrintScoreSheetsHtml,
         normalizeSpeakers,
-        dateForFilename
+        dateForFilename,
+        sanitizeClassForFilename,
+        wordExportFilename
     };
 })(typeof window !== 'undefined' ? window : globalThis);

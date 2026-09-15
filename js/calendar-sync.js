@@ -431,6 +431,7 @@
         merged.attendanceSessions = mergeArrayById(local.attendanceSessions, server.attendanceSessions);
         merged.homeworkCompletions = mergeArrayById(local.homeworkCompletions, server.homeworkCompletions);
         merged.essaySubmissions = mergeArrayById(local.essaySubmissions, server.essaySubmissions);
+        merged.essayGroups = mergeArrayById(local.essayGroups, server.essayGroups);
         merged.studentPoints = mergeArrayById(local.studentPoints, server.studentPoints, 'id');
         merged.studentTests = mergeArrayById(local.studentTests, server.studentTests);
         merged.debateTeamSessions = mergeArrayById(local.debateTeamSessions, server.debateTeamSessions);
@@ -962,6 +963,9 @@
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'essaySubmissions')) {
                 body.essaySubmissions = fields.essaySubmissions;
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'essayGroups')) {
+                body.essayGroups = fields.essayGroups;
+            }
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'studentPoints')) {
                 body.studentPoints = fields.studentPoints;
             }
@@ -1020,6 +1024,12 @@
                         retryBody.essaySubmissions = mergeArrayById(
                             body.essaySubmissions,
                             serverData.essaySubmissions
+                        );
+                    }
+                    if (Array.isArray(body.essayGroups) && Array.isArray(serverData.essayGroups)) {
+                        retryBody.essayGroups = mergeArrayById(
+                            body.essayGroups,
+                            serverData.essayGroups
                         );
                     }
                     if (Array.isArray(body.debateTeamSessions) && Array.isArray(serverData.debateTeamSessions)) {

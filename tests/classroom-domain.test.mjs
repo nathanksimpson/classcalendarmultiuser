@@ -1086,22 +1086,23 @@ const debateClass = {
 };
 assert(d.classUsesDebateTeamAssignments(debateClass), 'debateMonthly class uses debate team assignments');
 assert(!d.classUsesDebateTeamAssignments(genericClass), 'non-debate class does not use assignment picker');
+assert(d.isDebateTeamAssignmentRow(debateClass.syllabusRows[2]), 'Day 3 row is debate team assignment');
 assert(d.isDebateTeamAssignmentRow(debateClass.syllabusRows[3]), 'Day 4 row is debate team assignment');
 assert(!d.isDebateTeamAssignmentRow(debateClass.syllabusRows[0]), 'Day 1 row is not debate team assignment');
 assert(
-    d.getDebateTeamRowsFromSyllabus(debateClass.syllabusRows).length === 2,
-    'two Day 4 rows found for debate class'
+    d.getDebateTeamRowsFromSyllabus(debateClass.syllabusRows).length === 3,
+    'Day 3 + two Day 4 rows found for debate class'
 );
 const debateAssignments = d.listDebateTeamAssignmentsForClass(debateClass);
-assert(debateAssignments.length === 2, 'listDebateTeamAssignmentsForClass returns two Day 4s');
-assert(debateAssignments[0].date === '2026-03-24', 'first debate assignment is March Day 4');
+assert(debateAssignments.length === 3, 'listDebateTeamAssignmentsForClass returns Day 3 + two Day 4s');
+assert(debateAssignments[0].date === '2026-03-17', 'first debate assignment is March Day 3');
 assert(
-    debateAssignments[0].assignmentLabel.includes('Day 4'),
+    debateAssignments[1].assignmentLabel.includes('Day 4'),
     'debate assignment label includes Day 4'
 );
 assert(
-    d.pickDefaultDebateTeamDate(debateClass, '2026-03-01') === '2026-03-24',
-    'default debate date picks soonest Day 4 on or after ref'
+    d.pickDefaultDebateTeamDate(debateClass, '2026-03-01') === '2026-03-17',
+    'default debate date picks soonest Day 3/4 on or after ref'
 );
 assert(
     d.pickDefaultDebateTeamDate(debateClass, '2026-05-01') === '2026-04-28',
@@ -1180,5 +1181,192 @@ const scheduledFallback = d.listDebateTeamAssignmentsForClass(emptySyllabusDebat
 });
 assert(scheduledFallback.length === 2, 'scheduled lesson fallback lists Day 4 dates');
 assert(scheduledFallback[0].date === '2026-05-26', 'fallback first Day 4 date');
+
+{
+    assert(d.isHomeworkMiss('N') === true, 'N is a miss');
+    assert(d.isHomeworkMiss('X') === false, 'X is not a miss');
+    assert(d.isHomeworkMiss('F') === false, 'F is not a miss');
+    assert(d.isHomeworkMiss('A') === false, 'A is not a miss');
+    assert(d.isProtectedHomeworkGrade('A') === true, 'A is protected');
+    assert(d.isProtectedHomeworkGrade('X') === false, 'X is not protected');
+    assert(d.mapTmsHomeworkSelfCheck('매우만족') === 'satisfied', '매우만족 → satisfied');
+    assert(d.mapTmsHomeworkSelfCheck('만족') === 'satisfied', '만족 → satisfied');
+    assert(d.mapTmsHomeworkSelfCheck('불만족') === 'not_checked', '불만족 → not_checked');
+    assert(d.mapTmsHomeworkSelfCheck('보통') === 'not_checked', '보통 → not_checked');
+
+    const hwCompletions = [
+        {
+            id: 'hw1',
+            classId: 'cls1',
+            syllabusRowId: 'r1',
+            lessonDate: '2026-08-20',
+            records: [
+                { studentId: 's1', grade: 'N', selfCheck: 'none', parentCheck: false, note: '' },
+                { studentId: 's2', grade: 'A', selfCheck: 'satisfied', parentCheck: true, note: '' }
+            ]
+        },
+        {
+            id: 'hw2',
+            classId: 'cls1',
+            syllabusRowId: 'r2',
+            lessonDate: '2026-08-25',
+            records: [{ studentId: 's1', grade: 'N', selfCheck: 'none', parentCheck: false, note: '' }]
+        },
+        {
+            id: 'hw3',
+            classId: 'cls1',
+            syllabusRowId: 'r3',
+            lessonDate: '2026-09-01',
+            records: [{ studentId: 's1', grade: 'N', selfCheck: 'none', parentCheck: false, note: '' }]
+        },
+        {
+            id: 'hw4',
+            classId: 'cls1',
+            syllabusRowId: 'r4',
+            lessonDate: '2026-09-10',
+            records: [{ studentId: 's1', grade: 'X', selfCheck: 'none', parentCheck: false, note: '' }]
+        },
+        {
+            id: 'hw-old',
+            classId: 'cls1',
+            syllabusRowId: 'r-old',
+            lessonDate: '2026-07-01',
+            records: [{ studentId: 's1', grade: 'N', selfCheck: 'none', parentCheck: false, note: '' }]
+        },
+        {
+            id: 'hw-other',
+            classId: 'cls2',
+            syllabusRowId: 'r1',
+            lessonDate: '2026-09-01',
+            records: [{ studentId: 's1', grade: 'N', selfCheck: 'none', parentCheck: false, note: '' }]
+        }
+    ];
+    const miss = d.countRecentHomeworkMisses(hwCompletions, 's1', 'cls1', '2026-09-14', 30);
+    assert(miss === 3, `s1 has 3 N in 30 days, got ${miss}`);
+    assert(
+        d.countRecentHomeworkMisses(hwCompletions, 's2', 'cls1', '2026-09-14', 30) === 0,
+        'A is not counted as miss'
+    );
+    assert(
+        d.countRecentHomeworkMisses(hwCompletions, 's1', 'cls1', '2026-09-14', 7) === 0,
+        'window cutoff excludes older N'
+    );
+
+    const skipApp = {
+        classes: [classSingle],
+        cohorts,
+        homeworkCompletions: hwCompletions
+    };
+    const skippers = d.listHomeworkChronicSkippers(skipApp, 'cls1', '2026-09-14');
+    assert(skippers.length === 1, 'one chronic skipper');
+    assert(skippers[0].studentId === 's1' && skippers[0].missCount === 3, 's1 flagged at threshold 3');
+
+    const tmsPlan = d.previewTmsHomeworkSyncPlan(
+        {
+            classes: [classSingle],
+            cohorts,
+            homeworkCompletions: [
+                {
+                    id: 'hw-today',
+                    classId: 'cls1',
+                    syllabusRowId: 'row-today',
+                    lessonDate: '2026-09-14',
+                    records: [
+                        { studentId: 's1', grade: 'A', selfCheck: 'none', parentCheck: false, note: '' },
+                        { studentId: 's2', grade: 'X', selfCheck: 'none', parentCheck: false, note: '' }
+                    ]
+                }
+            ],
+            tmsRosterLinks: {
+                'id:99': { action: 'map', cohortId: 'c1', tmsClassName: 'C1', tmsClassId: '99' }
+            }
+        },
+        {
+            classId: 'cls1',
+            syllabusRowId: 'row-today',
+            tmsClasses: [
+                {
+                    tmsClassId: '99',
+                    className: 'C1',
+                    students: [
+                        {
+                            mpidx: '',
+                            name: 'Kim',
+                            missing: true,
+                            selfCheck: 'satisfied',
+                            parentCheck: true
+                        },
+                        { mpidx: '', name: 'Lee', missing: true, selfCheck: 'not_checked', parentCheck: false },
+                        { mpidx: '999', name: 'Ghost', missing: true }
+                    ]
+                }
+            ]
+        }
+    );
+    const kimUpdate = tmsPlan.updates.find((u) => u.studentId === 's1');
+    const leeUpdate = tmsPlan.updates.find((u) => u.studentId === 's2');
+    assert(kimUpdate && kimUpdate.patch.grade == null, 'do not overwrite A with N');
+    assert(kimUpdate && kimUpdate.patch.selfCheck === 'satisfied', 'self-check still applied on A');
+    assert(kimUpdate && kimUpdate.patch.parentCheck === true, 'parent check applied on A');
+    assert(leeUpdate && leeUpdate.patch.grade === 'N', 'X becomes N from missing');
+    assert(tmsPlan.unmatched.some((u) => u.name === 'Ghost'), 'unmatched TMS student listed');
+
+    const applied = d.applyTmsHomeworkSync(
+        [
+            {
+                id: 'hw-today',
+                classId: 'cls1',
+                syllabusRowId: 'row-today',
+                lessonDate: '2026-09-14',
+                records: [
+                    { studentId: 's1', grade: 'A', selfCheck: 'none', parentCheck: false, note: '' },
+                    { studentId: 's2', grade: 'X', selfCheck: 'none', parentCheck: false, note: '' }
+                ]
+            }
+        ],
+        tmsPlan,
+        { lessonDate: '2026-09-14' }
+    );
+    const saved = d.findHomeworkCompletion(applied, 'cls1', 'row-today');
+    const kimRec = d.getHomeworkRecordForStudent(saved, 's1');
+    const leeRec = d.getHomeworkRecordForStudent(saved, 's2');
+    assert(kimRec.grade === 'A', 'apply keeps A');
+    assert(kimRec.selfCheck === 'satisfied' && kimRec.parentCheck === true, 'apply self/parent on A');
+    assert(leeRec.grade === 'N', 'apply sets N for missing X');
+}
+
+{
+    assert(d.tmsClassNamesMatch('Navy M', 'NavyM_26SP'), 'Navy M matches NavyM_26SP');
+    assert(d.tmsClassNamesMatch('Navy M', 'NavyM^2606'), 'Navy M matches NavyM^2606');
+    assert(!d.tmsClassNamesMatch('Navy M', 'NavyT_26SP'), 'Navy M does not match NavyT');
+    const navyClass = { id: 'cls-navy', name: 'Navy M', cohortIds: ['c-navy'] };
+    const navyRows = d.collectTmsHomeworkStudentsForClass(
+        {
+            classes: [navyClass],
+            cohorts: [
+                {
+                    id: 'c-navy',
+                    name: 'Navy M',
+                    students: [{ id: 's1', name: 'Kim', sortOrder: 0, active: true }]
+                }
+            ],
+            tmsRosterLinks: {}
+        },
+        'cls-navy',
+        [
+            {
+                tmsClassId: '30496',
+                className: 'NavyM_26SP',
+                students: [{ mpidx: '1', name: 'Kim', missing: true }]
+            },
+            {
+                tmsClassId: '30964',
+                className: 'OtherT_26SP',
+                students: [{ mpidx: '2', name: 'Lee', missing: true }]
+            }
+        ]
+    );
+    assert(navyRows.length === 1 && navyRows[0].name === 'Kim', 'Navy M collects only NavyM_26SP rows');
+}
 
 console.log('classroom-domain.test.mjs: all passed');

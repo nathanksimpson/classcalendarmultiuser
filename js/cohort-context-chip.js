@@ -1,5 +1,6 @@
 /**
- * Header chip showing active cohort filter with clear action.
+ * Header chip showing active cohort list filter with clear action.
+ * Label key is contextCohortFilteredTo (internal id stays global via CCPActiveContext).
  */
 (function (global) {
     let hooks = null;
@@ -19,13 +20,22 @@
             .replace(/>/g, '&gt;');
     }
 
-    function resolveCohortName(cohortId) {
+    function resolveCohort(cohortId) {
         if (!cohortId || !hooks) {
-            return '';
+            return null;
         }
         const data = hooks.getAppData ? hooks.getAppData() : {};
-        const cohort = (data.cohorts || []).find((c) => c && c.id === cohortId);
-        return cohort ? cohort.name || cohort.id : cohortId;
+        return (data.cohorts || []).find((c) => c && c.id === cohortId) || null;
+    }
+
+    function clearCohortFilter() {
+        if (typeof global.CCPActiveContext !== 'undefined') {
+            global.CCPActiveContext.set({ cohortId: '' }, { source: 'cohort-chip-clear' });
+        }
+        if (typeof hooks.onCohortCleared === 'function') {
+            hooks.onCohortCleared();
+        }
+        render();
     }
 
     function render() {
@@ -42,22 +52,22 @@
             mount.innerHTML = '';
             return;
         }
-        const name = resolveCohortName(cohortId);
+        const cohort = resolveCohort(cohortId);
+        if (!cohort) {
+            // Stale id (deleted cohort) — drop the filter quietly.
+            clearCohortFilter();
+            return;
+        }
+        const name = cohort.name || cohort.id;
         mount.hidden = false;
         mount.innerHTML = `
-            <span class="selection-chip context-cohort-chip" role="status">
-                <span class="context-cohort-chip__label">${escapeHtml(t('contextCohortWorkingIn'))}</span>
-                <strong class="context-cohort-chip__name">${escapeHtml(name)}</strong>
-                <button type="button" class="btn btn-outline btn-compact context-cohort-chip__clear" id="contextCohortChipClear">${escapeHtml(t('contextCohortClear'))}</button>
+            <span class="context-cohort-chip" role="status">
+                <span class="context-cohort-chip__label">${escapeHtml(t('contextCohortFilteredTo'))}</span>
+                <span class="context-cohort-chip__name">${escapeHtml(name)}</span>
+                <button type="button" class="btn btn-outline btn-compact context-cohort-chip__clear" id="contextCohortChipClear" aria-label="${escapeHtml(t('contextCohortClearAria'))}">${escapeHtml(t('contextCohortClear'))}</button>
             </span>`;
         mount.querySelector('#contextCohortChipClear')?.addEventListener('click', () => {
-            if (typeof global.CCPActiveContext !== 'undefined') {
-                global.CCPActiveContext.set({ cohortId: '' }, { source: 'cohort-chip-clear' });
-            }
-            if (typeof hooks.onCohortCleared === 'function') {
-                hooks.onCohortCleared();
-            }
-            render();
+            clearCohortFilter();
         });
     }
 

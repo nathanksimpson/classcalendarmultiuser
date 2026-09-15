@@ -306,6 +306,32 @@
         return book ? String(book).trim() : '';
     }
 
+    /**
+     * Resolve yeoul vs garam score sheet from live class level + debate book for a date.
+     * Does not depend on Debate Teams UI module state.
+     */
+    function resolveSheetTemplateForClass(classData, dateStr) {
+        const d = domain();
+        if (!d || typeof d.defaultDebateSheetTemplate !== 'function') {
+            return 'garam';
+        }
+        let book = '';
+        if (
+            classData &&
+            dateStr &&
+            global.CCPDebatePeriods &&
+            typeof global.CCPDebatePeriods.getBookForDate === 'function'
+        ) {
+            const raw = global.CCPDebatePeriods.getBookForDate(classData, dateStr);
+            book = raw ? String(raw).trim() : '';
+        }
+        return d.normalizeDebateSheetTemplate
+            ? d.normalizeDebateSheetTemplate(d.defaultDebateSheetTemplate(classData, book))
+            : d.defaultDebateSheetTemplate(classData, book) === 'yeoul'
+              ? 'yeoul'
+              : 'garam';
+    }
+
     function canEdit() {
         const classData = getClassData();
         const a = access();
@@ -663,11 +689,32 @@
             Array.isArray(existing.sessionState.debates) &&
             existing.sessionState.debates.length > 0
         ) {
+            const expectedTpl = resolveSheetTemplateForClass(classData, targetDate);
+            const currentTpl = d.normalizeDebateSheetTemplate
+                ? d.normalizeDebateSheetTemplate(existing.sessionState.sheetTemplate)
+                : existing.sessionState.sheetTemplate === 'yeoul'
+                  ? 'yeoul'
+                  : 'garam';
+            let entry = existing;
+            let sessionState = existing.sessionState;
+            if (expectedTpl !== currentTpl) {
+                sessionState = Object.assign({}, existing.sessionState, {
+                    sheetTemplate: expectedTpl
+                });
+                entry = Object.assign({}, existing, {
+                    sessionState,
+                    updatedAt: new Date().toISOString()
+                });
+                const nextSessions = d.upsertDebateTeamSession(data.debateTeamSessions, entry);
+                if (hooks.saveClassroom) {
+                    await hooks.saveClassroom({ debateTeamSessions: nextSessions });
+                }
+            }
             return {
                 ok: true,
                 reused: true,
-                entry: existing,
-                sessionState: existing.sessionState
+                entry,
+                sessionState
             };
         }
 
@@ -1179,6 +1226,7 @@
         refreshIfActive,
         reloadSessionFromStore,
         ensureHooks,
-        buildAndPersistForHomework
+        buildAndPersistForHomework,
+        resolveSheetTemplateForClass
     };
 })(typeof window !== 'undefined' ? window : globalThis);

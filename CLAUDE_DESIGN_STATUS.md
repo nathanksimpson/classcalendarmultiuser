@@ -31,8 +31,7 @@ Single-page main app (`index.html`) + satellite pages. Vanilla JS (no React). CS
 ```mermaid
 flowchart TB
     subgraph shell [Sticky app shell]
-        R1[Row 1: Brand + tools]
-        LSB[Lock / sync bar]
+        R1[Row 1: Brand + lock/sync + tools]
         R2[Row 2: Zone tabs]
         R3[Row 3: Segment pills + term strip]
     end
@@ -134,13 +133,10 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 ├──────────────────────────────────────────────────────────────────┤
 │ UNIFIED HEADER CARD (.app-header-unified)                         │
 │  ┌─ Row 1 PRIMARY ─────────────────────────────────────────────┐ │
-│  │ ◳ ClassManager │ [spacer] │ 🔔 │ Calendar▾ Print Help ◐ Acct │ │
-│  └───────────────────────────────────────────────────────────────┘ │
-│  ┌─ LOCK/SYNC BAR (#teamLockSyncBar) ───────────────────────────┐ │
-│  │ 🔒 lock skeuo badge │ label │ action │ Details │ saved dot    │ │
+│  │ ◳ ClassManager │ 🔒 lock/sync badge · saved │ 🔔 │ tools… │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 2 ZONES (.app-zone-nav) ────────────────────────────────┐ │
-│  │ Schedule │ Class Setup │ Classroom │ Tools │ Data                      │ │
+│  │ Schedule │ Class Setup │ Classroom │ Tools │ Data            │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 3 SEGMENTS + TERM STRIP ─────────────────────────────────┐ │
 │  │ [segment pills for active zone]     Term name · dates · settings│ │
@@ -157,6 +153,7 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 ### Row 1 — primary tools
 
 - **Brand:** `◳` icon + “ClassManager” (`.app-brand-name`).
+- **Lock / sync (inline):** `#teamLockSyncBar.team-lock-sync-bar--inline` — team-wide edit lock + saved indicator (shell chrome, not a content band).
 - **Calendar menu:** `#teamCalendarMenuBtn` — switch/create team calendars (popover).
 - **My schedule:** `#headerMyScheduleBtn` — teacher-filtered view (role-gated).
 - **Print:** `.btn-header-print` — blue-tinted button (`#eff6ff` / `#1d4ed8`).
@@ -164,17 +161,18 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 - **Theme:** `.btn-header-theme` — toggles `[data-theme="dark"]` on `<html>`.
 - **Account:** avatar trigger → sign out, admin link, view-as (role-gated).
 - **Notifications bell:** `#appWarningsBtn` — setup warnings inbox popover (`#tabWarningsPopover`).
+- **Phone:** utilities collapse behind `#headerToolsOverflowBtn`; brand + lock/sync stay visible.
 
 ### Lock / sync bar
 
-Shown when team sync is active. Contains:
+Shown when team sync is active. Lives **in Row 1** (inline pill). Contains:
 
 - Skeuomorphic padlock button (closed/open SVG states).
 - Status chip label + primary action (Request edit / Release / etc.).
-- Expandable **Details** drawer (who’s editing, pending requests, remote-newer conflict).
+- Expandable **Details** drawer (popover under the badge: who’s editing, pending requests, remote-newer conflict).
 - **All changes saved** green dot (`#teamSyncSavedDot`).
 
-Lock states use semantic tints: free (gray), held (green), blocked (red), pending (amber), waiting (blue).
+Lock states use semantic tints: free (gray), held (green), blocked (red), pending (solid amber), waiting (amber **dashed** border).
 
 ### Zone tabs (`.app-zone-btn`)
 

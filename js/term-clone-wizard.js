@@ -109,11 +109,20 @@
             cloned.attendanceSessions = [];
             cloned.homeworkCompletions = [];
             cloned.essaySubmissions = [];
+            cloned.essayGroups = [];
             cloned.studentPoints = [];
             cloned.studentTests = [];
             cloned.dayNotes = [];
         } else {
             const remapClassId = (id) => idMap.get(id) || id;
+            (cloned.essayGroups || []).forEach((g) => {
+                if (g) {
+                    g.id = newEntityId('eg');
+                    if (g.sourceClassId) {
+                        g.sourceClassId = remapClassId(g.sourceClassId);
+                    }
+                }
+            });
             (cloned.attendanceSessions || []).forEach((s) => {
                 if (s) {
                     s.id = newEntityId('att');

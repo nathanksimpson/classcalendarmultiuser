@@ -927,15 +927,23 @@ function escapeHtmlAttr(value) {
 
 function passwordLoginSuccessHtml(returnTo) {
     const safeUrl = escapeHtmlAttr(returnTo);
+    const safeJsUrl = String(returnTo)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/</g, '\\u003c');
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Signed in</title>
 </head>
 <body>
 <p>Signed in successfully.</p>
 <p><a id="continueLink" href="${safeUrl}">Continue to calendar</a></p>
+<script>
+location.replace('${safeJsUrl}');
+</script>
 </body>
 </html>`;
 }
@@ -1661,6 +1669,18 @@ export default {
             );
         }
 
+        if (path === '/api/tms/homework/preview' && request.method === 'POST') {
+            const blocked = rejectViewAsJson();
+            if (blocked) return blocked;
+            return json(
+                {
+                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
+                    code: 'TMS_BRIDGE_REQUIRED'
+                },
+                503
+            );
+        }
+
         if (path === '/api/teachers' && request.method === 'GET') {
             const calendars = await CalAccess.listCalendarsForUser(env, user);
             const hasCalendarAccess =
@@ -2071,6 +2091,9 @@ export default {
                     }
                     if (Object.prototype.hasOwnProperty.call(body, 'essaySubmissions')) {
                         payload.essaySubmissions = body.essaySubmissions;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(body, 'essayGroups')) {
+                        payload.essayGroups = body.essayGroups;
                     }
                     if (Object.prototype.hasOwnProperty.call(body, 'studentPoints')) {
                         payload.studentPoints = body.studentPoints;

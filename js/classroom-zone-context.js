@@ -135,9 +135,27 @@
         const cohorts = data.cohorts || [];
         // Do not apply active-cohort filter here — Classroom must list every editable class.
         // Cohort filter is for Class Setup sidebars after an intentional Cohorts-board pick.
-        return (data.classes || []).filter(
+        const classes = (data.classes || []).filter(
             (c) => c && (!access() || access().canEditClass(c, cohorts) || access().canBypass())
         );
+        if (activeTabId !== 'essays') {
+            return classes;
+        }
+        const d = domain();
+        if (!d || !d.essayGroupAsClassView) {
+            return classes;
+        }
+        const groups = (data.essayGroups || [])
+            .map((g) => d.essayGroupAsClassView(g))
+            .filter(
+                (g) =>
+                    g &&
+                    (!access() ||
+                        (access().canEditEssayGroup && access().canEditEssayGroup(g, cohorts)) ||
+                        access().canEditClass(g, cohorts) ||
+                        access().canBypass())
+            );
+        return classes.concat(groups);
     }
 
     function getVisibleClasses() {
@@ -331,17 +349,18 @@
     }
 
     function getEssayClassDisplayLabel(classData) {
-        if (!classData) {
-            return '';
-        }
-        return classData.name || classData.id || '';
+        return getClassDisplayLabel(classData);
     }
 
     function getClassDisplayLabel(classData) {
         if (!classData) {
             return '';
         }
-        return classData.name || classData.id || '';
+        const name = classData.name || classData.id || '';
+        if (classData.isEssayGroup) {
+            return t('classroomEssayGroupLabel').replace('{name}', name);
+        }
+        return name;
     }
 
     function getClassPickerItemHtml(classData) {

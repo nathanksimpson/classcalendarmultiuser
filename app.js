@@ -806,7 +806,11 @@ function initAppStoreAndRenderOrchestrator() {
     });
     CCPRenderOrchestrator.register('classNotes', () => {
         if (document.getElementById('classNotesShell') && typeof renderClassNotesTab === 'function') {
-            renderClassNotesTab();
+            if (typeof isTypingInClassDayNoteField === 'function' && isTypingInClassDayNoteField()) {
+                classNotesRenderDeferred = true;
+            } else {
+                renderClassNotesTab();
+            }
         }
         if (!isNotesPage() && typeof refreshNotesPageIfMounted === 'function') {
             refreshNotesPageIfMounted();
@@ -6635,13 +6639,17 @@ function applyClassIdFilterChipColorTiles(rootSelector, inputAttr) {
         return;
     }
     const attr = inputAttr || 'data-event-filter';
-    const classById = new Map((appData.classes || []).map((c) => [c.id, c]));
+    const classById = new Map(
+        (appData.classes || [])
+            .filter((c) => c && c.id != null)
+            .map((c) => [String(c.id), c])
+    );
     root.querySelectorAll('.lesson-filter-chip, .class-notes-class-chip').forEach((label) => {
         const input = label.querySelector(`input[${attr}="classIds"]`);
         if (!input) {
             return;
         }
-        const classData = classById.get(input.value);
+        const classData = classById.get(String(input.value));
         if (!classData) {
             return;
         }
@@ -6659,6 +6667,26 @@ function applyEventApplicabilityClassColorTiles() {
 
 function applyClassNotesFilterClassColorTiles() {
     applyClassIdFilterChipColorTiles('#classNotesFilterClasses', 'data-class-notes-filter');
+    const root = document.getElementById('classNotesFilterClasses');
+    if (!root) {
+        return;
+    }
+    root.querySelectorAll('.class-notes-class-chip').forEach((chip) => {
+        const input = chip.querySelector('input[data-class-notes-filter="classIds"]');
+        if (!input) {
+            return;
+        }
+        const labelText = resolveClassNotesClassFilterLabel(input.value);
+        const span = chip.querySelector('span');
+        if (span && labelText && span.textContent !== labelText) {
+            span.textContent = labelText;
+        }
+        const hay = chip.getAttribute('data-search-hay') || '';
+        const nextHay = labelText.toLowerCase();
+        if (nextHay && !hay.includes(nextHay)) {
+            chip.setAttribute('data-search-hay', [hay, nextHay].filter(Boolean).join(' ').trim());
+        }
+    });
 }
 
 function normalizeLessonFilterSearchQuery(query) {
@@ -9476,6 +9504,7 @@ function initDayNoteMentionFields() {
         setupDayNoteMentionField(addText, () => (
             document.getElementById('classNotesAddClass')?.value || ''
         ));
+        addText.addEventListener('blur', () => scheduleFlushDeferredClassNotesRender());
     }
     const modalText = document.getElementById('classDayNoteText');
     if (modalText && modalText.dataset.mentionInit !== '1') {
@@ -9485,6 +9514,7 @@ function initDayNoteMentionFields() {
                 ? classDayNoteModalState.classId
                 : ''
         ));
+        modalText.addEventListener('blur', () => scheduleFlushDeferredClassNotesRender());
     }
     populateDayNoteCategorySelect(document.getElementById('classNotesAddCategory'));
     populateDayNoteCategorySelect(document.getElementById('classDayNoteCategory'));
@@ -9634,11 +9664,97 @@ function getHomeroomOrderKeys(classIds) {
     });
 }
 
+function findClassDataById(classId) {
+    const cid = String(classId || '').trim();
+    if (!cid || !Array.isArray(appData.classes)) {
+        return null;
+    }
+    return appData.classes.find((c) => c && String(c.id) === cid) || null;
+}
+
+/** True when a label is only an internal id (e.g. mpguocok5upp9l36sdg). */
+function looksLikeInternalClassId(label, classId) {
+    const text = String(label || '').trim();
+    const cid = String(classId || '').trim();
+    if (!text) {
+        return false;
+    }
+    if (cid && text === cid) {
+        return true;
+    }
+    return /^[a-z0-9]{12,}$/i.test(text) && !/\s/.test(text);
+}
+
+function formatRemovedClassNotesFilterLabel(classId) {
+    const cid = String(classId || '').trim();
+    const base = t('classNotesRemovedClass') || 'Removed class';
+    if (!cid || cid.length < 4) {
+        return base;
+    }
+    return `${base} · …${cid.slice(-4)}`;
+}
+
+/** Friendly class label for Notes filter chips / Add select (never show a bare internal id). */
+function resolveClassNotesClassFilterLabel(classIdOrData) {
+    let classData = null;
+    let cid = '';
+    if (classIdOrData && typeof classIdOrData === 'object') {
+        classData = classIdOrData;
+        cid = String(classData.id || '').trim();
+    } else {
+        cid = String(classIdOrData || '').trim();
+        classData = findClassDataById(cid);
+    }
+    if (!classData && cid) {
+        classData = findClassDataById(cid);
+    }
+    if (classData) {
+        const name = String(
+            classData.name || classData.displayName || classData.title || ''
+        ).trim();
+        if (name && !looksLikeInternalClassId(name, cid)) {
+            return name;
+        }
+        const bits = [];
+        const summary = formatClassPeriodSummary(classData);
+        if (summary) {
+            bits.push(`P${summary}`);
+        }
+        const grade = String(classData.grade || '').trim();
+        if (grade) {
+            bits.push(grade);
+        }
+        const level = String(
+            classData.levelCustom || classData.level || classData.levelPreset || ''
+        ).trim();
+        if (level) {
+            bits.push(level);
+        }
+        const book = String(classData.book || '').trim();
+        if (book) {
+            bits.push(book);
+        }
+        if (bits.length) {
+            return bits.join(' · ');
+        }
+    }
+    if (cid) {
+        const meta = resolveDayNoteMeta(cid);
+        const metaName = meta && meta.className ? String(meta.className).trim() : '';
+        if (metaName && !looksLikeInternalClassId(metaName, cid)) {
+            return metaName;
+        }
+        return formatRemovedClassNotesFilterLabel(cid);
+    }
+    return t('editClass') || 'Class';
+}
+
 function resolveDayNoteMeta(classId, displayNameOverride) {
-    const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
+    const cid = String(classId || '').trim();
+    const classData = cid ? findClassDataById(cid) : null;
     if (!classData) {
         return {
-            className: displayNameOverride || classId || '',
+            className: displayNameOverride || cid || '',
             subject: '',
             homeroomKey: HOMEROOM_NONE_KEY,
             homeroomLabel: t('cohortsNoHomeroom')
@@ -10263,7 +10379,7 @@ function populateClassNotesAddClassSelect() {
     classes.forEach((classData) => {
         const opt = document.createElement('option');
         opt.value = classData.id;
-        opt.textContent = classData.name || classData.id;
+        opt.textContent = resolveClassNotesClassFilterLabel(classData);
         select.appendChild(opt);
     });
     const preferred = getPreferredClassIdForNotesAdd();
@@ -11190,13 +11306,35 @@ function syncClassesPanelSegmentUi() {
     }
 }
 
+function getOrphanDayNoteClassIds() {
+    ensureDayNotesArray();
+    const known = new Set(
+        (appData.classes || [])
+            .filter((c) => c && c.id != null)
+            .map((c) => String(c.id).trim())
+    );
+    const orphans = new Set();
+    (appData.dayNotes || []).forEach((note) => {
+        const cid = note && note.classId ? String(note.classId).trim() : '';
+        if (cid && !known.has(cid)) {
+            orphans.add(cid);
+        }
+    });
+    return [...orphans];
+}
+
 function getClassNotesFilterOptionGroups() {
     const subjects = new Map();
     const grades = new Map();
     const homerooms = new Map();
     const cohortsById = buildCohortsByIdMap();
     const classById = new Map();
+    // Only current classes — never list raw internal ids from deleted/missing note classIds.
     getClassesInDisplayOrder().forEach((classData) => {
+        const cid = classData && classData.id != null ? String(classData.id).trim() : '';
+        if (!cid) {
+            return;
+        }
         const subject = getClassSubjectForDayNotes(classData) || '';
         const subjectKey = subject || '__no_subject__';
         subjects.set(subjectKey, subject || (currentLanguage === 'ko' ? '(과목 없음)' : '(No subject)'));
@@ -11206,28 +11344,14 @@ function getClassNotesFilterOptionGroups() {
             : classData.grade);
         const homeroom = resolveHomeroomMetaForClass(classData, cohortsById);
         homerooms.set(homeroom.key, homeroom.label);
-        classById.set(classData.id, {
-            value: classData.id,
-            label: classData.name || classData.id,
-            searchHay: [classData.name, classData.grade, subject, homeroom.label].join(' ').toLowerCase()
-        });
-    });
-    ensureDayNotesArray();
-    (appData.dayNotes || []).forEach((note) => {
-        const cid = note && note.classId ? String(note.classId).trim() : '';
-        if (!cid || classById.has(cid)) {
-            return;
-        }
-        const meta = resolveDayNoteMeta(cid);
-        const subject = meta.subject || '';
-        const subjectKey = subject || '__no_subject__';
-        subjects.set(subjectKey, subject || (currentLanguage === 'ko' ? '(과목 없음)' : '(No subject)'));
-        const gradeKey = LESSON_FILTER_NO_GRADE;
-        grades.set(gradeKey, currentLanguage === 'ko' ? '(학년 없음)' : '(No grade)');
+        const label = resolveClassNotesClassFilterLabel(classData);
         classById.set(cid, {
             value: cid,
-            label: meta.className || cid,
-            searchHay: [meta.className, meta.subject].join(' ').toLowerCase()
+            label,
+            searchHay: [label, classData.name, classData.grade, subject, homeroom.label]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
         });
     });
     const classes = [...classById.values()];
@@ -11381,10 +11505,16 @@ function widenClassNotesDateRangeForNote(dateStr) {
 
 function ensureClassNotesFiltersCoverExistingNotes() {
     ensureDayNotesArray();
+    const known = new Set(
+        (appData.classes || [])
+            .filter((c) => c && c.id != null)
+            .map((c) => String(c.id).trim())
+    );
     const classIds = new Set();
     (appData.dayNotes || []).forEach((note) => {
         const cid = note && note.classId ? String(note.classId).trim() : '';
-        if (cid) {
+        // Only keep chips for classes that still exist — orphans used to appear as raw ids.
+        if (cid && known.has(cid)) {
             classIds.add(cid);
         }
     });
@@ -11991,21 +12121,41 @@ function filterClassNotesWithSidebarFilters(filters, options = {}) {
     const categorySet = options.omitCategoryFilter
         ? undefined
         : (filters.categorySet || undefined);
+    let classIds = filters.classIds.slice();
+    // When every current class chip is selected, also include notes whose class was removed
+    // so history still appears — without putting raw ids into the filter list.
+    const shell = document.getElementById('classNotesShell');
+    const classInputs = shell
+        ? shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`)
+        : [];
+    const allCurrentChecked = classInputs.length > 0
+        && [...classInputs].every((input) => input.checked);
+    if (allCurrentChecked) {
+        getOrphanDayNoteClassIds().forEach((id) => {
+            if (!classIds.includes(id)) {
+                classIds.push(id);
+            }
+        });
+    }
     return api.filterNotes(appData.dayNotes, {
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
-        classIds: filters.classIds,
+        classIds,
         textQuery: filters.textQuery || undefined,
         resolveClassHay: resolveDayNoteSearchHay,
         resolveTaggedStudentHay: resolveTaggedStudentSearchHay,
         matchesMeta: (classId) => {
-            const classData = appData.classes.find((c) => c.id === classId);
-            return !!(classData && classMatchesClassNotesSidebarFilters(classData, filters));
+            const classData = findClassDataById(classId);
+            if (!classData) {
+                // Orphan / removed class notes: allow when included in classIds above.
+                return classIds.includes(String(classId));
+            }
+            return classMatchesClassNotesSidebarFilters(classData, filters);
         },
         categorySet,
         matchesNote: filters.meetingDaysOnly
             ? (note) => {
-                const classData = appData.classes.find((c) => c.id === note.classId);
+                const classData = findClassDataById(note.classId);
                 return !!(classData && classOccursOnIsoDate(classData, note.date));
             }
             : undefined
@@ -12148,11 +12298,50 @@ function buildClassNotesPreviewEntry(note, api, options = {}) {
         buildCategoryBadgeHtml: buildDayNoteCategoryBadgeHtml,
         populateCategorySelect: populateDayNoteCategorySelect,
         getCategorySelectValue: getSelectedDayNoteCategoryId,
-        setupMentionField: setupDayNoteMentionField,
+        setupMentionField: (textarea, getClassId) => {
+            setupDayNoteMentionField(textarea, getClassId);
+            if (textarea && textarea.dataset.classNotesBlurFlush !== '1') {
+                textarea.dataset.classNotesBlurFlush = '1';
+                textarea.addEventListener('blur', () => scheduleFlushDeferredClassNotesRender());
+            }
+        },
         onCancelEdit: () => {
             classNotesEditingId = null;
             renderClassNotesTab();
         }
+    });
+}
+
+function isTypingInClassDayNoteField() {
+    const active = document.activeElement;
+    if (!active || active.tagName !== 'TEXTAREA') {
+        return false;
+    }
+    if (active.id === 'classNotesAddText' || active.id === 'classDayNoteText') {
+        return true;
+    }
+    return active.classList.contains('class-notes-preview-edit-textarea');
+}
+
+function flushDeferredClassNotesRender() {
+    if (!classNotesRenderDeferred) {
+        return;
+    }
+    if (isTypingInClassDayNoteField()) {
+        return;
+    }
+    classNotesRenderDeferred = false;
+    if (document.getElementById('classNotesShell') && typeof renderClassNotesTab === 'function') {
+        renderClassNotesTab();
+    }
+}
+
+function scheduleFlushDeferredClassNotesRender() {
+    if (!classNotesRenderDeferred) {
+        return;
+    }
+    requestAnimationFrame(() => {
+        flushDeferredClassNotesRender();
     });
 }
 
@@ -12507,10 +12696,26 @@ function initClassNotesPanelListeners() {
         syncClassNotesAddFormChrome();
     });
     shell.querySelector('#classNotesClassSearch')?.addEventListener('input', applyClassNotesClassSearch);
-    shell.querySelector('#classNotesTextSearch')?.addEventListener('input', () => {
-        renderClassNotesTab();
-        saveClassNotesFiltersToUi();
-    });
+    const textSearchEl = shell.querySelector('#classNotesTextSearch');
+    if (textSearchEl) {
+        const runClassNotesTextSearch = () => {
+            renderClassNotesTab();
+            saveClassNotesFiltersToUi();
+        };
+        const debouncedClassNotesTextSearch = debounce(runClassNotesTextSearch, 300);
+        textSearchEl.addEventListener('input', () => debouncedClassNotesTextSearch());
+        textSearchEl.addEventListener('change', () => {
+            debouncedClassNotesTextSearch.flush();
+        });
+        textSearchEl.addEventListener('blur', () => {
+            debouncedClassNotesTextSearch.flush();
+        });
+        textSearchEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                debouncedClassNotesTextSearch.flush();
+            }
+        });
+    }
     shell.querySelector('#classNotesFilterClasses')?.addEventListener('change', (e) => {
         if (e.target.matches(`input[${CLASS_NOTES_FILTER_ATTR}]`)) {
             populateClassNotesAddClassSelect();
@@ -14627,6 +14832,8 @@ let classesPanelSegment = 'info';
 let classNotesFiltersBuilt = false;
 /** @type {string|null} */
 let classNotesEditingId = null;
+/** When true, a classNotes orchestrator refresh was skipped because a note textarea has focus. */
+let classNotesRenderDeferred = false;
 /** @type {'class'|'template'|null} */
 let syllabusEditorMode = null;
 
@@ -18616,8 +18823,40 @@ function homeworkDebateExportMeta(classData, packet, sessionState) {
     };
 }
 
+/** Stamp live class-level score sheet onto a debate session before Word/PPT export. */
+function applyHomeworkDebateSheetTemplate(sessionState, classData, dateStr) {
+    if (!sessionState) {
+        return sessionState;
+    }
+    const teamsApi =
+        typeof CCPClassroomDebateTeams !== 'undefined' ? CCPClassroomDebateTeams : null;
+    let tpl = '';
+    if (teamsApi && typeof teamsApi.resolveSheetTemplateForClass === 'function') {
+        tpl = teamsApi.resolveSheetTemplateForClass(classData, dateStr);
+    } else if (
+        typeof CCPClassroomDomain !== 'undefined' &&
+        CCPClassroomDomain.defaultDebateSheetTemplate
+    ) {
+        let book = '';
+        if (
+            classData &&
+            dateStr &&
+            typeof CCPDebatePeriods !== 'undefined' &&
+            CCPDebatePeriods.getBookForDate
+        ) {
+            const raw = CCPDebatePeriods.getBookForDate(classData, dateStr);
+            book = raw ? String(raw).trim() : '';
+        }
+        tpl = CCPClassroomDomain.defaultDebateSheetTemplate(classData, book);
+    }
+    if (tpl === 'yeoul' || tpl === 'garam') {
+        sessionState.sheetTemplate = tpl;
+    }
+    return sessionState;
+}
+
 /**
- * Copy assign homework plus ROLE (Name) - Present/Rebut duties.
+ * Copy assign homework plus Name - ROLE - Present/Rebut duties.
  * Asks to sync roster, builds/reuses teams, injects duties, downloads Word
  * scoresheet + duties PPT.
  */
@@ -18685,6 +18924,7 @@ async function copyHomeworkAssignWithSpeakingDuties() {
         return;
     }
     sessionState = built.sessionState || null;
+    sessionState = applyHomeworkDebateSheetTemplate(sessionState, classData, sessionDate);
 
     const eng = typeof CCPDebateTeamsV2 !== 'undefined' ? CCPDebateTeamsV2 : null;
     if (sessionState && eng) {
@@ -18830,9 +19070,14 @@ async function copyHomeworkAssignWithDebateDay3Automation() {
     }
 
     const eng = typeof CCPDebateTeamsV2 !== 'undefined' ? CCPDebateTeamsV2 : null;
+    const sessionStateForExport = applyHomeworkDebateSheetTemplate(
+        built.sessionState,
+        classData,
+        sessionDate
+    );
     const teamsBlock =
         eng && typeof eng.formatSpeakingOrderBlock === 'function'
-            ? eng.formatSpeakingOrderBlock(built.sessionState)
+            ? eng.formatSpeakingOrderBlock(sessionStateForExport)
             : '';
     if (teamsBlock && mod && typeof mod.injectDebateTeamsIntoAssignText === 'function') {
         body = mod.injectDebateTeamsIntoAssignText(body, teamsBlock);
@@ -18850,7 +19095,7 @@ async function copyHomeworkAssignWithDebateDay3Automation() {
         const exp =
             typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
         if (exp && eng && typeof eng.buildExportContextFromSession === 'function') {
-            const exportOpts = eng.buildExportContextFromSession(built.sessionState);
+            const exportOpts = eng.buildExportContextFromSession(sessionStateForExport);
             const ctx = exp.buildExportContext(exportOpts);
             await exp.exportWord(ctx);
             sheetOk = true;
@@ -18866,10 +19111,10 @@ async function copyHomeworkAssignWithDebateDay3Automation() {
         }
         const pptApi =
             typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
-        if (pptApi && built.sessionState && typeof pptApi.exportRolesPptx === 'function') {
+        if (pptApi && sessionStateForExport && typeof pptApi.exportRolesPptx === 'function') {
             await pptApi.exportRolesPptx(
-                built.sessionState,
-                homeworkDebateExportMeta(classData, packet, built.sessionState)
+                sessionStateForExport,
+                homeworkDebateExportMeta(classData, packet, sessionStateForExport)
             );
             pptOk = true;
         }
