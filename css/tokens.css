@@ -245,8 +245,8 @@ html.ccp-auth-boot body {
     --lock-status-blocked-border: #fecaca;
     --lock-status-pending-bg: #fffbeb;
     --lock-status-pending-border: #fcd34d;
-    --lock-status-waiting-bg: #eff6ff;
-    --lock-status-waiting-border: #93c5fd;
+    --lock-status-waiting-bg: #fffbeb;
+    --lock-status-waiting-border: #f59e0b;
     --banner-warn-bg: #fef3c7;
     --banner-warn-border: #f59e0b;
     --banner-warn-color: #78350f;

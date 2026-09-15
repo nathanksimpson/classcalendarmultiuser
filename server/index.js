@@ -400,6 +400,53 @@ async function runTmsEssayPreview(body) {
     };
 }
 
+async function runTmsHomeworkPreview(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    const bodyUser = String(payload.username || '').trim();
+    const bodyPass = String(payload.password || '');
+    let scrapeOpts = {};
+    if (bodyUser || bodyPass) {
+        if (!bodyUser || !bodyPass) {
+            const err = new Error('TMS username and password are required');
+            err.code = 'TMS_CREDS_MISSING';
+            err.status = 503;
+            throw err;
+        }
+        scrapeOpts = { username: bodyUser, password: bodyPass };
+    }
+    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
+    if (!tmsRoster.credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        err.status = 503;
+        throw err;
+    }
+    const onlyTmsClassIds = [];
+    const onlyTmsClassId = String(payload.tmsClassId || payload.onlyTmsClassId || '').trim();
+    if (onlyTmsClassId) {
+        onlyTmsClassIds.push(onlyTmsClassId);
+        scrapeOpts.onlyTmsClassId = onlyTmsClassId;
+    }
+    (Array.isArray(payload.tmsClassIds) ? payload.tmsClassIds : []).forEach((id) => {
+        const s = String(id || '').trim();
+        if (s && onlyTmsClassIds.indexOf(s) === -1) {
+            onlyTmsClassIds.push(s);
+        }
+    });
+    if (onlyTmsClassIds.length) {
+        scrapeOpts.onlyTmsClassIds = onlyTmsClassIds;
+    }
+    const onlyTmsClassName = String(payload.className || payload.onlyTmsClassName || '').trim();
+    if (onlyTmsClassName) {
+        scrapeOpts.onlyTmsClassName = onlyTmsClassName;
+    }
+    const result = await tmsRoster.scrapeHomeworkChecks(scrapeOpts);
+    return {
+        classes: result.classes || [],
+        meta: result.meta || {}
+    };
+}
+
 async function runTmsEssayContent(body) {
     const payload = body && typeof body === 'object' ? body : {};
     const bodyUser = String(payload.username || '').trim();
@@ -628,20 +675,22 @@ function escapeHtmlAttr(value) {
 
 function passwordLoginSuccessHtml(returnTo) {
     const safeUrl = escapeHtmlAttr(returnTo);
-    const safeDestLog = String(returnTo).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const safeJsUrl = String(returnTo)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/</g, '\\u003c');
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Signed in</title>
 </head>
 <body>
 <p>Signed in successfully.</p>
 <p><a id="continueLink" href="${safeUrl}">Continue to calendar</a></p>
 <script>
-// #region agent log
-fetch('http://127.0.0.1:7819/ingest/66f5e2ef-d4bf-4b46-be19-67f9a9ebf548',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'60e4ed'},body:JSON.stringify({sessionId:'60e4ed',location:'passwordLoginSuccessHtml',message:'success page loaded',data:{dest:'${safeDestLog}',autoRedirect:false},hypothesisId:'H2',timestamp:Date.now(),runId:'post-fix'})}).catch(function(){});
-// #endregion
+location.replace('${safeJsUrl}');
 </script>
 </body>
 </html>`;
@@ -663,21 +712,7 @@ function handlePasswordLogin(req, res, options) {
     const email = req.body.email || req.body.username;
     const password = req.body.password;
     const errorLoginPage = req.path === '/password-login.html' ? '/password-login.html' : '/login.html';
-    // #region agent log
-        agentDebugLog('handlePasswordLogin:entry', 'password login request', {
-            path: req.path,
-            htmlSuccess,
-            redirect,
-            bodyKeys: Object.keys(req.body || {}),
-            hasEmailField: Boolean(email),
-            hasPasswordField: Boolean(password),
-            contentType: req.headers['content-type'] || ''
-        }, 'H1');
-        // #endregion
     if (users.activeUserHasNoPassword(email)) {
-        // #region agent log
-        agentDebugLog('handlePasswordLogin:branch', 'password_not_set', { path: req.path, status: 302 }, 'H1');
-        // #endregion
         if (redirect) {
             passwordLoginErrorRedirect(res, returnTo, 'password_not_set', errorLoginPage);
             return;
@@ -690,12 +725,6 @@ function handlePasswordLogin(req, res, options) {
     }
     const user = users.findUserByEmailPassword(email, password);
     if (!user) {
-        // #region agent log
-        agentDebugLog('handlePasswordLogin:branch', 'invalid_password', {
-            path: req.path,
-            status: redirect ? 302 : 401
-        }, 'H1');
-        // #endregion
         if (redirect) {
             passwordLoginErrorRedirect(res, returnTo, 'invalid_password', errorLoginPage);
             return;
@@ -707,31 +736,13 @@ function handlePasswordLogin(req, res, options) {
     setSessionCookie(res, session.token, session.maxAgeSec);
     const dest = loginRedirectAfterAuth(user, returnTo);
     if (htmlSuccess) {
-        // #region agent log
-        agentDebugLog('handlePasswordLogin:branch', 'html_success_302', {
-            path: req.path,
-            status: 302,
-            dest,
-            hasCalendarAccess: dest.indexOf('pending-access') < 0
-        }, 'H8');
-        // #endregion
         res.redirect(302, dest);
         return;
     }
     if (redirect) {
-        // #region agent log
-        agentDebugLog('handlePasswordLogin:branch', 'redirect_302', { path: req.path, status: 302, dest }, 'H1');
-        // #endregion
         res.redirect(302, dest);
         return;
     }
-    // #region agent log
-    agentDebugLog('handlePasswordLogin:branch', 'json_success', {
-        path: req.path,
-        status: 200,
-        dest
-    }, 'H7');
-    // #endregion
     res.json({
         id: user.id,
         email: user.email,
@@ -1380,6 +1391,15 @@ app.post('/api/tms/essays/content', requireUser, rejectViewAsWrites, async (req,
     }
 });
 
+/** TMS homework-check preview (class popup 숙제확인) — body credentials preferred. */
+app.post('/api/tms/homework/preview', requireUser, rejectViewAsWrites, async (req, res) => {
+    try {
+        return res.json(await runTmsHomeworkPreview(req.body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
+    }
+});
+
 /**
  * Live-site → localhost bridge (no ClassManager session).
  * Only loopback; CORS allowlisted for classmanager.live so Sync can use the work PC IP.
@@ -1443,6 +1463,22 @@ app.post('/api/tms/bridge/essays/content', async (req, res) => {
         if (err && err.code === 'TMS_ESSAY_ROWS_MISSING') {
             return res.status(400).json({ error: err.message, code: err.code });
         }
+        return sendTmsPreviewError(res, err);
+    }
+});
+
+app.options('/api/tms/bridge/homework/preview', (req, res) => {
+    applyTmsBridgeCors(req, res);
+    res.status(204).end();
+});
+
+app.post('/api/tms/bridge/homework/preview', async (req, res) => {
+    if (!requireTmsBridgeLoopback(req, res)) {
+        return;
+    }
+    try {
+        return res.json(await runTmsHomeworkPreview(req.body));
+    } catch (err) {
         return sendTmsPreviewError(res, err);
     }
 });
@@ -1938,6 +1974,7 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         attendanceSessions,
         homeworkCompletions,
         essaySubmissions,
+        essayGroups,
         studentPoints,
         studentTests,
         debateTeamSessions,
@@ -1964,6 +2001,9 @@ app.put('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'essaySubmissions')) {
             payload.essaySubmissions = essaySubmissions;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'essayGroups')) {
+            payload.essayGroups = essayGroups;
         }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'studentPoints')) {
             payload.studentPoints = studentPoints;

@@ -29,6 +29,7 @@
 | `attendanceSessions` | array | Per-class daily attendance (see below) — schema v3 |
 | `homeworkCompletions` | array | Per-assignment homework grades (see below) — schema v3 |
 | `essaySubmissions` | array | Per-assignment essay submission status (see below) — schema v3 |
+| `essayGroups` | array | Essay-only student groups (Tools → Essays; not real classes) |
 | `studentPoints` | array | Phase 2 stub — point ledger entries (empty on migrate) |
 | `studentTests` | array | Phase 2 stub — test scores |
 | `debateTeamSessions` | array | Debate Teams session state per class+date |
@@ -156,13 +157,28 @@ One record per class per syllabus lesson row (essay assignment). Keyed by `class
 | Field | Type | Notes |
 |-------|------|--------|
 | `id` | string | Stable id |
-| `classId` | string | Links to `classes[].id` |
-| `syllabusRowId` | string | Links to a lesson row in `classes[].syllabusRows` |
+| `classId` | string | Links to `classes[].id`, **or** an `essayGroups[].id` for essay-only groups |
+| `syllabusRowId` | string | Links to a lesson row in `classes[].syllabusRows` or `essayGroups[].assignments` |
 | `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
 | `ssDueDate` | string | Student submission due (`YYYY-MM-DD`, optional override) |
 | `teacherEvalDueDate` | string | Teacher evaluation due (`YYYY-MM-DD`, optional override) |
 | `records[]` | array | `{ studentId, status, submittedRetest, debateVideoMissing, note, submissionLate, overdueDismissed }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` (+ `incomplete`, `exempt` in code). `submissionLate`: teacher marked the submission late (not inferred from when Received was clicked). `overdueDismissed`: teacher cleared overdue after verifying e.g. TMS shows on time. `debateVideoMissing`: teacher marked debate video missing (NV warning). |
 | `authorUserId` | string | Last editor |
+| `updatedAt` | string | ISO-8601 |
+
+### `essayGroups[]` (optional)
+
+Essay-only student groups (Tools → Essays). Not real classes — never shown on the calendar or Class Setup.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | Stable id (also used as `essaySubmissions[].classId` for group assignments) |
+| `name` | string | Display name |
+| `studentIds` | string[] | Stable student ids from cohorts |
+| `sourceClassId` | string | Optional class id where students were picked from |
+| `assignments[]` | array | Same shape as syllabus essay rows (`id`, `kind`, `date`, `planTitle`, `trackEssay`, …) |
+| `authorUserId` | string | Creator / last editor |
+| `createdAt` | string | ISO-8601 |
 | `updatedAt` | string | ISO-8601 |
 
 ### `debateBookDistributions[]` (optional, schema v3)

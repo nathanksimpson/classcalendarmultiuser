@@ -6,6 +6,10 @@
         if (!classData || !domainApi) {
             return false;
         }
+        // Essay-only groups always stay visible so you can add the first assignment.
+        if (classData.isEssayGroup) {
+            return true;
+        }
         const rows = domainApi.getEssayRowsFromSyllabus(classData.syllabusRows, {
             classData
         });
@@ -15,6 +19,10 @@
     function classIsMine(classData, userId, deps) {
         if (!classData || !userId) {
             return false;
+        }
+        // Essay groups already filtered by access; keep them when "Mine" is on.
+        if (classData.isEssayGroup) {
+            return true;
         }
         if (deps && typeof deps.classIsMine === 'function') {
             return deps.classIsMine(classData, userId);

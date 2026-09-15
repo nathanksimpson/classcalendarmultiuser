@@ -16,6 +16,7 @@ function assert(cond, msg) {
 
 function loadDebateEngine(options = {}) {
     const utilsCode = readFileSync(path.join(root, 'js', 'utils.js'), 'utf8');
+    const domainCode = readFileSync(path.join(root, 'js', 'classroom-domain.js'), 'utf8');
     const engineCode = readFileSync(path.join(root, 'js', 'debate', 'debate-teams-v2.js'), 'utf8');
     const mountHtml = readFileSync(
         path.join(root, 'templates', 'classroom-debate-teams-body.html'),
@@ -160,9 +161,11 @@ function loadDebateEngine(options = {}) {
     };
 
     vm.runInNewContext(utilsCode, sandbox);
+    vm.runInNewContext(domainCode, sandbox);
     vm.runInNewContext(engineCode, sandbox);
     const api = sandbox.CCPDebateTeamsV2;
     assert(api, 'CCPDebateTeamsV2 loaded');
+    assert(sandbox.CCPClassroomDomain, 'CCPClassroomDomain loaded');
 
     const bridge = {
         canEdit: () => true,
@@ -348,6 +351,62 @@ function loadDebateEngine(options = {}) {
     assert(st.sheetTemplate === 'yeoul', 'purple defaults to yeoul score sheet');
     assert(!api.isPurpleDebateClass({ levelPreset: 'Garam' }, ''), 'garam class is not purple debate');
     assert(api.isPurpleDebateClass({ levelPreset: 'Purple' }, ''), 'purple preset detected');
+    assert(!api.isPurpleDebateClass({ levelPreset: 'Yeoul' }, ''), 'Yeoul is not purple debate mode');
+    assert(!api.isPurpleDebateClass({ levelPreset: 'Saemmul' }, ''), 'Saemmul is not purple debate mode');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Yeoul' }, { debateBook: 'Yeoul Debate', onlyIfPristine: true });
+    let st = api.collectState();
+    assert(!st.purpleMode, 'Yeoul does not enable purple mode');
+    assert(st.sheetTemplate === 'yeoul', 'Yeoul defaults to yeoul score sheet');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Saemmul' }, { debateBook: '샘물 Debate', onlyIfPristine: true });
+    st = api.collectState();
+    assert(!st.purpleMode, 'Saemmul does not enable purple mode');
+    assert(st.sheetTemplate === 'yeoul', 'Saemmul defaults to yeoul score sheet');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Garam' }, { debateBook: 'Garam Debate', onlyIfPristine: true });
+    st = api.collectState();
+    assert(!st.purpleMode, 'Garam stays off purple mode');
+    assert(st.sheetTemplate === 'garam', 'Garam stays on garam score sheet');
 }
 
 {
@@ -386,6 +445,25 @@ function loadDebateEngine(options = {}) {
     api.applyPurpleModeSettings(false);
     st = api.collectState();
     assert(st.maxTeamSize === 4, 'unchecking purple with reply restores max team size to 4');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    api.applyClassFormatDefaults({ levelPreset: 'Yeoul' }, { debateBook: 'Yeoul Debate', onlyIfPristine: true });
+    api.applyPurpleModeSettings(true);
+    api.applyPurpleModeSettings(false);
+    st = api.collectState();
+    assert(st.sheetTemplate === 'yeoul', 'unchecking purple on Yeoul class restores yeoul sheet');
 }
 
 {
@@ -845,6 +923,57 @@ function loadDebateEngine(options = {}) {
     const block = api.formatSpeakingOrderBlock(sessionState);
     assert(typeof block === 'string' && block.trim().length > 0, 'speaking order block is non-empty');
     assert(/PM|LO|DPM|DLO|GW|OW/i.test(block), 'speaking order block includes role labels');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
+        students: ['Ann', 'Ben'],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: 'Yeoul Class',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                order: ['PM', 'LO'],
+                benches: [
+                    {
+                        label: 'Proposition',
+                        members: [
+                            {
+                                name: 'Ann',
+                                role: { abbr: 'PM', name: 'Prime Minister' },
+                                rebut: '',
+                                present: 'Introduce topic'
+                            }
+                        ]
+                    },
+                    {
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Ben',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' },
+                                rebut: 'Rebut Pro',
+                                present: 'Opp point'
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    });
+    const duties = api.formatSpeakingDutiesBlock(api.collectState());
+    assert(duties.includes('Ann - PM - Introduce topic'), 'duties paste is name-first for PM');
+    assert(duties.includes('Ben - LO - Rebut Pro, Opp point'), 'duties paste is name-first for LO');
+    assert(!/PM \(Ann\)/.test(duties), 'duties paste no longer uses ROLE (Name)');
 }
 
 console.log('classroom-debate-teams.test.mjs: all passed');

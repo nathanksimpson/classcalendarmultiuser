@@ -32,7 +32,7 @@
 
 | Persona | Primary goals | Typical scenes |
 |---------|---------------|----------------|
-| **Classroom teacher** | Daily attendance, homework tracking, notes, copy homework text for external sites | Classroom zone, Homework copy, Notes |
+| **Classroom teacher** | Daily attendance, homework tracking, notes, essays, copy homework text for external sites | Classroom zone, Tools → Essays, Homework copy, Notes |
 | **Curriculum lead** | Books, syllabi, class setup, term events | Class Setup zone |
 | **Head teacher / admin** | Cohort board, timetable conflicts, user access, system policy | Cohorts board, Timetable, Admin |
 | **New team member** | Get calendar access, learn the app | Auth, Pending access, Help |
@@ -58,6 +58,7 @@ flowchart TB
         schedule[Schedule zone]
         classSetup[Class Setup zone]
         classroom[Classroom zone]
+        toolsZone[Tools zone]
         dataZone[Data zone]
     end
     login --> kakao
@@ -74,28 +75,29 @@ flowchart TB
 
 ### Main app navigation (SPA)
 
-Three levels inside [`index.html`](index.html), driven by [`app.js`](app.js) `ZONE_SEGMENT_TO_TAB`:
+Two-level nav inside [`index.html`](index.html), driven by [`app.js`](app.js) `ZONE_SEGMENT_TO_TAB` (zone → segment → panel):
 
 | Zone | Segments | Panel ID |
 |------|----------|----------|
 | **Schedule** | Calendar, Events, Homework copy, Timetable | `panel-calendar`, `panel-events`, `panel-homework`, `panel-timetable` |
 | **Class Setup** | All classes, Cohorts, Books, Syllabi | `panel-classes`, `panel-cohorts`, `panel-curriculum`, `panel-syllabus` |
-| **Classroom** | Students, Attendance, Ledger, Homework, Essays, Points, Tests, Notes | 8 panels (`panel-students` … `panel-notes`) |
-| **Data** | Data | `panel-data` |
+| **Classroom** | Briefing, Students, Attendance, Ledger, Homework, Points, Tests, Notes | `panel-briefing`, `panel-students` … `panel-notes` |
+| **Tools** | Essays, Debate Teams, Debate Scores, Books, Speaking Test | `panel-essays`, `panel-debate-teams`, `panel-debate-scores`, `panel-debate-books`, `panel-speaking-test` |
+| **Data** (`data-zone="more"` — label **Data**) | Data (no segment panel) | `panel-data` |
 
-**Hidden/archived segments** (still in DOM): Command Center (`panel-command-center`), Teachers (`panel-teachers`), Portfolio (disabled segment button).
+**Hidden/archived segments** (still in DOM): Command Center (`panel-command-center`), Teachers (`panel-teachers`), Portfolio (disabled segment button; no panel).
 
-**URL deep links:** `/?zone=schedule&segment=calendar` (zone + segment persist in URL).
+**URL deep links:** `/?zone=schedule&segment=calendar` (zone + segment persist in URL). Legacy `?zone=setup-hub` → Class Setup → Cohorts; `?zone=more` still opens Data.
 
 ### App shell (every SPA scene)
 
 Shared chrome on all `index.html` panels — see shell diagram in [`CLAUDE_DESIGN_BRIEF.md`](CLAUDE_DESIGN_BRIEF.md):
 
 ```text
-Row 1 — Tools: Calendar menu · Display · Print · Help · Account
-Row 2 — Zone tabs: Schedule | Class Setup | Classroom | Data
-Row 3 — Segment pills + term summary strip (collapsed term settings by default)
+Row 1 — Header tools: Calendar menu · Display · Print · Help · Account
 Lock/sync bar — collaborative edit status, saved indicator
+Row 2 — Zone tabs: Schedule | Class Setup | Classroom | Tools | Data
+Row 3 — Segment pills + term summary strip (collapsed term settings by default)
 Main content — active tab panel
 ```
 
@@ -324,7 +326,7 @@ Each scene uses a consistent template. **Scene IDs** are for design requests (e.
 
 ### Classroom zone
 
-**Shared context bar** (`classroomZoneContextBar`): class picker + date — persists across Attendance, Ledger, Homework, Essays, Points, Tests via [`js/classroom-zone-context.js`](js/classroom-zone-context.js).
+**Shared context bar** (`classroomZoneContextBar`): class picker + date — persists across Classroom sheets (Attendance, Ledger, Homework, Points, Tests, Notes) via [`js/classroom-zone-context.js`](js/classroom-zone-context.js). Tools zone panels (Essays, Debate, Speaking) use their own headers where needed.
 
 #### `SCENE-ROSTER` — Students
 
@@ -370,19 +372,6 @@ Each scene uses a consistent template. **Scene IDs** are for design requests (e.
 | **Layout** | Sheet with checks column |
 | **Data** | `classroom` (`homeworkCompletions`) |
 
-#### `SCENE-ESSAYS` — Essay assignments
-
-| Field | Detail |
-|-------|--------|
-| **Panel** | `panel-essays` |
-| **Goal** | Manage essay assignments, grading status, batch actions |
-| **Layout** | Zone context bar + assignment bar + deadlines strip + pipeline stat bar + student sheet |
-| **Regions** | 1) `#classroomZoneContextBar` (class + date + toggles) 2) Assignment selector 3) Collapsible deadlines strip with overdue pills 4) Pipeline stat bar (progress track + filter chips) 5) Toolbar batch actions 6) Sheet rows: Submission → Evaluation (retest inline on Resubmit only) |
-| **Actions** | Mark received; Complete / Resubmit; batch retest; progress report print |
-| **Data** | `classroom` (`essaySubmissions`) — autosave, no lock |
-| **Modals** | `essayProgressReportModal` |
-| **Reference** | `design/mockups/essays-redesign.html` |
-
 #### `SCENE-POINTS` — Point ledger
 
 | Field | Detail |
@@ -411,6 +400,35 @@ Each scene uses a consistent template. **Scene IDs** are for design requests (e.
 | **Regions** | 1) Filters (date, class, category) 2) Add note form 3) Note cards 4) Promo link to mobile app |
 | **Data** | `dayNotes` |
 | **Exit** | `notes.html` (mobile) |
+
+---
+
+### Tools zone
+
+Assessment and activity tools that share classroom data but live outside the daily Classroom sheet strip.
+
+#### `SCENE-ESSAYS` — Essay assignments
+
+| Field | Detail |
+|-------|--------|
+| **Panel** | `panel-essays` |
+| **Entry** | Tools → Essays |
+| **Goal** | Manage essay assignments, grading status, batch actions |
+| **Layout** | Assignment bar + deadlines strip + pipeline stat bar + student sheet |
+| **Regions** | 1) Class/assignment context 2) Assignment selector 3) Collapsible deadlines strip with overdue pills 4) Pipeline stat bar (progress track + filter chips) 5) Toolbar batch actions 6) Sheet rows: Submission → Evaluation (retest inline on Resubmit only) |
+| **Actions** | Mark received; Complete / Resubmit; batch retest; progress report print |
+| **Data** | `classroom` (`essaySubmissions`) — autosave, no lock |
+| **Modals** | `essayProgressReportModal` |
+| **Reference** | `design/mockups/essays-redesign.html` |
+
+#### Debate & speaking (Tools)
+
+| Scene / segment | Panel | Goal |
+|-----------------|-------|------|
+| Debate Teams | `panel-debate-teams` | Team builder / speaking order |
+| Debate Scores | `panel-debate-scores` | Score sheet for Day 4 dates |
+| Books (debate) | `panel-debate-books` | Debate book progress (distinct from Class Setup → Books) |
+| Speaking Test | `panel-speaking-test` | Speaking test session UI |
 
 ---
 
@@ -718,9 +736,10 @@ Whole-app focus — areas where Claude Design can propose improvements:
 
 | Area | Current issue | Design opportunity |
 |------|---------------|-------------------|
-| **Navigation depth** | 4 zones × up to 8 segments × modals | Flatten IA; consider task-based home; mobile bottom nav |
-| **Naming collision** | "Homework copy" (Schedule) vs "Homework" (Classroom) | Clearer labels/icons; contextual subtitles |
-| **Classroom zone** | 8 similar spreadsheet tabs | Unified class session bar + shared row grammar (in progress) |
+| **Navigation depth** | 5 zones × up to ~8 segments × modals | Flatten IA; consider task-based home; mobile bottom nav |
+| **Naming collision** | "Homework copy" (Schedule) vs "Homework" (Classroom); "Books" in Class Setup vs Tools | Clearer labels/icons; contextual subtitles |
+| **Classroom zone** | Multiple similar spreadsheet tabs | Unified class session bar + shared row grammar (in progress) |
+| **Tools vs Classroom** | Essays/Debate under Tools while daily sheets stay in Classroom | Wayfinding clarity for classroom-teacher daily flow |
 | **Cohort detail** | Class detail now on Cohorts board | Timetable preview removed — link to canonical Timetable segment |
 | **Lock bar** | Dense multi-line status | Compact status + expandable drawer; mobile-first layout |
 | **Syllabus editor** | Large tables + sticky toolbar | Clearer save affordance; row density modes |
@@ -745,7 +764,7 @@ Whole-app focus — areas where Claude Design can propose improvements:
 | `SCENE-COHORTS` | Class Setup | Curriculum lead | Yes |
 | `SCENE-COMMAND-CENTER` | Schedule (archived) | Classroom teacher | Yes |
 | `SCENE-DATA` | Data | Admin / lead | Varies |
-| `SCENE-ESSAYS` | Classroom | Classroom teacher | No |
+| `SCENE-ESSAYS` | Tools | Classroom teacher | No |
 | `SCENE-EVENTS` | Schedule | Curriculum lead | Yes |
 | `SCENE-HELP` | help.html | New user | — |
 | `SCENE-HOMEWORK-COPY` | Schedule | Classroom teacher | Yes (reads) |
@@ -784,7 +803,7 @@ Copy after pasting both design briefs:
 
 1. **Navigation:** "Using both design briefs, propose a simplified navigation model that reduces zone/segment depth without losing Classroom features. Show desktop and mobile."
 
-2. **Classroom zone:** "Redesign the Classroom zone with a shared session header and tabbed sheets — light and dark mode. Scene IDs: SCENE-ATTENDANCE through SCENE-NOTES-DESKTOP."
+2. **Classroom zone:** "Redesign the Classroom zone with a shared session header and tabbed sheets — light and dark mode. Scene IDs: SCENE-ATTENDANCE through SCENE-NOTES-DESKTOP (Essays is Tools → SCENE-ESSAYS)."
 
 3. **Mobile attendance:** "Design a mobile-first attendance flow that could replace or complement SCENE-ATTENDANCE. Follow the design brief tokens."
 
@@ -798,4 +817,4 @@ Copy after pasting both design briefs:
 
 ---
 
-*Aligned with `index.html`, `app.js` ZONE_SEGMENT_TO_TAB, and workflow modules — July 2026.*
+*Aligned with `index.html`, `app.js` ZONE_SEGMENT_TO_TAB, and workflow modules — September 2026 (5-zone IA including Tools).*

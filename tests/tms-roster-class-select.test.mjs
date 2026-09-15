@@ -149,6 +149,68 @@ const FIXTURE_CLASS_SELECT = `
     assert(students[1].name === '김민수', 'second 김민수');
     assert(!students.some((s) => s.name === '매우만족'), 'no 매우만족');
     assert(!students.some((s) => /숙제확인/.test(s.name)), 'no 숙제확인');
+    const hwChecks = tms.parseHomeworkChecksFromClassPopup(html);
+    const jo = hwChecks.find((s) => s.mpidx === '137338');
+    assert(jo, 'homework check parsed for 조하연');
+    assert(jo.missing === true, 'No Check → missing');
+    assert(jo.selfCheck === 'satisfied', 'Hselfcheck 매우만족 → satisfied');
+    assert(jo.parentCheck === false, '학부모확인 label alone is not parentCheck');
+}
+
+{
+    const html = `
+      <td><a href="javascript:studentinf(20001)">박서준</a></td>
+      <td>
+        <label><input type="checkbox" name="Hparentcheck" value="Y" checked> 학부모확인</label>
+        <input type="hidden" name="Hselfcheck" value="보통">
+        <input type="hidden" name="HHmpidx" value="20001">
+      </td>
+    `;
+    const hw = tms.parseHomeworkChecksFromClassPopup(html);
+    const row = hw.find((s) => s.mpidx === '20001');
+    assert(row && row.parentCheck === true, 'checked parent checkbox → parentCheck');
+    assert(row.selfCheck === 'not_checked', '보통 → not_checked');
+    assert(row.missing === false, 'no No Check → not missing');
+}
+
+{
+    const html = `
+      <td class="TL">
+        <a href="StudentPopup.aspx?mpidx=137338">조하연</a>
+        <input type="hidden" name="repe1$ctl00$Hselfcheck" value="매우만족">
+        <input type="hidden" name="repe1$ctl00$HHmpidx" value="137338">
+        <a href="#">No Check</a>
+      </td>
+      <td class="TL">
+        <a href="StudentPopup.aspx?mpidx=135691">김민수</a>
+        <span>셀프체크 X</span>
+        <input type="hidden" name="repe1$ctl01$Hselfcheck" value="보통">
+        <input type="hidden" name="repe1$ctl01$HHmpidx" value="135691">
+      </td>
+    `;
+    const hw = tms.parseHomeworkChecksFromClassPopup(html);
+    const jo = hw.find((s) => s.mpidx === '137338');
+    const min = hw.find((s) => s.mpidx === '135691');
+    assert(jo && jo.missing === true, 'StudentPopup No Check → missing');
+    assert(jo && jo.selfCheck === 'satisfied', 'prefixed Hselfcheck 매우만족');
+    assert(min && min.missing === true, '셀프체크 X → missing');
+    assert(min && min.selfCheck === 'not_checked', 'prefixed 보통 → not_checked');
+    const merged = tms.mergeStudentsWithHomeworkChecks(
+        [
+            { mpidx: '137338', name: '조하연', nameEn: 'Alice' },
+            { mpidx: '999', name: 'Ghost' }
+        ],
+        hw
+    );
+    const mergedJo = merged.find((s) => s.mpidx === '137338');
+    assert(mergedJo && mergedJo.missing === true && mergedJo.nameEn === 'Alice', 'merge keeps roster English + homework flags');
+    assert(merged.some((s) => s.mpidx === '999'), 'merge keeps roster student without homework row');
+}
+
+{
+    assert(tms.tmsClassNamesMatch('Navy M', 'NavyM_26SP'), 'Navy M ↔ NavyM_26SP');
+    assert(tms.tmsClassNamesMatch('Navy M', 'NavyM^2606'), 'Navy M ↔ NavyM^2606');
+    assert(!tms.tmsClassNamesMatch('Navy M', 'NavyT_26SP'), 'Navy M does not match NavyT');
 }
 
 {

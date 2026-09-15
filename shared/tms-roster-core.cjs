@@ -963,6 +963,262 @@ function parseStudentsFromHtml(html) {
     return parseStudentsFromClassPopup(html);
 }
 
+function mapTmsHomeworkSelfCheckValue(raw) {
+    const s = String(raw || '').trim();
+    if (!s) {
+        return '';
+    }
+    if (/불만족/.test(s)) {
+        return 'not_checked';
+    }
+    if (/매우만족/.test(s) || /(^|[^불])만족/.test(s)) {
+        return 'satisfied';
+    }
+    if (
+        /보통/.test(s) ||
+        /no\s*check/i.test(s) ||
+        /셀프체크\s*X/i.test(s) ||
+        /self-?check\s*(off|x)/i.test(s) ||
+        /미확인/.test(s)
+    ) {
+        return 'not_checked';
+    }
+    return '';
+}
+
+/** Navy M ↔ NavyM_26SP / NavyM^2606 — ignore spaces, term suffixes, and ^ marks. */
+function tmsClassNamesMatch(localName, tmsName) {
+    const compact = (s) =>
+        String(s || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '');
+    const core = (s) =>
+        compact(s)
+            .replace(/[_^].*$/, '')
+            .replace(/[^a-z0-9\uac00-\ud7a3]/g, '');
+    const a = core(localName);
+    const b = core(tmsName);
+    return Boolean(a && b && a === b);
+}
+
+function matchPrefixedHiddenValue(html, leaf) {
+    const src = String(html || '');
+    const re = new RegExp(
+        `name=["'][^"']*${leaf}["'][^>]*value=["']([^"']*)["']|value=["']([^"']*)["'][^>]*name=["'][^"']*${leaf}["']`,
+        'i'
+    );
+    const m = src.match(re);
+    return m ? decodeHtmlEntities(m[1] || m[2] || '') : '';
+}
+
+function collectPrefixedHiddenValues(html, leaf) {
+    const src = String(html || '');
+    const re = new RegExp(`name=["']([^"']*${leaf})["'][^>]*value=["']([^"']*)["']`, 'gi');
+    const out = [];
+    let m;
+    while ((m = re.exec(src))) {
+        out.push({ name: m[1], value: decodeHtmlEntities(m[2] || '') });
+    }
+    return out;
+}
+
+function mergeStudentsWithHomeworkChecks(students, checks) {
+    const byMpidx = new Map();
+    (Array.isArray(checks) ? checks : []).forEach((row) => {
+        const id = String((row && row.mpidx) || '').trim();
+        if (id) {
+            byMpidx.set(id, row);
+        }
+    });
+    const seen = new Set();
+    const merged = [];
+    (Array.isArray(students) ? students : []).forEach((s) => {
+        if (!s) {
+            return;
+        }
+        const id = String(s.mpidx || '').trim();
+        const hw = id ? byMpidx.get(id) : null;
+        if (id) {
+            seen.add(id);
+        }
+        merged.push({
+            mpidx: id,
+            name: String((hw && hw.name) || s.name || '').trim(),
+            nameEn: String((hw && hw.nameEn) || s.nameEn || '').trim(),
+            selfCheck: (hw && hw.selfCheck) || '',
+            selfCheckRaw: (hw && hw.selfCheckRaw) || '',
+            parentCheck: Boolean(hw && hw.parentCheck),
+            missing: Boolean(hw && hw.missing)
+        });
+    });
+    (Array.isArray(checks) ? checks : []).forEach((row) => {
+        const id = String((row && row.mpidx) || '').trim();
+        if (!id || seen.has(id)) {
+            return;
+        }
+        seen.add(id);
+        merged.push({
+            mpidx: id,
+            name: String((row && row.name) || '').trim(),
+            nameEn: String((row && row.nameEn) || '').trim(),
+            selfCheck: row.selfCheck || '',
+            selfCheckRaw: row.selfCheckRaw || '',
+            parentCheck: Boolean(row.parentCheck),
+            missing: Boolean(row.missing)
+        });
+    });
+    return merged;
+}
+
+function isTruthyTmsFlag(raw) {
+    const s = String(raw || '')
+        .trim()
+        .toLowerCase();
+    return s === '1' || s === 'y' || s === 'yes' || s === 'true' || s === 'on' || s === '확인';
+}
+
+/**
+ * Per-student 숙제확인 from the TMS class popup (self-check, parent check, No Check).
+ * Does not change roster name parsing.
+ */
+function parseHomeworkChecksFromClassPopup(html) {
+    const raw = String(html || '');
+    const byMpidx = new Map();
+
+    function upsert(mpidx, patch) {
+        const id = String(mpidx || '').trim();
+        if (!id) {
+            return;
+        }
+        const prev = byMpidx.get(id) || {
+            mpidx: id,
+            name: '',
+            nameEn: '',
+            selfCheck: '',
+            selfCheckRaw: '',
+            parentCheck: false,
+            missing: false
+        };
+        byMpidx.set(id, Object.assign(prev, patch));
+    }
+
+    const studentInfRe =
+        /javascript:\s*studentinf\s*\(\s*['"]?(\d+)['"]?\s*\)[^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = studentInfRe.exec(raw))) {
+        const mpidx = m[1];
+        const innerText = stripInvisibleNameNoise(stripTags(decodeHtmlEntities(m[2])));
+        const parsed = parseTmsStudentNameParts(innerText);
+        const afterStart = m.index + m[0].length;
+        const rest = raw.slice(afterStart);
+        const nextStudent = rest.search(
+            /javascript:\s*studentinf\s*\(|StudentPopup\.aspx\?[^"'>\s]*mpidx=|\bclass_select\b/i
+        );
+        const windowHtml = nextStudent >= 0 ? rest.slice(0, nextStudent) : rest.slice(0, 8000);
+        const windowText = stripTags(decodeHtmlEntities(windowHtml));
+        let selfCheckRaw = matchPrefixedHiddenValue(windowHtml, 'Hselfcheck');
+        if (!selfCheckRaw) {
+            const vis = windowText.match(/매우만족|불만족|셀프체크\s*X|만족|보통/i);
+            if (vis) {
+                selfCheckRaw = vis[0];
+            }
+        }
+        const missing =
+            /\bNo\s*Check\b/i.test(windowText) || /셀프체크\s*X/i.test(windowText);
+        let parentCheck = false;
+        const parentRaw =
+            matchPrefixedHiddenValue(windowHtml, 'Hparentcheck') ||
+            matchPrefixedHiddenValue(windowHtml, 'Hparent');
+        if (parentRaw && isTruthyTmsFlag(parentRaw)) {
+            parentCheck = true;
+        } else if (
+            /학부모[^<]{0,120}checked|checked[^<]{0,120}학부모/i.test(windowHtml) ||
+            /name=["'][^"']*parent[^"']*["'][^>]*checked/i.test(windowHtml)
+        ) {
+            parentCheck = true;
+        }
+        const enMatch =
+            windowHtml.match(/\(\s*<a[^>]*>\s*([^<]+?)\s*<\/a>\s*\)/i) ||
+            windowHtml.match(/\(\s*([A-Za-z][A-Za-z\s.'-]{0,40})\s*\)/);
+        let nameEn = '';
+        if (enMatch) {
+            nameEn = stripInvisibleNameNoise(stripTags(decodeHtmlEntities(enMatch[1])));
+        }
+        upsert(mpidx, {
+            name: parsed.name || innerText,
+            nameEn,
+            selfCheckRaw,
+            selfCheck: mapTmsHomeworkSelfCheckValue(selfCheckRaw),
+            parentCheck,
+            missing
+        });
+    }
+
+    const popupRe =
+        /(?:href|onclick)\s*=\s*["'][^"']*StudentPopup\.aspx\?[^"']*mpidx=(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+    while ((m = popupRe.exec(raw))) {
+        if (byMpidx.has(String(m[1]))) {
+            continue;
+        }
+        const innerText = stripInvisibleNameNoise(stripTags(decodeHtmlEntities(m[2])));
+        const parsed = parseTmsStudentNameParts(innerText);
+        const afterStart = m.index + m[0].length;
+        const rest = raw.slice(afterStart);
+        const nextStudent = rest.search(
+            /javascript:\s*studentinf\s*\(|StudentPopup\.aspx\?[^"'>\s]*mpidx=|\bclass_select\b/i
+        );
+        const windowHtml = nextStudent >= 0 ? rest.slice(0, nextStudent) : rest.slice(0, 8000);
+        const windowText = stripTags(decodeHtmlEntities(windowHtml));
+        let selfCheckRaw = matchPrefixedHiddenValue(windowHtml, 'Hselfcheck');
+        if (!selfCheckRaw) {
+            const vis = windowText.match(/매우만족|불만족|셀프체크\s*X|만족|보통/i);
+            if (vis) {
+                selfCheckRaw = vis[0];
+            }
+        }
+        let parentCheck = false;
+        const parentRaw =
+            matchPrefixedHiddenValue(windowHtml, 'Hparentcheck') ||
+            matchPrefixedHiddenValue(windowHtml, 'Hparent');
+        if (parentRaw && isTruthyTmsFlag(parentRaw)) {
+            parentCheck = true;
+        } else if (/name=["'][^"']*parent[^"']*["'][^>]*checked/i.test(windowHtml)) {
+            parentCheck = true;
+        }
+        upsert(m[1], {
+            name: parsed.name || innerText,
+            nameEn: '',
+            selfCheckRaw,
+            selfCheck: mapTmsHomeworkSelfCheckValue(selfCheckRaw),
+            parentCheck,
+            missing: /\bNo\s*Check\b/i.test(windowText) || /셀프체크\s*X/i.test(windowText)
+        });
+    }
+
+    const mpidxList = collectPrefixedHiddenValues(raw, 'HHmpidx');
+    const selfList = collectPrefixedHiddenValues(raw, 'Hselfcheck');
+    if (mpidxList.length && mpidxList.length === selfList.length) {
+        mpidxList.forEach((entry, i) => {
+            const id = String(entry.value || '').trim();
+            if (!/^\d+$/.test(id)) {
+                return;
+            }
+            const selfCheckRaw = selfList[i] ? selfList[i].value : '';
+            const prev = byMpidx.get(id);
+            if (prev && prev.selfCheckRaw) {
+                return;
+            }
+            upsert(id, {
+                selfCheckRaw,
+                selfCheck: mapTmsHomeworkSelfCheckValue(selfCheckRaw)
+            });
+        });
+    }
+
+    return Array.from(byMpidx.values());
+}
+
 /**
  * Extract inner HTML of the first element matching class_select (balanced tags).
  * Non-greedy([\s\S]*?)</div> truncates when an <li> contains a nested <div>.
@@ -1241,7 +1497,8 @@ function mergeCohortLists(lists) {
                 students: [],
                 source: c.source || '',
                 schedule: c.schedule || null,
-                tmsHomeroomName: c.tmsHomeroomName || ''
+                tmsHomeroomName: c.tmsHomeroomName || '',
+                homeworkChecks: Array.isArray(c.homeworkChecks) ? c.homeworkChecks.slice() : []
             });
         }
         const bucket = byKey.get(key);
@@ -1256,6 +1513,22 @@ function mergeCohortLists(lists) {
         }
         if (!bucket.tmsHomeroomName && c.tmsHomeroomName) {
             bucket.tmsHomeroomName = c.tmsHomeroomName;
+        }
+        if (Array.isArray(c.homeworkChecks) && c.homeworkChecks.length) {
+            const seenHw = new Set(
+                (bucket.homeworkChecks || []).map((h) => String((h && h.mpidx) || ''))
+            );
+            if (!Array.isArray(bucket.homeworkChecks)) {
+                bucket.homeworkChecks = [];
+            }
+            c.homeworkChecks.forEach((row) => {
+                const id = String((row && row.mpidx) || '');
+                if (!id || seenHw.has(id)) {
+                    return;
+                }
+                seenHw.add(id);
+                bucket.homeworkChecks.push(row);
+            });
         }
         const seenNames = new Set(bucket.students.map((s) => s.name));
         const seenMpidx = new Set(
@@ -2255,7 +2528,33 @@ async function scrapeRosters(options) {
             // Chain ViewState across postbacks so each class switch matches the TMS UI.
             let currentHtml = popupPage.text;
             let previousStudents = parseStudentsFromClassPopup(currentHtml);
-            for (const cls of classList.slice(0, 80)) {
+            const includeHomeworkChecks = Boolean(cfg.includeHomeworkChecks);
+            const onlyTmsClassIds = [];
+            const oneTmsClassId = String(cfg.onlyTmsClassId || '').trim();
+            if (oneTmsClassId) {
+                onlyTmsClassIds.push(oneTmsClassId);
+            }
+            (Array.isArray(cfg.onlyTmsClassIds) ? cfg.onlyTmsClassIds : []).forEach((id) => {
+                const s = String(id || '').trim();
+                if (s && onlyTmsClassIds.indexOf(s) === -1) {
+                    onlyTmsClassIds.push(s);
+                }
+            });
+            const onlyTmsClassName = String(cfg.onlyTmsClassName || cfg.className || '').trim();
+            const idSet = new Set(onlyTmsClassIds);
+            const hasClassFilter = idSet.size > 0 || Boolean(onlyTmsClassName);
+            const walkList = hasClassFilter
+                ? classList.filter((c) => {
+                      if (idSet.has(String(c.tmsClassId))) {
+                          return true;
+                      }
+                      return Boolean(
+                          onlyTmsClassName && tmsClassNamesMatch(onlyTmsClassName, c.cohortName)
+                      );
+                  })
+                : classList.slice(0, 80);
+            const classesToWalk = walkList.length ? walkList : classList.slice(0, 80);
+            for (const cls of classesToWalk) {
                 const getUrl = `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(cls.tmsClassId)}`;
                 let students = [];
                 let source = 'class-popup';
@@ -2444,7 +2743,11 @@ async function scrapeRosters(options) {
                     students,
                     source,
                     schedule: schedule || null,
-                    tmsHomeroomName: tmsHomeroomName || ''
+                    tmsHomeroomName: tmsHomeroomName || '',
+                    homeworkChecks:
+                        includeHomeworkChecks && accepted
+                            ? parseHomeworkChecksFromClassPopup(currentHtml)
+                            : []
                 });
             }
         }
@@ -2476,6 +2779,20 @@ async function scrapeRosters(options) {
                 ? 'class-popup'
                 : 'legacy'
         }
+    };
+}
+
+async function scrapeHomeworkChecks(options) {
+    const result = await scrapeRosters(
+        Object.assign({}, options || {}, { includeHomeworkChecks: true })
+    );
+    return {
+        classes: (result.cohorts || []).map((c) => ({
+            tmsClassId: String(c.tmsClassId || ''),
+            className: String(c.cohortName || ''),
+            students: mergeStudentsWithHomeworkChecks(c.students, c.homeworkChecks)
+        })),
+        meta: result.meta || {}
     };
 }
 
@@ -2514,6 +2831,11 @@ module.exports = {
     fetchPage,
     stillOnLoginPage,
     scrapeRosters,
+    scrapeHomeworkChecks,
+    parseHomeworkChecksFromClassPopup,
+    mapTmsHomeworkSelfCheckValue,
+    tmsClassNamesMatch,
+    mergeStudentsWithHomeworkChecks,
     scrapeEssaySubmissions,
     scrapeEssayContents,
     fetchEssayDetail,

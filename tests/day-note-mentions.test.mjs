@@ -307,4 +307,34 @@ assert(
     'exact insertLabel match scores higher than prefix'
 );
 
+const labelsA = mentions.collectInsertLabelsForClass('class-1', cohorts, classes);
+const labelsB = mentions.collectInsertLabelsForClass('class-1', cohorts, classes);
+assert(labelsA === labelsB, 'collectInsertLabelsForClass returns cached array for same roster fingerprint');
+assert(
+    labelsA.some((e) => e.studentId === 'stu-1' && e.label === 'Purple T: 김민지'),
+    'collectInsertLabelsForClass includes Class: Name insert label'
+);
+
+const completedThenTyping = '@Purple T: 김민지 was late and quiet.';
+const completedThenTypingTa = makeMockTextarea(completedThenTyping, completedThenTyping.length);
+const completedThenTypingCtx = mentions.getMentionQueryAtCursor(completedThenTypingTa, mentionOpts);
+assert(
+    completedThenTypingCtx === null,
+    'getMentionQueryAtCursor stays null while typing after a completed @mention'
+);
+
+const midCompletedMention = '@Purple T: 김민지 was';
+const midCompletedTa = makeMockTextarea(midCompletedMention, midCompletedMention.length);
+assert(
+    mentions.getMentionQueryAtCursor(midCompletedTa, mentionOpts) === null,
+    'getMentionQueryAtCursor stays null mid-sentence after completed mention'
+);
+
+const openQueryAfterSpace = makeMockTextarea('@Min', 4);
+const openQueryCtx = mentions.getMentionQueryAtCursor(openQueryAfterSpace, mentionOpts);
+assert(
+    openQueryCtx && openQueryCtx.query === 'Min',
+    'getMentionQueryAtCursor still returns active query while composing a mention'
+);
+
 console.log('day-note-mentions.test.mjs: all passed');

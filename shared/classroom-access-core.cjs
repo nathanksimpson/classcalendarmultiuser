@@ -108,6 +108,21 @@ function assertCanEditClass(user, calendarData, classId) {
     if (userCanBypass(user)) {
         return null;
     }
+    const groups = (calendarData && calendarData.essayGroups) || [];
+    const group = groups.find((g) => g && g.id === classId);
+    if (group) {
+        if (group.sourceClassId) {
+            const sourceErr = assertCanEditClass(user, calendarData, group.sourceClassId);
+            if (!sourceErr) {
+                return null;
+            }
+        }
+        const editable = classesForUser(user, calendarData);
+        if (editable && editable.length) {
+            return null;
+        }
+        return 'You can only edit classroom data for classes you teach or where you are the homeroom teacher';
+    }
     const cls = ((calendarData && calendarData.classes) || []).find((c) => c && c.id === classId);
     if (!cls || !userCanEditClass(user, calendarData, cls)) {
         return 'You can only edit classroom data for classes you teach or where you are the homeroom teacher';
@@ -240,6 +255,17 @@ function validateEssayChange(user, calendarData, prevList, nextList) {
         }
     }
     return null;
+}
+
+function validateEssayGroupsChange(user, calendarData, prevList, nextList) {
+    if (userCanBypass(user)) {
+        return null;
+    }
+    const editable = classesForUser(user, calendarData);
+    if (editable && editable.length) {
+        return null;
+    }
+    return 'You can only edit classroom data for classes you teach or where you are the homeroom teacher';
 }
 
 function stampSessions(sessions, userId) {
@@ -446,6 +472,7 @@ function prepareClassroomForSave(user, calendarData, payload) {
     const hasAttendance = Object.prototype.hasOwnProperty.call(body, 'attendanceSessions');
     const hasHomework = Object.prototype.hasOwnProperty.call(body, 'homeworkCompletions');
     const hasEssays = Object.prototype.hasOwnProperty.call(body, 'essaySubmissions');
+    const hasEssayGroups = Object.prototype.hasOwnProperty.call(body, 'essayGroups');
     const hasPoints = Object.prototype.hasOwnProperty.call(body, 'studentPoints');
     const hasTests = Object.prototype.hasOwnProperty.call(body, 'studentTests');
     const hasDebateSessions = Object.prototype.hasOwnProperty.call(body, 'debateTeamSessions');
@@ -469,6 +496,7 @@ function prepareClassroomForSave(user, calendarData, payload) {
         !hasAttendance &&
         !hasHomework &&
         !hasEssays &&
+        !hasEssayGroups &&
         !hasPoints &&
         !hasTests &&
         !hasDebateSessions &&
@@ -517,6 +545,15 @@ function prepareClassroomForSave(user, calendarData, payload) {
             return { error: err, merged: {} };
         }
         merged.essaySubmissions = nextEssays;
+    }
+
+    if (hasEssayGroups) {
+        const nextGroups = Array.isArray(body.essayGroups) ? body.essayGroups : [];
+        const err = validateEssayGroupsChange(user, data, data.essayGroups, nextGroups);
+        if (err) {
+            return { error: err, merged: {} };
+        }
+        merged.essayGroups = nextGroups;
     }
 
     if (hasPoints) {

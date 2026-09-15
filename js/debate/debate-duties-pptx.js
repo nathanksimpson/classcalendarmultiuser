@@ -36,6 +36,15 @@
         return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     }
 
+    function sanitizeClassForFilename(raw) {
+        const cleaned = String(raw || '')
+            .replace(/[^\w\-]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '')
+            .slice(0, 40);
+        return cleaned || 'Class';
+    }
+
     function defaultsForRoleAbbr(abbr) {
         const key = String(abbr || '').trim();
         if (!key || !ROLE_DEFAULT_DUTIES[key]) {
@@ -220,19 +229,40 @@
         });
 
         const fontSize = lineFontSize(speakers.length, includeDuties);
-        const lines = speakers.map((s) => {
-            const rolePart = s.roleAbbr ? s.roleAbbr + ' (' + s.name + ')' : s.name;
-            let line = rolePart;
-            if (s.bench && !includeDuties) {
-                line += ' — ' + s.bench;
+        const textRuns = [];
+        speakers.forEach((s, idx) => {
+            const name = String(s.name || '').trim() || 'Student';
+            textRuns.push({
+                text: name,
+                options: { bold: true, breakLine: false }
+            });
+            if (s.roleAbbr) {
+                textRuns.push({
+                    text: ' - ' + s.roleAbbr,
+                    options: { bold: false, breakLine: false }
+                });
+            }
+            if (!includeDuties && s.bench) {
+                textRuns.push({
+                    text: ' — ' + s.bench,
+                    options: { bold: false, breakLine: false }
+                });
             }
             if (includeDuties && s.duties) {
-                line += ' — ' + s.duties;
+                textRuns.push({
+                    text: ' - ' + s.duties,
+                    options: { bold: false, breakLine: false }
+                });
             }
-            return line;
+            if (textRuns.length) {
+                const last = textRuns[textRuns.length - 1];
+                last.options = Object.assign({}, last.options, {
+                    breakLine: idx < speakers.length - 1
+                });
+            }
         });
 
-        slide.addText(lines.join('\n'), {
+        slide.addText(textRuns.length ? textRuns : ' ', {
             x: 0.45,
             y: 0.95,
             w: 9.1,
@@ -276,12 +306,11 @@
         });
 
         const speakerCount = debateGroups.reduce((n, g) => n + g.speakers.length, 0);
+        const classPart = sanitizeClassForFilename(titleMeta.classTitle);
         const fileBase =
-            (options.filePrefix || 'Debate') +
+            classPart +
             '-' +
-            String(titleMeta.classTitle || 'Class')
-                .replace(/[^\w\-]+/g, '_')
-                .slice(0, 40) +
+            (options.filePrefix || 'Debate') +
             '-' +
             dateForFilename();
         await pptx.writeFile({ fileName: fileBase + '.pptx' });
@@ -310,6 +339,7 @@
         exportDutiesPptx,
         exportRolesPptx,
         speakersFromSession,
-        debatesFromSession
+        debatesFromSession,
+        sanitizeClassForFilename
     };
 })(typeof window !== 'undefined' ? window : globalThis);

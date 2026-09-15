@@ -205,16 +205,15 @@
     }
 
     function defaultSheetTemplate(classData) {
+        const book = getDebateBookChip();
+        const domain = global.CCPClassroomDomain;
+        if (domain && typeof domain.defaultDebateSheetTemplate === 'function') {
+            return domain.defaultDebateSheetTemplate(classData, book);
+        }
         if (global.CCPDebateTeamsV2 && global.CCPDebateTeamsV2.isPurpleDebateClass) {
-            const book = getDebateBookChip();
             if (global.CCPDebateTeamsV2.isPurpleDebateClass(classData, book)) {
                 return 'yeoul';
             }
-        }
-        const preset = String((classData && classData.levelPreset) || '').trim();
-        const custom = String((classData && (classData.levelCustom || classData.level)) || '').trim();
-        if (preset === 'Purple' || custom === 'Purple' || /purple|yeoul/i.test(custom)) {
-            return 'yeoul';
         }
         return 'garam';
     }

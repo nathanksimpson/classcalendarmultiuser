@@ -132,6 +132,7 @@
     }
 
     const studentsForMentionsCache = new Map();
+    const insertLabelsForClassCache = new Map();
 
     function rosterFingerprint(classId, cohorts, classes) {
         const cid = String(classId || '').trim();
@@ -356,6 +357,11 @@
     }
 
     function collectInsertLabelsForClass(classId, cohorts, classes) {
+        const fp = rosterFingerprint(classId, cohorts, classes);
+        const cached = insertLabelsForClassCache.get(fp);
+        if (cached) {
+            return cached;
+        }
         const seen = new Set();
         const out = [];
         getStudentsForMentions(classId, cohorts, classes).forEach((s) => {
@@ -367,6 +373,7 @@
                 out.push({ studentId: s.studentId, label });
             });
         });
+        insertLabelsForClassCache.set(fp, out);
         return out;
     }
 
@@ -735,6 +742,8 @@
         let mentionQuery = '';
         let suppressMentionRefresh = false;
         let isComposing = false;
+        let refreshDropdownRaf = 0;
+        let lastRenderedCandidateKey = '';
 
         function ensureFullMentionUi() {
             if (fullUiReady || !textarea.parentNode) {
@@ -811,9 +820,18 @@
             syncGhostScroll();
         }
 
+        function cancelScheduledRefresh() {
+            if (refreshDropdownRaf && typeof global.cancelAnimationFrame === 'function') {
+                global.cancelAnimationFrame(refreshDropdownRaf);
+            }
+            refreshDropdownRaf = 0;
+        }
+
         function hideDropdown() {
+            cancelScheduledRefresh();
             mentionCaret = null;
             mentionQuery = '';
+            lastRenderedCandidateKey = '';
             clearMentionGhost();
             if (!dropdown || !dropdown.classList.contains('active')) {
                 activeIndex = -1;
@@ -844,6 +862,11 @@
             }
         }
 
+        function candidateListKey(candidates, query) {
+            const ids = (candidates || []).map((c) => c && c.studentId).join(',');
+            return `${String(query || '')}|${ids}`;
+        }
+
         function renderDropdown(candidates, query) {
             ensureFullMentionUi();
             if (!dropdown) {
@@ -854,6 +877,10 @@
             const selEnd = textarea.selectionEnd;
             const prevCandidates = visibleCandidates;
             const prevIndex = activeIndex;
+            const nextKey = candidateListKey(candidates, query);
+            const sameList = nextKey === lastRenderedCandidateKey
+                && dropdown.classList.contains('active')
+                && visibleCandidates.length === (candidates || []).length;
             visibleCandidates = candidates;
             const preserved = preserveMentionActiveIndex(prevIndex, prevCandidates, candidates);
             if (preserved >= 0) {
@@ -864,6 +891,12 @@
                 activeIndex = -1;
             }
             mentionQuery = String(query || '');
+            if (sameList) {
+                restoreTextareaFocusIfNeeded(hadFocus, selStart, selEnd);
+                syncActiveItem();
+                return;
+            }
+            lastRenderedCandidateKey = nextKey;
             dropdown.replaceChildren();
             if (!candidates.length) {
                 activeIndex = -1;
@@ -937,6 +970,7 @@
                     ? { atIndex: mentionCaret.atIndex, end: mentionCaret.end }
                     : resolveMentionInsertRange(textarea, mentionQueryOpts()));
             suppressMentionRefresh = true;
+            cancelScheduledRefresh();
             insertMentionAtCursor(textarea, label, range);
             mentionCaret = null;
             hideDropdown();
@@ -964,10 +998,21 @@
             renderDropdown(candidates.slice(0, 20), ctx.query);
         }
 
-        function caretHasMentionTrigger() {
-            const value = textarea.value || '';
-            const pos = textarea.selectionStart != null ? textarea.selectionStart : value.length;
-            return value.slice(0, pos).lastIndexOf('@') >= 0;
+        function scheduleRefreshDropdown() {
+            if (typeof global.requestAnimationFrame !== 'function') {
+                refreshDropdown();
+                return;
+            }
+            if (refreshDropdownRaf) {
+                return;
+            }
+            refreshDropdownRaf = global.requestAnimationFrame(() => {
+                refreshDropdownRaf = 0;
+                if (suppressMentionRefresh || isComposing) {
+                    return;
+                }
+                refreshDropdown();
+            });
         }
 
         function onMentionInput(ev) {
@@ -979,14 +1024,16 @@
                 return;
             }
             isComposing = false;
-            if (!caretHasMentionTrigger()) {
+            const opts = mentionQueryOpts();
+            const ctx = getMentionQueryAtCursor(textarea, opts);
+            if (!ctx) {
                 if (dropdown && dropdown.classList.contains('active')) {
                     mentionCaret = null;
                     hideDropdown();
                 }
                 return;
             }
-            refreshDropdown();
+            scheduleRefreshDropdown();
         }
 
         function onMentionCompositionStart() {
@@ -999,8 +1046,11 @@
             if (suppressMentionRefresh) {
                 return;
             }
-            if (caretHasMentionTrigger()) {
-                refreshDropdown();
+            const opts = mentionQueryOpts();
+            if (getMentionQueryAtCursor(textarea, opts)) {
+                scheduleRefreshDropdown();
+            } else if (dropdown && dropdown.classList.contains('active')) {
+                hideDropdown();
             }
         }
 
@@ -1056,6 +1106,7 @@
         escapeHtml,
         getAllActiveStudentRows,
         getStudentsForMentions,
+        collectInsertLabelsForClass,
         sortMentionCandidates,
         scoreMentionCandidate,
         getMentionCompletionSuffix,

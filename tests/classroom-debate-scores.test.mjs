@@ -23,6 +23,32 @@ assert(d.getDebateScoreCriteria('yeoul').join(',') === 'eyeContact,voice,fluency
 assert(d.getDebateScoreMaxTotal('garam') === 30, 'garam max');
 assert(d.getDebateScoreMaxTotal('yeoul') === 20, 'yeoul max');
 
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Purple' }) === 'yeoul', 'Purple → yeoul sheet');
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Yeoul' }) === 'yeoul', 'Yeoul preset → yeoul sheet');
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Saemmul' }) === 'yeoul', 'Saemmul → yeoul sheet');
+assert(d.defaultDebateSheetTemplate({ levelCustom: '샘물' }) === 'yeoul', '샘물 → yeoul sheet');
+assert(d.defaultDebateSheetTemplate({ levelPreset: '여울' }) === 'yeoul', '여울 → yeoul sheet');
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Garam' }) === 'garam', 'Garam → garam sheet');
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Byeolmaru' }) === 'garam', 'Byeolmaru → garam sheet');
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Bada' }, 'Yeoul Debate') === 'yeoul', 'Yeoul book overrides');
+assert(d.defaultDebateSheetTemplate({ levelPreset: 'Garam' }, 'Byeolmaru Debate') === 'garam', 'Byeolmaru book stays garam');
+assert(
+    d.resolveClassLevelText({ levelPreset: 'Yeoul', levelCustom: '' }) === 'Yeoul',
+    'resolveClassLevelText includes preset'
+);
+assert(
+    d.defaultDebateSheetTemplate({ levelCustom: '여울 M' }) === 'yeoul',
+    'compound custom level with 여울 → yeoul'
+);
+assert(
+    d.defaultDebateSheetTemplate({ levelPreset: 'Yeoul Debate' }) === 'yeoul',
+    'compound preset with Yeoul word → yeoul'
+);
+assert(
+    d.defaultDebateSheetTemplate({ levelPreset: 'Garam', levelCustom: '' }, '별마루 Debate') === 'garam',
+    '별마루 book stays garam'
+);
+
 assert(d.computeDebateScoreTotal({ eyeContact: 5, voice: 4, fluency: 3, content: 2, logic: 1, confidence: 5 }, 'garam') === 20, 'garam total');
 assert(d.computeDebateScoreTotal({ eyeContact: 5, voice: 4, fluency: 3, content: 2, logic: 1, confidence: 5 }, 'yeoul') === 17, 'yeoul ignores content/logic');
 assert(d.computeDebateScoreTotal({}, 'garam') === null, 'empty total is null');
@@ -180,5 +206,37 @@ const refreshed = d.normalizeDebateScoreRecord(
 assert(refreshed.roleAbbr === 'PM', 'teams role replaces old abbr');
 assert(refreshed.note === 'keep me', 'note preserved when roles refresh');
 assert(refreshed.total === 24, 'scores preserved when roles refresh');
+
+await import(pathToFileURL(path.join(root, 'js', 'debate', 'debate-scoresheet-export.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'debate', 'debate-duties-pptx.js')).href);
+
+const exp = globalThis.CCPDebateScoresheetExport;
+const ppt = globalThis.CCPDebateDutiesPptx;
+assert(exp.sanitizeClassForFilename('Yeoul Class') === 'Yeoul_Class', 'sanitize spaces to underscores');
+assert(exp.sanitizeClassForFilename('') === 'Class', 'sanitize empty → Class');
+assert(exp.sanitizeClassForFilename('!!!') === 'Class', 'sanitize symbols-only → Class');
+const wordName = exp.wordExportFilename({
+    classTitle: 'Yeoul Class',
+    template: { fileLabel: 'Purple-Yeoul' }
+});
+assert(wordName.startsWith('Yeoul_Class-Debate-Feedback-Purple-Yeoul-'), 'word filename class first');
+assert(wordName.endsWith('.docx'), 'word filename ends with docx');
+assert(ppt.sanitizeClassForFilename('Garam M') === 'Garam_M', 'pptx sanitize matches');
+
+await import(pathToFileURL(path.join(root, 'js', 'classroom-debate-teams.js')).href);
+const teams = globalThis.CCPClassroomDebateTeams;
+assert(typeof teams.resolveSheetTemplateForClass === 'function', 'resolveSheetTemplateForClass exported');
+assert(
+    teams.resolveSheetTemplateForClass({ levelPreset: 'Yeoul' }, '2026-09-15') === 'yeoul',
+    'resolve Yeoul class → yeoul'
+);
+assert(
+    teams.resolveSheetTemplateForClass({ levelPreset: 'Garam' }, '2026-09-15') === 'garam',
+    'resolve Garam class → garam'
+);
+assert(
+    teams.resolveSheetTemplateForClass({ levelCustom: '여울 M' }, '2026-09-15') === 'yeoul',
+    'resolve compound custom → yeoul'
+);
 
 console.log('classroom-debate-scores.test.mjs: ok');

@@ -5,6 +5,10 @@
     const ATTENDANCE_STATUSES = ['present', 'late', 'absent', 'early_leave'];
     const HOMEWORK_GRADES = ['A', 'B', 'C', 'N', 'F', 'X'];
     const HOMEWORK_SELF_CHECKS = ['none', 'not_checked', 'satisfied'];
+    const HOMEWORK_MISS_GRADE = 'N';
+    const HOMEWORK_MISS_WINDOW_DAYS = 30;
+    const HOMEWORK_CHRONIC_SKIP_THRESHOLD = 3;
+    const HOMEWORK_PROTECTED_GRADES = ['A', 'B', 'C', 'F', 'N'];
     const ESSAY_STATUSES = [
         'not_submitted',
         'submitted',
@@ -2657,6 +2661,9 @@
         if (!classData) {
             return [];
         }
+        if (classData.isEssayGroup) {
+            return resolveStudentsForEssayGroup(classData, cohorts);
+        }
         const cohortList = Array.isArray(cohorts) ? cohorts : [];
         const cohortIds = getCohortIdsForClass(classData);
         const byId = new Map();
@@ -2799,6 +2806,417 @@
             }
         });
         return count;
+    }
+
+    function isHomeworkMiss(grade) {
+        return normalizeStr(grade).toUpperCase() === HOMEWORK_MISS_GRADE;
+    }
+
+    function isProtectedHomeworkGrade(grade) {
+        return HOMEWORK_PROTECTED_GRADES.includes(normalizeStr(grade).toUpperCase());
+    }
+
+    function homeworkCompletionLessonDate(completion) {
+        return normalizeStr(completion && completion.lessonDate);
+    }
+
+    /**
+     * Count grade N homework records for one student in one class within [ref-window, ref].
+     * Ungraded (X) and quality grades (A/B/C/F) are not misses.
+     */
+    function countRecentHomeworkMisses(completions, studentId, classId, refDate, windowDays) {
+        const days = windowDays == null ? HOMEWORK_MISS_WINDOW_DAYS : Number(windowDays);
+        const window = Number.isFinite(days) && days > 0 ? days : HOMEWORK_MISS_WINDOW_DAYS;
+        const ref = normalizeStr(refDate) || todayISO();
+        const cutoff = addDaysISO(ref, -window);
+        const sid = normalizeStr(studentId);
+        const cid = normalizeStr(classId);
+        if (!sid || !cid) {
+            return 0;
+        }
+        let count = 0;
+        (completions || []).forEach((completion) => {
+            if (!completion || completion.classId !== cid) {
+                return;
+            }
+            const date = homeworkCompletionLessonDate(completion);
+            if (!date) {
+                return;
+            }
+            if (compareDateStr(date, cutoff) < 0 || compareDateStr(date, ref) > 0) {
+                return;
+            }
+            const rec = getHomeworkRecordForStudent(completion, sid);
+            if (rec && isHomeworkMiss(rec.grade)) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
+    function listHomeworkChronicSkippers(appData, classId, refDate, options) {
+        const opts = options || {};
+        const threshold =
+            opts.threshold == null ? HOMEWORK_CHRONIC_SKIP_THRESHOLD : Number(opts.threshold);
+        const minMisses = Number.isFinite(threshold) && threshold > 0 ? threshold : HOMEWORK_CHRONIC_SKIP_THRESHOLD;
+        const windowDays = opts.windowDays == null ? HOMEWORK_MISS_WINDOW_DAYS : opts.windowDays;
+        const data = appData || {};
+        const cid = normalizeStr(classId);
+        const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+            (c) => c && normalizeStr(c.id) === cid
+        );
+        if (!classData) {
+            return [];
+        }
+        const students = resolveStudentsForClass(classData, data.cohorts);
+        const ref = normalizeStr(refDate) || todayISO();
+        const out = [];
+        students.forEach((entry) => {
+            const student = entry && entry.student;
+            if (!student || !student.id) {
+                return;
+            }
+            const missCount = countRecentHomeworkMisses(
+                data.homeworkCompletions,
+                student.id,
+                cid,
+                ref,
+                windowDays
+            );
+            if (missCount >= minMisses) {
+                out.push({
+                    studentId: student.id,
+                    name: student.name || '',
+                    nameEn: student.nameEn || '',
+                    missCount
+                });
+            }
+        });
+        return out;
+    }
+
+    function mapTmsHomeworkSelfCheck(raw) {
+        const s = normalizeStr(raw);
+        if (!s) {
+            return '';
+        }
+        if (/불만족/.test(s)) {
+            return 'not_checked';
+        }
+        if (/매우만족/.test(s) || /(^|[^불])만족/.test(s)) {
+            return 'satisfied';
+        }
+        if (
+            /보통/.test(s) ||
+            /no\s*check/i.test(s) ||
+            /셀프체크\s*X/i.test(s) ||
+            /self-?check\s*(off|x)/i.test(s) ||
+            /미확인/.test(s)
+        ) {
+            return 'not_checked';
+        }
+        return '';
+    }
+
+    /** Navy M ↔ NavyM_26SP / NavyM^2606 — ignore spaces and term suffixes. */
+    function tmsClassNamesMatch(localName, tmsName) {
+        const compact = (s) =>
+            normalizeStr(s)
+                .toLowerCase()
+                .replace(/\s+/g, '');
+        const core = (s) =>
+            compact(s)
+                .replace(/[_^].*$/, '')
+                .replace(/[^a-z0-9\uac00-\ud7a3]/g, '');
+        const a = core(localName);
+        const b = core(tmsName);
+        return Boolean(a && b && a === b);
+    }
+
+    function getLinkedTmsClassIdsForClass(appData, classId) {
+        const data = appData || {};
+        const cid = normalizeStr(classId);
+        const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+            (c) => c && normalizeStr(c.id) === cid
+        );
+        if (!classData) {
+            return [];
+        }
+        const cohortIds = new Set(getCohortIdsForClass(classData).map(normalizeStr));
+        const links = normalizeTmsRosterLinks(data.tmsRosterLinks);
+        const ids = [];
+        Object.keys(links).forEach((key) => {
+            const entry = links[key];
+            if (!entry || entry.action !== 'map') {
+                return;
+            }
+            if (!cohortIds.has(normalizeStr(entry.cohortId))) {
+                return;
+            }
+            const tmsId = normalizeStr(entry.tmsClassId);
+            if (tmsId && ids.indexOf(tmsId) === -1) {
+                ids.push(tmsId);
+            }
+        });
+        return ids;
+    }
+
+    function findStudentForTmsHomeworkRow(studentEntries, tmsRow) {
+        const students = (studentEntries || [])
+            .map((entry) => (entry && entry.student ? entry.student : entry))
+            .filter(Boolean);
+        const byMpidx = findStudentByTmsMpidx(students, tmsRow && tmsRow.mpidx);
+        if (byMpidx) {
+            return byMpidx;
+        }
+        const key = koreanMatchKey(tmsRow && tmsRow.name);
+        if (!key) {
+            return null;
+        }
+        const exact = students.filter((s) => koreanMatchKey(s.name) === key);
+        return exact.length === 1 ? exact[0] : null;
+    }
+
+    function collectTmsHomeworkStudentsForClass(appData, classId, tmsClasses) {
+        const data = appData || {};
+        const cid = normalizeStr(classId);
+        const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+            (c) => c && normalizeStr(c.id) === cid
+        );
+        const linkedIds = new Set(getLinkedTmsClassIdsForClass(data, classId));
+        const cohortIds = new Set(
+            classData ? getCohortIdsForClass(classData).map(normalizeStr) : []
+        );
+        const linkNames = [];
+        const cohortNames = [];
+        const links = normalizeTmsRosterLinks(data.tmsRosterLinks);
+        Object.keys(links).forEach((key) => {
+            const entry = links[key];
+            if (!entry || entry.action !== 'map') {
+                return;
+            }
+            if (!cohortIds.has(normalizeStr(entry.cohortId))) {
+                return;
+            }
+            if (entry.tmsClassName) {
+                linkNames.push(entry.tmsClassName);
+            }
+        });
+        (Array.isArray(data.cohorts) ? data.cohorts : []).forEach((coh) => {
+            if (!coh || !coh.name || !cohortIds.has(normalizeStr(coh.id))) {
+                return;
+            }
+            cohortNames.push(coh.name);
+        });
+        const fromMatched = [];
+        const all = [];
+        const seenMatched = new Set();
+        const seenAll = new Set();
+        function pushUnique(list, seen, row) {
+            if (!row) {
+                return;
+            }
+            const mpidx = normalizeStr(row.mpidx);
+            const key = mpidx || `n:${koreanMatchKey(row.name)}`;
+            if (!key || seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            list.push(row);
+        }
+        function tmsNameOf(cls) {
+            return normalizeStr(cls && cls.className) || normalizeStr(cls && cls.cohortName);
+        }
+        function matchesNames(cls, names) {
+            const tmsName = tmsNameOf(cls);
+            return (names || []).some((n) => tmsClassNamesMatch(n, tmsName));
+        }
+        const classes = Array.isArray(tmsClasses) ? tmsClasses : [];
+        const byId = classes.filter(
+            (cls) => linkedIds.size && linkedIds.has(normalizeStr(cls && cls.tmsClassId))
+        );
+        const byClassName = classes.filter((cls) =>
+            tmsClassNamesMatch(classData && classData.name, tmsNameOf(cls))
+        );
+        const byLinkName = classes.filter((cls) => matchesNames(cls, linkNames));
+        const byCohortName = classes.filter((cls) => matchesNames(cls, cohortNames));
+        const matchedClasses = byId.length
+            ? byId
+            : byClassName.length
+              ? byClassName
+              : byLinkName.length
+                ? byLinkName
+                : byCohortName;
+        matchedClasses.forEach((cls) => {
+            (Array.isArray(cls.students) ? cls.students : []).forEach((row) => {
+                pushUnique(fromMatched, seenMatched, row);
+            });
+        });
+        if (matchedClasses.length) {
+            return fromMatched;
+        }
+        classes.forEach((cls) => {
+            (Array.isArray(cls && cls.students) ? cls.students : []).forEach((row) => {
+                pushUnique(all, seenAll, row);
+            });
+        });
+        return all;
+    }
+
+    /**
+     * Preview applying TMS 숙제확인 rows onto one ClassManager homework assignment.
+     * Does not overwrite teacher A/B/C/F (or existing N) grades. May set N from missing when grade is X.
+     */
+    function previewTmsHomeworkSyncPlan(appData, options) {
+        const opts = options || {};
+        const data = appData || {};
+        const classId = normalizeStr(opts.classId);
+        const syllabusRowId = normalizeStr(opts.syllabusRowId);
+        const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+            (c) => c && normalizeStr(c.id) === classId
+        );
+        const empty = {
+            classId,
+            syllabusRowId,
+            updates: [],
+            unmatched: [],
+            skipped: [],
+            missingCount: 0,
+            selfCheckCount: 0,
+            parentCheckCount: 0
+        };
+        if (!classData || !syllabusRowId) {
+            return empty;
+        }
+        const studentEntries = resolveStudentsForClass(classData, data.cohorts);
+        const existing = findHomeworkCompletion(data.homeworkCompletions, classId, syllabusRowId);
+        const tmsRows = collectTmsHomeworkStudentsForClass(data, classId, opts.tmsClasses);
+        const updates = [];
+        const unmatched = [];
+        const skipped = [];
+        let missingCount = 0;
+        let selfCheckCount = 0;
+        let parentCheckCount = 0;
+
+        tmsRows.forEach((tmsRow) => {
+            const matched = findStudentForTmsHomeworkRow(studentEntries, tmsRow);
+            if (!matched) {
+                unmatched.push({
+                    mpidx: normalizeStr(tmsRow && tmsRow.mpidx),
+                    name: normalizeStr(tmsRow && tmsRow.name),
+                    nameEn: normalizeStr(tmsRow && tmsRow.nameEn)
+                });
+                return;
+            }
+            const rec = getHomeworkRecordForStudent(existing, matched.id);
+            const currentGrade = rec && rec.grade ? rec.grade : 'X';
+            const patch = {};
+            const missing = Boolean(tmsRow && tmsRow.missing);
+            if (missing && !isProtectedHomeworkGrade(currentGrade)) {
+                patch.grade = HOMEWORK_MISS_GRADE;
+            }
+            const mappedSelf =
+                normalizeStr(tmsRow && tmsRow.selfCheck) ||
+                mapTmsHomeworkSelfCheck(tmsRow && tmsRow.selfCheckRaw);
+            if (HOMEWORK_SELF_CHECKS.includes(mappedSelf) && mappedSelf !== 'none') {
+                patch.selfCheck = mappedSelf;
+            }
+            if (tmsRow && tmsRow.parentCheck === true) {
+                patch.parentCheck = true;
+            }
+            if (!Object.keys(patch).length) {
+                skipped.push({
+                    studentId: matched.id,
+                    studentName: matched.name || '',
+                    tmsMpidx: normalizeStr(tmsRow && tmsRow.mpidx),
+                    currentGrade
+                });
+                return;
+            }
+            if (patch.grade === HOMEWORK_MISS_GRADE) {
+                missingCount += 1;
+            }
+            if (patch.selfCheck) {
+                selfCheckCount += 1;
+            }
+            if (patch.parentCheck) {
+                parentCheckCount += 1;
+            }
+            updates.push({
+                studentId: matched.id,
+                studentName: matched.name || '',
+                tmsMpidx: normalizeStr(tmsRow && tmsRow.mpidx),
+                currentGrade,
+                missing,
+                patch
+            });
+        });
+
+        return {
+            classId,
+            syllabusRowId,
+            updates,
+            unmatched,
+            skipped,
+            missingCount,
+            selfCheckCount,
+            parentCheckCount
+        };
+    }
+
+    function applyTmsHomeworkSync(completions, plan, options) {
+        const opts = options || {};
+        const classId = normalizeStr((plan && plan.classId) || opts.classId);
+        const syllabusRowId = normalizeStr((plan && plan.syllabusRowId) || opts.syllabusRowId);
+        const lessonDate = normalizeStr(opts.lessonDate);
+        const updates = Array.isArray(plan && plan.updates) ? plan.updates : [];
+        if (!classId || !syllabusRowId) {
+            return Array.isArray(completions) ? completions.slice() : [];
+        }
+        const existing = findHomeworkCompletion(completions, classId, syllabusRowId);
+        const records = existing && Array.isArray(existing.records) ? existing.records.slice() : [];
+        updates.forEach((u) => {
+            if (!u || !u.studentId || !u.patch) {
+                return;
+            }
+            const idx = records.findIndex((r) => r && r.studentId === u.studentId);
+            const base =
+                idx >= 0
+                    ? records[idx]
+                    : {
+                          studentId: u.studentId,
+                          grade: 'X',
+                          selfCheck: 'none',
+                          parentCheck: false,
+                          note: ''
+                      };
+            const next = Object.assign({}, base);
+            const nextGrade = normalizeStr(u.patch.grade).toUpperCase();
+            if (nextGrade === HOMEWORK_MISS_GRADE && !isProtectedHomeworkGrade(next.grade)) {
+                next.grade = HOMEWORK_MISS_GRADE;
+            }
+            if (HOMEWORK_SELF_CHECKS.includes(u.patch.selfCheck)) {
+                next.selfCheck = u.patch.selfCheck;
+            }
+            if (u.patch.parentCheck === true) {
+                next.parentCheck = true;
+            }
+            if (idx >= 0) {
+                records[idx] = next;
+            } else {
+                records.push(next);
+            }
+        });
+        const makeId = typeof opts.newId === 'function' ? opts.newId : () => newId('hw');
+        return upsertHomeworkCompletion(completions, {
+            id: (existing && existing.id) || makeId(),
+            classId,
+            syllabusRowId,
+            lessonDate: lessonDate || (existing && existing.lessonDate) || '',
+            records,
+            authorUserId: normalizeStr(opts.authorUserId) || (existing && existing.authorUserId) || '',
+            updatedAt: opts.updatedAt || (existing && existing.updatedAt) || ''
+        });
     }
 
     function normalizeHomeworkRecord(raw) {
@@ -3090,6 +3508,250 @@
             return essayRowIds.has(normalizeStr(entry.syllabusRowId));
         });
         return before - appData.essaySubmissions.length;
+    }
+
+    function pruneEssaySubmissionsForTargetId(appData, targetId) {
+        if (!appData || !normalizeStr(targetId)) {
+            return 0;
+        }
+        const cid = normalizeStr(targetId);
+        const list = Array.isArray(appData.essaySubmissions) ? appData.essaySubmissions : [];
+        const before = list.length;
+        appData.essaySubmissions = list.filter(
+            (entry) => !entry || normalizeStr(entry.classId) !== cid
+        );
+        return before - appData.essaySubmissions.length;
+    }
+
+    /**
+     * Create the same custom essay assignment on multiple classes.
+     * @returns {{ error: string|null, results: Array, updatedClasses: object[] }}
+     */
+    function createCustomEssayAssignmentsForClasses(classes, options) {
+        const list = Array.isArray(classes) ? classes.filter(Boolean) : [];
+        if (!list.length) {
+            return { error: 'missing_class', results: [], updatedClasses: [] };
+        }
+        const results = [];
+        const updatedClasses = [];
+        for (let i = 0; i < list.length; i += 1) {
+            const result = createCustomEssayAssignment(list[i], options);
+            if (result.error) {
+                return { error: result.error, results, updatedClasses };
+            }
+            results.push(result);
+            updatedClasses.push(result.classData);
+        }
+        return { error: null, results, updatedClasses };
+    }
+
+    function normalizeEssayGroup(raw) {
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+        const id = normalizeStr(raw.id);
+        const name = normalizeStr(raw.name);
+        if (!id || !name) {
+            return null;
+        }
+        const studentIds = Array.isArray(raw.studentIds)
+            ? Array.from(
+                  new Set(
+                      raw.studentIds.map((sid) => normalizeStr(sid)).filter(Boolean)
+                  )
+              )
+            : [];
+        const assignments = Array.isArray(raw.assignments)
+            ? raw.assignments.filter((row) => row && typeof row === 'object').map((row) =>
+                  Object.assign({}, row, {
+                      id: normalizeStr(row.id) || newId('syl'),
+                      kind: normalizeStr(row.kind) || 'lesson',
+                      date: normalizeStr(row.date),
+                      planTitle: normalizeStr(row.planTitle),
+                      planDetail: normalizeStr(row.planDetail),
+                      homework: normalizeStr(row.homework),
+                      note: normalizeStr(row.note),
+                      trackEssay: row.trackEssay !== false
+                  })
+              )
+            : [];
+        return {
+            id,
+            name,
+            studentIds,
+            sourceClassId: normalizeStr(raw.sourceClassId),
+            assignments,
+            authorUserId: normalizeStr(raw.authorUserId),
+            createdAt: normalizeStr(raw.createdAt),
+            updatedAt: normalizeStr(raw.updatedAt)
+        };
+    }
+
+    function ensureEssayGroupsArray(appData) {
+        if (!appData || typeof appData !== 'object') {
+            return [];
+        }
+        if (!Array.isArray(appData.essayGroups)) {
+            appData.essayGroups = [];
+        }
+        return appData.essayGroups;
+    }
+
+    function findEssayGroup(appData, groupId) {
+        const gid = normalizeStr(groupId);
+        if (!gid) {
+            return null;
+        }
+        const list = ensureEssayGroupsArray(appData);
+        const raw = list.find((g) => g && normalizeStr(g.id) === gid) || null;
+        return raw ? normalizeEssayGroup(raw) || raw : null;
+    }
+
+    function isEssayGroupId(appData, id) {
+        return Boolean(findEssayGroup(appData, id));
+    }
+
+    /** Class-like view so existing essay helpers can treat a group as a target. */
+    function essayGroupAsClassView(group) {
+        const normalized = normalizeEssayGroup(group);
+        const src = normalized || group;
+        if (!src || !normalizeStr(src.id)) {
+            return null;
+        }
+        const assignments = normalized
+            ? normalized.assignments.slice()
+            : Array.isArray(src.assignments)
+              ? src.assignments.slice()
+              : Array.isArray(src.syllabusRows)
+                ? src.syllabusRows.slice()
+                : [];
+        return {
+            id: normalizeStr(src.id),
+            name: normalizeStr(src.name) || normalizeStr(src.id),
+            syllabusRows: assignments,
+            isEssayGroup: true,
+            sourceClassId: normalizeStr(src.sourceClassId),
+            studentIds: Array.isArray(src.studentIds)
+                ? src.studentIds.map((sid) => normalizeStr(sid)).filter(Boolean)
+                : [],
+            cohortIds: [],
+            color: normalizeStr(src.color)
+        };
+    }
+
+    function resolveStudentsForEssayGroup(groupOrView, cohorts) {
+        const studentIds = Array.isArray(groupOrView && groupOrView.studentIds)
+            ? groupOrView.studentIds
+            : [];
+        const byId = new Map();
+        studentIds.forEach((sid) => {
+            const found = findStudentInCohorts(sid, cohorts);
+            if (!found || !found.student) {
+                return;
+            }
+            const student = found.student;
+            if (!student.active || (student.tags || []).includes(OFF_ROSTER_TAG)) {
+                return;
+            }
+            if (!byId.has(student.id)) {
+                byId.set(student.id, {
+                    student,
+                    cohortId: found.cohort ? found.cohort.id : '',
+                    cohortName: found.cohort ? normalizeStr(found.cohort.name) : ''
+                });
+            }
+        });
+        return Array.from(byId.values()).sort((a, b) =>
+            compareStudentNames(a.student, b.student)
+        );
+    }
+
+    function resolveEssayTarget(appData, targetId) {
+        const tid = normalizeStr(targetId);
+        if (!tid || !appData) {
+            return null;
+        }
+        const group = findEssayGroup(appData, tid);
+        if (group) {
+            return essayGroupAsClassView(group);
+        }
+        return (appData.classes || []).find((c) => c && normalizeStr(c.id) === tid) || null;
+    }
+
+    function upsertEssayGroup(appData, groupInput, options) {
+        const opts = options || {};
+        const list = ensureEssayGroupsArray(appData);
+        const now = new Date().toISOString();
+        const incoming = normalizeEssayGroup(
+            Object.assign({}, groupInput, {
+                id: normalizeStr(groupInput && groupInput.id) || newId('eg'),
+                createdAt: normalizeStr(groupInput && groupInput.createdAt) || now,
+                updatedAt: now,
+                authorUserId:
+                    normalizeStr(opts.authorUserId) ||
+                    normalizeStr(groupInput && groupInput.authorUserId)
+            })
+        );
+        if (!incoming) {
+            return { error: 'invalid_group', group: null };
+        }
+        if (!incoming.studentIds.length) {
+            return { error: 'missing_students', group: null };
+        }
+        const idx = list.findIndex((g) => g && normalizeStr(g.id) === incoming.id);
+        if (idx >= 0) {
+            const prev = normalizeEssayGroup(list[idx]) || list[idx];
+            incoming.createdAt = (prev && prev.createdAt) || incoming.createdAt;
+            if (!opts.authorUserId && prev && prev.authorUserId) {
+                incoming.authorUserId = prev.authorUserId;
+            }
+            list[idx] = incoming;
+        } else {
+            list.push(incoming);
+        }
+        appData.essayGroups = list;
+        return { error: null, group: incoming };
+    }
+
+    function deleteEssayGroup(appData, groupId) {
+        const gid = normalizeStr(groupId);
+        if (!appData || !gid) {
+            return { error: 'missing_group', removed: 0, prunedSubmissions: 0 };
+        }
+        const list = ensureEssayGroupsArray(appData);
+        const before = list.length;
+        appData.essayGroups = list.filter((g) => !g || normalizeStr(g.id) !== gid);
+        const removed = before - appData.essayGroups.length;
+        const prunedSubmissions = removed
+            ? pruneEssaySubmissionsForTargetId(appData, gid)
+            : 0;
+        return { error: removed ? null : 'missing_group', removed, prunedSubmissions };
+    }
+
+    function createCustomEssayAssignmentOnGroup(group, options) {
+        const view = essayGroupAsClassView(group);
+        if (!view) {
+            return { error: 'missing_group', group: null, row: null, syllabusRowId: '' };
+        }
+        const result = createCustomEssayAssignment(view, options);
+        if (result.error) {
+            return {
+                error: result.error,
+                group: normalizeEssayGroup(group),
+                row: null,
+                syllabusRowId: ''
+            };
+        }
+        const nextGroup = Object.assign({}, normalizeEssayGroup(group) || group, {
+            assignments: result.classData.syllabusRows,
+            updatedAt: new Date().toISOString()
+        });
+        return {
+            error: null,
+            group: nextGroup,
+            row: result.row,
+            syllabusRowId: result.syllabusRowId
+        };
     }
 
     function normalizeEssayRecord(raw) {
@@ -4412,6 +5074,54 @@
         return normalizeStr(raw) === 'yeoul' ? 'yeoul' : 'garam';
     }
 
+    /** Levels that share the Purple–Yeoul (/20) feedback sheet (not Garam–Mirinae /30). */
+    const YEOUL_FEEDBACK_LEVEL_RE = /^(purple|yeoul|saemmul|saemul|퍼플|여울|샘물)$/i;
+    /** Book titles that imply the /20 sheet; excludes Byeolmaru (substring "yeoul" risk). */
+    const YEOUL_FEEDBACK_BOOK_RE =
+        /(^|[^A-Za-z가-힣])(purple|yeoul|saemmul|saemul|퍼플|여울|샘물)([^A-Za-z가-힣]|$)/i;
+
+    /**
+     * Join levelPreset / levelCustom / level for matching (preset alone must be visible).
+     */
+    function resolveClassLevelText(classData) {
+        if (!classData) {
+            return '';
+        }
+        return [classData.levelPreset, classData.levelCustom, classData.level]
+            .map((v) => normalizeStr(v))
+            .filter(Boolean)
+            .join(' ');
+    }
+
+    /**
+     * Default debate feedback sheet: Purple / Yeoul / Saemmul (샘물) → yeoul (/20);
+     * Garam and above → garam (/30). Does not enable purple debate mode.
+     * Matches whole level fields or word-boundary tokens in joined level text / book titles.
+     */
+    function defaultDebateSheetTemplate(classData, debateBook) {
+        const fields = classData
+            ? [classData.levelPreset, classData.levelCustom, classData.level]
+            : [];
+        for (let i = 0; i < fields.length; i += 1) {
+            if (YEOUL_FEEDBACK_LEVEL_RE.test(normalizeStr(fields[i]))) {
+                return 'yeoul';
+            }
+        }
+        const levelText = resolveClassLevelText(classData);
+        if (levelText && YEOUL_FEEDBACK_BOOK_RE.test(levelText)) {
+            return 'yeoul';
+        }
+        const book = normalizeStr(
+            debateBook != null && debateBook !== ''
+                ? debateBook
+                : classData && classData.book
+        );
+        if (book && !/byeol|별마루/i.test(book) && YEOUL_FEEDBACK_BOOK_RE.test(book)) {
+            return 'yeoul';
+        }
+        return 'garam';
+    }
+
     function normalizeDebateScoreValue(raw) {
         if (raw == null || raw === '') {
             return null;
@@ -4593,6 +5303,94 @@
             list.push(normalized);
         }
         return list;
+    }
+
+    /**
+     * Map studentId → role fields from a Debate Teams sessionState (v2 benches).
+     * Matches by member.studentId first, then Korean/English display name.
+     */
+    function buildDebateRoleMapFromTeamSession(teamSession, students) {
+        const map = {};
+        const studentList = Array.isArray(students) ? students : [];
+        const debates =
+            teamSession &&
+            teamSession.sessionState &&
+            Array.isArray(teamSession.sessionState.debates)
+                ? teamSession.sessionState.debates
+                : [];
+
+        function resolveStudentId(member) {
+            if (!member || typeof member !== 'object') {
+                return '';
+            }
+            const direct = normalizeStr(member.studentId);
+            if (direct) {
+                return direct;
+            }
+            const memberName = normalizeStr(member.name);
+            if (!memberName) {
+                return '';
+            }
+            const found = studentList.find((s) => {
+                if (!s) {
+                    return false;
+                }
+                return (
+                    normalizeStr(s.name) === memberName ||
+                    normalizeStr(s.nameEn) === memberName
+                );
+            });
+            return found ? normalizeStr(found.id) : '';
+        }
+
+        debates.forEach((debate) => {
+            if (!debate) {
+                return;
+            }
+            const debateNumberRaw = debate.number;
+            const debateNumber =
+                debateNumberRaw == null || debateNumberRaw === ''
+                    ? null
+                    : Number(debateNumberRaw);
+            const benches = Array.isArray(debate.benches) ? debate.benches : [];
+            benches.forEach((bench) => {
+                if (!bench) {
+                    return;
+                }
+                const benchLabel = normalizeStr(bench.label);
+                const members = Array.isArray(bench.members) ? bench.members : [];
+                members.forEach((member) => {
+                    const sid = resolveStudentId(member);
+                    if (!sid) {
+                        return;
+                    }
+                    const role = member.role && typeof member.role === 'object' ? member.role : {};
+                    map[sid] = {
+                        roleAbbr: normalizeStr(role.abbr),
+                        roleName: normalizeStr(role.name),
+                        bench: benchLabel,
+                        debateNumber: Number.isFinite(debateNumber) ? debateNumber : null
+                    };
+                });
+            });
+        });
+        return map;
+    }
+
+    function formatDebateScoreRoleLabel(rec) {
+        if (!rec || typeof rec !== 'object') {
+            return '';
+        }
+        const abbr = normalizeStr(rec.roleAbbr);
+        const bench = normalizeStr(rec.bench);
+        const roleName = normalizeStr(rec.roleName);
+        if (abbr && bench) {
+            return `${abbr} · ${bench}`;
+        }
+        if (abbr) {
+            return abbr;
+        }
+        return roleName;
     }
 
     const SPEAKING_TEST_SORT_MODES = new Set(['alphabetical', 'pasteOrder', 'entryOrder']);
@@ -5030,24 +5828,27 @@
         return counts;
     }
 
-    function resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId, refDate) {
+    function resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId, refDate, options) {
         if (!classData) {
             return '';
         }
         if (!classUsesMonthlyDebateBooks(classData)) {
             return DEBATE_BOOK_TERM_PERIOD_KEY;
         }
+        const opts = options && typeof options === 'object' ? options : {};
         const map =
             uiPeriodByClassId && typeof uiPeriodByClassId === 'object' ? uiPeriodByClassId : {};
         const preferred = normalizeDebateBookPeriodKey(map[classData.id]);
-        const options = listDebateBookMonthOptions(classData);
+        const monthOptions = listDebateBookMonthOptions(classData);
         const defaultKey = pickDefaultDebateBookPeriodKey(classData, refDate);
         if (
             preferred &&
             preferred !== DEBATE_BOOK_TERM_PERIOD_KEY &&
-            options.some((opt) => opt.periodKey === preferred)
+            monthOptions.some((opt) => opt.periodKey === preferred)
         ) {
-            if (!defaultKey || preferred >= defaultKey) {
+            // Transfers / snapshots must honor an explicit UI period even when it is
+            // earlier than the “current teaching month” default.
+            if (opts.allowPastPreferred || !defaultKey || preferred >= defaultKey) {
                 return preferred;
             }
         }
@@ -5269,7 +6070,9 @@
         const sid = normalizeStr(studentId);
         const uiPeriodMap =
             (appData && appData.ui && appData.ui.debateBookPeriodByClassId) || {};
-        const periodKey = resolveDebateBookPeriodKeyForClass(classData, uiPeriodMap);
+        const periodKey = resolveDebateBookPeriodKeyForClass(classData, uiPeriodMap, undefined, {
+            allowPastPreferred: true
+        });
         if (!periodKey || !sid || !classData || !classData.id) {
             return {
                 periodKey: periodKey || '',
@@ -5602,6 +6405,20 @@
         if (!Array.isArray(data.essaySubmissions)) {
             data.essaySubmissions = [];
             migrated = true;
+        }
+        if (!Array.isArray(data.essayGroups)) {
+            data.essayGroups = [];
+            migrated = true;
+        } else {
+            const normalizedGroups = data.essayGroups
+                .map((g) => normalizeEssayGroup(g))
+                .filter(Boolean);
+            if (normalizedGroups.length !== data.essayGroups.length) {
+                data.essayGroups = normalizedGroups;
+                migrated = true;
+            } else {
+                data.essayGroups = normalizedGroups;
+            }
         }
         if (!Array.isArray(data.studentPoints)) {
             data.studentPoints = [];
@@ -7432,6 +8249,9 @@
         ATTENDANCE_STATUSES,
         HOMEWORK_GRADES,
         HOMEWORK_SELF_CHECKS,
+        HOMEWORK_MISS_GRADE,
+        HOMEWORK_MISS_WINDOW_DAYS,
+        HOMEWORK_CHRONIC_SKIP_THRESHOLD,
         ESSAY_STATUSES,
         DEBATE_BOOK_STATUSES,
         DEBATE_BOOK_TERM_PERIOD_KEY,
@@ -7540,6 +8360,17 @@
         getAttendanceRecordForStudent,
         countAttendanceStatuses,
         countRecentAbsences,
+        isHomeworkMiss,
+        isProtectedHomeworkGrade,
+        countRecentHomeworkMisses,
+        listHomeworkChronicSkippers,
+        mapTmsHomeworkSelfCheck,
+        tmsClassNamesMatch,
+        getLinkedTmsClassIdsForClass,
+        findStudentForTmsHomeworkRow,
+        collectTmsHomeworkStudentsForClass,
+        previewTmsHomeworkSyncPlan,
+        applyTmsHomeworkSync,
         normalizeHomeworkCompletion,
         findHomeworkCompletion,
         upsertHomeworkCompletion,
@@ -7570,7 +8401,19 @@
         isEssayTeacherEvalOverdue,
         reparseEssayFlagsForClass,
         createCustomEssayAssignment,
+        createCustomEssayAssignmentsForClasses,
         pruneOrphanEssaySubmissions,
+        pruneEssaySubmissionsForTargetId,
+        normalizeEssayGroup,
+        ensureEssayGroupsArray,
+        findEssayGroup,
+        isEssayGroupId,
+        essayGroupAsClassView,
+        resolveStudentsForEssayGroup,
+        resolveEssayTarget,
+        upsertEssayGroup,
+        deleteEssayGroup,
+        createCustomEssayAssignmentOnGroup,
         essayAlertCountsForAssignment,
         essayAlertCountsForClass,
         formatEssayClassAlertSuffix,
@@ -7619,6 +8462,8 @@
         normalizeDebateCustomFormat,
         findDebateTeamSession,
         upsertDebateTeamSession,
+        buildDebateRoleMapFromTeamSession,
+        formatDebateScoreRoleLabel,
         debateTeamSessionKey,
         normalizeSpeakingTestRecord,
         findSpeakingTestRecord,
@@ -7658,6 +8503,8 @@
         DEBATE_SCORE_CRITERIA,
         DEBATE_SCORE_MAX,
         normalizeDebateSheetTemplate,
+        resolveClassLevelText,
+        defaultDebateSheetTemplate,
         normalizeDebateScoreValue,
         emptyDebateScoresObject,
         computeDebateScoreTotal,

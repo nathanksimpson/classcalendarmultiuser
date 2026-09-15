@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ClassManager — mockup with fixes applied</title>
+<style>
+  :root{
+    --primary:#14b98f; --primary-dark:#0e9b76;
+    --bg-main:#f4f6f9; --bg-card:#ffffff; --bg-hover:#eef1f5;
+    --text-primary:#1c2430; --text-secondary:#5a6a80; --text-muted:#8893a3;
+    --border-color:#e3e8ef; --toolbar-border:#d4dbe4; --accent-muted:#eaf6f1;
+    --radius-sm:4px; --radius-md:8px; --radius-card:10px; --radius-lg:16px;
+    --font-main:'IBM Plex Sans','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    --amber-bg:#fef3c7; --amber-text:#b45309; --amber-border:#f59e0b;
+    --green-bg:#ecfdf5; --green-text:#065f46; --green-border:#a7f3d0;
+    --red-bg:#fef2f2; --red-text:#991b1b; --red-border:#fecaca;
+    --blue-bg:#eff6ff; --blue-border:#93c5fd; --blue-text:#1d4ed8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font-main);background:var(--bg-main);color:var(--text-primary);}
+  .page{max-width:1180px;margin:0 auto;padding:24px 20px 48px;}
+  .app-shell{background:var(--bg-main);}
+  .header-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-card);
+    box-shadow:0 1px 4px rgba(12,12,13,0.10);overflow:hidden;}
+
+  /* ROW 1 — global bar: sync/lock + utilities, now the most prominent row */
+  .row-global{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:12px 16px;border-bottom:1px solid var(--toolbar-border);background:rgba(255,255,255,0.96);}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:16px;color:var(--text-primary);white-space:nowrap;}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--primary);}
+  .global-left{display:flex;align-items:center;gap:16px;}
+
+  .sync-badge{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 8px;border-radius:9999px;
+    font-size:13px;font-weight:600;border:1px solid var(--green-border);background:var(--green-bg);color:var(--green-text);}
+  .sync-badge .lock-icon{width:20px;height:20px;border-radius:50%;background:var(--primary);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;flex:none;}
+  .sync-badge .detail-btn{border:1px solid var(--green-border);background:#fff;color:var(--green-text);
+    font-size:12px;font-weight:600;padding:3px 10px;border-radius:9999px;cursor:pointer;}
+  .sync-saved{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;}
+  .sync-saved .dot{width:6px;height:6px;border-radius:50%;background:var(--primary);}
+
+  .global-actions{display:flex;align-items:center;gap:8px;}
+  .util-btn{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:var(--radius-md);
+    font-size:13px;font-weight:600;border:1px solid var(--border-color);background:#fff;color:var(--text-secondary);cursor:pointer;}
+  .util-btn.print{background:var(--blue-bg);border-color:var(--blue-border);color:var(--blue-text);}
+  .util-btn.account{background:var(--text-primary);border-color:var(--text-primary);color:#f8fafc;}
+
+  /* ROW 2 — zone tabs */
+  .row-zones{display:flex;gap:4px;padding:0 16px;background:var(--bg-hover);overflow-x:auto;}
+  .zone-btn{position:relative;padding:12px 16px;font-size:14px;font-weight:600;color:var(--text-secondary);
+    background:transparent;border:none;cursor:pointer;white-space:nowrap;}
+  .zone-btn.is-active{color:var(--text-primary);}
+  .zone-btn.is-active::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--primary);}
+  .zone-btn .data-label{font-weight:600;}
+
+  /* ROW 3 — segment pills, dense Classroom row showing scroll-fade fix */
+  .row-segments{position:relative;padding:10px 16px;border-top:1px solid var(--border-color);}
+  .segments-scroll{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;}
+  .segments-scroll::-webkit-scrollbar{display:none;}
+  .segment-pill{flex:none;padding:8px 14px;border-radius:9999px;font-size:13px;font-weight:600;
+    white-space:nowrap;cursor:pointer;border:1px solid var(--border-color);
+    background:linear-gradient(180deg,#ffffff,#eef2f6);color:var(--text-secondary);}
+  .segment-pill.is-active{background:linear-gradient(180deg,#22d6a8,#12a37f);border-color:transparent;color:#fff;}
+  .fade-edge{position:absolute;top:10px;bottom:10px;right:16px;width:36px;
+    background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.95));pointer-events:none;}
+
+  /* content: classroom attendance sample */
+  .content-card{margin-top:16px;background:var(--bg-card);border:1px solid var(--border-color);
+    border-radius:var(--radius-card);overflow:hidden;}
+  .module-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
+    border-bottom:1px solid var(--toolbar-border);}
+  .toolbar-actions{display:flex;align-items:center;gap:10px;}
+  .btn-outline{height:32px;padding:0 12px;border-radius:var(--radius-md);border:1px solid var(--border-color);
+    background:#fff;color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;}
+  .save-status{font-size:13px;color:var(--text-muted);}
+  table.sheet{width:100%;border-collapse:collapse;font-size:14px;}
+  table.sheet th{text-align:left;padding:10px 16px;font-size:12px;color:var(--text-muted);
+    border-bottom:1px solid var(--border-color);font-weight:600;}
+  table.sheet td{padding:10px 16px;border-bottom:1px solid var(--border-color);}
+  .student-name{font-weight:600;}
+  .student-name .ko{color:var(--text-muted);font-weight:400;font-size:13px;margin-left:6px;}
+  .att-pill{display:inline-block;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;
+    background:var(--accent-muted);color:var(--primary-dark);}
+
+  /* callouts */
+  .callouts{margin-top:28px;}
+  .callouts h2{font-size:16px;font-weight:600;margin:0 0 12px;}
+  .callout{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--border-color);}
+  .callout:first-of-type{border-top:none;}
+  .callout .num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px;}
+  .callout .txt{font-size:14px;color:var(--text-secondary);line-height:1.5;}
+  .callout .txt b{color:var(--text-primary);}
+  code{background:var(--bg-hover);padding:1px 5px;border-radius:4px;font-size:12.5px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .legend-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:9999px;font-size:12px;font-weight:600;}
+  .legend-chip.free{background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;}
+  .legend-chip.held{background:var(--green-bg);color:var(--green-text);border:1px solid var(--green-border);}
+  .legend-chip.blocked{background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-border);}
+  .legend-chip.pending{background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-border);}
+  .legend-chip.waiting{background:var(--amber-bg);color:var(--amber-text);border:1.5px dashed var(--amber-border);}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="app-shell">
+    <div class="header-card">
+
+      <div class="row-global">
+        <div class="global-left">
+          <div class="brand"><span class="dot"></span>ClassManager</div>
+          <div class="sync-badge">
+            <span class="lock-icon">&#128274;</span>
+            Editing &middot; Nathan
+            <button class="detail-btn">Details</button>
+          </div>
+          <span class="sync-saved"><span class="dot"></span>All changes saved</span>
+        </div>
+        <div class="global-actions">
+          <button class="util-btn print">Print</button>
+          <button class="util-btn">EN</button>
+          <button class="util-btn">Theme</button>
+          <button class="util-btn">Help</button>
+          <button class="util-btn account">Account</button>
+        </div>
+      </div>
+
+      <div class="row-zones">
+        <button class="zone-btn">Schedule</button>
+        <button class="zone-btn">Class Setup</button>
+        <button class="zone-btn is-active">Classroom</button>
+        <button class="zone-btn">Tools</button>
+        <button class="zone-btn"><span class="data-label">Data</span></button>
+      </div>
+
+      <div class="row-segments">
+        <div class="segments-scroll">
+          <button class="segment-pill">Briefing</button>
+          <button class="segment-pill is-active">Students</button>
+          <button class="segment-pill">Attendance</button>
+          <button class="segment-pill">Ledger</button>
+          <button class="segment-pill">Homework</button>
+          <button class="segment-pill">Points</button>
+          <button class="segment-pill">Tests</button>
+          <button class="segment-pill">Notes</button>
+        </div>
+        <div class="fade-edge"></div>
+      </div>
+
+    </div>
+
+    <div class="content-card">
+      <div class="module-toolbar">
+        <button class="btn-outline">Mark all present</button>
+        <div class="toolbar-actions">
+          <span class="save-status">Saved</span>
+          <button class="btn-outline">Save now</button>
+        </div>
+      </div>
+      <table class="sheet">
+        <thead><tr><th>Student</th><th>Attendance</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td class="student-name">Min-jun Kim<span class="ko">김민준</span></td><td><span class="att-pill">Present</span></td><td>&mdash;</td></tr>
+          <tr><td class="student-name">Seo-yeon Park<span class="ko">박서연</span></td><td><span class="att-pill">Present</span></td><td>&mdash;</td></tr>
+          <tr><td class="student-name">Do-yoon Lee<span class="ko">이도윤</span></td><td><span class="att-pill">Present</span></td><td>Late 10 min</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="callouts">
+    <h2>What changed</h2>
+
+    <div class="callout">
+      <div class="num">1</div>
+      <div class="txt"><b>Homework ID collision fixed.</b> Not visible on screen &mdash; the Classroom segment's underlying <code>data-segment</code> now reads <code>homework-tracking</code> instead of reusing <code>homework</code>, matching Schedule &rarr; Homework copy's own id. Labels stay as-is: "Homework copy" (Schedule) and "Homework" (Classroom).</div>
+    </div>
+    <div class="callout">
+      <div class="num">2</div>
+      <div class="txt"><b>Tools &rarr; Books renamed to "Debate Books."</b> Matches the naming pattern its siblings already use (Debate Teams, Debate Scores), so it no longer collides in meaning with Class Setup &rarr; Books.</div>
+    </div>
+    <div class="callout">
+      <div class="num">3</div>
+      <div class="txt"><b>"Waiting" lock/sync state now has a defined treatment.</b> Amber like Pending, but with a dashed border so teachers can tell "someone's waiting to edit" apart from "an action is pending" at a glance. Legend below.</div>
+      <div></div>
+    </div>
+    <div class="callout">
+      <div class="num">4</div>
+      <div class="txt"><b>Classroom's 8-segment row shown with its scroll-fade cue.</b> This is the densest row in the app and the one most likely to crowd out on narrow screens with Korean labels &mdash; the fade at the right edge signals there's more to scroll to.</div>
+    </div>
+    <div class="callout">
+      <div class="num">5</div>
+      <div class="txt"><b>Command Center left out of the tab row</b> (still hidden/dev-preview) so the mockup doesn't imply a reachable path where the canonical-homes table's "links out" note doesn't currently apply.</div>
+    </div>
+    <div class="callout">
+      <div class="num">6</div>
+      <div class="txt"><b>Global functions moved to the very top row.</b> Sync/lock status, print, language, theme, help and account now live in Row&nbsp;1, above the zone tabs, instead of the lock/sync bar sitting in a separate sticky strip below the header card. Sync affects every zone's data, not just the one you're currently looking at, so it now reads as shell-level chrome rather than page-content chrome. It also means it survives when a teacher scrolls zone tabs on mobile &mdash; it's anchored above them, not competing with them for space.</div>
+    </div>
+
+    <h2 style="margin-top:24px;">Lock/sync state legend (fix 3)</h2>
+    <div class="legend">
+      <span class="legend-chip free">Free</span>
+      <span class="legend-chip held">Held</span>
+      <span class="legend-chip blocked">Blocked</span>
+      <span class="legend-chip pending">Pending</span>
+      <span class="legend-chip waiting">Waiting</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

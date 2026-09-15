@@ -1381,7 +1381,7 @@
     }
 
     /**
-     * Compact speaking-duties text: ROLE (Name) - rebut, present in speaking order.
+     * Compact speaking-duties text: Name - ROLE - rebut, present in speaking order.
      * Always lists every speaker; appends duty text when Present/Rebut are non-empty.
      */
     function formatSpeakingDutiesBlock(sessionState) {
@@ -1433,8 +1433,14 @@
                 return;
             }
             speakers.forEach((s) => {
-                const rolePart = s.roleAbbr ? s.roleAbbr + ' (' + s.name + ')' : s.name;
-                text += s.duties ? rolePart + ' - ' + s.duties + '\n' : rolePart + '\n';
+                let line = String(s.name || '').trim();
+                if (s.roleAbbr) {
+                    line += ' - ' + s.roleAbbr;
+                }
+                if (s.duties) {
+                    line += ' - ' + s.duties;
+                }
+                text += line + '\n';
             });
             text += '\n';
         });
@@ -1442,7 +1448,7 @@
     }
 
     /**
-     * Compact speaking-duties paste for students: ROLE (Name) - rebut, present
+     * Compact speaking-duties paste for students: Name - ROLE - rebut, present
      * in speaking order. Used by Copy duties after Present/Rebut are filled.
      */
     function copySpeakingDuties() {

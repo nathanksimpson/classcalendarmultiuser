@@ -36,6 +36,10 @@
     let cohortComboboxHighlight = -1;
     let cohortComboboxEventsBound = false;
     let rosterLanguageBound = false;
+    /** Abort previous Ctrl+Enter binding so renders do not stack keydown listeners on #classroomRosterEditor. */
+    let editorKeyAbort = null;
+    /** Prevent overlapping saveStudent from click + shortcut (or stacked keydowns). */
+    let saveStudentInFlight = false;
 
     function cleanTmsSyncCohortName(name) {
         const stripped = String(name || '')
@@ -4327,7 +4331,8 @@
             </section>
             <div class="form-actions classroom-student-actions classroom-roster-student-actions">
             ${student ? `<button type="button" class="btn btn-outline" id="classroomStudentPrintTermSummary">${escapeHtml(t('termSummaryPrintStudent'))}</button>` : ''}
-            ${editable && !inArchive ? `<button type="button" class="btn btn-primary btn-small" id="classroomStudentSave">${escapeHtml(t('save'))}</button>` : ''}
+            ${editable && !inArchive ? `<button type="button" class="btn btn-primary btn-small" id="classroomStudentSave" title="${escapeHtml(t('classroomStudentSaveShortcutHint') || 'Ctrl+Enter')}">${escapeHtml(t('save'))}</button>` : ''}
+            ${editable && !student && !inArchive ? `<p class="section-hint classroom-roster-save-hint">${escapeHtml(t('classroomStudentAddSaveHint') || 'Save adds the student and clears the form (Ctrl+Enter).')}</p>` : ''}
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentMove">${escapeHtml(t('studentMoveBtn'))}</button>` : ''}
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentStatus">${escapeHtml(t('studentBulkStatusBtn'))}</button>` : ''}
             ${editable && student && !inArchive ? `<button type="button" class="btn btn-outline" id="classroomStudentDeactivate">${escapeHtml(student.active ? t('classroomDeactivateStudent') : t('classroomActivateStudent'))}</button>` : ''}
@@ -4344,7 +4349,29 @@
             editor.querySelector('#classroomStudentName')?.focus();
         }
 
-        editor.querySelector('#classroomStudentSave')?.addEventListener('click', () => saveStudent(mountEl));
+        editor.querySelector('#classroomStudentSave')?.addEventListener('click', () => void saveStudent(mountEl));
+        editorKeyAbort?.abort();
+        editorKeyAbort = null;
+        if (cohort && editable && !inArchive) {
+            editorKeyAbort = new AbortController();
+            editor.addEventListener(
+                'keydown',
+                (e) => {
+                    if (e.repeat) {
+                        return;
+                    }
+                    if (!(e.ctrlKey || e.metaKey) || e.key !== 'Enter') {
+                        return;
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const panel = document.getElementById('panel-students');
+                    const host = panel || mountEl.closest('#panel-students') || mountEl;
+                    void saveStudent(host);
+                },
+                { signal: editorKeyAbort.signal }
+            );
+        }
         editor.querySelector('#classroomStudentPrintTermSummary')?.addEventListener('click', () => {
             if (student && hooks && typeof hooks.printStudentTermSummary === 'function') {
                 hooks.printStudentTermSummary(student.id);
@@ -4382,15 +4409,72 @@
         return cohorts;
     }
 
+    function findNameConflicts(cohort, form, excludeStudentId) {
+        const d = domain();
+        if (!d || !cohort || !form) {
+            return [];
+        }
+        const key = d.koreanMatchKey ? d.koreanMatchKey(form.name) : String(form.name || '').trim();
+        const en = String(form.nameEn || '')
+            .trim()
+            .toLowerCase();
+        const students = d.normalizeCohortStudents(cohort).filter((s) => s && s.active !== false);
+        return students.filter((s) => {
+            if (excludeStudentId && s.id === excludeStudentId) {
+                return false;
+            }
+            if (key && d.koreanMatchKey && d.koreanMatchKey(s.name) === key) {
+                return true;
+            }
+            if (en && String(s.nameEn || '').trim().toLowerCase() === en) {
+                return true;
+            }
+            return false;
+        });
+    }
+
+    function formatConflictNames(conflicts) {
+        return conflicts
+            .map((s) => {
+                const ko = String(s.name || '').trim();
+                const en = String(s.nameEn || '').trim();
+                if (ko && en) {
+                    return `${ko} (${en})`;
+                }
+                return ko || en || s.id;
+            })
+            .filter(Boolean)
+            .join(', ');
+    }
+
     async function saveStudent(mountEl) {
+        if (saveStudentInFlight) {
+            return;
+        }
         const form = getStudentFromForm();
         if (!form.name) {
             hooks.showToast(t('classroomStudentNameRequired'), true);
             return;
         }
+        const wasNew = !selectedStudentId;
         const d = domain();
-        const cohorts = applyStudentToCohort((cohort) => {
-            let students = d.normalizeCohortStudents(cohort);
+        const cohort = getSelectedCohort();
+        if (wasNew && cohort) {
+            const conflicts = findNameConflicts(cohort, form, null);
+            if (conflicts.length) {
+                const msg = (t('classroomStudentDuplicateConfirm') ||
+                    'A similar name is already in this cohort: {names}. Add another student anyway?').replace(
+                    '{names}',
+                    formatConflictNames(conflicts)
+                );
+                if (!window.confirm(msg)) {
+                    return;
+                }
+            }
+        }
+        saveStudentInFlight = true;
+        const cohorts = applyStudentToCohort((c) => {
+            let students = d.normalizeCohortStudents(c);
             if (selectedStudentId) {
                 students = students.map((s) => {
                     if (s.id !== selectedStudentId) {
@@ -4406,16 +4490,28 @@
                         sortOrder: students.length
                     })
                 );
-                selectedStudentId = id;
             }
-            cohort.students = d.normalizeCohortStudents({ students });
+            c.students = d.normalizeCohortStudents({ students });
         });
         try {
             await saveCohorts(cohorts);
             hooks.showToast(t('saved'));
-            render(mountEl.closest('#panel-students') || mountEl.parentElement);
+            if (wasNew) {
+                // Stay in Add mode with a blank form so the next student can be entered right away.
+                selectedStudentId = null;
+            }
+            const panel =
+                (mountEl && mountEl.closest && mountEl.closest('#panel-students')) ||
+                mountEl?.parentElement ||
+                document.getElementById('panel-students');
+            render(panel);
+            if (wasNew) {
+                panel?.querySelector('#classroomStudentName')?.focus();
+            }
         } catch (err) {
             hooks.showToast(err.message || String(err), true);
+        } finally {
+            saveStudentInFlight = false;
         }
     }
 

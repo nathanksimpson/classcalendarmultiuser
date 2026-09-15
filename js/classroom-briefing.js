@@ -1094,13 +1094,17 @@
     }
 
     function flagLabel(flag) {
+        if (flag && flag.type === 'homework' && flag.label) {
+            return flag.label;
+        }
         const typeMap = {
             quit: t('briefingFlagQuit', 'Left'),
             break: t('briefingFlagBreak', 'On break'),
             attendance: t('briefingFlagAttendance', 'Absent'),
             ending_soon: t('briefingFlagEndingSoon', 'Ending soon'),
             starting_soon: t('briefingFlagStartingSoon', 'Starting soon'),
-            tms_attendance: t('briefingFlagAttendance', 'Absent')
+            tms_attendance: t('briefingFlagAttendance', 'Absent'),
+            homework: t('briefingFlagHomework', 'Homework')
         };
         return typeMap[flag.type] || flag.label || flag.type;
     }
@@ -1113,6 +1117,81 @@
             return 'briefing-flag--warning';
         }
         return 'briefing-flag--info';
+    }
+
+    function homeworkFlagForStudent(studentId) {
+        const d = domain();
+        if (!d || !d.countRecentHomeworkMisses || !classId || !studentId) {
+            return null;
+        }
+        const threshold = d.HOMEWORK_CHRONIC_SKIP_THRESHOLD || 3;
+        const missCount = d.countRecentHomeworkMisses(
+            getAppData().homeworkCompletions,
+            studentId,
+            classId,
+            d.todayISO ? d.todayISO() : ''
+        );
+        if (missCount < threshold) {
+            return null;
+        }
+        return {
+            type: 'homework',
+            severity: 'warning',
+            label: t('briefingFlagHomeworkCount', 'Missed {n} (last 30 days)').replace(
+                '{n}',
+                String(missCount)
+            ),
+            date: '',
+            source: 'homeworkCompletions',
+            missCount
+        };
+    }
+
+    function mergeHomeworkWatchFlags(profiles) {
+        const list = Array.isArray(profiles) ? profiles.slice() : [];
+        const seen = new Set();
+        list.forEach((profile) => {
+            if (!profile || !profile.studentId) {
+                return;
+            }
+            seen.add(String(profile.studentId));
+            const flags = Array.isArray(profile.watchFlags)
+                ? profile.watchFlags.filter((f) => f && f.type !== 'homework')
+                : [];
+            const flag = homeworkFlagForStudent(profile.studentId);
+            if (flag) {
+                flags.push(flag);
+            }
+            profile.watchFlags = flags;
+        });
+        const d = domain();
+        if (!d || !d.listHomeworkChronicSkippers || !classId) {
+            return list;
+        }
+        const skippers = d.listHomeworkChronicSkippers(
+            getAppData(),
+            classId,
+            d.todayISO ? d.todayISO() : ''
+        );
+        skippers.forEach((skipper) => {
+            if (!skipper || seen.has(String(skipper.studentId))) {
+                return;
+            }
+            const flag = homeworkFlagForStudent(skipper.studentId);
+            if (!flag) {
+                return;
+            }
+            list.push({
+                studentId: skipper.studentId,
+                name: skipper.name || '',
+                nameEn: skipper.nameEn || '',
+                watchFlags: [flag],
+                notes: [],
+                attendanceRecords: []
+            });
+            seen.add(String(skipper.studentId));
+        });
+        return list;
     }
 
     function renderWatchList(studentProfiles) {
@@ -1283,12 +1362,13 @@
         if (!mount) {
             return;
         }
-        if (!studentProfiles || !studentProfiles.length) {
+        const profiles = mergeHomeworkWatchFlags(studentProfiles);
+        if (!profiles || !profiles.length) {
             renderEmptyRoster();
             return;
         }
-        const watchHtml = renderWatchList(studentProfiles);
-        const cards = studentProfiles.map(renderStudentCard).join('');
+        const watchHtml = renderWatchList(profiles);
+        const cards = profiles.map(renderStudentCard).join('');
         mount.innerHTML = `${watchHtml}<div class="briefing-cards">${cards}</div>`;
     }
 
@@ -1390,6 +1470,11 @@
         }
         if (!students.length) {
             renderEmptyRoster();
+            return;
+        }
+        const homeworkOnly = mergeHomeworkWatchFlags([]);
+        if (homeworkOnly.length) {
+            renderAll([]);
             return;
         }
         mount.innerHTML = `<p class="section-hint">${esc(t('briefingIdleHint', 'Sync TMS once to load counseling notes and attendance for all classes.'))}</p>`;
