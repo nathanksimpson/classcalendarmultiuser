@@ -6325,12 +6325,65 @@ function normalizeEvent(raw) {
         linkedClassId: raw.linkedClassId || '',
         syllabusUnitId: raw.syllabusUnitId || '',
         nameKo: raw.nameKo ? String(raw.nameKo).trim() : '',
-        nameEn: raw.nameEn ? String(raw.nameEn).trim() : ''
+        nameEn: raw.nameEn ? String(raw.nameEn).trim() : '',
+        notifyOnStart: raw.notifyOnStart === true,
+        notifyOnEnd: isRange && raw.notifyOnEnd === true
     };
     if (accentColor) {
         event.accentColor = accentColor;
     }
     return event;
+}
+
+/**
+ * Build in-app bell items for events that opted into day notifications matching `todayISO`.
+ * Pure helper (mirrored in tests/event-day-notify.test.mjs).
+ * @returns {{ id: string, kind: 'start'|'end', event: object, date: string }[]}
+ */
+function collectEventDayNotifyMatches(events, todayISO) {
+    const today = typeof todayISO === 'string' ? todayISO.trim() : '';
+    if (!today) {
+        return [];
+    }
+    const out = [];
+    (Array.isArray(events) ? events : []).forEach((raw) => {
+        if (!raw || !raw.id) {
+            return;
+        }
+        const notifyOnStart = raw.notifyOnStart === true;
+        const isRange = raw.isRange === true;
+        const notifyOnEnd = isRange && raw.notifyOnEnd === true;
+        if (!notifyOnStart && !notifyOnEnd) {
+            return;
+        }
+        const startDate = isRange
+            ? (raw.startDate || '')
+            : (raw.date || '');
+        const endDate = isRange ? (raw.endDate || '') : '';
+        let emittedStart = false;
+        if (notifyOnStart && startDate === today) {
+            out.push({
+                id: `event-notify:${raw.id}:start:${today}`,
+                kind: 'start',
+                event: raw,
+                date: today
+            });
+            emittedStart = true;
+        }
+        if (notifyOnEnd && endDate === today) {
+            // Same calendar day as start (degenerate range): one item only.
+            if (emittedStart && startDate === endDate) {
+                return;
+            }
+            out.push({
+                id: `event-notify:${raw.id}:end:${today}`,
+                kind: 'end',
+                event: raw,
+                date: today
+            });
+        }
+    });
+    return out;
 }
 
 function holidayFromEvent(ev) {
@@ -14903,6 +14956,10 @@ function refreshMountedFormElementRefs() {
     elements.holidayDateRange = document.getElementById('holidayDateRange');
     elements.holidayStartDate = document.getElementById('holidayStartDate');
     elements.holidayEndDate = document.getElementById('holidayEndDate');
+    elements.eventNotifyOnStart = document.getElementById('eventNotifyOnStart');
+    elements.eventNotifyOnEnd = document.getElementById('eventNotifyOnEnd');
+    elements.eventNotifyOnStartLabel = document.getElementById('eventNotifyOnStartLabel');
+    elements.eventNotifyOnEndRow = document.getElementById('eventNotifyOnEndRow');
     elements.holidayAccentColor = document.getElementById('holidayAccentColor');
     elements.holidayBgColor = document.getElementById('holidayBgColor');
     elements.holidayTextColor = document.getElementById('holidayTextColor');
@@ -23967,6 +24024,10 @@ const elements = {
     holidayDateRange: document.getElementById('holidayDateRange'),
     holidayStartDate: document.getElementById('holidayStartDate'),
     holidayEndDate: document.getElementById('holidayEndDate'),
+    eventNotifyOnStart: document.getElementById('eventNotifyOnStart'),
+    eventNotifyOnEnd: document.getElementById('eventNotifyOnEnd'),
+    eventNotifyOnStartLabel: document.getElementById('eventNotifyOnStartLabel'),
+    eventNotifyOnEndRow: document.getElementById('eventNotifyOnEndRow'),
     holidayAccentColor: document.getElementById('holidayAccentColor'),
     holidayBgColor: document.getElementById('holidayBgColor'),
     holidayTextColor: document.getElementById('holidayTextColor'),
@@ -25192,6 +25253,7 @@ function setupEventListeners() {
             }
             syncHolidayRangeEndFromStart();
         }
+        syncEventNotifyUi(isRange);
     });
 
     if (elements.holidayStartDate) {
@@ -27838,8 +27900,29 @@ function applyEventTypeDefaultColors() {
         elements.holidaySingleDate.style.display = 'none';
         elements.holidayDateRange.style.display = 'grid';
         syncHolidayRangeEndFromStart();
+        syncEventNotifyUi(true);
     }
     syncEventTypeHint();
+}
+
+/** Show start/end notify checkboxes and labels for single-day vs range. */
+function syncEventNotifyUi(isRange) {
+    const range = isRange === true;
+    if (elements.eventNotifyOnEndRow) {
+        elements.eventNotifyOnEndRow.style.display = range ? '' : 'none';
+    }
+    if (elements.eventNotifyOnStartLabel) {
+        elements.eventNotifyOnStartLabel.setAttribute(
+            'data-i18n',
+            range ? 'eventNotifyOnStart' : 'eventNotifyOnDay'
+        );
+        elements.eventNotifyOnStartLabel.textContent = t(
+            range ? 'eventNotifyOnStart' : 'eventNotifyOnDay'
+        );
+    }
+    if (!range && elements.eventNotifyOnEnd) {
+        elements.eventNotifyOnEnd.checked = false;
+    }
 }
 
 function populateClassForm(classData = null, options = {}) {
@@ -28119,6 +28202,14 @@ function populateHolidayForm(holidayData = null, options = {}) {
             elements.holidayStartDate.value = '';
             elements.holidayEndDate.value = '';
         }
+
+        if (elements.eventNotifyOnStart) {
+            elements.eventNotifyOnStart.checked = holidayData.notifyOnStart === true;
+        }
+        if (elements.eventNotifyOnEnd) {
+            elements.eventNotifyOnEnd.checked = isRange && holidayData.notifyOnEnd === true;
+        }
+        syncEventNotifyUi(isRange);
         
         // Handle colors
         const accent = resolveEventAccentColor(holidayData);
@@ -28153,6 +28244,13 @@ function populateHolidayForm(holidayData = null, options = {}) {
         elements.holidaySingleDate.style.display = 'block';
         elements.holidayDateRange.style.display = 'none';
         elements.holidayAllClasses.checked = true;
+        if (elements.eventNotifyOnStart) {
+            elements.eventNotifyOnStart.checked = false;
+        }
+        if (elements.eventNotifyOnEnd) {
+            elements.eventNotifyOnEnd.checked = false;
+        }
+        syncEventNotifyUi(false);
         eventApplicabilityDraft = createEmptyEventApplicability();
         syncDeleteHolidayButtonVisibility(false);
         applyEventTypeDefaultColors();
@@ -28864,7 +28962,9 @@ function handleHolidaySubmit(e) {
         excludedClassIds,
         sectionLevels,
         allElementary,
-        allMiddleSchool
+        allMiddleSchool,
+        notifyOnStart: !!(elements.eventNotifyOnStart && elements.eventNotifyOnStart.checked),
+        notifyOnEnd: isRange && !!(elements.eventNotifyOnEnd && elements.eventNotifyOnEnd.checked)
     };
     if (existingEv && existingEv.nameKo && existingEv.nameEn) {
         savePayload.nameKo = existingEv.nameKo;
@@ -35632,6 +35732,20 @@ function getUiInboxWarningsForBell() {
             });
         }
     }
+
+    const todayISO = formatDateISO(new Date());
+    collectEventDayNotifyMatches(appData.events || [], todayISO).forEach((match) => {
+        const name = getEventDisplayName(match.event) || (match.event && match.event.name) || '';
+        warnings.push({
+            id: match.id,
+            tabId: 'events',
+            severity: 'info',
+            messageKey: match.kind === 'end' ? 'eventNotifyEndsToday' : 'eventNotifyStartsToday',
+            params: { name },
+            actionLabelKey: 'eventNotifyInboxAction',
+            navigate: { type: 'event_notify', eventId: match.event.id }
+        });
+    });
 
     if (
         typeof CCPClassroomDomain !== 'undefined' &&
